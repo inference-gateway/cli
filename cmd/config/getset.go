@@ -28,7 +28,7 @@ and INFER_* environment overrides.
 
 Keys are dotted paths into config.yaml:
   infer config get agent.model
-  infer config get tools.sandbox.directories
+  infer config get tools.bash.enabled
   infer config get tools.bash
   infer config get                      # dump the whole effective config`,
 		Args: cobra.MaximumNArgs(1),
@@ -49,7 +49,7 @@ Keys are dotted paths into config.yaml. The value is parsed to the field's type
   infer config set agent.model openai/gpt-4o
   infer config set tools.bash.enabled true
   infer config set agent.max_turns 50
-  infer config set tools.sandbox.directories ".,/tmp,/data"
+  infer config set agent.max_tokens 8192
 
 By default the userspace ~/.infer/config.yaml baseline is updated; pass --project
 to write a sparse override into the project .infer/config.yaml instead.`,

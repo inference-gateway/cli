@@ -13,6 +13,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // resolveViperEnvironmentVariables applies INFER_* overrides to cfg after
@@ -309,6 +311,12 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	cfg.Judge = *judgeCfg
 	applySidecarEnv(&cfg.Judge, "judge")
 
+	sandboxCfg, err := loadSandboxConfig()
+	if err != nil {
+		return nil, err
+	}
+	cfg.Tools.Sandbox = *sandboxCfg
+
 	channelsPath := sidecarPath(config.ChannelsFileName)
 	channelsCfg, err := config.LoadChannels(channelsPath)
 	if err != nil {
@@ -523,4 +531,28 @@ func sameConfigFile(a, b string) bool {
 		return filepath.Clean(a) == filepath.Clean(b)
 	}
 	return aAbs == bAbs
+}
+
+// loadSandboxConfig reads the userspace sandbox.yaml. A project copy is
+// never consulted, so a repository cannot widen the sandbox of whoever opens
+// it. INFER_TOOLS_SANDBOX_DIRECTORIES adds allowed directories, with bare
+// relative entries anchored to the cwd. A broken policy fails the load.
+func loadSandboxConfig() (*config.SandboxConfig, error) {
+	path, err := config.UserSandboxPath()
+	if err != nil {
+		return nil, err
+	}
+	sandboxCfg, err := config.LoadSandbox(path)
+	if err != nil {
+		return nil, fmt.Errorf("loading sandbox policy %s: %w", path, err)
+	}
+	if extra := parseDelimitedList(os.Getenv("INFER_TOOLS_SANDBOX_DIRECTORIES")); len(extra) > 0 {
+		for i, dir := range extra {
+			if !sandbox.IsAnchored(dir) {
+				extra[i] = "./" + dir
+			}
+		}
+		sandboxCfg.Filesystem.Allowed = append(sandboxCfg.Filesystem.Allowed, sandboxdomain.Allow(extra...)...)
+	}
+	return sandboxCfg, nil
 }

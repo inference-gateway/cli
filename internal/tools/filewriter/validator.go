@@ -8,6 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // DefaultPathValidator validates file paths for security and accessibility
@@ -41,7 +42,7 @@ func (v *DefaultPathValidator) Validate(path string) error {
 		return fmt.Errorf("path contains null bytes: %s", path)
 	}
 
-	if err := v.config.ValidatePathInSandboxWrite(absPath); err != nil {
+	if err := sandbox.ValidateWrite(v.config, absPath); err != nil {
 		return err
 	}
 
@@ -95,14 +96,14 @@ func (v *DefaultPathValidator) IsWritable(path string) bool {
 	return true
 }
 
-// IsInSandbox checks if a path is within configured sandbox directories
+// IsInSandbox reports whether the sandbox lets a tool read path.
 func (v *DefaultPathValidator) IsInSandbox(path string) bool {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false
 	}
 
-	return v.config.ValidatePathInSandbox(absPath) == nil
+	return sandbox.ValidateRead(v.config, absPath) == nil
 }
 
 // canCreatePath checks if we can create a directory path

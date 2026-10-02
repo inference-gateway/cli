@@ -105,7 +105,7 @@ func (a *EventDrivenAgent) startStreaming() {
 // the real cause, which ends the turn.
 func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
 	a.finishReason = ""
-	requestCtx, requestCancel := context.WithTimeout(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
+	requestCtx, gotChunk, requestCancel := withFirstChunkDeadline(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
 
 	requestCtx, turnSpan := a.service.recorder.StartLLMTurnSpan(requestCtx, a.req.Model)
@@ -119,6 +119,9 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 			a.failStream(rateLimitMessage(a.provider, rateLimit, time.Now()))
 			return false
 		}
+		if errors.Is(context.Cause(requestCtx), context.DeadlineExceeded) {
+			err = a.firstChunkTimeout()
+		}
 		logger.Error("failed to create stream",
 			"error", err,
 			"turn", a.agentCtx.Turns,
@@ -129,8 +132,25 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 		return false
 	}
 
-	broken := a.processStreamEvents(requestCtx, events, iterationStartTime)
+	broken := a.processStreamEvents(requestCtx, events, iterationStartTime, gotChunk)
 	return broken
+}
+
+// firstChunkTimeout names the setting to raise when no chunk arrived in time.
+func (a *EventDrivenAgent) firstChunkTimeout() error {
+	return fmt.Errorf("no response within %d seconds (gateway.timeout)", a.service.timeoutSeconds)
+}
+
+// withFirstChunkDeadline cancels ctx with context.DeadlineExceeded unless
+// gotChunk is called within timeout, so the timeout bounds the wait for a
+// response, never its length. The stall threshold guards it from then on.
+func withFirstChunkDeadline(parent context.Context, timeout time.Duration) (ctx context.Context, gotChunk, cancel func()) {
+	ctx, cancelCause := context.WithCancelCause(parent)
+	deadline := time.AfterFunc(timeout, func() { cancelCause(context.DeadlineExceeded) })
+	return ctx, func() { deadline.Stop() }, func() {
+		deadline.Stop()
+		cancelCause(nil)
+	}
 }
 
 // outboundConversation returns the request payload: the shared conversation
@@ -212,6 +232,7 @@ func (a *EventDrivenAgent) processStreamEvents(
 	requestCtx context.Context,
 	events <-chan sdk.SSEvent,
 	iterationStartTime time.Time,
+	gotChunk func(),
 ) bool {
 	var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
 	var message sdk.Message
@@ -244,6 +265,7 @@ func (a *EventDrivenAgent) processStreamEvents(
 				return false
 			}
 
+			gotChunk()
 			if stallTimer != nil {
 				stallTimer.Reset(stallAfter)
 			}
@@ -267,13 +289,13 @@ func (a *EventDrivenAgent) processStreamEvents(
 // then return silently - the main event loop owns the StateCancelled
 // transition via cancelChan.
 func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
-	if requestCtx.Err() == context.DeadlineExceeded {
-		logger.Error("stream timeout", "error", requestCtx.Err())
-		telemetry.SetSpanError(requestCtx, requestCtx.Err())
+	if cause := context.Cause(requestCtx); errors.Is(cause, context.DeadlineExceeded) {
+		logger.Error("stream timeout", "error", cause)
+		telemetry.SetSpanError(requestCtx, cause)
 		a.eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
 			RequestID: a.req.RequestID,
 			Timestamp: time.Now(),
-			Error:     fmt.Errorf("stream timed out after %d seconds", a.service.timeoutSeconds),
+			Error:     a.firstChunkTimeout(),
 		}
 		if err := a.stateMachine.Transition(a.agentCtx, states.StateError); err != nil {
 			logger.Error("failed to transition to Error state after stream failure", "error", err)

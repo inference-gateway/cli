@@ -2,52 +2,94 @@ package config
 
 import (
 	"fmt"
-	"regexp"
-	"slices"
-	"sync"
+	"os"
+	"path/filepath"
+
+	configutils "github.com/inference-gateway/cli/config/utils"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-// SandboxPathError is returned when a path is denied by the sandbox
-// allow-list, so callers can offer to extend the sandbox instead of just
-// failing the tool call.
-type SandboxPathError struct{ Path string }
+const SandboxFileName = "sandbox.yaml"
 
-func (e *SandboxPathError) Error() string {
-	return fmt.Sprintf("path '%s' is outside configured sandbox directories", e.Path)
+// SandboxConfig is the sandbox policy, one section per resource the tools
+// reach. It lives in the userspace sandbox.yaml alone, with no project copy,
+// so a checked-out repository can never widen the sandbox of whoever opens it.
+type SandboxConfig struct {
+	Filesystem FilesystemPolicy `yaml:"filesystem"`
 }
 
-// Runtime sandbox grants: directories the user approved after a denial.
-// ponytail: process-wide state like the port registry below it; fold into
-// Config if one process ever runs multiple configs.
-var (
-	sandboxGrantsMu sync.RWMutex
-	sandboxGrants   []string
-)
+// FilesystemPolicy is the paths tools may use and the paths they never may.
+// Outside allowed the user is asked.
+type FilesystemPolicy struct {
+	Allowed []sandboxdomain.Allowed `yaml:"allowed"`
+	Denied  []sandboxdomain.Denied  `yaml:"denied"`
+}
 
-// AddSandboxDirectory grants dir as an additional sandbox directory for the
-// rest of the process. Idempotent.
-func AddSandboxDirectory(dir string) {
-	sandboxGrantsMu.Lock()
-	defer sandboxGrantsMu.Unlock()
-	if !slices.Contains(sandboxGrants, dir) {
-		sandboxGrants = append(sandboxGrants, dir)
+// DefaultSandboxConfig allows the working directory and /tmp, asks before
+// any use of the config dirs, whose files can hold tokens, and denies git
+// metadata and the usual credential files.
+func DefaultSandboxConfig() *SandboxConfig {
+	denied := []sandboxdomain.Denied{{Path: ConfigDirName + "/", OnViolation: sandboxdomain.ViolationApproval}}
+	denied = append(denied, sandboxdomain.Deny(
+		".git/",
+		"*.env",
+		".environment",
+		"auth.yaml",
+		"*.key",
+		"*.pem",
+		"id_rsa",
+		"id_dsa",
+		"id_ecdsa",
+		"id_ed25519",
+	)...)
+	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: sandboxdomain.Allow(".", "/tmp"), Denied: denied}}
+}
+
+// Validate rejects an entry with no path or an unknown access or behaviour.
+func (c *SandboxConfig) Validate() error {
+	for i, entry := range c.Filesystem.Allowed {
+		switch {
+		case entry.Path == "":
+			return fmt.Errorf("sandbox allowed entry %d has no path", i)
+		case !entry.Access.Valid():
+			return fmt.Errorf("sandbox allowed %q: access %q must be read or write", entry.Path, entry.Access)
+		}
 	}
-}
-
-func grantedSandboxDirectories() []string {
-	sandboxGrantsMu.RLock()
-	defer sandboxGrantsMu.RUnlock()
-	return slices.Clone(sandboxGrants)
-}
-
-var sandboxDeniedRe = regexp.MustCompile(`path '(.+)' is outside configured sandbox directories`)
-
-// SandboxDeniedPath extracts the denied path from a SandboxPathError message
-// that has been flattened into a tool-result error string.
-func SandboxDeniedPath(msg string) (string, bool) {
-	m := sandboxDeniedRe.FindStringSubmatch(msg)
-	if m == nil {
-		return "", false
+	for i, entry := range c.Filesystem.Denied {
+		switch {
+		case entry.Path == "":
+			return fmt.Errorf("sandbox denied entry %d has no path", i)
+		case !entry.OnViolation.Valid():
+			return fmt.Errorf("sandbox denied %q: on_violation %q must be block or approval", entry.Path, entry.OnViolation)
+		}
 	}
-	return m[1], true
+	return nil
+}
+
+// LoadSandbox reads sandbox.yaml over the defaults, so a missing file or a
+// missing list keeps the default one. A list that is present replaces it.
+func LoadSandbox(path string) (*SandboxConfig, error) {
+	cfg, err := configutils.LoadYAMLMerged(path, "sandbox", DefaultSandboxConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// SaveSandbox writes the sandbox policy to disk, creating parent directories.
+func SaveSandbox(path string, cfg *SandboxConfig) error {
+	return configutils.SaveYAML(path, "sandbox", cfg)
+}
+
+// UserSandboxPath is ~/.infer/sandbox.yaml, the only file the policy is read
+// from. The file tools refuse to write it.
+func UserSandboxPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve home directory: %w", err)
+	}
+	return filepath.Join(home, ConfigDirName, SandboxFileName), nil
 }

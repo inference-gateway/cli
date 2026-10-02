@@ -26,6 +26,7 @@ import (
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
@@ -362,17 +363,14 @@ func (s *Agent) buildBashAllowInfo() string {
 		return ""
 	}
 
-	allow := s.config.BashAllowedCommands(mode)
+	allow := sandbox.BashAllowedCommands(s.config, mode)
 
 	header := "\n\nBASH ALLOW-LIST (" + mode.ModeKey() + " mode):\n"
 
-	for _, e := range allow {
-		switch strings.TrimSpace(e) {
-		case ".*", "^.*$", "^.*", ".*$", ".+", "^.+$", "^.+", ".+$":
-			return header + "This mode is unrestricted: any command runs via Bash without " +
-				"approval, including pipes, chains, redirects, and command substitution. " +
-				"Prefer one command per call for clear output, and never echo or publish a secret.\n"
-		}
+	if sandbox.IsUnrestricted(allow) {
+		return header + "This mode is unrestricted: any command runs via Bash without " +
+			"approval, including pipes, chains, redirects, and command substitution. " +
+			"Prefer one command per call for clear output, and never echo or publish a secret.\n"
 	}
 
 	if len(allow) == 0 {
@@ -839,29 +837,26 @@ func (s *Agent) buildA2AAgentInfo() string {
 	return s.a2aAgents()
 }
 
-// buildSandboxInfo creates dynamic sandbox information for the system prompt
+// buildSandboxInfo lists the configured sandbox policy for the system prompt.
+// Runtime grants are left out so the prompt stays byte-stable within a session.
 func (s *Agent) buildSandboxInfo() string {
-	sandboxDirs := s.config.GetSandboxDirectories()
-	protectedPaths := s.config.GetProtectedPaths()
+	policy := s.config.Tools.Sandbox
 
 	var sandboxInfo strings.Builder
 	sandboxInfo.WriteString("SANDBOX RESTRICTIONS:\n")
-
-	if len(sandboxDirs) > 0 {
-		sandboxInfo.WriteString("You are restricted to work within these allowed directories:\n")
-		for _, dir := range sandboxDirs {
-			fmt.Fprintf(&sandboxInfo, "- %s\n", dir)
-		}
-		sandboxInfo.WriteString("\n")
-	}
-
-	if len(protectedPaths) > 0 {
-		sandboxInfo.WriteString("You MUST NOT attempt to access these protected paths:\n")
-		for _, path := range protectedPaths {
-			fmt.Fprintf(&sandboxInfo, "- %s\n", path)
+	if len(policy.Filesystem.Allowed) > 0 {
+		sandboxInfo.WriteString("You may work within these allowed paths:\n")
+		for _, entry := range policy.Filesystem.Allowed {
+			fmt.Fprintf(&sandboxInfo, "- %s (%s)\n", entry.Path, entry.Access)
 		}
 	}
-
+	if len(policy.Filesystem.Denied) > 0 {
+		sandboxInfo.WriteString("You MUST NOT attempt to access these denied paths:\n")
+		for _, entry := range policy.Filesystem.Denied {
+			fmt.Fprintf(&sandboxInfo, "- %s\n", entry.Path)
+		}
+	}
+	sandboxInfo.WriteString("Anything else needs the user's approval.\n")
 	return sandboxInfo.String()
 }
 

@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -467,7 +468,7 @@ func (t *WaitTool) waitFile(ctx context.Context, args map[string]any) map[string
 		}
 	}
 
-	if err := t.config.ValidatePathInSandbox(absPath); err != nil {
+	if err := sandbox.ValidateRead(t.config, absPath); err != nil {
 		return map[string]any{
 			"condition": "file",
 			"reason":    "error",
@@ -595,9 +596,9 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 	}
 
 	mode, _ := agentdomain.AgentModeFromContext(ctx)
-	if !t.config.IsBashCommandAllowed(cmdStr, mode) {
+	if !sandbox.IsBashCommandAllowed(t.config, cmdStr, mode) {
 		errMsg := fmt.Sprintf("command not allowed by bash allow-list: %s", cmdStr)
-		if hint := t.config.BashCommandRejectionHint(cmdStr); hint != "" {
+		if hint := sandbox.BashCommandRejectionHint(t.config, cmdStr); hint != "" {
 			errMsg += " - " + hint
 		}
 		return map[string]any{

@@ -411,7 +411,7 @@ type ClipboardImageOptimizeConfig struct {
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
 	Enabled         bool                      `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox         SandboxConfig             `yaml:"sandbox" mapstructure:"sandbox"`
+	Sandbox         SandboxConfig             `yaml:"-" mapstructure:"-"`
 	Bash            BashToolConfig            `yaml:"bash" mapstructure:"bash"`
 	Read            ReadToolConfig            `yaml:"read" mapstructure:"read"`
 	Write           WriteToolConfig           `yaml:"write" mapstructure:"write"`
@@ -639,12 +639,6 @@ type BashModesConfig struct {
 	Plan     BashModeAllowConfig `yaml:"plan" mapstructure:"plan"`
 	Standard BashModeAllowConfig `yaml:"standard" mapstructure:"standard"`
 	Auto     BashModeAllowConfig `yaml:"auto" mapstructure:"auto"`
-}
-
-// SandboxConfig contains sandbox directory settings
-type SandboxConfig struct {
-	Directories    []string `yaml:"directories" mapstructure:"directories"`
-	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
 // Approval-behaviour values for SafetyConfig.ApprovalBehaviour - they select HOW a
@@ -1184,22 +1178,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled:        true,
 			MaxResultBytes: 250000,
-			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp"},
-				ProtectedPaths: []string{
-					ConfigDirName + "/",
-					".git/",
-					"*.env",
-					".environment",
-					"auth.yaml",
-					"*.key",
-					"*.pem",
-					"id_rsa",
-					"id_dsa",
-					"id_ecdsa",
-					"id_ed25519",
-				},
-			},
+			Sandbox:        *DefaultSandboxConfig(),
 			Bash: BashToolConfig{
 				Enabled: true,
 				Timeout: 120,
@@ -1263,7 +1242,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			WebFetch: WebFetchToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
-				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com", "agents.md"},
+				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com", "patch-diff.githubusercontent.com", "agents.md"},
 				Safety: FetchSafetyConfig{
 					MaxSize: 10485760,
 					Timeout: 30,
@@ -1681,14 +1660,6 @@ func (c *Config) GetTimeout() int {
 	return c.Gateway.Timeout
 }
 
-// GetSandboxDirectories returns only the configured directories, without
-// runtime grants (AddSandboxDirectory): it feeds the system prompt, which must
-// stay byte-stable within a session to keep the provider prompt cache warm.
-// Validation consults the grants separately.
-func (c *Config) GetSandboxDirectories() []string {
-	return c.Tools.Sandbox.Directories
-}
-
 // ResolveMemoryDir resolves the directory that holds the memory index
 // (MEMORY.md) and the fact-files. It honors an explicit Memory.Dir override
 // and otherwise defaults to the global userspace ~/.infer/memory. The store is
@@ -1703,10 +1674,6 @@ func (c *Config) ResolveMemoryDir() (string, error) {
 		return "", fmt.Errorf("resolve home dir: %w", err)
 	}
 	return filepath.Join(home, ConfigDirName, MemoryDirName), nil
-}
-
-func (c *Config) GetProtectedPaths() []string {
-	return c.Tools.Sandbox.ProtectedPaths
 }
 
 func (c *Config) GetTheme() string {
@@ -1793,91 +1760,6 @@ func InsightsDir() string {
 	return filepath.Join(home, ConfigDirName, InsightsDirName)
 }
 
-// isWithinInsightsDir reports whether absPath lives inside ~/.infer/insights, so
-// the agent can read a report back when asked to turn a suggestion into a skill.
-// Anchored to InsightsDir() rather than GetConfigDir(): the store is userspace
-// wherever config resolves from, and a config-relative check would only look at
-// ./.infer once a project supplies its own config.yaml.
-func isWithinInsightsDir(absPath string) bool {
-	return isWithinDir(absPath, InsightsDir())
-}
-
-// IsBashCommandAllowed (and the per-mode allow-list resolution) lives in
-// bash_allowedlist.go, alongside the shell-aware clean-command guard (redirection
-// stripping, compound-command splitting, command-substitution rejection) it
-// relies on.
-
-// ValidatePathInSandbox checks that a path and the file it resolves to through
-// symlinks are both inside the sandbox. Checking the target stops a link inside
-// the sandbox from reaching a file outside it.
-func (c *Config) ValidatePathInSandbox(path string) error {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-	if err := c.checkPathInSandbox(path, absPath); err != nil {
-		return err
-	}
-	if target := realPath(absPath); target != absPath {
-		return c.checkPathInSandbox(target, target)
-	}
-	return nil
-}
-
-// checkPathInSandbox checks one spelling of a path against the carve-outs, the
-// protected paths and the sandbox directories.
-func (c *Config) checkPathInSandbox(path, absPath string) error {
-
-	carveOut := (c.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
-		(c.Plugins.Enabled && c.isWithinPluginsDir(absPath)) ||
-		isWithinRuntimeDirs(absPath) ||
-		c.isWithinConfigSubdir(absPath, "plans", "projects.yaml") ||
-		isWithinInsightsDir(absPath) ||
-		isWithinMemoryDir(absPath, c.Memory) ||
-		isWithinGoLibDirs(absPath)
-
-	if err := c.checkProtectedPaths(path, carveOut); err != nil {
-		return err
-	}
-
-	if carveOut {
-		return nil
-	}
-
-	if len(c.Tools.Sandbox.Directories) == 0 {
-		return nil
-	}
-
-	for _, sandboxDir := range append(grantedSandboxDirectories(), c.Tools.Sandbox.Directories...) {
-		if isWithinDir(absPath, sandboxDir) {
-			return nil
-		}
-	}
-
-	return &SandboxPathError{Path: path}
-}
-
-// ValidatePathInSandboxWrite is like ValidatePathInSandbox but additionally
-// rejects paths inside read-only library directories (Go module cache, GOROOT
-// src). Write/Edit/Delete tools must call this instead of ValidatePathInSandbox
-// so the Go lib carve-out remains read-only.
-func (c *Config) ValidatePathInSandboxWrite(path string) error {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-	if c.isWithinCustomToolsDir(absPath) {
-		return fmt.Errorf("path '%s' is in a custom tools directory, which infer's file tools never edit", path)
-	}
-	if err := c.ValidatePathInSandbox(path); err != nil {
-		return err
-	}
-	if isWithinGoLibDirs(realPath(absPath)) {
-		return fmt.Errorf("path '%s' is in a read-only library directory", path)
-	}
-	return nil
-}
-
 // CustomToolsDir is the directory the user's custom tools load from:
 // tools.custom_dir, else ~/.infer/tools.
 func (c *Config) CustomToolsDir() string {
@@ -1890,27 +1772,9 @@ func ProjectToolsDirs() []string {
 	return []string{filepath.Join(ConfigDirName, CustomToolsDirName), filepath.Join(AgentsDirName, CustomToolsDirName)}
 }
 
-// isWithinCustomToolsDir reports whether absPath is inside a directory custom
-// tools load from. It resolves symlinks and ignores case, so neither a link
-// nor another spelling on a case-insensitive filesystem reaches one.
-func (c *Config) isWithinCustomToolsDir(absPath string) bool {
-	path := CanonicalPath(absPath)
-	for _, dir := range append(ProjectToolsDirs(), c.CustomToolsDir()) {
-		absDir, err := filepath.Abs(dir)
-		if err != nil {
-			continue
-		}
-		toolsDir := CanonicalPath(absDir)
-		if path == toolsDir || strings.HasPrefix(path, toolsDir+string(filepath.Separator)) {
-			return true
-		}
-	}
-	return false
-}
-
-// realPath resolves the symlinks in the longest existing prefix of absPath,
+// RealPath resolves the symlinks in the longest existing prefix of absPath,
 // so a path that does not exist yet still resolves through its parents.
-func realPath(absPath string) string {
+func RealPath(absPath string) string {
 	existing, rest := absPath, ""
 	for {
 		if resolved, err := filepath.EvalSymlinks(existing); err == nil {
@@ -1929,28 +1793,7 @@ func realPath(absPath string) string {
 // in the longest existing prefix and case folded. Compare two paths through it
 // when they must be recognized under any alias.
 func CanonicalPath(absPath string) string {
-	return strings.ToLower(realPath(absPath))
-}
-
-// isWithinSkillsDir reports whether absPath lives inside one of the skills
-// directories: the project (./.infer/skills), the open-standard
-// (./.agents/skills), or the user-global (~/.infer/skills) location. Feeds
-// the carveOut path in ValidatePathInSandbox - gated there on
-// agent.skills.enabled - so reads of SKILL.md and references/*.md succeed even
-// though the broader .infer/ directory is in ProtectedPaths. File-level
-// protections like *.env still apply.
-func isWithinSkillsDir(absPath string) bool {
-	dirs := []string{filepath.Join(ConfigDirName, "skills"), filepath.Join(AgentsDirName, "skills")}
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(homeDir, ConfigDirName, "skills"))
-	}
-
-	for _, dir := range dirs {
-		if isWithinDir(absPath, dir) {
-			return true
-		}
-	}
-	return false
+	return strings.ToLower(RealPath(absPath))
 }
 
 // RuntimeArtifactDirNames are the subdirectories of the per-project runtime
@@ -1958,22 +1801,6 @@ func isWithinSkillsDir(absPath string) bool {
 // consumers that wipe runtime state (the /reset shortcut) reuse this list
 // instead of a second hardcoded copy.
 var RuntimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
-
-// isWithinDir reports whether absPath is dir itself or lives beneath it. dir may
-// be relative, and it matches both as written and with its symlinks resolved, so
-// a resolved path still lands inside a symlinked dir such as /tmp on macOS.
-func isWithinDir(absPath, dir string) bool {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return false
-	}
-	return isBeneath(absPath, absDir) || isBeneath(absPath, realPath(absDir))
-}
-
-func isBeneath(absPath, absDir string) bool {
-	rel, err := filepath.Rel(absDir, absPath)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
 
 // UserspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
 // matter where config resolves: the artifact poller's GitHub download dir
@@ -1984,161 +1811,6 @@ func isBeneath(absPath, absDir string) bool {
 // GetConfigDir() is the relative ".infer" then, so a config-relative check
 // would only ever look at the project directory.
 var UserspaceRuntimeDirNames = []string{ArtifactsDirName, "plans", "tmp"}
-
-// isWithinRuntimeDirs reports whether absPath lives inside one of the
-// runtime-artifact subdirectories of the current project's runtime root
-// (~/.infer/projects/<project-slug>) - tmp scratch, artifacts, history,
-// backups, and exports - or inside one of the machine-scoped userspace runtime
-// dirs above. Those are runtime output the agent must be able to read and
-// write even though the broader .infer/ directory, and the rest of ~/.infer,
-// stays protected.
-func isWithinRuntimeDirs(absPath string) bool {
-	runtimeRoot := ProjectRuntimeDir()
-	for _, name := range RuntimeArtifactDirNames {
-		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
-			return true
-		}
-	}
-
-	userSpace := UserSpaceConfigDir()
-	for _, name := range UserspaceRuntimeDirNames {
-		if isWithinDir(absPath, filepath.Join(userSpace, name)) {
-			return true
-		}
-	}
-	return false
-}
-
-// isWithinConfigSubdir reports whether absPath lives inside one of the named
-// subdirectories of the config dir. It checks both the project-relative
-// ConfigDirName (./.infer/<name>) and the resolved config dir
-// (GetConfigDir()/<name>) so that operational areas - persisted plans, the
-// desktop's projects.yaml - stay reachable even when the config was loaded from
-// the userspace location (~/.infer). This keeps the rest of .infer/ protected
-// as a whole. Runtime artifacts (tmp, artifacts,
-// history, backups, exports) are covered by isWithinRuntimeDirs instead.
-func (c *Config) isWithinConfigSubdir(absPath string, names ...string) bool {
-	configDirs := []string{ConfigDirName}
-	if resolved := c.GetConfigDir(); resolved != "" && resolved != ConfigDirName {
-		configDirs = append(configDirs, resolved)
-	}
-
-	for _, name := range names {
-		for _, base := range configDirs {
-			if isWithinDir(absPath, filepath.Join(base, name)) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// isWithinPluginsDir reports whether absPath lives inside the plugins
-// storage root, so plugin SKILL.md bodies stay readable even though the
-// broader .infer/ directory is protected.
-func (c *Config) isWithinPluginsDir(absPath string) bool {
-	dir, err := c.Plugins.ResolveDir()
-	if err != nil {
-		return false
-	}
-	return isWithinDir(absPath, dir)
-}
-
-// isWithinGoLibDirs reports whether absPath lives inside a well-known Go
-// library directory: the Go module cache ($GOMODCACHE or $GOPATH/pkg/mod)
-// or the Go standard library source tree ($GOROOT/src). Paths are resolved
-// from the environment at runtime, not hardcoded, so they work regardless
-// of the Go toolchain installation layout. This carve-out is read-only:
-// write tools must additionally call ValidatePathInSandboxWrite to reject
-// mutations under these directories.
-func isWithinGoLibDirs(absPath string) bool {
-	gomodcache := os.Getenv("GOMODCACHE")
-	if gomodcache == "" {
-		gopath := os.Getenv("GOPATH")
-		if gopath == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return false
-			}
-			gopath = filepath.Join(home, "go")
-		}
-		gomodcache = filepath.Join(gopath, "pkg", "mod")
-	}
-	if isWithinDir(absPath, gomodcache) {
-		return true
-	}
-
-	goroot := os.Getenv("GOROOT")
-	return goroot != "" && isWithinDir(absPath, filepath.Join(goroot, "src"))
-}
-
-// isWithinMemoryDir reports whether absPath lives inside the global memory
-// directory (~/.infer/memory or the configured Memory.Dir override), so reads of
-// memory fact-files succeed even though .infer/ is otherwise protected. Gated on
-// Memory.Enabled. The Memory tool itself writes via its own atomic writer rather
-// than the sandboxed file writer, so this carve-out mainly governs manual reads.
-func isWithinMemoryDir(absPath string, m MemoryConfig) bool {
-	if !m.Enabled {
-		return false
-	}
-	dir := m.Dir
-	if strings.TrimSpace(dir) == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		dir = filepath.Join(home, ConfigDirName, MemoryDirName)
-	}
-	return isWithinDir(absPath, dir)
-}
-
-// checkProtectedPaths checks if a path matches any protected path patterns. When
-// carveOut is set the path is an operational carve-out under the config dir
-// (skills/tmp/plans), so the config-dir directory match is skipped while
-// file-level protections (e.g. *.env, .git/) are still enforced.
-func (c *Config) checkProtectedPaths(path string, carveOut bool) error {
-	normalizedPath := filepath.ToSlash(filepath.Clean(path))
-
-	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
-		if carveOut && strings.TrimSuffix(protectedPath, "/") == ConfigDirName {
-			continue
-		}
-
-		if strings.HasSuffix(protectedPath, "/") {
-			dirPattern := strings.TrimSuffix(protectedPath, "/")
-			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-		}
-
-		if strings.Contains(protectedPath, "*") && !strings.HasSuffix(protectedPath, "/*") {
-			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
-			if err == nil && matched {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-		}
-
-		if strings.HasSuffix(protectedPath, "/*") {
-			dirPattern := strings.TrimSuffix(protectedPath, "/*")
-			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-		}
-
-		cleanProtectedPath := strings.TrimSuffix(protectedPath, "/")
-		if normalizedPath == cleanProtectedPath || strings.HasSuffix(normalizedPath, "/"+cleanProtectedPath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-
-	return nil
-}
 
 // KeyNamespace represents the namespace for key binding actions
 type KeyNamespace string

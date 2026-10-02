@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestWriteTool_Definition(t *testing.T) {
@@ -169,7 +170,7 @@ func TestWriteTool_ValidateDisabled(t *testing.T) {
 func TestWriteTool_Execute(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewWriteTool(cfg)
 	ctx := context.Background()
 
@@ -416,7 +417,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 	}()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewWriteTool(cfg)
 
 	tests := []struct {
@@ -439,7 +440,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 			name:     "path outside sandbox",
 			path:     "/etc/passwd",
 			allowed:  false,
-			errorMsg: "is outside configured sandbox directories",
+			errorMsg: "is denied by the sandbox",
 		},
 		{
 			name:     "relative path outside sandbox",

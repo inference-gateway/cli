@@ -1,11 +1,13 @@
-package config
+package sandbox
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
@@ -29,8 +31,8 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 	mustSymlink(t, outside, filepath.Join(project, "links", "out-dir"))
 	mustSymlink(t, filepath.Join(outside, "secret.txt"), filepath.Join(project, "links", "out-file"))
 
-	cfg := DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{project}
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
 
 	tests := []struct {
 		command string
@@ -90,8 +92,8 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.command, func(t *testing.T) {
-			if got := cfg.IsBashCommandAllowed(tt.command, agentdomain.AgentModeStandard); got != tt.allowed {
-				t.Errorf("IsBashCommandAllowed(%q) = %v, want %v (hint: %q)", tt.command, got, tt.allowed, cfg.BashCommandRejectionHint(tt.command))
+			if got := IsBashCommandAllowed(cfg, tt.command, agentdomain.AgentModeStandard); got != tt.allowed {
+				t.Errorf("IsBashCommandAllowed(%q) = %v, want %v (hint: %q)", tt.command, got, tt.allowed, BashCommandRejectionHint(cfg, tt.command))
 			}
 		})
 	}

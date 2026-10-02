@@ -17,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // TreeTool handles directory tree visualization operations
@@ -416,7 +417,7 @@ func (t *TreeTool) isPathExcludedByGitignore(fullPath string) bool {
 
 // validatePathSecurity checks if a path is allowed (no file existence check)
 func (t *TreeTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandbox(path)
+	return sandbox.ValidateRead(t.config, path)
 }
 
 // validatePath checks if a path exists and is accessible

@@ -515,7 +515,7 @@ A command is rejected before matching, regardless of the allow-list, when it:
   backslash-escaped `$` is literal.
 
 **Paths stay inside the sandbox:** an allowed command runs without approval only when every path it
-names passes the same sandbox check as the file tools (`tools.sandbox.directories`, protected paths,
+names passes the same sandbox check as the file tools (`sandbox.yaml` `filesystem` allowed and denied paths,
 symlinks resolved). Arguments, `--flag=value` and `-Xvalue` values, input redirections (`< file`),
 `~`, `$VAR` (from the CLI's environment) and globs are all checked, so `head ~/.aws/credentials` or
 `ls links/*` through a link that leaves the project asks first. A path that cannot be known in advance

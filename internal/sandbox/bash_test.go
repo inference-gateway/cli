@@ -1,9 +1,10 @@
-package config
+package sandbox
 
 import (
 	"strings"
 	"testing"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -11,14 +12,14 @@ import (
 // the end-anchored git-push pattern users configure for branch protection. It
 // exercises the interaction between benign-redirection stripping and "$"-anchored
 // patterns (a benign redirect suffix must not defeat the anchor).
-func pushCfg() *Config {
-	return &Config{
-		Tools: ToolsConfig{
+func pushCfg() *config.Config {
+	return &config.Config{
+		Tools: config.ToolsConfig{
 			Enabled: true,
-			Bash: BashToolConfig{
+			Bash: config.BashToolConfig{
 				Enabled: true,
-				Mode: BashModesConfig{
-					All: BashModeAllowConfig{Allow: []string{
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{
 						"^git push( --set-upstream)?( origin)? (feature|fix)/[a-zA-Z0-9/_.-]+$",
 					}},
 				},
@@ -28,7 +29,7 @@ func pushCfg() *Config {
 }
 
 func TestIsBashCommandAllowed_RedirectStripping(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	allowed := []string{
 		"gh issue list 2>&1",
@@ -42,7 +43,7 @@ func TestIsBashCommandAllowed_RedirectStripping(t *testing.T) {
 		"git status 2>&1",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed after stripping redirections", cmd)
 		}
 	}
@@ -52,7 +53,7 @@ func TestIsBashCommandAllowed_RedirectStripping(t *testing.T) {
 		"rm -rf / 2>&1",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed", cmd)
 		}
 	}
@@ -65,10 +66,10 @@ func TestIsBashCommandAllowed_RedirectStripping(t *testing.T) {
 func TestIsBashCommandAllowed_RedirectWithAnchoredPattern(t *testing.T) {
 	cfg := pushCfg()
 
-	if !cfg.IsBashCommandAllowed("git push origin feature/x 2>&1", agentdomain.AgentModeStandard) {
+	if !IsBashCommandAllowed(cfg, "git push origin feature/x 2>&1", agentdomain.AgentModeStandard) {
 		t.Error("expected redirect-suffixed push to a feature branch to be allowed")
 	}
-	if cfg.IsBashCommandAllowed("git push origin main 2>&1", agentdomain.AgentModeStandard) {
+	if IsBashCommandAllowed(cfg, "git push origin main 2>&1", agentdomain.AgentModeStandard) {
 		t.Error("expected push to main to stay blocked even with a redirect suffix")
 	}
 }
@@ -78,7 +79,7 @@ func TestIsBashCommandAllowed_RedirectWithAnchoredPattern(t *testing.T) {
 // default-deny, even when every individual segment would be allowed on its own.
 // The model is expected to run one command at a time.
 func TestIsBashCommandAllowed_CompoundOperators(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"gh issue view 5 && gh issue comment 5 --body hi",
@@ -94,14 +95,14 @@ func TestIsBashCommandAllowed_CompoundOperators(t *testing.T) {
 		"gh issue list & rm -rf /",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected compound %q NOT to be allowed (single-command policy)", cmd)
 		}
 	}
 }
 
 func TestIsBashCommandAllowed_CommandSubstitution(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"echo $(rm -rf /)",
@@ -116,7 +117,7 @@ func TestIsBashCommandAllowed_CommandSubstitution(t *testing.T) {
 		"BLAH=`rm`",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed (contains command substitution)", cmd)
 		}
 	}
@@ -126,14 +127,14 @@ func TestIsBashCommandAllowed_CommandSubstitution(t *testing.T) {
 		"gh issue list --search 'use $(x) verbatim'",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed (substitution syntax is single-quoted/literal)", cmd)
 		}
 	}
 }
 
 func TestIsBashCommandAllowed_QuotedOperators(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	allowed := []string{
 		`gh issue list --search "a && b"`,
@@ -141,7 +142,7 @@ func TestIsBashCommandAllowed_QuotedOperators(t *testing.T) {
 		`gh issue list --search "fix: a || b"`,
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed (operators are inside quotes)", cmd)
 		}
 	}
@@ -152,28 +153,28 @@ func TestIsBashCommandAllowed_QuotedOperators(t *testing.T) {
 // multi-line git commit -m "..." must match `git commit( .*)?` - while unquoted
 // newlines still split into segments and hit the single-command policy.
 func TestIsBashCommandAllowed_QuotedNewlines(t *testing.T) {
-	cfg := &Config{
-		Tools: ToolsConfig{
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
 			Enabled: true,
-			Bash: BashToolConfig{
+			Bash: config.BashToolConfig{
 				Enabled: true,
-				Mode: BashModesConfig{
-					All: BashModeAllowConfig{Allow: []string{"git commit( .*)?"}},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"git commit( .*)?"}},
 				},
 			},
 		},
 	}
 
-	if !cfg.IsBashCommandAllowed("git commit -m \"subject\n\nmulti-line body\"", agentdomain.AgentModeStandard) {
+	if !IsBashCommandAllowed(cfg, "git commit -m \"subject\n\nmulti-line body\"", agentdomain.AgentModeStandard) {
 		t.Error("expected multi-line quoted commit message to be allowed")
 	}
-	if cfg.IsBashCommandAllowed("git commit -m subject\nrm -rf /", agentdomain.AgentModeStandard) {
+	if IsBashCommandAllowed(cfg, "git commit -m subject\nrm -rf /", agentdomain.AgentModeStandard) {
 		t.Error("expected unquoted newline to stay denied (single-command policy)")
 	}
 }
 
 func TestIsBashCommandAllowed_MalformedAndEmpty(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"",
@@ -186,14 +187,14 @@ func TestIsBashCommandAllowed_MalformedAndEmpty(t *testing.T) {
 		"echo 'unterminated",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected malformed/empty %q NOT to be allowed", cmd)
 		}
 	}
 }
 
 func TestIsBashCommandAllowed_GhSearch(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	allowed := []string{
 		"gh search issues --repo o/r vercel",
@@ -203,18 +204,18 @@ func TestIsBashCommandAllowed_GhSearch(t *testing.T) {
 		"gh search commits fix 2>&1",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed", cmd)
 		}
 	}
 
-	if cfg.IsBashCommandAllowed("gh search invalidsub foo", agentdomain.AgentModeStandard) {
+	if IsBashCommandAllowed(cfg, "gh search invalidsub foo", agentdomain.AgentModeStandard) {
 		t.Error("expected unknown gh search subcommand NOT to be allowed")
 	}
 }
 
 func TestIsBashCommandAllowed_GhProject(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	reads := []string{
 		"gh project item-list 7 --owner inference-gateway",
@@ -224,7 +225,7 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 	}
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeStandard} {
 		for _, cmd := range reads {
-			if !cfg.IsBashCommandAllowed(cmd, mode) {
+			if !IsBashCommandAllowed(cfg, cmd, mode) {
 				t.Errorf("expected read-only %q to be allowed in %s mode", cmd, mode)
 			}
 		}
@@ -240,7 +241,7 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 	}
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeStandard} {
 		for _, cmd := range denied {
-			if cfg.IsBashCommandAllowed(cmd, mode) {
+			if IsBashCommandAllowed(cfg, cmd, mode) {
 				t.Errorf("expected %q NOT to be allowed in %s mode", cmd, mode)
 			}
 		}
@@ -248,7 +249,7 @@ func TestIsBashCommandAllowed_GhProject(t *testing.T) {
 }
 
 func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	allowed := []string{
 		"mkdir .claude",
@@ -264,12 +265,12 @@ func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
 	}
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeStandard} {
 		for _, cmd := range allowed {
-			if !cfg.IsBashCommandAllowed(cmd, mode) {
+			if !IsBashCommandAllowed(cfg, cmd, mode) {
 				t.Errorf("expected %q to be allowed in %s mode", cmd, mode)
 			}
 		}
 		for _, cmd := range denied {
-			if cfg.IsBashCommandAllowed(cmd, mode) {
+			if IsBashCommandAllowed(cfg, cmd, mode) {
 				t.Errorf("expected %q NOT to be allowed in %s mode", cmd, mode)
 			}
 		}
@@ -277,7 +278,7 @@ func TestIsBashCommandAllowed_MkdirLn(t *testing.T) {
 }
 
 func TestIsBashCommandAllowed_FindActions(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	allowed := []string{
 		"find .",
@@ -285,7 +286,7 @@ func TestIsBashCommandAllowed_FindActions(t *testing.T) {
 		"find . -type f -name '*.md'",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected read-only %q to be allowed", cmd)
 		}
 	}
@@ -300,14 +301,14 @@ func TestIsBashCommandAllowed_FindActions(t *testing.T) {
 		"find . -fls /tmp/listing",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected dangerous find %q NOT to be allowed", cmd)
 		}
 	}
 }
 
 func TestIsBashCommandAllowed_GitStatusFlags(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 	allowed := []string{
 		"git status",
 		"git status --porcelain",
@@ -316,7 +317,7 @@ func TestIsBashCommandAllowed_GitStatusFlags(t *testing.T) {
 		"git status -sb 2>&1",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected read-only %q to be allowed", cmd)
 		}
 	}
@@ -328,7 +329,7 @@ func TestIsBashCommandAllowed_GitStatusFlags(t *testing.T) {
 // so the agent cannot leak a secret's value (echo $AWS_SECRET_ACCESS_KEY). A
 // literal '$' (single-quoted or backslash-escaped) is always allowed.
 func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"echo $HOME",
@@ -337,12 +338,12 @@ func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
 		"echo $HOME 2>&1",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed (would print/publish a variable's value)", cmd)
 		}
 	}
 
-	if cfg.IsBashCommandAllowed("ls $HOME", agentdomain.AgentModeStandard) {
+	if IsBashCommandAllowed(cfg, "ls $HOME", agentdomain.AgentModeStandard) {
 		t.Error(`expected "ls $HOME" NOT to be allowed (the variable expands outside the sandbox)`)
 	}
 
@@ -356,7 +357,7 @@ func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
 		`gh issue list --search 'see $HOME'`,
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed (uses a var without printing its value)", cmd)
 		}
 	}
@@ -368,7 +369,7 @@ func TestIsBashCommandAllowed_VariableExpansion(t *testing.T) {
 // list no longer carries these writes, so a custom config keeps explicit coverage
 // of the publish guard's gh handling.
 func TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 	cfg.Tools.Bash.Mode.Standard.Allow = []string{
 		`gh issue (create|edit|comment)( .*)?`,
 		`gh pr create( .*)?`,
@@ -380,7 +381,7 @@ func TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn(t *testing.T) {
 		"gh pr create --title x --body $TOKEN",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed (publishes a variable's value)", cmd)
 		}
 	}
@@ -390,7 +391,7 @@ func TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn(t *testing.T) {
 		`gh pr create --title x --body 'literal $HOME'`,
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed (variable is single-quoted/literal)", cmd)
 		}
 	}
@@ -401,7 +402,7 @@ func TestIsBashCommandAllowed_VariableExpansion_GhWritesOptedIn(t *testing.T) {
 // assignments all fall through to default-deny - while USING an existing variable
 // in a non-printing command stays allowed as long as it expands inside the sandbox.
 func TestIsBashCommandAllowed_EnvVarAssignments(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"GOOS=linux task build",
@@ -414,7 +415,7 @@ func TestIsBashCommandAllowed_EnvVarAssignments(t *testing.T) {
 		"export -p",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed (setting env vars requires approval)", cmd)
 		}
 	}
@@ -423,7 +424,7 @@ func TestIsBashCommandAllowed_EnvVarAssignments(t *testing.T) {
 		"git log $REF",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed (uses an existing var, no setting)", cmd)
 		}
 	}
@@ -431,10 +432,10 @@ func TestIsBashCommandAllowed_EnvVarAssignments(t *testing.T) {
 
 // TestIsBashCommandAllowed_GitPushRequiresApproval locks in that no default
 // pattern auto-allows "git push" in standard (or plan) mode: every push variant
-// must fall through to approval. Auto mode (".*") is the deliberate exception -
+// must fall through to approval. config.Auto mode (".*") is the deliberate exception -
 // see TestIsBashCommandAllowed_AutoModeUnrestricted.
 func TestIsBashCommandAllowed_GitPushRequiresApproval(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"git push",
@@ -446,7 +447,7 @@ func TestIsBashCommandAllowed_GitPushRequiresApproval(t *testing.T) {
 	}
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModeStandard, agentdomain.AgentModePlan} {
 		for _, cmd := range denied {
-			if cfg.IsBashCommandAllowed(cmd, mode) {
+			if IsBashCommandAllowed(cfg, cmd, mode) {
 				t.Errorf("expected %q NOT to be allowed in %s mode (push must require approval)", cmd, mode)
 			}
 		}
@@ -454,7 +455,7 @@ func TestIsBashCommandAllowed_GitPushRequiresApproval(t *testing.T) {
 }
 
 func TestIsBashCommandAllowed_FileRedirectRestricted(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"echo hi > /tmp/out",
@@ -467,7 +468,7 @@ func TestIsBashCommandAllowed_FileRedirectRestricted(t *testing.T) {
 		"tail -n 5 /var/log/x > leak",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed (writes to a real file)", cmd)
 		}
 	}
@@ -480,7 +481,7 @@ func TestIsBashCommandAllowed_FileRedirectRestricted(t *testing.T) {
 		"echo 'write > file'",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q to be allowed (no real file write)", cmd)
 		}
 	}
@@ -488,26 +489,26 @@ func TestIsBashCommandAllowed_FileRedirectRestricted(t *testing.T) {
 
 // TestIsBashCommandAllowed_FileRedirectAlwaysDenied verifies the clean-command
 // guard rejects a file-write redirect BEFORE matching, so even an allow entry
-// that would match the whole redirected command cannot unlock it. Auto mode
+// that would match the whole redirected command cannot unlock it. config.Auto mode
 // (".*") is the deliberate exception: the sentinel skips the guard entirely.
 func TestIsBashCommandAllowed_FileRedirectAlwaysDenied(t *testing.T) {
-	cfg := &Config{
-		Tools: ToolsConfig{
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
 			Enabled: true,
-			Bash: BashToolConfig{
+			Bash: config.BashToolConfig{
 				Enabled: true,
-				Mode: BashModesConfig{
-					All:  BashModeAllowConfig{Allow: []string{`echo hi > /tmp/out\.txt`}},
-					Auto: BashModeAllowConfig{Allow: []string{".*"}},
+				Mode: config.BashModesConfig{
+					All:  config.BashModeAllowConfig{Allow: []string{`echo hi > /tmp/out\.txt`}},
+					Auto: config.BashModeAllowConfig{Allow: []string{".*"}},
 				},
 			},
 		},
 	}
 
-	if cfg.IsBashCommandAllowed("echo hi > /tmp/out.txt", agentdomain.AgentModeStandard) {
+	if IsBashCommandAllowed(cfg, "echo hi > /tmp/out.txt", agentdomain.AgentModeStandard) {
 		t.Error("a file-write redirect must be denied even with a matching pattern")
 	}
-	if !cfg.IsBashCommandAllowed("echo hi > /tmp/out.txt", agentdomain.AgentModeAutoAccept) {
+	if !IsBashCommandAllowed(cfg, "echo hi > /tmp/out.txt", agentdomain.AgentModeAutoAccept) {
 		t.Error("auto mode (.*) should allow a redirect - the guard is skipped")
 	}
 }
@@ -516,7 +517,7 @@ func TestIsBashCommandAllowed_FileRedirectAlwaysDenied(t *testing.T) {
 // auto-approved under the single-command policy - even when both ends are
 // allowed (ls | head) - which also keeps "ls | xargs rm" off the list.
 func TestIsBashCommandAllowed_PipePolicy(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	denied := []string{
 		"ls | head",
@@ -525,7 +526,7 @@ func TestIsBashCommandAllowed_PipePolicy(t *testing.T) {
 		"ls | tee out.txt",
 	}
 	for _, cmd := range denied {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected piped %q NOT to be allowed (single-command policy)", cmd)
 		}
 	}
@@ -535,25 +536,25 @@ func TestIsBashCommandAllowed_PipePolicy(t *testing.T) {
 // command: a bare token allows only itself (never a longer command), and a
 // pattern must opt into arguments to accept them.
 func TestIsBashCommandAllowed_FullMatchExactness(t *testing.T) {
-	cfg := &Config{
-		Tools: ToolsConfig{
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
 			Enabled: true,
-			Bash: BashToolConfig{
+			Bash: config.BashToolConfig{
 				Enabled: true,
-				Mode: BashModesConfig{
-					All: BashModeAllowConfig{Allow: []string{"gh", "git log( .*)?"}},
+				Mode: config.BashModesConfig{
+					All: config.BashModeAllowConfig{Allow: []string{"gh", "git log( .*)?"}},
 				},
 			},
 		},
 	}
 
-	if !cfg.IsBashCommandAllowed("gh", agentdomain.AgentModeStandard) {
+	if !IsBashCommandAllowed(cfg, "gh", agentdomain.AgentModeStandard) {
 		t.Error("bare 'gh' should match 'gh'")
 	}
-	if cfg.IsBashCommandAllowed("gh issue list", agentdomain.AgentModeStandard) {
+	if IsBashCommandAllowed(cfg, "gh issue list", agentdomain.AgentModeStandard) {
 		t.Error("bare 'gh' must not match 'gh issue list' (full-match)")
 	}
-	if !cfg.IsBashCommandAllowed("git log --oneline", agentdomain.AgentModeStandard) {
+	if !IsBashCommandAllowed(cfg, "git log --oneline", agentdomain.AgentModeStandard) {
 		t.Error("'git log( .*)?' should match 'git log --oneline'")
 	}
 }
@@ -563,25 +564,25 @@ func TestIsBashCommandAllowed_FullMatchExactness(t *testing.T) {
 // everywhere, the default standard list adds nothing, and a mode-specific entry
 // does not leak into another mode.
 func TestIsBashCommandAllowed_ModeResolution(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModeReadOnly, agentdomain.AgentModePlan, agentdomain.AgentModeStandard, agentdomain.AgentModeAutoAccept, agentdomain.AgentModeAutoWithJudge} {
-		if !cfg.IsBashCommandAllowed("gh issue list", mode) {
+		if !IsBashCommandAllowed(cfg, "gh issue list", mode) {
 			t.Errorf("baseline 'gh issue list' should be allowed in %s mode", mode)
 		}
 	}
 
 	for _, mode := range []agentdomain.AgentMode{agentdomain.AgentModePlan, agentdomain.AgentModeStandard} {
-		if cfg.IsBashCommandAllowed("gh pr create --title x", mode) {
+		if IsBashCommandAllowed(cfg, "gh pr create --title x", mode) {
 			t.Errorf("'gh pr create' should NOT be auto-approved in %s mode (baseline only)", mode)
 		}
 	}
 
 	cfg.Tools.Bash.Mode.Standard.Allow = []string{`gh pr create( .*)?`}
-	if !cfg.IsBashCommandAllowed("gh pr create --title x", agentdomain.AgentModeStandard) {
+	if !IsBashCommandAllowed(cfg, "gh pr create --title x", agentdomain.AgentModeStandard) {
 		t.Error("gh pr create should be allowed in standard once added to standard.allow")
 	}
-	if cfg.IsBashCommandAllowed("gh pr create --title x", agentdomain.AgentModePlan) {
+	if IsBashCommandAllowed(cfg, "gh pr create --title x", agentdomain.AgentModePlan) {
 		t.Error("gh pr create should NOT leak into plan mode (standard-only)")
 	}
 }
@@ -591,7 +592,7 @@ func TestIsBashCommandAllowed_ModeResolution(t *testing.T) {
 // other mode blocks (push, force-push, pipes, substitution, redirects, and a
 // secret-leaking echo) because the clean-command guard is skipped.
 func TestIsBashCommandAllowed_AutoModeUnrestricted(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := config.DefaultConfig()
 
 	allowed := []string{
 		"git push --force origin main",
@@ -603,13 +604,13 @@ func TestIsBashCommandAllowed_AutoModeUnrestricted(t *testing.T) {
 		"anything --really",
 	}
 	for _, cmd := range allowed {
-		if !cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeAutoAccept) {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeAutoAccept) {
 			t.Errorf("expected %q to be allowed in auto mode (.*)", cmd)
 		}
 	}
 
 	for _, cmd := range []string{"git push --force origin main", "echo a | head", "echo $(whoami)"} {
-		if cfg.IsBashCommandAllowed(cmd, agentdomain.AgentModeStandard) {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected %q NOT to be allowed in standard mode", cmd)
 		}
 	}
@@ -771,34 +772,34 @@ func TestContainsFileRedirect(t *testing.T) {
 }
 
 func TestBashCommandRejectionHint(t *testing.T) {
-	if h := DefaultConfig().BashCommandRejectionHint("echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
 		t.Errorf("expected a redirection hint, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("echo $(whoami)"); !strings.Contains(h, "substitution") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "echo $(whoami)"); !strings.Contains(h, "substitution") {
 		t.Errorf("expected a command-substitution hint, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("echo $HOME"); !strings.Contains(h, "environment variable") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "echo $HOME"); !strings.Contains(h, "environment variable") {
 		t.Errorf("expected an env-var leak hint, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("ls | head"); !strings.Contains(h, "single command") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "ls | head"); !strings.Contains(h, "single command") {
 		t.Errorf("expected a single-command hint, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("find . -delete"); !strings.Contains(h, "find") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "find . -delete"); !strings.Contains(h, "find") {
 		t.Errorf("expected a find-action hint, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("ls -la"); h != "" {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "ls -la"); h != "" {
 		t.Errorf("expected no hint for a plain command, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("ls $HOME"); !strings.Contains(h, "sandbox") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "ls $HOME"); !strings.Contains(h, "sandbox") {
 		t.Errorf("expected a sandbox hint for a path that depends on the environment, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("head ~/.aws/credentials"); !strings.Contains(h, "sandbox") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "head ~/.aws/credentials"); !strings.Contains(h, "sandbox") {
 		t.Errorf("expected a sandbox hint for a path outside the sandbox, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("sort -o notes.txt notes.txt"); !strings.Contains(h, "writing a file") {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "sort -o notes.txt notes.txt"); !strings.Contains(h, "writing a file") {
 		t.Errorf("expected a file-writing option hint, got %q", h)
 	}
-	if h := DefaultConfig().BashCommandRejectionHint("git status 2>&1"); h != "" {
+	if h := BashCommandRejectionHint(config.DefaultConfig(), "git status 2>&1"); h != "" {
 		t.Errorf("expected no hint for a benign redirect, got %q", h)
 	}
 }
@@ -807,11 +808,11 @@ func TestBashCommandRejectionHint(t *testing.T) {
 // mapping: each mode sees the mode.all baseline plus exactly its own
 // bucket, and reports the expected canonical mode key.
 func TestBashAllowFor_ModeBuckets(t *testing.T) {
-	cfg := &Config{Tools: ToolsConfig{Bash: BashToolConfig{Mode: BashModesConfig{
-		All:      BashModeAllowConfig{Allow: []string{"base"}},
-		Plan:     BashModeAllowConfig{Allow: []string{"plan-only"}},
-		Standard: BashModeAllowConfig{Allow: []string{"standard-only"}},
-		Auto:     BashModeAllowConfig{Allow: []string{"auto-only"}},
+	cfg := &config.Config{Tools: config.ToolsConfig{Bash: config.BashToolConfig{Mode: config.BashModesConfig{
+		All:      config.BashModeAllowConfig{Allow: []string{"base"}},
+		Plan:     config.BashModeAllowConfig{Allow: []string{"plan-only"}},
+		Standard: config.BashModeAllowConfig{Allow: []string{"standard-only"}},
+		Auto:     config.BashModeAllowConfig{Allow: []string{"auto-only"}},
 	}}}}
 	buckets := []string{"plan-only", "standard-only", "auto-only"}
 
@@ -832,14 +833,53 @@ func TestBashAllowFor_ModeBuckets(t *testing.T) {
 			if got := tt.mode.ModeKey(); got != tt.key {
 				t.Errorf("ModeKey() = %q, want %q", got, tt.key)
 			}
-			if !cfg.IsBashCommandAllowed("base", tt.mode) {
+			if !IsBashCommandAllowed(cfg, "base", tt.mode) {
 				t.Error("baseline entry should be allowed in every mode")
 			}
 			for _, entry := range buckets {
-				if got, want := cfg.IsBashCommandAllowed(entry, tt.mode), entry == tt.allowed; got != want {
+				if got, want := IsBashCommandAllowed(cfg, entry, tt.mode), entry == tt.allowed; got != want {
 					t.Errorf("IsBashCommandAllowed(%q) = %v, want %v", entry, got, want)
 				}
 			}
 		})
+	}
+}
+
+func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
+	cfg := config.DefaultConfig()
+
+	allowed := []string{
+		"gh issue list", "gh issue view 5", "gh pr view 5", "gh pr diff",
+		"gh pr checks", "gh repo view", "gh run list", "gh release view v1",
+		"gh workflow view ci.yml", "gh auth status",
+		"gh project list --owner o", "gh project view 7", "gh project item-list 7",
+		"gh api repos/inference-gateway/.github/contents/ISSUE_TEMPLATE",
+		"gh api repos/o/r/contents/docs/README.md",
+		"gh api 'user/repos?per_page=100' --paginate --jq '.[].full_name'",
+		"gh api user/repos --paginate",
+	}
+	for _, cmd := range allowed {
+		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
+			t.Errorf("expected %q to be allowed", cmd)
+		}
+	}
+
+	denied := []string{
+		"gh issue create --title x --body y", "gh issue edit 5 --add-label foo",
+		"gh issue comment 5 --body hi", "gh pr create --title x --body y",
+		"gh pr merge 5", "gh repo delete o/r", "gh release create v1",
+		"gh release delete v1", "gh run cancel 5", "gh auth login",
+		"gh workflow run ci.yml", "gh issue delete 5", "gh pr close 5",
+		"gh project item-add 7 --url u", "gh project item-edit 7 --field Status",
+		"gh api repos/o/r/issues -X POST",
+		"gh api repos/o/r/contents/x -X PUT", "gh api repos/o/r/contents/x -f content=y",
+		"gh api user",
+		"gh api user/repos -X POST", "gh api user/repos -f name=x",
+		"env", "printenv", "printenv PATH",
+	}
+	for _, cmd := range denied {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
+			t.Errorf("expected %q NOT to be allowed", cmd)
+		}
 	}
 }

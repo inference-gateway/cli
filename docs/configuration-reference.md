@@ -66,7 +66,7 @@ though a command-line flag (e.g. `infer headless --model`) still wins over all o
 
 > **List-valued keys replace, they do not merge.** Viper's `MergeInConfig`
 > deep-merges maps but substitutes slices wholesale, so a list in the project
-> layer (e.g. `tools.sandbox.directories`, `tools.bash.mode.*.allow`,
+> layer (e.g. `tools.bash.mode.*.allow`,
 > `tools.web_fetch.allowed_domains`) *replaces* the userspace value rather than
 > extending it. Keep project overrides sparse for this reason.
 
@@ -118,20 +118,6 @@ logging:
   insights_min_level: warn # Lowest level `infer insights` folds into its report (debug|info|warn|error|dpanic|panic|fatal)
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
-  sandbox:
-    directories: [".", "/tmp"] # Allowed directories for tool operations
-    protected_paths: # Paths excluded from tool access for security
-      - .infer/
-      - .git/
-      - *.env
-      - .environment
-      - auth.yaml
-      - *.key
-      - *.pem
-      - id_rsa
-      - id_dsa
-      - id_ecdsa
-      - id_ed25519
   bash:
     enabled: true
     # Per-mode allow-list (default-deny). The effective list for a mode is
@@ -204,6 +190,7 @@ tools:
       - localhost
       - github.com
       - raw.githubusercontent.com
+      - patch-diff.githubusercontent.com
       - agents.md
     safety:
       max_size: 10485760 # 10MB
@@ -279,7 +266,8 @@ telemetry:
 
 - **gateway.url**: The URL of the inference gateway (default: `http://localhost:8080`)
 - **gateway.api_key**: API key for authentication (if required)
-- **gateway.timeout**: Request timeout in seconds (default: 200)
+- **gateway.timeout**: Seconds the agent waits for the model's first token (default: 200). Once the response streams,
+  `client.stall_threshold_sec` guards it instead, so a long answer is never cut off
 - **gateway.run**: Automatically run the gateway on startup (default: `true`)
   - When enabled, the CLI automatically starts the gateway before running commands
   - The gateway runs in the background and shuts down when the CLI exits
@@ -313,13 +301,14 @@ telemetry:
 
 ### Client Settings
 
-- **client.timeout**: HTTP client timeout in seconds
+- **client.timeout**: HTTP client timeout in seconds for gateway calls outside the agent loop (models, titles, summaries,
+  media). The agent's own requests are bounded by `gateway.timeout` and `client.stall_threshold_sec`
 - **client.stall_threshold_sec**: Seconds without a chunk on an open stream before the request counts as stalled (default:
   `30`, `0` disables). The chat UI shows a reconnecting indicator and the agent drops the connection and retries, up to
   `client.retry.max_attempts` times with exponential backoff. Keep it above the longest silence between chunks your provider
   produces - a stall retry restarts the response from scratch. Connecting is not covered: connection errors are retried by
-  the HTTP client under `client.retry.*` and then reported as they are, and the wait for the first token is bounded only by
-  `client.timeout` and `gateway.timeout`
+  the HTTP client under `client.retry.*` and then reported as they are, and the wait for the first token is bounded by
+  `gateway.timeout`
 - **client.retry.enabled**: Enable automatic retries for failed requests
 - **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds
@@ -347,9 +336,8 @@ telemetry:
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.max_result_bytes**: Byte cap on a single tool result before it is truncated for the model (default: `250000`).
   Set via `INFER_TOOLS_MAX_RESULT_BYTES`.
-- **tools.sandbox.directories**: Allowed directories for tool operations (default: [".", "/tmp"])
-- **tools.sandbox.protected_paths**: Paths excluded from tool access for security. Default:
-  [".infer/", ".git/", "*.env", ".environment", "auth.yaml", "*.key", "*.pem", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"]
+- The sandbox policy (`filesystem.allowed` and `filesystem.denied`) lives in `sandbox.yaml`, not here. See
+  [Blocks in Their Own File](#blocks-in-their-own-file).
 - **tools.bash.mode.\<mode\>.allow**: Per-mode bash allow-list (regexes matched against the whole command). `<mode>` is one of `all`
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
   list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
@@ -960,6 +948,19 @@ entry lists its keys and points at the guide that owns the behaviour.
 The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
+- **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `.` and `/tmp`)
+  and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `.environment`,
+  `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
+  path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
+  `on_violation: block|approval` (default block). Denied wins over allowed and a blocking denied entry wins
+  over one that asks. The first matching allowed entry wins, and a path outside `allowed` or a write into a
+  read-only entry asks the user. The config dirs ask before every read and write, since their files can hold
+  tokens, while skills, plans, plugins, memory and runtime output stay open. Paths are anchored
+  (`/abs`, `~/x`, `.`, `./x`) or patterns matched at any depth (`dir/`, `*.glob`, `name`). A list the file
+  leaves out keeps its default, and a file that fails to parse or validate stops `infer` from starting. Only
+  `~/.infer/sandbox.yaml` is read: a project `.infer/sandbox.yaml` is ignored, so a checked-out repository
+  cannot widen your sandbox, and the agent's file tools can never write the file. `infer config set` does not reach these keys: edit the file. Env:
+  `INFER_TOOLS_SANDBOX_DIRECTORIES` adds allowed directories.
 - **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`, `telegram`,
   `whatsapp`. See [Channels](channels.md).
 - **`heartbeat.yaml`** - `enabled`, `interval`, `initial_delay`, `model`, `prompt`. See
@@ -1010,20 +1011,20 @@ OPENAI_API_KEY: sk-...
 
 A missing or unreadable `auth.yaml` changes nothing, and a malformed one is
 ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`); it is on the sandbox
-`protected_paths` list, so agent tools cannot read or edit it.
+`filesystem.denied` list in `sandbox.yaml`, so agent tools cannot read or edit it.
 
 ### Gateway Configuration
 
 - `INFER_GATEWAY_URL`: Gateway URL (default: `http://localhost:8080`)
 - `INFER_GATEWAY_API_KEY`: Gateway API key for authentication
-- `INFER_GATEWAY_TIMEOUT`: Gateway request timeout in seconds (default: `200`)
+- `INFER_GATEWAY_TIMEOUT`: Seconds the agent waits for the model's first token (default: `200`)
 - `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
 - `INFER_GATEWAY_STANDALONE_BINARY`: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 
 ### Client Configuration
 
-- `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds (default: `200`)
+- `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds for gateway calls outside the agent loop (default: `200`)
 - `INFER_CLIENT_STALL_THRESHOLD_SEC`: Seconds without stream progress before reconnecting (default: `30`, `0` disables)
 - `INFER_CLIENT_RETRY_ENABLED`: Enable retry logic (default: `true`)
 - `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `5`)
@@ -1261,7 +1262,8 @@ tools:
 
 **Sandbox Configuration:**
 
-- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated list of allowed directories (default: `.,/tmp`)
+- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated directories added to `filesystem.allowed` in `sandbox.yaml`.
+  Bare relative entries are anchored to the working directory.
 
 ### Storage Configuration
 
