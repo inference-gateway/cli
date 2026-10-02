@@ -141,6 +141,10 @@ By default the userspace `~/.infer/config.yaml` baseline is updated; pass
 instead. Project overrides are meant to be committed; they never receive
 runtime-generated files.
 
+A running `infer chat` picks the change up when you type `/reload`. Keys it cannot apply mid-session are
+named in the status line and take effect on the next start (see the
+[shortcuts guide](shortcuts-guide.md#core-shortcuts)).
+
 **Examples:**
 
 ```bash

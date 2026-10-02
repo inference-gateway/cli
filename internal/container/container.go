@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -83,7 +84,10 @@ type ServiceContainer struct {
 	containerRuntime containerruntime.ContainerRuntime
 
 	// Configuration
-	config *config.Config
+	config        *config.Config
+	loadConfig    func() (*config.Config, error)
+	startupConfig *config.Config
+	reloadMu      sync.Mutex
 
 	// Domain services
 	conversationRepo       convdomain.ConversationRepository
@@ -533,7 +537,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.skillsService,
 		c.messageQueue,
 		c.stateManager,
-		c.config.Gateway.Timeout,
 		c.conversationOptimizer,
 		c.backgroundTaskRegistry,
 		c.GetSessionRollover(),
@@ -690,6 +693,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService, c.tokenizer))
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewReloadShortcut(c.ReloadConfig))
 	c.shortcutRegistry.Register(shortcuts.NewEffortShortcut(c.agent, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))

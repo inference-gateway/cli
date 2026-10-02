@@ -18,6 +18,7 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg.Register(NewContextShortcut(nil, nil, nil))
 	reg.Register(NewCostShortcut(nil))
 	reg.Register(NewExitShortcut())
+	reg.Register(NewReloadShortcut(nil))
 	reg.Register(NewEffortShortcut(nil, nil))
 	reg.Register(NewSwitchShortcut(nil))
 	reg.Register(NewThemeShortcut(nil))

@@ -16,6 +16,7 @@ import (
 // State owns configuration and logging initialized for one Cobra command tree.
 // Cobra executes initialization before RunE, so no synchronization is needed.
 type State struct {
+	root      *cobra.Command
 	v         *viper.Viper
 	cfg       *config.Config
 	loggerCfg logger.Config
@@ -28,31 +29,14 @@ func (s *State) Config() *config.Config { return s.cfg }
 func (s *State) Viper() *viper.Viper { return s.v }
 
 func (s *State) Initialize(root *cobra.Command) error {
-	v := viper.New()
-	s.v = v
-
-	registerConfigDefaults(v, config.DefaultConfig())
-	v.SetConfigType("yaml")
-	v.SetEnvPrefix("INFER")
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	if err := v.BindPFlag("verbose", root.PersistentFlags().Lookup("verbose")); err != nil {
-		return fmt.Errorf("binding verbose flag: %w", err)
-	}
-	if err := loadLayeredConfig(v); err != nil {
+	v, cfg, err := loadConfig(root)
+	if err != nil {
 		return err
 	}
-	cfg, err := loadConfigFromViper(v, root)
-	if err != nil {
-		return fmt.Errorf("loading config: %w", err)
-	}
+	s.root = root
+	s.v = v
 	s.cfg = cfg
 	config.UserContextWindows = cfg.ContextWindows
-
-	if prompt := os.Getenv("INFER_SUBAGENT_SYSTEM_PROMPT"); prompt != "" {
-		cfg.Prompts.Agent.SystemPrompt = prompt
-	}
 
 	logDir := v.GetString("logging.dir")
 	if logDir == "" {
@@ -68,6 +52,38 @@ func (s *State) Initialize(root *cobra.Command) error {
 	}
 	logger.Init(s.loggerCfg)
 	return nil
+}
+
+// LoadConfig re-runs the startup load (defaults, config.yaml layers, sidecar
+// files, INFER_* env) and returns a fresh validated config. It leaves the
+// running config and logging alone, so the caller decides what to apply.
+func (s *State) LoadConfig() (*config.Config, error) {
+	_, cfg, err := loadConfig(s.root)
+	return cfg, err
+}
+
+func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
+	v := viper.New()
+	registerConfigDefaults(v, config.DefaultConfig())
+	v.SetConfigType("yaml")
+	v.SetEnvPrefix("INFER")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if err := v.BindPFlag("verbose", root.PersistentFlags().Lookup("verbose")); err != nil {
+		return nil, nil, fmt.Errorf("binding verbose flag: %w", err)
+	}
+	if err := loadLayeredConfig(v); err != nil {
+		return nil, nil, err
+	}
+	cfg, err := loadConfigFromViper(v, root)
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading config: %w", err)
+	}
+	if prompt := os.Getenv("INFER_SUBAGENT_SYSTEM_PROMPT"); prompt != "" {
+		cfg.Prompts.Agent.SystemPrompt = prompt
+	}
+	return v, cfg, nil
 }
 
 func (s *State) DisableStdoutLogging() {

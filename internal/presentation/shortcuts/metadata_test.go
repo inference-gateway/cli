@@ -18,6 +18,7 @@ func TestNewMetadataRegistryRegistersEffortAndVoice(t *testing.T) {
 	cfg := config.DefaultConfig()
 	reg := NewMetadataRegistry(cfg)
 	require.Contains(t, reg.List(), "effort")
+	require.Contains(t, reg.List(), "reload")
 	require.NotContains(t, reg.List(), "voice", "voice registers only when speech-to-text is enabled")
 
 	cfg.SpeechToText.Enabled = true

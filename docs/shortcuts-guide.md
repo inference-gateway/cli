@@ -58,6 +58,9 @@ These shortcuts are available out of the box:
 - `/context` - Show context-window usage
 - `/cost` - Show session cost breakdown with per-model details
 - `/effort [level]` - Show or set the reasoning effort level applied to Anthropic models
+- `/reload` - Re-read the config files and `INFER_*` env and apply what a running chat can pick up: `gateway.timeout`, `agent.model`,
+  `agent.max_turns`, `agent.max_tokens` and `agent.reasoning_effort`. The status line names the applied keys and every other changed key,
+  which takes effect on the next `infer chat`, so tools, sandbox and approval policy never change mid-session. Refused while the agent is busy.
 - `/stats [since] [vertical|table]` - Summarize the local telemetry: tool calls, tokens and cost by model, sessions by mode. Wraps `infer stats`
 - `/traces [session-id]` - Render the span tree of a session, or the most recent one. Wraps `infer traces`
 - `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)
