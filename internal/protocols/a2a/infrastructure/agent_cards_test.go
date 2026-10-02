@@ -6,6 +6,8 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
+	adk "github.com/inference-gateway/adk/types"
+
 	config "github.com/inference-gateway/cli/config"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
@@ -91,4 +93,23 @@ func TestAgentCardClient_GetConfiguredAgents_NoAgentsConfigured(t *testing.T) {
 	agents := svc.GetConfiguredAgents()
 
 	require.Len(t, agents, 0)
+}
+
+func TestPreferredEndpointURL(t *testing.T) {
+	const fallback = "http://configured:8080"
+	tests := []struct {
+		name string
+		card *adk.AgentCard
+		want string
+	}{
+		{"no card", nil, fallback},
+		{"no interfaces", &adk.AgentCard{}, fallback},
+		{"first interface wins", &adk.AgentCard{SupportedInterfaces: []adk.AgentInterface{{URL: "http://first"}, {URL: "http://second"}}}, "http://first"},
+		{"empty url skipped", &adk.AgentCard{SupportedInterfaces: []adk.AgentInterface{{URL: ""}, {URL: "http://second"}}}, "http://second"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, PreferredEndpointURL(tt.card, fallback))
+		})
+	}
 }

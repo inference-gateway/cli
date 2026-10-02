@@ -436,9 +436,7 @@ func TestV101WireShapeFlattenedParts(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(wireTask), &submitted))
 
 	assert.Equal(t, "boom", failureReasonFromTask(submitted))
-	if len(submitted.Artifacts) != 1 {
-		t.Fatalf("artifacts = %d, want 1", len(submitted.Artifacts))
-	}
+	require.Len(t, submitted.Artifacts, 1)
 	assert.Equal(t, "http://agent/report.pdf", artifactDownloadURL(submitted.Artifacts[0]))
 }
 

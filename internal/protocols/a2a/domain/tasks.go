@@ -109,7 +109,6 @@ var taskStatesByKey = func() map[string]adk.TaskState {
 	for _, state := range taskStates {
 		byKey[taskStateKey(state)] = state
 	}
-	// Pre-v1.0.1 agents still report the cancelled spelling on the wire.
 	byKey["cancelled"] = adk.TaskStateCanceled
 	return byKey
 }()
