@@ -344,7 +344,6 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 	p.chatEvents <- event
 }
 
-// NewAgentService creates a new agent service with pre-configured client
 // usageEstimator fills in token usage for providers that do not report it.
 // *conversation.TokenizerService satisfies it.
 type usageEstimator interface {
@@ -366,6 +365,7 @@ type stateStore interface {
 func NewAgent(
 	client sdk.Client,
 	toolService agentdomain.ToolService,
+	approvalPolicy agentdomain.ApprovalPolicy,
 	cfg *config.Config,
 	conversationRepo convdomain.ConversationRepository,
 	a2aAgents func() string,
@@ -380,8 +380,6 @@ func NewAgent(
 	hookProvider agentdomain.HookCommandProvider,
 	pluginInstructions func() string,
 ) *Agent {
-	approvalPolicy := NewStandardApprovalPolicy(cfg, stateManager, toolService)
-
 	return &Agent{
 		client:             client,
 		toolService:        toolService,

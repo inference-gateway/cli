@@ -92,6 +92,7 @@ type ServiceContainer struct {
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	toolService            agentdomain.ToolService
+	approvalPolicy         agentdomain.ApprovalPolicy
 	fileService            agentdomain.FileService
 	imageService           agentdomain.ImageService
 	speechService          agentdomain.SpeechService
@@ -271,7 +272,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
 		Tools:         c.toolService,
-		Approval:      agentloop.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
+		Approval:      c.approvalPolicy,
 		Models:        c.modelService,
 		Modes:         c.stateManager,
 		History:       c.GetShellHistoryStorage(),
@@ -489,6 +490,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
 	}
+	c.approvalPolicy = agentloop.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService)
 
 	if c.tokenizer == nil {
 		c.tokenizer = conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
@@ -524,6 +526,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl := agentloop.NewAgent(
 		agentClient,
 		c.toolService,
+		c.approvalPolicy,
 		c.config,
 		c.conversationRepo,
 		func() string { return a2a.AgentsPromptSection(c.a2aAgentService) },
@@ -781,10 +784,15 @@ func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 	return c.toolRegistry
 }
 
-// GetMemoryBackend returns the shared memory sync backend (local no-op or git),
-// used by the headless AgentSession to sync memory at run start/finish.
+// GetMemoryBackend returns the shared memory sync backend (local no-op or git).
 func (c *ServiceContainer) GetMemoryBackend() memory.MemoryBackend {
 	return c.memoryBackend
+}
+
+// GetApprovalPolicy returns the approval policy the agent and the headless
+// panel share.
+func (c *ServiceContainer) GetApprovalPolicy() agentdomain.ApprovalPolicy {
+	return c.approvalPolicy
 }
 
 func (c *ServiceContainer) GetFileService() agentdomain.FileService {

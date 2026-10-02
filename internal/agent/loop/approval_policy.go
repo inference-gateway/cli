@@ -33,7 +33,8 @@ type StandardApprovalPolicy struct {
 }
 
 // ApprovalTools is what the approval policy needs to know about the tools: a
-// tool's manifest, and the tool itself when it approves per call.
+// tool's manifest, and the tool itself when it approves per call. The registry
+// and the tool service both satisfy it.
 type ApprovalTools interface {
 	agentdomain.ToolManifestLookup
 	GetTool(name string) (agentdomain.Tool, error)
@@ -112,12 +113,7 @@ func callArguments(toolCall *sdk.ChatCompletionMessageToolCall) map[string]any {
 // isBashCommandAllowed checks whether a Bash tool call's command is auto-approved
 // for the active agent mode via the per-mode allow-list.
 func (p *StandardApprovalPolicy) isBashCommandAllowed(toolCall *sdk.ChatCompletionMessageToolCall) bool {
-	var args map[string]any
-	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		return false
-	}
-
-	command, ok := args["command"].(string)
+	command, ok := callArguments(toolCall)["command"].(string)
 	if !ok {
 		return false
 	}

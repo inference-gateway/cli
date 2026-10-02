@@ -259,6 +259,7 @@ func TestNewAgentService(t *testing.T) {
 	agentService := NewAgent(
 		nil,
 		fakeToolService,
+		NewStandardApprovalPolicy(cfg, fakeStateManager, fakeToolService),
 		cfg,
 		fakeConversationRepo,
 		nil,
