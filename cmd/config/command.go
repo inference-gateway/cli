@@ -18,7 +18,7 @@ func NewCommand(state *runtime.State) *cobra.Command {
 		Short: "Manage CLI configuration",
 		Long:  `Manage the Inference Gateway CLI configuration settings.`,
 	}
-	command.AddCommand(newInitCommand(), newGetCommand(state), newSetCommand())
+	command.AddCommand(newInitCommand(), newGetCommand(state), newSetCommand(state))
 	return command
 }
 

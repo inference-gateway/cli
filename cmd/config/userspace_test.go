@@ -1,6 +1,7 @@
 package configcmd
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -43,7 +44,7 @@ func newProjectFlagCommand(project bool) *cobra.Command {
 
 func TestConfigSetDefaultWritesUserspace(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)
-	require.NoError(t, setConfigValue(newProjectFlagCommand(false), []string{"agent.model", "home-set-model"}))
+	require.NoError(t, setConfigValue(newProjectFlagCommand(false), []string{"agent.model", "home-set-model"}, acceptConfig))
 	homeConfig := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	require.FileExists(t, homeConfig)
 	data, err := os.ReadFile(homeConfig)
@@ -54,7 +55,7 @@ func TestConfigSetDefaultWritesUserspace(t *testing.T) {
 
 func TestConfigSetProjectWritesSparseOverride(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)
-	require.NoError(t, setConfigValue(newProjectFlagCommand(true), []string{"agent.model", "proj-set-model"}))
+	require.NoError(t, setConfigValue(newProjectFlagCommand(true), []string{"agent.model", "proj-set-model"}, acceptConfig))
 	projectConfig := filepath.Join(projectDir, config.DefaultConfigPath)
 	require.FileExists(t, projectConfig)
 	data, err := os.ReadFile(projectConfig)
@@ -65,6 +66,31 @@ func TestConfigSetProjectWritesSparseOverride(t *testing.T) {
 	require.NotContains(t, content, "gateway:")
 	require.NotContains(t, content, "storage:")
 	require.NoFileExists(t, filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName))
+}
+
+func acceptConfig() (*config.Config, error) { return config.DefaultConfig(), nil }
+
+func rejectConfig() (*config.Config, error) { return nil, errors.New("invalid agent.reasoning_effort") }
+
+// A value the loader rejects must leave the file as it was, otherwise every
+// later infer call, including the config set that would fix it, fails to start.
+func TestConfigSetRollsBackRejectedValue(t *testing.T) {
+	homeDir, _ := splitHomeProjectEnv(t)
+	homeConfig := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+
+	err := setConfigValue(newProjectFlagCommand(false), []string{"agent.reasoning_effort", "bogus"}, rejectConfig)
+	require.ErrorContains(t, err, "was not saved")
+	require.NoFileExists(t, homeConfig, "a file the rejected write created must be removed")
+
+	require.NoError(t, setConfigValue(newProjectFlagCommand(false), []string{"agent.reasoning_effort", "high"}, acceptConfig))
+	before, err := os.ReadFile(homeConfig)
+	require.NoError(t, err)
+
+	err = setConfigValue(newProjectFlagCommand(false), []string{"agent.reasoning_effort", "bogus"}, rejectConfig)
+	require.ErrorContains(t, err, "was not saved")
+	after, err := os.ReadFile(homeConfig)
+	require.NoError(t, err)
+	require.Equal(t, string(before), string(after))
 }
 
 func newConfigTestCommand(t *testing.T) *cobra.Command {

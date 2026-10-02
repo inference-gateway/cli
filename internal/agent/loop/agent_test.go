@@ -266,7 +266,6 @@ func TestNewAgentService(t *testing.T) {
 		nil,
 		nil,
 		fakeStateManager,
-		120,
 		nil,
 		nil,
 		nil,
@@ -280,8 +279,6 @@ func TestNewAgentService(t *testing.T) {
 	assert.Equal(t, cfg, agentService.config)
 	assert.Equal(t, fakeConversationRepo, agentService.conversationRepo)
 	assert.Equal(t, fakeStateManager, agentService.stateManager)
-	assert.Equal(t, 120, agentService.timeoutSeconds)
-	assert.Equal(t, 4096, agentService.maxTokens)
 	assert.NotNil(t, agentService.activeSessions)
 	assert.NotNil(t, agentService.metrics)
 	assert.NotNil(t, agentService.toolCallsMap)

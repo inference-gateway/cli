@@ -2,8 +2,11 @@ package configcmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -41,7 +44,7 @@ and is shown here too.`,
 	return command
 }
 
-func newSetCommand() *cobra.Command {
+func newSetCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "set <key> <value>",
 		Short: "Set a configuration value",
@@ -58,7 +61,9 @@ The tools policy is not in config.yaml: edit ~/.infer/tools.yaml directly.
 By default the userspace ~/.infer/config.yaml baseline is updated; pass --project
 to write a sparse override into the project .infer/config.yaml instead.`,
 		Args: cobra.ExactArgs(2),
-		RunE: setConfigValue,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return setConfigValue(cmd, args, state.LoadConfig)
+		},
 	}
 	command.Flags().Bool("project", false,
 		"Write a sparse override into the project ./.infer/config.yaml instead of the userspace baseline (~/.infer/)")
@@ -159,8 +164,9 @@ func printConfigValue(value any, format string) error {
 // setConfigValue parses value to the type of the target field (discovered by
 // reflecting over the Config struct) and persists it to config.yaml. The
 // userspace baseline (~/.infer) is updated by default; --project targets the
-// project .infer/config.yaml.
-func setConfigValue(cmd *cobra.Command, args []string) error {
+// project .infer/config.yaml. A write that load rejects is rolled back, so a
+// bad value can never leave infer unable to start.
+func setConfigValue(cmd *cobra.Command, args []string, load func() (*config.Config, error)) error {
 	key := args[0]
 	rawValue := args[1]
 
@@ -184,6 +190,12 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	previous, err := os.ReadFile(path)
+	existed := err == nil
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
 	target.Set(key, parsed)
 	writeErr := utils.WriteViperConfigWithIndent(target, 2)
 	if toProject {
@@ -193,9 +205,25 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", writeErr)
 	}
 
+	if _, err := load(); err != nil {
+		if restoreErr := restoreConfigFile(path, previous, existed); restoreErr != nil {
+			return errors.Join(err, fmt.Errorf("restoring %s: %w", path, restoreErr))
+		}
+		return fmt.Errorf("%s = %v was not saved: %w", key, parsed, err)
+	}
+
 	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Set %s = %v", key, parsed)))
 	fmt.Printf("Configuration saved to: %s\n", path)
 	return nil
+}
+
+// restoreConfigFile puts back the file a rejected write replaced, or removes
+// it when the write created it.
+func restoreConfigFile(path string, previous []byte, existed bool) error {
+	if !existed {
+		return os.Remove(path)
+	}
+	return os.WriteFile(path, previous, 0o600)
 }
 
 // isToolsConfigKey reports whether key targets the tools policy, which lives

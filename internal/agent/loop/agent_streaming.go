@@ -52,9 +52,10 @@ func (a *eventDrivenAgent) startStreaming() {
 
 	a.availableTools = a.service.advertisedTools()
 
+	maxTokens := a.service.config.GetAgentConfig().MaxTokens
 	client := a.service.client.
 		WithOptions(&sdk.CreateChatCompletionRequest{
-			MaxTokens:       &a.service.maxTokens,
+			MaxTokens:       &maxTokens,
 			ReasoningEffort: a.service.reasoningEffortOptionFor(a.req.Model),
 			StreamOptions: &sdk.ChatCompletionStreamOptions{
 				IncludeUsage: true,
@@ -105,7 +106,7 @@ func (a *eventDrivenAgent) startStreaming() {
 // the real cause, which ends the turn.
 func (a *eventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
 	a.finishReason = ""
-	requestCtx, gotChunk, requestCancel := withFirstChunkDeadline(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
+	requestCtx, gotChunk, requestCancel := withFirstChunkDeadline(a.agentCtx.Ctx, time.Duration(a.service.config.Gateway.Timeout)*time.Second)
 	defer requestCancel()
 
 	requestCtx, turnSpan := a.service.recorder.StartLLMTurnSpan(requestCtx, a.req.Model)
@@ -138,7 +139,7 @@ func (a *eventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 
 // firstChunkTimeout names the setting to raise when no chunk arrived in time.
 func (a *eventDrivenAgent) firstChunkTimeout() error {
-	return fmt.Errorf("no response within %d seconds (gateway.timeout)", a.service.timeoutSeconds)
+	return fmt.Errorf("no response within %d seconds (gateway.timeout)", a.service.config.Gateway.Timeout)
 }
 
 // withFirstChunkDeadline cancels ctx with context.DeadlineExceeded unless
