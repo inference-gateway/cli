@@ -42,7 +42,7 @@ Repo-wide invariants:
 ## Import Style
 
 - Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
-- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `agentloop`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `sandbox`, `sandboxdomain`, `sandboxinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `agentrunner`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
+- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `agentloop`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `sandbox`, `sandboxdomain`, `sandboxinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `agentheadless`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
 
 ## Testing
 

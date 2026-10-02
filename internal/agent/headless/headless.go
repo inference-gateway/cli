@@ -1,4 +1,4 @@
-package runner
+package headless
 
 import (
 	"bufio"
@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -19,21 +18,18 @@ type ExecFunc = func(ctx context.Context, name string, args ...string) *exec.Cmd
 
 // Options configures a single `infer headless` subprocess run.
 type Options struct {
-	BinaryPath      string
-	Exec            ExecFunc
-	SessionID       string
-	Prompt          string
-	Model           string
-	Files           []string
-	RequireApproval bool
-	Remote          bool
-	Heartbeat       bool
-	ResultFile      string
-	ExtraEnv        []string
-	Stdin           *os.File
-	KeepAlive       bool
-	OnLine          func(line []byte)
-	Approval        func(ipc.ApprovalRequest) ipc.ApprovalResponse
+	BinaryPath string
+	Exec       ExecFunc
+	SessionID  string
+	Prompt     string
+	Model      string
+	Files      []string
+	Heartbeat  bool
+	ResultFile string
+	ExtraEnv   []string
+	Stdin      *os.File
+	KeepAlive  bool
+	OnLine     func(line []byte)
 }
 
 // Result is the outcome of a subprocess run.
@@ -42,11 +38,10 @@ type Result struct {
 	Stderr         string
 }
 
-// Run spawns `infer headless ...`, streams stdout line-by-line, optionally brokers
-// tool approval over stdin, and returns the harvested final assistant message.
-// The run logs JSON to stderr, collected into this process's log as it runs.
-// The returned error is the subprocess setup/exit error.
-// Callers format their own user-facing messages from it.
+// Run spawns `infer headless ...`, streams stdout line-by-line and returns the
+// harvested final assistant message. The run logs JSON to stderr, collected
+// into this process's log as it runs. The returned error is the subprocess
+// setup/exit error. Callers format their own user-facing messages from it.
 func Run(ctx context.Context, opts Options) (Result, error) {
 	bin := opts.BinaryPath
 	if bin == "" {
@@ -70,14 +65,6 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	if opts.Stdin != nil {
 		cmd.Stdin = opts.Stdin
 	}
-	brokerApproval := opts.RequireApproval && opts.Approval != nil
-	var stdinWriter io.WriteCloser
-	if brokerApproval {
-		stdinWriter, err = cmd.StdinPipe()
-		if err != nil {
-			return result, fmt.Errorf("stdin pipe: %w", err)
-		}
-	}
 
 	stderrReader, stderrWriter := io.Pipe()
 	cmd.Stderr = stderrWriter
@@ -97,13 +84,6 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
-		}
-
-		if brokerApproval {
-			if req, ok := parseApprovalRequest(line); ok {
-				writeApprovalResponse(stdinWriter, *req, opts.Approval(*req))
-				continue
-			}
 		}
 
 		if content, ok := assistantContent(line); ok {
@@ -131,18 +111,12 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	return result, nil
 }
 
-// buildArgs assembles the `agent` subcommand argument vector. The prompt is
+// buildArgs assembles the `headless` subcommand argument vector. The prompt is
 // always the final positional argument.
 func buildArgs(opts Options) []string {
 	args := []string{"headless", "--session-id", opts.SessionID}
-	if opts.Remote {
-		args = append(args, "--remote")
-	}
 	if opts.Heartbeat {
 		args = append(args, "--heartbeat")
-	}
-	if opts.RequireApproval {
-		args = append(args, "--require-approval")
 	}
 	if opts.Model != "" {
 		args = append(args, "--model", opts.Model)
@@ -157,28 +131,6 @@ func buildArgs(opts Options) []string {
 		args = append(args, "--keep-alive")
 	}
 	return append(args, opts.Prompt)
-}
-
-func writeApprovalResponse(w io.Writer, req ipc.ApprovalRequest, resp ipc.ApprovalResponse) {
-	resp.Type = "approval_response"
-	resp.ToolCallID = req.ToolCallID
-	data, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	_, _ = w.Write(append(data, '\n'))
-}
-
-// parseApprovalRequest attempts to parse a JSON line as an ApprovalRequest.
-func parseApprovalRequest(line []byte) (*ipc.ApprovalRequest, bool) {
-	var req ipc.ApprovalRequest
-	if err := json.Unmarshal(line, &req); err != nil {
-		return nil, false
-	}
-	if req.Type != "approval_request" {
-		return nil, false
-	}
-	return &req, true
 }
 
 // assistantContent returns the content of a JSON assistant message line when it

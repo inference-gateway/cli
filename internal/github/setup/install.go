@@ -10,7 +10,7 @@ import (
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 )
 
 // InstallBranch is the fixed head branch for agent-driven workflow installs.
@@ -26,8 +26,8 @@ const (
 	installAgentTimeout   = 20 * time.Minute
 )
 
-// AgentRunFunc matches agentrunner.Run so tests can stub the LLM step.
-type AgentRunFunc func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error)
+// AgentRunFunc matches agentheadless.Run so tests can stub the LLM step.
+type AgentRunFunc func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 
 // SetAgentRunner overrides the agent runner (tests). Nil restores the default.
 func (s *Service) SetAgentRunner(run AgentRunFunc) { s.runAgent = run }
@@ -36,7 +36,7 @@ func (s *Service) agentRunner() AgentRunFunc {
 	if s.runAgent != nil {
 		return s.runAgent
 	}
-	return agentrunner.Run
+	return agentheadless.Run
 }
 
 // InstallWorkflow clones the target repo, has an LLM agent create or update the
@@ -77,7 +77,7 @@ func (s *Service) InstallWorkflow(ctx context.Context, opts agentdomain.InstallW
 
 	agentCtx, cancel := context.WithTimeout(ctx, installAgentTimeout)
 	defer cancel()
-	res, err := s.agentRunner()(agentCtx, agentrunner.Options{
+	res, err := s.agentRunner()(agentCtx, agentheadless.Options{
 		SessionID: fmt.Sprintf("install-github-action-%d", time.Now().UnixNano()),
 		Prompt:    prompt,
 		Model:     opts.Model,

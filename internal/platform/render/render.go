@@ -367,7 +367,7 @@ func AgentStartupEmitter(w io.Writer, format string) func(name, state, message s
 
 // EmitPreRunError writes a machine-readable failure line for errors that occur
 // before the event stream starts (gateway down, unknown model, ...), so stdout
-// consumers - the channel manager and agentrunner - see the failure instead of
+// consumers - the channel manager and agentheadless - see the failure instead of
 // silence. The text format stays quiet; the CLI's stderr prose covers it. The
 // ag-ui format has its own RUN_ERROR writer in the headless presentation.
 func EmitPreRunError(w io.Writer, format string, err error) {

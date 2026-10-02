@@ -1,4 +1,4 @@
-package runner
+package headless
 
 import (
 	"bufio"
@@ -8,26 +8,22 @@ import (
 	"os/exec"
 	"testing"
 	"time"
-
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 )
 
 func TestBuildArgs(t *testing.T) {
 	args := buildArgs(Options{
-		SessionID:       "sess-1",
-		Prompt:          "do the thing",
-		Model:           "openai/gpt-4",
-		Files:           []string{"a.png", "b.go"},
-		Remote:          true,
-		Heartbeat:       true,
-		RequireApproval: true,
-		ResultFile:      "/tmp/r.json",
+		SessionID:  "sess-1",
+		Prompt:     "do the thing",
+		Model:      "openai/gpt-4",
+		Files:      []string{"a.png", "b.go"},
+		Heartbeat:  true,
+		ResultFile: "/tmp/r.json",
 	})
 
 	joined := args
 	want := []string{
-		"headless", "--session-id", "sess-1", "--remote", "--heartbeat",
-		"--require-approval", "--model", "openai/gpt-4",
+		"headless", "--session-id", "sess-1", "--heartbeat",
+		"--model", "openai/gpt-4",
 		"--files", "a.png", "--files", "b.go",
 		"--result-file", "/tmp/r.json", "do the thing",
 	}
@@ -63,30 +59,6 @@ func TestAssistantContent(t *testing.T) {
 			got, ok := assistantContent([]byte(tt.line))
 			if ok != tt.wantOK || got != tt.want {
 				t.Fatalf("assistantContent(%q) = (%q,%v), want (%q,%v)", tt.line, got, ok, tt.want, tt.wantOK)
-			}
-		})
-	}
-}
-
-func TestParseApprovalRequest(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		ok    bool
-	}{
-		{"valid", `{"type":"approval_request","tool_name":"Bash","tool_args":"{}","tool_call_id":"c1"}`, true},
-		{"different type", `{"type":"info","message":"x"}`, false},
-		{"assistant", `{"role":"assistant","content":"hi"}`, false},
-		{"invalid json", `nope`, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, ok := parseApprovalRequest([]byte(tt.input))
-			if ok != tt.ok {
-				t.Fatalf("ok = %v want %v", ok, tt.ok)
-			}
-			if ok && req.ToolName != "Bash" {
-				t.Fatalf("tool_name = %q want Bash", req.ToolName)
 			}
 		})
 	}
@@ -135,36 +107,6 @@ exit 3`
 	}
 	if res.Stderr != "first plain line\nthe run failed" {
 		t.Fatalf("Stderr = %q, want the plain lines", res.Stderr)
-	}
-}
-
-func TestRunBrokersApprovalOverStdin(t *testing.T) {
-	script := `printf '%s\n' '{"type":"approval_request","tool_name":"Bash","tool_args":"{}","tool_call_id":"c1"}'
-read line
-printf 'received:%s\n' "$line" 1>&2
-printf '%s\n' '{"role":"assistant","content":"approved"}'`
-
-	var gotReq bool
-	res, err := Run(context.Background(), Options{
-		Exec: func(ctx context.Context, name string, args ...string) *exec.Cmd {
-			return exec.CommandContext(ctx, "sh", "-c", script)
-		},
-		SessionID:       "s1",
-		Prompt:          "do",
-		RequireApproval: true,
-		Approval: func(req ipc.ApprovalRequest) ipc.ApprovalResponse {
-			gotReq = req.ToolCallID == "c1"
-			return ipc.ApprovalResponse{Approved: true}
-		},
-	})
-	if err != nil {
-		t.Fatalf("Run error: %v (stderr=%q)", err, res.Stderr)
-	}
-	if !gotReq {
-		t.Fatalf("Approval callback not invoked with the request")
-	}
-	if res.FinalAssistant != "approved" {
-		t.Fatalf("FinalAssistant = %q, want approved (stdin response not delivered?)", res.FinalAssistant)
 	}
 }
 

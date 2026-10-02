@@ -19,7 +19,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
+	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -95,7 +95,7 @@ type AgentTool struct {
 	toolManifests agentdomain.ToolManifestLookup
 
 	// Injection points for tests; default to real implementations.
-	runHeadless          func(ctx context.Context, opts agentrunner.Options) (agentrunner.Result, error)
+	runHeadless          func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 	interactiveAvailable func() bool
 	launchPane           func(ctx context.Context, title, command string) (string, error)
 	sendTask             func(ctx context.Context, paneID, task string) error
@@ -112,7 +112,7 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 		formatter: NewBaseFormatter(ToolAgent),
 		binary:    os.Args[0],
 	}
-	t.runHeadless = agentrunner.Run
+	t.runHeadless = agentheadless.Run
 	t.interactiveAvailable = tmuxAvailable
 	t.launchPane = t.launchTmuxPane
 	t.sendTask = t.sendTaskToPane
@@ -340,7 +340,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	_ = os.Remove(resultFile)
 	defer func() { _ = os.Remove(resultFile) }()
 
-	res, err := t.runHeadless(ctx, agentrunner.Options{
+	res, err := t.runHeadless(ctx, agentheadless.Options{
 		BinaryPath: t.binary,
 		SessionID:  sessionID,
 		Prompt:     spec.Description,

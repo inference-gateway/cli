@@ -1,20 +1,8 @@
-package runner
+package headless
 
 import (
-	"strings"
 	"testing"
 )
-
-func TestFormatToolLineLongArgs(t *testing.T) {
-	long := strings.Repeat("p", 600)
-	if got := formatToolLine("ImageGeneration(" + long + ")"); !strings.Contains(got, long) {
-		t.Errorf("args under %d runes must not be truncated, got %q", maxToolResultLen, got)
-	}
-	over := strings.Repeat("p", maxToolResultLen+1)
-	if got := formatToolLine("Bash(" + over + ")"); !strings.HasSuffix(got, "…`") {
-		t.Errorf("args over %d runes must be truncated, got len %d", maxToolResultLen, len(got))
-	}
-}
 
 func TestFormatAgentMessage(t *testing.T) {
 	tests := []struct {
@@ -26,21 +14,6 @@ func TestFormatAgentMessage(t *testing.T) {
 			name: "assistant text message",
 			line: `{"role":"assistant","content":"Hello!"}`,
 			want: "Hello!",
-		},
-		{
-			name: "assistant with tool calls",
-			line: `{"role":"assistant","content":"Let me check...","tools":["Read","Grep"]}`,
-			want: "Let me check...\n\n> Read\n> Grep",
-		},
-		{
-			name: "assistant with tool calls no content",
-			line: `{"role":"assistant","content":"","tools":["Write"]}`,
-			want: "> Write",
-		},
-		{
-			name: "assistant tool call with args goes monospace",
-			line: `{"role":"assistant","content":"","tools":["Bash(command=ls -la)"]}`,
-			want: "> Bash: `command=ls -la`",
 		},
 		{
 			name: "tool result forwarded in code block",
