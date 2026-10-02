@@ -45,9 +45,7 @@ func NewCommand(state *runtime.State) *cobra.Command {
 
 			tokenizer := conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
 			out := cmd.OutOrStdout()
-			if sectioned, ok := agentService.(interface {
-				SystemPromptSections() []agentloop.PromptSection
-			}); ok {
+			if sectioned, ok := agentService.(*agentloop.Agent); ok {
 				inTail := false
 				for _, section := range sectioned.SystemPromptSections() {
 					if section.Volatile && !inTail {
@@ -103,7 +101,7 @@ func renderAgentSystemPrompt(ctx context.Context, cfg *config.Config) string {
 // builders, so what this prints is byte-for-byte what goes on the wire.
 func renderPromptContext(agentService agentdomain.AgentService) string {
 	prompt := agentService.BuildSystemPrompt()
-	tailer, ok := agentService.(interface{ VolatileTailText() (string, bool) })
+	tailer, ok := agentService.(*agentloop.Agent)
 	if !ok {
 		return prompt
 	}

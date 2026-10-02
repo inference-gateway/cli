@@ -179,7 +179,7 @@ func (s *Agent) BuildSystemPrompt() string {
 // VolatileTailText renders the volatile-context tail a fresh session (turn 0)
 // would send as a hidden per-request <system-reminder> user message; ok=false
 // means no tail is sent. Exposed for the `infer debug agent system_prompt`
-// command via type assertion, alongside SystemPromptSections.
+// command, alongside SystemPromptSections.
 func (s *Agent) VolatileTailText() (string, bool) {
 	tail, ok := s.volatileTailMessage(nil, true)
 	if !ok {
