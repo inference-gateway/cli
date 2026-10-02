@@ -20,6 +20,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // newFakeStore wires the generated ConversationStorage fake to serve a fixed set
@@ -154,7 +155,7 @@ func TestInsightsDirIsReadableByAgent(t *testing.T) {
 			cfg.Tools.Sandbox.ProtectedPaths = []string{".infer/"}
 			cfg.SetConfigDir(configDir)
 
-			if err := cfg.ValidatePathInSandbox(filepath.Join(config.InsightsDir(), "report.md")); err != nil {
+			if err := sandbox.ValidateRead(cfg, filepath.Join(config.InsightsDir(), "report.md")); err != nil {
 				t.Errorf("insights report should be readable despite .infer/ being protected: %v", err)
 			}
 		})

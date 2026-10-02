@@ -1,10 +1,11 @@
-package config
+package sandbox
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -25,8 +26,8 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 // an AgentMode maps to a tools.bash.mode.<bucket> list: Plan -> plan,
 // AutoAccept -> auto, Standard/AutoWithJudge/unknown -> standard (the judge only
 // sees commands the standard list already gates), ReadOnly -> baseline only.
-func (c *Config) bashAllowFor(mode agentdomain.AgentMode) []string {
-	m := c.Tools.Bash.Mode
+func bashAllowFor(cfg *config.Config, mode agentdomain.AgentMode) []string {
+	m := cfg.Tools.Bash.Mode
 	out := make([]string, 0, len(m.All.Allow)+4)
 	out = append(out, m.All.Allow...)
 	switch mode {
@@ -44,8 +45,8 @@ func (c *Config) bashAllowFor(mode agentdomain.AgentMode) []string {
 // BashAllowedCommands returns the effective allow-list entries for mode. It is
 // used to surface the model's bash sandbox in the system prompt so the agent
 // knows up front what it may run unattended.
-func (c *Config) BashAllowedCommands(mode agentdomain.AgentMode) []string {
-	return c.bashAllowFor(mode)
+func BashAllowedCommands(cfg *config.Config, mode agentdomain.AgentMode) []string {
+	return bashAllowFor(cfg, mode)
 }
 
 // IsBashCommandAllowed reports whether command is auto-approved in the given
@@ -74,14 +75,14 @@ func (c *Config) BashAllowedCommands(mode agentdomain.AgentMode) []string {
 // It is the single source of truth consulted by the Bash tool, the approval
 // policy, and agent auto-approval, so all three agree on exactly what runs
 // without prompting.
-func (c *Config) IsBashCommandAllowed(command string, mode agentdomain.AgentMode) bool {
+func IsBashCommandAllowed(cfg *config.Config, command string, mode agentdomain.AgentMode) bool {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return false
 	}
 
-	allow := c.bashAllowFor(mode)
-	if hasAllowAll(allow) {
+	allow := bashAllowFor(cfg, mode)
+	if IsUnrestricted(allow) {
 		return true
 	}
 
@@ -90,7 +91,7 @@ func (c *Config) IsBashCommandAllowed(command string, mode agentdomain.AgentMode
 		return false
 	}
 
-	_, outside := c.bashPathOutsideSandbox(seg)
+	_, outside := bashPathOutsideSandbox(cfg, seg)
 	return !outside
 }
 
@@ -98,7 +99,7 @@ func (c *Config) IsBashCommandAllowed(command string, mode agentdomain.AgentMode
 // outside the sandbox, so the model can correct course instead of retrying.
 // It returns "" when the command is simply not in the allow-list. A nil config
 // skips the sandbox reason.
-func (c *Config) BashCommandRejectionHint(command string) string {
+func BashCommandRejectionHint(cfg *config.Config, command string) string {
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return ""
@@ -136,10 +137,10 @@ func (c *Config) BashCommandRejectionHint(command string) string {
 		return "writing a file through an option (sort -o, tree -o, git --output, uniq's output " +
 			"operand) is not auto-approved; print the output instead"
 	}
-	if c == nil {
+	if cfg == nil {
 		return ""
 	}
-	if path, outside := c.bashPathOutsideSandbox(seg); outside {
+	if path, outside := bashPathOutsideSandbox(cfg, seg); outside {
 		return fmt.Sprintf("'%s' is outside the sandbox, protected, or depends on the environment, "+
 			"so the command needs approval; use paths inside the sandbox, or tell the user what you need", path)
 	}
@@ -185,10 +186,10 @@ func cleanSingleCommand(command string) (seg string, ok bool) {
 	return seg, true
 }
 
-// hasAllowAll reports whether the allow-list contains the "allow any command"
+// IsUnrestricted reports whether the allow-list contains the "allow any command"
 // sentinel, which makes the mode unrestricted (and skips the clean-command
 // guard). ".*", "^.*$", ".+", and a few trivially-equivalent forms qualify.
-func hasAllowAll(allow []string) bool {
+func IsUnrestricted(allow []string) bool {
 	for _, entry := range allow {
 		switch strings.TrimSpace(entry) {
 		case ".*", "^.*$", "^.*", ".*$", ".+", "^.+$", "^.+", ".+$":

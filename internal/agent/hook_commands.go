@@ -12,6 +12,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // hookCommandOutputLimit caps the command output carried in a hook_command
@@ -45,8 +46,8 @@ func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdoma
 		return
 	}
 	for _, hc := range due {
-		if cfg == nil || !cfg.IsBashCommandAllowed(hc.Command, mode) {
-			hint := cfg.BashCommandRejectionHint(hc.Command)
+		if cfg == nil || !sandbox.IsBashCommandAllowed(cfg, hc.Command, mode) {
+			hint := sandbox.BashCommandRejectionHint(cfg, hc.Command)
 			logger.Warn("hook command not allow-listed; skipping",
 				"name", hc.Name, "hook", string(hook), "command", hc.Command, "mode", mode.ModeKey(), "hint", hint)
 			streamevent.EmitDebugEvent("hook_command_skipped", map[string]any{

@@ -26,6 +26,7 @@ import (
 	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
@@ -362,17 +363,14 @@ func (s *Agent) buildBashAllowInfo() string {
 		return ""
 	}
 
-	allow := s.config.BashAllowedCommands(mode)
+	allow := sandbox.BashAllowedCommands(s.config, mode)
 
 	header := "\n\nBASH ALLOW-LIST (" + mode.ModeKey() + " mode):\n"
 
-	for _, e := range allow {
-		switch strings.TrimSpace(e) {
-		case ".*", "^.*$", "^.*", ".*$", ".+", "^.+$", "^.+", ".+$":
-			return header + "This mode is unrestricted: any command runs via Bash without " +
-				"approval, including pipes, chains, redirects, and command substitution. " +
-				"Prefer one command per call for clear output, and never echo or publish a secret.\n"
-		}
+	if sandbox.IsUnrestricted(allow) {
+		return header + "This mode is unrestricted: any command runs via Bash without " +
+			"approval, including pipes, chains, redirects, and command substitution. " +
+			"Prefer one command per call for clear output, and never echo or publish a secret.\n"
 	}
 
 	if len(allow) == 0 {

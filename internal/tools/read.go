@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // Error constants for consistent error handling
@@ -505,7 +506,7 @@ func (t *ReadTool) validateParameter(args map[string]any, paramName string) erro
 
 // validatePathSecurity checks if a path is allowed within the sandbox
 func (t *ReadTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandbox(path)
+	return sandbox.ValidateRead(t.config, path)
 }
 
 // FormatResult formats tool execution results for different contexts

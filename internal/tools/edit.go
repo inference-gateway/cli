@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // inlineDiffContextLines mirrors styles.InlineDiffContextLines for the plain-text
@@ -493,7 +494,7 @@ func appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine st
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *EditTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandboxWrite(path)
+	return sandbox.ValidateWrite(t.config, path)
 }
 
 // validateFile checks if a file path is valid and exists (only works with existing files)

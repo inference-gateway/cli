@@ -70,7 +70,7 @@ func IsDirectExecution(ctx context.Context) bool {
 
 // WithAgentMode returns a new context carrying the agent mode in effect for a
 // tool execution. The Bash tool reads it (AgentModeFromContext) and hands it to
-// config.IsBashCommandAllowed, which picks the per-mode allow-list. The zero
+// sandbox.IsBashCommandAllowed, which picks the per-mode allow-list. The zero
 // value is AgentModeStandard, so a missing mode defaults to standard.
 func WithAgentMode(ctx context.Context, mode AgentMode) context.Context {
 	return context.WithValue(ctx, agentModeKey, mode)

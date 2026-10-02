@@ -12,6 +12,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestRequestSandboxApproval(t *testing.T) {
@@ -37,7 +38,7 @@ func TestRequestSandboxApproval(t *testing.T) {
 
 			go func() {
 				ev := (<-events).(agentdomain.ToolApprovalRequestedEvent)
-				assert.Equal(t, "SandboxAccess", ev.ToolCall.Function.Name)
+				assert.Equal(t, sandboxdomain.ToolSandboxAccess, ev.ToolCall.Function.Name)
 				assert.Equal(t, "call-1-sandbox", ev.ToolCall.ID)
 				var args map[string]string
 				require.NoError(t, json.Unmarshal([]byte(ev.ToolCall.Function.Arguments), &args))
@@ -55,6 +56,6 @@ func TestRequestSandboxApproval(t *testing.T) {
 
 func TestSandboxGrantDir(t *testing.T) {
 	dir := t.TempDir()
-	assert.Equal(t, dir, sandboxGrantDir(dir))
-	assert.Equal(t, dir, sandboxGrantDir(filepath.Join(dir, "missing.txt")))
+	assert.Equal(t, dir, sandboxdomain.GrantDir(dir))
+	assert.Equal(t, dir, sandboxdomain.GrantDir(filepath.Join(dir, "missing.txt")))
 }

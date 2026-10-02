@@ -95,20 +95,3 @@ func TestPlugins_EnabledEntries(t *testing.T) {
 	cfg.Enabled = false
 	require.Empty(t, cfg.EnabledEntries(), "master switch off must disable all")
 }
-
-func TestValidatePathInSandbox_PluginsCarveOut(t *testing.T) {
-	t.Chdir(t.TempDir())
-	pluginsDir := filepath.Join(ConfigDirName, PluginsDirName)
-	cfg := DefaultConfig()
-	cfg.Plugins = *DefaultPluginsConfig()
-	cfg.Plugins.Dir = pluginsDir
-
-	skillPath := filepath.Join(pluginsDir, "ponytail", "skills", "ponytail", "SKILL.md")
-	require.NoError(t, cfg.ValidatePathInSandbox(skillPath))
-
-	envPath := filepath.Join(pluginsDir, "ponytail", ".env")
-	require.Error(t, cfg.ValidatePathInSandbox(envPath), "file-level protections must still apply inside the plugins dir")
-
-	cfg.Plugins.Enabled = false
-	require.Error(t, cfg.ValidatePathInSandbox(skillPath), "carve-out must be gated on plugins.enabled")
-}

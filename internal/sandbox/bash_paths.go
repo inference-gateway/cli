@@ -1,4 +1,4 @@
-package config
+package sandbox
 
 import (
 	"os"
@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // shellWord is one word of a command after quote and variable expansion, with
@@ -27,15 +29,15 @@ var creatingCommands = []string{"mkdir", "ln"}
 // bashPathOutsideSandbox reports the first path an allow-listed command would
 // read or create outside the sandbox or on a protected path. A path the check
 // cannot predict counts as outside.
-func (c *Config) bashPathOutsideSandbox(seg string) (string, bool) {
+func bashPathOutsideSandbox(cfg *config.Config, seg string) (string, bool) {
 	words := splitShellWords(seg)
 	if len(words) < 2 || slices.Contains(printOnlyCommands, words[0].text) {
 		return "", false
 	}
 
-	validate := c.ValidatePathInSandbox
+	validate := func(path string) error { return ValidateRead(cfg, path) }
 	if slices.Contains(creatingCommands, words[0].text) {
-		validate = c.ValidatePathInSandboxWrite
+		validate = func(path string) error { return ValidateWrite(cfg, path) }
 	}
 	args := words[1:]
 	if words[0].text == "ln" {
@@ -44,7 +46,7 @@ func (c *Config) bashPathOutsideSandbox(seg string) (string, bool) {
 
 	for _, arg := range args {
 		for _, candidate := range pathCandidates(arg) {
-			if path, outside := c.wordOutsideSandbox(candidate, validate); outside {
+			if path, outside := wordOutsideSandbox(cfg, candidate, validate); outside {
 				return path, true
 			}
 		}
@@ -72,7 +74,7 @@ func pathCandidates(arg shellWord) []shellWord {
 	}
 }
 
-func (c *Config) wordOutsideSandbox(word shellWord, validate func(string) error) (string, bool) {
+func wordOutsideSandbox(cfg *config.Config, word shellWord, validate func(string) error) (string, bool) {
 	if word.dynamic {
 		return word.text, true
 	}

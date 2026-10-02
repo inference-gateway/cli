@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	audio "github.com/inference-gateway/cli/internal/audio"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
 // voiceSynthesizer turns text into a spoken WAV file. It is defined here
@@ -94,7 +95,7 @@ func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (st
 		return "", fmt.Errorf("resolving working directory: %w", err)
 	}
 	workPath := filepath.Join(workDir, base)
-	if err := cfg.ValidatePathInSandbox(workPath); err != nil {
+	if err := sandbox.ValidateRead(cfg, workPath); err != nil {
 		return "", err
 	}
 

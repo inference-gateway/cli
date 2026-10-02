@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -27,7 +25,8 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
+	sandboxinfra "github.com/inference-gateway/cli/internal/sandbox/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -1180,11 +1179,11 @@ func (s *Agent) executeToolInternal(
 	entry := s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
 	lastGrant := ""
 	for entry.ToolExecution != nil && !entry.ToolExecution.Success && agentdomain.SandboxApprovalAvailable(ctx) {
-		path, denied := config.SandboxDeniedPath(entry.ToolExecution.Error)
+		path, denied := sandboxdomain.DeniedPath(entry.ToolExecution.Error)
 		if !denied {
 			break
 		}
-		dir := sandboxGrantDir(path)
+		dir := sandboxdomain.GrantDir(path)
 		if dir == lastGrant {
 			break
 		}
@@ -1193,29 +1192,16 @@ func (s *Agent) executeToolInternal(
 			break
 		}
 		lastGrant = dir
-		config.AddSandboxDirectory(dir)
+		sandboxdomain.Granted.Add(dir)
 		logger.Info("sandbox extended by user approval", "dir", dir, "tool", tc.Function.Name, "persisted", always)
 		if always {
-			if err := utils.PersistSandboxDirectory(dir, s.config.Tools.Sandbox.Directories); err != nil {
+			if err := sandboxinfra.PersistDirectory(dir, s.config.Tools.Sandbox.Directories); err != nil {
 				logger.Error("failed to persist sandbox directory", "dir", dir, "error", err)
 			}
 		}
 		entry = s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
 	}
 	return entry
-}
-
-// sandboxGrantDir maps a denied path to the directory worth granting: the path
-// itself when it is an existing directory, otherwise its parent.
-func sandboxGrantDir(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	if info, err := os.Stat(abs); err == nil && info.IsDir() {
-		return abs
-	}
-	return filepath.Dir(abs)
 }
 
 // requestSandboxApproval asks the user - through the standard approval
@@ -1241,7 +1227,7 @@ func (s *Agent) requestSandboxApproval(
 			ID:   tc.ID + "-sandbox",
 			Type: tc.Type,
 			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      "SandboxAccess",
+				Name:      sandboxdomain.ToolSandboxAccess,
 				Arguments: string(args),
 			},
 		},
