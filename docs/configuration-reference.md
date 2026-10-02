@@ -204,6 +204,7 @@ tools:
       - localhost
       - github.com
       - raw.githubusercontent.com
+      - patch-diff.githubusercontent.com
       - agents.md
     safety:
       max_size: 10485760 # 10MB
