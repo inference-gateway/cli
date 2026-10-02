@@ -49,13 +49,17 @@ func fakeKeepAliveChild(t *testing.T, turns chan<- string) func(context.Context,
 }
 
 // collectNotes returns an emit callback and a snapshot of the notes it saw.
+// A signal without a Note (a keep-alive subagent's wake for a follow-up turn)
+// is not a note and is skipped.
 func collectNotes() (func(scheddomain.JobSignal), func() []string) {
 	var mu sync.Mutex
 	var notes []string
 	emit := func(sig scheddomain.JobSignal) {
 		mu.Lock()
 		defer mu.Unlock()
-		notes = append(notes, sig.Note)
+		if sig.Note != "" {
+			notes = append(notes, sig.Note)
+		}
 	}
 	all := func() []string {
 		mu.Lock()
@@ -117,11 +121,17 @@ func TestHeadlessSubagentJob_KeepAliveTurns(t *testing.T) {
 	if s := tool.tracker.GetSubagent("k1"); s.Status != scheddomain.SubagentCompleted || !job.Idle() {
 		t.Fatalf("after a done turn the subagent should be completed and idle, got %s idle=%v", s.Status, job.Idle())
 	}
+	if end := job.IdleSince(); end.IsZero() {
+		t.Fatal("a finished turn should timestamp the idle it starts")
+	}
 	if err := job.state.Input("more"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if s := tool.tracker.GetSubagent("k1"); s.Status != scheddomain.SubagentRunning || job.Idle() {
 		t.Fatalf("a sent message should mark the subagent running, got %s idle=%v", s.Status, job.Idle())
+	}
+	if end := job.IdleSince(); !end.IsZero() {
+		t.Fatal("a follow-up turn must clear the idle timestamp")
 	}
 	waitTurn(t, turns, "re:more")
 	if got := job.Stats(); got == nil || got.ToolsSucceeded != len("re:more") {

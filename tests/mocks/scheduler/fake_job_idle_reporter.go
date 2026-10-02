@@ -4,6 +4,7 @@ package scheduler
 import (
 	"context"
 	"sync"
+	"time"
 
 	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -23,6 +24,16 @@ type FakeJobIdleReporter struct {
 	}
 	idleReturnsOnCall map[int]struct {
 		result1 bool
+	}
+	IdleSinceStub        func() time.Time
+	idleSinceMutex       sync.RWMutex
+	idleSinceArgsForCall []struct {
+	}
+	idleSinceReturns struct {
+		result1 time.Time
+	}
+	idleSinceReturnsOnCall map[int]struct {
+		result1 time.Time
 	}
 	MetaStub        func() domain.JobMeta
 	metaMutex       sync.RWMutex
@@ -136,6 +147,59 @@ func (fake *FakeJobIdleReporter) IdleReturnsOnCall(i int, result1 bool) {
 	}
 	fake.idleReturnsOnCall[i] = struct {
 		result1 bool
+	}{result1}
+}
+
+func (fake *FakeJobIdleReporter) IdleSince() time.Time {
+	fake.idleSinceMutex.Lock()
+	ret, specificReturn := fake.idleSinceReturnsOnCall[len(fake.idleSinceArgsForCall)]
+	fake.idleSinceArgsForCall = append(fake.idleSinceArgsForCall, struct {
+	}{})
+	stub := fake.IdleSinceStub
+	fakeReturns := fake.idleSinceReturns
+	fake.recordInvocation("IdleSince", []interface{}{})
+	fake.idleSinceMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeJobIdleReporter) IdleSinceCallCount() int {
+	fake.idleSinceMutex.RLock()
+	defer fake.idleSinceMutex.RUnlock()
+	return len(fake.idleSinceArgsForCall)
+}
+
+func (fake *FakeJobIdleReporter) IdleSinceCalls(stub func() time.Time) {
+	fake.idleSinceMutex.Lock()
+	defer fake.idleSinceMutex.Unlock()
+	fake.IdleSinceStub = stub
+}
+
+func (fake *FakeJobIdleReporter) IdleSinceReturns(result1 time.Time) {
+	fake.idleSinceMutex.Lock()
+	defer fake.idleSinceMutex.Unlock()
+	fake.IdleSinceStub = nil
+	fake.idleSinceReturns = struct {
+		result1 time.Time
+	}{result1}
+}
+
+func (fake *FakeJobIdleReporter) IdleSinceReturnsOnCall(i int, result1 time.Time) {
+	fake.idleSinceMutex.Lock()
+	defer fake.idleSinceMutex.Unlock()
+	fake.IdleSinceStub = nil
+	if fake.idleSinceReturnsOnCall == nil {
+		fake.idleSinceReturnsOnCall = make(map[int]struct {
+			result1 time.Time
+		})
+	}
+	fake.idleSinceReturnsOnCall[i] = struct {
+		result1 time.Time
 	}{result1}
 }
 

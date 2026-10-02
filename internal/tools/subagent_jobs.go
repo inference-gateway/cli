@@ -48,6 +48,7 @@ type headlessSubagentJob struct {
 	live       scheddomain.SubagentRunStats
 	stdinWrite *os.File
 	idle       *time.Timer
+	idleSince  time.Time
 	closing    bool
 }
 
@@ -188,6 +189,7 @@ func (j *headlessSubagentJob) recordTurn(turn scheddomain.SubagentResultFile) st
 	j.outcome.Success, j.outcome.Error, j.outcome.Stats = turn.Success, turn.Error, turn.Stats
 	logger.Debug("keep-alive headless subagent turn finished", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "success", turn.Success, "done", turn.Done)
 	if turn.Done {
+		j.idleSince = time.Now()
 		j.setStatus(turnStatusOf(turn.Success))
 		j.armIdleLocked()
 	}
@@ -226,8 +228,21 @@ func (j *headlessSubagentJob) hangUpIdleLocked() string {
 	return closedMessage(j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout), j.output)
 }
 
-// send writes one follow-up user message to the child as its next turn.
+// send writes one follow-up user message to the child as its next turn and
+// emits a note-free signal after unlocking: the task views' refresh tick has
+// stopped on the finished row, so the wake keeps it redrawn as running.
 func (j *headlessSubagentJob) send(text string) error {
+	err := j.writeFollowUp(text)
+	if err == nil && j.emit != nil {
+		j.emit(scheddomain.JobSignal{})
+	}
+	return err
+}
+
+// writeFollowUp writes the frame and marks the subagent running again.
+// The emit stays outside: the signal wakes the UI, whose render reads this job
+// back through Idle and IdleSince.
+func (j *headlessSubagentJob) writeFollowUp(text string) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closing || j.stdinWrite == nil {
@@ -304,6 +319,16 @@ func (j *headlessSubagentJob) Idle() bool {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.keepAlive && j.state.Status != scheddomain.SubagentRunning
+}
+
+// IdleSince is when the child's last turn ended, zero while it is busy.
+func (j *headlessSubagentJob) IdleSince() time.Time {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if !j.keepAlive || j.state.Status == scheddomain.SubagentRunning {
+		return time.Time{}
+	}
+	return j.idleSince
 }
 
 // hangUp closes the child's stdin once so it exits after its current turn.
