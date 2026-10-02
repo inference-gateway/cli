@@ -15,6 +15,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
+// warnedShadowed records the built-in names a shadowed custom shortcut has
+// already warned about. ponytail: process-wide and never reset, so each name
+// warns once per process and a reload from a different file stays silent.
+var warnedShadowed = new(sync.Map)
+
 // Registry manages all available shortcuts
 type Registry struct {
 	shortcuts map[string]Shortcut
@@ -33,7 +38,8 @@ func NewRegistry() *Registry {
 // the project override: later directories overlay earlier ones by shortcut name
 // rather than replacing the whole set. A custom shortcut never shadows a
 // built-in one (registered first), which keeps an init-seeded file like
-// ~/.infer/shortcuts/a2a.yaml from hiding /agents.
+// ~/.infer/shortcuts/a2a.yaml from hiding /agents. The shadow warning fires
+// once per process per name, not once per registry.
 func (r *Registry) LoadCustomShortcuts(baseDirs []string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -48,7 +54,9 @@ func (r *Registry) LoadCustomShortcuts(baseDirs []string, client sdk.Client, mod
 			name := shortcut.GetName()
 			if existing, exists := r.shortcuts[name]; exists {
 				if _, isCustom := existing.(*CustomShortcut); !isCustom {
-					logger.Warn("ignoring custom shortcut that shadows a built-in shortcut", "name", name, "file", customShortcutSourceFile(shortcut))
+					if _, dup := warnedShadowed.LoadOrStore(name, struct{}{}); !dup {
+						logger.Warn("ignoring custom shortcut that shadows a built-in shortcut, delete or rename the file", "name", name, "file", customShortcutSourceFile(shortcut))
+					}
 					continue
 				}
 			}
