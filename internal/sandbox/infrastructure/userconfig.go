@@ -23,9 +23,9 @@ func PersistGrant(grant sandboxdomain.Allowed) error {
 	if err != nil {
 		return err
 	}
-	if slices.Contains(sandboxCfg.Allowed, grant) {
+	if slices.Contains(sandboxCfg.Filesystem.Allowed, grant) {
 		return nil
 	}
-	sandboxCfg.Allowed = append([]sandboxdomain.Allowed{grant}, sandboxCfg.Allowed...)
+	sandboxCfg.Filesystem.Allowed = append([]sandboxdomain.Allowed{grant}, sandboxCfg.Filesystem.Allowed...)
 	return config.SaveSandbox(path, sandboxCfg)
 }

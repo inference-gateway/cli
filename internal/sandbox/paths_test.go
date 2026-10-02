@@ -108,7 +108,7 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 
 	t.Run("skills enabled: .agents/skills carved out of a restrictive sandbox", func(t *testing.T) {
 		cfg := config.DefaultConfig()
-		cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(sandboxDir)
+		cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(sandboxDir)
 		if !cfg.Agent.Skills.Enabled {
 			t.Fatalf("expected skills enabled by default")
 		}
@@ -128,7 +128,7 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 
 	t.Run("skills disabled: .agents/skills denied by the restrictive sandbox", func(t *testing.T) {
 		cfg := config.DefaultConfig()
-		cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(sandboxDir)
+		cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(sandboxDir)
 		cfg.Agent.Skills.Enabled = false
 
 		for _, p := range []string{agentsSkill, relAgentsSkill} {
@@ -320,8 +320,8 @@ func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(project, home)
-	cfg.Tools.Sandbox.Denied = nil
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project, home)
+	cfg.Tools.Sandbox.Filesystem.Denied = nil
 
 	for _, file := range config.SandboxFilePaths() {
 		require.NoError(t, ValidateRead(cfg, file), "reading %s", file)

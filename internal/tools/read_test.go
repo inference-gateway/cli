@@ -17,7 +17,7 @@ func TestReadTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(".")}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -100,7 +100,7 @@ func TestReadTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
 				Allowed: sandboxdomain.Allow(wd, parentDir, "/tmp", "/home/user"),
 				Denied: sandboxdomain.Deny(
 					".infer/",
@@ -108,7 +108,7 @@ func TestReadTool_Validate(t *testing.T) {
 					"*.env",
 					"*.env.database",
 				),
-			},
+			}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -321,7 +321,7 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -409,7 +409,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -508,7 +508,7 @@ func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -619,7 +619,7 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -677,7 +677,7 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -723,7 +723,7 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -784,7 +784,7 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -851,7 +851,7 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -915,7 +915,7 @@ func TestReadTool_Execute_NotFoundSuggestions(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir, emptyDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir, emptyDir)}},
 			Read:    config.ReadToolConfig{Enabled: true},
 		},
 	}

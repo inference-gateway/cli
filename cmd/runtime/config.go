@@ -538,7 +538,7 @@ func loadSandboxConfig() *config.SandboxConfig {
 		sandboxCfg = config.DefaultSandboxConfig()
 	}
 	if extra := parseDelimitedList(os.Getenv("INFER_TOOLS_SANDBOX_DIRECTORIES")); len(extra) > 0 {
-		sandboxCfg.Allowed = append(sandboxCfg.Allowed, sandboxdomain.Allow(extra...)...)
+		sandboxCfg.Filesystem.Allowed = append(sandboxCfg.Filesystem.Allowed, sandboxdomain.Allow(extra...)...)
 	}
 	return sandboxCfg
 }

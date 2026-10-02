@@ -37,7 +37,7 @@ func ValidateWrite(cfg *config.Config, path string) error {
 // that want somewhere sensible to look.
 func AllowedDirectories(cfg *config.Config) []string {
 	var dirs []string
-	for _, entry := range cfg.Tools.Sandbox.Allowed {
+	for _, entry := range cfg.Tools.Sandbox.Filesystem.Allowed {
 		if isAnchored(entry.Path) {
 			dirs = append(dirs, anchoredPath(entry.Path))
 		}
@@ -66,7 +66,7 @@ func validate(cfg *config.Config, path string, access sandboxdomain.Access) erro
 func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access) error {
 	carveOut, inCarveOut := implicitAccess(cfg, absPath)
 
-	for _, entry := range cfg.Tools.Sandbox.Denied {
+	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
 		if inCarveOut && strings.TrimSuffix(entry.Path, "/") == config.ConfigDirName {
 			continue
 		}
@@ -88,10 +88,10 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 		}
 		return fmt.Errorf("path '%s' is in a read-only library directory", path)
 	}
-	if len(cfg.Tools.Sandbox.Allowed) == 0 {
+	if len(cfg.Tools.Sandbox.Filesystem.Allowed) == 0 {
 		return nil
 	}
-	for _, entry := range cfg.Tools.Sandbox.Allowed {
+	for _, entry := range cfg.Tools.Sandbox.Filesystem.Allowed {
 		if matches(entry.Path, path, absPath) {
 			if entry.Access.Allows(access) {
 				return nil

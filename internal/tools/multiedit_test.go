@@ -18,7 +18,7 @@ func TestMultiEditTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -47,7 +47,7 @@ func TestMultiEditTool_Execute_RequiresReadTool(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -102,7 +102,7 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -205,7 +205,7 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -256,7 +256,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 		return &config.Config{
 			Tools: config.ToolsConfig{
 				Enabled: true,
-				Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(dir)},
+				Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(dir)}},
 				Edit:    config.EditToolConfig{Enabled: true},
 			},
 		}
@@ -370,7 +370,7 @@ func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -438,7 +438,7 @@ func TestMultiEditTool_Execute_NonUniqueString(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -503,7 +503,7 @@ func TestMultiEditTool_Execute_ReplaceAll(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -569,7 +569,7 @@ func TestMultiEditTool_Execute_NewFileCreation(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -618,7 +618,7 @@ func TestMultiEditTool_Validate_InvalidArgs(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd, "/tmp")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd, "/tmp")}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -740,7 +740,7 @@ func TestMultiEditTool_IsEnabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -807,7 +807,7 @@ func main() {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -878,7 +878,7 @@ func main() {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -958,7 +958,7 @@ func main() {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -1129,7 +1129,7 @@ func TestMultiEditTool_EdgeCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -1291,7 +1291,7 @@ func TestMultiEditTool_Validate_TableDriven(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd, "/tmp")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd, "/tmp")}},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
@@ -1382,7 +1382,7 @@ func TestMultiEditTool_Execute_TableDriven(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
@@ -1629,7 +1629,7 @@ func TestMultiEditTool_AdditionalEdgeCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}

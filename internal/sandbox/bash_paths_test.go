@@ -32,7 +32,7 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 	mustSymlink(t, filepath.Join(outside, "secret.txt"), filepath.Join(project, "links", "out-file"))
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(project)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
 
 	tests := []struct {
 		command string

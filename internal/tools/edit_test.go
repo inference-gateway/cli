@@ -49,7 +49,7 @@ func TestEditTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(".")}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -145,7 +145,7 @@ func getTestConfig() *config.Config {
 	return &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
 				Allowed: sandboxdomain.Allow("."),
 				Denied: sandboxdomain.Deny(
 					".infer/",
@@ -153,7 +153,7 @@ func getTestConfig() *config.Config {
 					"*.env",
 					"*.env.database",
 				),
-			},
+			}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -416,7 +416,7 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(".")}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -465,7 +465,7 @@ func TestEditTool_Execute_Success(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -570,7 +570,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -998,7 +998,7 @@ func TestEditTool_Execute_TableDriven(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -1281,7 +1281,7 @@ func TestEditTool_Execute_EdgeCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
@@ -1628,7 +1628,7 @@ func TestEditTool_Execute_StaleRead(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
@@ -1709,7 +1709,7 @@ func createEditToolForWhitespaceTest(tempDir string) *EditTool {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}

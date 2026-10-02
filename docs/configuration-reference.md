@@ -333,7 +333,7 @@ telemetry:
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.max_result_bytes**: Byte cap on a single tool result before it is truncated for the model (default: `250000`).
   Set via `INFER_TOOLS_MAX_RESULT_BYTES`.
-- The sandbox policy (allowed directories and protected paths) lives in `sandbox.yaml`, not here. See
+- The sandbox policy (`filesystem.allowed` and `filesystem.denied`) lives in `sandbox.yaml`, not here. See
   [Blocks in Their Own File](#blocks-in-their-own-file).
 - **tools.bash.mode.\<mode\>.allow**: Per-mode bash allow-list (regexes matched against the whole command). `<mode>` is one of `all`
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
@@ -945,9 +945,9 @@ entry lists its keys and points at the guide that owns the behaviour.
 The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
-- **`sandbox.yaml`** - `allowed` (default `~/.infer/tmp`, `.infer/` read-only, `.` and `/tmp`) and `denied`
-  (default `.git/`, `*.env`, `.environment`, `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`,
-  `id_ed25519`). Each entry is a
+- **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `~/.infer/tmp`,
+  `.infer/` read-only, `.`, `/tmp` and `/private/tmp`) and `denied` (default `.git/`, `*.env`, `.environment`,
+  `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
   `on_violation: block|approval` (default block). Denied wins over allowed, the first matching entry in each
   list wins, and a path outside `allowed` or a write into a read-only entry asks the user. Paths are anchored
@@ -1005,7 +1005,7 @@ OPENAI_API_KEY: sk-...
 
 A missing or unreadable `auth.yaml` changes nothing, and a malformed one is
 ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`); it is on the sandbox
-`denied` list in `sandbox.yaml`, so agent tools cannot read or edit it.
+`filesystem.denied` list in `sandbox.yaml`, so agent tools cannot read or edit it.
 
 ### Gateway Configuration
 
@@ -1256,7 +1256,7 @@ tools:
 
 **Sandbox Configuration:**
 
-- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated directories added to `allowed` in `sandbox.yaml`.
+- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated directories added to `filesystem.allowed` in `sandbox.yaml`.
 
 ### Storage Configuration
 

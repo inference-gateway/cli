@@ -446,7 +446,7 @@ func TestWaitTool_Execute_CommandSuccess(t *testing.T) {
 func TestWaitTool_Execute_FileEvent(t *testing.T) {
 	cfg := testWaitConfig()
 	tmpDir := t.TempDir()
-	cfg.Tools.Sandbox.Allowed = append(cfg.Tools.Sandbox.Allowed, sandboxdomain.Allow(tmpDir)...)
+	cfg.Tools.Sandbox.Filesystem.Allowed = append(cfg.Tools.Sandbox.Filesystem.Allowed, sandboxdomain.Allow(tmpDir)...)
 	tool := NewWaitTool(cfg, nil)
 
 	testFile := filepath.Join(tmpDir, "test-wait.txt")

@@ -405,7 +405,7 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewDeleteTool(cfg)
 
 	args := map[string]any{
@@ -439,7 +439,7 @@ func TestDeleteTool_SandboxValidation(t *testing.T) {
 	}()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewDeleteTool(cfg)
 
 	tests := []struct {

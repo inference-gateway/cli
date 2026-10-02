@@ -126,17 +126,17 @@ func TestInitConfigSandboxSidecar(t *testing.T) {
 
 	sandboxFile := filepath.Join(projectDir, config.DefaultSandboxPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(sandboxFile), 0o755))
-	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nallowed:\n  - /policy\n"), 0o644))
+	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nfilesystem:\n  allowed:\n    - /policy\n"), 0o644))
 
 	initConfig()
-	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Allowed)
-	require.Empty(t, Cfg.Tools.Sandbox.Denied, "a present file replaces the policy wholesale")
+	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Filesystem.Allowed)
+	require.Empty(t, Cfg.Tools.Sandbox.Filesystem.Denied, "a present file replaces the policy wholesale")
 
 	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "")
 	initConfig()
-	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Allowed, "an empty env list adds nothing")
+	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Filesystem.Allowed, "an empty env list adds nothing")
 
 	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "/extra")
 	initConfig()
-	require.Equal(t, sandboxdomain.Allow("/policy", "/extra"), Cfg.Tools.Sandbox.Allowed, "env directories are allowed too")
+	require.Equal(t, sandboxdomain.Allow("/policy", "/extra"), Cfg.Tools.Sandbox.Filesystem.Allowed, "env directories are allowed too")
 }

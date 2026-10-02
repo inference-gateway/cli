@@ -52,7 +52,7 @@ for the full precedence rules.
 ├── auth.yaml             # provider API key fallback, mode 0600
 ├── prompts.yaml          # LLM system prompts (agent, git, conversation, tools, ...)
 ├── keybindings.yaml      # chat UI keyboard shortcuts
-├── sandbox.yaml          # sandbox policy: allowed and denied paths
+├── sandbox.yaml          # sandbox policy: filesystem.allowed and filesystem.denied
 ├── channels.yaml         # remote messaging channels (Telegram, ...)
 ├── computer_use.yaml     # computer-use / vision settings
 ├── browser_use.yaml      # browser automation (Playwright) settings
@@ -137,9 +137,9 @@ project wants to override a config file it commits its own sparse
   conversation, init, vision).
 - **`keybindings.yaml`** - keyboard shortcuts for the chat TUI. Edit via
   `infer keybindings set/disable/reset` or by hand.
-- **`sandbox.yaml`** - the sandbox policy: `allowed` paths the file tools may
-  use (optionally `access: read`) and `denied` paths they never may (optionally
-  `on_violation: approval`). The agent's file tools cannot write this file,
+- **`sandbox.yaml`** - the sandbox policy, one section per resource. Under
+  `filesystem`, `allowed` paths the file tools may use (optionally `access: read`)
+  and `denied` paths they never may (optionally `on_violation: approval`). The agent's file tools cannot write this file,
   whatever it says.
 - **`channels.yaml`** - remote messaging transports (Telegram, ...) and
   per-channel allowlists. See [Channels](channels.md). On first init, a

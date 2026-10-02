@@ -129,8 +129,8 @@ func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
 
 			initConfig()
 
-			want := append(config.DefaultSandboxConfig().Allowed, sandboxdomain.Allow(".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test")...)
-			assert.Equal(t, want, Cfg.Tools.Sandbox.Allowed)
+			want := append(config.DefaultSandboxConfig().Filesystem.Allowed, sandboxdomain.Allow(".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test")...)
+			assert.Equal(t, want, Cfg.Tools.Sandbox.Filesystem.Allowed)
 		})
 	}
 }

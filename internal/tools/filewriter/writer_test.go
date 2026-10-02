@@ -17,7 +17,7 @@ func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 	backupMgr := NewBackup(tempDir)

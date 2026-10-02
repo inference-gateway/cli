@@ -240,7 +240,7 @@ prebuilt helper programs infer itself uses (ffmpeg, whisper-cli, llama-tts).
 ## Security
 
 A custom tool runs with **your** permissions and can do anything you can. infer's sandbox settings
-(`sandbox.yaml`: `allowed`, `denied`) only restrict infer's built-in file tools, not the
+(`sandbox.yaml`: `filesystem.allowed`, `filesystem.denied`) only restrict infer's built-in file tools, not the
 programs custom tools start. Only install manifests and programs you trust, keep `require_approval` on for tools that
 change things, and list `plan`/`readonly` in `modes` only for tools that do not.
 

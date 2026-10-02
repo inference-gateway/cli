@@ -522,7 +522,7 @@ func TestGrepTool_PathExclusion(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(".")}},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
@@ -652,7 +652,7 @@ func TestGrepTool_HybridSearch(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(".")}},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
@@ -704,7 +704,7 @@ func TestGrepTool_GoBasedSearch(t *testing.T) {
 		config: &config.Config{
 			Tools: config.ToolsConfig{
 				Enabled: true,
-				Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd)},
+				Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd)}},
 			},
 		},
 		enabled: true,
@@ -1094,7 +1094,7 @@ func TestGrepTool_RipgrepErrors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(".")}},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},

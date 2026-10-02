@@ -844,15 +844,15 @@ func (s *Agent) buildSandboxInfo() string {
 
 	var sandboxInfo strings.Builder
 	sandboxInfo.WriteString("SANDBOX RESTRICTIONS:\n")
-	if len(policy.Allowed) > 0 {
+	if len(policy.Filesystem.Allowed) > 0 {
 		sandboxInfo.WriteString("You may work within these allowed paths:\n")
-		for _, entry := range policy.Allowed {
+		for _, entry := range policy.Filesystem.Allowed {
 			fmt.Fprintf(&sandboxInfo, "- %s (%s)\n", entry.Path, entry.Access)
 		}
 	}
-	if len(policy.Denied) > 0 {
+	if len(policy.Filesystem.Denied) > 0 {
 		sandboxInfo.WriteString("You MUST NOT attempt to access these denied paths:\n")
-		for _, entry := range policy.Denied {
+		for _, entry := range policy.Filesystem.Denied {
 			fmt.Fprintf(&sandboxInfo, "- %s\n", entry.Path)
 		}
 	}

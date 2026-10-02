@@ -65,13 +65,13 @@ func TestTreeTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
 				Allowed: sandboxdomain.Allow("."),
 				Denied: sandboxdomain.Deny(
 					".infer/",
 					".git/",
 				),
-			},
+			}},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},
@@ -226,7 +226,7 @@ func createTestTreeTool(tempDir string) *TreeTool {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},
@@ -578,7 +578,7 @@ func TestTreeTool_ValidatePath(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tempDir)}},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},

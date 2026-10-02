@@ -153,7 +153,7 @@ func TestInsightsDirIsReadableByAgent(t *testing.T) {
 			t.Chdir(t.TempDir())
 
 			cfg := &config.Config{Storage: config.StorageConfig{Enabled: true, Type: config.StorageTypeJsonl}}
-			cfg.Tools.Sandbox.Denied = sandboxdomain.Deny(".infer/")
+			cfg.Tools.Sandbox.Filesystem.Denied = sandboxdomain.Deny(".infer/")
 			cfg.SetConfigDir(configDir)
 
 			if err := sandbox.ValidateRead(cfg, filepath.Join(config.InsightsDir(), "report.md")); err != nil {

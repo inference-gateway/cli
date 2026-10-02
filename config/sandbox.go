@@ -14,11 +14,16 @@ const (
 	DefaultSandboxPath = ConfigDirName + "/" + SandboxFileName
 )
 
-// SandboxConfig is the sandbox policy: the paths tools may use and the paths
-// they never may. Outside allowed the user is asked. It lives in its own
-// sandbox.yaml so the policy can be reviewed on its own and the agent's file
-// tools can never edit it.
+// SandboxConfig is the sandbox policy, one section per resource the tools
+// reach. It lives in its own sandbox.yaml so the policy can be reviewed on its
+// own and the agent's file tools can never edit it.
 type SandboxConfig struct {
+	Filesystem FilesystemPolicy `yaml:"filesystem"`
+}
+
+// FilesystemPolicy is the paths tools may use and the paths they never may.
+// Outside allowed the user is asked.
+type FilesystemPolicy struct {
 	Allowed []sandboxdomain.Allowed `yaml:"allowed"`
 	Denied  []sandboxdomain.Denied  `yaml:"denied"`
 }
@@ -45,12 +50,12 @@ func DefaultSandboxConfig() *SandboxConfig {
 		"id_ecdsa",
 		"id_ed25519",
 	)
-	return &SandboxConfig{Allowed: allowed, Denied: denied}
+	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: allowed, Denied: denied}}
 }
 
 // Validate rejects an entry with no path or an unknown access or behaviour.
 func (c *SandboxConfig) Validate() error {
-	for i, entry := range c.Allowed {
+	for i, entry := range c.Filesystem.Allowed {
 		switch {
 		case entry.Path == "":
 			return fmt.Errorf("sandbox allowed entry %d has no path", i)
@@ -58,7 +63,7 @@ func (c *SandboxConfig) Validate() error {
 			return fmt.Errorf("sandbox allowed %q: access %q must be read or write", entry.Path, entry.Access)
 		}
 	}
-	for i, entry := range c.Denied {
+	for i, entry := range c.Filesystem.Denied {
 		switch {
 		case entry.Path == "":
 			return fmt.Errorf("sandbox denied entry %d has no path", i)

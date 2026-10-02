@@ -170,7 +170,7 @@ func TestWriteTool_ValidateDisabled(t *testing.T) {
 func TestWriteTool_Execute(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewWriteTool(cfg)
 	ctx := context.Background()
 
@@ -417,7 +417,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 	}()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewWriteTool(cfg)
 
 	tests := []struct {

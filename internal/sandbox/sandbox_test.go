@@ -54,8 +54,8 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = append([]sandboxdomain.Allowed{{Path: readOnly, Access: sandboxdomain.AccessRead}}, sandboxdomain.Allow(sandbox)...)
-	cfg.Tools.Sandbox.Denied = append(cfg.Tools.Sandbox.Denied, sandboxdomain.Denied{Path: deploy, OnViolation: sandboxdomain.ViolationApproval})
+	cfg.Tools.Sandbox.Filesystem.Allowed = append([]sandboxdomain.Allowed{{Path: readOnly, Access: sandboxdomain.AccessRead}}, sandboxdomain.Allow(sandbox)...)
+	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Denied{Path: deploy, OnViolation: sandboxdomain.ViolationApproval})
 
 	var denied *sandboxdomain.DeniedError
 	if err := ValidateRead(cfg, target); !errors.As(err, &denied) || denied.Rule != "" {
@@ -88,7 +88,7 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	if err := ValidateRead(cfg, secret); err == nil {
 		t.Fatal("a granted directory still respects denied")
 	}
-	if got := cfg.Tools.Sandbox.Allowed; len(got) != 2 {
+	if got := cfg.Tools.Sandbox.Filesystem.Allowed; len(got) != 2 {
 		t.Fatalf("grants must not change the configured policy, got %v", got)
 	}
 }
@@ -113,7 +113,7 @@ func TestValidatePathInSandbox_Symlinks(t *testing.T) {
 	mustSymlink(t, sandbox, sandboxLink)
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(sandbox)
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(sandbox)
 
 	tests := []struct {
 		name       string
@@ -133,7 +133,7 @@ func TestValidatePathInSandbox_Symlinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.dirs != nil {
 				cfg := *cfg
-				cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tt.dirs...)
+				cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tt.dirs...)
 				if err := ValidateRead(&cfg, tt.path); err != nil {
 					t.Fatalf("expected %s allowed, got %v", tt.path, err)
 				}
@@ -187,7 +187,7 @@ func TestValidatePathInSandboxWrite_CustomToolsDirs(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(project, filepath.Dir(userTools))
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project, filepath.Dir(userTools))
 	cfg.Tools.CustomDir = userTools
 
 	tests := []struct {

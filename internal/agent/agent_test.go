@@ -358,7 +358,7 @@ func TestAgentServiceImpl_ParseProvider(t *testing.T) {
 func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Tools.Sandbox = *config.DefaultSandboxConfig()
-	cfg.Tools.Sandbox.Allowed = append(cfg.Tools.Sandbox.Allowed, sandboxdomain.Allowed{Path: "vendor/", Access: sandboxdomain.AccessRead})
+	cfg.Tools.Sandbox.Filesystem.Allowed = append(cfg.Tools.Sandbox.Filesystem.Allowed, sandboxdomain.Allowed{Path: "vendor/", Access: sandboxdomain.AccessRead})
 
 	result := (&Agent{config: cfg}).buildSandboxInfo()
 
@@ -1207,10 +1207,10 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 			},
 		},
 		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
 				Allowed: sandboxdomain.Allow("/home/user"),
 				Denied:  sandboxdomain.Deny("/etc"),
-			},
+			}},
 		},
 	}
 
@@ -1248,10 +1248,10 @@ func TestAgentServiceImpl_BuildSystemPrompt(t *testing.T) {
 			},
 		},
 		Tools: config.ToolsConfig{
-			Sandbox: config.SandboxConfig{
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
 				Allowed: sandboxdomain.Allow("/home/user"),
 				Denied:  sandboxdomain.Deny("/etc"),
-			},
+			}},
 		},
 	}
 
