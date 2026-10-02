@@ -144,10 +144,12 @@ type JobNotifier interface {
 
 // JobIdleReporter is a BackgroundJob that stays running between turns, like a
 // headless subagent awaiting a follow-up. While Idle reports true the job does
-// not hold the session.
+// not hold the session. IdleSince is when its last turn ended, zero while busy,
+// so a reader can freeze the job's elapsed time while it idles.
 type JobIdleReporter interface {
 	BackgroundJob
 	Idle() bool
+	IdleSince() time.Time
 }
 
 // JobFinisher is an optional BackgroundJob extension the supervisor calls once

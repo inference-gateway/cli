@@ -308,16 +308,24 @@ func TestSupervisor_HasPendingSkipsIdleJobs(t *testing.T) {
 	if !sup.HasPending() {
 		t.Fatalf("a busy session-holding job should count as pending")
 	}
+	if j, _ := snapByID(sup, "keeper"); j.CompletedAt != nil {
+		t.Fatalf("a busy job must read as running with no completion time, got %+v", j)
+	}
 	keeper.IdleReturns(true)
+	turnEnd := time.Now().Add(-time.Minute)
+	keeper.IdleSinceReturns(turnEnd)
 	if sup.HasPending() {
 		t.Fatalf("an idle job must not hold the session")
 	}
-	if got := statusOf(sup, "keeper"); got != scheddomain.JobCompleted {
-		t.Fatalf("an idle job reads as completed in the snapshot, got %s", got)
+	j, _ := snapByID(sup, "keeper")
+	if j.Status != scheddomain.JobCompleted || j.CompletedAt == nil || !j.CompletedAt.Equal(turnEnd) {
+		t.Fatalf("an idle job must read completed at its turn end, got %+v", j)
 	}
 	keeper.IdleReturns(false)
-	if got := statusOf(sup, "keeper"); got != scheddomain.JobRunning {
-		t.Fatalf("a job busy again reads as running, got %s", got)
+	keeper.IdleSinceReturns(time.Time{})
+	j, _ = snapByID(sup, "keeper")
+	if j.Status != scheddomain.JobRunning || j.CompletedAt != nil {
+		t.Fatalf("a busy-again job must read running with no completion time, got %+v", j)
 	}
 	close(finish)
 	sup.Stop()

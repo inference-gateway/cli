@@ -176,21 +176,22 @@ func (s *Supervisor) monitor(ctx context.Context, sj *supervised) {
 	s.finish(sj, result)
 }
 
-// onSignal records a job's intermediate status and, when the signal asks for it,
-// lands the note on the shared queue. enqueue pushes a DrainQueueEvent so the
-// idle agent picks the note up; the supervisor never touches a per-request
-// channel. A BackgroundTasksChangedEvent refreshes the task view's last-note.
+// onSignal records a job's intermediate status and, when the signal asks for
+// it, lands the note on the shared queue (enqueue pushes a DrainQueueEvent so
+// the idle agent picks the note up). Every signal then refreshes the task
+// views, so a note-free one - a keep-alive subagent waking for a follow-up
+// turn - still redraws its row.
 func (s *Supervisor) onSignal(sj *supervised, sig scheddomain.JobSignal) {
 	if sig.Note != "" {
 		s.mu.Lock()
 		sj.lastNote = sig.Note
 		s.mu.Unlock()
-		s.notify(agentdomain.BackgroundTasksChangedEvent{})
 	}
 
 	if sig.Enqueue && sig.Note != "" {
 		s.enqueue(sig.Note, sj.meta.Kind)
 	}
+	s.notify(agentdomain.BackgroundTasksChangedEvent{})
 }
 
 // finish marks a job terminal and lands its result on the shared queue (unless
@@ -442,6 +443,9 @@ func (s *Supervisor) Snapshot() []scheddomain.TrackedJob {
 		}
 		if tj.Status == scheddomain.JobRunning && isIdle(sj.job) {
 			tj.Status = scheddomain.JobCompleted
+			if since := idleSince(sj.job); !since.IsZero() {
+				tj.CompletedAt = &since
+			}
 		}
 		if p, ok := sj.job.(scheddomain.JobOutputProvider); ok {
 			tj.Output = p.Output()
@@ -522,6 +526,16 @@ func (s *Supervisor) HasPending() bool {
 func isIdle(job scheddomain.BackgroundJob) bool {
 	idler, ok := job.(scheddomain.JobIdleReporter)
 	return ok && idler.Idle()
+}
+
+// idleSince is when an idle job's last turn ended, zero when the job does not
+// track one (it had no finished turn yet).
+func idleSince(job scheddomain.BackgroundJob) time.Time {
+	idler, ok := job.(scheddomain.JobIdleReporter)
+	if !ok {
+		return time.Time{}
+	}
+	return idler.IdleSince()
 }
 
 // Cleanup reaps finished jobs whose terminal timestamp is older than olderThan,
