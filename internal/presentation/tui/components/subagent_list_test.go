@@ -6,10 +6,13 @@ import (
 	"testing"
 	"time"
 
+	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
+
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -500,5 +503,51 @@ func TestSubagentListSelection(t *testing.T) {
 	list.Blur()
 	if got := plain(list.Render()); strings.Contains(got, "finished") || strings.Contains(got, "❯") {
 		t.Errorf("blur should drop the marker and unpin the viewed row, got %q", got)
+	}
+}
+
+// TestSubagentListStatsIconsDimAtZero: the stats line colors a count's icon only
+// once the count is positive, so a zero tick or cross cannot read as an outcome.
+func TestSubagentListStatsIconsDimAtZero(t *testing.T) {
+	fakeTheme := &tuimocks.FakeTheme{}
+	fakeTheme.GetDimColorReturns("#888888")
+	fakeTheme.GetSuccessColorReturns("#9ece6a")
+	fakeTheme.GetErrorColorReturns("#f7768e")
+	themeService := &tuimocks.FakeThemeService{}
+	themeService.GetCurrentThemeReturns(fakeTheme)
+	provider := styles.NewProvider(themeService)
+	list := NewSubagentList(provider)
+
+	dim := provider.GetThemeColor("dim")
+	success := provider.GetThemeColor("success")
+	failure := provider.GetThemeColor("error")
+	tick := func(color string) string { return provider.RenderWithColor(icons.CheckMark, color) }
+	cross := func(color string) string { return provider.RenderWithColor(icons.CrossMark, color) }
+	if tick(dim) == tick(success) || cross(dim) == cross(failure) {
+		t.Skip("this terminal renders no colors, so the assertion would be vacuous")
+	}
+
+	tests := []struct {
+		name       string
+		stats      scheddomain.SubagentRunStats
+		tickColor  string
+		crossColor string
+	}{
+		{name: "both counts zero stay dim", tickColor: dim, crossColor: dim},
+		{name: "both counts positive take the status color", stats: scheddomain.SubagentRunStats{ToolsSucceeded: 3, ToolsFailed: 1}, tickColor: success, crossColor: failure},
+		{name: "zero failures dim the cross", stats: scheddomain.SubagentRunStats{ToolsSucceeded: 3}, tickColor: success, crossColor: dim},
+		{name: "zero successes dim the tick", stats: scheddomain.SubagentRunStats{ToolsFailed: 2}, tickColor: dim, crossColor: failure},
+	}
+
+	const width = 60
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			want := fmt.Sprintf("└ %d %s %d %s %s", tt.stats.ToolsSucceeded, tick(tt.tickColor),
+				tt.stats.ToolsFailed, cross(tt.crossColor), provider.RenderWithColor("· 0 tokens", dim))
+			want += strings.Repeat(" ", width-provider.GetWidth(want))
+			if got := list.statsView(tt.stats, 0, 1, width); got != want {
+				t.Errorf("statsView() = %q, want %q", got, want)
+			}
+		})
 	}
 }

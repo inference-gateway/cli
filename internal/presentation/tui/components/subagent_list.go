@@ -400,7 +400,8 @@ func (l *SubagentList) Render() string {
 
 // statsView draws a sub-agent's run stats as a child line under its row: tool
 // calls succeeded and failed, then the tokens used, live while it runs. It is
-// padded to the shared row width so the block stays aligned.
+// padded to the shared row width so the block stays aligned. An icon takes its
+// status color only once its count is positive, so a zero reads as idle.
 func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, count, width int) string {
 	trunk := ""
 	if count > 1 {
@@ -410,9 +411,16 @@ func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, coun
 		}
 	}
 	dim := l.styleProvider.GetThemeColor("dim")
+	checkColor, crossColor := dim, dim
+	if stats.ToolsSucceeded > 0 {
+		checkColor = l.styleProvider.GetThemeColor("success")
+	}
+	if stats.ToolsFailed > 0 {
+		crossColor = l.styleProvider.GetThemeColor("error")
+	}
 	line := fmt.Sprintf("%s└ %d %s %d %s %s", trunk,
-		stats.ToolsSucceeded, l.styleProvider.RenderWithColor(icons.CheckMark, l.styleProvider.GetThemeColor("success")),
-		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, l.styleProvider.GetThemeColor("error")),
+		stats.ToolsSucceeded, l.styleProvider.RenderWithColor(icons.CheckMark, checkColor),
+		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, crossColor),
 		l.styleProvider.RenderWithColor(statsTokens(stats), dim))
 	return l.padToWidth(line, width)
 }
