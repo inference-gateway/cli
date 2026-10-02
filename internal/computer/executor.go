@@ -343,17 +343,25 @@ func (e *Executor) screenshot(ctx context.Context, controller display.DisplayCon
 		return fmt.Errorf("failed to encode screenshot: %w", err)
 	}
 
-	path := filepath.Join(config.ProjectTmpDir(), "screenshots", fmt.Sprintf("computer-%d.jpeg", time.Now().UnixNano()))
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		path = ""
-	} else if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		path = ""
-	}
-
 	obs.Image = &computerdomain.Image{
 		Data:     base64.StdEncoding.EncodeToString(buf.Bytes()),
 		MimeType: "image/jpeg",
-		Path:     path,
+		Path:     saveScreenshot("computer", buf.Bytes()),
 	}
 	return nil
+}
+
+// saveScreenshot writes a JPEG under MediaDir("screenshots") and returns its
+// path, or "" when it cannot be saved. Saving is best-effort because the
+// inline image still reaches the model.
+func saveScreenshot(prefix string, data []byte) string {
+	dir, err := config.MediaDir("screenshots")
+	if err != nil || os.MkdirAll(dir, 0755) != nil {
+		return ""
+	}
+	path := filepath.Join(dir, fmt.Sprintf("%s-%d.jpeg", prefix, time.Now().UnixNano()))
+	if os.WriteFile(path, data, 0644) != nil {
+		return ""
+	}
+	return path
 }

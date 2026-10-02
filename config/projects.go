@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,8 +67,28 @@ func ProjectRuntimeDir() string {
 }
 
 // ProjectTmpDir is the per-project tmp scratch directory: the default target
-// for chunked writes, dynamic skills, clipboard images, channel images, and
-// screenshots.
+// for chunked writes, dynamic skills, clipboard images and channel images.
 func ProjectTmpDir() string {
 	return filepath.Join(ProjectRuntimeDir(), "tmp")
+}
+
+// MediaDir returns the default directory for one kind of generated or retained
+// media (sfx, video, recordings, ...). It is <project tmp>/media/<kind> while a
+// project is open, else ~/.infer/tmp/media/<kind>.
+func MediaDir(kind string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	if noProjectOpen(home) {
+		return filepath.Join(home, ConfigDirName, "tmp", "media", kind), nil
+	}
+	return filepath.Join(ProjectTmpDir(), "media", kind), nil
+}
+
+// noProjectOpen reports whether the process runs outside any project: in
+// $HOME, in the desktop's no-project ~/.infer/workspace, or in an unresolvable cwd.
+func noProjectOpen(home string) bool {
+	cwd, err := os.Getwd()
+	return err != nil || cwd == home || cwd == filepath.Join(home, ConfigDirName, "workspace")
 }

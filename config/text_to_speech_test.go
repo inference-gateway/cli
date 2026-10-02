@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -20,16 +19,13 @@ func TestResolveTextToSpeechOutputDir(t *testing.T) {
 		}
 	})
 
-	t.Run("empty dir defaults to ~/.infer/tmp/tts", func(t *testing.T) {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Skip("no home dir")
-		}
+	t.Run("empty dir defaults to the project's media/tts", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
 		got, err := config.TextToSpeechConfig{}.ResolveOutputDir()
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, config.ConfigDirName, "tmp", "tts")
+		want := filepath.Join(config.ProjectTmpDir(), "media", "tts")
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)
 		}

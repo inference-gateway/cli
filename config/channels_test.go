@@ -67,7 +67,7 @@ func TestTelegramMediaConfigResolveDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveDir() failed: %v", err)
 	}
-	want := filepath.Join(config.ConfigDirName, "tmp", "media")
+	want := filepath.Join("tmp", "media", "attachments")
 	if !filepath.IsAbs(dir) || !strings.HasSuffix(dir, want) {
 		t.Errorf("Expected absolute default dir ending in %q, got %q", want, dir)
 	}

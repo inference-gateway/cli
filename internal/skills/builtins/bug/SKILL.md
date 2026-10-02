@@ -92,8 +92,8 @@ counts as no):
 3. Rehearse the steps once so the replay fits
    `computer_use.recording.max_duration` (120s default). Then RecordStart,
    replay the minimal steps, RecordStop.
-4. The RecordStop result names the MP4 (written under
-   `~/.infer/tmp/recordings/` by default). Convert it to a GIF with ffmpeg
+4. The RecordStop result names the MP4 (written under the media root's
+   `recordings/` by default). Convert it to a GIF with ffmpeg
    (the recorder resolves ffmpeg itself, with a `~/.infer/bin/tools` fallback):
 
        ffmpeg -i <mp4> -vf fps=12,scale=800:-1:flags=lanczos <gif>

@@ -22,7 +22,7 @@ Add a `text_to_music` section to `.infer/config.yaml` (or
 text_to_music:
   enabled: true                 # feature flag (default: false) - tool absent from the LLM payload when false
   model: ""                     # "" = elevenlabs/music_v2_5; or any provider/model the gateway serves
-  output_dir: ""                # where generated mp3s go; empty = ~/.infer/tmp/music
+  output_dir: ""                # where generated mp3s go; empty = <media root>/music
   require_approval: false       # optional; unset = no approval, like the image tools
 ```
 
@@ -61,7 +61,7 @@ With `text_to_music.enabled` set, the agent gains a `TextToMusic` tool:
   provider pick a length that fits the prompt. `instrumental: true` guarantees
   the clip has no vocals.
 - **Where files go** - `output_path` chooses the destination as a bare file
-  name inside `output_dir` (default `~/.infer/tmp/music/`); otherwise a
+  name inside `output_dir` (default `music/` under the [media root](directory-structure.md#media-directories)); otherwise a
   timestamped `music-*.mp3` is written there. The result reports the path.
 
 The clip is always written as MP3, the format every gateway music provider

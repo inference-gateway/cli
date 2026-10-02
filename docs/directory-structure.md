@@ -85,13 +85,7 @@ for the full precedence rules.
 ├── telemetry/            # usage stats backing `infer stats` (see docs/telemetry.md)
 ├── run/                  # daemon pid/lock files
 ├── tmp/                  # userspace scratch: agent-readable/writable, wiped by /reset
-│   ├── tts/              # generated speech WAVs (text_to_speech.output_dir default)
-│   ├── music/            # generated music MP3s (text_to_music.output_dir default)
-│   ├── sfx/              # generated sound-effect MP3s (text_to_sfx.output_dir default)
-│   ├── video/            # generated video MP4s (text_to_video.output_dir default)
-│   ├── voice/            # retained inbound voice recordings (speech_to_text.recordings_dir default)
-│   ├── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
-│   └── recordings/       # screen recordings (computer_use.recording.output_dir default)
+│   └── media/            # media root when no project is open (see Media Directories)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
 ├── artifacts/            # GitHub artifact poller downloads (see infer daemon)
@@ -102,6 +96,7 @@ for the full precedence rules.
         ├── history/        # chat input history (one entry per line)
         ├── backups/        # file-write tool backups
         ├── tmp/            # scratch space (streamed writes, dynamic skills, ...)
+        │   └── media/      # media root while this project is open (see Media Directories)
         ├── artifacts/      # agent deliverables (images, downloads, ...)
         └── exports/        # `infer export` chat markdown exports
 
@@ -225,8 +220,8 @@ the project-local `.infer/`.
 - **`~/.infer/logs/`** *(userspace)* - debug and error logs (CLI and gateway).
   Path configurable via `logging.dir` / `INFER_LOGGING_DIR`.
 - **`~/.infer/projects/<project-slug>/tmp/`** - scratch space for tools
-  (Write streaming chunks, dynamic skills, clipboard images, screenshots,
-  ...). Safe to delete when the CLI is idle.
+  (Write streaming chunks, dynamic skills, clipboard images, the project's
+  media root, ...). Safe to delete when the CLI is idle.
 - **`~/.infer/projects/<project-slug>/history/history`** - chat input
   history, one command per line (per-agent files: `history-<name>`).
   Powers inline auto-completion.
@@ -244,18 +239,8 @@ the project-local `.infer/`.
 - **`~/.infer/schedules/<id>.yaml`** *(userspace)* - one YAML per scheduled job.
   Written by the `Schedule` tool, hot-reloaded by the
   daemon. See [Scheduling](scheduling.md).
-- **`~/.infer/tmp/tts/`** *(userspace)* - generated speech WAVs, the default of
-  `text_to_speech.output_dir`. See [Text to Speech](text-to-speech.md).
-- **`~/.infer/tmp/music/`** *(userspace)* - generated music MP3s, the default of
-  `text_to_music.output_dir`. See [Text to Music](text-to-music.md).
-- **`~/.infer/tmp/sfx/`** *(userspace)* - generated sound-effect MP3s, the default
-  of `text_to_sfx.output_dir`. See
-  [Text to SFX](tools-reference.md#texttosfx-tool).
-- **`~/.infer/tmp/video/`** *(userspace)* - generated video MP4s, the default of
-  `text_to_video.output_dir`. See [Text to Video](text-to-video.md).
-- **`~/.infer/tmp/recordings/`** *(userspace)* - screen recordings from
-  `RecordStart`, the default of `computer_use.recording.output_dir`. See
-  [RecordStart and RecordStop](tools-reference.md#recordstart-and-recordstop-tools).
+- **`<media root>/`** - generated and retained media, one subdirectory per
+  kind. See [Media Directories](#media-directories).
 - **`~/.infer/avatars/`** *(userspace)* - the avatar library: one folder per avatar
   holding one or more portrait images, managed with `infer avatars create|list|delete` and
   kept by `/reset`. See [Text to Video](text-to-video.md#avatar-library).
@@ -264,33 +249,46 @@ the project-local `.infer/`.
 - **`~/.infer/models/`** *(userspace)* - speech models downloaded on first use:
   `whisper/` for speech-to-text and `tts/` for text-to-speech. See
   [Speech to Text](speech-to-text.md) and [Text to Speech](text-to-speech.md).
-- **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
-  recordings, the default of `speech_to_text.recordings_dir` when
-  `retain_recordings` is greater than 0. See [Speech to
-  Text](speech-to-text.md).
-- **`~/.infer/tmp/media/`** *(userspace)* - retained inbound Telegram
-  photo/video attachments, the default of `channels.telegram.media.dir`.
-  See [Channels](channels.md).
 - **`~/.infer/telemetry/`** *(userspace)* - usage stats backing
   [`infer stats`](commands-reference.md); wiped by `/reset`. See
   [Telemetry](telemetry.md).
 - **`~/.infer/run/`** *(userspace)* - daemon pid/lock files; wiped by
   `/reset`.
 
-The whole `~/.infer/tmp/` tree is listed in `UserspaceRuntimeDirNames`, so the
-agent's file tools can read and write it (that is the point of retaining
-recordings and media: they are assets for the agent, and generated speech is
-deliverable output), while the rest of `~/.infer/` stays protected. `/reset`
-empties the tree through the `tmp` parent and does not recreate the
-subdirectories - the owning subsystems recreate them on next use.
+### Media Directories
+
+Generated and retained media share one media root with a subdirectory per
+kind. The root follows the open project: it is
+`~/.infer/projects/<project-slug>/tmp/media/` while the CLI runs in a project
+(the desktop app runs a selected project's sessions there). It falls back to
+`~/.infer/tmp/media/` when no project is open, that is when the working
+directory is `$HOME` or the desktop's `~/.infer/workspace`.
+
+| Subdirectory | Holds | Config override |
+| --- | --- | --- |
+| `tts/` | generated speech WAVs ([Text to Speech](text-to-speech.md)) | `text_to_speech.output_dir` |
+| `music/` | generated music MP3s ([Text to Music](text-to-music.md)) | `text_to_music.output_dir` |
+| `sfx/` | generated sound effects ([TextToSFX](tools-reference.md#texttosfx-tool)) | `text_to_sfx.output_dir` |
+| `video/` | generated video MP4s ([Text to Video](text-to-video.md)) | `text_to_video.output_dir` |
+| `recordings/` | `RecordStart` screen recordings ([RecordStart and RecordStop](tools-reference.md#recordstart-and-recordstop-tools)) | `computer_use.recording.output_dir` |
+| `screenshots/` | browser and computer-use screenshots | `computer_use.screenshot.temp_dir` |
+| `voice/` | retained inbound voice recordings ([Speech to Text](speech-to-text.md)) | `speech_to_text.recordings_dir` |
+| `attachments/` | retained inbound Telegram photos and videos ([Channels](channels.md)) | `channels.telegram.media.dir` |
+
+Both tmp trees are listed in `RuntimeArtifactDirNames` and
+`UserspaceRuntimeDirNames`, so the agent's file tools can read and write the
+media root (that is the point of retaining recordings and media: they are
+assets for the agent, and generated speech is deliverable output), while the
+rest of `~/.infer/` stays protected. `/reset` empties both trees through their
+`tmp` parents and does not recreate the subdirectories - the owning subsystems
+recreate them on next use.
 
 ### Existing Installs
 
-Before this layout change the three media dirs lived directly under
-`~/.infer/` (`tts/`, `voice/`, `media/`). They hold only disposable output
-(retained recordings and media, generated speech), so nothing migrates
-automatically: delete the old directories, or `mv` their contents under
-`~/.infer/tmp/` if you want to keep the retained files.
+Older releases placed the media dirs directly under `~/.infer/` or
+`~/.infer/tmp/` (`tts/`, `voice/`, `media/`, ...). They hold only disposable
+output, so nothing migrates automatically: delete the old directories, or `mv`
+their contents into the media root if you want to keep the retained files.
 
 ---
 

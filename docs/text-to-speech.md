@@ -37,7 +37,7 @@ text_to_speech:
   engine: gateway               # the default; may be omitted
   model: ""                     # "" = local/qwen3-tts; or provider/model, e.g. openai/gpt-4o-mini-tts
   voice: ""                     # provider voice id (OpenAI: alloy, echo, nova, ...); unused by local/qwen3-tts
-  output_dir: ""                # where generated wavs go; empty = ~/.infer/tmp/tts
+  output_dir: ""                # where generated wavs go; empty = <media root>/tts
   require_approval: true        # optional; unset = no approval
 ```
 
@@ -108,7 +108,7 @@ text_to_speech:
   engine: qwen3-tts      # gateway (default, see above) | qwen3-tts (local)
   model: ""              # "" = base preset; q8 | bf16 | or explicit "<backbone>[,<mmproj>].gguf" filenames
   auto_download: true    # download llama-tts, models (and ffmpeg) on first use if missing
-  output_dir: ""         # where generated wavs go; empty = ~/.infer/tmp/tts
+  output_dir: ""         # where generated wavs go; empty = <media root>/tts
   # Optional overrides:
   binary_path: ""        # explicit llama-tts path; empty = resolve on PATH
   models_dir: ""         # model cache; empty = ~/.infer/models/tts
@@ -162,7 +162,7 @@ With `text_to_speech.enabled` set, the agent gains a `TextToSpeech` tool:
   (16kHz mono, capped at 30s) and passed to the engine's `--tts-speaker-file`
   for zero-shot cloning.
 - **Where files go** - `output_path` chooses the destination as a bare file
-  name inside `output_dir` (default `~/.infer/tmp/tts/`); otherwise a
+  name inside `output_dir` (default `tts/` under the [media root](directory-structure.md#media-directories)); otherwise a
   timestamped WAV is written there. The result reports the path and audio
   duration.
 

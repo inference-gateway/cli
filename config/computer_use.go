@@ -1,10 +1,7 @@
 package config
 
 import (
-	"fmt"
 	"math"
-	"os"
-	"path/filepath"
 	"strings"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
@@ -50,16 +47,12 @@ func (c RecordingConfig) ApprovalRequired() bool {
 }
 
 // ResolveOutputDir returns the directory recordings are written to,
-// defaulting to ~/.infer/tmp/recordings when OutputDir is unset.
+// defaulting to MediaDir("recordings") when OutputDir is unset.
 func (c RecordingConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ConfigDirName, "tmp", "recordings"), nil
+	return MediaDir("recordings")
 }
 
 // ScreenshotToolConfig contains screenshot-specific tool settings

@@ -116,7 +116,7 @@ type SpeechToTextConfig struct {
 	FFmpegPath          string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`                     // "" -> resolve ffmpeg on PATH
 	InputDevice         string `yaml:"input_device" mapstructure:"input_device"`                   // "" -> platform default mic
 	RetainRecordings    int    `yaml:"retain_recordings" mapstructure:"retain_recordings"`         // keep last N inbound voice/audio files (0 = keep none)
-	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> ~/.infer/tmp/voice
+	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> MediaDir("voice")
 }
 
 // TextToSpeechEngineQwen3 runs Qwen3-TTS GGUF models locally through a
@@ -166,19 +166,12 @@ func (c TextToSFXConfig) ResolveGatewayModel() string {
 }
 
 // ResolveOutputDir returns the directory where generated sound effects are
-// stored, defaulting to ~/.infer/tmp/sfx when OutputDir is unset. Generated
-// clips are disposable runtime output, so they live under the userspace tmp
-// dir (agent-readable/writable, wiped by /reset) instead of beside the
-// config files.
+// stored, defaulting to MediaDir("sfx") when OutputDir is unset.
 func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ConfigDirName, "tmp", "sfx"), nil
+	return MediaDir("sfx")
 }
 
 // TextToVideoConfig contains opt-in settings for video generation. The clip
@@ -215,19 +208,12 @@ func (c TextToVideoConfig) ResolveGatewayModel(avatar bool) string {
 }
 
 // ResolveOutputDir returns the directory where generated videos are stored,
-// defaulting to ~/.infer/tmp/video when OutputDir is unset. Generated clips
-// are disposable runtime output, so they live under the userspace tmp dir
-// (agent-readable/writable, wiped by /reset) instead of beside the config
-// files.
+// defaulting to MediaDir("video") when OutputDir is unset.
 func (c TextToVideoConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ConfigDirName, "tmp", "video"), nil
+	return MediaDir("video")
 }
 
 // validate checks both models are "provider/model" ids and that the job
@@ -267,19 +253,12 @@ func (c TextToMusicConfig) ResolveGatewayModel() string {
 }
 
 // ResolveOutputDir returns the directory where generated music clips are
-// stored, defaulting to ~/.infer/tmp/music when OutputDir is unset. Generated
-// music is disposable runtime output, so it lives under the userspace tmp dir
-// (agent-readable/writable, wiped by /reset) instead of beside the config
-// files.
+// stored, defaulting to MediaDir("music") when OutputDir is unset.
 func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ConfigDirName, "tmp", "music"), nil
+	return MediaDir("music")
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API
@@ -326,35 +305,22 @@ func (c TextToSpeechConfig) ResolveGatewayModel() string {
 }
 
 // ResolveOutputDir returns the directory where generated WAV files are
-// stored, defaulting to ~/.infer/tmp/tts when OutputDir is unset. Generated
-// speech is disposable runtime output, so it lives under the userspace tmp
-// dir (agent-readable/writable, wiped by /reset) instead of beside the
-// config files.
+// stored, defaulting to MediaDir("tts") when OutputDir is unset.
 func (c TextToSpeechConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ConfigDirName, "tmp", "tts"), nil
+	return MediaDir("tts")
 }
 
 // ResolveRecordingsDir returns the directory where retained inbound voice/audio
-// recordings are stored, defaulting to ~/.infer/tmp/voice when RecordingsDir
-// is unset. Retained recordings are disposable runtime output kept so the
-// agent can replay them, so they live under the userspace tmp dir
-// (agent-readable/writable, wiped by /reset) instead of beside the config files.
+// recordings are stored, defaulting to MediaDir("voice") when RecordingsDir is
+// unset.
 func (c SpeechToTextConfig) ResolveRecordingsDir() (string, error) {
 	if strings.TrimSpace(c.RecordingsDir) != "" {
 		return c.RecordingsDir, nil
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, ConfigDirName, "tmp", "voice"), nil
+	return MediaDir("voice")
 }
 
 // ClientConfig contains HTTP client settings

@@ -101,7 +101,7 @@ func TestRecordingConfigResolveOutputDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveOutputDir() error: %v", err)
 	}
-	if want := filepath.Join(home, config.ConfigDirName, "tmp", "recordings"); got != want {
+	if want := filepath.Join(config.ProjectTmpDir(), "media", "recordings"); got != want {
 		t.Errorf("ResolveOutputDir() = %q, want %q", got, want)
 	}
 
