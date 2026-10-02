@@ -24,7 +24,7 @@ text_to_video:
   model: ""                # prompt renders; "" = elevenlabs/veo-3.1-fast-generate-001
   avatar_model: ""         # lip-synced avatar renders; "" = elevenlabs/creatify-aurora
   size: ""                 # optional widthxheight passthrough, e.g. 720x1280; empty = provider default
-  output_dir: ""           # where generated mp4s go; empty = ~/.infer/tmp/video
+  output_dir: ""           # where generated mp4s go; empty = <media root>/video
   timeout: 900             # whole-render timeout (seconds): create, poll and download
   poll_interval: 5         # job status poll cadence (seconds)
   create_avatar: false     # also give the agent the CreateAvatar tool (see Avatar library)
@@ -91,8 +91,9 @@ With `text_to_video.enabled` set, the agent gains a `TextToVideo` tool:
   length, `bytedance-seedance-v2*` takes up to 9 and `-v2.5` up to 30; models without reference-image support reject the render.
 - **First frame** - a bare image file as `avatar` without `audio` renders the prompt with that portrait as the opening frame. The
   gateway does not combine a first frame with reference images.
-- **Where files go** - `output_path` chooses the destination as a bare file name inside `output_dir` (default `~/.infer/tmp/video/`);
-  otherwise a timestamped `video-*.mp4` is written there. The result reports the path, model, size and which avatar/audio were used.
+- **Where files go** - `output_path` chooses the destination as a bare file name inside `output_dir`
+  (default `video/` under the [media root](directory-structure.md#media-directories)); otherwise a timestamped `video-*.mp4` is
+  written there. The result reports the path, model, size and which avatar/audio were used.
 
 The clip is always written as MP4 (`video/mp4` for creatify-aurora). To place it elsewhere, compose first and copy the returned file.
 

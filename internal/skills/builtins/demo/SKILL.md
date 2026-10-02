@@ -113,7 +113,7 @@ then each step (`tmux send-keys`, or a Click/Type/Key) followed by `sleep 2`
 model turn between them; spread over turns, each step costs ~10 s and the
 60 s cap hits before the interesting frame. Aim for 20-45 s.
 
-RecordStop names the MP4 under `~/.infer/tmp/recordings/` and reports
+RecordStop names the MP4 under the media root's `recordings/` and reports
 `"capped": true` if it hit 60 s. To check the take, pull one frame and look at
 the PNG:
 
@@ -122,7 +122,7 @@ the PNG:
 Never open the MP4 or a GIF with image tools - an animated GIF sent to the
 model fails the whole run. A bad take (capped, wrong screen)? Rehearse the
 broken step again, then record a new take; unconverted takes stay in
-`~/.infer/tmp/recordings` and never reach the comment.
+`recordings/` and never reach the comment.
 
 ## 5. Convert the good take
 

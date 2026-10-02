@@ -755,7 +755,7 @@ music, a loop or a jingle. The clip is generated behind the gateway's Music API 
 text_to_music:
   enabled: true
   # model: elevenlabs/music_v2_5 # gateway provider/model id
-  # output_dir: ~/.infer/tmp/music
+  # output_dir: <media root>/music
   require_approval: false # optional; unset = no approval, like the image tools
 ```
 
@@ -783,7 +783,7 @@ the tool definition is not sent to the LLM at all.
 text_to_sfx:
   enabled: true
   # model: elevenlabs/eleven_text_to_sound_v2 # gateway provider/model id
-  # output_dir: ~/.infer/tmp/sfx
+  # output_dir: <media root>/sfx
   require_approval: false # optional; unset = no approval, like the image tools
 ```
 
@@ -822,7 +822,7 @@ text_to_video:
   # model: elevenlabs/veo-3.1-fast-generate-001 # prompt renders
   # avatar_model: elevenlabs/creatify-aurora     # lip-synced avatar renders
   # size: 720x1280                    # optional widthxheight passthrough
-  # output_dir: ~/.infer/tmp/video
+  # output_dir: <media root>/video
   # timeout: 900                      # whole-render timeout (seconds)
   # poll_interval: 5                  # job status poll cadence (seconds)
   require_approval: false # optional; unset = no approval, like the image tools
@@ -923,7 +923,7 @@ Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickT
   start a fresh process. `infer tools execute` refuses both tools.
 - `window` mode records the window's bounds at the moment the recording starts; anything drawn over
   that area is recorded too, and moving the window does not move the capture.
-- Files go to `~/.infer/tmp/recordings/<timestamp>.mp4` unless `output_dir` is set.
+- Files go to `recordings/<timestamp>.mp4` under the [media root](directory-structure.md#media-directories) unless `output_dir` is set.
 - The chat status bar shows `● REC` while a recording runs.
 
 **Requirements:** ffmpeg with libx264 and the platform's screen grabber. The recorder uses `ffmpeg`

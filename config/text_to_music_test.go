@@ -16,11 +16,11 @@ func TestResolveTextToMusicOutputDir(t *testing.T) {
 		assert.Equal(t, "/tmp/custom-music", got)
 	})
 
-	t.Run("default is ~/.infer/tmp/music", func(t *testing.T) {
+	t.Run("default is the project's media/music", func(t *testing.T) {
 		t.Setenv("HOME", "/home/fake")
 		got, err := TextToMusicConfig{}.ResolveOutputDir()
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join("/home/fake", ConfigDirName, "tmp", "music"), got)
+		assert.Equal(t, filepath.Join(ProjectTmpDir(), "media", "music"), got)
 	})
 }
 

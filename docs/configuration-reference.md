@@ -463,7 +463,7 @@ userspace `~/.infer/computer_use.yaml`). Recording works without `computer_use.e
 recording:
   enabled: false # register RecordStart/RecordStop
   max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
-  output_dir: "" # empty = ~/.infer/tmp/recordings
+  output_dir: "" # empty = <media root>/recordings
   framerate: 24 # frames per second
   require_approval: true # unset = true; false lets RecordStart run unattended (headless CI)
   hide_cursor: false # true leaves the mouse pointer out of recordings
@@ -473,7 +473,7 @@ recording:
 - **computer_use.recording.max_duration**: Maximum recording length in seconds (default: 120; must
   be positive when enabled)
 - **computer_use.recording.output_dir**: Where recordings are written (default:
-  `~/.infer/tmp/recordings`, created on first use)
+  `recordings` under the [media root](directory-structure.md#media-directories), created on first use)
 - **computer_use.recording.framerate**: Capture frame rate (default: 24; must be positive when enabled)
 - **computer_use.recording.require_approval**: Whether `RecordStart` needs approval outside
   auto-accept mode (default: true). Set it to false for unattended runs that have no approver,
@@ -1138,7 +1138,8 @@ value pins it either way.
 
 - `INFER_TEXT_TO_MUSIC_ENABLED`: Enable/disable the TextToMusic tool (default: `false`)
 - `INFER_TEXT_TO_MUSIC_MODEL`: Gateway `provider/model` id used for music generation (default: `elevenlabs/music_v2_5`)
-- `INFER_TEXT_TO_MUSIC_OUTPUT_DIR`: Directory the generated MP3 is written to (default: `~/.infer/tmp/music`)
+- `INFER_TEXT_TO_MUSIC_OUTPUT_DIR`: Directory the generated MP3 is written to (default:
+  `music` under the [media root](directory-structure.md#media-directories))
 
 These mirror the top-level `text_to_music:` YAML block: `enabled`, `model`, `output_dir`
 and `require_approval`. The tool itself is documented in the
@@ -1151,7 +1152,7 @@ and `require_approval`. The tool itself is documented in the
 - `INFER_TEXT_TO_SFX_MODEL`: Gateway `provider/model` id used for sound-effect generation
   (default: `elevenlabs/eleven_text_to_sound_v2`)
 - `INFER_TEXT_TO_SFX_OUTPUT_DIR`: Directory the generated MP3 is written to (default:
-  `~/.infer/tmp/sfx`)
+  `sfx` under the [media root](directory-structure.md#media-directories))
 
 These mirror the top-level `text_to_sfx:` YAML block: `enabled`, `model`, `output_dir`
 and `require_approval`. The tool itself is documented in the
@@ -1168,7 +1169,7 @@ and `require_approval`. The tool itself is documented in the
 - `INFER_TEXT_TO_VIDEO_SIZE`: Optional `widthxheight` passthrough, e.g. `720x1280`
   (default: empty, the provider default)
 - `INFER_TEXT_TO_VIDEO_OUTPUT_DIR`: Directory the generated MP4 is written to (default:
-  `~/.infer/tmp/video`)
+  `video` under the [media root](directory-structure.md#media-directories))
 - `INFER_TEXT_TO_VIDEO_TIMEOUT`: Whole-render timeout in seconds (default: `900`)
 - `INFER_TEXT_TO_VIDEO_POLL_INTERVAL`: Job status poll interval in seconds (default: `5`)
 - `INFER_TEXT_TO_VIDEO_CREATE_AVATAR`: Also register the CreateAvatar tool, which builds a

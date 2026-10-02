@@ -84,11 +84,14 @@ func (t *BrowserScreenshotTool) Validate(map[string]any) error {
 	return nil
 }
 
-// persistScreenshot writes the PNG to <configdir>/tmp/screenshots, the same
+// persistScreenshot writes the PNG to MediaDir("screenshots"), the same
 // retention-managed scratch dir the computer-use screenshot server uses and
 // which is carved out of the tool sandbox so ImageDecode can read it back.
 func (t *BrowserScreenshotTool) persistScreenshot(data []byte) (string, error) {
-	dir := filepath.Join(config.ProjectTmpDir(), "screenshots")
+	dir, err := config.MediaDir("screenshots")
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
