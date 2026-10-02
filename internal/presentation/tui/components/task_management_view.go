@@ -207,7 +207,7 @@ func (t *TaskView) loadTasksCmd() tea.Cmd {
 			taskInfo := TaskInfo{
 				TaskPollingState: a2adomain.TaskPollingState{
 					TaskID:          retainedTaskInfo.Task.ID,
-					ContextID:       retainedTaskInfo.Task.ContextID,
+					ContextID:       retainedTaskInfo.Task.GetContextID(),
 					AgentURL:        retainedTaskInfo.AgentURL,
 					TaskDescription: "",
 					StartedAt:       retainedTaskInfo.StartedAt,

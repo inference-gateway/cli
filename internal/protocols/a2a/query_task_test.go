@@ -345,6 +345,10 @@ func TestQueryTaskTool_FormatForLLM_FailedTaskSurfacesReason(t *testing.T) {
 
 	errorText := "DeepSeek: The `reasoning_content` in the thinking mode must be passed back to the API."
 	errorTextPtr := errorText
+	v101Data := adk.Value(map[string]any{
+		"status": "TASK_STATE_FAILED",
+		"error":  errorText,
+	})
 
 	tests := []struct {
 		name string
@@ -374,10 +378,7 @@ func TestQueryTaskTool_FormatForLLM_FailedTaskSurfacesReason(t *testing.T) {
 						MessageID: "m2",
 						Role:      adk.RoleAgent,
 						Parts: []adk.Part{{
-							Data: &adk.DataPart{Data: adk.Struct{
-								"status": "TASK_STATE_FAILED",
-								"error":  errorText,
-							}},
+							Data: &v101Data,
 						}},
 					},
 				},

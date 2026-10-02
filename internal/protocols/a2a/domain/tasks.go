@@ -97,7 +97,7 @@ var taskStates = []adk.TaskState{
 	adk.TaskStateWorking,
 	adk.TaskStateCompleted,
 	adk.TaskStateFailed,
-	adk.TaskStateCancelled,
+	adk.TaskStateCanceled,
 	adk.TaskStateRejected,
 	adk.TaskStateInputRequired,
 	adk.TaskStateAuthRequired,
@@ -109,7 +109,8 @@ var taskStatesByKey = func() map[string]adk.TaskState {
 	for _, state := range taskStates {
 		byKey[taskStateKey(state)] = state
 	}
-	byKey["canceled"] = adk.TaskStateCancelled
+	// Pre-v1.0.1 agents still report the cancelled spelling on the wire.
+	byKey["cancelled"] = adk.TaskStateCanceled
 	return byKey
 }()
 
@@ -123,7 +124,8 @@ func taskStateKey(state adk.TaskState) string {
 // NormalizeTaskState maps the state a remote agent reports to its
 // adk.TaskState constant. Agents report the prefixed enum
 // (TASK_STATE_COMPLETED) or a bare form such as completed, input-required or
-// canceled. An unknown state is returned unchanged.
+// canceled. v1.0.1 renamed the cancelled spelling to canceled, so both are
+// accepted on read. An unknown state is returned unchanged.
 func NormalizeTaskState(state adk.TaskState) adk.TaskState {
 	if normalized, ok := taskStatesByKey[taskStateKey(state)]; ok {
 		return normalized
@@ -151,7 +153,7 @@ var taskStateDisplayNames = map[adk.TaskState]string{
 	adk.TaskStateWorking:       TaskStatusWorking,
 	adk.TaskStateCompleted:     TaskStatusCompleted,
 	adk.TaskStateFailed:        TaskStatusFailed,
-	adk.TaskStateCancelled:     TaskStatusCanceled,
+	adk.TaskStateCanceled:      TaskStatusCanceled,
 	adk.TaskStateRejected:      TaskStatusRejected,
 	adk.TaskStateInputRequired: TaskStatusInputRequired,
 	adk.TaskStateAuthRequired:  TaskStatusAuthRequired,

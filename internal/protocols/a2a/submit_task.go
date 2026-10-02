@@ -85,7 +85,7 @@ func (t *SubmitTaskTool) shouldResumeTask(ctx context.Context, adkClient client.
 		return "", false, nil
 	}
 
-	queryParams := adk.TaskQueryParams{ID: existingTaskID}
+	queryParams := adk.GetTaskRequest{ID: existingTaskID}
 	taskStatus, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
 		return "", false, nil
@@ -187,15 +187,14 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 		existingTaskID = ""
 	}
 
-	msgParams := adk.MessageSendParams{
+	sendRequest := adk.SendMessageRequest{
 		Message: message,
-		Configuration: &adk.MessageSendConfiguration{
-			Blocking:            &[]bool{true}[0],
+		Configuration: &adk.SendMessageConfiguration{
 			AcceptedOutputModes: []string{"text"},
 		},
 	}
 
-	taskResponse, err := adkClient.SendTask(ctx, msgParams)
+	taskResponse, err := adkClient.SendTask(ctx, sendRequest)
 	if err != nil {
 		shouldClear := t.taskTracker != nil && existingTaskID != "" && t.isTaskNotFoundError(err)
 		if shouldClear {
@@ -215,7 +214,7 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 	}
 
 	taskID := submittedTask.ID
-	receivedContextID := submittedTask.ContextID
+	receivedContextID := submittedTask.GetContextID()
 
 	if t.taskTracker != nil && receivedContextID != "" {
 		if !t.taskTracker.HasContext(receivedContextID) {
@@ -265,7 +264,7 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 		Duration:  time.Since(startTime),
 		Data: SubmitTaskResult{
 			TaskID:     submittedTask.ID,
-			ContextID:  submittedTask.ContextID,
+			ContextID:  submittedTask.GetContextID(),
 			AgentURL:   agentURL,
 			State:      string(submittedTask.Status.State),
 			Success:    true,
@@ -315,7 +314,7 @@ func (t *SubmitTaskTool) runA2APolling(
 					TaskID:    taskID,
 					ContextID: state.ContextID,
 					AgentURL:  agentURL,
-					State:     string(adk.TaskStateCancelled),
+					State:     string(adk.TaskStateCanceled),
 					Success:   false,
 					Message:   "Task was canceled",
 				},
@@ -368,7 +367,7 @@ func (t *SubmitTaskTool) initializePollingStrategy(_ /* agentURL */, _ /* taskID
 }
 
 func (t *SubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AClient, taskID string) (*adk.Task, error) {
-	queryParams := adk.TaskQueryParams{ID: taskID}
+	queryParams := adk.GetTaskRequest{ID: taskID}
 	taskStatus, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
 		return nil, err
@@ -441,7 +440,7 @@ func (t *SubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* tas
 			Duration: time.Since(state.StartedAt),
 			Data: SubmitTaskResult{
 				TaskID:     currentTask.ID,
-				ContextID:  currentTask.ContextID,
+				ContextID:  currentTask.GetContextID(),
 				AgentURL:   agentURL,
 				State:      string(currentTask.Status.State),
 				Success:    true,
@@ -467,7 +466,7 @@ func (t *SubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* tas
 			Error:    finalResult,
 			Data: SubmitTaskResult{
 				TaskID:     currentTask.ID,
-				ContextID:  currentTask.ContextID,
+				ContextID:  currentTask.GetContextID(),
 				AgentURL:   agentURL,
 				State:      string(currentTask.Status.State),
 				Success:    false,
@@ -490,7 +489,7 @@ func (t *SubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* tas
 			Duration: time.Since(state.StartedAt),
 			Data: SubmitTaskResult{
 				TaskID:     currentTask.ID,
-				ContextID:  currentTask.ContextID,
+				ContextID:  currentTask.GetContextID(),
 				AgentURL:   agentURL,
 				State:      string(currentTask.Status.State),
 				Success:    true,
@@ -500,7 +499,7 @@ func (t *SubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* tas
 		}
 		return true, result
 
-	case adk.TaskStateCancelled:
+	case adk.TaskStateCanceled:
 		cancelMessage := ""
 		if currentTask.Status.Message != nil {
 			cancelMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -512,7 +511,7 @@ func (t *SubmitTaskTool) handleTaskState(ctx context.Context, agentURL, _ /* tas
 			Duration: time.Since(state.StartedAt),
 			Data: SubmitTaskResult{
 				TaskID:     currentTask.ID,
-				ContextID:  currentTask.ContextID,
+				ContextID:  currentTask.GetContextID(),
 				AgentURL:   agentURL,
 				State:      string(currentTask.Status.State),
 				Success:    false,
@@ -708,7 +707,7 @@ func (t *SubmitTaskTool) formatArtifact(builder *strings.Builder, index int, art
 }
 
 // artifactDownloadURL resolves an artifact's download URL: metadata "url"
-// first, then the first file part carrying a URI (agents differ in where
+// first, then the first file part carrying one (agents differ in where
 // they put it).
 func artifactDownloadURL(artifact adk.Artifact) string {
 	if artifact.Metadata != nil {
@@ -717,8 +716,8 @@ func artifactDownloadURL(artifact adk.Artifact) string {
 		}
 	}
 	for _, part := range artifact.Parts {
-		if part.File != nil && part.File.FileWithURI != nil && *part.File.FileWithURI != "" {
-			return *part.File.FileWithURI
+		if part.URL != nil && *part.URL != "" {
+			return *part.URL
 		}
 	}
 	return ""

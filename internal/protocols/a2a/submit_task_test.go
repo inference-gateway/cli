@@ -2,6 +2,7 @@ package a2a
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -296,6 +297,10 @@ func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
 
 	errorText := "The `reasoning_content` in the thinking mode must be passed back to the API."
+	v101Data := adk.Value(map[string]any{
+		"status": "TASK_STATE_FAILED",
+		"error":  errorText,
+	})
 
 	tests := []struct {
 		name string
@@ -305,7 +310,7 @@ func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 			name: "error in Status.Message text part",
 			task: adk.Task{
 				ID:        "task-failed-1",
-				ContextID: "ctx-1",
+				ContextID: ptrString("ctx-1"),
 				Status: adk.TaskStatus{
 					State: adk.TaskStateFailed,
 					Message: &adk.Message{
@@ -320,17 +325,14 @@ func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 			name: "error only in Status.Message data part",
 			task: adk.Task{
 				ID:        "task-failed-2",
-				ContextID: "ctx-2",
+				ContextID: ptrString("ctx-2"),
 				Status: adk.TaskStatus{
 					State: adk.TaskStateFailed,
 					Message: &adk.Message{
 						MessageID: "err-2",
 						Role:      adk.RoleAgent,
 						Parts: []adk.Part{{
-							Data: &adk.DataPart{Data: adk.Struct{
-								"status": "TASK_STATE_FAILED",
-								"error":  errorText,
-							}},
+							Data: &v101Data,
 						}},
 					},
 				},
@@ -340,7 +342,7 @@ func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 			name: "error only in History (Status.Message nil)",
 			task: adk.Task{
 				ID:        "task-failed-3",
-				ContextID: "ctx-3",
+				ContextID: ptrString("ctx-3"),
 				Status:    adk.TaskStatus{State: adk.TaskStateFailed},
 				History: []adk.Message{
 					{
@@ -363,7 +365,7 @@ func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 			taskCopy := tc.task
 			data := SubmitTaskResult{
 				TaskID:     taskCopy.ID,
-				ContextID:  taskCopy.ContextID,
+				ContextID:  taskCopy.GetContextID(),
 				AgentURL:   "http://browser-agent:8083",
 				State:      string(taskCopy.Status.State),
 				Success:    false,
@@ -393,7 +395,7 @@ func TestSubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) {
 
 	taskCopy := adk.Task{
 		ID:        "task-failed-history",
-		ContextID: "ctx",
+		ContextID: ptrString("ctx"),
 		Status:    adk.TaskStatus{State: adk.TaskStateFailed},
 		History: []adk.Message{
 			{Role: adk.RoleUser, Parts: []adk.Part{{Text: ptrString("hi")}}},
@@ -403,7 +405,7 @@ func TestSubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) {
 
 	data := SubmitTaskResult{
 		TaskID:    taskCopy.ID,
-		ContextID: taskCopy.ContextID,
+		ContextID: taskCopy.GetContextID(),
 		AgentURL:  "http://browser-agent:8083",
 		State:     string(taskCopy.Status.State),
 		Success:   false,
@@ -422,6 +424,23 @@ func TestSubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) {
 }
 
 func ptrString(s string) *string { return &s }
+
+// TestV101WireShapeFlattenedParts decodes a v1.0.1 wire task whose parts are
+// flattened around the message and artifact: a data part is {"data": {...}}
+// and a file part is {"url": ...}. This is the shape v1.0.1 agents send, so
+// failure reasons and artifact URLs must survive the decode the tools run on.
+func TestV101WireShapeFlattenedParts(t *testing.T) {
+	wireTask := `{"id":"t1","contextId":"ctx1","status":{"state":"TASK_STATE_FAILED","message":{"messageId":"m1","role":"ROLE_AGENT","parts":[{"data":{"status":"TASK_STATE_FAILED","error":"boom"}}]}},"artifacts":[{"artifactId":"a1","name":"report","parts":[{"url":"http://agent/report.pdf","mediaType":"application/pdf"}]}]}`
+
+	var submitted adk.Task
+	require.NoError(t, json.Unmarshal([]byte(wireTask), &submitted))
+
+	assert.Equal(t, "boom", failureReasonFromTask(submitted))
+	if len(submitted.Artifacts) != 1 {
+		t.Fatalf("artifacts = %d, want 1", len(submitted.Artifacts))
+	}
+	assert.Equal(t, "http://agent/report.pdf", artifactDownloadURL(submitted.Artifacts[0]))
+}
 
 func TestSubmitTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
@@ -459,7 +478,7 @@ func TestSubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
 	assert.False(t, tool.ShouldAlwaysExpand())
 }
 
-func TestArtifactDownloadURL_FallsBackToFilePartURI(t *testing.T) {
+func TestArtifactDownloadURL_FallsBackToFilePartURL(t *testing.T) {
 	uri := "http://localhost:8084/artifacts/ctx/art/fullpage.png"
 	name := "fullpage.png"
 
@@ -473,15 +492,15 @@ func TestArtifactDownloadURL_FallsBackToFilePartURI(t *testing.T) {
 			artifact: adk.Artifact{
 				ArtifactID: "a1",
 				Metadata:   &adk.Struct{"url": "http://meta-url"},
-				Parts:      []adk.Part{{File: &adk.FilePart{FileWithURI: &uri, Name: name}}},
+				Parts:      []adk.Part{{URL: &uri, Filename: &name}},
 			},
 			want: "http://meta-url",
 		},
 		{
-			name: "file part uri fallback",
+			name: "file part url fallback",
 			artifact: adk.Artifact{
 				ArtifactID: "a2",
-				Parts:      []adk.Part{{File: &adk.FilePart{FileWithURI: &uri, Name: name}}},
+				Parts:      []adk.Part{{URL: &uri, Filename: &name}},
 			},
 			want: uri,
 		},

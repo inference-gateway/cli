@@ -87,7 +87,7 @@ func (t *QueryAgentTool) Execute(ctx context.Context, args map[string]any) (*age
 			Query:     "card",
 			Response:  response,
 			Success:   true,
-			Message:   fmt.Sprintf("QueryAgent sent to agent at %s successfully", agentURL),
+			Message:   fmt.Sprintf("Agent card for %s fetched, preferred endpoint %s", agentURL, a2ainfra.PreferredEndpointURL(response, agentURL)),
 			Duration:  time.Since(startTime),
 		},
 	}, nil

@@ -16,8 +16,9 @@ func TestNormalizeTaskState(t *testing.T) {
 		{"Failed", adk.TaskStateFailed},
 		{"input-required", adk.TaskStateInputRequired},
 		{"input_required", adk.TaskStateInputRequired},
-		{"cancelled", adk.TaskStateCancelled},
-		{"canceled", adk.TaskStateCancelled},
+		{"TASK_STATE_CANCELLED", adk.TaskStateCanceled},
+		{"cancelled", adk.TaskStateCanceled},
+		{"canceled", adk.TaskStateCanceled},
 		{"paused", "paused"},
 	}
 	for _, tt := range tests {

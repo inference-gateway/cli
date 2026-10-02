@@ -104,7 +104,7 @@ func TestSubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 
 		inputRequired := adk.Task{
 			ID:        taskID,
-			ContextID: contextID,
+			ContextID: &contextID,
 			Status:    adk.TaskStatus{State: adk.TaskStateInputRequired},
 		}
 
@@ -140,7 +140,7 @@ func TestSubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 
 		completedTask := adk.Task{
 			ID:        taskID,
-			ContextID: contextID,
+			ContextID: &contextID,
 			Status: adk.TaskStatus{
 				State: adk.TaskStateCompleted,
 			},
@@ -234,12 +234,12 @@ func TestSubmitTaskTool_ContextReuse(t *testing.T) {
 
 			existingTask := adk.Task{
 				ID:        existingTaskID,
-				ContextID: contextID,
+				ContextID: &contextID,
 				Status:    adk.TaskStatus{State: tt.existingTaskState},
 			}
 			newTask := adk.Task{
 				ID:        "new-task-999",
-				ContextID: "context-new",
+				ContextID: ptrString("context-new"),
 				Status:    adk.TaskStatus{State: adk.TaskStateSubmitted},
 			}
 
@@ -310,7 +310,7 @@ func TestSubmitTaskTool_MultipleAgents(t *testing.T) {
 
 		workingTaskAgent1 := adk.Task{
 			ID:        "working-task-agent1",
-			ContextID: context1,
+			ContextID: &context1,
 			Status: adk.TaskStatus{
 				State: adk.TaskStateWorking,
 			},
@@ -318,7 +318,7 @@ func TestSubmitTaskTool_MultipleAgents(t *testing.T) {
 
 		newTaskAgent2 := adk.Task{
 			ID:        "new-task-agent2",
-			ContextID: context2,
+			ContextID: &context2,
 			Status: adk.TaskStatus{
 				State: adk.TaskStateCompleted,
 			},
@@ -378,7 +378,7 @@ func TestSubmitTaskTool_NoExistingTask(t *testing.T) {
 
 		newTask := adk.Task{
 			ID:        "new-task-123",
-			ContextID: "context-456",
+			ContextID: ptrString("context-456"),
 			Status: adk.TaskStatus{
 				State: adk.TaskStateCompleted,
 			},

@@ -63,6 +63,20 @@ func (s *AgentCardClient) GetAgentCard(ctx context.Context, agentURL string) (*a
 	return card, nil
 }
 
+// PreferredEndpointURL returns the card's preferred interface URL, falling
+// back to the URL the card was fetched from when it declares none. v1.0.1
+// cards replaced the flat url field with SupportedInterfaces.
+func PreferredEndpointURL(card *adk.AgentCard, fallback string) string {
+	if card != nil {
+		for _, iface := range card.SupportedInterfaces {
+			if iface.URL != "" {
+				return iface.URL
+			}
+		}
+	}
+	return fallback
+}
+
 func (s *AgentCardClient) getFromCache(agentURL string) *adk.AgentCard {
 	s.cacheMutex.RLock()
 	defer s.cacheMutex.RUnlock()
