@@ -520,7 +520,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.githubIssueService = githubissues.New()
 
-	agentClient := adapters.NewAnthropicMessages(c.createRawSDKClient())
+	agentClient := adapters.NewAnthropicMessages(c.createAgentSDKClient())
 	agentImpl := agent.NewAgent(
 		agentClient,
 		c.toolService,
@@ -699,7 +699,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
 	if c.stores != nil {
-		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}), c.config, c.stores.Conversations, c.modelService)
+		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}, c.clientTimeout()), c.config, c.stores.Conversations, c.modelService)
 	}
 
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
@@ -963,12 +963,27 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 
 // createRawSDKClient creates the raw SDK client for services that need it
 func (c *ServiceContainer) createRawSDKClient() sdk.Client {
-	return c.newSDKClient(c.createRetryConfig())
+	return c.newSDKClient(c.createRetryConfig(), c.clientTimeout())
 }
 
-// newSDKClient creates an SDK client with the configured timeout and the given
-// retry policy.
-func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig) sdk.Client {
+// createAgentSDKClient leaves out the HTTP timeout. The agent bounds every
+// request itself, and an http.Client timeout would cut a healthy stream off
+// mid-response.
+func (c *ServiceContainer) createAgentSDKClient() sdk.Client {
+	return c.newSDKClient(c.createRetryConfig(), 0)
+}
+
+// clientTimeout returns client.timeout, 200 seconds when unset.
+func (c *ServiceContainer) clientTimeout() time.Duration {
+	if c.config.Client.Timeout == 0 {
+		return 200 * time.Second
+	}
+	return time.Duration(c.config.Client.Timeout) * time.Second
+}
+
+// newSDKClient creates an SDK client with the given HTTP timeout and retry
+// policy. A zero timeout means none.
+func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Duration) sdk.Client {
 	if c.config == nil {
 		panic("ServiceContainer: config is nil when creating SDK client")
 	}
@@ -988,15 +1003,10 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig) sdk.Client {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}
 
-	timeout := c.config.Client.Timeout
-	if timeout == 0 {
-		timeout = 200
-	}
-
 	return sdk.NewClient(&sdk.ClientOptions{
 		BaseURL:     baseURL,
 		APIKey:      c.config.Gateway.APIKey,
-		Timeout:     time.Duration(timeout) * time.Second,
+		Timeout:     timeout,
 		RetryConfig: retry,
 		Transport:   telemetry.PropagationTransport(nil),
 	})
