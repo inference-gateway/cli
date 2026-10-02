@@ -16,7 +16,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
-	project "github.com/inference-gateway/cli/internal/platform/project"
+	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
 func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command {
@@ -137,7 +137,7 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 
 	scope := ""
 	if allProjects, _ := cmd.Flags().GetBool("all-projects"); !allProjects {
-		scope = project.Path()
+		scope = projects.Path()
 	}
 
 	ctx := context.Background()

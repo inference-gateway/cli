@@ -17,7 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
-	project "github.com/inference-gateway/cli/internal/platform/project"
+	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
 const (
@@ -41,7 +41,7 @@ type MemoryTool struct {
 	enabled   bool
 	formatter CustomFormatter
 	backend   memory.MemoryBackend
-	project   project.Identity
+	project   projects.Identity
 }
 
 // NewMemoryTool creates a new memory tool. backend syncs the memory directory to
@@ -50,7 +50,7 @@ type MemoryTool struct {
 // would push after every message, so the tool triggers the push instead.
 // proj is the detected project the process runs in (zero value = global scope);
 // it decides where project-scoped facts are filed.
-func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj project.Identity) *MemoryTool {
+func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj projects.Identity) *MemoryTool {
 	return &MemoryTool{
 		config:  cfg,
 		enabled: cfg.Memory.Enabled,
@@ -244,7 +244,7 @@ const projectGlobal = "global"
 // explicit project argument ("global" forces the root), then a type-based
 // default - user facts are global, everything else goes under the detected
 // project (global when no project was detected).
-func resolveWriteTarget(name, projectArg, memType string, detected project.Identity) (projectSlug, slug string, err error) {
+func resolveWriteTarget(name, projectArg, memType string, detected projects.Identity) (projectSlug, slug string, err error) {
 	nameProject, slug, ok := sanitizeName(name)
 	if !ok {
 		return "", "", fmt.Errorf("invalid memory name: %q", name)
@@ -253,7 +253,7 @@ func resolveWriteTarget(name, projectArg, memType string, detected project.Ident
 	argSlug := ""
 	if arg := strings.TrimSpace(projectArg); arg != "" {
 		if !strings.EqualFold(arg, projectGlobal) {
-			argSlug = project.Slugify(arg)
+			argSlug = projects.Slugify(arg)
 			if argSlug == "" {
 				return "", "", fmt.Errorf("invalid project: %q", projectArg)
 			}
@@ -280,9 +280,9 @@ func resolveWriteTarget(name, projectArg, memType string, detected project.Ident
 // canonicalProject maps the bare repo name of the detected project ("docs"
 // inside inference-gateway/docs) to its full slug, so a fact the model files
 // under the short name still lands where session start loads it.
-func canonicalProject(slug string, detected project.Identity) string {
+func canonicalProject(slug string, detected projects.Identity) string {
 	_, repo, found := strings.Cut(detected.Name, "/")
-	if found && slug != "" && slug == project.Slugify(repo) {
+	if found && slug != "" && slug == projects.Slugify(repo) {
 		return detected.Slug
 	}
 	return slug
@@ -439,11 +439,11 @@ func sanitizeName(name string) (projectSlug, slug string, ok bool) {
 	parts := strings.Split(strings.TrimSpace(name), "/")
 	switch len(parts) {
 	case 1:
-		slug = project.Slugify(parts[0])
+		slug = projects.Slugify(parts[0])
 		return "", slug, slug != ""
 	case 2:
-		projectSlug = project.Slugify(parts[0])
-		slug = project.Slugify(parts[1])
+		projectSlug = projects.Slugify(parts[0])
+		slug = projects.Slugify(parts[1])
 		if projectSlug == "" || slug == "" {
 			return "", "", false
 		}

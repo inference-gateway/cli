@@ -23,9 +23,9 @@ import (
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	project "github.com/inference-gateway/cli/internal/platform/project"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -708,7 +708,7 @@ func (s *Agent) buildMemoryInfo(currentTurn int) string {
 	if index == "" {
 		return ""
 	}
-	index = filterMemoryIndex(index, project.Detect().Slug)
+	index = filterMemoryIndex(index, projects.Detect().Slug)
 	if maxChars := s.config.Memory.MaxChars; maxChars > 0 && len(index) > maxChars {
 		cut := index[:maxChars]
 		if nl := strings.LastIndexByte(cut, '\n'); nl > 0 {
@@ -1034,7 +1034,7 @@ func isGitRepository() bool {
 
 // getGitRepositoryName extracts the repository name from the git remote URL
 func getGitRepositoryName() string {
-	return project.RemoteName()
+	return projects.RemoteName()
 }
 
 // getGitBranch returns the current git branch name

@@ -18,8 +18,8 @@ import (
 	audio "github.com/inference-gateway/cli/internal/audio"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
-	project "github.com/inference-gateway/cli/internal/platform/project"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -243,7 +243,7 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	}
 
 	if cfg.Memory.Enabled {
-		r.register(NewMemoryTool(cfg, r.memoryBackend, project.Detect()))
+		r.register(NewMemoryTool(cfg, r.memoryBackend, projects.Detect()))
 	}
 }
 
@@ -310,7 +310,7 @@ func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {
 	r.memoryBackend = backend
 	if r.config.Memory.Enabled {
 		r.toolsMu.Lock()
-		r.register(NewMemoryTool(r.config, backend, project.Detect()))
+		r.register(NewMemoryTool(r.config, backend, projects.Detect()))
 		r.toolsMu.Unlock()
 	}
 }

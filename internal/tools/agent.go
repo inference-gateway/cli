@@ -21,7 +21,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	project "github.com/inference-gateway/cli/internal/platform/project"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -489,7 +489,7 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 		parts = append(parts, "INFER_GATEWAY_MOCK=true")
 	}
 
-	historyName := project.Slugify(spec.Label)
+	historyName := projects.Slugify(spec.Label)
 	if historyName == "" {
 		historyName = scheddomain.SubagentHistoryMemoryOnly
 	}

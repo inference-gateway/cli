@@ -16,13 +16,13 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	project "github.com/inference-gateway/cli/internal/platform/project"
+	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
 // testProjectIdentity is the zero identity (global scope): the pre-existing
 // tests assert root-level fact files, which is exactly the no-project case.
-func testProjectIdentity() project.Identity {
-	return project.Identity{}
+func testProjectIdentity() projects.Identity {
+	return projects.Identity{}
 }
 
 func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
@@ -30,7 +30,7 @@ func newTestMemoryTool(t *testing.T) (*MemoryTool, string) {
 	return newTestMemoryToolWithProject(t, testProjectIdentity())
 }
 
-func newTestMemoryToolWithProject(t *testing.T, proj project.Identity) (*MemoryTool, string) {
+func newTestMemoryToolWithProject(t *testing.T, proj projects.Identity) (*MemoryTool, string) {
 	t.Helper()
 	cfg := config.DefaultConfig()
 	cfg.Memory.Enabled = true
@@ -165,7 +165,7 @@ func TestMemoryTool_Execute_WriteWithoutOperation(t *testing.T) {
 }
 
 func TestMemoryTool_Write_CurrentRepoShortNameIsCanonical(t *testing.T) {
-	detected := project.Identity{Name: "inference-gateway/docs", Slug: "inference-gateway-docs"}
+	detected := projects.Identity{Name: "inference-gateway/docs", Slug: "inference-gateway-docs"}
 
 	tests := []struct {
 		name string
@@ -481,7 +481,7 @@ func TestMemoryTool_NoTempLeftovers(t *testing.T) {
 }
 
 func TestMemoryTool_Write_ProjectScoping(t *testing.T) {
-	detected := project.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
+	detected := projects.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
 	tool, dir := newTestMemoryToolWithProject(t, detected)
 
 	res := execOK(t, tool, map[string]any{
@@ -505,7 +505,7 @@ func TestMemoryTool_Write_ProjectScoping(t *testing.T) {
 }
 
 func TestMemoryTool_Write_UserTypeDefaultsGlobal(t *testing.T) {
-	detected := project.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
+	detected := projects.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
 	tool, dir := newTestMemoryToolWithProject(t, detected)
 
 	res := execOK(t, tool, map[string]any{
@@ -524,7 +524,7 @@ func TestMemoryTool_Write_UserTypeDefaultsGlobal(t *testing.T) {
 }
 
 func TestMemoryTool_Write_ExplicitProject(t *testing.T) {
-	detected := project.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
+	detected := projects.Identity{Name: "inference-gateway/cli", Slug: "inference-gateway-cli"}
 	tool, dir := newTestMemoryToolWithProject(t, detected)
 
 	res := execOK(t, tool, map[string]any{
@@ -550,7 +550,7 @@ func TestMemoryTool_Write_ExplicitProject(t *testing.T) {
 }
 
 func TestMemoryTool_Write_NameEmbeddedProject(t *testing.T) {
-	tool, dir := newTestMemoryToolWithProject(t, project.Identity{})
+	tool, dir := newTestMemoryToolWithProject(t, projects.Identity{})
 
 	res := execOK(t, tool, map[string]any{
 		"operation": "write", "name": "p/s", "description": "d", "type": "project", "content": "b",
@@ -574,7 +574,7 @@ func TestMemoryTool_Write_NameEmbeddedProject(t *testing.T) {
 }
 
 func TestMemoryTool_ReadDelete_ProjectAndLegacy(t *testing.T) {
-	tool, dir := newTestMemoryToolWithProject(t, project.Identity{Name: "o/r", Slug: "o-r"})
+	tool, dir := newTestMemoryToolWithProject(t, projects.Identity{Name: "o/r", Slug: "o-r"})
 
 	execOK(t, tool, map[string]any{
 		"operation": "write", "name": "x", "description": "global x", "type": "user", "content": "gx",
