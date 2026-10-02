@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 type mockReadSnapshot struct {
@@ -48,9 +49,7 @@ func TestEditTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -147,13 +146,13 @@ func getTestConfig() *config.Config {
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-				ProtectedPaths: []string{
+				Allowed: sandboxdomain.Allow("."),
+				Denied: sandboxdomain.Deny(
 					".infer/",
 					".git/",
 					"*.env",
 					"*.env.database",
-				},
+				),
 			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
@@ -417,9 +416,7 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -468,9 +465,7 @@ func TestEditTool_Execute_Success(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -575,9 +570,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -1005,9 +998,7 @@ func TestEditTool_Execute_TableDriven(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -1290,7 +1281,7 @@ func TestEditTool_Execute_EdgeCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Directories: []string{tempDir}},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
@@ -1637,7 +1628,7 @@ func TestEditTool_Execute_StaleRead(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Directories: []string{tempDir}},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
@@ -1718,7 +1709,7 @@ func createEditToolForWhitespaceTest(tempDir string) *EditTool {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Directories: []string{tempDir}},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}

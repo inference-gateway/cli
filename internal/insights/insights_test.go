@@ -21,6 +21,7 @@ import (
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // newFakeStore wires the generated ConversationStorage fake to serve a fixed set
@@ -152,7 +153,7 @@ func TestInsightsDirIsReadableByAgent(t *testing.T) {
 			t.Chdir(t.TempDir())
 
 			cfg := &config.Config{Storage: config.StorageConfig{Enabled: true, Type: config.StorageTypeJsonl}}
-			cfg.Tools.Sandbox.ProtectedPaths = []string{".infer/"}
+			cfg.Tools.Sandbox.Denied = sandboxdomain.Deny(".infer/")
 			cfg.SetConfigDir(configDir)
 
 			if err := sandbox.ValidateRead(cfg, filepath.Join(config.InsightsDir(), "report.md")); err != nil {

@@ -1660,14 +1660,6 @@ func (c *Config) GetTimeout() int {
 	return c.Gateway.Timeout
 }
 
-// GetSandboxDirectories returns only the configured directories, without
-// runtime grants (sandboxdomain.Granted): it feeds the system prompt, which must
-// stay byte-stable within a session to keep the provider prompt cache warm.
-// Validation consults the grants separately.
-func (c *Config) GetSandboxDirectories() []string {
-	return c.Tools.Sandbox.Directories
-}
-
 // ResolveMemoryDir resolves the directory that holds the memory index
 // (MEMORY.md) and the fact-files. It honors an explicit Memory.Dir override
 // and otherwise defaults to the global userspace ~/.infer/memory. The store is
@@ -1682,10 +1674,6 @@ func (c *Config) ResolveMemoryDir() (string, error) {
 		return "", fmt.Errorf("resolve home dir: %w", err)
 	}
 	return filepath.Join(home, ConfigDirName, MemoryDirName), nil
-}
-
-func (c *Config) GetProtectedPaths() []string {
-	return c.Tools.Sandbox.ProtectedPaths
 }
 
 func (c *Config) GetTheme() string {

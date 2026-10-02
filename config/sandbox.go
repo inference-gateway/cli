@@ -1,10 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 const (
@@ -12,39 +14,66 @@ const (
 	DefaultSandboxPath = ConfigDirName + "/" + SandboxFileName
 )
 
-// SandboxConfig is the sandbox policy: the directories tools may touch and the
-// paths they never may. It lives in its own sandbox.yaml so the policy can be
-// reviewed on its own and the agent's file tools can never edit it.
+// SandboxConfig is the sandbox policy: the paths tools may use and the paths
+// they never may. Outside allowed the user is asked. It lives in its own
+// sandbox.yaml so the policy can be reviewed on its own and the agent's file
+// tools can never edit it.
 type SandboxConfig struct {
-	Directories    []string `yaml:"directories" mapstructure:"directories"`
-	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
+	Allowed []sandboxdomain.Allowed `yaml:"allowed"`
+	Denied  []sandboxdomain.Denied  `yaml:"denied"`
 }
 
-// DefaultSandboxConfig allows the working directory and /tmp and protects the
+// DefaultSandboxConfig allows the working directory and /tmp and denies the
 // config dir, git metadata and the usual credential files.
 func DefaultSandboxConfig() *SandboxConfig {
-	return &SandboxConfig{
-		Directories: []string{".", "/tmp"},
-		ProtectedPaths: []string{
-			ConfigDirName + "/",
-			".git/",
-			"*.env",
-			".environment",
-			"auth.yaml",
-			"*.key",
-			"*.pem",
-			"id_rsa",
-			"id_dsa",
-			"id_ecdsa",
-			"id_ed25519",
-		},
-	}
+	denied := sandboxdomain.Deny(
+		ConfigDirName+"/",
+		".git/",
+		"*.env",
+		".environment",
+		"auth.yaml",
+		"*.key",
+		"*.pem",
+		"id_rsa",
+		"id_dsa",
+		"id_ecdsa",
+		"id_ed25519",
+	)
+	return &SandboxConfig{Allowed: sandboxdomain.Allow(".", "/tmp"), Denied: denied}
 }
 
-// LoadSandbox reads sandbox.yaml over the defaults, so a file that only sets
-// directories keeps the default protected paths. A missing file is the defaults.
+// Validate rejects an entry with no path or an unknown access or behaviour.
+func (c *SandboxConfig) Validate() error {
+	for i, entry := range c.Allowed {
+		switch {
+		case entry.Path == "":
+			return fmt.Errorf("sandbox allowed entry %d has no path", i)
+		case entry.Access != sandboxdomain.AccessRead && entry.Access != sandboxdomain.AccessWrite:
+			return fmt.Errorf("sandbox allowed %q: access %q must be read or write", entry.Path, entry.Access)
+		}
+	}
+	for i, entry := range c.Denied {
+		switch {
+		case entry.Path == "":
+			return fmt.Errorf("sandbox denied entry %d has no path", i)
+		case !entry.OnViolation.Valid():
+			return fmt.Errorf("sandbox denied %q: on_violation %q must be block or approval", entry.Path, entry.OnViolation)
+		}
+	}
+	return nil
+}
+
+// LoadSandbox reads sandbox.yaml. A missing file is the defaults. A present
+// file replaces the policy wholesale, so it is exactly what it says.
 func LoadSandbox(path string) (*SandboxConfig, error) {
-	return configutils.LoadYAMLMerged(path, "sandbox", DefaultSandboxConfig)
+	cfg, err := configutils.LoadYAML(path, "sandbox", DefaultSandboxConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 // SaveSandbox writes the sandbox policy to disk, creating parent directories.

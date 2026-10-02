@@ -10,69 +10,15 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-// isWithinInsightsDir reports whether absPath lives inside ~/.infer/insights, so
-// the agent can read a report back when asked to turn a suggestion into a skill.
-// Anchored to InsightsDir() rather than GetConfigDir(): the store is userspace
-// wherever config resolves from, and a config-relative check would only look at
-// ./.infer once a project supplies its own config.yaml.
-func isWithinInsightsDir(absPath string) bool {
-	return isWithinDir(absPath, config.InsightsDir())
-}
-
 // ValidateRead checks that a path and the file it resolves to through
-// symlinks are both inside the sandbox. Checking the target stops a link inside
-// the sandbox from reaching a file outside it.
+// symlinks may both be read. Checking the target stops a link inside the
+// sandbox from reaching a file outside it.
 func ValidateRead(cfg *config.Config, path string) error {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-	if err := checkPathInSandbox(cfg, path, absPath); err != nil {
-		return err
-	}
-	if target := config.RealPath(absPath); target != absPath {
-		return checkPathInSandbox(cfg, target, target)
-	}
-	return nil
+	return validate(cfg, path, sandboxdomain.AccessRead)
 }
 
-// checkPathInSandbox checks one spelling of a path against the carve-outs, the
-// protected paths and the sandbox directories.
-func checkPathInSandbox(cfg *config.Config, path, absPath string) error {
-
-	carveOut := (cfg.Agent.Skills.Enabled && isWithinSkillsDir(absPath)) ||
-		(cfg.Plugins.Enabled && isWithinPluginsDir(cfg, absPath)) ||
-		isWithinRuntimeDirs(absPath) ||
-		isWithinConfigSubdir(cfg, absPath, "plans", "projects.yaml") ||
-		isWithinInsightsDir(absPath) ||
-		isWithinMemoryDir(absPath, cfg.Memory) ||
-		isWithinGoLibDirs(absPath)
-
-	if err := checkProtectedPaths(cfg, path, carveOut); err != nil {
-		return err
-	}
-
-	if carveOut {
-		return nil
-	}
-
-	if len(cfg.Tools.Sandbox.Directories) == 0 {
-		return nil
-	}
-
-	for _, sandboxDir := range append(sandboxdomain.Granted.List(), cfg.Tools.Sandbox.Directories...) {
-		if isWithinDir(absPath, sandboxDir) {
-			return nil
-		}
-	}
-
-	return &sandboxdomain.DeniedError{Path: path}
-}
-
-// ValidateWrite is like ValidateRead but additionally
-// rejects paths inside read-only library directories (Go module cache, GOROOT
-// src). Write/Edit/Delete tools must call this instead of ValidateRead
-// so the Go lib carve-out remains read-only.
+// ValidateWrite is ValidateRead for writes. The sandbox policy file and the
+// custom-tool directories are never writable, whatever the rules say.
 func ValidateWrite(cfg *config.Config, path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -84,17 +30,134 @@ func ValidateWrite(cfg *config.Config, path string) error {
 	if isWithinCustomToolsDir(cfg, absPath) {
 		return fmt.Errorf("path '%s' is in a custom tools directory, which infer's file tools never edit", path)
 	}
-	if err := ValidateRead(cfg, path); err != nil {
+	return validate(cfg, path, sandboxdomain.AccessWrite)
+}
+
+// AllowedDirectories are the anchored allowed paths, in order, for callers
+// that want somewhere sensible to look.
+func AllowedDirectories(cfg *config.Config) []string {
+	var dirs []string
+	for _, entry := range cfg.Tools.Sandbox.Allowed {
+		if isAnchored(entry.Path) {
+			dirs = append(dirs, anchoredPath(entry.Path))
+		}
+	}
+	return dirs
+}
+
+func validate(cfg *config.Config, path string, access sandboxdomain.Access) error {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+	if err := check(cfg, path, absPath, access); err != nil {
 		return err
 	}
-	if isWithinGoLibDirs(config.RealPath(absPath)) {
-		return fmt.Errorf("path '%s' is in a read-only library directory", path)
+	if target := config.RealPath(absPath); target != absPath {
+		return check(cfg, target, target, access)
 	}
 	return nil
 }
 
+// check decides one spelling of a path: denied entries win, then the built-in
+// carve-outs, then the first matching allowed entry, and anything else asks
+// the user. An empty allowed list is no boundary at all. A grant only unlocks
+// what approval could have, so a granted directory still respects denied.
+func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access) error {
+	carveOut, inCarveOut := implicitAccess(cfg, absPath)
+
+	for _, entry := range cfg.Tools.Sandbox.Denied {
+		if inCarveOut && strings.TrimSuffix(entry.Path, "/") == config.ConfigDirName {
+			continue
+		}
+		if !matches(entry.Path, path, absPath) {
+			continue
+		}
+		if entry.OnViolation != sandboxdomain.ViolationApproval {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+		if granted(absPath, access) {
+			return nil
+		}
+		return &sandboxdomain.DeniedError{Path: path, Access: access, Rule: entry.Path}
+	}
+
+	if inCarveOut {
+		if carveOut.Allows(access) {
+			return nil
+		}
+		return fmt.Errorf("path '%s' is in a read-only library directory", path)
+	}
+	if len(cfg.Tools.Sandbox.Allowed) == 0 {
+		return nil
+	}
+	for _, entry := range cfg.Tools.Sandbox.Allowed {
+		if matches(entry.Path, path, absPath) {
+			if entry.Access.Allows(access) {
+				return nil
+			}
+			break
+		}
+	}
+	if granted(absPath, access) {
+		return nil
+	}
+	return &sandboxdomain.DeniedError{Path: path, Access: access}
+}
+
+// implicitAccess is the access the built-in carve-outs give absPath: the
+// operational directories infer itself needs (skills, plugins, runtime output,
+// plans, insights, memory) are writable, the Go library dirs are read-only.
+func implicitAccess(cfg *config.Config, absPath string) (sandboxdomain.Access, bool) {
+	switch {
+	case cfg.Agent.Skills.Enabled && isWithinSkillsDir(absPath),
+		cfg.Plugins.Enabled && isWithinPluginsDir(cfg, absPath),
+		isWithinRuntimeDirs(absPath),
+		isWithinConfigSubdir(cfg, absPath, "plans", "projects.yaml"),
+		isWithinDir(absPath, config.InsightsDir()),
+		isWithinMemoryDir(absPath, cfg.Memory):
+		return sandboxdomain.AccessWrite, true
+	case isWithinGoLibDirs(absPath):
+		return sandboxdomain.AccessRead, true
+	}
+	return sandboxdomain.AccessNone, false
+}
+
+func granted(absPath string, access sandboxdomain.Access) bool {
+	for _, grant := range sandboxdomain.Granted.List() {
+		if grant.Access.Allows(access) && isWithinDir(absPath, grant.Path) {
+			return true
+		}
+	}
+	return false
+}
+
+// matches reports whether rulePath covers the path. An anchored rule covers the
+// file or directory it names and everything beneath it. A relative pattern is
+// matched the way denied patterns always were: dir/ at any depth, *glob on the
+// base name, or an exact name or suffix.
+func matches(rulePath, path, absPath string) bool {
+	if isAnchored(rulePath) {
+		return isWithinDir(absPath, anchoredPath(rulePath))
+	}
+	return matchesPattern(rulePath, path)
+}
+
+func anchoredPath(rulePath string) string {
+	if expanded, ok := expandTilde(rulePath); ok {
+		return expanded
+	}
+	return rulePath
+}
+
+func isAnchored(rulePath string) bool {
+	return filepath.IsAbs(rulePath) || rulePath == "." || rulePath == ".." ||
+		strings.HasPrefix(rulePath, "./") || strings.HasPrefix(rulePath, "../") ||
+		rulePath == "~" || strings.HasPrefix(rulePath, "~/")
+}
+
 // isSandboxPolicyFile reports whether absPath is a sandbox.yaml, whatever the
-// configured protected paths say, so the agent can never widen its own sandbox.
+// rules say, so the agent can never widen its own sandbox.
 func isSandboxPolicyFile(absPath string) bool {
 	path := config.CanonicalPath(absPath)
 	for _, file := range config.SandboxFilePaths() {
@@ -271,50 +334,21 @@ func isWithinMemoryDir(absPath string, m config.MemoryConfig) bool {
 	return isWithinDir(absPath, dir)
 }
 
-// checkProtectedPaths checks if a path matches any protected path patterns. When
-// carveOut is set the path is an operational carve-out under the config dir
-// (skills/tmp/plans), so the config-dir directory match is skipped while
-// file-level protections (e.g. *.env, .git/) are still enforced.
-func checkProtectedPaths(cfg *config.Config, path string, carveOut bool) error {
-	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+// matchesPattern matches a relative pattern: dir/ at any depth, *glob on
+// the base name (unless it is dir/*), or an exact name or path suffix.
+func matchesPattern(pattern, path string) bool {
+	normalized := filepath.ToSlash(filepath.Clean(path))
 
-	for _, protectedPath := range cfg.Tools.Sandbox.ProtectedPaths {
-		if carveOut && strings.TrimSuffix(protectedPath, "/") == config.ConfigDirName {
-			continue
-		}
-
-		if strings.HasSuffix(protectedPath, "/") {
-			dirPattern := strings.TrimSuffix(protectedPath, "/")
-			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-		}
-
-		if strings.Contains(protectedPath, "*") && !strings.HasSuffix(protectedPath, "/*") {
-			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
-			if err == nil && matched {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-		}
-
-		if strings.HasSuffix(protectedPath, "/*") {
-			dirPattern := strings.TrimSuffix(protectedPath, "/*")
-			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
-		}
-
-		cleanProtectedPath := strings.TrimSuffix(protectedPath, "/")
-		if normalizedPath == cleanProtectedPath || strings.HasSuffix(normalizedPath, "/"+cleanProtectedPath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
+	if strings.HasSuffix(pattern, "/") || strings.HasSuffix(pattern, "/*") {
+		dir := strings.TrimSuffix(strings.TrimSuffix(pattern, "*"), "/")
+		return strings.Contains(normalized, "/"+dir+"/") || strings.HasSuffix(normalized, "/"+dir) ||
+			strings.HasPrefix(normalized, dir+"/") || normalized == dir
 	}
 
-	return nil
+	if strings.Contains(pattern, "*") {
+		matched, err := filepath.Match(pattern, filepath.Base(normalized))
+		return err == nil && matched
+	}
+
+	return normalized == pattern || strings.HasSuffix(normalized, "/"+pattern)
 }

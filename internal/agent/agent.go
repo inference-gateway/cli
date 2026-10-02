@@ -1177,26 +1177,26 @@ func (s *Agent) executeToolInternal(
 	startTime time.Time,
 ) convdomain.ConversationEntry {
 	entry := s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
-	lastGrant := ""
+	var lastGrant sandboxdomain.Allowed
 	for entry.ToolExecution != nil && !entry.ToolExecution.Success && agentdomain.SandboxApprovalAvailable(ctx) {
-		path, denied := sandboxdomain.DeniedPath(entry.ToolExecution.Error)
+		denial, denied := sandboxdomain.ParseDenial(entry.ToolExecution.Error)
 		if !denied {
 			break
 		}
-		dir := sandboxdomain.GrantDir(path)
-		if dir == lastGrant {
+		grant := denial.Grant()
+		if grant == lastGrant {
 			break
 		}
-		allow, always := s.requestSandboxApproval(ctx, tc, eventPublisher, dir)
+		allow, always := s.requestSandboxApproval(ctx, tc, eventPublisher, grant)
 		if !allow {
 			break
 		}
-		lastGrant = dir
-		sandboxdomain.Granted.Add(dir)
-		logger.Info("sandbox extended by user approval", "dir", dir, "tool", tc.Function.Name, "persisted", always)
+		lastGrant = grant
+		sandboxdomain.Granted.Add(grant)
+		logger.Info("sandbox extended by user approval", "path", grant.Path, "access", grant.Access, "tool", tc.Function.Name, "persisted", always)
 		if always {
-			if err := sandboxinfra.PersistDirectory(dir, s.config.Tools.Sandbox.Directories); err != nil {
-				logger.Error("failed to persist sandbox directory", "dir", dir, "error", err)
+			if err := sandboxinfra.PersistGrant(grant); err != nil {
+				logger.Error("failed to persist sandbox grant", "path", grant.Path, "error", err)
 			}
 		}
 		entry = s.executeToolOnce(ctx, tc, eventPublisher, wasApproved, startTime)
@@ -1205,16 +1205,16 @@ func (s *Agent) executeToolInternal(
 }
 
 // requestSandboxApproval asks the user - through the standard approval
-// pipeline, as a synthetic SandboxAccess tool call - to allow dir outside the
-// sandbox. Approve grants it for this session; auto-accept ("always") also
-// persists it to the userspace config.
+// pipeline, as a synthetic SandboxAccess tool call - to grant the denied
+// access. Approve grants it for this session; auto-accept ("always") also
+// persists it to the userspace sandbox.yaml.
 func (s *Agent) requestSandboxApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
-	dir string,
+	grant sandboxdomain.Allowed,
 ) (allow, always bool) {
-	args, err := json.Marshal(map[string]string{"path": dir, "tool": tc.Function.Name})
+	args, err := json.Marshal(map[string]string{"path": grant.Path, "access": string(grant.Access), "tool": tc.Function.Name})
 	if err != nil {
 		return false, false
 	}

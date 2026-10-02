@@ -43,11 +43,12 @@ func TestRequestSandboxApproval(t *testing.T) {
 				var args map[string]string
 				require.NoError(t, json.Unmarshal([]byte(ev.ToolCall.Function.Arguments), &args))
 				assert.Equal(t, "/granted/dir", args["path"])
+				assert.Equal(t, "write", args["access"])
 				assert.Equal(t, "Read", args["tool"])
 				ev.ResponseChan <- tt.response
 			}()
 
-			allow, always := svc.requestSandboxApproval(context.Background(), tc, pub, "/granted/dir")
+			allow, always := svc.requestSandboxApproval(context.Background(), tc, pub, sandboxdomain.Allowed{Path: "/granted/dir", Access: sandboxdomain.AccessWrite})
 			assert.Equal(t, tt.wantAllow, allow)
 			assert.Equal(t, tt.wantAlways, always)
 		})

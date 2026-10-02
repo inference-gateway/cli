@@ -5,11 +5,12 @@ which bash commands run without a prompt, and how a denied path turns into a gra
 **Why** - a security decision needs one chokepoint. Keeping it out of `config` leaves that package as schema
 and path constants, and keeping runtime grants apart from the configured policy keeps the system prompt
 byte-stable so the provider prompt cache stays warm.
-**How** - `domain/` holds the denial contract (`DeniedError`, `DeniedPath`), the process-wide `Granted` set and
-the `SandboxAccess` approval name. The root package applies the `sandbox.yaml` policy (`config.SandboxConfig`) plus the carve-outs
-(skills, plugins, runtime dirs, memory, Go library dirs) through `ValidateRead` and `ValidateWrite`, and
-resolves the per-mode bash allow-list through `IsBashCommandAllowed`. `infrastructure/` persists an
-"always" grant into the userspace `sandbox.yaml`.
+**How** - `domain/` holds the policy value objects (`Allowed` with an `Access`, `Denied` with a `Violation`),
+the denial contract (`DeniedError`, `ParseDenial`, `Grant`), the process-wide `Granted` set and the
+`SandboxAccess` approval name. The root package applies the `sandbox.yaml` policy plus the carve-outs (skills,
+plugins, runtime dirs, memory, Go library dirs) through `ValidateRead` and `ValidateWrite`, and resolves the
+per-mode bash allow-list through `IsBashCommandAllowed`. `infrastructure/` persists an "always" grant into the
+userspace `sandbox.yaml`.
 
 ## How it plugs in
 
@@ -18,9 +19,12 @@ resolves the per-mode bash allow-list through `IsBashCommandAllowed`. `infrastru
   library carve-out.
 - Bash, Wait, the approval policy and command hooks call `IsBashCommandAllowed` and surface
   `BashCommandRejectionHint` when a command is denied. The system prompt lists `BashAllowedCommands`.
-- The agent's tool loop recovers a `DeniedError` from the flattened tool result with `DeniedPath`, raises a
-  synthetic `SandboxAccess` approval for `GrantDir(path)`, and on approval calls `Granted.Add`. An
-  auto-accept answer also calls `PersistDirectory`.
+- Decision order: denied entries first (block fails, approval asks), then the built-in carve-outs, then the
+  first matching allowed entry, then the user is asked. An empty allowed list is no boundary. A grant only
+  unlocks what approval could have, so a granted directory still respects denied.
+- The agent's tool loop recovers a `DeniedError` from the flattened tool result with `ParseDenial`, raises a
+  synthetic `SandboxAccess` approval for `denial.Grant()` (the exact path when a denied entry matched, the
+  directory otherwise), and on approval calls `Granted.Add`. An auto-accept answer also calls `PersistGrant`.
 - `ValidateWrite` refuses both `sandbox.yaml` locations whatever `protected_paths` says, and `infer config set`
   cannot reach the policy keys, so the agent cannot widen its own sandbox through the tools it runs.
 - Concurrency: tools run in parallel goroutines, so `Granted` is the only mutable sandbox state and sits

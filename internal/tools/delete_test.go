@@ -8,6 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestDeleteTool_Definition(t *testing.T) {
@@ -404,7 +405,7 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewDeleteTool(cfg)
 
 	args := map[string]any{
@@ -438,7 +439,7 @@ func TestDeleteTool_SandboxValidation(t *testing.T) {
 	}()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
 	tool := NewDeleteTool(cfg)
 
 	tests := []struct {

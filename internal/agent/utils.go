@@ -837,29 +837,26 @@ func (s *Agent) buildA2AAgentInfo() string {
 	return s.a2aAgents()
 }
 
-// buildSandboxInfo creates dynamic sandbox information for the system prompt
+// buildSandboxInfo lists the configured sandbox policy for the system prompt.
+// Runtime grants are left out so the prompt stays byte-stable within a session.
 func (s *Agent) buildSandboxInfo() string {
-	sandboxDirs := s.config.GetSandboxDirectories()
-	protectedPaths := s.config.GetProtectedPaths()
+	policy := s.config.Tools.Sandbox
 
 	var sandboxInfo strings.Builder
 	sandboxInfo.WriteString("SANDBOX RESTRICTIONS:\n")
-
-	if len(sandboxDirs) > 0 {
-		sandboxInfo.WriteString("You are restricted to work within these allowed directories:\n")
-		for _, dir := range sandboxDirs {
-			fmt.Fprintf(&sandboxInfo, "- %s\n", dir)
-		}
-		sandboxInfo.WriteString("\n")
-	}
-
-	if len(protectedPaths) > 0 {
-		sandboxInfo.WriteString("You MUST NOT attempt to access these protected paths:\n")
-		for _, path := range protectedPaths {
-			fmt.Fprintf(&sandboxInfo, "- %s\n", path)
+	if len(policy.Allowed) > 0 {
+		sandboxInfo.WriteString("You may work within these allowed paths:\n")
+		for _, entry := range policy.Allowed {
+			fmt.Fprintf(&sandboxInfo, "- %s (%s)\n", entry.Path, entry.Access)
 		}
 	}
-
+	if len(policy.Denied) > 0 {
+		sandboxInfo.WriteString("You MUST NOT attempt to access these denied paths:\n")
+		for _, entry := range policy.Denied {
+			fmt.Fprintf(&sandboxInfo, "- %s\n", entry.Path)
+		}
+	}
+	sandboxInfo.WriteString("Anything else needs the user's approval.\n")
 	return sandboxInfo.String()
 }
 

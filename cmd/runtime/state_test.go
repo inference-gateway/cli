@@ -13,6 +13,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // TestMain redirects the logger to a throwaway directory for the whole package.
@@ -127,7 +128,7 @@ func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
 
 			initConfig()
 
-			assert.Equal(t, []string{".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"}, Cfg.Tools.Sandbox.Directories)
+			assert.Equal(t, sandboxdomain.Allow(".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"), Cfg.Tools.Sandbox.Allowed)
 		})
 	}
 }

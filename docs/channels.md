@@ -89,7 +89,7 @@ Key features:
 
 Channel settings live in their own file at `.infer/channels.yaml` (separate
 from the main `config.yaml` so bot tokens stay out of the agent's reach -
-the file is in the `sandbox.yaml` `protected_paths` by default). `infer init`
+the file is in the `sandbox.yaml` `denied` list by default). `infer init`
 seeds it from the in-code defaults; edit it like so:
 
 ```yaml
@@ -155,7 +155,7 @@ Channel settings live in their own file:
 
 - **`.infer/channels.yaml`** - all channel settings (Telegram, WhatsApp,
   max workers, approval flag). Holds bot tokens, so it's listed in
-  the `sandbox.yaml` `protected_paths` and the agent cannot read or rewrite it.
+  the `sandbox.yaml` `denied` list and the agent cannot read or rewrite it.
 - **`.infer/config.yaml`** - agent settings (model, max turns, etc.).
   Any legacy `channels:` block here is **ignored** at runtime; only
   `channels.yaml` is read. Run `infer init` to migrate an existing block:

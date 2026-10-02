@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestNewTreeTool(t *testing.T) {
@@ -65,11 +66,11 @@ func TestTreeTool_Validate(t *testing.T) {
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-				ProtectedPaths: []string{
+				Allowed: sandboxdomain.Allow("."),
+				Denied: sandboxdomain.Deny(
 					".infer/",
 					".git/",
-				},
+				),
 			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
@@ -225,9 +226,7 @@ func createTestTreeTool(tempDir string) *TreeTool {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},
@@ -579,9 +578,7 @@ func TestTreeTool_ValidatePath(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tempDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tempDir)},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},

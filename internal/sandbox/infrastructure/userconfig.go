@@ -7,12 +7,12 @@ import (
 	"slices"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-// PersistDirectory appends dir to the directories in the userspace
-// ~/.infer/sandbox.yaml. current seeds a file that does not exist yet, so
-// persisting never shrinks the effective allow-list.
-func PersistDirectory(dir string, current []string) error {
+// PersistGrant puts an approved grant in front of the allowed entries of the
+// userspace ~/.infer/sandbox.yaml, so it wins over a narrower entry next time.
+func PersistGrant(grant sandboxdomain.Allowed) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to resolve home directory: %w", err)
@@ -23,12 +23,9 @@ func PersistDirectory(dir string, current []string) error {
 	if err != nil {
 		return err
 	}
-	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
-		sandboxCfg.Directories = slices.Clone(current)
-	}
-	if slices.Contains(sandboxCfg.Directories, dir) {
+	if slices.Contains(sandboxCfg.Allowed, grant) {
 		return nil
 	}
-	sandboxCfg.Directories = append(sandboxCfg.Directories, dir)
+	sandboxCfg.Allowed = append([]sandboxdomain.Allowed{grant}, sandboxCfg.Allowed...)
 	return config.SaveSandbox(path, sandboxCfg)
 }

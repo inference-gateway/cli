@@ -302,7 +302,7 @@ func nearestExistingDir(path string) (string, string) {
 // the sandbox directory containing it, falling back to the nearest existing dir.
 func (t *ReadTool) sameBaseNameInSandbox(absPath, fallback string) []string {
 	root := fallback
-	for _, sandboxDir := range t.config.Tools.Sandbox.Directories {
+	for _, sandboxDir := range sandbox.AllowedDirectories(t.config) {
 		if abs, err := filepath.Abs(sandboxDir); err == nil && isUnderDir(absPath, abs) {
 			root = abs
 			break

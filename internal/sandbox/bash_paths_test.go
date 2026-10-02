@@ -7,6 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
@@ -31,7 +32,7 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 	mustSymlink(t, filepath.Join(outside, "secret.txt"), filepath.Join(project, "links", "out-file"))
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{project}
+	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(project)
 
 	tests := []struct {
 		command string

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestGrepTool_Definition(t *testing.T) {
@@ -521,9 +522,7 @@ func TestGrepTool_PathExclusion(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
@@ -653,9 +652,7 @@ func TestGrepTool_HybridSearch(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
@@ -707,9 +704,7 @@ func TestGrepTool_GoBasedSearch(t *testing.T) {
 		config: &config.Config{
 			Tools: config.ToolsConfig{
 				Enabled: true,
-				Sandbox: config.SandboxConfig{
-					Directories: []string{wd},
-				},
+				Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(wd)},
 			},
 		},
 		enabled: true,
@@ -1099,9 +1094,7 @@ func TestGrepTool_RipgrepErrors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},

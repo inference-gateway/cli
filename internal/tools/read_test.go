@@ -10,15 +10,14 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestReadTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(".")},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -102,13 +101,13 @@ func TestReadTool_Validate(t *testing.T) {
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
-				Directories: []string{wd, parentDir, "/tmp", "/home/user"},
-				ProtectedPaths: []string{
+				Allowed: sandboxdomain.Allow(wd, parentDir, "/tmp", "/home/user"),
+				Denied: sandboxdomain.Deny(
 					".infer/",
 					".git/",
 					"*.env",
 					"*.env.database",
-				},
+				),
 			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
@@ -322,9 +321,7 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -412,9 +409,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -513,9 +508,7 @@ func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -626,9 +619,7 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -686,9 +677,7 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -734,9 +723,7 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -797,9 +784,7 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -866,9 +851,7 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{tmpDir},
-			},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir)},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -932,7 +915,7 @@ func TestReadTool_Execute_NotFoundSuggestions(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Sandbox: config.SandboxConfig{Directories: []string{tmpDir, emptyDir}},
+			Sandbox: config.SandboxConfig{Allowed: sandboxdomain.Allow(tmpDir, emptyDir)},
 			Read:    config.ReadToolConfig{Enabled: true},
 		},
 	}

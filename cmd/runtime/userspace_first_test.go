@@ -11,6 +11,7 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // splitHomeProjectEnv clears INFER_* env vars, points HOME at one temp dir, and
@@ -125,12 +126,17 @@ func TestInitConfigSandboxSidecar(t *testing.T) {
 
 	sandboxFile := filepath.Join(projectDir, config.DefaultSandboxPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(sandboxFile), 0o755))
-	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\ndirectories:\n  - /policy\n"), 0o644))
+	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nallowed:\n  - /policy\n"), 0o644))
 
 	initConfig()
-	require.Equal(t, []string{"/policy"}, Cfg.Tools.Sandbox.Directories)
+	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Allowed)
+	require.Empty(t, Cfg.Tools.Sandbox.Denied, "a present file replaces the policy wholesale")
 
 	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "")
 	initConfig()
-	require.Equal(t, []string{"/policy"}, Cfg.Tools.Sandbox.Directories, "an empty env list never lifts the restriction")
+	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Allowed, "an empty env list adds nothing")
+
+	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "/extra")
+	initConfig()
+	require.Equal(t, sandboxdomain.Allow("/policy", "/extra"), Cfg.Tools.Sandbox.Allowed, "env directories are allowed too")
 }

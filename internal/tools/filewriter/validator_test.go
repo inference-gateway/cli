@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 func TestPathValidator_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 
@@ -116,7 +117,7 @@ func TestPathValidator_IsWritable(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 
@@ -171,7 +172,7 @@ func TestPathValidator_IsInSandbox(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Directories = []string{tempDir}
+	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
 
 	validator := NewPathValidator(cfg)
 

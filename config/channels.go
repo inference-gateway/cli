@@ -120,7 +120,7 @@ func LoadChannels(path string) (*ChannelsConfig, error) {
 // SaveChannels writes the channels configuration to disk, creating any
 // missing parent directories. The file holds bot tokens / access tokens,
 // so callers should ensure it is also listed in
-// the sandbox.yaml protected_paths.
+// the sandbox.yaml denied list.
 func SaveChannels(path string, cfg *ChannelsConfig) error {
 	return configutils.SaveYAML(path, "channels", cfg)
 }
