@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
 	channels "github.com/inference-gateway/cli/internal/channels"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )

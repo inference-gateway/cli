@@ -4,7 +4,7 @@
 **Why** - scheduled work runs inside `infer daemon`, outside any chat session, so it needs its own lifecycle and storage
 instead of living in the agent loop.
 **How** - the `Schedule` tool writes jobs to storage, and the daemon's scheduler polls that storage and runs each due
-job as a one-shot `infer headless` inside `infer daemon`, through `internal/platform/agentrunner`. Heartbeat wake-ups
+job as a one-shot `infer headless` inside `infer daemon`, through `internal/agent/runner`. Heartbeat wake-ups
 run the same way. Each is one process per run, no client follows it, and its stderr lands in the daemon log.
 
 ## How it plugs in

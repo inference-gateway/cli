@@ -10,7 +10,7 @@ import (
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
 )
 
 // InstallBranch is the fixed head branch for agent-driven workflow installs.

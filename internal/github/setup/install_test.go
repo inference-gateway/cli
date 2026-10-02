@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
 )
 
 func TestInstallPrompt(t *testing.T) {

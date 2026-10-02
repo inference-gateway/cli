@@ -11,7 +11,7 @@ import (
 	cron "github.com/robfig/cron/v3"
 	yaml "gopkg.in/yaml.v3"
 
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"

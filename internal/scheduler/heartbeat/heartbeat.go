@@ -11,7 +11,7 @@ import (
 
 	uuid "github.com/google/uuid"
 
-	agentrunner "github.com/inference-gateway/cli/internal/platform/agentrunner"
+	agentrunner "github.com/inference-gateway/cli/internal/agent/runner"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 

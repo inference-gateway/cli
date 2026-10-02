@@ -1,4 +1,4 @@
-package agentrunner
+package runner
 
 import (
 	"context"
