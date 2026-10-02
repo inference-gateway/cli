@@ -18,10 +18,11 @@ import (
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
-// TestRepro1475: a keep-alive headless subagent that finished its turn reads as
-// completed at its turn end, renders a check mark over a frozen elapsed, lingers
-// out with its refresh tick and wakes back up when the parent sends a follow-up.
-func TestRepro1475(t *testing.T) {
+// An idle keep-alive headless subagent (turn done, waiting on stdin for a
+// follow-up) reads as completed at its turn end, renders a check mark over a
+// frozen elapsed, lingers out with its refresh tick and wakes back up when the
+// parent sends a follow-up.
+func TestIdleSubagentJobFreezesElapsedAndLingersOut(t *testing.T) {
 	sup := jobs.NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
 	started := make(chan struct{})
 	finish := make(chan struct{})
@@ -34,7 +35,7 @@ func TestRepro1475(t *testing.T) {
 	}
 	sup.Submit(keeper)
 	<-started
-	keeper.IdleReturns(true) // turn done, the child waits on stdin for a follow-up
+	keeper.IdleReturns(true)
 	turnEnd := time.Now()
 	keeper.IdleSinceReturns(turnEnd)
 
@@ -59,7 +60,7 @@ func TestRepro1475(t *testing.T) {
 	if frozen := list.Render(); frozen != first {
 		t.Errorf("the completed row changed between renders (elapsed still ticking): %q vs %q", strings.Split(first, "\n")[0], strings.Split(frozen, "\n")[0])
 	}
-	time.Sleep(700 * time.Millisecond) // past the 1s linger window
+	time.Sleep(700 * time.Millisecond)
 	if gone := list.Render(); gone != "" {
 		t.Errorf("the completed row must drop after the linger window, still %q", strings.Split(gone, "\n")[0])
 	}
@@ -67,7 +68,7 @@ func TestRepro1475(t *testing.T) {
 		t.Error("the refresh tick chain must die once no row is visible")
 	}
 
-	keeper.IdleReturns(false) // the parent sent a follow-up, the child runs again
+	keeper.IdleReturns(false)
 	keeper.IdleSinceReturns(time.Time{})
 	if busy := sup.Snapshot()[0]; busy.Status != scheddomain.JobRunning || busy.CompletedAt != nil {
 		t.Errorf("a follow-up must read as running with no completion time, got status=%s completedAt=%v", busy.Status, busy.CompletedAt)
