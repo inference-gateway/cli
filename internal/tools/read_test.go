@@ -925,3 +925,62 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 		}
 	})
 }
+
+func TestReadTool_Execute_NotFoundSuggestions(t *testing.T) {
+	tmpDir := t.TempDir()
+	emptyDir := t.TempDir()
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{Directories: []string{tmpDir, emptyDir}},
+			Read:    config.ReadToolConfig{Enabled: true},
+		},
+	}
+	tool := NewReadTool(cfg)
+
+	mustWrite := func(rel string) string {
+		t.Helper()
+		p := filepath.Join(tmpDir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	target := mustWrite("a/b/target.yaml")
+	configFile := mustWrite("a/b/config.yaml")
+
+	tests := []struct {
+		name     string
+		path     string
+		wantHint string
+	}{
+		{"same name in another directory", filepath.Join(tmpDir, "a/wrong/target.yaml"), target},
+		{"typo in the base name", filepath.Join(tmpDir, "a/b/confg.yaml"), configFile},
+		{"nothing nearby", filepath.Join(emptyDir, "x/missing.txt"), ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tool.Execute(context.Background(), map[string]any{"file_path": tt.path})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(result.Error, ErrorNotFound+": "+tt.path) {
+				t.Fatalf("error should start with NOT_FOUND and the path, got %q", result.Error)
+			}
+			if tt.wantHint == "" {
+				if strings.Contains(result.Error, "Did you mean") {
+					t.Fatalf("expected no hint, got %q", result.Error)
+				}
+				return
+			}
+			lines := strings.Split(result.Error, "\n")
+			if len(lines) < 4 || lines[3] != "  "+tt.wantHint {
+				t.Fatalf("expected %q as the first suggestion, got %q", tt.wantHint, result.Error)
+			}
+		})
+	}
+}

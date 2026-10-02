@@ -1791,12 +1791,12 @@ func (s *Agent) recordJudgeUsage(usage *sdk.CompletionUsage) {
 	}
 }
 
-// trackRepeatedFailure counts identical failing tool calls (same name and
-// arguments) and, from the third failure on, stores the key so
+// trackRepeatedFailure counts failing tool calls that share a normalised key
+// (see repeatedFailureKey) and, from the third failure on, stores the key so
 // injectDueReminders can deliver the on_repeated_failure reminder via the
-// reminders pipeline. A success with the same arguments resets the counter.
+// reminders pipeline. A success with the same key resets the counter.
 func (s *Agent) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry convdomain.ConversationEntry) {
-	key := tc.Function.Name + "\x00" + tc.Function.Arguments
+	key := repeatedFailureKey(tc.Function.Name, tc.Function.Arguments)
 	s.failedCallsMux.Lock()
 	defer s.failedCallsMux.Unlock()
 
@@ -1815,6 +1815,28 @@ func (s *Agent) trackRepeatedFailure(tc sdk.ChatCompletionMessageToolCall, entry
 		s.repeatedFailureKey = key
 		s.repeatedFailureMux.Unlock()
 	}
+}
+
+// repeatedFailureKey identifies a tool call by what can actually fail: the
+// file path alone for Read, otherwise the canonical JSON of the arguments
+// without pagination keys, so offset, limit, key order and whitespace
+// never split a retry into a fresh count.
+func repeatedFailureKey(name, rawArgs string) string {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(rawArgs), &args); err != nil {
+		return name + "\x00" + rawArgs
+	}
+	if name == tools.ToolRead {
+		path, _ := args["file_path"].(string)
+		return name + "\x00" + path
+	}
+	delete(args, "offset")
+	delete(args, "limit")
+	canonical, err := json.Marshal(args)
+	if err != nil {
+		return name + "\x00" + rawArgs
+	}
+	return name + "\x00" + string(canonical)
 }
 
 // takeRepeatedFailure reads and clears the repeated-failure key stored by

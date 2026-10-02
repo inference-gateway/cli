@@ -602,7 +602,7 @@ reminders:
 | `on_failure` | **`post_tool` only** - fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
 | `once_after` | Once, after `threshold` session turns have elapsed (requires `threshold > 0`). |
 | `on_mode_change` | Mode changed before the next stream; substitutes `{prev_mode}`, `{new_mode}` and `{guidance}`. Requires `hook: pre_stream`. |
-| `on_repeated_failure` | **`post_tool` only** - same tool call failed identically `threshold` times; `{tool_name}`/`{count}` substituted. |
+| `on_repeated_failure` | **`post_tool` only** - same call (ignoring offset, limit, key order) failed `threshold` times; `{tool_name}`, `{count}`. |
 | `on_truncation` | **`post_stream` only** - the previous response hit the token limit (`finish_reason: length`). Requires `hook: post_stream`. |
 | `on_stalled_todos` | **`post_stream` only** - no tool call while todos are incomplete; substitutes `{todo_list}`. Requires `hook: post_stream`. |
 | `on_empty_response` | **`post_stream` only** - the response had neither text nor a tool call. Requires `hook: post_stream`. |
