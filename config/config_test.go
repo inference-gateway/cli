@@ -325,21 +325,11 @@ func validateCompleteConfig(t *testing.T, cfg *Config) {
 	if !cfg.Logging.Debug {
 		t.Error("Expected debug to be true in complete config")
 	}
-	if !cfg.Tools.WebSearch.Enabled {
-		t.Error("Expected WebSearch to be enabled")
+	if cfg.Tools.WebSearch.Enabled {
+		t.Error("Expected the legacy tools: block in config.yaml to be ignored")
 	}
-	if cfg.Tools.WebSearch.DefaultEngine != "google" {
-		t.Errorf("Expected default engine to be 'google', got %q", cfg.Tools.WebSearch.DefaultEngine)
-	}
-	if cfg.Tools.WebSearch.MaxResults != 15 {
-		t.Errorf("Expected max results to be 15, got %d", cfg.Tools.WebSearch.MaxResults)
-	}
-	if cfg.Tools.WebSearch.Timeout != 20 {
-		t.Errorf("Expected timeout to be 20, got %d", cfg.Tools.WebSearch.Timeout)
-	}
-	expectedEngines := []string{"google", "duckduckgo"}
-	if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
-		t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
+	if cfg.Tools.WebSearch.MaxResults != 0 {
+		t.Errorf("Expected the tools section to load empty from config.yaml (it lives in tools.yaml), got %v", cfg.Tools.WebSearch)
 	}
 	if cfg.Agent.Model != "openai/gpt-5" {
 		t.Errorf("Expected default model to be 'openai/gpt-5', got %q", cfg.Agent.Model)
@@ -365,30 +355,22 @@ func TestSaveConfig(t *testing.T) {
 		validator func(t *testing.T, cfg *Config)
 	}{
 		{
-			name: "save websearch config",
+			name: "tools settings are not written into config.yaml",
 			setupFunc: func(cfg *Config) {
 				cfg.Tools.WebSearch.Enabled = false
-				cfg.Tools.WebSearch.DefaultEngine = "duckduckgo"
 				cfg.Tools.WebSearch.MaxResults = 25
-				cfg.Tools.WebSearch.Timeout = 15
 				cfg.Tools.WebSearch.Engines = []string{"duckduckgo"}
 			},
 			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Tools.WebSearch.Enabled {
-					t.Error("Expected WebSearch to be disabled")
+				if !cfg.Tools.WebSearch.Enabled {
+					t.Error("Expected WebSearch to keep its default (true); the tools section lives in tools.yaml, not config.yaml")
 				}
-				if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
-					t.Errorf("Expected default engine to be 'duckduckgo', got %q", cfg.Tools.WebSearch.DefaultEngine)
+				if cfg.Tools.WebSearch.MaxResults != 10 {
+					t.Errorf("Expected max results to keep the default 10, got %d", cfg.Tools.WebSearch.MaxResults)
 				}
-				if cfg.Tools.WebSearch.MaxResults != 25 {
-					t.Errorf("Expected max results to be 25, got %d", cfg.Tools.WebSearch.MaxResults)
-				}
-				if cfg.Tools.WebSearch.Timeout != 15 {
-					t.Errorf("Expected timeout to be 15, got %d", cfg.Tools.WebSearch.Timeout)
-				}
-				expectedEngines := []string{"duckduckgo"}
+				expectedEngines := []string{"duckduckgo", "google"}
 				if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
-					t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
+					t.Errorf("Expected engines to keep the default %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
 				}
 			},
 		},
