@@ -241,28 +241,24 @@ func IsAnchored(rulePath string) bool {
 // protectedPolicyFiles are the userspace policy files the file tools never
 // write, whatever the rules say, so the agent can never widen its own
 // sandbox or lower its own approval bar.
-func protectedPolicyFiles() []struct {
+var protectedPolicyFiles = []struct {
 	label string
 	path  func() (string, error)
-} {
-	return []struct {
-		label string
-		path  func() (string, error)
-	}{
-		{label: "sandbox", path: config.UserSandboxPath},
-		{label: "tools", path: config.UserToolsPath},
-	}
+}{
+	{label: "sandbox", path: config.UserSandboxPath},
+	{label: "tools", path: config.UserToolsPath},
 }
 
 // protectedPolicyPath reports the label of the protected policy file absPath
 // resolves to, if any.
 func protectedPolicyPath(absPath string) (string, bool) {
-	for _, policy := range protectedPolicyFiles() {
+	target := config.CanonicalPath(absPath)
+	for _, policy := range protectedPolicyFiles {
 		file, err := policy.path()
 		if err != nil {
 			continue
 		}
-		if config.CanonicalPath(absPath) == config.CanonicalPath(file) {
+		if target == config.CanonicalPath(file) {
 			return policy.label, true
 		}
 	}
