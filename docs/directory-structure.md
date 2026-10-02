@@ -107,7 +107,6 @@ for the full precedence rules.
 │                         # (the CLI never writes here on its own)
 ├── config.yaml           # sparse override of ~/.infer/config.yaml
 ├── mcp.yaml              # project MCP servers (project-then-home lookup)
-├── sandbox.yaml          # project sandbox policy (replaces the home file, never agent-writable)
 ├── keybindings.yaml      # project keybindings (project-then-home lookup)
 ├── shortcuts/            # project shortcuts, overlaid by name onto ~/.infer/shortcuts/
 ├── skills/               # project skills, still discovered when present
@@ -139,8 +138,9 @@ project wants to override a config file it commits its own sparse
   `infer keybindings set/disable/reset` or by hand.
 - **`sandbox.yaml`** - the sandbox policy, one section per resource. Under
   `filesystem`, `allowed` paths the file tools may use (optionally `access: read`)
-  and `denied` paths they never may (optionally `on_violation: approval`). The agent's file tools cannot write this file,
-  whatever it says.
+  and `denied` paths they never may (optionally `on_violation: approval`).
+  Userspace only, a project copy is ignored, and the agent's file tools cannot
+  write this file, whatever it says.
 - **`channels.yaml`** - remote messaging transports (Telegram, ...) and
   per-channel allowlists. See [Channels](channels.md). On first init, a
   legacy `channels:` block in `config.yaml` is auto-migrated here.
@@ -296,7 +296,7 @@ the project directory. The general guidance:
 **Commit** (project-shareable configuration):
 
 - `.infer/config.yaml`, `prompts.yaml`, `keybindings.yaml`,
-  `sandbox.yaml`, `channels.yaml`, `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`,
+  `channels.yaml`, `computer_use.yaml`, `browser_use.yaml`, `agents.yaml`,
   `mcp.yaml`
 - `.infer/shortcuts/`
 

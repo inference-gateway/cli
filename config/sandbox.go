@@ -9,14 +9,11 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-const (
-	SandboxFileName    = "sandbox.yaml"
-	DefaultSandboxPath = ConfigDirName + "/" + SandboxFileName
-)
+const SandboxFileName = "sandbox.yaml"
 
 // SandboxConfig is the sandbox policy, one section per resource the tools
-// reach. It lives in its own sandbox.yaml so the policy can be reviewed on its
-// own and the agent's file tools can never edit it.
+// reach. It lives in the userspace sandbox.yaml alone, with no project copy,
+// so a checked-out repository can never widen the sandbox of whoever opens it.
 type SandboxConfig struct {
 	Filesystem FilesystemPolicy `yaml:"filesystem"`
 }
@@ -92,12 +89,12 @@ func SaveSandbox(path string, cfg *SandboxConfig) error {
 	return configutils.SaveYAML(path, "sandbox", cfg)
 }
 
-// SandboxFilePaths are the files the policy may be read from, project first
-// then userspace. The file tools refuse to write any of them.
-func SandboxFilePaths() []string {
-	paths := []string{DefaultSandboxPath}
-	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ConfigDirName, SandboxFileName))
+// UserSandboxPath is ~/.infer/sandbox.yaml, the only file the policy is read
+// from. The file tools refuse to write it.
+func UserSandboxPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve home directory: %w", err)
 	}
-	return paths
+	return filepath.Join(home, ConfigDirName, SandboxFileName), nil
 }

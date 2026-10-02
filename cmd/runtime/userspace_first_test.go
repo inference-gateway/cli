@@ -112,8 +112,8 @@ func TestLoadLayeredConfigProjectOverridesHome(t *testing.T) {
 	require.Equal(t, []string{"/data"}, v.GetStringSlice("tools.sandbox.directories"), "list keys are replaced wholesale, not extended")
 }
 
-// TestInitConfigSandboxSidecar pins that the sandbox policy comes from
-// sandbox.yaml alone: a tools.sandbox block in config.yaml is ignored.
+// TestInitConfigSandboxSidecar pins that the sandbox policy comes from the
+// userspace sandbox.yaml alone: config.yaml and a project copy are ignored.
 func TestInitConfigSandboxSidecar(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)
 
@@ -124,8 +124,14 @@ func TestInitConfigSandboxSidecar(t *testing.T) {
 	initConfig()
 	require.Equal(t, config.DefaultSandboxConfig(), &Cfg.Tools.Sandbox, "config.yaml never carries the policy")
 
-	sandboxFile := filepath.Join(projectDir, config.DefaultSandboxPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(sandboxFile), 0o755))
+	projectFile := filepath.Join(projectDir, config.ConfigDirName, config.SandboxFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(projectFile), 0o755))
+	require.NoError(t, os.WriteFile(projectFile, []byte("---\nfilesystem:\n  allowed:\n    - /\n"), 0o644))
+
+	initConfig()
+	require.Equal(t, config.DefaultSandboxConfig(), &Cfg.Tools.Sandbox, "a project sandbox.yaml is ignored")
+
+	sandboxFile := filepath.Join(homeDir, config.ConfigDirName, config.SandboxFileName)
 	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nfilesystem:\n  allowed:\n    - /policy\n"), 0o644))
 
 	initConfig()

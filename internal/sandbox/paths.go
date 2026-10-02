@@ -156,20 +156,14 @@ func isAnchored(rulePath string) bool {
 		rulePath == "~" || strings.HasPrefix(rulePath, "~/")
 }
 
-// isSandboxPolicyFile reports whether absPath is a sandbox.yaml, whatever the
-// rules say, so the agent can never widen its own sandbox.
+// isSandboxPolicyFile reports whether absPath is the userspace sandbox.yaml,
+// whatever the rules say, so the agent can never widen its own sandbox.
 func isSandboxPolicyFile(absPath string) bool {
-	path := config.CanonicalPath(absPath)
-	for _, file := range config.SandboxFilePaths() {
-		absFile, err := filepath.Abs(file)
-		if err != nil {
-			continue
-		}
-		if path == config.CanonicalPath(absFile) {
-			return true
-		}
+	file, err := config.UserSandboxPath()
+	if err != nil {
+		return false
 	}
-	return false
+	return config.CanonicalPath(absPath) == config.CanonicalPath(file)
 }
 
 // isWithinCustomToolsDir reports whether absPath is inside a directory custom

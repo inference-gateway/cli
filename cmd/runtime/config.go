@@ -528,10 +528,16 @@ func sameConfigFile(a, b string) bool {
 	return aAbs == bAbs
 }
 
-// loadSandboxConfig reads sandbox.yaml. INFER_TOOLS_SANDBOX_DIRECTORIES, the
-// list the desktop hands a worker, adds allowed directories.
+// loadSandboxConfig reads the userspace sandbox.yaml. A project copy is
+// never consulted, so a repository cannot widen the sandbox of whoever opens
+// it. INFER_TOOLS_SANDBOX_DIRECTORIES, the list the desktop hands a worker,
+// adds allowed directories.
 func loadSandboxConfig() *config.SandboxConfig {
-	path := sidecarPath(config.SandboxFileName)
+	path, err := config.UserSandboxPath()
+	if err != nil {
+		logger.Warn("failed to resolve sandbox config, using defaults", "error", err)
+		return config.DefaultSandboxConfig()
+	}
 	sandboxCfg, err := config.LoadSandbox(path)
 	if err != nil {
 		logger.Warn("failed to load sandbox config, using defaults", "error", err, "path", path)

@@ -323,9 +323,10 @@ func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
 	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project, home)
 	cfg.Tools.Sandbox.Filesystem.Denied = nil
 
-	for _, file := range config.SandboxFilePaths() {
-		require.NoError(t, ValidateRead(cfg, file), "reading %s", file)
-		require.ErrorContains(t, ValidateWrite(cfg, file), "sandbox policy", "writing %s", file)
-	}
-	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
+	file, err := config.UserSandboxPath()
+	require.NoError(t, err)
+	require.NoError(t, ValidateRead(cfg, file), "reading %s", file)
+	require.ErrorContains(t, ValidateWrite(cfg, file), "sandbox policy", "writing %s", file)
+	require.NoError(t, ValidateWrite(cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
+	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, config.SandboxFileName)), "a project sandbox.yaml is ignored, not policy")
 }

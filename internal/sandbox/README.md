@@ -9,8 +9,8 @@ byte-stable so the provider prompt cache stays warm.
 the denial contract (`DeniedError`, `ParseDenial`, `Grant`), the process-wide `Granted` set and the
 `SandboxAccess` approval name. The root package applies the `filesystem` section of `sandbox.yaml` plus the carve-outs (skills,
 plugins, runtime dirs, memory, Go library dirs) through `ValidateRead` and `ValidateWrite`, and resolves the
-per-mode bash allow-list through `IsBashCommandAllowed`. `infrastructure/` persists an "always" grant into the
-userspace `sandbox.yaml`.
+per-mode bash allow-list through `IsBashCommandAllowed`. `infrastructure/` persists an "always" grant into
+`~/.infer/sandbox.yaml`, the only policy file.
 
 ## How it plugs in
 
@@ -25,7 +25,7 @@ userspace `sandbox.yaml`.
 - The agent's tool loop recovers a `DeniedError` from the flattened tool result with `ParseDenial`, raises a
   synthetic `SandboxAccess` approval for `denial.Grant()` (the exact path when a denied entry matched, the
   directory otherwise), and on approval calls `Granted.Add`. An auto-accept answer also calls `PersistGrant`.
-- `ValidateWrite` refuses both `sandbox.yaml` locations whatever `denied` says, and `infer config set`
+- `ValidateWrite` refuses `~/.infer/sandbox.yaml` whatever `denied` says, a project copy is never loaded, and `infer config set`
   cannot reach the policy keys, so the agent cannot widen its own sandbox through the tools it runs.
 - Concurrency: tools run in parallel goroutines, so `Granted` is the only mutable sandbox state and sits
   behind an RWMutex. `List` returns a copy, so no check holds the lock while it walks the filesystem.

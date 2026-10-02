@@ -951,9 +951,9 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
   `on_violation: block|approval` (default block). Denied wins over allowed, the first matching entry in each
   list wins, and a path outside `allowed` or a write into a read-only entry asks the user. Paths are anchored
-  (`/abs`, `~/x`, `.`, `./x`) or patterns matched at any depth (`dir/`, `*.glob`, `name`). The project file
-  replaces the userspace one. The agent's file tools can never write either copy, so the agent cannot widen its
-  own sandbox. `infer config set` does not reach these keys: edit the file. Env:
+  (`/abs`, `~/x`, `.`, `./x`) or patterns matched at any depth (`dir/`, `*.glob`, `name`). Only
+  `~/.infer/sandbox.yaml` is read: a project `.infer/sandbox.yaml` is ignored, so a checked-out repository
+  cannot widen your sandbox, and the agent's file tools can never write the file. `infer config set` does not reach these keys: edit the file. Env:
   `INFER_TOOLS_SANDBOX_DIRECTORIES` adds allowed directories.
 - **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`, `telegram`,
   `whatsapp`. See [Channels](channels.md).

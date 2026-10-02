@@ -1,9 +1,6 @@
 package sandboxinfra
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 
 	config "github.com/inference-gateway/cli/config"
@@ -13,12 +10,10 @@ import (
 // PersistGrant puts an approved grant in front of the allowed entries of the
 // userspace ~/.infer/sandbox.yaml, so it wins over a narrower entry next time.
 func PersistGrant(grant sandboxdomain.Allowed) error {
-	home, err := os.UserHomeDir()
+	path, err := config.UserSandboxPath()
 	if err != nil {
-		return fmt.Errorf("failed to resolve home directory: %w", err)
+		return err
 	}
-	path := filepath.Join(home, config.ConfigDirName, config.SandboxFileName)
-
 	sandboxCfg, err := config.LoadSandbox(path)
 	if err != nil {
 		return err
