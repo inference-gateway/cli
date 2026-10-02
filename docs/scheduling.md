@@ -64,10 +64,11 @@ Add to `~/.infer/tools.yaml` (the tools policy has no project copy):
 
 ```yaml
 enabled: true
-schedule:
-  enabled: true               # off by default
-  require_approval: true      # default; require_approval is highly recommended
-  max_jobs: 100               # safety cap
+tools:
+  schedule:
+    enabled: true               # off by default
+    require_approval: true      # default; require_approval is highly recommended
+    max_jobs: 100               # safety cap
 ```
 
 You can also use environment variables:

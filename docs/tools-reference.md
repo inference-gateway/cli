@@ -216,9 +216,10 @@ Read file content from the filesystem with optional line range specification.
 
 ```yaml
 # ~/.infer/tools.yaml
-read:
-  enabled: true
-  require_approval: false  # Read operations don't require approval by default
+tools:
+  read:
+    enabled: true
+    require_approval: false  # Read operations don't require approval by default
 ```
 
 ---
@@ -256,9 +257,10 @@ Existing files are always overwritten - there is no `overwrite` option; use the 
 
 ```yaml
 # ~/.infer/tools.yaml
-write:
-  enabled: true
-  require_approval: true  # Write operations require approval for security
+tools:
+  write:
+    enabled: true
+    require_approval: true  # Write operations require approval for security
 ```
 
 ---
@@ -298,10 +300,11 @@ Perform exact string replacements in files with security validation and preview 
 
 ```yaml
 # ~/.infer/tools.yaml
-edit:
-  enabled: true
-  require_approval: true  # Edit operations require approval for security
-  strict_whitespace: false  # When true, disable the indentation-tolerant fallback (byte-exact only)
+tools:
+  edit:
+    enabled: true
+    require_approval: true  # Edit operations require approval for security
+    strict_whitespace: false  # When true, disable the indentation-tolerant fallback (byte-exact only)
 ```
 
 ---
@@ -390,9 +393,10 @@ Delete files or directories from the filesystem with security controls. Supports
 
 ```yaml
 # ~/.infer/tools.yaml
-delete:
-  enabled: true
-  require_approval: true  # Delete operations require approval for security
+tools:
+  delete:
+    enabled: true
+    require_approval: true  # Delete operations require approval for security
 ```
 
 ---
@@ -453,10 +457,11 @@ A powerful search tool with configurable backend (ripgrep or Go implementation).
 
 ```yaml
 # ~/.infer/tools.yaml
-grep:
-  enabled: true
-  backend: auto  # "auto", "ripgrep", or "go"
-  require_approval: false
+tools:
+  grep:
+    enabled: true
+    backend: auto  # "auto", "ripgrep", or "go"
+    require_approval: false
 ```
 
 ---
@@ -473,44 +478,45 @@ headless agent mode.
 
 ```yaml
 # ~/.infer/tools.yaml
-bash:
-  enabled: true
-  mode:
-    all:        # baseline applied in EVERY mode (read-only / non-mutating)
-      allow:
-        - echo( .*)?
-        - ls( .*)?
-        - pwd( .*)?
-        - tree( .*)?
-        - wc( .*)?
-        - sort( .*)?
-        - uniq( .*)?
-        - head( .*)?
-        - tail( .*)?
-        - find( .*)?
-        - sleep( .*)?
-        - mkdir( .*)?
-        - ln -s( [^ -][^ ]*)+
-        - git status( .*)?
-        - git branch( --show-current)?( -[alrvd])?
-        - git log( .*)?
-        - git diff( .*)?
-        - git remote( -v)?
-        - git show( .*)?
-        - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
-        - gh auth status( .*)?
-        - gh search (issues|code|prs|repos|commits)( .*)?
-        - gh project (list|view|item-list|field-list)( .*)?
-        - gh api repos/[^ ]+/contents/[^ ]+
-        - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
-        - infer binaries status( .*)?
-    plan:       # read-only planning mode adds nothing
-      allow: []
-    standard:   # interactive default: baseline only (same as plan)
-      allow: []
-    auto:       # headless `infer headless`: full autonomy (commit, push, etc.)
-      allow:
-        - .*
+tools:
+  bash:
+    enabled: true
+    mode:
+      all:        # baseline applied in EVERY mode (read-only / non-mutating)
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - find( .*)?
+          - sleep( .*)?
+          - mkdir( .*)?
+          - ln -s( [^ -][^ ]*)+
+          - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+          - gh project (list|view|item-list|field-list)( .*)?
+          - gh api repos/[^ ]+/contents/[^ ]+
+          - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
+          - infer binaries status( .*)?
+      plan:       # read-only planning mode adds nothing
+        allow: []
+      standard:   # interactive default: baseline only (same as plan)
+        allow: []
+      auto:       # headless `infer headless`: full autonomy (commit, push, etc.)
+        allow:
+          - .*
 ```
 
 The effective allow-list for a mode is `mode.all.allow` unioned with that mode's own list. Each entry
@@ -563,14 +569,15 @@ Search the web using DuckDuckGo or Google search engines to find information.
 
 ```yaml
 # ~/.infer/tools.yaml
-web_search:
-  enabled: true
-  default_engine: duckduckgo
-  max_results: 10
-  engines:
-    - duckduckgo
-    - google
-  timeout: 10
+tools:
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
 ```
 
 ---
@@ -583,17 +590,18 @@ Fetch content from allowed URLs or GitHub references using the format `example.c
 
 ```yaml
 # ~/.infer/tools.yaml
-web_fetch:
-  enabled: true
-  allowed_domains:
-    - golang.org
-    - github.com
-  safety:
-    max_size: 10485760  # 10MB
-    timeout: 30
-  cache:
+tools:
+  web_fetch:
     enabled: true
-    ttl: 3600  # 1 hour
+    allowed_domains:
+      - golang.org
+      - github.com
+    safety:
+      max_size: 10485760  # 10MB
+      timeout: 30
+    cache:
+      enabled: true
+      ttl: 3600  # 1 hour
 ```
 
 Hosts of configured A2A agents (each agent's `url` and `artifacts_url`, on any port) are always
@@ -648,10 +656,11 @@ the `/model` selector; they are only reachable through this tool.
 
 ```yaml
 # ~/.infer/tools.yaml
-image_generation:
-  enabled: true
-  model: openai/gpt-image-2
-  require_approval: false
+tools:
+  image_generation:
+    enabled: true
+    model: openai/gpt-image-2
+    require_approval: false
 ```
 
 ### ImageEdit Tool
@@ -675,10 +684,11 @@ independent of the model selected for the chat session.
 
 ```yaml
 # ~/.infer/tools.yaml
-image_edit:
-  enabled: true
-  model: openai/gpt-image-2
-  require_approval: false
+tools:
+  image_edit:
+    enabled: true
+    model: openai/gpt-image-2
+    require_approval: false
 ```
 
 ### ImageVariation Tool
@@ -697,10 +707,11 @@ prompt, no tools, independent of the model selected for the chat session.
 
 ```yaml
 # ~/.infer/tools.yaml
-image_variation:
-  enabled: true
-  model: openai/gpt-image-2
-  require_approval: false
+tools:
+  image_variation:
+    enabled: true
+    model: openai/gpt-image-2
+    require_approval: false
 ```
 
 ### TextToSpeech Tool
@@ -859,9 +870,10 @@ text_to_video:
 
 ```yaml
 # ~/.infer/tools.yaml
-image_edit:
-  enabled: true              # needed to generate angles
-  model: openai/gpt-image-2
+tools:
+  image_edit:
+    enabled: true              # needed to generate angles
+    model: openai/gpt-image-2
 ```
 
 ---
@@ -1044,9 +1056,10 @@ Create and manage structured task lists for LLM-assisted development workflows.
 
 ```yaml
 # ~/.infer/tools.yaml
-todo_write:
-  enabled: true
-  require_approval: false
+tools:
+  todo_write:
+    enabled: true
+    require_approval: false
 ```
 
 ### RequestPlanApproval Tool
@@ -1204,10 +1217,11 @@ for that decision.
 
 ```yaml
 # ~/.infer/tools.yaml
-schedule:
-  enabled: false              # disabled by default
-  require_approval: true      # require approval by default
-  max_jobs: 100
+tools:
+  schedule:
+    enabled: false              # disabled by default
+    require_approval: true      # require approval by default
+    max_jobs: 100
 ```
 
 **Security:**

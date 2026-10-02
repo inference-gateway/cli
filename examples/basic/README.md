@@ -53,83 +53,84 @@ chat:
   theme: tokyo-night
 ```
 
-The tools policy goes in `~/.infer/tools.yaml`, with its keys at the root of the file:
+The tools policy goes in `~/.infer/tools.yaml`, with the keys for every tool first and each tool's section under `tools`:
 
 ```yaml
 enabled: true
-bash:
-  enabled: true
-  timeout: 120
-  mode:
-    all:
-      allow:
-        - echo( .*)?
-        - ls( .*)?
-        - pwd( .*)?
-        - tree( .*)?
-        - wc( .*)?
-        - sort( .*)?
-        - uniq( .*)?
-        - head( .*)?
-        - tail( .*)?
-        - task( .*)?
-        - make( .*)?
-        - find( .*)?
-        - git status( .*)?
-        - git branch( --show-current)?( -[alrvd])?
-        - git log( .*)?
-        - git diff( .*)?
-        - git remote( -v)?
-        - git show( .*)?
-        - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
-        - gh auth status( .*)?
-        - gh search (issues|code|prs|repos|commits)( .*)?
-    plan:
-      allow: []
-    standard:
-      # opt-in: standard is baseline-only by default; these add GitHub writes
-      # (issue/pr create + project writes) so they run without per-action approval.
-      allow:
-        - gh issue (create|edit|comment)( .*)?
-        - gh pr create( .*)?
-        - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
-    auto:
-      allow:
-        - .*
-  background_shells:
-    enabled: true
-    max_concurrent: 5
-    retention_minutes: 60
-read:
-  enabled: true
-  require_approval: false
-file_search:
-  enabled: true
-  require_approval: false
-tree:
-  enabled: true
-  require_approval: false
-web_fetch:
-  enabled: true
-  allowed_domains:
-    - golang.org
-  safety:
-    max_size: 8192
-    timeout: 30
-  cache:
-    enabled: true
-    ttl: 3600
-    max_size: 52428800
-web_search:
-  enabled: true
-  default_engine: duckduckgo
-  max_results: 10
-  engines:
-    - duckduckgo
-    - google
-  timeout: 10
 safety:
   require_approval: true
+tools:
+  bash:
+    enabled: true
+    timeout: 120
+    mode:
+      all:
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - task( .*)?
+          - make( .*)?
+          - find( .*)?
+          - git status( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+      plan:
+        allow: []
+      standard:
+        # opt-in: standard is baseline-only by default; these add GitHub writes
+        # (issue/pr create + project writes) so they run without per-action approval.
+        allow:
+          - gh issue (create|edit|comment)( .*)?
+          - gh pr create( .*)?
+          - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
+      auto:
+        allow:
+          - .*
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      retention_minutes: 60
+  read:
+    enabled: true
+    require_approval: false
+  file_search:
+    enabled: true
+    require_approval: false
+  tree:
+    enabled: true
+    require_approval: false
+  web_fetch:
+    enabled: true
+    allowed_domains:
+      - golang.org
+    safety:
+      max_size: 8192
+      timeout: 30
+    cache:
+      enabled: true
+      ttl: 3600
+      max_size: 52428800
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
 ```
 
 ## Basic Usage Examples
