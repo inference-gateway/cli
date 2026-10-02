@@ -3,6 +3,7 @@ package container
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -24,8 +25,8 @@ func (c *ServiceContainer) EnableConfigReload(load func() (*config.Config, error
 // ReloadConfig loads the configuration again and copies the hot keys into the
 // running config, so services keep their pointers. Other changed keys are only
 // reported for a restart, so tools, sandbox and approval policy stay fixed.
-// ponytail: a busy check, not a lock. A turn started in the same instant can
-// race the write, an RWMutex around config is the upgrade if that ever matters.
+// ponytail: no lock. A turn started in the same instant or a repaint can race
+// the write, an RWMutex around config is the upgrade if that ever matters.
 func (c *ServiceContainer) ReloadConfig() (applied, restart []string, err error) {
 	c.reloadMu.Lock()
 	defer c.reloadMu.Unlock()
@@ -42,31 +43,53 @@ func (c *ServiceContainer) ReloadConfig() (applied, restart []string, err error)
 	}
 
 	hot := c.hotConfigKeys(fresh)
+	attempted := map[string]bool{}
 	var errs []error
 	for _, key := range config.ChangedKeys(c.config, fresh) {
-		apply, ok := hot[key]
-		if !ok {
+		hotKey, ok := hotConfigKey(hot, key)
+		if !ok || attempted[hotKey] {
 			continue
 		}
-		if err := apply(); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", key, err))
+		attempted[hotKey] = true
+		if err := hot[hotKey](); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", hotKey, err))
 			continue
 		}
-		applied = append(applied, key)
+		applied = append(applied, hotKey)
 	}
 	for _, key := range config.ChangedKeys(c.startupConfig, fresh) {
-		if _, ok := hot[key]; !ok {
+		if _, ok := hotConfigKey(hot, key); !ok {
 			restart = append(restart, key)
 		}
 	}
 	return applied, restart, errors.Join(errs...)
 }
 
-// hotConfigKeys maps each key a running chat can pick up onto the setter that
-// applies it. The agent reads these per turn, model and effort go through
-// their services so the status bar follows.
+// hotConfigKey returns the hot entry that covers key: the key itself or a
+// section it lives in, such as chat.status_bar.
+func hotConfigKey(hot map[string]func() error, key string) (string, bool) {
+	for {
+		if _, ok := hot[key]; ok {
+			return key, true
+		}
+		i := strings.LastIndex(key, ".")
+		if i < 0 {
+			return "", false
+		}
+		key = key[:i]
+	}
+}
+
+// hotConfigKeys maps each key or section a running chat can pick up onto the
+// setter that applies it. The agent reads these per turn and the TUI reads
+// chat.status_bar per repaint. Model and effort go through their services so
+// the status bar follows.
 func (c *ServiceContainer) hotConfigKeys(fresh *config.Config) map[string]func() error {
 	return map[string]func() error{
+		"chat.status_bar": func() error {
+			c.config.Chat.StatusBar = fresh.Chat.StatusBar
+			return nil
+		},
 		"gateway.timeout": func() error {
 			c.config.Gateway.Timeout = fresh.Gateway.Timeout
 			return nil
