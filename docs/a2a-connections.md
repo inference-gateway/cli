@@ -196,7 +196,7 @@ Notes:
   - `task_description` (required): Description of the task to perform
   - `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
 - **Returns**: Task result with ID, status, and response content
-- **Behavior**: Sends the message with a blocking send, returns the task ID immediately, and polls the
+- **Behavior**: Sends the message with `returnImmediately: true`, returns the task ID as soon as the agent creates the task, and polls the
   remote task in the background
 
 #### A2A_QueryAgent Tool
