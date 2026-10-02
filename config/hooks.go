@@ -30,7 +30,7 @@ const DefaultHooksYAML = `---
 #
 # Each command is gated on the per-mode bash allow-list, exactly like a command
 # the model proposes: an off-list command is skipped and reported, never run.
-# Allow one via tools.bash.mode.*.allow or INFER_TOOLS_BASH_ALLOW_APPEND, then set
+# Allow one via the mode allow-lists in tools.yaml or INFER_TOOLS_BASH_ALLOW_APPEND, then
 # enabled: true (or INFER_HOOKS_ENABLED=true) to turn hooks on.
 enabled: false
 

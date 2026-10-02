@@ -20,15 +20,15 @@ func ValidateRead(cfg *config.Config, path string) error {
 	return validate(cfg, path, sandboxdomain.AccessRead)
 }
 
-// ValidateWrite is ValidateRead for writes. The sandbox policy file and the
-// custom-tool directories are never writable, whatever the rules say.
+// ValidateWrite is ValidateRead for writes. The userspace policy files and
+// the custom-tool directories are never writable, whatever the rules say.
 func ValidateWrite(cfg *config.Config, path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
-	if isSandboxPolicyFile(absPath) {
-		return fmt.Errorf("path '%s' is the sandbox policy, which infer's file tools never edit", path)
+	if label, ok := protectedPolicyPath(absPath); ok {
+		return fmt.Errorf("path '%s' is the %s policy, which infer's file tools never edit", path, label)
 	}
 	if isWithinCustomToolsDir(cfg, absPath) {
 		return fmt.Errorf("path '%s' is in a custom tools directory, which infer's file tools never edit", path)
@@ -238,14 +238,31 @@ func IsAnchored(rulePath string) bool {
 		rulePath == "~" || strings.HasPrefix(rulePath, "~/")
 }
 
-// isSandboxPolicyFile reports whether absPath is the userspace sandbox.yaml,
-// whatever the rules say, so the agent can never widen its own sandbox.
-func isSandboxPolicyFile(absPath string) bool {
-	file, err := config.UserSandboxPath()
-	if err != nil {
-		return false
+// protectedPolicyFiles are the userspace policy files the file tools never
+// write, whatever the rules say, so the agent can never widen its own
+// sandbox or lower its own approval bar.
+var protectedPolicyFiles = []struct {
+	label string
+	path  func() (string, error)
+}{
+	{label: "sandbox", path: config.UserSandboxPath},
+	{label: "tools", path: config.UserToolsPath},
+}
+
+// protectedPolicyPath reports the label of the protected policy file absPath
+// resolves to, if any.
+func protectedPolicyPath(absPath string) (string, bool) {
+	target := config.CanonicalPath(absPath)
+	for _, policy := range protectedPolicyFiles {
+		file, err := policy.path()
+		if err != nil {
+			continue
+		}
+		if target == config.CanonicalPath(file) {
+			return policy.label, true
+		}
 	}
-	return config.CanonicalPath(absPath) == config.CanonicalPath(file)
+	return "", false
 }
 
 // isWithinCustomToolsDir reports whether absPath is inside a directory custom

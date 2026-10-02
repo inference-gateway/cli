@@ -327,6 +327,27 @@ func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
 	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, config.SandboxFileName)), "a project sandbox.yaml is ignored, not policy")
 }
 
+// TestValidateWrite_ToolsPolicyFile locks in that the agent can never edit
+// its own tools approval policy: tools.yaml stays unwritable even when the
+// user empties denied, while reading it is still allowed.
+func TestValidateWrite_ToolsPolicyFile(t *testing.T) {
+	project := t.TempDir()
+	home := t.TempDir()
+	t.Chdir(project)
+	t.Setenv("HOME", home)
+
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project, home)
+	cfg.Tools.Sandbox.Filesystem.Denied = nil
+
+	file, err := config.UserToolsPath()
+	require.NoError(t, err)
+	require.NoError(t, ValidateRead(cfg, file), "reading %s", file)
+	require.ErrorContains(t, ValidateWrite(cfg, file), "tools policy", "writing %s", file)
+	require.NoError(t, ValidateWrite(cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
+	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, config.ToolsFileName)), "a project tools.yaml is ignored, not policy")
+}
+
 // requireAsks fails unless reading and writing path both ask the user under
 // the default config-dir rule instead of passing or failing outright.
 func requireAsks(t *testing.T, cfg *config.Config, path string) {

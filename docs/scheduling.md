@@ -60,11 +60,11 @@ Key properties:
 
 ### 1. Enable the tool
 
-Add to `.infer/config.yaml` (or `~/.infer/config.yaml` for user-wide defaults):
+Add to `~/.infer/tools.yaml` (the tools policy has no project copy):
 
 ```yaml
+enabled: true
 tools:
-  enabled: true
   schedule:
     enabled: true               # off by default
     require_approval: true      # default; require_approval is highly recommended

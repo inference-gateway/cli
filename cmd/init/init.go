@@ -72,6 +72,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	remindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
 	channelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
 	sandboxPath := filepath.Join(homeCfgDir, config.SandboxFileName)
+	toolsPath := filepath.Join(homeCfgDir, config.ToolsFileName)
 	heartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
 	judgePath := filepath.Join(homeCfgDir, config.JudgeFileName)
 	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
@@ -181,6 +182,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create sandbox config file: %w", err)
 	}
 
+	toolsCreated, err := createFileIfAbsent(toolsPath, overwrite, func(p string) error {
+		return config.SaveTools(p, config.DefaultToolsConfig())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create tools config file: %w", err)
+	}
+
 	hbCreated, err := createFileIfAbsent(heartbeatPath, overwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
@@ -238,6 +246,9 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	if sandboxCreated {
 		fmt.Printf("   Created: %s\n", sandboxPath)
+	}
+	if toolsCreated {
+		fmt.Printf("   Created: %s\n", toolsPath)
 	}
 	if hbCreated {
 		fmt.Printf("   Created: %s\n", heartbeatPath)

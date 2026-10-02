@@ -3,6 +3,7 @@ package configcmd
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -26,11 +27,13 @@ The value reflects what the CLI actually runs with: built-in defaults, the users
 ~/.infer/config.yaml baseline merged key-by-key with the project .infer/config.yaml,
 and INFER_* environment overrides.
 
-Keys are dotted paths into config.yaml:
+Keys are dotted paths into the effective config:
   infer config get agent.model
-  infer config get tools.bash.enabled
   infer config get tools.bash
-  infer config get                      # dump the whole effective config`,
+  infer config get                      # dump the whole effective config
+
+Most keys come from config.yaml; the tools policy comes from ~/.infer/tools.yaml
+and is shown here too.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error { return getConfigValue(state, cmd, args) },
 	}
@@ -47,9 +50,10 @@ func newSetCommand() *cobra.Command {
 Keys are dotted paths into config.yaml. The value is parsed to the field's type
 (bool, integer, number or string); list keys take a comma-separated value:
   infer config set agent.model openai/gpt-4o
-  infer config set tools.bash.enabled true
   infer config set agent.max_turns 50
   infer config set agent.max_tokens 8192
+
+The tools policy is not in config.yaml: edit ~/.infer/tools.yaml directly.
 
 By default the userspace ~/.infer/config.yaml baseline is updated; pass --project
 to write a sparse override into the project .infer/config.yaml instead.`,
@@ -80,6 +84,9 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return fmt.Errorf("failed to build config map: %w", err)
 	}
+	if err := injectTools(root, cfg.Tools); err != nil {
+		return err
+	}
 
 	var value any = root
 	if len(args) == 1 {
@@ -91,6 +98,26 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 	}
 
 	return printConfigValue(value, format)
+}
+
+// injectTools merges the tools policy into the get dump under the names the
+// INFER_TOOLS_* overrides use, tools.<key> for the policy keys and the tool
+// sections alike. Config.Tools is tagged yaml:"-", so yaml.Marshal(cfg) drops it.
+func injectTools(root map[string]any, tools config.ToolsConfig) error {
+	data, err := yaml.Marshal(tools)
+	if err != nil {
+		return fmt.Errorf("failed to serialize tools config: %w", err)
+	}
+	section := map[string]any{}
+	if err := yaml.Unmarshal(data, &section); err != nil {
+		return fmt.Errorf("failed to build tools config map: %w", err)
+	}
+	if sections, ok := section["tools"].(map[string]any); ok {
+		delete(section, "tools")
+		maps.Copy(section, sections)
+	}
+	root["tools"] = section
+	return nil
 }
 
 // lookupConfigKey walks a dotted key into the generic config map.
@@ -137,6 +164,10 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	key := args[0]
 	rawValue := args[1]
 
+	if isToolsConfigKey(key) {
+		return fmt.Errorf("config key %q lives in %s, not config.yaml; edit that file to change it", key, config.ToolsFileName)
+	}
+
 	kind, ok := resolveConfigKeyKind(key)
 	if !ok {
 		return fmt.Errorf("unknown config key %q (use a dotted path into config.yaml, e.g. agent.model)", key)
@@ -165,6 +196,12 @@ func setConfigValue(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Set %s = %v", key, parsed)))
 	fmt.Printf("Configuration saved to: %s\n", path)
 	return nil
+}
+
+// isToolsConfigKey reports whether key targets the tools policy, which lives
+// in tools.yaml rather than config.yaml.
+func isToolsConfigKey(key string) bool {
+	return key == "tools" || strings.HasPrefix(key, "tools.")
 }
 
 // resolveConfigKeyKind walks the Config struct by mapstructure tag to find the

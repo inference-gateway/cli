@@ -45,8 +45,21 @@ gateway:
   timeout: 30
 logging:
   debug: false
+compact:
+agent:
+  model: ""
+  system_prompt: ""
+chat:
+  theme: tokyo-night
+```
+
+The tools policy goes in `~/.infer/tools.yaml`, with the keys for every tool first and each tool's section under `tools`:
+
+```yaml
+enabled: true
+safety:
+  require_approval: true
 tools:
-  enabled: true
   bash:
     enabled: true
     timeout: 120
@@ -118,14 +131,6 @@ tools:
       - duckduckgo
       - google
     timeout: 10
-  safety:
-    require_approval: true
-compact:
-agent:
-  model: ""
-  system_prompt: ""
-chat:
-  theme: tokyo-night
 ```
 
 ## Basic Usage Examples
@@ -169,9 +174,9 @@ infer config get agent.model
 ### Tool Management
 
 ```bash
-# Enable/disable tool execution (config get/set on tools.* keys)
-infer config set tools.enabled true
-infer config set tools.enabled false
+# The tools policy lives in ~/.infer/tools.yaml. Edit it directly,
+# since infer config set rejects tools.* keys.
+"${EDITOR:-vi}" ~/.infer/tools.yaml
 
 # Inspect tool configuration and status
 infer config get tools
@@ -186,14 +191,11 @@ infer tools execute Tree '{"path":"."}'
 infer tools execute Read '{"file_path":"README.md"}'
 infer tools execute WebSearch '{"query":"golang tutorial"}'
 
-# Manage safety settings
-infer config set tools.safety.require_approval true    # Require approval for all tools
-infer config set tools.safety.require_approval false   # Execute immediately
-infer config get tools.safety                          # Show current settings
+# Show the current safety settings (safety.require_approval in tools.yaml)
+infer config get tools.safety
 
-# Tool-specific safety settings
-infer config set tools.bash.require_approval true
-infer config set tools.web_search.require_approval false
+# Override one setting for a single run
+INFER_TOOLS_WEB_SEARCH_ENABLED=false infer headless "Summarize README.md"
 
 # The sandbox policy lives in ~/.infer/sandbox.yaml
 cat ~/.infer/sandbox.yaml
