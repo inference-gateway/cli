@@ -23,8 +23,10 @@ per-mode bash allow-list through `IsBashCommandAllowed`. `infrastructure/` persi
   first matching allowed entry, then the user is asked. An empty allowed list is no boundary. A grant only
   unlocks what approval could have, so a granted directory still respects denied.
 - The agent's tool loop recovers a `DeniedError` from the flattened tool result with `ParseDenial`, raises a
-  synthetic `SandboxAccess` approval for `denial.Grant()` (the exact path when a denied entry matched, the
-  directory otherwise), and on approval calls `Granted.Add`. An auto-accept answer also calls `PersistGrant`.
+  synthetic `SandboxAccess` approval for `GrantFor` (the exact path when a denied entry matched, otherwise the
+  directory around it, except that a handback inside a config dir grants the exact file), and on approval calls
+  `Granted.Add`. An auto-accept answer also calls `PersistGrant`, which refuses grants inside the config dirs so
+  they stay session-only.
 - `ValidateWrite` refuses `~/.infer/sandbox.yaml` whatever `denied` says, a project copy is never loaded, and `infer config set`
   cannot reach the policy keys, so the agent cannot widen its own sandbox through the tools it runs.
 - Concurrency: tools run in parallel goroutines, so `Granted` is the only mutable sandbox state and sits

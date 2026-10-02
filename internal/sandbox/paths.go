@@ -132,6 +132,37 @@ func granted(absPath string, access sandboxdomain.Access) bool {
 	return false
 }
 
+// GrantFor scopes a denial's grant to the sandbox policy. A GrantDir handback
+// inside a config dir would open infer's whole configuration to the tools, so
+// the exact denied file is granted instead.
+func GrantFor(cfg *config.Config, denial *sandboxdomain.DeniedError) sandboxdomain.Allowed {
+	grant := denial.Grant()
+	if denial.Rule != "" || !isWithinConfigDirs(cfg, grant.Path) {
+		return grant
+	}
+	path := denial.Path
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	return sandboxdomain.Allowed{Path: path, Access: grant.Access}
+}
+
+// isWithinConfigDirs reports whether path sits inside a config dir: the
+// userspace one, or the one the config was resolved from, whose files may only
+// ever be granted file by file.
+func isWithinConfigDirs(cfg *config.Config, path string) bool {
+	dirs := []string{config.UserSpaceConfigDir()}
+	if cfg != nil {
+		dirs = append(dirs, cfg.GetConfigDir())
+	}
+	for _, dir := range dirs {
+		if isWithinDir(path, dir) {
+			return true
+		}
+	}
+	return false
+}
+
 // matches reports whether rulePath covers the path. An anchored rule covers the
 // file or directory it names and everything beneath it. A relative pattern is
 // matched the way denied patterns always were: dir/ at any depth, *glob on the

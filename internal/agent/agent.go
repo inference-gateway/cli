@@ -25,6 +25,7 @@ import (
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 	sandboxinfra "github.com/inference-gateway/cli/internal/sandbox/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -1167,7 +1168,7 @@ func (s *Agent) executeTool(
 
 // executeToolInternal runs the tool once and, when the failure is a sandbox
 // denial and a user can answer prompts (chat TUI or IPC broker), asks them to
-// grant the denied directory and retries. Used by both executeTool() (no
+// approve the grant and retries. Used by both executeTool() (no
 // approval needed) and processNextTool() (approval already obtained).
 func (s *Agent) executeToolInternal(
 	ctx context.Context,
@@ -1183,7 +1184,7 @@ func (s *Agent) executeToolInternal(
 		if !denied {
 			break
 		}
-		grant := denial.Grant()
+		grant := sandbox.GrantFor(s.config, denial)
 		if grant == lastGrant {
 			break
 		}

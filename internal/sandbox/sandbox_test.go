@@ -93,6 +93,38 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	}
 }
 
+func TestGrantForScopesConfigDirGrantsToTheFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(t.TempDir())
+	cfg := config.DefaultConfig()
+
+	libDir := filepath.Join(t.TempDir(), "lib")
+	denials := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"a userspace config file grants exactly that file", filepath.Join(home, config.ConfigDirName, "config.yaml"), filepath.Join(home, config.ConfigDirName, "config.yaml")},
+		{"a project config file grants exactly that file", filepath.Join(config.ConfigDirName, "mcp.yaml"), filepath.Join(config.ConfigDirName, "mcp.yaml")},
+		{"any other denial still grants the directory", filepath.Join(libDir, "dep.go"), libDir},
+	}
+	for _, tt := range denials {
+		t.Run(tt.name, func(t *testing.T) {
+			denial := &sandboxdomain.DeniedError{Path: tt.path, Access: sandboxdomain.AccessWrite}
+			got := GrantFor(cfg, denial).Path
+			if want, err := filepath.Abs(tt.want); err != nil || got != want {
+				t.Fatalf("GrantFor(%s) = %s, want %s", tt.path, got, want)
+			}
+		})
+	}
+
+	denial := &sandboxdomain.DeniedError{Path: filepath.Join(home, config.ConfigDirName, "config.yaml"), Access: sandboxdomain.AccessWrite}
+	if got := GrantFor(nil, denial).Path; got != filepath.Join(home, config.ConfigDirName, "config.yaml") {
+		t.Fatalf("GrantFor must handle a nil config, got %s", got)
+	}
+}
+
 func TestValidateWrite_Symlinks(t *testing.T) {
 	t.Cleanup(func() {
 		sandboxdomain.Granted = sandboxdomain.Grants{}
