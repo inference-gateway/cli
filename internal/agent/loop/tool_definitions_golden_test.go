@@ -48,7 +48,7 @@ func TestToolDefinitionsGolden(t *testing.T) {
 	isolateToolEnvironment(t)
 	cfg := goldenConfig()
 	registry := goldenRegistry(cfg)
-	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+	svc := tools.NewService(cfg, registry)
 
 	defs := registry.GetToolDefinitions()
 	if len(defs) != builtinToolCount {
@@ -135,6 +135,15 @@ func withoutToolApprovalOverrides(cfg *config.Config) *config.Config {
 		*override = nil
 	}
 	return &clone
+}
+
+func toolNamesForMode(svc *tools.Service, mode agentdomain.AgentMode) []string {
+	defs := svc.ListToolsForMode(mode)
+	names := make([]string, 0, len(defs))
+	for _, d := range defs {
+		names = append(names, d.Function.Name)
+	}
+	return names
 }
 
 func goldenRegistry(cfg *config.Config) *tools.Registry {

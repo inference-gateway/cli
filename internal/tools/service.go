@@ -1,4 +1,4 @@
-package loop
+package tools
 
 import (
 	"context"
@@ -12,20 +12,19 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
-// LLMToolService implements ToolService with the new tools package architecture
-type LLMToolService struct {
-	registry  *tools.Registry
+// Service implements agentdomain.ToolService over the registry.
+type Service struct {
+	registry  *Registry
 	enabled   bool
 	config    *config.Config
 	allowlist map[string]bool
 }
 
-// NewLLMToolServiceWithRegistry creates a new LLM tool service with an existing registry
-func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry) *LLMToolService {
-	s := &LLMToolService{
+// NewService creates a new LLM tool service with an existing registry
+func NewService(cfg *config.Config, registry *Registry) *Service {
+	s := &Service{
 		registry: registry,
 		enabled:  cfg.Tools.Enabled,
 		config:   cfg,
@@ -33,7 +32,7 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 	// A named Markdown subagent receives its tool allowlist through the
 	// SubagentToolsEnv channel; when set, only those tools are advertised to
 	// the model and accepted for execution.
-	if raw := os.Getenv(tools.SubagentToolsEnv); raw != "" {
+	if raw := os.Getenv(SubagentToolsEnv); raw != "" {
 		s.allowlist = make(map[string]bool)
 		for _, name := range strings.Split(raw, ",") {
 			if name = strings.TrimSpace(name); name != "" {
@@ -45,16 +44,16 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 }
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
-func (s *LLMToolService) isToolEnabled(toolName string) bool {
+func (s *Service) isToolEnabled(toolName string) bool {
 	if s.allowlist != nil && !s.allowlist[toolName] {
 		return false
 	}
 	return (s.enabled || s.isSelfGated(toolName)) && s.registry.IsToolEnabled(toolName)
 }
 
-// isSelfGated reports whether the tool's own context, not tools.enabled,
+// isSelfGated reports whether the tool's own context, not enabled,
 // switches it on.
-func (s *LLMToolService) isSelfGated(toolName string) bool {
+func (s *Service) isSelfGated(toolName string) bool {
 	tool, err := s.registry.GetTool(toolName)
 	if err != nil {
 		return false
@@ -63,18 +62,13 @@ func (s *LLMToolService) isSelfGated(toolName string) bool {
 	return ok && gated.SelfGated()
 }
 
-// isToolAdvertised reports whether a tool should be offered to the LLM.
-func (s *LLMToolService) isToolAdvertised(toolName string) bool {
-	return s.isToolEnabled(toolName)
-}
-
 // ListTools returns definitions for all enabled tools
-func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
+func (s *Service) ListTools() []sdk.ChatCompletionTool {
 	var definitions []sdk.ChatCompletionTool
 
 	allTools := s.registry.GetToolDefinitions()
 	for _, tool := range allTools {
-		if s.isToolAdvertised(tool.Function.Name) {
+		if s.isToolEnabled(tool.Function.Name) {
 			definitions = append(definitions, tool)
 		}
 	}
@@ -83,11 +77,11 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 }
 
 // ListToolsForMode returns definitions for enabled tools filtered by agent mode
-func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
+func (s *Service) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
 	var definitions []sdk.ChatCompletionTool
 	for _, tool := range s.registry.GetToolDefinitions() {
 		name := tool.Function.Name
-		if s.isToolAdvertised(name) && s.registry.Manifest(name).AvailableIn(mode) {
+		if s.isToolEnabled(name) && s.registry.Manifest(name).AvailableIn(mode) {
 			definitions = append(definitions, tool)
 		}
 	}
@@ -96,17 +90,17 @@ func (s *LLMToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.Chat
 
 // Manifest returns the named tool's manifest, whichever bounded context
 // defines the tool.
-func (s *LLMToolService) Manifest(name string) agentdomain.ToolManifest {
+func (s *Service) Manifest(name string) agentdomain.ToolManifest {
 	return s.registry.Manifest(name)
 }
 
 // ListAvailableTools returns names of all enabled tools
-func (s *LLMToolService) ListAvailableTools() []string {
+func (s *Service) ListAvailableTools() []string {
 	var tools []string
 
 	allTools := s.registry.ListAvailableTools()
 	for _, toolName := range allTools {
-		if s.isToolAdvertised(toolName) {
+		if s.isToolEnabled(toolName) {
 			tools = append(tools, toolName)
 		}
 	}
@@ -116,7 +110,7 @@ func (s *LLMToolService) ListAvailableTools() []string {
 
 // ListMarkdownSubagents returns the Markdown-defined subagent presets loaded
 // this session (.infer/agents/*.md and ~/.infer/agents/*.md), for /agents.
-func (s *LLMToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
+func (s *Service) ListMarkdownSubagents() []agentdomain.SubagentInfo {
 	return s.registry.MarkdownSubagents()
 }
 
@@ -132,7 +126,7 @@ func toolUnavailableError(name string, mode agentdomain.AgentMode, available []s
 
 // toolsAvailableIn lists the registered tools whose manifest allows mode, so
 // mode guidance is derived from the manifests instead of a hand-kept list.
-func (s *LLMToolService) toolsAvailableIn(mode agentdomain.AgentMode) []string {
+func (s *Service) toolsAvailableIn(mode agentdomain.AgentMode) []string {
 	var names []string
 	for _, name := range s.registry.ListAvailableTools() {
 		if s.registry.Manifest(name).AvailableIn(mode) {
@@ -144,7 +138,7 @@ func (s *LLMToolService) toolsAvailableIn(mode agentdomain.AgentMode) []string {
 }
 
 // ExecuteTool executes a tool with the given arguments
-func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+func (s *Service) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok && !s.registry.Manifest(toolCall.Name).AvailableIn(mode) {
 		return nil, toolUnavailableError(toolCall.Name, mode, s.toolsAvailableIn(mode))
 	}
@@ -158,7 +152,7 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 
 // ExecuteToolDirect executes a tool directly without checking if it's enabled
 // Used for user-initiated commands where the user explicitly wants to run the tool
-func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+func (s *Service) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Arguments), &args); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
@@ -173,10 +167,10 @@ func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.Cha
 
 	if err == nil && result != nil && result.Success {
 		switch toolCall.Name {
-		case tools.ToolRead:
+		case ToolRead:
 			s.registry.SetReadToolUsed()
 			s.snapshotFile(args)
-		case tools.ToolEdit, tools.ToolMultiEdit, tools.ToolWrite:
+		case ToolEdit, ToolMultiEdit, ToolWrite:
 			s.snapshotFile(args)
 		}
 	}
@@ -186,7 +180,7 @@ func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.Cha
 
 // snapshotFile records the current modtime/size of the file named in args so the Edit/MultiEdit
 // tools can detect later external modifications. Best-effort: missing/unstattable paths are skipped.
-func (s *LLMToolService) snapshotFile(args map[string]any) {
+func (s *Service) snapshotFile(args map[string]any) {
 	path, ok := args["file_path"].(string)
 	if !ok || path == "" {
 		return
@@ -199,12 +193,12 @@ func (s *LLMToolService) snapshotFile(args map[string]any) {
 }
 
 // IsToolEnabled checks if a tool is enabled
-func (s *LLMToolService) IsToolEnabled(name string) bool {
+func (s *Service) IsToolEnabled(name string) bool {
 	return s.isToolEnabled(name)
 }
 
 // ValidateTool validates tool arguments
-func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
+func (s *Service) ValidateTool(name string, args map[string]any) error {
 	if !s.isToolEnabled(name) {
 		return fmt.Errorf("tool %s is not enabled", name)
 	}
@@ -217,54 +211,54 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	return tool.Validate(args)
 }
 
-func (s *LLMToolService) GetTool(name string) (agentdomain.Tool, error) {
+func (s *Service) GetTool(name string) (agentdomain.Tool, error) {
 	return s.registry.GetTool(name)
 }
 
-// NoOpToolService implements ToolService as a no-op (when tools are disabled)
-type NoOpToolService struct{}
+// NoOpService implements ToolService as a no-op (when tools are disabled)
+type NoOpService struct{}
 
-// NewNoOpToolService creates a new no-op tool service
-func NewNoOpToolService() *NoOpToolService {
-	return &NoOpToolService{}
+// NewNoOpService creates a new no-op tool service
+func NewNoOpService() *NoOpService {
+	return &NoOpService{}
 }
 
-func (s *NoOpToolService) Manifest(name string) agentdomain.ToolManifest {
+func (s *NoOpService) Manifest(name string) agentdomain.ToolManifest {
 	return agentdomain.ToolManifest{Name: name}
 }
 
-func (s *NoOpToolService) ListTools() []sdk.ChatCompletionTool {
+func (s *NoOpService) ListTools() []sdk.ChatCompletionTool {
 	return []sdk.ChatCompletionTool{}
 }
 
-func (s *NoOpToolService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
+func (s *NoOpService) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
 	return []sdk.ChatCompletionTool{}
 }
 
-func (s *NoOpToolService) ListAvailableTools() []string {
+func (s *NoOpService) ListAvailableTools() []string {
 	return []string{}
 }
 
-func (s *NoOpToolService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
+func (s *NoOpService) ListMarkdownSubagents() []agentdomain.SubagentInfo {
 	return nil
 }
 
-func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+func (s *NoOpService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 
-func (s *NoOpToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+func (s *NoOpService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 
-func (s *NoOpToolService) IsToolEnabled(name string) bool {
+func (s *NoOpService) IsToolEnabled(name string) bool {
 	return false
 }
 
-func (s *NoOpToolService) ValidateTool(name string, args map[string]any) error {
+func (s *NoOpService) ValidateTool(name string, args map[string]any) error {
 	return fmt.Errorf("tools are not enabled")
 }
 
-func (s *NoOpToolService) GetTool(name string) (agentdomain.Tool, error) {
+func (s *NoOpService) GetTool(name string) (agentdomain.Tool, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }

@@ -1,4 +1,4 @@
-package loop
+package tools
 
 import (
 	"slices"
@@ -6,21 +6,20 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
-func newAllowlistTestService(t *testing.T) *LLMToolService {
+func newAllowlistTestService(t *testing.T) *Service {
 	t.Helper()
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	return NewLLMToolServiceWithRegistry(cfg, registry)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return NewService(cfg, registry)
 }
 
 // A named Markdown subagent receives its tool allowlist through
-// tools.SubagentToolsEnv; isToolEnabled must gate both advertisement and
+// SubagentToolsEnv; isToolEnabled must gate both advertisement and
 // execution, so a disallowed tool fails even when the model names it.
 func TestSubagentToolAllowlistGates(t *testing.T) {
-	t.Setenv(tools.SubagentToolsEnv, "Read,Grep")
+	t.Setenv(SubagentToolsEnv, "Read,Grep")
 	svc := newAllowlistTestService(t)
 
 	for _, allowed := range []string{"Read", "Grep"} {
@@ -53,7 +52,7 @@ func TestSubagentToolAllowlistUnsetMeansAll(t *testing.T) {
 }
 
 func TestSubagentToolAllowlistIgnoresWhitespaceAndEmptyEntries(t *testing.T) {
-	t.Setenv(tools.SubagentToolsEnv, " Read , , Grep ")
+	t.Setenv(SubagentToolsEnv, " Read , , Grep ")
 	svc := newAllowlistTestService(t)
 	if !svc.IsToolEnabled("Read") || !svc.IsToolEnabled("Grep") {
 		t.Fatalf("entries must be trimmed: Read=%v Grep=%v", svc.IsToolEnabled("Read"), svc.IsToolEnabled("Grep"))

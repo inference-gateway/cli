@@ -35,7 +35,7 @@ const subagentDepthEnv = "INFER_SUBAGENT_DEPTH"
 const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 
 // SubagentToolsEnv carries a named subagent's tool allowlist to the spawned
-// subagent, which enforces it in LLMToolService.isToolEnabled - that single
+// subagent, which enforces it in Service.isToolEnabled - that single
 // check gates both what is advertised to the model and what ExecuteTool accepts.
 const SubagentToolsEnv = "INFER_SUBAGENT_TOOLS"
 

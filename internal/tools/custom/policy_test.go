@@ -24,7 +24,7 @@ func (m fixedMode) CycleAgentMode() agentdomain.AgentMode { return agentdomain.A
 
 // newToolService registers Echo (default modes, inherited approval) and Peek
 // (offered in plan, never needs approval) next to the built-in tools.
-func newToolService(t *testing.T, requireApproval bool) (*config.Config, *agentloop.LLMToolService) {
+func newToolService(t *testing.T, requireApproval bool) (*config.Config, *tools.Service) {
 	t.Helper()
 	dir := t.TempDir()
 	peek := strings.Replace(echoManifest, "name: Echo", "name: Peek", 1) +
@@ -41,7 +41,7 @@ func newToolService(t *testing.T, requireApproval bool) (*config.Config, *agentl
 	}}
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
-	return cfg, agentloop.NewLLMToolServiceWithRegistry(cfg, registry)
+	return cfg, tools.NewService(cfg, registry)
 }
 
 func TestCustomTools_ModesGateListingAndExecution(t *testing.T) {
@@ -104,7 +104,7 @@ func TestCustomTools_ProjectToolsAlwaysNeedApproval(t *testing.T) {
 	}}
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
-	service := agentloop.NewLLMToolServiceWithRegistry(cfg, registry)
+	service := tools.NewService(cfg, registry)
 
 	for mode, want := range map[agentdomain.AgentMode]bool{
 		agentdomain.AgentModeStandard:   true,

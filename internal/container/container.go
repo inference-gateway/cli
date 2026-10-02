@@ -481,10 +481,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
-		llmToolService := agentloop.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService := tools.NewService(c.config, c.toolRegistry)
 		c.toolService = llmToolService
 	} else {
-		c.toolService = agentloop.NewNoOpToolService()
+		c.toolService = tools.NewNoOpService()
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)

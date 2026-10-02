@@ -1,4 +1,4 @@
-package loop
+package tools
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 	"testing"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
-	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
-func toolNamesForMode(svc *LLMToolService, mode agentdomain.AgentMode) []string {
+func toolNamesForMode(svc *Service, mode agentdomain.AgentMode) []string {
 	defs := svc.ListToolsForMode(mode)
 	names := make([]string, 0, len(defs))
 	for _, d := range defs {
@@ -27,8 +27,8 @@ func toolNamesForMode(svc *LLMToolService, mode agentdomain.AgentMode) []string 
 
 func TestListToolsForMode_ReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewService(cfg, registry)
 	names := toolNamesForMode(svc, agentdomain.AgentModeReadOnly)
 
 	for _, want := range []string{"Read", "Grep", "Tree"} {
@@ -45,8 +45,8 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 
 func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewService(cfg, registry)
 
 	for _, mode := range []agentdomain.AgentMode{
 		agentdomain.AgentModePlan,
@@ -68,13 +68,13 @@ func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 // advertised there - and only there, not in read-only subagent mode.
 func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := goldenRegistry(cfg)
-	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, &schedmocks.FakeBackgroundTaskRegistry{}, nil)
+	svc := NewService(cfg, registry)
 
-	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), tools.ToolAgent) {
+	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), ToolAgent) {
 		t.Error("plan mode must advertise the Agent tool")
 	}
-	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeReadOnly), tools.ToolAgent) {
+	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeReadOnly), ToolAgent) {
 		t.Error("read-only mode must not advertise the Agent tool (subagents cannot spawn subagents)")
 	}
 }
@@ -84,8 +84,8 @@ func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 // fails open.
 func TestExecuteTool_ModeGuard(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewService(cfg, registry)
 
 	tests := []struct {
 		name    string
@@ -94,18 +94,18 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 		tool    string
 		wantErr string
 	}{
-		{"plan rejects Write", agentdomain.AgentModePlan, true, tools.ToolWrite, "disabled in plan mode"},
-		{"plan rejects Bash", agentdomain.AgentModePlan, true, tools.ToolBash, "disabled in plan mode"},
-		{"plan error lists the plan tools", agentdomain.AgentModePlan, true, tools.ToolWrite, "use one of " + tools.ToolAskUserQuestion + ", " + tools.ToolGrep + ", " + tools.ToolRead},
-		{"plan allows ListSubagents", agentdomain.AgentModePlan, true, tools.ToolListSubagents, ""},
-		{"plan allows CloseSubagent", agentdomain.AgentModePlan, true, tools.ToolCloseSubagent, ""},
-		{"readonly rejects ListSubagents", agentdomain.AgentModeReadOnly, true, tools.ToolListSubagents, "not available in readonly mode"},
-		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, tools.ToolRequestPlanApproval, "not available in standard mode"},
-		{"readonly rejects Write", agentdomain.AgentModeReadOnly, true, tools.ToolWrite, "not available in readonly mode"},
-		{"readonly allows Read", agentdomain.AgentModeReadOnly, true, tools.ToolRead, ""},
-		{"standard allows AskUserQuestion", agentdomain.AgentModeStandard, true, tools.ToolAskUserQuestion, ""},
-		{"auto allows AskUserQuestion", agentdomain.AgentModeAutoAccept, true, tools.ToolAskUserQuestion, ""},
-		{"no mode fails open", agentdomain.AgentModeStandard, false, tools.ToolWrite, ""},
+		{"plan rejects Write", agentdomain.AgentModePlan, true, ToolWrite, "disabled in plan mode"},
+		{"plan rejects Bash", agentdomain.AgentModePlan, true, ToolBash, "disabled in plan mode"},
+		{"plan error lists the plan tools", agentdomain.AgentModePlan, true, ToolWrite, "use one of " + ToolAskUserQuestion + ", " + ToolGrep + ", " + ToolRead},
+		{"plan allows ListSubagents", agentdomain.AgentModePlan, true, ToolListSubagents, ""},
+		{"plan allows CloseSubagent", agentdomain.AgentModePlan, true, ToolCloseSubagent, ""},
+		{"readonly rejects ListSubagents", agentdomain.AgentModeReadOnly, true, ToolListSubagents, "not available in readonly mode"},
+		{"standard rejects RequestPlanApproval", agentdomain.AgentModeStandard, true, ToolRequestPlanApproval, "not available in standard mode"},
+		{"readonly rejects Write", agentdomain.AgentModeReadOnly, true, ToolWrite, "not available in readonly mode"},
+		{"readonly allows Read", agentdomain.AgentModeReadOnly, true, ToolRead, ""},
+		{"standard allows AskUserQuestion", agentdomain.AgentModeStandard, true, ToolAskUserQuestion, ""},
+		{"auto allows AskUserQuestion", agentdomain.AgentModeAutoAccept, true, ToolAskUserQuestion, ""},
+		{"no mode fails open", agentdomain.AgentModeStandard, false, ToolWrite, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -147,8 +147,8 @@ func TestListToolsOffersImageDecodeToEveryModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
 	cfg.Vision.Annotator.Model = "openai/qwen3-vl-2b"
-	registry := tools.NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
-	svc := NewLLMToolServiceWithRegistry(cfg, registry)
+	registry := NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
+	svc := NewService(cfg, registry)
 
 	names := func() []string {
 		defs := svc.ListTools()
