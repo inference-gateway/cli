@@ -24,8 +24,8 @@ const defaultMaxTokens = 4096
 // prompt, last tool, and a rolling conversation breakpoint). Anthropic SSE
 // events are translated back into OpenAI-shaped chat-completion chunks, so
 // the agent's streaming pipeline is unaware of the endpoint switch. Every
-// other provider - and every non-generate method - delegates to the wrapped
-// client untouched. To remove the adapter, delete this package, unwrap the
+// other provider, and every method but GenerateContentStream, delegates to
+// the wrapped client untouched. To remove the adapter, delete this package, unwrap the
 // client in the container, and drop the TakeCacheCreationTokens read in
 // storeIterationMetrics.
 type AnthropicMessages struct {
@@ -149,24 +149,10 @@ func (a *AnthropicMessages) DownloadVideoContent(ctx context.Context, provider s
 	return a.inner.DownloadVideoContent(ctx, provider, videoID)
 }
 
-// GenerateContent routes Anthropic requests through /v1/messages and
-// translates the response back into the chat-completions shape.
+// GenerateContent passes through to the inner client. The agent only
+// streams, so only GenerateContentStream speaks /v1/messages.
 func (a *AnthropicMessages) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
-	if provider != sdk.Anthropic {
-		return a.inner.GenerateContent(ctx, provider, model, messages)
-	}
-
-	req := a.buildMessagesRequest(model, messages)
-	resp, err := a.inner.CreateMessage(ctx, provider, req)
-	if a.effortRejected(model, err) {
-		req.OutputConfig = nil
-		resp, err = a.inner.CreateMessage(ctx, provider, req)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("anthropic /v1/messages request failed (the gateway must support the Messages API): %w", err)
-	}
-
-	return a.translateResponse(resp), nil
+	return a.inner.GenerateContent(ctx, provider, model, messages)
 }
 
 // GenerateContentStream routes Anthropic requests through /v1/messages and
@@ -787,75 +773,6 @@ func mapStopReason(reason string) sdk.FinishReason {
 		return sdk.Length
 	default:
 		return sdk.Stop
-	}
-}
-
-// translateResponse converts a non-streaming Messages response into the
-// chat-completions shape GenerateContent returns.
-func (a *AnthropicMessages) translateResponse(resp *sdk.MessagesResponse) *sdk.CreateChatCompletionResponse {
-	var text, thinking strings.Builder
-	var toolCalls []sdk.ChatCompletionMessageToolCall
-
-	for _, block := range resp.Content {
-		switch blockType(block) {
-		case "text":
-			if tb, err := block.AsMessagesTextBlock(); err == nil {
-				text.WriteString(tb.Text)
-			}
-		case "thinking":
-			if th, err := block.AsMessagesThinkingBlock(); err == nil {
-				thinking.WriteString(th.Thinking)
-			}
-		case "tool_use":
-			if tu, err := block.AsMessagesToolUseBlock(); err == nil {
-				toolCalls = append(toolCalls, toToolCall(tu))
-			}
-		}
-	}
-
-	message := sdk.Message{
-		Role:    sdk.Assistant,
-		Content: sdk.NewMessageContent(text.String()),
-	}
-	if reasoning := thinking.String(); reasoning != "" {
-		r := reasoning
-		message.Reasoning = &r
-		message.ReasoningContent = &r
-	}
-	if len(toolCalls) > 0 {
-		message.ToolCalls = &toolCalls
-	}
-
-	var u anthropicUsage
-	u.absorb(resp.Usage)
-	a.cacheCreation.Store(u.cacheCreation)
-	usage := u.toCompletionUsage()
-
-	return &sdk.CreateChatCompletionResponse{
-		ID:     resp.ID,
-		Object: "chat.completion",
-		Model:  resp.Model,
-		Choices: []sdk.ChatCompletionChoice{{
-			Index:        0,
-			Message:      message,
-			FinishReason: mapStopReason(string(resp.StopReason)),
-		}},
-		Usage: &usage,
-	}
-}
-
-func toToolCall(tu sdk.MessagesToolUseBlock) sdk.ChatCompletionMessageToolCall {
-	args, err := json.Marshal(tu.Input)
-	if err != nil {
-		args = []byte("{}")
-	}
-	return sdk.ChatCompletionMessageToolCall{
-		ID:   tu.ID,
-		Type: sdk.Function,
-		Function: sdk.ChatCompletionMessageToolCallFunction{
-			Name:      tu.Name,
-			Arguments: string(args),
-		},
 	}
 }
 
