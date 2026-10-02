@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -259,33 +260,49 @@ func inspectPluginHooks(dir, pluginName string) (bool, []config.HookCommandConfi
 	return len(hooksCfg.Hooks) > 0, hooksCfg.Hooks, nil
 }
 
+// rename stands in for os.Rename so tests can force rename failures
+// deterministically on any platform.
+var rename = os.Rename
+
 // Commit atomically promotes stagingDir to finalDir. On overwrite the old
-// dir is trash-renamed first and restored if the promotion fails. Staging and
-// final must share a filesystem so os.Rename is atomic.
+// dir is trash-renamed first and restored if the promotion fails. A failed
+// restore leaves the old plugin at <finalDir>.trash and is reported via
+// errors.Join.
 func Commit(stagingDir, finalDir string, overwrite bool) error {
 	if _, err := os.Stat(finalDir); err == nil {
 		if !overwrite {
 			return fmt.Errorf("plugin already exists at %s (use --overwrite to replace)", finalDir)
 		}
-		trash := finalDir + ".trash"
-		_ = os.RemoveAll(trash)
-		if err := os.Rename(finalDir, trash); err != nil {
-			return fmt.Errorf("failed to move aside existing plugin: %w", err)
-		}
-		if err := os.Rename(stagingDir, finalDir); err != nil {
-			_ = os.Rename(trash, finalDir)
-			return fmt.Errorf("failed to install plugin: %w", err)
-		}
-		_ = os.RemoveAll(trash)
-		return nil
+		return commitOverwrite(stagingDir, finalDir)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(finalDir), 0755); err != nil {
 		return fmt.Errorf("failed to create plugins dir: %w", err)
 	}
-	if err := os.Rename(stagingDir, finalDir); err != nil {
+	if err := rename(stagingDir, finalDir); err != nil {
 		return fmt.Errorf("failed to install plugin: %w", err)
 	}
+	return nil
+}
+
+// commitOverwrite renames the old finalDir to <finalDir>.trash, promotes
+// stagingDir in its place, restores the old dir if promotion fails, and
+// reports a failed restore via errors.Join while leaving the old copy at
+// <finalDir>.trash.
+func commitOverwrite(stagingDir, finalDir string) error {
+	trash := finalDir + ".trash"
+	_ = os.RemoveAll(trash)
+	if err := rename(finalDir, trash); err != nil {
+		return fmt.Errorf("failed to move aside existing plugin: %w", err)
+	}
+	if err := rename(stagingDir, finalDir); err != nil {
+		err = fmt.Errorf("failed to install plugin: %w", err)
+		if rerr := rename(trash, finalDir); rerr != nil {
+			return errors.Join(err, fmt.Errorf("restoring previous plugin from %s: %w", trash, rerr))
+		}
+		return err
+	}
+	_ = os.RemoveAll(trash)
 	return nil
 }
 

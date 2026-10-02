@@ -3,6 +3,7 @@ package plugins
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -283,6 +284,33 @@ func TestCommit_OverwriteRestoresOnFailureSemantics(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(final, "old.txt"))
 	require.NoDirExists(t, final+".trash")
 	require.NoDirExists(t, staging)
+}
+
+func TestCommit_RollbackFailureReportsTrash(t *testing.T) {
+	root := t.TempDir()
+	final := filepath.Join(root, "p")
+	require.NoError(t, os.MkdirAll(final, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(final, "old.txt"), []byte("old"), 0o644))
+
+	staging := filepath.Join(root, ".staging-rollback-fail")
+	require.NoError(t, os.MkdirAll(staging, 0o755))
+
+	orig := rename
+	rename = func(src, dst string) error {
+		if dst == final {
+			return fmt.Errorf("disk full on %s", dst)
+		}
+		return os.Rename(src, dst)
+	}
+	t.Cleanup(func() { rename = orig })
+
+	err := Commit(staging, final, true)
+	require.ErrorContains(t, err, "failed to install plugin")
+	require.ErrorContains(t, err, "restoring previous plugin from "+final+".trash")
+	require.DirExists(t, final+".trash", "old plugin is recoverable at the trash path")
+	require.FileExists(t, filepath.Join(final+".trash", "old.txt"))
+	require.NoDirExists(t, final)
+	require.DirExists(t, staging)
 }
 
 func TestUninstall_GuardsName(t *testing.T) {
