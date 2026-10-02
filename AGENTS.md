@@ -26,7 +26,7 @@ Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit
 
 The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure. `protocols/agui` is general purpose: a writer for the events of one run and a WebSocket binding with both of its ends. It names no client and no context, and its only internal import is the logger. Everything else imports it: `presentation/headless` maps agent chat events onto a run and owns the panel units the serve worker answers with, `browser` owns the extension relay and client on top of the binding, and `computer` returns the CUSTOM events it publishes. `cmd/daemon` hosts the binding and puts the browser relay and `sessions`, the thread registry that supervises one `headless --serve` worker per thread, behind it.
 
-Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `scheduler`, `sessions`, `tools`, `protocols/{a2a,mcp,agui}`. Capabilities, which have no `domain/`: `audio`, `channels`, `github`, `plugins`, `skills`. `avatars`, `daemon`, `gateway`, `insights` and `provisioner` are single-package support code.
+Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `sandbox`, `scheduler`, `sessions`, `tools`, `protocols/{a2a,mcp,agui}`. Capabilities, which have no `domain/`: `audio`, `channels`, `github`, `plugins`, `skills`. `avatars`, `daemon`, `gateway`, `insights` and `provisioner` are single-package support code.
 
 **Before changing a context or capability, read its `internal/<name>/README.md`.** It covers what it is, why it exists, and how it plugs in.
 
@@ -42,7 +42,7 @@ Repo-wide invariants:
 ## Import Style
 
 - Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
-- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
+- **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `sandbox`, `sandboxdomain`, `sandboxinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
 
 ## Testing
 
@@ -65,7 +65,7 @@ Repo-wide invariants:
 
 ## Security Gotchas
 
-- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only, and an allowed command still asks when a path it names leaves the sandbox (`config/bash_paths.go`). `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
+- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only, and an allowed command still asks when a path it names leaves the sandbox (`internal/sandbox/bash_paths.go`). `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
 - Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`; forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
 - Project custom tools (`.infer/tools/`, `.agents/tools/`) always need approval outside auto mode, whatever their manifest says.
 - Never commit secrets; credentials live in `.env` (never committed).
