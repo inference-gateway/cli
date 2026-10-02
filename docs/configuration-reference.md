@@ -945,13 +945,16 @@ entry lists its keys and points at the guide that owns the behaviour.
 The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
-- **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `~/.infer/tmp`,
-  `.infer/` read-only, `.`, `/tmp` and `/private/tmp`) and `denied` (default `.git/`, `*.env`, `.environment`,
+- **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `.` and `/tmp`)
+  and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `.environment`,
   `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
-  `on_violation: block|approval` (default block). Denied wins over allowed, the first matching entry in each
-  list wins, and a path outside `allowed` or a write into a read-only entry asks the user. Paths are anchored
-  (`/abs`, `~/x`, `.`, `./x`) or patterns matched at any depth (`dir/`, `*.glob`, `name`). Only
+  `on_violation: block|approval` (default block). Denied wins over allowed and a blocking denied entry wins
+  over one that asks. The first matching allowed entry wins, and a path outside `allowed` or a write into a
+  read-only entry asks the user. The config dirs ask before every read and write, since their files can hold
+  tokens, while skills, plans, plugins, memory and runtime output stay open. Paths are anchored
+  (`/abs`, `~/x`, `.`, `./x`) or patterns matched at any depth (`dir/`, `*.glob`, `name`). A list the file
+  leaves out keeps its default, and a file that fails to parse or validate stops `infer` from starting. Only
   `~/.infer/sandbox.yaml` is read: a project `.infer/sandbox.yaml` is ignored, so a checked-out repository
   cannot widen your sandbox, and the agent's file tools can never write the file. `infer config set` does not reach these keys: edit the file. Env:
   `INFER_TOOLS_SANDBOX_DIRECTORIES` adds allowed directories.

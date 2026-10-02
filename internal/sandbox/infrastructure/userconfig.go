@@ -10,10 +10,10 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-// PersistGrant puts an approved grant in front of the allowed entries of the
-// userspace ~/.infer/sandbox.yaml, so it wins over a narrower entry next time.
-// A grant inside a config dir is refused and stays session-only, so no future
-// session's configuration becomes writable without a prompt.
+// PersistGrant adds an approved grant to the userspace ~/.infer/sandbox.yaml.
+// A write grant goes first so it wins over a narrower read-only entry, a read
+// grant goes last so it never shadows a write entry. A grant inside a config
+// dir is refused and stays session-only.
 func PersistGrant(grant sandboxdomain.Allowed) error {
 	if inConfigDir(config.UserSpaceConfigDir(), grant.Path) || inConfigDir(config.ConfigDirName, grant.Path) {
 		return errors.New("a grant inside the config dir stays session-only")
@@ -29,7 +29,11 @@ func PersistGrant(grant sandboxdomain.Allowed) error {
 	if slices.Contains(sandboxCfg.Filesystem.Allowed, grant) {
 		return nil
 	}
-	sandboxCfg.Filesystem.Allowed = append([]sandboxdomain.Allowed{grant}, sandboxCfg.Filesystem.Allowed...)
+	if grant.Access == sandboxdomain.AccessRead {
+		sandboxCfg.Filesystem.Allowed = append(sandboxCfg.Filesystem.Allowed, grant)
+	} else {
+		sandboxCfg.Filesystem.Allowed = append([]sandboxdomain.Allowed{grant}, sandboxCfg.Filesystem.Allowed...)
+	}
 	return config.SaveSandbox(path, sandboxCfg)
 }
 

@@ -21,12 +21,12 @@ var benignTrailingRedirectRe = regexp.MustCompile(
 	`\s*(?:&>>?\s*/dev/null|[0-9]*>>?\s*/dev/null|[0-9]*>&(?:[0-9]+|-))\s*$`,
 )
 
-// bashAllowFor returns the effective bash allow-list for mode: the shared
+// BashAllowedCommands returns the effective bash allow-list for mode: the shared
 // mode.all baseline unioned with that mode's own bucket. This is the ONE place
 // an AgentMode maps to a tools.bash.mode.<bucket> list: Plan -> plan,
-// AutoAccept -> auto, Standard/AutoWithJudge/unknown -> standard (the judge only
-// sees commands the standard list already gates), ReadOnly -> baseline only.
-func bashAllowFor(cfg *config.Config, mode agentdomain.AgentMode) []string {
+// AutoAccept -> auto, Standard/AutoWithJudge/unknown -> standard, ReadOnly ->
+// baseline only. The system prompt lists it so the agent knows what runs.
+func BashAllowedCommands(cfg *config.Config, mode agentdomain.AgentMode) []string {
 	m := cfg.Tools.Bash.Mode
 	out := make([]string, 0, len(m.All.Allow)+4)
 	out = append(out, m.All.Allow...)
@@ -42,15 +42,8 @@ func bashAllowFor(cfg *config.Config, mode agentdomain.AgentMode) []string {
 	return out
 }
 
-// BashAllowedCommands returns the effective allow-list entries for mode. It is
-// used to surface the model's bash sandbox in the system prompt so the agent
-// knows up front what it may run unattended.
-func BashAllowedCommands(cfg *config.Config, mode agentdomain.AgentMode) []string {
-	return bashAllowFor(cfg, mode)
-}
-
 // IsBashCommandAllowed reports whether command is auto-approved in the given
-// agent mode (see bashAllowFor for the mode-to-bucket mapping). The model is a pure
+// agent mode (see BashAllowedCommands for the mode-to-bucket mapping). The model is a pure
 // allow-list with no separate deny list: anything the effective list does not
 // match is denied - in chat mode it falls through to user approval, in headless
 // agent mode it is rejected with a reason (see BashCommandRejectionHint).
@@ -81,7 +74,7 @@ func IsBashCommandAllowed(cfg *config.Config, command string, mode agentdomain.A
 		return false
 	}
 
-	allow := bashAllowFor(cfg, mode)
+	allow := BashAllowedCommands(cfg, mode)
 	if IsUnrestricted(allow) {
 		return true
 	}

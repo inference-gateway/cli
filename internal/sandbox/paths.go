@@ -1,10 +1,13 @@
 package sandbox
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 
 	config "github.com/inference-gateway/cli/config"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
@@ -59,13 +62,14 @@ func validate(cfg *config.Config, path string, access sandboxdomain.Access) erro
 	return nil
 }
 
-// check decides one spelling of a path: denied entries win, then the built-in
-// carve-outs, then the first matching allowed entry, and anything else asks
-// the user. An empty allowed list is no boundary at all. A grant only unlocks
-// what approval could have, so a granted directory still respects denied.
+// check decides one spelling of a path: denied entries win, a blocking one over
+// one that asks, then the built-in carve-outs, then the first matching allowed
+// entry, and anything else asks the user. An empty allowed list is no boundary.
+// A grant only unlocks what approval could have, so it still respects denied.
 func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access) error {
 	carveOut, inCarveOut := implicitAccess(cfg, absPath)
 
+	approvalRule := ""
 	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
 		if inCarveOut && strings.TrimSuffix(entry.Path, "/") == config.ConfigDirName {
 			continue
@@ -76,10 +80,13 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 		if entry.OnViolation != sandboxdomain.ViolationApproval {
 			return fmt.Errorf("access to path '%s' is excluded for security", path)
 		}
+		approvalRule = cmp.Or(approvalRule, entry.Path)
+	}
+	if approvalRule != "" {
 		if granted(absPath, access) {
 			return nil
 		}
-		return &sandboxdomain.DeniedError{Path: path, Access: access, Rule: entry.Path}
+		return &sandboxdomain.DeniedError{Path: path, Access: access, Rule: approvalRule}
 	}
 
 	if inCarveOut {
@@ -123,8 +130,37 @@ func implicitAccess(cfg *config.Config, absPath string) (sandboxdomain.Access, b
 	return "", false
 }
 
+// Grants are the entries the user approved after a denial. They extend the
+// configured policy for the rest of the process and never feed the system
+// prompt, which must stay byte-stable within a session.
+type Grants struct {
+	mu      sync.RWMutex
+	entries []sandboxdomain.Allowed
+}
+
+// Granted holds the process-wide grants.
+// ponytail: process-wide like the port registry, fold into an injected guard if
+// one process ever runs multiple configs.
+var Granted Grants
+
+// Add grants entry for the rest of the process. Idempotent.
+func (g *Grants) Add(entry sandboxdomain.Allowed) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !slices.Contains(g.entries, entry) {
+		g.entries = append(g.entries, entry)
+	}
+}
+
+// List returns a copy of the granted entries.
+func (g *Grants) List() []sandboxdomain.Allowed {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return slices.Clone(g.entries)
+}
+
 func granted(absPath string, access sandboxdomain.Access) bool {
-	for _, grant := range sandboxdomain.Granted.List() {
+	for _, grant := range Granted.List() {
 		if grant.Access.Allows(access) && isWithinDir(absPath, grant.Path) {
 			return true
 		}
@@ -132,19 +168,27 @@ func granted(absPath string, access sandboxdomain.Access) bool {
 	return false
 }
 
-// GrantFor scopes a denial's grant to the sandbox policy. A GrantDir handback
-// inside a config dir would open infer's whole configuration to the tools, so
-// the exact denied file is granted instead.
+// GrantFor is the entry worth asking the user for after a denial: the exact
+// path when a denied entry matched or it sits in a config dir, otherwise the
+// directory around it so the agent can keep working there without a prompt
+// per file.
 func GrantFor(cfg *config.Config, denial *sandboxdomain.DeniedError) sandboxdomain.Allowed {
-	grant := denial.Grant()
-	if denial.Rule != "" || !isWithinConfigDirs(cfg, grant.Path) {
-		return grant
-	}
 	path := denial.Path
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}
-	return sandboxdomain.Allowed{Path: path, Access: grant.Access}
+	if dir := grantDir(path); denial.Rule == "" && !isWithinConfigDirs(cfg, dir) {
+		return sandboxdomain.Allowed{Path: dir, Access: denial.Access}
+	}
+	return sandboxdomain.Allowed{Path: path, Access: denial.Access}
+}
+
+// grantDir is absPath when it is an existing directory, otherwise its parent.
+func grantDir(absPath string) string {
+	if info, err := os.Stat(absPath); err == nil && info.IsDir() {
+		return absPath
+	}
+	return filepath.Dir(absPath)
 }
 
 // isWithinConfigDirs reports whether path sits inside a config dir: the
@@ -207,21 +251,16 @@ func isWithinCustomToolsDir(cfg *config.Config, absPath string) bool {
 		if err != nil {
 			continue
 		}
-		toolsDir := config.CanonicalPath(absDir)
-		if path == toolsDir || strings.HasPrefix(path, toolsDir+string(filepath.Separator)) {
+		if isBeneath(path, config.CanonicalPath(absDir)) {
 			return true
 		}
 	}
 	return false
 }
 
-// isWithinSkillsDir reports whether absPath lives inside one of the skills
-// directories: the project (./.infer/skills), the open-standard
-// (./.agents/skills), or the user-global (~/.infer/skills) location. Feeds
-// the carveOut path in ValidateRead - gated there on
-// agent.skills.enabled - so reads of SKILL.md and references/*.md succeed even
-// though the broader .infer/ directory is in ProtectedPaths. File-level
-// protections like *.env still apply.
+// isWithinSkillsDir reports whether absPath lives inside a skills directory:
+// ./.infer/skills, ./.agents/skills or ~/.infer/skills. The carve-out lets
+// skills load although the config dirs ask, and *.env stays denied.
 func isWithinSkillsDir(absPath string) bool {
 	dirs := []string{filepath.Join(config.ConfigDirName, "skills"), filepath.Join(config.AgentsDirName, "skills")}
 	if homeDir, err := os.UserHomeDir(); err == nil {
@@ -252,13 +291,10 @@ func isBeneath(absPath, absDir string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// isWithinRuntimeDirs reports whether absPath lives inside one of the
-// runtime-artifact subdirectories of the current project's runtime root
-// (~/.infer/projects/<project-slug>) - tmp scratch, artifacts, history,
-// backups, and exports - or inside one of the machine-scoped userspace runtime
-// dirs above. Those are runtime output the agent must be able to read and
-// write even though the broader .infer/ directory, and the rest of ~/.infer,
-// stays protected.
+// isWithinRuntimeDirs reports whether absPath lives inside a runtime output
+// dir: the artifact subdirs of ~/.infer/projects/<project-slug> or the
+// machine-scoped ones under ~/.infer. The agent reads and writes those
+// although the rest of the config dirs ask.
 func isWithinRuntimeDirs(absPath string) bool {
 	runtimeRoot := config.ProjectRuntimeDir()
 	for _, name := range config.RuntimeArtifactDirNames {
@@ -277,13 +313,9 @@ func isWithinRuntimeDirs(absPath string) bool {
 }
 
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
-// subdirectories of the config dir. It checks both the project-relative
-// ConfigDirName (./.infer/<name>) and the resolved config dir
-// (GetConfigDir()/<name>) so that operational areas - persisted plans, the
-// desktop's projects.yaml - stay reachable even when the config was loaded from
-// the userspace location (~/.infer). This keeps the rest of .infer/ protected
-// as a whole. Runtime artifacts (tmp, artifacts,
-// history, backups, exports) are covered by isWithinRuntimeDirs instead.
+// entries of ./.infer or of the resolved config dir, so operational areas such
+// as persisted plans and the desktop's projects.yaml stay reachable wherever
+// the config was loaded from.
 func isWithinConfigSubdir(cfg *config.Config, absPath string, names ...string) bool {
 	configDirs := []string{config.ConfigDirName}
 	if resolved := cfg.GetConfigDir(); resolved != "" && resolved != config.ConfigDirName {
@@ -301,8 +333,7 @@ func isWithinConfigSubdir(cfg *config.Config, absPath string, names ...string) b
 }
 
 // isWithinPluginsDir reports whether absPath lives inside the plugins
-// storage root, so plugin SKILL.md bodies stay readable even though the
-// broader .infer/ directory is protected.
+// storage root, so plugin SKILL.md bodies stay readable.
 func isWithinPluginsDir(cfg *config.Config, absPath string) bool {
 	dir, err := cfg.Plugins.ResolveDir()
 	if err != nil {
@@ -311,13 +342,9 @@ func isWithinPluginsDir(cfg *config.Config, absPath string) bool {
 	return isWithinDir(absPath, dir)
 }
 
-// isWithinGoLibDirs reports whether absPath lives inside a well-known Go
-// library directory: the Go module cache ($GOMODCACHE or $GOPATH/pkg/mod)
-// or the Go standard library source tree ($GOROOT/src). Paths are resolved
-// from the environment at runtime, not hardcoded, so they work regardless
-// of the Go toolchain installation layout. This carve-out is read-only:
-// write tools must additionally call ValidateWrite to reject
-// mutations under these directories.
+// isWithinGoLibDirs reports whether absPath lives inside the Go module cache
+// ($GOMODCACHE or $GOPATH/pkg/mod) or the standard library source
+// ($GOROOT/src), resolved from the environment. The carve-out is read-only.
 func isWithinGoLibDirs(absPath string) bool {
 	gomodcache := os.Getenv("GOMODCACHE")
 	if gomodcache == "" {

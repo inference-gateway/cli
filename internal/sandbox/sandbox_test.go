@@ -37,7 +37,7 @@ func TestParseDenial(t *testing.T) {
 
 func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	t.Cleanup(func() {
-		sandboxdomain.Granted = sandboxdomain.Grants{}
+		Granted = Grants{}
 	})
 
 	sandbox := t.TempDir()
@@ -46,7 +46,8 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	secret := filepath.Join(outside, "prod.env")
 	readOnly := filepath.Join(sandbox, "vendor")
 	deploy := filepath.Join(sandbox, "deploy")
-	for _, p := range []string{target, secret, filepath.Join(readOnly, "lib.go"), filepath.Join(deploy, "run.sh")} {
+	token := filepath.Join(deploy, "ci.token")
+	for _, p := range []string{target, secret, filepath.Join(readOnly, "lib.go"), filepath.Join(deploy, "run.sh"), token} {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +56,7 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Tools.Sandbox.Filesystem.Allowed = append([]sandboxdomain.Allowed{{Path: readOnly, Access: sandboxdomain.AccessRead}}, sandboxdomain.Allow(sandbox)...)
-	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Denied{Path: deploy, OnViolation: sandboxdomain.ViolationApproval})
+	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Denied{Path: deploy, OnViolation: sandboxdomain.ViolationApproval}, sandboxdomain.Denied{Path: "*.token"})
 
 	var denied *sandboxdomain.DeniedError
 	if err := ValidateRead(cfg, target); !errors.As(err, &denied) || denied.Rule != "" {
@@ -73,9 +74,12 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	if err := ValidateRead(cfg, secret); err == nil || errors.As(err, &denied) {
 		t.Fatalf("a blocking entry must fail without asking, got %v", err)
 	}
+	if err := ValidateRead(cfg, token); err == nil || errors.As(err, &denied) {
+		t.Fatalf("a blocking entry listed after an approval entry must still block, got %v", err)
+	}
 
-	sandboxdomain.Granted.Add(sandboxdomain.Allowed{Path: outside, Access: sandboxdomain.AccessWrite})
-	sandboxdomain.Granted.Add(sandboxdomain.Allowed{Path: deploy, Access: sandboxdomain.AccessRead})
+	Granted.Add(sandboxdomain.Allowed{Path: outside, Access: sandboxdomain.AccessWrite})
+	Granted.Add(sandboxdomain.Allowed{Path: deploy, Access: sandboxdomain.AccessRead})
 	if err := ValidateWrite(cfg, target); err != nil {
 		t.Fatalf("expected access after grant, got %v", err)
 	}
@@ -87,6 +91,10 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	}
 	if err := ValidateRead(cfg, secret); err == nil {
 		t.Fatal("a granted directory still respects denied")
+	}
+	Granted.Add(sandboxdomain.Allowed{Path: deploy, Access: sandboxdomain.AccessWrite})
+	if err := ValidateRead(cfg, token); err == nil {
+		t.Fatal("a grant on an approval entry must not unlock a blocking one beneath it")
 	}
 	if got := cfg.Tools.Sandbox.Filesystem.Allowed; len(got) != 2 {
 		t.Fatalf("grants must not change the configured policy, got %v", got)
@@ -100,18 +108,22 @@ func TestGrantForScopesConfigDirGrantsToTheFile(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	libDir := filepath.Join(t.TempDir(), "lib")
+	existingDir := t.TempDir()
 	denials := []struct {
 		name string
 		path string
+		rule string
 		want string
 	}{
-		{"a userspace config file grants exactly that file", filepath.Join(home, config.ConfigDirName, "config.yaml"), filepath.Join(home, config.ConfigDirName, "config.yaml")},
-		{"a project config file grants exactly that file", filepath.Join(config.ConfigDirName, "mcp.yaml"), filepath.Join(config.ConfigDirName, "mcp.yaml")},
-		{"any other denial still grants the directory", filepath.Join(libDir, "dep.go"), libDir},
+		{"a userspace config file grants exactly that file", filepath.Join(home, config.ConfigDirName, "config.yaml"), "", filepath.Join(home, config.ConfigDirName, "config.yaml")},
+		{"a project config file grants exactly that file", filepath.Join(config.ConfigDirName, "mcp.yaml"), "", filepath.Join(config.ConfigDirName, "mcp.yaml")},
+		{"a denied entry grants exactly that file", filepath.Join(libDir, "dep.go"), "lib/", filepath.Join(libDir, "dep.go")},
+		{"any other denial still grants the directory", filepath.Join(libDir, "dep.go"), "", libDir},
+		{"an existing directory grants itself", existingDir, "", existingDir},
 	}
 	for _, tt := range denials {
 		t.Run(tt.name, func(t *testing.T) {
-			denial := &sandboxdomain.DeniedError{Path: tt.path, Access: sandboxdomain.AccessWrite}
+			denial := &sandboxdomain.DeniedError{Path: tt.path, Access: sandboxdomain.AccessWrite, Rule: tt.rule}
 			got := GrantFor(cfg, denial).Path
 			if want, err := filepath.Abs(tt.want); err != nil || got != want {
 				t.Fatalf("GrantFor(%s) = %s, want %s", tt.path, got, want)
@@ -127,7 +139,7 @@ func TestGrantForScopesConfigDirGrantsToTheFile(t *testing.T) {
 
 func TestValidateWrite_Symlinks(t *testing.T) {
 	t.Cleanup(func() {
-		sandboxdomain.Granted = sandboxdomain.Grants{}
+		Granted = Grants{}
 	})
 
 	sandbox := t.TempDir()
@@ -182,7 +194,7 @@ func TestValidateWrite_Symlinks(t *testing.T) {
 				if !errors.As(err, &denied) || denied.Path != tt.wantDenied {
 					t.Fatalf("expected denial of %s, got %v", tt.wantDenied, err)
 				}
-				sandboxdomain.Granted.Add(sandboxdomain.Allowed{Path: filepath.Dir(denied.Path), Access: sandboxdomain.AccessWrite})
+				Granted.Add(sandboxdomain.Allowed{Path: filepath.Dir(denied.Path), Access: sandboxdomain.AccessWrite})
 				if err := ValidateWrite(cfg, tt.path); err != nil {
 					t.Fatalf("expected %s allowed once its target dir is granted, got %v", tt.path, err)
 				}

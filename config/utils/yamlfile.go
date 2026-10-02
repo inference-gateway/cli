@@ -82,9 +82,34 @@ func SaveYAML[T any](path, label string, cfg *T) error {
 		return fmt.Errorf("failed to create %s config directory: %w", label, err)
 	}
 
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+	if err := writeFileAtomic(path, buf.Bytes()); err != nil {
 		return fmt.Errorf("failed to write %s config: %w", label, err)
 	}
 
 	return nil
+}
+
+// writeFileAtomic replaces path through a temp file and a rename, so a process
+// reading it concurrently sees the old file or the new one, never a torn one.
+// A symlinked path is written through to its target.
+func writeFileAtomic(path string, data []byte) error {
+	if target, err := filepath.EvalSymlinks(path); err == nil {
+		path = target
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

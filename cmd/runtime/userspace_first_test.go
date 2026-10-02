@@ -136,7 +136,7 @@ func TestInitConfigSandboxSidecar(t *testing.T) {
 
 	initConfig()
 	require.Equal(t, sandboxdomain.Allow("/policy"), Cfg.Tools.Sandbox.Filesystem.Allowed)
-	require.Empty(t, Cfg.Tools.Sandbox.Filesystem.Denied, "a present file replaces the policy wholesale")
+	require.Equal(t, config.DefaultSandboxConfig().Filesystem.Denied, Cfg.Tools.Sandbox.Filesystem.Denied, "a list the file omits keeps its default")
 
 	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "")
 	initConfig()
@@ -145,4 +145,8 @@ func TestInitConfigSandboxSidecar(t *testing.T) {
 	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "/extra")
 	initConfig()
 	require.Equal(t, sandboxdomain.Allow("/policy", "/extra"), Cfg.Tools.Sandbox.Filesystem.Allowed, "env directories are allowed too")
+
+	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nfilesystem:\n  allowed:\n    - path: /x\n      access: none\n"), 0o644))
+	_, err := loadSandboxConfig()
+	require.ErrorContains(t, err, sandboxFile, "a broken policy fails the load instead of falling back to the defaults")
 }

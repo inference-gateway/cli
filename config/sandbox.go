@@ -25,17 +25,12 @@ type FilesystemPolicy struct {
 	Denied  []sandboxdomain.Denied  `yaml:"denied"`
 }
 
-// DefaultSandboxConfig allows the working directory, /tmp and the userspace
-// scratch dir, keeps the config dirs read-only, and denies git metadata and
-// the usual credential files. Narrower allowed entries come first because the
-// first match wins.
+// DefaultSandboxConfig allows the working directory and /tmp, asks before
+// any use of the config dirs, whose files can hold tokens, and denies git
+// metadata and the usual credential files.
 func DefaultSandboxConfig() *SandboxConfig {
-	allowed := []sandboxdomain.Allowed{
-		{Path: "~/" + ConfigDirName + "/tmp", Access: sandboxdomain.AccessWrite},
-		{Path: ConfigDirName + "/", Access: sandboxdomain.AccessRead},
-	}
-	allowed = append(allowed, sandboxdomain.Allow(".", "/tmp", "/private/tmp")...)
-	denied := sandboxdomain.Deny(
+	denied := []sandboxdomain.Denied{{Path: ConfigDirName + "/", OnViolation: sandboxdomain.ViolationApproval}}
+	denied = append(denied, sandboxdomain.Deny(
 		".git/",
 		"*.env",
 		".environment",
@@ -46,8 +41,8 @@ func DefaultSandboxConfig() *SandboxConfig {
 		"id_dsa",
 		"id_ecdsa",
 		"id_ed25519",
-	)
-	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: allowed, Denied: denied}}
+	)...)
+	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: sandboxdomain.Allow(".", "/tmp"), Denied: denied}}
 }
 
 // Validate rejects an entry with no path or an unknown access or behaviour.
@@ -56,7 +51,7 @@ func (c *SandboxConfig) Validate() error {
 		switch {
 		case entry.Path == "":
 			return fmt.Errorf("sandbox allowed entry %d has no path", i)
-		case entry.Access != sandboxdomain.AccessRead && entry.Access != sandboxdomain.AccessWrite:
+		case !entry.Access.Valid():
 			return fmt.Errorf("sandbox allowed %q: access %q must be read or write", entry.Path, entry.Access)
 		}
 	}
@@ -71,10 +66,10 @@ func (c *SandboxConfig) Validate() error {
 	return nil
 }
 
-// LoadSandbox reads sandbox.yaml. A missing file is the defaults. A present
-// file replaces the policy wholesale, so it is exactly what it says.
+// LoadSandbox reads sandbox.yaml over the defaults, so a missing file or a
+// missing list keeps the default one. A list that is present replaces it.
 func LoadSandbox(path string) (*SandboxConfig, error) {
-	cfg, err := configutils.LoadYAML(path, "sandbox", DefaultSandboxConfig)
+	cfg, err := configutils.LoadYAMLMerged(path, "sandbox", DefaultSandboxConfig)
 	if err != nil {
 		return nil, err
 	}

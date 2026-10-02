@@ -195,7 +195,7 @@ infer config get tools.safety                          # Show current settings
 infer config set tools.bash.require_approval true
 infer config set tools.web_search.require_approval false
 
-# The sandbox policy lives in ~/.infer/sandbox.yaml (or .infer/sandbox.yaml per project)
+# The sandbox policy lives in ~/.infer/sandbox.yaml
 cat ~/.infer/sandbox.yaml
 ```
 

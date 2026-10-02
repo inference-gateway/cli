@@ -311,10 +311,11 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	cfg.Judge = *judgeCfg
 	applySidecarEnv(&cfg.Judge, "judge")
 
-	if v.IsSet("tools.sandbox") {
-		logger.Warn("config.yaml tools.sandbox is ignored, the sandbox policy lives in the userspace sandbox.yaml")
+	sandboxCfg, err := loadSandboxConfig()
+	if err != nil {
+		return nil, err
 	}
-	cfg.Tools.Sandbox = *loadSandboxConfig()
+	cfg.Tools.Sandbox = *sandboxCfg
 
 	channelsPath := sidecarPath(config.ChannelsFileName)
 	channelsCfg, err := config.LoadChannels(channelsPath)
@@ -534,18 +535,16 @@ func sameConfigFile(a, b string) bool {
 
 // loadSandboxConfig reads the userspace sandbox.yaml. A project copy is
 // never consulted, so a repository cannot widen the sandbox of whoever opens
-// it. INFER_TOOLS_SANDBOX_DIRECTORIES, the list the desktop hands a worker,
-// adds allowed directories, with bare relative entries anchored to the cwd.
-func loadSandboxConfig() *config.SandboxConfig {
+// it. INFER_TOOLS_SANDBOX_DIRECTORIES adds allowed directories, with bare
+// relative entries anchored to the cwd. A broken policy fails the load.
+func loadSandboxConfig() (*config.SandboxConfig, error) {
 	path, err := config.UserSandboxPath()
 	if err != nil {
-		logger.Warn("failed to resolve sandbox config, using defaults", "error", err)
-		return config.DefaultSandboxConfig()
+		return nil, err
 	}
 	sandboxCfg, err := config.LoadSandbox(path)
 	if err != nil {
-		logger.Warn("failed to load sandbox config, using defaults", "error", err, "path", path)
-		sandboxCfg = config.DefaultSandboxConfig()
+		return nil, fmt.Errorf("loading sandbox policy %s: %w", path, err)
 	}
 	if extra := parseDelimitedList(os.Getenv("INFER_TOOLS_SANDBOX_DIRECTORIES")); len(extra) > 0 {
 		for i, dir := range extra {
@@ -555,5 +554,5 @@ func loadSandboxConfig() *config.SandboxConfig {
 		}
 		sandboxCfg.Filesystem.Allowed = append(sandboxCfg.Filesystem.Allowed, sandboxdomain.Allow(extra...)...)
 	}
-	return sandboxCfg
+	return sandboxCfg, nil
 }

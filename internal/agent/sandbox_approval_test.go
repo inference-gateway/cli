@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -53,10 +52,4 @@ func TestRequestSandboxApproval(t *testing.T) {
 			assert.Equal(t, tt.wantAlways, always)
 		})
 	}
-}
-
-func TestSandboxGrantDir(t *testing.T) {
-	dir := t.TempDir()
-	assert.Equal(t, dir, sandboxdomain.GrantDir(dir))
-	assert.Equal(t, dir, sandboxdomain.GrantDir(filepath.Join(dir, "missing.txt")))
 }

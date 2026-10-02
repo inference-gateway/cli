@@ -66,7 +66,7 @@ Repo-wide invariants:
 ## Security Gotchas
 
 - **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only, and an allowed command still asks when a path it names leaves the sandbox (`internal/sandbox/bash_paths.go`). `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
-- **The path policy is `sandbox.yaml`** (`filesystem.allowed:` with optional `access: read`, `filesystem.denied:` with optional `on_violation: approval`, denied wins, outside allowed asks, config dirs are read-only by default). Userspace only: a project `.infer/sandbox.yaml` is ignored. It is never agent-writable and `infer config set` cannot reach it.
+- **The path policy is `sandbox.yaml`** (`filesystem.allowed:` with optional `access: read`, `filesystem.denied:` with optional `on_violation: approval`, denied wins, a blocking denied entry over one that asks, outside allowed asks, config dirs ask by default). Userspace only: a project `.infer/sandbox.yaml` is ignored. It is never agent-writable and `infer config set` cannot reach it.
 - Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`; forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
 - Project custom tools (`.infer/tools/`, `.agents/tools/`) always need approval outside auto mode, whatever their manifest says.
 - Never commit secrets; credentials live in `.env` (never committed).

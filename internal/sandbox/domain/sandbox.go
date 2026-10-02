@@ -2,11 +2,7 @@ package sandboxdomain
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
-	"slices"
-	"sync"
 
 	yaml "gopkg.in/yaml.v3"
 )
@@ -23,17 +19,14 @@ const (
 	AccessWrite Access = "write"
 )
 
-var accessRank = map[Access]int{AccessRead: 1, AccessWrite: 2}
-
 // Allows reports whether a holder of a may perform want.
 func (a Access) Allows(want Access) bool {
-	return accessRank[a] >= accessRank[want]
+	return a == AccessWrite || a == want
 }
 
 // Valid reports whether a is one of the two access levels.
 func (a Access) Valid() bool {
-	_, ok := accessRank[a]
-	return ok
+	return a == AccessRead || a == AccessWrite
 }
 
 // Violation is what happens when a path is denied: fail the call, or ask the
@@ -155,59 +148,4 @@ func ParseDenial(msg string) (*DeniedError, bool) {
 		return nil, false
 	}
 	return &DeniedError{Path: m[2], Access: Access(m[1]), Rule: m[3]}, true
-}
-
-// Grant is the entry worth asking the user for: the denied access on the exact
-// path when a denied entry matched, otherwise on the directory around it so
-// the agent can keep working there without a prompt per file.
-func (e *DeniedError) Grant() Allowed {
-	if e.Rule != "" {
-		if abs, err := filepath.Abs(e.Path); err == nil {
-			return Allowed{Path: abs, Access: e.Access}
-		}
-		return Allowed{Path: e.Path, Access: e.Access}
-	}
-	return Allowed{Path: GrantDir(e.Path), Access: e.Access}
-}
-
-// Grants are the entries the user approved after a denial. They extend the
-// configured policy for the rest of the process and never feed the system
-// prompt, which must stay byte-stable within a session.
-type Grants struct {
-	mu      sync.RWMutex
-	entries []Allowed
-}
-
-// Granted holds the process-wide grants.
-// ponytail: process-wide like the port registry, fold into an injected guard if
-// one process ever runs multiple configs.
-var Granted Grants
-
-// Add grants entry for the rest of the process. Idempotent.
-func (g *Grants) Add(entry Allowed) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if !slices.Contains(g.entries, entry) {
-		g.entries = append(g.entries, entry)
-	}
-}
-
-// List returns a copy of the granted entries.
-func (g *Grants) List() []Allowed {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	return slices.Clone(g.entries)
-}
-
-// GrantDir maps a denied path to the directory worth granting: the path itself
-// when it is an existing directory, otherwise its parent.
-func GrantDir(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	if info, err := os.Stat(abs); err == nil && info.IsDir() {
-		return abs
-	}
-	return filepath.Dir(abs)
 }

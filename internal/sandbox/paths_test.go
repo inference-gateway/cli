@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,15 +50,9 @@ func TestValidateRead_SkillsCarveOut(t *testing.T) {
 			}
 		})
 
-		t.Run("user config files are read-only", func(t *testing.T) {
+		t.Run("user config files ask", func(t *testing.T) {
 			for _, name := range []string{"config.yaml", "conversations.db"} {
-				p := filepath.Join(home, config.ConfigDirName, name)
-				if err := ValidateRead(cfg, p); err != nil {
-					t.Fatalf("expected %s readable, got %v", p, err)
-				}
-				if err := ValidateWrite(cfg, p); err == nil {
-					t.Fatalf("expected %s not writable", p)
-				}
+				requireAsks(t, cfg, filepath.Join(home, config.ConfigDirName, name))
 			}
 		})
 
@@ -89,7 +84,7 @@ func TestValidateRead_SkillsCarveOut(t *testing.T) {
 }
 
 // TestValidateRead_AgentsSkillsCarveOut covers the .agents/skills open
-// standard. Unlike .infer/, the .agents/ directory is not in ProtectedPaths, so
+// standard. Unlike .infer/, the .agents/ directory is not denied, so
 // the carve-out is only observable against a *restrictive* sandbox: with skills
 // enabled, .agents/skills/** must be readable even though it sits outside the
 // configured sandbox dirs (parity with .infer/skills), while non-skills paths
@@ -139,32 +134,23 @@ func TestValidateRead_AgentsSkillsCarveOut(t *testing.T) {
 	})
 }
 
-// TestValidateRead_ConfigDir locks in the directory-wide protection of
-// the config dir: config files are readable but never writable, and the old
-// project-local .infer/tmp is no longer a sandbox carve-out (runtime
-// artifacts moved to ~/.infer/projects/<project-slug>/). This config has no
-// configDir set, so GetConfigDir() is the relative ".infer" - the case where a
-// config-relative check would miss the userspace runtime dirs entirely, so the
-// ~/.infer plans and artifacts entries below are the ones that matter here.
-// Hard protections like *.env apply everywhere.
+// TestValidateRead_ConfigDir locks in that every use of a config file asks,
+// the project-local .infer/tmp included, while the operational carve-outs stay
+// open. GetConfigDir() is the relative ".infer" here, so the ~/.infer plans and
+// artifacts entries are the ones a config-relative check would miss.
 func TestValidateRead_ConfigDir(t *testing.T) {
 	cfg := config.DefaultConfig()
 
-	readOnly := []string{
+	asks := []string{
 		config.ConfigDirName + "/config.yaml",
 		config.ConfigDirName + "/agents.yaml",
 		config.ConfigDirName + "/conversations.db",
 		config.ConfigDirName + "/shortcuts/git.yaml",
 		config.ConfigDirName + "/tmp/scratch.txt",
 	}
-	for _, p := range readOnly {
-		t.Run("read-only "+p, func(t *testing.T) {
-			if err := ValidateRead(cfg, p); err != nil {
-				t.Fatalf("expected %s readable, got %v", p, err)
-			}
-			if err := ValidateWrite(cfg, p); err == nil {
-				t.Fatalf("expected %s not writable", p)
-			}
+	for _, p := range asks {
+		t.Run("asks "+p, func(t *testing.T) {
+			requireAsks(t, cfg, p)
 		})
 	}
 	t.Run("deny .infer/tmp/leaked.env", func(t *testing.T) {
@@ -270,18 +256,10 @@ func TestValidateRead_ConfigDirUserspace(t *testing.T) {
 		})
 	}
 
-	readOnly := []string{
-		filepath.Join(userspaceConfigDir, "config.yaml"),
-		filepath.Join(userspaceConfigDir, "agents.yaml"),
-	}
-	for _, p := range readOnly {
-		t.Run("read-only "+p, func(t *testing.T) {
-			if err := ValidateRead(cfg, p); err != nil {
-				t.Fatalf("expected %s readable, got %v", p, err)
-			}
-			if err := ValidateWrite(cfg, p); err == nil {
-				t.Fatalf("expected %s not writable", p)
-			}
+	for _, name := range []string{"config.yaml", "agents.yaml", "channels.yaml"} {
+		p := filepath.Join(userspaceConfigDir, name)
+		t.Run("asks "+p, func(t *testing.T) {
+			requireAsks(t, cfg, p)
 		})
 	}
 
@@ -311,8 +289,8 @@ func TestValidateRead_PluginsCarveOut(t *testing.T) {
 }
 
 // TestValidateWrite_SandboxPolicyFile locks in that the agent can never edit
-// its own policy: both sandbox.yaml locations stay unwritable even when the
-// user empties protected_paths, while reading them is still allowed.
+// its own policy: sandbox.yaml stays unwritable even when the user empties
+// denied, while reading it is still allowed.
 func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
 	project := t.TempDir()
 	home := t.TempDir()
@@ -329,4 +307,16 @@ func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
 	require.ErrorContains(t, ValidateWrite(cfg, file), "sandbox policy", "writing %s", file)
 	require.NoError(t, ValidateWrite(cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
 	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, config.SandboxFileName)), "a project sandbox.yaml is ignored, not policy")
+}
+
+// requireAsks fails unless reading and writing path both ask the user under
+// the default config-dir rule instead of passing or failing outright.
+func requireAsks(t *testing.T, cfg *config.Config, path string) {
+	t.Helper()
+	for _, err := range []error{ValidateRead(cfg, path), ValidateWrite(cfg, path)} {
+		var denied *sandboxdomain.DeniedError
+		if !errors.As(err, &denied) || denied.Rule != config.ConfigDirName+"/" {
+			t.Fatalf("expected %s to ask under the config-dir rule, got %v", path, err)
+		}
+	}
 }

@@ -19,6 +19,26 @@ func TestLoadSandbox(t *testing.T) {
 		require.Equal(t, DefaultSandboxConfig(), cfg)
 	})
 
+	t.Run("an omitted list keeps its default", func(t *testing.T) {
+		defaults := DefaultSandboxConfig().Filesystem
+		for name, tt := range map[string]struct {
+			body        string
+			wantAllowed []sandboxdomain.Allowed
+			wantDenied  []sandboxdomain.Denied
+		}{
+			"empty file":   {"", defaults.Allowed, defaults.Denied},
+			"denied only":  {"filesystem:\n  denied:\n    - secrets/\n", defaults.Allowed, sandboxdomain.Deny("secrets/")},
+			"allowed only": {"filesystem:\n  allowed:\n    - /work\n", sandboxdomain.Allow("/work"), defaults.Denied},
+		} {
+			path := filepath.Join(t.TempDir(), SandboxFileName)
+			require.NoError(t, os.WriteFile(path, []byte(tt.body), 0o644))
+			cfg, err := LoadSandbox(path)
+			require.NoError(t, err, name)
+			require.Equal(t, tt.wantAllowed, cfg.Filesystem.Allowed, name)
+			require.Equal(t, tt.wantDenied, cfg.Filesystem.Denied, name)
+		}
+	})
+
 	t.Run("entries are strings or maps", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), SandboxFileName)
 		body := "---\nfilesystem:\n  allowed:\n    - .\n    - path: vendor/\n      access: read\n  denied:\n    - \"*.env\"\n    - path: deploy/\n      on_violation: approval\n"
@@ -47,8 +67,8 @@ func TestLoadSandbox(t *testing.T) {
 		require.NoError(t, SaveSandbox(path, DefaultSandboxConfig()))
 		raw, err := os.ReadFile(path)
 		require.NoError(t, err)
-		require.Contains(t, string(raw), "filesystem:\n  allowed:\n    - ~/.infer/tmp\n    - path: .infer/\n      access: read\n    - .\n    - /tmp\n    - /private/tmp\n")
-		require.Contains(t, string(raw), "  denied:\n    - .git/\n")
+		require.Contains(t, string(raw), "filesystem:\n  allowed:\n    - .\n    - /tmp\n")
+		require.Contains(t, string(raw), "  denied:\n    - path: .infer/\n      on_violation: approval\n    - .git/\n")
 		got, err := LoadSandbox(path)
 		require.NoError(t, err)
 		require.Equal(t, DefaultSandboxConfig(), got)

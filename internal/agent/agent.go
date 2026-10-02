@@ -1193,9 +1193,10 @@ func (s *Agent) executeToolInternal(
 			break
 		}
 		lastGrant = grant
-		sandboxdomain.Granted.Add(grant)
-		logger.Info("sandbox extended by user approval", "path", grant.Path, "access", grant.Access, "tool", tc.Function.Name, "persisted", always)
-		if always {
+		sandbox.Granted.Add(grant)
+		persist := always && denial.Rule == ""
+		logger.Info("sandbox extended by user approval", "path", grant.Path, "access", grant.Access, "tool", tc.Function.Name, "persisted", persist)
+		if persist {
 			if err := sandboxinfra.PersistGrant(grant); err != nil {
 				logger.Error("failed to persist sandbox grant", "path", grant.Path, "error", err)
 			}

@@ -96,7 +96,7 @@ func (v *DefaultPathValidator) IsWritable(path string) bool {
 	return true
 }
 
-// IsInSandbox checks if a path is within configured sandbox directories
+// IsInSandbox reports whether the sandbox lets a tool read path.
 func (v *DefaultPathValidator) IsInSandbox(path string) bool {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
