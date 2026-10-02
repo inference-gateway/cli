@@ -143,7 +143,9 @@ runtime-generated files.
 
 A running `infer chat` picks the change up when you type `/reload`. Keys it cannot apply mid-session are
 named in the status line and take effect on the next start (see the
-[shortcuts guide](shortcuts-guide.md#core-shortcuts)).
+[shortcuts guide](shortcuts-guide.md#core-shortcuts)). In chat, `/config <request>` (e.g.
+`/config set the gateway timeout to 300`) runs this command for you after you confirm - see the
+built-in [`config` skill](skills.md#built-in-skills).
 
 **Examples:**
 

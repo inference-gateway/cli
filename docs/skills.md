@@ -160,6 +160,12 @@ skill you authored there yourself. Current built-ins:
   the change does, rehearses it unrecorded, records one take and converts it
   to a single GIF in `~/.infer/artifacts`. Recordings never enter the
   repository.
+- **`config`** - turn `/config <request>` (e.g. `/config set the gateway
+  timeout to 300`) into a confirmed `infer config set`: it finds the dotted
+  key, shows `key: old -> new`, writes only after your approval, and leaves
+  `/reload` to apply it to the running chat. It refuses tool, sandbox, MCP,
+  channel, plugin, hook and judge policy and secrets, and names the file to
+  edit by hand instead.
 
 Because they are ordinary user-scope skills, you customise them with the same
 knobs as any other skill - there is no special "built-in" mode:
