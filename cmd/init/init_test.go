@@ -63,7 +63,7 @@ func TestInitializeProject(t *testing.T) {
 
 	require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
 
-	for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml", "sandbox.yaml"} {
+	for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml", "sandbox.yaml", "tools.yaml"} {
 		require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
 	}
 	require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))

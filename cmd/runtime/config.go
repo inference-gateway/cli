@@ -45,6 +45,9 @@ func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string)
 			tag = strings.ToLower(fieldType.Name)
 		}
 		tag = strings.SplitN(tag, ",", 2)[0]
+		if tag == "-" {
+			continue
+		}
 
 		var key string
 		if keyPrefix == "" {
@@ -171,6 +174,15 @@ func applySidecarEnv(cfg any, prefix string) {
 	v.AllowEmptyEnv(true)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	resolveViperEnvironmentVariables(v, cfg, prefix)
+}
+
+// applyBashAllowAppends adds the commands of --tools-bash-allow-append (or
+// INFER_TOOLS_BASH_ALLOW_APPEND) to the mode.all allow-list, after tools.yaml
+// and the INFER_TOOLS_* overrides are in place.
+func applyBashAllowAppends(tools *config.ToolsConfig, root *cobra.Command) {
+	if override := resolveFlagEnvOverride(root, "tools-bash-allow-append", "INFER_TOOLS_BASH_ALLOW_APPEND"); override != "" {
+		tools.Bash.Mode.All.Allow = append(tools.Bash.Mode.All.Allow, parseDelimitedList(override)...)
+	}
 }
 
 // resolveRemindersConfig resolves the reminders configuration, layering the
@@ -310,6 +322,18 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	}
 	cfg.Judge = *judgeCfg
 	applySidecarEnv(&cfg.Judge, "judge")
+
+	toolsPath, err := config.UserToolsPath()
+	if err != nil {
+		return nil, err
+	}
+	toolsCfg, err := config.LoadTools(toolsPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading tools config %s: %w", toolsPath, err)
+	}
+	cfg.Tools = *toolsCfg
+	applySidecarEnv(&cfg.Tools, "tools")
+	applyBashAllowAppends(&cfg.Tools, root)
 
 	sandboxCfg, err := loadSandboxConfig()
 	if err != nil {

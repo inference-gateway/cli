@@ -50,6 +50,7 @@ func TestPointerOptionsHonourEnvOverrides(t *testing.T) {
 
 			cfg := config.DefaultConfig()
 			resolveViperEnvironmentVariables(newEnvViper(), cfg, "")
+			applySidecarEnv(&cfg.Tools, "tools")
 
 			got := tt.read(cfg)
 			if got == nil {
@@ -121,9 +122,6 @@ func TestPointerOptionsStayNilWithoutEnv(t *testing.T) {
 // environment precedence chain.
 func TestPointerOptionPrecedence(t *testing.T) {
 	const yaml = `
-tools:
-  write:
-    require_approval: true
 text_to_speech:
   enabled: true
   require_approval: false
@@ -166,11 +164,12 @@ text_to_speech:
 				t.Fatalf("reading config: %v", err)
 			}
 
-			cfg := &config.Config{}
+			cfg := config.DefaultConfig()
 			if err := v.Unmarshal(cfg); err != nil {
 				t.Fatalf("unmarshal: %v", err)
 			}
 			resolveViperEnvironmentVariables(v, cfg, "")
+			applySidecarEnv(&cfg.Tools, "tools")
 
 			if got := cfg.TextToSpeech.RequireApproval; got == nil || *got != tt.wantTTS {
 				t.Errorf("text_to_speech.require_approval = %v, want %v", deref(got), tt.wantTTS)

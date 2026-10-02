@@ -215,6 +215,7 @@ Read file content from the filesystem with optional line range specification.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   read:
     enabled: true
@@ -255,6 +256,7 @@ Existing files are always overwritten - there is no `overwrite` option; use the 
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   write:
     enabled: true
@@ -297,6 +299,7 @@ Perform exact string replacements in files with security validation and preview 
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   edit:
     enabled: true
@@ -389,6 +392,7 @@ Delete files or directories from the filesystem with security controls. Supports
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   delete:
     enabled: true
@@ -452,6 +456,7 @@ A powerful search tool with configurable backend (ripgrep or Go implementation).
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   grep:
     enabled: true
@@ -472,6 +477,7 @@ headless agent mode.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   bash:
     enabled: true
@@ -562,6 +568,7 @@ Search the web using DuckDuckGo or Google search engines to find information.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   web_search:
     enabled: true
@@ -582,6 +589,7 @@ Fetch content from allowed URLs or GitHub references using the format `example.c
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   web_fetch:
     enabled: true
@@ -647,6 +655,7 @@ the `/model` selector; they are only reachable through this tool.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   image_generation:
     enabled: true
@@ -674,6 +683,7 @@ independent of the model selected for the chat session.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   image_edit:
     enabled: true
@@ -696,6 +706,7 @@ prompt, no tools, independent of the model selected for the chat session.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   image_variation:
     enabled: true
@@ -851,9 +862,14 @@ See [text-to-video](text-to-video.md#createavatar-tool).
 **Configuration:**
 
 ```yaml
+# ~/.infer/config.yaml
 text_to_video:
   enabled: true
   create_avatar: true
+```
+
+```yaml
+# ~/.infer/tools.yaml
 tools:
   image_edit:
     enabled: true              # needed to generate angles
@@ -1039,6 +1055,7 @@ Create and manage structured task lists for LLM-assisted development workflows.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   todo_write:
     enabled: true
@@ -1199,6 +1216,7 @@ for that decision.
 **Configuration:**
 
 ```yaml
+# ~/.infer/tools.yaml
 tools:
   schedule:
     enabled: false              # disabled by default

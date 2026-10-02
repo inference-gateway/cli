@@ -45,7 +45,7 @@ type Config struct {
 	TextToVideo      TextToVideoConfig      `yaml:"text_to_video" mapstructure:"text_to_video"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
-	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
+	Tools            ToolsConfig            `yaml:"-" mapstructure:"-"`
 	Image            ImageConfig            `yaml:"image" mapstructure:"image"`
 	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
@@ -374,7 +374,10 @@ type ClipboardImageOptimizeConfig struct {
 	ConvertJPEG bool `yaml:"convert_jpeg" mapstructure:"convert_jpeg"`
 }
 
-// ToolsConfig contains tool execution settings
+// ToolsConfig contains tool execution settings: the per-tool enabled flags,
+// the approval overrides and the per-mode bash allow-list. It lives in the
+// userspace tools.yaml alone, with no project copy, so a checked-out
+// repository cannot lower the approval bar of whoever opens it.
 type ToolsConfig struct {
 	Enabled         bool                      `yaml:"enabled" mapstructure:"enabled"`
 	Sandbox         SandboxConfig             `yaml:"-" mapstructure:"-"`
@@ -1141,135 +1144,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			InsightsMinLevel: "warn",
 		},
-		Tools: ToolsConfig{
-			Enabled:        true,
-			MaxResultBytes: 250000,
-			Sandbox:        *DefaultSandboxConfig(),
-			Bash: BashToolConfig{
-				Enabled: true,
-				Timeout: 120,
-				Mode: BashModesConfig{
-					All: BashModeAllowConfig{Allow: []string{
-						`echo( .*)?`, `ls( .*)?`, `pwd( .*)?`, `tree( .*)?`,
-						`wc( .*)?`, `sort( .*)?`, `uniq( .*)?`, `head( .*)?`, `tail( .*)?`,
-						`find( .*)?`, `sleep( .*)?`,
-						`mkdir( .*)?`, `ln -s( [^ -][^ ]*)+`,
-						`git status( .*)?`,
-						`git branch( --show-current)?( -[alrvd])?`,
-						`git log( .*)?`, `git diff( .*)?`, `git remote( -v)?`, `git show( .*)?`,
-						`gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?`,
-						`gh auth status( .*)?`,
-						`gh search (issues|code|prs|repos|commits)( .*)?`,
-						`gh project (list|view|item-list|field-list)( .*)?`,
-						`gh api repos/[^ ]+/contents/[^ ]+`,
-						`gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?`,
-						`infer binaries status( .*)?`,
-					}},
-					Plan:     BashModeAllowConfig{Allow: []string{}},
-					Standard: BashModeAllowConfig{Allow: []string{}},
-					Auto:     BashModeAllowConfig{Allow: []string{`.*`}},
-				},
-				BackgroundShells: BackgroundShellsConfig{
-					Enabled:            true,
-					MaxConcurrent:      5,
-					RetentionMinutes:   60,
-					CompletedRetention: 5,
-				},
-			},
-			Read: ReadToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
-			Write: WriteToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{true}[0],
-			},
-			Edit: EditToolConfig{
-				Enabled:          true,
-				RequireApproval:  &[]bool{true}[0],
-				StrictWhitespace: false,
-			},
-			MultiEdit: MultiEditToolConfig{
-				RequireApproval: &[]bool{true}[0],
-			},
-			Delete: DeleteToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{true}[0],
-			},
-			Grep: GrepToolConfig{
-				Enabled:         true,
-				Backend:         "auto",
-				RequireApproval: &[]bool{false}[0],
-			},
-			Tree: TreeToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
-			WebFetch: WebFetchToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com", "patch-diff.githubusercontent.com", "agents.md"},
-				Safety: FetchSafetyConfig{
-					MaxSize: 10485760,
-					Timeout: 30,
-				},
-				Cache: FetchCacheConfig{
-					Enabled: true,
-					TTL:     3600,
-					MaxSize: 52428800,
-				},
-			},
-			WebSearch: WebSearchToolConfig{
-				Enabled:       true,
-				DefaultEngine: "duckduckgo",
-				MaxResults:    10,
-				Engines:       []string{"duckduckgo", "google"},
-				Timeout:       10,
-			},
-			TodoWrite: TodoWriteToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
-			Schedule: ScheduleToolConfig{
-				Enabled:         false,
-				RequireApproval: &[]bool{true}[0],
-				MaxJobs:         100,
-			},
-			AskUserQuestion: AskUserQuestionToolConfig{
-				Enabled: true,
-			},
-			Wait: WaitToolConfig{
-				Enabled:               true,
-				MaxTimeoutSeconds:     600,
-				CommandPollIntervalMs: 2000,
-			},
-			ImageGeneration: ImageGenerationToolConfig{
-				Enabled: true,
-				Model:   "openai/gpt-image-2",
-			},
-			ImageEdit: ImageEditToolConfig{
-				Enabled: true,
-				Model:   "openai/gpt-image-2",
-			},
-			ImageVariation: ImageVariationToolConfig{
-				Enabled: true,
-				Model:   "openai/gpt-image-2",
-			},
-			Agent: AgentToolConfig{
-				Enabled:            true,
-				RequireApproval:    &[]bool{true}[0],
-				Mode:               scheddomain.SubagentModeHeadless,
-				MaxParallel:        10,
-				MaxDepth:           1,
-				InheritMock:        true,
-				IdleTimeout:        300,
-				CompletedRetention: 5,
-			},
-			Safety: SafetyConfig{
-				RequireApproval:   true,
-				ApprovalBehaviour: ApprovalBehaviourPrompt,
-			},
-		},
+		Tools: *DefaultToolsConfig(),
 		Image: ImageConfig{
 			MaxSize: 5242880,
 			Timeout: 30,
