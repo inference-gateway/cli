@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -382,7 +383,7 @@ func runNonInteractiveChat(cfg *config.Config) error {
 
 	defaultModel := cfg.Agent.Model
 
-	if defaultModel == "" || !contains(models, defaultModel) {
+	if defaultModel == "" || !slices.Contains(models, defaultModel) {
 		if defaultModel != "" {
 			fmt.Fprintf(os.Stderr, "Model %s not available, using: %s\n", defaultModel, models[0])
 		} else {
@@ -430,16 +431,6 @@ func runNonInteractiveChat(cfg *config.Config) error {
 	}
 
 	return render.RenderText(events, os.Stdout)
-}
-
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 // programNotifier is the single agentdomain.UINotifier backed by a real Bubble Tea
