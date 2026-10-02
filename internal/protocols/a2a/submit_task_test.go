@@ -12,6 +12,8 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	adkmocks "github.com/inference-gateway/cli/tests/mocks/adk"
+
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
@@ -87,6 +89,47 @@ func TestSubmitTaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "task_description parameter is required")
+}
+
+func TestSubmitTaskTool_Execute_RequestsImmediateReturn(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Task: config.A2ATaskConfig{
+				StatusPollSeconds: 1,
+			},
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
+					Enabled: true,
+				},
+			},
+		},
+	}
+
+	submittedTask := adk.Task{
+		ID:        "task-1",
+		ContextID: ptrString("context-1"),
+		Status:    adk.TaskStatus{State: adk.TaskStateWorking},
+	}
+
+	mockClient := &adkmocks.FakeA2AClient{}
+	mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: submittedTask}, nil)
+
+	tool := NewSubmitTaskToolWithClient(cfg, nil, nil, nil, mockClient)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"agent_url":        "http://test-agent",
+		"task_description": "Long running task",
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, result.Success, result.Error)
+
+	require.Equal(t, 1, mockClient.SendTaskCallCount())
+	_, sendRequest := mockClient.SendTaskArgsForCall(0)
+	require.NotNil(t, sendRequest.Configuration, "the request must carry a send configuration")
+	require.NotNil(t, sendRequest.Configuration.ReturnImmediately, "unset means false, so a compliant agent holds the connection open until the task reaches a terminal or interrupted state")
+	assert.True(t, *sendRequest.Configuration.ReturnImmediately, "A2A_SubmitTask returns after the task is created and the background poller takes over")
 }
 
 func TestSubmitTaskTool_Validate(t *testing.T) {

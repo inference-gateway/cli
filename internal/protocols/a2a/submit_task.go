@@ -187,10 +187,12 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 		existingTaskID = ""
 	}
 
+	returnImmediately := true
 	sendRequest := adk.SendMessageRequest{
 		Message: message,
 		Configuration: &adk.SendMessageConfiguration{
 			AcceptedOutputModes: []string{"text"},
+			ReturnImmediately:   &returnImmediately,
 		},
 	}
 
