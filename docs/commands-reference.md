@@ -26,9 +26,10 @@ directory. This creates:
 
 - `.infer/` under `~/.infer/` with:
   - `config.yaml` - Main configuration file (the shared baseline)
-  - `prompts.yaml`, `keybindings.yaml`, `channels.yaml`, `heartbeat.yaml`, `judge.yaml`,
-    `hooks.yaml`, `reminders.yaml`, `memory.yaml`, `computer_use.yaml`, `browser_use.yaml`,
-    `agents.yaml`, `mcp.yaml`, `shortcuts/`, `skills/` - the split config files and directories
+  - `prompts.yaml`, `keybindings.yaml`, `sandbox.yaml`, `channels.yaml`, `heartbeat.yaml`,
+    `judge.yaml`, `hooks.yaml`, `reminders.yaml`, `memory.yaml`, `computer_use.yaml`,
+    `browser_use.yaml`, `agents.yaml`, `mcp.yaml`, `shortcuts/`, `skills/` - the split config
+    files and directories
 - `.env.example` template for provider API keys is written by `infer env`,
   not by init.
 
@@ -277,8 +278,8 @@ and validate the configuration.
 **Examples:**
 
 ```bash
-infer keybindings set cycle_agent_mode ctrl+m
-infer keybindings set send_message ctrl+enter enter
+infer keybindings set mode_cycle_agent_mode ctrl+m
+infer keybindings set chat_enter_key_handler ctrl+enter enter
 infer keybindings list --project
 ```
 
@@ -524,8 +525,8 @@ to the model verbatim:
 - Commands that answer by themselves (`/help`, `/context`, `/cost`, `/stats`, `/traces`,
   `/clear`, `/new`, `/compact`, custom shortcuts) print their output and exit without
   calling a model.
-- Commands that only open a TUI panel (`/diff`, `/explorer`, `/tools`, `/conversations`)
-  say so and exit 0.
+- Commands that only open a TUI panel (`/diff`, `/explorer`, `/tools`, `/conversations`,
+  `/agents`, `/tasks`, `/theme`) say so and exit 0.
 - Anything else keeping a leading slash - a skill invocation like `/maintainer`, a file
   path - is passed to the model unchanged.
 
@@ -881,7 +882,9 @@ Diagnostic commands that surface internal agent state.
 
 **Subcommands:**
 
-- `agent system_prompt`: Print the prompt context a chat session would send to the LLM
+- `agent system_prompt`: Print the prompt context a chat session would send to the LLM. Pass
+  `--tokens` to print per-section size stats (characters, lines, estimated tokens) instead of the
+  prompt.
 
 **Examples:**
 

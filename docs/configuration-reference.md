@@ -365,8 +365,8 @@ telemetry:
   has:
   - **enabled**: Enable/disable the specific tool
   - **require_approval**: Override global safety setting for this tool (optional)
-- **tools.multiedit.require_approval**: Approval override for MultiEdit, which shares Edit's matcher
-  (default: `true`). MultiEdit carries no `enabled` key. Env: `INFER_TOOLS_MULTIEDIT_REQUIRE_APPROVAL`.
+- **tools.multi_edit.require_approval**: Approval override for MultiEdit, which shares Edit's matcher
+  (default: `true`). MultiEdit carries no `enabled` key. Env: `INFER_TOOLS_MULTI_EDIT_REQUIRE_APPROVAL`.
 - **tools.ask_user_question.enabled**: Enable/disable AskUserQuestion (default: `true`). The tool is read-only,
   so it carries no `require_approval` key. Env: `INFER_TOOLS_ASK_USER_QUESTION_ENABLED`.
 - **tools.schedule**: Enable/disable the Schedule tool (default: `false`), plus `require_approval` (default: `true`)
@@ -1115,7 +1115,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 
 **Tool Approval Configuration:**
 
-- `INFER_TOOLS_BASH_REQUIRE_APPROVAL`: Require approval for Bash tool (default: unset)
+- `INFER_TOOLS_BASH_REQUIRE_APPROVAL` (and `tools.bash.require_approval`): has no effect - Bash approval follows the per-mode allow-list, see [Bash Tool](tools-reference.md#bash-tool).
 - `INFER_TOOLS_WRITE_REQUIRE_APPROVAL`: Require approval for Write tool (default: `true`)
 - `INFER_TOOLS_EDIT_REQUIRE_APPROVAL`: Require approval for Edit tool (default: `true`)
 - `INFER_TOOLS_DELETE_REQUIRE_APPROVAL`: Require approval for Delete tool (default:

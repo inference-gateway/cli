@@ -17,7 +17,10 @@ staged="$(git diff --cached --name-only)"
 
 task mod:tidy
 
-if printf '%s\n' "$staged" | grep -qE '^internal/(agent/(application|domain|states)|channels|conversation/domain|platform/(memory|storage)|presentation/(shortcuts|tui)|scheduler/domain)/'; then
+mock_sources="$(sed -n '/^  mocks:generate:/,/^  [a-z]/p' Taskfile.yml \
+  | grep -oE 'internal/[A-Za-z0-9_/]+' | sed 's|/$||' | sort -u | paste -sd'|' -)"
+
+if printf '%s\n' "$staged" | grep -qE "^(${mock_sources})/"; then
   task mocks:generate
 fi
 

@@ -49,8 +49,8 @@ func NewCommand(state *runtime.State) *cobra.Command {
 			Long: `Set custom keybinding(s) for a specific action. You can specify multiple keys separated by spaces.
 
 Example:
-  infer keybindings set cycle_agent_mode ctrl+m
-  infer keybindings set send_message ctrl+enter enter`,
+  infer keybindings set mode_cycle_agent_mode ctrl+m
+  infer keybindings set chat_enter_key_handler ctrl+enter enter`,
 			Args: cobra.MinimumNArgs(2),
 			RunE: setKeybinding,
 		},
