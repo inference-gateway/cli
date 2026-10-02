@@ -10,7 +10,7 @@ description: >
   agents, wiring the CLI's A2A tools, or answering "how does A2A do X". The
   source of truth is the schema in inference-gateway/schemas - reference it,
   never hand-copy it, and always pin the spec version you target (v0.3.0,
-  the schemas v1.0 draft, and released v1.0.x differ in breaking ways).
+  the draft v1.0 schema, and released v1.0.x differ in breaking ways).
 license: Apache-2.0
 ---
 
@@ -47,33 +47,34 @@ A2A's latest released spec is **v1.0.1** (a text-only patch over v1.0.0:
 HTTP+JSON SHOULD use `Content-Type: application/a2a+json`, and error-to-HTTP-status
 mapping follows `google.rpc.Code`; prior lines: 0.3.0, 0.2.x, 0.1.0). **v0.3.0 →
 v1.0 is breaking.** Much online guidance still describes v0.x, and this ecosystem
-sits *between* the two, so *always know which shape you're looking at*:
+mixes the two, so *always know which shape you're looking at*:
 
 | Aspect | v0.x shape | v1.0 shape (released, `package lf.a2a.v1`) |
 | --- | --- | --- |
 | Task states | kebab: `submitted`, `input-required`, `canceled` | ProtoJSON `SCREAMING_SNAKE`: `TASK_STATE_SUBMITTED`, `TASK_STATE_CANCELED` |
-| JSON-RPC methods | slash names: `message/send`, `tasks/get` | PascalCase = gRPC: `SendMessage`, `GetTask` |
+| JSON-RPC methods | slash names: `message/send`, `tasks/get` | PascalCase: `SendMessage`, `GetTask` |
 | Transport advertising | `url` + `preferredTransport` + `additionalInterfaces` | one `supportedInterfaces[]` array (first entry preferred) |
 | Part content | separate `TextPart` / `FilePart` / `DataPart` | one unified `Part` (a `oneof`) |
 | Error codes | `-32001`…`-32007` | adds `-32008`, `-32009`; `-32007` renamed |
 
-**The `schemas` proto is a pre-release v1.0 draft**, not released v1.0.x: it is
-`package a2a.v1`, spells `TASK_STATE_CANCELLED` (double L), keeps a top-level
-`AgentCard.protocol_version`, and names push-config RPCs `Set…`/`List…Config`.
-**The CLI runtime (ADK v0.28) is a hybrid:** its types are generated from that
-draft (`TASK_STATE_*` states, unified `Part`, `supportedInterfaces` alongside the
-deprecated `url`/`preferredTransport`), but its JSON-RPC methods are still v0.x
-slash names (`message/send`, `tasks/get`). Remote agents may report either state
-casing - the CLI maps both through `NormalizeTaskState`
+**The `schemas` proto now tracks upstream v1.0.1.** It is `package lf.a2a.v1`,
+spells `TASK_STATE_CANCELED` (single L), moves `protocol_version` onto each
+`AgentInterface` (required, field 4), and names the push-config RPCs
+`Create…`/`List…Configs`. **The CLI runtime (ADK v0.30) carries those v1.0.1
+types** (`TASK_STATE_*` states, the unified `Part`, `securityRequirements`, and
+`supportedInterfaces` with the deprecated `url`/`preferredTransport` gone), but
+its JSON-RPC methods are still v0.x slash names (`message/send`, `tasks/get`).
+That rename was deliberately left open as a separate decision. Remote agents may
+report either state casing - the CLI maps both through `NormalizeTaskState`
 (`internal/protocols/a2a/domain/tasks.go`).
 
 > **Do not mix shapes.** Pick a target version, read *that* version's schema, and
 > use its field/method names. The well-known path also moved with versions:
 > pre-v0.3.0 used `/.well-known/agent.json`; **v0.3.0+ uses
 > `/.well-known/agent-card.json`** (RFC 8615). Where `protocolVersion` lives
-> depends on the shape: a top-level `AgentCard` field in the `schemas` draft and
-> ADK, but `AgentInterface.protocol_version` (required, per interface) in released
-> v1.0.x - trust the schema you're compiling against.
+> depends on the shape: a top-level `AgentCard` field in v0.x, but
+> `AgentInterface.protocol_version` (required, per interface) in the `schemas`
+> proto, ADK and released v1.0.x - trust the schema you're compiling against.
 
 ## Mental model
 
@@ -159,7 +160,7 @@ A send returns **either** a `Message` (immediate, self-contained reply) **or** a
 Guidance: one Task per unit of work; reuse `contextId` to relate turns; put
 results in `artifacts` and a human-readable summary in `status.message`. (Casing
 is version-dependent - see the version map; normalize `canceled`,
-`TASK_STATE_CANCELED`, and the draft's `TASK_STATE_CANCELLED`.)
+`TASK_STATE_CANCELED`, and the older `TASK_STATE_CANCELLED`.)
 
 ## Messaging & content
 
