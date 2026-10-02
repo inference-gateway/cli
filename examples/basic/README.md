@@ -45,87 +45,91 @@ gateway:
   timeout: 30
 logging:
   debug: false
-tools:
-  enabled: true
-  bash:
-    enabled: true
-    timeout: 120
-    mode:
-      all:
-        allow:
-          - echo( .*)?
-          - ls( .*)?
-          - pwd( .*)?
-          - tree( .*)?
-          - wc( .*)?
-          - sort( .*)?
-          - uniq( .*)?
-          - head( .*)?
-          - tail( .*)?
-          - task( .*)?
-          - make( .*)?
-          - find( .*)?
-          - git status( .*)?
-          - git branch( --show-current)?( -[alrvd])?
-          - git log( .*)?
-          - git diff( .*)?
-          - git remote( -v)?
-          - git show( .*)?
-          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
-          - gh auth status( .*)?
-          - gh search (issues|code|prs|repos|commits)( .*)?
-      plan:
-        allow: []
-      standard:
-        # opt-in: standard is baseline-only by default; these add GitHub writes
-        # (issue/pr create + project writes) so they run without per-action approval.
-        allow:
-          - gh issue (create|edit|comment)( .*)?
-          - gh pr create( .*)?
-          - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
-      auto:
-        allow:
-          - .*
-    background_shells:
-      enabled: true
-      max_concurrent: 5
-      retention_minutes: 60
-  read:
-    enabled: true
-    require_approval: false
-  file_search:
-    enabled: true
-    require_approval: false
-  tree:
-    enabled: true
-    require_approval: false
-  web_fetch:
-    enabled: true
-    allowed_domains:
-      - golang.org
-    safety:
-      max_size: 8192
-      timeout: 30
-    cache:
-      enabled: true
-      ttl: 3600
-      max_size: 52428800
-  web_search:
-    enabled: true
-    default_engine: duckduckgo
-    max_results: 10
-    engines:
-      - duckduckgo
-      - google
-    timeout: 10
-  safety:
-    require_approval: true
 compact:
 agent:
   model: ""
   system_prompt: ""
 chat:
   theme: tokyo-night
+```
+
+The tools policy goes in `~/.infer/tools.yaml`, with its keys at the root of the file:
+
+```yaml
+enabled: true
+bash:
+  enabled: true
+  timeout: 120
+  mode:
+    all:
+      allow:
+        - echo( .*)?
+        - ls( .*)?
+        - pwd( .*)?
+        - tree( .*)?
+        - wc( .*)?
+        - sort( .*)?
+        - uniq( .*)?
+        - head( .*)?
+        - tail( .*)?
+        - task( .*)?
+        - make( .*)?
+        - find( .*)?
+        - git status( .*)?
+        - git branch( --show-current)?( -[alrvd])?
+        - git log( .*)?
+        - git diff( .*)?
+        - git remote( -v)?
+        - git show( .*)?
+        - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+        - gh auth status( .*)?
+        - gh search (issues|code|prs|repos|commits)( .*)?
+    plan:
+      allow: []
+    standard:
+      # opt-in: standard is baseline-only by default; these add GitHub writes
+      # (issue/pr create + project writes) so they run without per-action approval.
+      allow:
+        - gh issue (create|edit|comment)( .*)?
+        - gh pr create( .*)?
+        - gh project (item-add|item-edit|item-list|field-list|view|list)( .*)?
+    auto:
+      allow:
+        - .*
+  background_shells:
+    enabled: true
+    max_concurrent: 5
+    retention_minutes: 60
+read:
+  enabled: true
+  require_approval: false
+file_search:
+  enabled: true
+  require_approval: false
+tree:
+  enabled: true
+  require_approval: false
+web_fetch:
+  enabled: true
+  allowed_domains:
+    - golang.org
+  safety:
+    max_size: 8192
+    timeout: 30
+  cache:
+    enabled: true
+    ttl: 3600
+    max_size: 52428800
+web_search:
+  enabled: true
+  default_engine: duckduckgo
+  max_results: 10
+  engines:
+    - duckduckgo
+    - google
+  timeout: 10
+safety:
+  require_approval: true
 ```
 
 ## Basic Usage Examples
@@ -169,9 +173,9 @@ infer config get agent.model
 ### Tool Management
 
 ```bash
-# Enable/disable tool execution (config get/set on tools.* keys)
-infer config set tools.enabled true
-infer config set tools.enabled false
+# The tools policy lives in ~/.infer/tools.yaml. Edit it directly,
+# since infer config set rejects tools.* keys.
+"${EDITOR:-vi}" ~/.infer/tools.yaml
 
 # Inspect tool configuration and status
 infer config get tools
@@ -186,14 +190,11 @@ infer tools execute Tree '{"path":"."}'
 infer tools execute Read '{"file_path":"README.md"}'
 infer tools execute WebSearch '{"query":"golang tutorial"}'
 
-# Manage safety settings
-infer config set tools.safety.require_approval true    # Require approval for all tools
-infer config set tools.safety.require_approval false   # Execute immediately
-infer config get tools.safety                          # Show current settings
+# Show the current safety settings (safety.require_approval in tools.yaml)
+infer config get tools.safety
 
-# Tool-specific safety settings
-infer config set tools.bash.require_approval true
-infer config set tools.web_search.require_approval false
+# Override one setting for a single run
+INFER_TOOLS_WEB_SEARCH_ENABLED=false infer headless "Summarize README.md"
 
 # The sandbox policy lives in ~/.infer/sandbox.yaml
 cat ~/.infer/sandbox.yaml

@@ -250,12 +250,13 @@ change things, and list `plan`/`readonly` in `modes` only for tools that do not.
   `~/.infer/tools/`, `tools.custom_dir`, `.infer/tools/` or `.agents/tools/`, also through a symlink or another spelling
   of the path, so the model cannot write itself a tool that skips approval. This cannot be switched off. The Bash tool
   is not covered: in `auto` mode it runs any command.
-- **A project's `.infer/config.yaml` is trusted like your own.** It can set `tools.custom_dir`, the Bash allow-list and
-  the approval settings, so review it before running infer in a repository you do not trust.
+- **A project cannot change the tools policy.** `tools.custom_dir`, the Bash allow-list and the approval settings live in
+  `~/.infer/tools.yaml`, which has no project copy, and a `tools:` block in a project `.infer/config.yaml` has no effect.
+  The project tool directories above still load, behind approval.
 
 ## Using Another Directory
 
-Set `tools.custom_dir` in `config.yaml`, or the `INFER_TOOLS_CUSTOM_DIR` environment variable, to load your user tools
+Set `custom_dir` in `~/.infer/tools.yaml`, or the `INFER_TOOLS_CUSTOM_DIR` environment variable, to load your user tools
 from another directory instead of `~/.infer/tools/`. The project directories still load:
 
 ```bash

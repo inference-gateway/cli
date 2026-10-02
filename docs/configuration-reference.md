@@ -116,111 +116,6 @@ logging:
     enabled: true # Automatically archive oversized log files (default: true)
     max_size_mb: 1024 # Threshold in MB; files exceeding this are gzip-compressed and truncated (default: 1024 = 1 GB)
   insights_min_level: warn # Lowest level `infer insights` folds into its report (debug|info|warn|error|dpanic|panic|fatal)
-tools:  # moved: this section lives in ~/.infer/tools.yaml, not here
-  # The block below is kept for reference only; infer ignores a `tools:` block in config.yaml.
-  enabled: true # Tools are enabled by default with safe read-only commands
-  bash:
-    enabled: true
-    # Per-mode allow-list (default-deny). The effective list for a mode is
-    # mode.all.allow unioned with that mode's own list. Each entry is a regex
-    # matched against the WHOLE command (so " .*" allows arguments and a bare
-    # token matches only itself). A clean-command guard still blocks command
-    # substitution, pipes/chains, file-write redirects, dangerous find, and
-    # leaking a $VAR - except in a mode whose list is the ".*" sentinel.
-    mode:
-      all: # baseline applied in every mode (read-only / non-mutating)
-        allow:
-          - echo( .*)?
-          - ls( .*)?
-          - pwd( .*)?
-          - tree( .*)?
-          - wc( .*)?
-          - sort( .*)?
-          - uniq( .*)?
-          - head( .*)?
-          - tail( .*)?
-          - find( .*)?
-          - sleep( .*)?
-          - mkdir( .*)?
-          - ln -s( [^ -][^ ]*)+
-          - git status( .*)?
-          - git branch( --show-current)?( -[alrvd])?
-          - git log( .*)?
-          - git diff( .*)?
-          - git remote( -v)?
-          - git show( .*)?
-          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
-          - gh auth status( .*)?
-          - gh search (issues|code|prs|repos|commits)( .*)?
-          - gh project (list|view|item-list|field-list)( .*)?
-          - gh api repos/[^ ]+/contents/[^ ]+
-          - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
-          - infer binaries status( .*)?
-      plan: # read-only planning mode adds nothing
-        allow: []
-      standard: # interactive default: baseline only (same as plan)
-        allow: []
-      auto: # headless `infer headless`: full autonomy (commit/push/etc.). Replace
-        # ".*" with a curated list for CI with secrets so the guard re-applies.
-        allow:
-          - .*
-  read:
-    enabled: true
-    require_approval: false
-  write:
-    enabled: true
-    require_approval: true # Write operations require approval by default for security
-  edit:
-    enabled: true
-    require_approval: true # Edit operations require approval by default for security
-    strict_whitespace: false # When true, disable the indentation-tolerant fallback (byte-exact matching only)
-  delete:
-    enabled: true
-    require_approval: true # Delete operations require approval by default for security
-  grep:
-    enabled: true
-    backend: auto # "auto", "ripgrep", or "go"
-    require_approval: false
-  tree:
-    enabled: true
-    require_approval: false
-  web_fetch:
-    enabled: true
-    allowed_domains:
-      - golang.org
-      - localhost
-      - github.com
-      - raw.githubusercontent.com
-      - patch-diff.githubusercontent.com
-      - agents.md
-    safety:
-      max_size: 10485760 # 10MB
-      timeout: 30 # 30 seconds
-    cache:
-      enabled: true
-      ttl: 3600 # 1 hour
-      max_size: 52428800 # 50MB
-  web_search:
-    enabled: true
-    default_engine: duckduckgo
-    max_results: 10
-    engines:
-      - duckduckgo
-      - google
-    timeout: 10
-  todo_write:
-    enabled: true
-    require_approval: false
-  image_generation:
-    enabled: true
-    model: openai/gpt-image-2 # Image model for one-off /v1/images/generations requests
-    require_approval: false
-  safety:
-    require_approval: true
-    # How an action that needs approval is delivered: prompt (TUI in chat, IPC
-    # under the channel manager, else blocked), ipc (force IPC), judge (LLM
-    # judge decides, see judge.yaml), or block (reject).
-    approval_behaviour: prompt
 agent:
   model: "" # Default model for agent operations
   # System prompts and custom instructions live in prompts.yaml (prompts.agent.*), not in config.yaml
@@ -336,6 +231,115 @@ telemetry:
 
 The tools policy lives in `~/.infer/tools.yaml`, not in `config.yaml`. `infer config get tools.*`
 still prints the effective value, but `infer config set tools.*` fails - edit `tools.yaml` directly.
+The keys sit at the root of `tools.yaml`, with no `tools:` key around them. The `tools.` prefix below is the
+dotted name `infer config get` and the `INFER_TOOLS_*` environment variables use. Defaults:
+
+```yaml
+# ~/.infer/tools.yaml
+enabled: true # Tools are enabled by default with safe read-only commands
+bash:
+  enabled: true
+  # Per-mode allow-list (default-deny). The effective list for a mode is
+  # mode.all.allow unioned with that mode's own list. Each entry is a regex
+  # matched against the WHOLE command (so " .*" allows arguments and a bare
+  # token matches only itself). A clean-command guard still blocks command
+  # substitution, pipes/chains, file-write redirects, dangerous find, and
+  # leaking a $VAR - except in a mode whose list is the ".*" sentinel.
+  mode:
+    all: # baseline applied in every mode (read-only / non-mutating)
+      allow:
+        - echo( .*)?
+        - ls( .*)?
+        - pwd( .*)?
+        - tree( .*)?
+        - wc( .*)?
+        - sort( .*)?
+        - uniq( .*)?
+        - head( .*)?
+        - tail( .*)?
+        - find( .*)?
+        - sleep( .*)?
+        - mkdir( .*)?
+        - ln -s( [^ -][^ ]*)+
+        - git status( .*)?
+        - git branch( --show-current)?( -[alrvd])?
+        - git log( .*)?
+        - git diff( .*)?
+        - git remote( -v)?
+        - git show( .*)?
+        - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+        - gh auth status( .*)?
+        - gh search (issues|code|prs|repos|commits)( .*)?
+        - gh project (list|view|item-list|field-list)( .*)?
+        - gh api repos/[^ ]+/contents/[^ ]+
+        - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
+        - infer binaries status( .*)?
+    plan: # read-only planning mode adds nothing
+      allow: []
+    standard: # interactive default: baseline only (same as plan)
+      allow: []
+    auto: # headless `infer headless`: full autonomy (commit/push/etc.). Replace
+      # ".*" with a curated list for CI with secrets so the guard re-applies.
+      allow:
+        - .*
+read:
+  enabled: true
+  require_approval: false
+write:
+  enabled: true
+  require_approval: true # Write operations require approval by default for security
+edit:
+  enabled: true
+  require_approval: true # Edit operations require approval by default for security
+  strict_whitespace: false # When true, disable the indentation-tolerant fallback (byte-exact matching only)
+delete:
+  enabled: true
+  require_approval: true # Delete operations require approval by default for security
+grep:
+  enabled: true
+  backend: auto # "auto", "ripgrep", or "go"
+  require_approval: false
+tree:
+  enabled: true
+  require_approval: false
+web_fetch:
+  enabled: true
+  allowed_domains:
+    - golang.org
+    - localhost
+    - github.com
+    - raw.githubusercontent.com
+    - patch-diff.githubusercontent.com
+    - agents.md
+  safety:
+    max_size: 10485760 # 10MB
+    timeout: 30 # 30 seconds
+  cache:
+    enabled: true
+    ttl: 3600 # 1 hour
+    max_size: 52428800 # 50MB
+web_search:
+  enabled: true
+  default_engine: duckduckgo
+  max_results: 10
+  engines:
+    - duckduckgo
+    - google
+  timeout: 10
+todo_write:
+  enabled: true
+  require_approval: false
+image_generation:
+  enabled: true
+  model: openai/gpt-image-2 # Image model for one-off /v1/images/generations requests
+  require_approval: false
+safety:
+  require_approval: true
+  # How an action that needs approval is delivered: prompt (TUI in chat, IPC
+  # under the channel manager, else blocked), ipc (force IPC), judge (LLM
+  # judge decides, see judge.yaml), or block (reject).
+  approval_behaviour: prompt
+```
 
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.max_result_bytes**: Byte cap on a single tool result before it is truncated for the model (default: `250000`).
@@ -1232,19 +1236,18 @@ rewriting config or relaxing a mode to `.*`:
 **Example (`~/.infer/tools.yaml`):**
 
 ```yaml
-tools:
-  bash:
-    mode:
-      all:
-        allow:
-          - gh (issue|pr) (list|view)( .*)?
-          - git status( .*)?
-      standard: # opt-in: baseline-only by default; add writes here to skip approval
-        allow:
-          - gh pr create( .*)?
-      auto: # headless `infer headless`: full autonomy (commit, push, etc.)
-        allow:
-          - .*
+bash:
+  mode:
+    all:
+      allow:
+        - gh (issue|pr) (list|view)( .*)?
+        - git status( .*)?
+    standard: # opt-in: baseline-only by default; add writes here to skip approval
+      allow:
+        - gh pr create( .*)?
+    auto: # headless `infer headless`: full autonomy (commit, push, etc.)
+      allow:
+        - .*
 ```
 
 **Grep Tool Configuration:**

@@ -143,8 +143,7 @@ project wants to override a config file it commits its own sparse
 - **`tools.yaml`** - the tool approval policy: per-tool `enabled` flags,
   `require_approval` overrides, `safety` and the per-mode bash allow-list.
   Userspace only, a project copy is ignored, and the agent's file tools cannot
-  write this file. A legacy `tools:` block in `config.yaml` is auto-migrated
-  here on first init.
+  write this file. A `tools:` block in `config.yaml` has no effect.
 - **`channels.yaml`** - remote messaging transports (Telegram, ...) and
   per-channel allowlists. See [Channels](channels.md). On first init, a
   legacy `channels:` block in `config.yaml` is auto-migrated here.
