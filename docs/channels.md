@@ -87,9 +87,10 @@ Key features:
 
 ### 3. Configure the CLI
 
-Channel settings live in their own file at `.infer/channels.yaml` (separate
-from the main `config.yaml` so bot tokens stay out of the agent's reach -
-the file is in the `sandbox.yaml` `filesystem.denied` list by default). `infer init`
+Channel settings live in their own file at `.infer/channels.yaml`, separate
+from the main `config.yaml` so bot tokens stay out of the agent's reach: the
+default `.infer/` denied entry makes the agent ask before reading or writing
+it, and a grant inside a config directory is never persisted. `infer init`
 seeds it from the in-code defaults; edit it like so:
 
 ```yaml
@@ -154,8 +155,9 @@ Open Telegram, message your bot, and the agent will respond.
 Channel settings live in their own file:
 
 - **`.infer/channels.yaml`** - all channel settings (Telegram, WhatsApp,
-  max workers, approval flag). Holds bot tokens, so it's listed in
-  the `sandbox.yaml` `filesystem.denied` list and the agent cannot read or rewrite it.
+  max workers, approval flag). Holds bot tokens, so the default `.infer/`
+  denied entry makes the agent ask before reading or writing it, and a grant
+  inside a config directory is never persisted.
 - **`.infer/config.yaml`** - agent settings (model, max turns, etc.).
   Any legacy `channels:` block here is **ignored** at runtime; only
   `channels.yaml` is read. Run `infer init` to migrate an existing block:

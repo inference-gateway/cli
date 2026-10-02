@@ -90,9 +90,12 @@ for the full precedence rules.
 │   ├── sfx/              # generated sound-effect MP3s (text_to_sfx.output_dir default)
 │   ├── video/            # generated video MP4s (text_to_video.output_dir default)
 │   ├── voice/            # retained inbound voice recordings (speech_to_text.recordings_dir default)
-│   └── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
+│   ├── media/            # retained inbound Telegram media (channels.telegram.media.dir default)
+│   └── recordings/       # screen recordings (computer_use.recording.output_dir default)
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
+├── artifacts/            # GitHub artifact poller downloads (see infer daemon)
+├── models/               # whisper/ and tts/ speech models
 └── projects/             # per-project runtime state, grouped by project
     └── <project-slug>/
         ├── conversations/  # JSONL conversation stores (type: jsonl)
@@ -256,6 +259,11 @@ the project-local `.infer/`.
 - **`~/.infer/avatars/`** *(userspace)* - the avatar library: one folder per avatar
   holding one or more portrait images, managed with `infer avatars create|list|delete` and
   kept by `/reset`. See [Text to Video](text-to-video.md#avatar-library).
+- **`~/.infer/artifacts/`** *(userspace)* - GitHub artifact downloads fetched by
+  `infer daemon`'s artifact poller.
+- **`~/.infer/models/`** *(userspace)* - speech models downloaded on first use:
+  `whisper/` for speech-to-text and `tts/` for text-to-speech. See
+  [Speech to Text](speech-to-text.md) and [Text to Speech](text-to-speech.md).
 - **`~/.infer/tmp/voice/`** *(userspace)* - retained inbound voice/audio
   recordings, the default of `speech_to_text.recordings_dir` when
   `retain_recordings` is greater than 0. See [Speech to

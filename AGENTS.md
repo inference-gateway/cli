@@ -20,11 +20,11 @@ task mocks:generate     # counterfeiter fakes → tests/mocks/
 task precommit:run      # .githooks/pre-commit: mod:tidy → mocks → fmt → lint
 ```
 
-Single test: `go test ./internal/agent -run TestBashTool`. **Run `task precommit:run` before every push** — it's the CI gate, and it aborts if `task fmt` reformats your staged files (re-`git add` and retry).
+Single test: `go test ./internal/tools -run TestBashTool`. **Run `task precommit:run` before every push** — it's the CI gate, and it aborts if `task fmt` reformats your staged files (re-`git add` and retry).
 
 ## Architecture
 
-The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure. `protocols/agui` is general purpose: a writer for the events of one run and a WebSocket binding with both of its ends. It names no client and no context, and its only internal import is the logger. Everything else imports it: `presentation/headless` maps agent chat events onto a run and owns the panel units the serve worker answers with, `browser` owns the extension relay and client on top of the binding, and `computer` returns the CUSTOM events it publishes. `cmd/daemon` hosts the binding and puts the browser relay and `sessions`, the thread registry that supervises one `headless --serve` worker per thread, behind it.
+The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure. A few contexts keep neither: `tools` and `protocols/agui` have no `domain/`, and `conversation` has no `infrastructure/`. `protocols/agui` is general purpose: a writer for the events of one run and a WebSocket binding with both of its ends. It names no client and no context, and its only internal import is the logger. Everything else imports it: `presentation/headless` maps agent chat events onto a run and owns the panel units the serve worker answers with, `browser` owns the extension relay and client on top of the binding, and `computer` returns the CUSTOM events it publishes. `cmd/daemon` hosts the binding and puts the browser relay and `sessions`, the thread registry that supervises one `headless --serve` worker per thread, behind it.
 
 Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `sandbox`, `scheduler`, `sessions`, `tools`, `protocols/{a2a,mcp,agui}`. Capabilities, which have no `domain/`: `audio`, `channels`, `github`, `plugins`, `skills`. `avatars`, `daemon`, `gateway`, `insights` and `provisioner` are single-package support code.
 
@@ -32,7 +32,7 @@ Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `sandbox`,
 
 Repo-wide invariants:
 
-- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure, and only `cmd/` may import `internal/container`.
+- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the agent context back (the `agent/domain` shared kernel excepted). `domain/` packages stay pure (the depguard rule covers the single-level `<context>/domain/` packages, the nested `protocols/*/domain` packages follow the same rule by convention), and only `cmd/` may import `internal/container`.
 - `internal/tools/registry.go` is the source of truth for registered tools. Read `internal/tools/AGENTS.md` before touching a tool manifest, a tool name or the registry.
 
 ## Package AGENTS files
@@ -70,7 +70,7 @@ Repo-wide invariants:
 - Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`; forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
 - Project custom tools (`.infer/tools/`, `.agents/tools/`) always need approval outside auto mode, whatever their manifest says.
 - Never commit secrets; credentials live in `.env` (never committed).
-- `infer init --overwrite` wipes `.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) — restore with `git checkout -- .infer/agents.yaml` afterwards.
+- `infer init --overwrite` wipes `~/.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) in the userspace config dir. None of them is ever in the repository.
 
 ## Config
 

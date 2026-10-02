@@ -251,7 +251,7 @@ agents:
     run: true
     model: ${AGENT_PROVIDER}/${AGENT_MODEL}
     environment:
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_LEVEL: ${LOG_LEVEL}
       API_ENDPOINT: https://api.example.com/v${API_VERSION}
       COMBINED: prefix-${VAR1}-${VAR2}-suffix
 ```

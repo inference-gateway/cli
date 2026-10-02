@@ -478,9 +478,32 @@ tools:
     mode:
       all:        # baseline applied in EVERY mode (read-only / non-mutating)
         allow:
+          - echo( .*)?
           - ls( .*)?
+          - pwd( .*)?
+          - tree( .*)?
+          - wc( .*)?
+          - sort( .*)?
+          - uniq( .*)?
+          - head( .*)?
+          - tail( .*)?
+          - find( .*)?
+          - sleep( .*)?
+          - mkdir( .*)?
+          - ln -s( [^ -][^ ]*)+
           - git status( .*)?
-          - gh (issue|pr) (list|view)( .*)?
+          - git branch( --show-current)?( -[alrvd])?
+          - git log( .*)?
+          - git diff( .*)?
+          - git remote( -v)?
+          - git show( .*)?
+          - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
+          - gh auth status( .*)?
+          - gh search (issues|code|prs|repos|commits)( .*)?
+          - gh project (list|view|item-list|field-list)( .*)?
+          - gh api repos/[^ ]+/contents/[^ ]+
+          - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
+          - infer binaries status( .*)?
       plan:       # read-only planning mode adds nothing
         allow: []
       standard:   # interactive default: baseline only (same as plan)
