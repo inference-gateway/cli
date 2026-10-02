@@ -38,7 +38,7 @@ func ValidateWrite(cfg *config.Config, path string) error {
 func AllowedDirectories(cfg *config.Config) []string {
 	var dirs []string
 	for _, entry := range cfg.Tools.Sandbox.Filesystem.Allowed {
-		if isAnchored(entry.Path) {
+		if IsAnchored(entry.Path) {
 			dirs = append(dirs, anchoredPath(entry.Path))
 		}
 	}
@@ -168,7 +168,7 @@ func isWithinConfigDirs(cfg *config.Config, path string) bool {
 // matched the way denied patterns always were: dir/ at any depth, *glob on the
 // base name, or an exact name or suffix.
 func matches(rulePath, path, absPath string) bool {
-	if isAnchored(rulePath) {
+	if IsAnchored(rulePath) {
 		return isWithinDir(absPath, anchoredPath(rulePath))
 	}
 	return matchesPattern(rulePath, path)
@@ -181,7 +181,7 @@ func anchoredPath(rulePath string) string {
 	return rulePath
 }
 
-func isAnchored(rulePath string) bool {
+func IsAnchored(rulePath string) bool {
 	return filepath.IsAbs(rulePath) || rulePath == "." || rulePath == ".." ||
 		strings.HasPrefix(rulePath, "./") || strings.HasPrefix(rulePath, "../") ||
 		rulePath == "~" || strings.HasPrefix(rulePath, "~/")

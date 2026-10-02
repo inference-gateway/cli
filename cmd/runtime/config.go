@@ -13,6 +13,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
@@ -310,6 +311,9 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	cfg.Judge = *judgeCfg
 	applySidecarEnv(&cfg.Judge, "judge")
 
+	if v.IsSet("tools.sandbox") {
+		logger.Warn("config.yaml tools.sandbox is ignored, the sandbox policy lives in the userspace sandbox.yaml")
+	}
 	cfg.Tools.Sandbox = *loadSandboxConfig()
 
 	channelsPath := sidecarPath(config.ChannelsFileName)
@@ -531,7 +535,7 @@ func sameConfigFile(a, b string) bool {
 // loadSandboxConfig reads the userspace sandbox.yaml. A project copy is
 // never consulted, so a repository cannot widen the sandbox of whoever opens
 // it. INFER_TOOLS_SANDBOX_DIRECTORIES, the list the desktop hands a worker,
-// adds allowed directories.
+// adds allowed directories, with bare relative entries anchored to the cwd.
 func loadSandboxConfig() *config.SandboxConfig {
 	path, err := config.UserSandboxPath()
 	if err != nil {
@@ -544,6 +548,11 @@ func loadSandboxConfig() *config.SandboxConfig {
 		sandboxCfg = config.DefaultSandboxConfig()
 	}
 	if extra := parseDelimitedList(os.Getenv("INFER_TOOLS_SANDBOX_DIRECTORIES")); len(extra) > 0 {
+		for i, dir := range extra {
+			if !sandbox.IsAnchored(dir) {
+				extra[i] = "./" + dir
+			}
+		}
 		sandboxCfg.Filesystem.Allowed = append(sandboxCfg.Filesystem.Allowed, sandboxdomain.Allow(extra...)...)
 	}
 	return sandboxCfg

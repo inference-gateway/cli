@@ -135,6 +135,19 @@ func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
 	}
 }
 
+// A bare relative env entry must anchor to the working directory the way the
+// old tools.sandbox.directories did, not become an any-depth name pattern.
+func TestSandboxDirectoriesRelativeEntryAnchorsToCwd(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "build")
+
+	initConfig()
+
+	want := append(config.DefaultSandboxConfig().Filesystem.Allowed, sandboxdomain.Allowed{Path: "./build", Access: sandboxdomain.AccessWrite})
+	assert.Equal(t, want, Cfg.Tools.Sandbox.Filesystem.Allowed)
+}
+
 // bashAllowAppendEnv / bashAllowAppendFlag are the override knobs reintroduced so
 // CI (and infer-action) can add a few commands to the allow-list baseline without
 // rewriting tools.bash.mode.all.allow or shipping ".*".

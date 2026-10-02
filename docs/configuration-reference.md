@@ -1257,6 +1257,7 @@ tools:
 **Sandbox Configuration:**
 
 - `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated directories added to `filesystem.allowed` in `sandbox.yaml`.
+  Bare relative entries are anchored to the working directory.
 
 ### Storage Configuration
 
