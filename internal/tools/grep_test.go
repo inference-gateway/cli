@@ -57,7 +57,7 @@ func TestGrepTool_Definition(t *testing.T) {
 			}
 
 			for _, phrase := range tt.expectedPhrases {
-				if !contains(*def.Function.Description, phrase) {
+				if !strings.Contains(*def.Function.Description, phrase) {
 					t.Errorf("Expected description to contain '%s'", phrase)
 				}
 			}
@@ -170,7 +170,7 @@ func TestGrepTool_NestedGitignoreSupport(t *testing.T) {
 			for _, expectedFile := range tt.expectedFiles {
 				found := false
 				for _, file := range grepResult.Files {
-					if contains(file, expectedFile) {
+					if strings.Contains(file, expectedFile) {
 						found = true
 						break
 					}
@@ -182,7 +182,7 @@ func TestGrepTool_NestedGitignoreSupport(t *testing.T) {
 
 			for _, excludedFile := range tt.shouldExclude {
 				for _, file := range grepResult.Files {
-					if contains(file, excludedFile) {
+					if strings.Contains(file, excludedFile) {
 						t.Errorf("Expected file containing '%s' to be excluded, but it was found in results. All files: %v", excludedFile, grepResult.Files)
 					}
 				}
@@ -273,7 +273,7 @@ func validateGrepTestResult(t *testing.T, err error, expectError bool, errorMsg 
 			t.Errorf("Expected error containing '%s', got nil", errorMsg)
 			return
 		}
-		if !contains(err.Error(), errorMsg) {
+		if !strings.Contains(err.Error(), errorMsg) {
 			t.Errorf("Expected error containing '%s', got '%s'", errorMsg, err.Error())
 		}
 		return
@@ -459,7 +459,7 @@ func TestGrepTool_ValidateDisabled(t *testing.T) {
 		t.Error("Expected error when grep tool is disabled")
 	}
 
-	if !contains(err.Error(), "grep tool is not enabled") {
+	if !strings.Contains(err.Error(), "grep tool is not enabled") {
 		t.Errorf("Expected error about tool being disabled, got: %v", err)
 	}
 }
@@ -489,7 +489,7 @@ func TestGrepTool_Execute(t *testing.T) {
 			t.Error("Expected result.Success to be false")
 		}
 
-		if !contains(result.Error, "pattern parameter is required") {
+		if !strings.Contains(result.Error, "pattern parameter is required") {
 			t.Errorf("Expected error about missing pattern, got: %s", result.Error)
 		}
 	})
@@ -512,7 +512,7 @@ func TestGrepTool_Execute(t *testing.T) {
 			t.Error("Expected error when tool is disabled")
 		}
 
-		if !contains(err.Error(), "grep tool is not enabled") {
+		if !strings.Contains(err.Error(), "grep tool is not enabled") {
 			t.Errorf("Expected error about tool being disabled, got: %v", err)
 		}
 	})
@@ -1080,16 +1080,6 @@ func BenchmarkGrepTool_MemoryAllocs(b *testing.B) {
 	}
 }
 
-// Helper function to check if string contains substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			(len(s) > len(substr) &&
-				(s[:len(substr)] == substr ||
-					s[len(s)-len(substr):] == substr ||
-					strings.Contains(s, substr))))
-}
-
 func TestGrepTool_RipgrepErrors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -1131,7 +1121,7 @@ func TestGrepTool_RipgrepErrors(t *testing.T) {
 			if result.Success != tt.wantSuccess {
 				t.Fatalf("Success = %v, want %v (error: %q)", result.Success, tt.wantSuccess, result.Error)
 			}
-			if !contains(result.Error, tt.wantError) {
+			if !strings.Contains(result.Error, tt.wantError) {
 				t.Errorf("Error = %q, want it to contain %q", result.Error, tt.wantError)
 			}
 		})
