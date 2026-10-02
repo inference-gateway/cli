@@ -181,8 +181,8 @@ if cfg.YourService.Enabled {
 Tools from another context are built by that context (e.g. `computer.NewTools`) and handed to the
 registry by the container via `RegisterTools`.
 
-Then update `internal/loop/testdata/tool_definitions.golden.json` with
-`go test ./internal/loop -run TestToolDefinitionsGolden -update` and review the diff.
+Then update `internal/agent/loop/testdata/tool_definitions.golden.json` with
+`go test ./internal/agent/loop -run TestToolDefinitionsGolden -update` and review the diff.
 
 #### 4. Add Configuration (if needed)
 

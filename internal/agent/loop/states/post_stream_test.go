@@ -7,7 +7,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	states "github.com/inference-gateway/cli/internal/loop/states"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 // TestPostStreamState_Handle covers the routing after a completed stream:

@@ -5,7 +5,7 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
-	states "github.com/inference-gateway/cli/internal/loop/states"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 // TestIdleState_Handle drives the Idle executor through its three paths: a

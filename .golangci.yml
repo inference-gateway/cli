@@ -55,8 +55,8 @@ linters:
             - "**/internal/tools/**"
             - "!$test"
           deny:
-            - pkg: github.com/inference-gateway/cli/internal/loop
-              desc: "the loop consumes the tools context, never the other way round"
+            - pkg: github.com/inference-gateway/cli/internal/agent/loop
+              desc: "the loop consumes the tools context, never the other way round, and agent/domain stays the shared kernel"
         container-is-the-root:
           list-mode: lax
           files:

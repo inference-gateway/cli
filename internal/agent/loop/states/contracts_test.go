@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	states "github.com/inference-gateway/cli/internal/loop/states"
 )
 
 func TestAnyToolFailed(t *testing.T) {

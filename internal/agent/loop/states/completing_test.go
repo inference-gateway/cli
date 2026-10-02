@@ -6,7 +6,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	states "github.com/inference-gateway/cli/internal/loop/states"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 // TestCompletingState_IgnoresNonCompletionEvents verifies that the Completing

@@ -14,8 +14,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	states "github.com/inference-gateway/cli/internal/loop/states"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 

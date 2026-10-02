@@ -13,8 +13,8 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	states "github.com/inference-gateway/cli/internal/loop/states"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"

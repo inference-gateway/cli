@@ -5,7 +5,7 @@ import (
 
 	assert "github.com/stretchr/testify/assert"
 
-	states "github.com/inference-gateway/cli/internal/loop/states"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 // TestTerminalStates_IgnoreAllEvents verifies the three terminal states

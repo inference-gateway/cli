@@ -16,10 +16,10 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentloop "github.com/inference-gateway/cli/internal/agent/loop"
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	loop "github.com/inference-gateway/cli/internal/loop"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -164,7 +164,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	repo := serviceContainer.GetConversationRepository()
 
 	if jsonOut && !approved {
-		policy := loop.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateStore(), toolService)
+		policy := agentloop.NewStandardApprovalPolicy(cfg, serviceContainer.GetStateStore(), toolService)
 		call := &sdk.ChatCompletionMessageToolCall{Type: sdk.Function, Function: toolCall}
 		if policy.ShouldRequireApproval(context.Background(), call, true) {
 			return printJSON(execResult{ApprovalRequired: true})

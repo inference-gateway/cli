@@ -10,7 +10,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	states "github.com/inference-gateway/cli/internal/loop/states"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 func requireAllApproval(*sdk.ChatCompletionMessageToolCall, bool) bool { return true }

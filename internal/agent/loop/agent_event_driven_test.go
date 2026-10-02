@@ -15,8 +15,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	states "github.com/inference-gateway/cli/internal/loop/states"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 

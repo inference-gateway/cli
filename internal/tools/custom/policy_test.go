@@ -12,7 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	loop "github.com/inference-gateway/cli/internal/loop"
+	agentloop "github.com/inference-gateway/cli/internal/agent/loop"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
@@ -24,7 +24,7 @@ func (m fixedMode) CycleAgentMode() agentdomain.AgentMode { return agentdomain.A
 
 // newToolService registers Echo (default modes, inherited approval) and Peek
 // (offered in plan, never needs approval) next to the built-in tools.
-func newToolService(t *testing.T, requireApproval bool) (*config.Config, *loop.LLMToolService) {
+func newToolService(t *testing.T, requireApproval bool) (*config.Config, *agentloop.LLMToolService) {
 	t.Helper()
 	dir := t.TempDir()
 	peek := strings.Replace(echoManifest, "name: Echo", "name: Peek", 1) +
@@ -41,7 +41,7 @@ func newToolService(t *testing.T, requireApproval bool) (*config.Config, *loop.L
 	}}
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
-	return cfg, loop.NewLLMToolServiceWithRegistry(cfg, registry)
+	return cfg, agentloop.NewLLMToolServiceWithRegistry(cfg, registry)
 }
 
 func TestCustomTools_ModesGateListingAndExecution(t *testing.T) {
@@ -82,7 +82,7 @@ func TestCustomTools_RequireApproval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg, service := newToolService(t, tt.globalApproval)
-			policy := loop.NewStandardApprovalPolicy(cfg, fixedMode(agentdomain.AgentModeStandard), service)
+			policy := agentloop.NewStandardApprovalPolicy(cfg, fixedMode(agentdomain.AgentModeStandard), service)
 			call := &sdk.ChatCompletionMessageToolCall{Function: sdk.ChatCompletionMessageToolCallFunction{Name: tt.tool, Arguments: `{"text":"hi"}`}}
 			if got := policy.ShouldRequireApproval(context.Background(), call, true); got != tt.wantApprovalReq {
 				t.Errorf("ShouldRequireApproval(%s) = %v, want %v", tt.tool, got, tt.wantApprovalReq)
@@ -104,7 +104,7 @@ func TestCustomTools_ProjectToolsAlwaysNeedApproval(t *testing.T) {
 	}}
 	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
-	service := loop.NewLLMToolServiceWithRegistry(cfg, registry)
+	service := agentloop.NewLLMToolServiceWithRegistry(cfg, registry)
 
 	for mode, want := range map[agentdomain.AgentMode]bool{
 		agentdomain.AgentModeStandard:   true,
@@ -112,7 +112,7 @@ func TestCustomTools_ProjectToolsAlwaysNeedApproval(t *testing.T) {
 		agentdomain.AgentModePlan:       true,
 		agentdomain.AgentModeAutoAccept: false,
 	} {
-		policy := loop.NewStandardApprovalPolicy(cfg, fixedMode(mode), service)
+		policy := agentloop.NewStandardApprovalPolicy(cfg, fixedMode(mode), service)
 		call := &sdk.ChatCompletionMessageToolCall{Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Peek", Arguments: `{"text":"hi"}`}}
 		if got := policy.ShouldRequireApproval(context.Background(), call, true); got != want {
 			t.Errorf("%s mode: ShouldRequireApproval = %v, want %v despite require_approval: false", mode.ModeKey(), got, want)

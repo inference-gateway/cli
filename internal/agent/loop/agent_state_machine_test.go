@@ -9,7 +9,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
-	states "github.com/inference-gateway/cli/internal/loop/states"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
 // TestStateMachineInitialization tests that the state machine initializes to Idle state
