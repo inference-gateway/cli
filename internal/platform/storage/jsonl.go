@@ -17,7 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	project "github.com/inference-gateway/cli/internal/platform/project"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -400,7 +400,7 @@ func (s *JsonlStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	allSummaries, err := s.ListConversations(ctx, project.Path(), 0, 0)
+	allSummaries, err := s.ListConversations(ctx, projects.Path(), 0, 0)
 	if err != nil {
 		return nil, err
 	}
