@@ -1242,7 +1242,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			WebFetch: WebFetchToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
-				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com", "agents.md"},
+				AllowedDomains:  []string{"golang.org", "localhost", "github.com", "raw.githubusercontent.com", "patch-diff.githubusercontent.com", "agents.md"},
 				Safety: FetchSafetyConfig{
 					MaxSize: 10485760,
 					Timeout: 30,
