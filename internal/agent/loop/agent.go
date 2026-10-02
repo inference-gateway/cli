@@ -644,7 +644,7 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 
 		conversation = s.optimizeConversation(sessionCtx, req, conversation, eventPublisher)
 
-		agent := NewEventDrivenAgent(
+		agent := newEventDrivenAgent(
 			s,
 			s.config.GetAgentConfig(),
 			sessionCtx,
@@ -802,7 +802,7 @@ func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRe
 	return conversation
 }
 
-type IndexedToolResult struct {
+type indexedToolResult struct {
 	Index  int
 	Result convdomain.ConversationEntry
 }
@@ -832,7 +832,7 @@ func (s *Agent) executeToolCallsParallel(
 
 	results := make([]convdomain.ConversationEntry, len(toolCalls))
 
-	resultsChan := make(chan IndexedToolResult, len(toolCalls))
+	resultsChan := make(chan indexedToolResult, len(toolCalls))
 	semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
 	panicked := make(chan any, 1)
 
@@ -873,7 +873,7 @@ func (s *Agent) executeToolCallsParallel(
 
 			result := s.executeTool(ctx, *toolCall, eventPublisher)
 
-			resultsChan <- IndexedToolResult{
+			resultsChan <- indexedToolResult{
 				Index:  index,
 				Result: result,
 			}

@@ -57,8 +57,8 @@ func createTestContext(mocks *testMocks) *states.AgentContext {
 	}
 }
 
-// createTestAgent creates an EventDrivenAgent with test mocks
-func createTestAgent(mocks *testMocks, ctx *states.AgentContext) *EventDrivenAgent {
+// createTestAgent creates an eventDrivenAgent with test mocks
+func createTestAgent(mocks *testMocks, ctx *states.AgentContext) *eventDrivenAgent {
 	service := &Agent{
 		messageQueue:     mocks.queue,
 		conversationRepo: mocks.repo,
@@ -71,7 +71,7 @@ func createTestAgent(mocks *testMocks, ctx *states.AgentContext) *EventDrivenAge
 		chatEvents: make(chan agentdomain.ChatEvent, 100),
 	}
 
-	agent := &EventDrivenAgent{
+	agent := &eventDrivenAgent{
 		service:          service,
 		cfg:              config.DefaultConfig().GetAgentConfig(),
 		stateMachine:     mocks.stateMachine,
@@ -138,7 +138,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 		name        string
 		setupCtx    func(*states.AgentContext)
 		setupMocks  func(*testMocks)
-		verifyMocks func(*testing.T, *testMocks, *EventDrivenAgent)
+		verifyMocks func(*testing.T, *testMocks, *eventDrivenAgent)
 	}{
 		{
 			name: "has_tool_results_transitions_to_streaming",
@@ -150,7 +150,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 				m.queue.IsEmptyReturns(true)
 				m.stateMachine.TransitionReturns(nil)
 			},
-			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
+			verifyMocks: func(t *testing.T, m *testMocks, a *eventDrivenAgent) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
 				assert.Equal(t, states.StateStreamingLLM, toState)
@@ -170,7 +170,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 				m.stateMachine.CanTransitionReturns(true)
 				m.stateMachine.TransitionReturns(nil)
 			},
-			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
+			verifyMocks: func(t *testing.T, m *testMocks, a *eventDrivenAgent) {
 				assert.Equal(t, 2, m.stateMachine.CanTransitionCallCount())
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
@@ -191,7 +191,7 @@ func TestHandleCheckingQueueState(t *testing.T) {
 				m.stateMachine.CanTransitionReturns(false)
 				m.stateMachine.TransitionReturns(nil)
 			},
-			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
+			verifyMocks: func(t *testing.T, m *testMocks, a *eventDrivenAgent) {
 				assert.Equal(t, 1, m.stateMachine.TransitionCallCount())
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
 				assert.Equal(t, states.StateStreamingLLM, toState)
@@ -226,7 +226,7 @@ func TestHandleStreamingState(t *testing.T) {
 		name        string
 		event       states.AgentEvent
 		setupMocks  func(*testMocks)
-		verifyMocks func(*testing.T, *testMocks, *EventDrivenAgent)
+		verifyMocks func(*testing.T, *testMocks, *eventDrivenAgent)
 	}{
 		{
 			name: "stream_completed_no_tools",
@@ -242,7 +242,7 @@ func TestHandleStreamingState(t *testing.T) {
 				m.stateMachine.TransitionReturns(nil)
 				m.queue.IsEmptyReturns(true)
 			},
-			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
+			verifyMocks: func(t *testing.T, m *testMocks, a *eventDrivenAgent) {
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
 				assert.Equal(t, states.StatePostStream, toState)
@@ -273,7 +273,7 @@ func TestHandleStreamingState(t *testing.T) {
 			setupMocks: func(m *testMocks) {
 				m.stateMachine.TransitionReturns(nil)
 			},
-			verifyMocks: func(t *testing.T, m *testMocks, a *EventDrivenAgent) {
+			verifyMocks: func(t *testing.T, m *testMocks, a *eventDrivenAgent) {
 				assert.Equal(t, 1, len(a.currentToolCalls))
 				assert.Equal(t, "thinking...", a.currentReasoning)
 			},
@@ -304,13 +304,13 @@ func TestHandleStreamingState(t *testing.T) {
 func TestHandlePostStreamState(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupAgent  func(*EventDrivenAgent, *states.AgentContext)
+		setupAgent  func(*eventDrivenAgent, *states.AgentContext)
 		setupMocks  func(*testMocks)
 		verifyMocks func(*testing.T, *testMocks)
 	}{
 		{
 			name: "queue_not_empty",
-			setupAgent: func(a *EventDrivenAgent, ctx *states.AgentContext) {
+			setupAgent: func(a *eventDrivenAgent, ctx *states.AgentContext) {
 				a.currentMessage = sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("test"),
@@ -330,7 +330,7 @@ func TestHandlePostStreamState(t *testing.T) {
 		},
 		{
 			name: "no_tools_cannot_complete",
-			setupAgent: func(a *EventDrivenAgent, ctx *states.AgentContext) {
+			setupAgent: func(a *eventDrivenAgent, ctx *states.AgentContext) {
 				a.currentMessage = sdk.Message{
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("partial"),

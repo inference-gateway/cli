@@ -20,8 +20,8 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
-// startStreaming implements the LLM streaming logic for the EventDrivenAgent
-func (a *EventDrivenAgent) startStreaming() {
+// startStreaming implements the LLM streaming logic for the eventDrivenAgent
+func (a *eventDrivenAgent) startStreaming() {
 	defer a.recoverPanic()
 	iterationStartTime := time.Now()
 
@@ -103,7 +103,7 @@ func (a *EventDrivenAgent) startStreaming() {
 // transport error) so the caller reconnects. Opening the stream is not
 // retried here: the SDK client retries connection errors itself and reports
 // the real cause, which ends the turn.
-func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
+func (a *eventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time.Time) bool {
 	a.finishReason = ""
 	requestCtx, gotChunk, requestCancel := withFirstChunkDeadline(a.agentCtx.Ctx, time.Duration(a.service.timeoutSeconds)*time.Second)
 	defer requestCancel()
@@ -137,7 +137,7 @@ func (a *EventDrivenAgent) streamOnce(client sdk.Client, iterationStartTime time
 }
 
 // firstChunkTimeout names the setting to raise when no chunk arrived in time.
-func (a *EventDrivenAgent) firstChunkTimeout() error {
+func (a *eventDrivenAgent) firstChunkTimeout() error {
 	return fmt.Errorf("no response within %d seconds (gateway.timeout)", a.service.timeoutSeconds)
 }
 
@@ -164,7 +164,7 @@ func withFirstChunkDeadline(parent context.Context, timeout time.Duration) (ctx 
 // trailing user message would orphan it. Rebuilding is prompt-cache-safe: the
 // tail always trails the newest messages, so it is never part of a reusable
 // token prefix.
-func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
+func (a *eventDrivenAgent) outboundConversation() []sdk.Message {
 	conversation := *a.agentCtx.Conversation
 	if conversationAwaitsToolResults(conversation) {
 		return conversation
@@ -178,7 +178,7 @@ func (a *EventDrivenAgent) outboundConversation() []sdk.Message {
 // recoverPanic converts a panic on an agent goroutine into the terminal
 // stream-error path (ChatErrorEvent + StateError) so headless consumers get an
 // agent_error line instead of a process crash. Deferred at every goroutine root.
-func (a *EventDrivenAgent) recoverPanic() {
+func (a *eventDrivenAgent) recoverPanic() {
 	if r := recover(); r != nil {
 		logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))
 		a.failStream(fmt.Errorf("agent panic: %v", r))
@@ -196,7 +196,7 @@ func rateLimitMessage(provider string, err *sdk.RateLimitError, now time.Time) e
 
 // failStream publishes a terminal stream error and moves the state machine to
 // StateError.
-func (a *EventDrivenAgent) failStream(err error) {
+func (a *eventDrivenAgent) failStream(err error) {
 	a.eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
 		RequestID: a.req.RequestID,
 		Timestamp: time.Now(),
@@ -210,7 +210,7 @@ func (a *EventDrivenAgent) failStream(err error) {
 
 // reconnectBackoff returns the exponential backoff delay before reconnect
 // attempt number attempt+1, derived from the client retry config.
-func (a *EventDrivenAgent) reconnectBackoff(attempt int) time.Duration {
+func (a *eventDrivenAgent) reconnectBackoff(attempt int) time.Duration {
 	retryCfg := a.service.config.Client.Retry
 	delay := time.Duration(retryCfg.InitialBackoffSec) * time.Second
 	if delay <= 0 {
@@ -228,7 +228,7 @@ func (a *EventDrivenAgent) reconnectBackoff(attempt int) time.Duration {
 // processStreamEvents processes streaming events from the LLM. It returns true
 // when the stream broke mid-flight - no events for the configured stall
 // threshold, or a transport read error - so the caller can reconnect.
-func (a *EventDrivenAgent) processStreamEvents(
+func (a *eventDrivenAgent) processStreamEvents(
 	requestCtx context.Context,
 	events <-chan sdk.SSEvent,
 	iterationStartTime time.Time,
@@ -288,7 +288,7 @@ func (a *EventDrivenAgent) processStreamEvents(
 // lose mid-flight output (e.g. a half-written poem when Esc is pressed),
 // then return silently - the main event loop owns the StateCancelled
 // transition via cancelChan.
-func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
+func (a *eventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
 	if cause := context.Cause(requestCtx); errors.Is(cause, context.DeadlineExceeded) {
 		logger.Error("stream timeout", "error", cause)
 		telemetry.SetSpanError(requestCtx, cause)
@@ -314,7 +314,7 @@ func (a *EventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, p
 // preserve it risks malformed arguments. Text content alone is appended to
 // both the in-memory conversation and the repo so the next session sees the
 // interruption point in history.
-func (a *EventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
+func (a *eventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
 	content, err := partial.Content.AsMessageContent0()
 	if err != nil {
 		content = ""
@@ -350,7 +350,7 @@ func (a *EventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
 // return value is true when the event signals a broken transport - the SDK
 // emits an event with a nil Event type and an error payload when the
 // connection drops mid-stream.
-func (a *EventDrivenAgent) processStreamEvent(
+func (a *eventDrivenAgent) processStreamEvent(
 	event sdk.SSEvent,
 	message *sdk.Message,
 	allToolCallDeltas *[]sdk.ChatCompletionMessageToolCallChunk,
@@ -393,7 +393,7 @@ func (a *EventDrivenAgent) processStreamEvent(
 }
 
 // processChoiceDelta processes a single choice delta from the stream response
-func (a *EventDrivenAgent) processChoiceDelta(
+func (a *eventDrivenAgent) processChoiceDelta(
 	choice sdk.ChatCompletionStreamChoice,
 	message *sdk.Message,
 	allToolCallDeltas *[]sdk.ChatCompletionMessageToolCallChunk,
@@ -422,7 +422,7 @@ func (a *EventDrivenAgent) processChoiceDelta(
 }
 
 // accumulateReasoning accumulates reasoning content from the delta into the message
-func (a *EventDrivenAgent) accumulateReasoning(
+func (a *eventDrivenAgent) accumulateReasoning(
 	delta sdk.ChatCompletionStreamResponseDelta,
 	message *sdk.Message,
 ) {
@@ -442,7 +442,7 @@ func (a *EventDrivenAgent) accumulateReasoning(
 }
 
 // accumulateContent accumulates message content from the delta and returns the delta content
-func (a *EventDrivenAgent) accumulateContent(
+func (a *eventDrivenAgent) accumulateContent(
 	delta sdk.ChatCompletionStreamResponseDelta,
 	message *sdk.Message,
 ) string {
@@ -501,7 +501,7 @@ func buildAssistantMessage(
 }
 
 // finalizeStream processes the completed stream and transitions to next state
-func (a *EventDrivenAgent) finalizeStream(
+func (a *eventDrivenAgent) finalizeStream(
 	ctx context.Context,
 	message sdk.Message,
 	allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk,

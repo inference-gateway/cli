@@ -15,8 +15,8 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// EventDrivenAgent manages agent execution using event-driven state machine
-type EventDrivenAgent struct {
+// eventDrivenAgent manages agent execution using event-driven state machine
+type eventDrivenAgent struct {
 	// Core dependencies
 	service        *Agent
 	cfg            *config.AgentConfig
@@ -54,8 +54,8 @@ type EventDrivenAgent struct {
 	toolExecutor func()
 }
 
-// NewEventDrivenAgent creates a new event-driven agent
-func NewEventDrivenAgent(
+// newEventDrivenAgent creates a new event-driven agent
+func newEventDrivenAgent(
 	service *Agent,
 	cfg *config.AgentConfig,
 	ctx context.Context,
@@ -65,8 +65,8 @@ func NewEventDrivenAgent(
 	cancelChan <-chan struct{},
 	provider string,
 	model string,
-) *EventDrivenAgent {
-	stateMachine := NewAgentStateMachine()
+) *eventDrivenAgent {
+	stateMachine := newAgentStateMachine()
 
 	ctx = agentdomain.WithSandboxApprovalAvailable(ctx, req.IsChatMode || req.ApprovalBrokerAttached)
 	ctx = agentdomain.WithUserQuestionsAvailable(ctx, req.IsChatMode || req.UserQuestionBrokerAttached)
@@ -85,7 +85,7 @@ func NewEventDrivenAgent(
 		IsChatMode:       req.IsChatMode,
 	}
 
-	agent := &EventDrivenAgent{
+	agent := &eventDrivenAgent{
 		service:        service,
 		cfg:            cfg,
 		stateMachine:   stateMachine,
@@ -107,7 +107,7 @@ func NewEventDrivenAgent(
 
 // registerStateHandlers creates and registers all state handlers for the event-driven agent.
 // This method is called during agent initialization to set up the state handler registry.
-func (a *EventDrivenAgent) registerStateHandlers() {
+func (a *eventDrivenAgent) registerStateHandlers() {
 	ctx := &states.StateContext{
 		StateMachine:         a.stateMachine,
 		AgentCtx:             a.agentCtx,
@@ -196,14 +196,14 @@ func (a *EventDrivenAgent) registerStateHandlers() {
 }
 
 // registerHandler registers a single state handler
-func (a *EventDrivenAgent) registerHandler(handler states.StateHandler) {
+func (a *eventDrivenAgent) registerHandler(handler states.StateHandler) {
 	a.stateHandlers[handler.Name()] = handler
 }
 
 // Start begins the event-driven agent execution. The state machine already
 // begins in Idle, so seeding a MessageReceivedEvent drives the first transition
 // (Idle -> CheckingQueue) via the Idle state handler.
-func (a *EventDrivenAgent) Start() {
+func (a *eventDrivenAgent) Start() {
 	a.wg.Add(1)
 	go a.processEvents()
 
@@ -211,7 +211,7 @@ func (a *EventDrivenAgent) Start() {
 }
 
 // Wait waits for the agent to complete
-func (a *EventDrivenAgent) Wait() {
+func (a *eventDrivenAgent) Wait() {
 	a.wg.Wait()
 	close(a.events)
 }
@@ -221,7 +221,7 @@ func (a *EventDrivenAgent) Wait() {
 // priority over pending events. Without the probe, Go's select chooses
 // randomly when both channels are ready, so a flurry of in-flight events
 // could mask the cancel signal and force the user to press Esc again.
-func (a *EventDrivenAgent) processEvents() {
+func (a *eventDrivenAgent) processEvents() {
 	defer a.wg.Done()
 	defer a.recoverPanic()
 
@@ -269,7 +269,7 @@ func (a *EventDrivenAgent) processEvents() {
 }
 
 // handleEvent processes a single event based on current state using the state handler registry
-func (a *EventDrivenAgent) handleEvent(event states.AgentEvent) {
+func (a *eventDrivenAgent) handleEvent(event states.AgentEvent) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

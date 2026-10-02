@@ -19,22 +19,12 @@ import (
 // stream event so a chatty command can't emit an unbounded line.
 const hookCommandOutputLimit = 4096
 
-// RunCommandHooks is the single chokepoint both agents use to run command hooks.
-// It asks the provider which commands are attached to hook, gates
-// each on the per-mode bash allow-list - the SAME matcher a model-proposed bash
-// command faces, so command hooks open no new bypass of the secure-by-default
-// model - and runs the allowed ones fire-and-observe. Off-list commands are
-// skipped and reported with the rejection hint (the user authorizes a command by
-// allow-listing it, e.g. tools.bash.mode.*.allow or INFER_TOOLS_BASH_ALLOW_APPEND).
-//
-// Both the event-driven chat agent and the headless `infer headless` loop call this
-// from their dispatchHooks seam so the gate and observability cannot drift apart.
-// cfg supplies the allow-list and the fallback provider; mode selects the
-// per-mode allow-list; sessionID and turn populate the
-// command's stdin JSON context. Commands run synchronously; their output is
-// emitted as a hook_command stream event and logged, never fed back into the
-// conversation or used to alter the loop (that feedback is a later iteration).
-func RunCommandHooks(ctx context.Context, cfg *config.Config, provider agentdomain.HookCommandProvider, mode agentdomain.AgentMode, hook agentdomain.HookPoint, turn int, sessionID string) {
+// runCommandHooks runs the command hooks due at a hook point. Each command is
+// gated on the per-mode bash allow-list, the same matcher a model-proposed
+// command faces, so hooks open no new bypass. Allowed commands run
+// fire-and-observe: their output becomes a hook_command stream event and a log
+// line, never conversation input. Off-list commands are skipped with the hint.
+func runCommandHooks(ctx context.Context, cfg *config.Config, provider agentdomain.HookCommandProvider, mode agentdomain.AgentMode, hook agentdomain.HookPoint, turn int, sessionID string) {
 	if provider == nil {
 		if cfg == nil {
 			return

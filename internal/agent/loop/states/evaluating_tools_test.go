@@ -75,7 +75,7 @@ func TestEvaluatingToolsState_ApprovalRouting(t *testing.T) {
 // TestEvaluatingToolsState_NoApprovalSpawnsExecutor verifies a batch with no
 // gated tools transitions to ExecutingTools and launches the tool executor on
 // a background goroutine (which owns the WaitGroup.Done, mirroring
-// EventDrivenAgent.executeTools).
+// eventDrivenAgent.executeTools).
 func TestEvaluatingToolsState_NoApprovalSpawnsExecutor(t *testing.T) {
 	f := newStateFixture()
 	hooks := f.recordHooks()

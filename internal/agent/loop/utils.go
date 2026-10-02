@@ -1134,7 +1134,7 @@ func (s *Agent) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.Ho
 	if agentCtx.Ctx != nil {
 		sessionID = agentdomain.GetSessionID(agentCtx.Ctx)
 	}
-	RunCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, mode, hook, agentCtx.Turns, sessionID)
+	runCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, mode, hook, agentCtx.Turns, sessionID)
 }
 
 // waitForBackgroundTasks blocks until in-flight background work (A2A tasks,
@@ -1297,7 +1297,7 @@ func (s *Agent) injectDueReminders(agentCtx *states.AgentContext, hook agentdoma
 		q.ModeChanged, q.PrevMode, q.Mode = s.modeChangeSinceLastStream()
 		q.ModeGuidance = s.modeGuidanceOverrides()
 	}
-	InjectDueReminders(provider, q, func(r agentdomain.SystemReminder) {
+	deliverDueReminders(provider, q, func(r agentdomain.SystemReminder) {
 		if r.AppendToToolResult {
 			s.appendToLastToolMessage(agentCtx, r)
 		} else {
@@ -1306,14 +1306,10 @@ func (s *Agent) injectDueReminders(agentCtx *states.AgentContext, hook agentdoma
 	})
 }
 
-// InjectDueReminders is the single reminder-injection seam shared by the chat
-// (Agent) and headless (AgentSession) loops: it resolves the
-// reminders due for q, delivers each via the caller-owned deliver callback
-// (the two loops hold different conversation representations), logs it, emits
-// the tagged system_reminder stream event, and marks the name in q.Fired.
-// Callers own provider resolution, the awaiting-tool-results guard, query
-// construction, and locking.
-func InjectDueReminders(provider agentdomain.SystemReminderProvider, q agentdomain.ReminderQuery, deliver func(agentdomain.SystemReminder)) {
+// deliverDueReminders resolves the reminders due for q, hands each to deliver,
+// logs it, emits the tagged system_reminder stream event and marks the name in
+// q.Fired. Callers own the query, the awaiting-tool-results guard and locking.
+func deliverDueReminders(provider agentdomain.SystemReminderProvider, q agentdomain.ReminderQuery, deliver func(agentdomain.SystemReminder)) {
 	for _, r := range provider.RemindersDue(q) {
 		deliver(r)
 		logger.Debug("system reminder injected",

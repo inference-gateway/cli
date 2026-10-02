@@ -114,7 +114,7 @@ func TestPersistPartialAssistantMessage_KeepsContent(t *testing.T) {
 		{Role: sdk.User, Content: sdk.NewMessageContent("Write a long poem")},
 	}
 
-	agent := &EventDrivenAgent{
+	agent := &eventDrivenAgent{
 		service:  &Agent{conversationRepo: repo},
 		agentCtx: &states.AgentContext{Conversation: &conversation, Ctx: context.Background()},
 		req:      &agentdomain.AgentRequest{RequestID: "r1", Model: "deepseek/deepseek-v4-flash"},
@@ -140,7 +140,7 @@ func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
 	repo := &convmocks.FakeConversationRepository{}
 	conversation := []sdk.Message{}
 
-	agent := &EventDrivenAgent{
+	agent := &eventDrivenAgent{
 		service:  &Agent{conversationRepo: repo},
 		agentCtx: &states.AgentContext{Conversation: &conversation, Ctx: context.Background()},
 		req:      &agentdomain.AgentRequest{RequestID: "r1"},
@@ -152,12 +152,12 @@ func TestPersistPartialAssistantMessage_SkipsEmpty(t *testing.T) {
 	assert.Equal(t, 0, repo.AddMessageCallCount())
 }
 
-// tailAgent builds an EventDrivenAgent whose service produces a minimal
+// tailAgent builds an eventDrivenAgent whose service produces a minimal
 // volatile tail (system prompt set, defaults off → just the Current date line).
-func tailAgent(conv *[]sdk.Message, systemPrompt string) *EventDrivenAgent {
+func tailAgent(conv *[]sdk.Message, systemPrompt string) *eventDrivenAgent {
 	cfg := &config.Config{}
 	cfg.Prompts.Agent.SystemPrompt = systemPrompt
-	return &EventDrivenAgent{
+	return &eventDrivenAgent{
 		service:  &Agent{config: cfg},
 		agentCtx: &states.AgentContext{Conversation: conv},
 		req:      &agentdomain.AgentRequest{RequestID: "r1", IsChatMode: true},
@@ -216,7 +216,7 @@ func TestOutboundConversation_TailRefreshesPerRequest(t *testing.T) {
 	cfg.Agent.SystemPromptWithDefaults = true
 	cfg.Agent.Context = config.AgentContextConfig{GitContextEnabled: true, GitContextRefreshTurns: 10}
 	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
-	a := &EventDrivenAgent{
+	a := &eventDrivenAgent{
 		service:  &Agent{config: cfg},
 		agentCtx: &states.AgentContext{Conversation: &conv},
 		req:      &agentdomain.AgentRequest{RequestID: "r1"},

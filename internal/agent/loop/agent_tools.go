@@ -8,7 +8,7 @@ import (
 )
 
 // executeTools executes all tools in parallel (runs in background goroutine)
-func (a *EventDrivenAgent) executeTools() {
+func (a *eventDrivenAgent) executeTools() {
 	defer a.wg.Done()
 	defer a.recoverPanic()
 
