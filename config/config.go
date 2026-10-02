@@ -45,7 +45,7 @@ type Config struct {
 	TextToVideo      TextToVideoConfig      `yaml:"text_to_video" mapstructure:"text_to_video"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
-	Tools            ToolsConfig            `yaml:"-" mapstructure:"-"` // the userspace tools policy, loaded from tools.yaml (config/tools.go)
+	Tools            ToolsConfig            `yaml:"-" mapstructure:"-"`
 	Image            ImageConfig            `yaml:"image" mapstructure:"image"`
 	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`

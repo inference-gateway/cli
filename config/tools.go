@@ -11,12 +11,9 @@ import (
 
 const ToolsFileName = "tools.yaml"
 
-// DefaultToolsConfig seeds the tools policy: every tool enabled, the per-tool
-// approval defaults (mutating tools ask, read-only ones do not) and the
-// per-mode bash allow-list baseline. It holds the settings that decide
-// whether a tool needs approval, so they live in the userspace tools.yaml
-// alone with no project copy, the way the sandbox policy keeps its own
-// sandbox.yaml.
+// DefaultToolsConfig seeds the tools policy: every tool but schedule enabled,
+// mutating tools asking for approval and the per-mode bash allow-list baseline.
+// It decides whether a tool needs approval, so it has no project copy.
 func DefaultToolsConfig() *ToolsConfig {
 	return &ToolsConfig{
 		Enabled:        true,

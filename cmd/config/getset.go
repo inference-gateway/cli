@@ -99,9 +99,9 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 	return printConfigValue(value, format)
 }
 
-// injectTools merges the tools policy into the get dump. Config.Tools is tagged
-// yaml:"-" because it lives in tools.yaml, so yaml.Marshal(cfg) drops it; the
-// effective value is serialized separately so get tools.* still works.
+// injectTools merges the tools policy into the get dump. Config.Tools lives in
+// tools.yaml and is tagged yaml:"-", so yaml.Marshal(cfg) drops it. Serializing
+// the effective value separately keeps get tools.* working.
 func injectTools(root map[string]any, tools config.ToolsConfig) error {
 	data, err := yaml.Marshal(tools)
 	if err != nil {
