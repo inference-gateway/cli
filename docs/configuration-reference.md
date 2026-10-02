@@ -279,7 +279,8 @@ telemetry:
 
 - **gateway.url**: The URL of the inference gateway (default: `http://localhost:8080`)
 - **gateway.api_key**: API key for authentication (if required)
-- **gateway.timeout**: Request timeout in seconds (default: 200)
+- **gateway.timeout**: Seconds the agent waits for the model's first token (default: 200). Once the response streams,
+  `client.stall_threshold_sec` guards it instead, so a long answer is never cut off
 - **gateway.run**: Automatically run the gateway on startup (default: `true`)
   - When enabled, the CLI automatically starts the gateway before running commands
   - The gateway runs in the background and shuts down when the CLI exits
@@ -313,13 +314,14 @@ telemetry:
 
 ### Client Settings
 
-- **client.timeout**: HTTP client timeout in seconds
+- **client.timeout**: HTTP client timeout in seconds for gateway calls outside the agent loop (models, titles, summaries,
+  media). The agent's own requests are bounded by `gateway.timeout` and `client.stall_threshold_sec`
 - **client.stall_threshold_sec**: Seconds without a chunk on an open stream before the request counts as stalled (default:
   `30`, `0` disables). The chat UI shows a reconnecting indicator and the agent drops the connection and retries, up to
   `client.retry.max_attempts` times with exponential backoff. Keep it above the longest silence between chunks your provider
   produces - a stall retry restarts the response from scratch. Connecting is not covered: connection errors are retried by
-  the HTTP client under `client.retry.*` and then reported as they are, and the wait for the first token is bounded only by
-  `client.timeout` and `gateway.timeout`
+  the HTTP client under `client.retry.*` and then reported as they are, and the wait for the first token is bounded by
+  `gateway.timeout`
 - **client.retry.enabled**: Enable automatic retries for failed requests
 - **client.retry.max_attempts**: Maximum number of retry attempts (default: `5`)
 - **client.retry.initial_backoff_sec**: Initial delay between retries in seconds
@@ -1016,14 +1018,14 @@ ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.y
 
 - `INFER_GATEWAY_URL`: Gateway URL (default: `http://localhost:8080`)
 - `INFER_GATEWAY_API_KEY`: Gateway API key for authentication
-- `INFER_GATEWAY_TIMEOUT`: Gateway request timeout in seconds (default: `200`)
+- `INFER_GATEWAY_TIMEOUT`: Seconds the agent waits for the model's first token (default: `200`)
 - `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
 - `INFER_GATEWAY_STANDALONE_BINARY`: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 
 ### Client Configuration
 
-- `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds (default: `200`)
+- `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds for gateway calls outside the agent loop (default: `200`)
 - `INFER_CLIENT_STALL_THRESHOLD_SEC`: Seconds without stream progress before reconnecting (default: `30`, `0` disables)
 - `INFER_CLIENT_RETRY_ENABLED`: Enable retry logic (default: `true`)
 - `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `5`)

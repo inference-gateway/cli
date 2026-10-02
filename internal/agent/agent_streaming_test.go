@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"testing"
+	"time"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
@@ -236,4 +237,21 @@ func TestOutboundConversation_TailRefreshesPerRequest(t *testing.T) {
 
 	require.Contains(t, tail(), "Current branch: fix/issue-155",
 		"branch change must invalidate the git context cache on the next request")
+}
+
+func TestWithFirstChunkDeadline(t *testing.T) {
+	t.Run("no chunk times out", func(t *testing.T) {
+		ctx, _, cancel := withFirstChunkDeadline(context.Background(), 10*time.Millisecond)
+		defer cancel()
+		<-ctx.Done()
+		assert.ErrorIs(t, context.Cause(ctx), context.DeadlineExceeded)
+	})
+
+	t.Run("a chunk disarms the deadline", func(t *testing.T) {
+		ctx, gotChunk, cancel := withFirstChunkDeadline(context.Background(), 10*time.Millisecond)
+		defer cancel()
+		gotChunk()
+		time.Sleep(30 * time.Millisecond)
+		assert.NoError(t, ctx.Err())
+	})
 }
