@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	huh "charm.land/huh/v2"
 
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
@@ -156,7 +157,7 @@ func (v *InstallOpentaskView) buildDetailsForm() *huh.Form {
 func (v *InstallOpentaskView) resolvePrivateKeyPath() {
 	switch v.keyChoice {
 	case keyChoiceManual:
-		v.privateKeyPath = expandHomePath(v.manualKeyPath)
+		v.privateKeyPath = utils.ExpandHome(v.manualKeyPath)
 	case keyChoiceBrowse:
 		v.privateKeyPath = v.browsedKeyPath
 	default:
@@ -182,22 +183,12 @@ func dirExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// expandHomePath expands a leading ~ to the user's home directory.
-func expandHomePath(path string) string {
-	if path == "~" || strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
-		}
-	}
-	return path
-}
-
 // validatePemPath requires an existing regular .pem file.
 func validatePemPath(s string) error {
 	if s == "" {
 		return fmt.Errorf("path is required")
 	}
-	path := expandHomePath(s)
+	path := utils.ExpandHome(s)
 	if !strings.EqualFold(filepath.Ext(path), ".pem") {
 		return fmt.Errorf("file must have a .pem extension")
 	}

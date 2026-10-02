@@ -8,6 +8,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // FileService implements agentdomain.FileService
@@ -67,7 +68,7 @@ var homeInferSkipDirs = map[string]bool{
 }
 
 // listHomeInferFiles lists ~/.infer files as "~/.infer/<rel>", which
-// ValidateFile and ReadFile resolve via expandHomePath. Owner-only files
+// ValidateFile and ReadFile resolve via utils.ExpandHome. Owner-only files
 // (auth.yaml, projects.yaml) are skipped: they hold credentials and private
 // state that must not be offered for inlining into a prompt.
 func (s *FileService) listHomeInferFiles() []string {
@@ -194,7 +195,7 @@ func (s *FileService) shouldIncludeFile(d os.DirEntry, relPath string) bool {
 
 // ReadFile reads the content of a file
 func (s *FileService) ReadFile(path string) (string, error) {
-	content, err := os.ReadFile(expandHomePath(path))
+	content, err := os.ReadFile(utils.ExpandHome(path))
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", path, err)
 	}
@@ -207,7 +208,7 @@ func (s *FileService) ValidateFile(path string) error {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
-	absPath := expandHomePath(path)
+	absPath := utils.ExpandHome(path)
 	if !filepath.IsAbs(absPath) {
 		cwd, err := os.Getwd()
 		if err != nil {

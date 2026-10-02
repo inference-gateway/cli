@@ -34,7 +34,7 @@ func NewDirectoryFrameSource(name string, cfg config.VisionSourceConfig, images 
 	maxAge, _ := time.ParseDuration(cfg.Retention.MaxAge)
 	return &DirectoryFrameSource{
 		name:     name,
-		path:     expandHomePath(cfg.Path),
+		path:     utils.ExpandHome(cfg.Path),
 		maxFiles: cfg.Retention.MaxFiles,
 		maxAge:   maxAge,
 		images:   images,
@@ -103,14 +103,4 @@ func decodeImageDims(b64 string) (int, int) {
 		return 0, 0
 	}
 	return cfg.Width, cfg.Height
-}
-
-// expandHomePath expands a leading ~/ to the user's home directory.
-func expandHomePath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, path[2:])
-		}
-	}
-	return path
 }
