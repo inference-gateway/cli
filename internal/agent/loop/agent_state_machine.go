@@ -47,10 +47,9 @@ type StateMachine struct {
 
 // StateTransition represents a state transition with guard and action
 type StateTransition struct {
-	fromState states.AgentExecutionState
-	toState   states.AgentExecutionState
-	guard     states.StateGuard
-	action    states.StateAction
+	toState states.AgentExecutionState
+	guard   states.StateGuard
+	action  states.StateAction
 }
 
 // NewAgentStateMachine creates a new agent state machine
@@ -183,10 +182,9 @@ func (sm *StateMachine) registerTransitions() {
 // addTransition adds a state transition to the map
 func (sm *StateMachine) addTransition(from, to states.AgentExecutionState, guard states.StateGuard, action states.StateAction) {
 	transition := StateTransition{
-		fromState: from,
-		toState:   to,
-		guard:     guard,
-		action:    action,
+		toState: to,
+		guard:   guard,
+		action:  action,
 	}
 
 	if sm.transitions[from] == nil {
@@ -256,13 +254,6 @@ func (sm *StateMachine) GetCurrentState() states.AgentExecutionState {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.currentState
-}
-
-// GetPreviousState returns the previous state (thread-safe)
-func (sm *StateMachine) GetPreviousState() states.AgentExecutionState {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	return sm.previousState
 }
 
 // Guard functions
@@ -349,26 +340,6 @@ func (sm *StateMachine) CanTransition(ctx *states.AgentContext, targetState stat
 	}
 
 	return true
-}
-
-// GetValidTransitions returns all valid transitions from the current state
-func (sm *StateMachine) GetValidTransitions(ctx *states.AgentContext) []states.AgentExecutionState {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	transitions, exists := sm.transitions[sm.currentState]
-	if !exists {
-		return []states.AgentExecutionState{}
-	}
-
-	validStates := []states.AgentExecutionState{}
-	for _, transition := range transitions {
-		if transition.guard == nil || transition.guard(ctx) {
-			validStates = append(validStates, transition.toState)
-		}
-	}
-
-	return validStates
 }
 
 // Reset resets the state machine to idle

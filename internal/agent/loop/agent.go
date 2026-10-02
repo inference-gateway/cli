@@ -654,7 +654,6 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 			sc.cancelChan,
 			provider,
 			model,
-			s.bgRegistry,
 		)
 
 		agent.Start()

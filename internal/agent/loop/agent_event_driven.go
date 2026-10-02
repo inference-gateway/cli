@@ -13,7 +13,6 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // EventDrivenAgent manages agent execution using event-driven state machine
@@ -28,7 +27,6 @@ type EventDrivenAgent struct {
 	req            *agentdomain.AgentRequest
 	provider       string
 	model          string
-	registry       scheddomain.BackgroundTaskRegistry
 
 	// Event channel
 	events chan states.AgentEvent
@@ -67,7 +65,6 @@ func NewEventDrivenAgent(
 	cancelChan <-chan struct{},
 	provider string,
 	model string,
-	registry scheddomain.BackgroundTaskRegistry,
 ) *EventDrivenAgent {
 	stateMachine := NewAgentStateMachine()
 
@@ -98,7 +95,6 @@ func NewEventDrivenAgent(
 		req:            req,
 		provider:       provider,
 		model:          model,
-		registry:       registry,
 		events:         make(chan states.AgentEvent, constants.EventChannelBufferSize),
 		stateHandlers:  make(map[states.AgentExecutionState]states.StateHandler),
 	}
@@ -113,25 +109,22 @@ func NewEventDrivenAgent(
 // This method is called during agent initialization to set up the state handler registry.
 func (a *EventDrivenAgent) registerStateHandlers() {
 	ctx := &states.StateContext{
-		StateMachine:           a.stateMachine,
-		AgentCtx:               a.agentCtx,
-		Events:                 a.events,
-		WaitGroup:              &a.wg,
-		Mutex:                  &a.mu,
-		CurrentMessage:         &a.currentMessage,
-		CurrentToolCalls:       &a.currentToolCalls,
-		CurrentReasoning:       &a.currentReasoning,
-		Tools:                  a.service.toolService,
-		ToolsNeedingApproval:   &a.toolsNeedingApproval,
-		CurrentToolIndex:       &a.currentToolIndex,
-		ToolResults:            &a.toolResults,
-		Request:                a.req,
-		BackgroundTaskRegistry: a.registry,
-		Provider:               a.provider,
-		Model:                  a.model,
-		MaxConcurrentTools:     a.cfg.MaxConcurrentTools,
-		ToolExecutor:           &a.toolExecutor,
-		StartStreaming:         a.startStreaming,
+		StateMachine:         a.stateMachine,
+		AgentCtx:             a.agentCtx,
+		Events:               a.events,
+		WaitGroup:            &a.wg,
+		Mutex:                &a.mu,
+		CurrentMessage:       &a.currentMessage,
+		CurrentToolCalls:     &a.currentToolCalls,
+		CurrentReasoning:     &a.currentReasoning,
+		Tools:                a.service.toolService,
+		ToolsNeedingApproval: &a.toolsNeedingApproval,
+		CurrentToolIndex:     &a.currentToolIndex,
+		ToolResults:          &a.toolResults,
+		Request:              a.req,
+		MaxConcurrentTools:   a.cfg.MaxConcurrentTools,
+		ToolExecutor:         &a.toolExecutor,
+		StartStreaming:       a.startStreaming,
 
 		GetMetrics: a.service.GetMetrics,
 		ShouldRequireApproval: func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {

@@ -16,7 +16,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/loop/states"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
@@ -236,10 +235,8 @@ func TestHandleStreamingState(t *testing.T) {
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("response"),
 				},
-				ToolCalls:          []*sdk.ChatCompletionMessageToolCall{},
-				Reasoning:          "",
-				Usage:              nil,
-				IterationStartTime: time.Now(),
+				ToolCalls: []*sdk.ChatCompletionMessageToolCall{},
+				Reasoning: "",
 			},
 			setupMocks: func(m *testMocks) {
 				m.stateMachine.TransitionReturns(nil)
@@ -271,9 +268,7 @@ func TestHandleStreamingState(t *testing.T) {
 						},
 					},
 				},
-				Reasoning:          "thinking...",
-				Usage:              nil,
-				IterationStartTime: time.Now(),
+				Reasoning: "thinking...",
 			},
 			setupMocks: func(m *testMocks) {
 				m.stateMachine.TransitionReturns(nil)
@@ -451,20 +446,7 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
 
-		event := states.ToolsCompletedEvent{
-			Results: []convdomain.ConversationEntry{
-				{
-					Message: sdk.Message{
-						Role:    sdk.Tool,
-						Content: sdk.NewMessageContent("result"),
-					},
-					ToolExecution: &agentdomain.ToolExecutionResult{
-						ToolName: "Read",
-						Success:  true,
-					},
-				},
-			},
-		}
+		event := states.ToolsCompletedEvent{}
 
 		mocks.stateMachine.TransitionReturns(nil)
 		mocks.queue.IsEmptyReturns(true)
@@ -482,10 +464,7 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
 
-		event := states.ToolsCompletedEvent{
-			Results: []convdomain.ConversationEntry{},
-			Stop:    true,
-		}
+		event := states.ToolsCompletedEvent{Stop: true}
 
 		mocks.stateMachine.TransitionReturns(nil)
 

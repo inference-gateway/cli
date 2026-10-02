@@ -2,13 +2,11 @@ package states
 
 import (
 	"sync"
-	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // AgentEvent represents an event in the event-driven agent system
@@ -17,19 +15,15 @@ type AgentEvent interface {
 }
 
 // MessageReceivedEvent is triggered when a new message arrives
-type MessageReceivedEvent struct {
-	Message sdk.Message
-}
+type MessageReceivedEvent struct{}
 
 func (e MessageReceivedEvent) EventType() string { return "MessageReceived" }
 
 // StreamCompletedEvent is triggered when LLM streaming completes
 type StreamCompletedEvent struct {
-	Message            sdk.Message
-	ToolCalls          []*sdk.ChatCompletionMessageToolCall
-	Reasoning          string
-	Usage              *sdk.CompletionUsage
-	IterationStartTime time.Time
+	Message   sdk.Message
+	ToolCalls []*sdk.ChatCompletionMessageToolCall
+	Reasoning string
 }
 
 func (e StreamCompletedEvent) EventType() string { return "StreamCompleted" }
@@ -39,8 +33,7 @@ func (e StreamCompletedEvent) EventType() string { return "StreamCompleted" }
 // successful RequestPlanApproval); the ExecutingTools state then routes to the
 // Stopped terminal instead of continuing to PostToolExecution.
 type ToolsCompletedEvent struct {
-	Results []convdomain.ConversationEntry
-	Stop    bool
+	Stop bool
 }
 
 func (e ToolsCompletedEvent) EventType() string { return "ToolsCompleted" }
@@ -98,10 +91,7 @@ type StateContext struct {
 	ToolResults          *[]convdomain.ConversationEntry
 
 	// Request context
-	Request                *agentdomain.AgentRequest
-	BackgroundTaskRegistry scheddomain.BackgroundTaskRegistry
-	Provider               string
-	Model                  string
+	Request *agentdomain.AgentRequest
 
 	// MaxConcurrentTools bounds how many approved tools may execute concurrently
 	// while later tools are still being approved.

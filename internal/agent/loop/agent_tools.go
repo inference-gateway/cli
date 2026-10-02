@@ -35,5 +35,5 @@ func (a *EventDrivenAgent) executeTools() {
 	a.mu.Unlock()
 
 	logger.Debug("emitting tools completed event", "stop", stop)
-	a.events <- states.ToolsCompletedEvent{Results: toolResults, Stop: stop}
+	a.events <- states.ToolsCompletedEvent{Stop: stop}
 }

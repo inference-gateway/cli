@@ -70,14 +70,8 @@ type AgentStateMachine interface {
 	// GetCurrentState returns the current state (thread-safe)
 	GetCurrentState() AgentExecutionState
 
-	// GetPreviousState returns the previous state (thread-safe)
-	GetPreviousState() AgentExecutionState
-
 	// CanTransition checks if a transition is valid without executing it
 	CanTransition(ctx *AgentContext, targetState AgentExecutionState) bool
-
-	// GetValidTransitions returns all valid transitions from current state
-	GetValidTransitions(ctx *AgentContext) []AgentExecutionState
 
 	// Reset resets the state machine to idle
 	Reset()

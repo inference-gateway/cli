@@ -565,10 +565,8 @@ func (a *EventDrivenAgent) finalizeStream(
 	a.service.trackStreamOutcome(a.finishReason, len(toolCallsSlice) > 0, strings.TrimSpace(outputContent) != "")
 
 	a.events <- states.StreamCompletedEvent{
-		Message:            assistantMessage,
-		ToolCalls:          toolCallsSlice,
-		Reasoning:          reasoning,
-		Usage:              streamUsage,
-		IterationStartTime: iterationStartTime,
+		Message:   assistantMessage,
+		ToolCalls: toolCallsSlice,
+		Reasoning: reasoning,
 	}
 }

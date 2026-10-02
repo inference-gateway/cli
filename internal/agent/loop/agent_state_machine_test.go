@@ -218,37 +218,6 @@ func TestStateReset(t *testing.T) {
 	}
 }
 
-// TestGetValidTransitions tests that valid transitions are returned correctly
-func TestGetValidTransitions(t *testing.T) {
-	sm := NewAgentStateMachine()
-
-	ctx := &states.AgentContext{
-		Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
-		MessageQueue:   &convmocks.FakeMessageQueue{},
-		Turns:          0,
-		MaxTurns:       10,
-		HasToolResults: false,
-		Ctx:            context.Background(),
-	}
-
-	fakeQueue := ctx.MessageQueue.(*convmocks.FakeMessageQueue)
-	fakeQueue.IsEmptyReturns(true)
-
-	validStates := sm.GetValidTransitions(ctx)
-
-	found := false
-	for _, state := range validStates {
-		if state == states.StateCheckingQueue {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		t.Error("expected CheckingQueue to be in valid transitions from Idle")
-	}
-}
-
 // TestGuardFunctions_CanComplete tests the canComplete guard function comprehensively
 func TestGuardFunctions_CanComplete(t *testing.T) {
 	tests := []struct {
