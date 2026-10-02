@@ -2,7 +2,10 @@ package configcmd
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+
+	cobra "github.com/spf13/cobra"
 )
 
 func TestResolveConfigKeyKind(t *testing.T) {
@@ -12,7 +15,7 @@ func TestResolveConfigKeyKind(t *testing.T) {
 		ok   bool
 	}{
 		{"agent.model", reflect.String, true},
-		{"tools.bash.enabled", reflect.Bool, true},
+		{"tools.bash.enabled", reflect.Invalid, false},
 		{"agent.max_turns", reflect.Int, true},
 		{"gateway.timeout", reflect.Int, true},
 		{"tools.sandbox.directories", reflect.Invalid, false},
@@ -29,6 +32,22 @@ func TestResolveConfigKeyKind(t *testing.T) {
 		}
 		if ok && kind != c.kind {
 			t.Errorf("%s: kind=%v, want %v", c.key, kind, c.kind)
+		}
+	}
+}
+
+func TestSetConfigValueRejectsToolsKeys(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.Flags().Bool("project", false, "")
+
+	for _, key := range []string{"tools", "tools.bash.enabled", "tools.safety.require_approval"} {
+		err := setConfigValue(cmd, []string{key, "true"})
+		if err == nil {
+			t.Errorf("expected error for %q, got nil", key)
+			continue
+		}
+		if !strings.Contains(err.Error(), "tools.yaml") {
+			t.Errorf("error for %q should name tools.yaml, got %q", key, err)
 		}
 	}
 }
