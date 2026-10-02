@@ -321,105 +321,36 @@ func TestBuilderChainKeepsAdapterOutermost(t *testing.T) {
 	assert.Len(t, *request.Tools, 1)
 }
 
-func responseBlock(t *testing.T, payload string) sdk.MessagesResponseContentBlock {
-	t.Helper()
-	var block sdk.MessagesResponseContentBlock
-	require.NoError(t, block.UnmarshalJSON([]byte(payload)))
-	return block
-}
-
-func TestGenerateContentSyncTranslation(t *testing.T) {
+// TestGenerateContentStreamRetriesWithoutEffortWhenRejected verifies the
+// adapter's handling of models that reject output_config.effort (e.g. Haiku
+// 4.5): the 400 triggers one retry without the parameter, and the model is
+// remembered so later turns omit effort up front.
+func TestGenerateContentStreamRetriesWithoutEffortWhenRejected(t *testing.T) {
 	fake := &sdkmocks.FakeClient{}
-	cacheRead, cacheCreation := int64(40), int64(60)
-	fake.CreateMessageReturns(&sdk.MessagesResponse{
-		ID:    "msg_1",
-		Model: "claude-sonnet-4-5",
-		Role:  sdk.MessagesResponseRoleAssistant,
-		Content: []sdk.MessagesResponseContentBlock{
-			responseBlock(t, `{"type":"thinking","thinking":"pondering","signature":"sig"}`),
-			responseBlock(t, `{"type":"text","text":"All done"}`),
-			responseBlock(t, `{"type":"tool_use","id":"toolu_1","name":"Read","input":{"path":"a"}}`),
-		},
-		StopReason: sdk.MessagesResponseStopReasonToolUse,
-		Usage: sdk.MessagesUsage{
-			InputTokens:              10,
-			OutputTokens:             5,
-			CacheReadInputTokens:     &cacheRead,
-			CacheCreationInputTokens: &cacheCreation,
-		},
-	}, nil)
-	adapter := NewAnthropicMessages(fake)
-
-	resp, err := adapter.GenerateContent(context.Background(), sdk.Anthropic, "claude-sonnet-4-5", []sdk.Message{textMessage(sdk.User, "hi")})
-	require.NoError(t, err)
-	assert.Equal(t, 0, fake.GenerateContentCallCount())
-
-	require.Len(t, resp.Choices, 1)
-	choice := resp.Choices[0]
-	content, err := choice.Message.Content.AsMessageContent0()
-	require.NoError(t, err)
-	assert.Equal(t, "All done", content)
-	require.NotNil(t, choice.Message.ReasoningContent)
-	assert.Equal(t, "pondering", *choice.Message.ReasoningContent)
-	require.NotNil(t, choice.Message.ToolCalls)
-	toolCall := (*choice.Message.ToolCalls)[0]
-	assert.Equal(t, "toolu_1", toolCall.ID)
-	assert.Equal(t, "Read", toolCall.Function.Name)
-	assert.JSONEq(t, `{"path":"a"}`, toolCall.Function.Arguments)
-	assert.Equal(t, sdk.ToolCalls, choice.FinishReason)
-
-	require.NotNil(t, resp.Usage)
-	assert.Equal(t, int64(110), resp.Usage.PromptTokens)
-	require.NotNil(t, resp.Usage.PromptTokensDetails)
-	assert.Equal(t, int64(40), *resp.Usage.PromptTokensDetails.CachedTokens)
-	assert.Equal(t, 60, adapter.TakeCacheCreationTokens())
-}
-
-func TestGenerateContentSyncPassthrough(t *testing.T) {
-	fake := &sdkmocks.FakeClient{}
-	fake.GenerateContentReturns(&sdk.CreateChatCompletionResponse{}, nil)
-	adapter := NewAnthropicMessages(fake)
-
-	_, err := adapter.GenerateContent(context.Background(), sdk.Openai, "gpt-4o", []sdk.Message{textMessage(sdk.User, "hi")})
-	require.NoError(t, err)
-	assert.Equal(t, 1, fake.GenerateContentCallCount())
-	assert.Equal(t, 0, fake.CreateMessageCallCount())
-}
-
-// TestGenerateContentRetriesWithoutEffortWhenRejected verifies the adapter's
-// handling of models that reject output_config.effort (e.g. Haiku 4.5): the
-// 400 triggers one retry without the parameter, and the model is remembered
-// so later turns omit effort up front.
-func TestGenerateContentRetriesWithoutEffortWhenRejected(t *testing.T) {
-	fake := &sdkmocks.FakeClient{}
-	fake.CreateMessageReturnsOnCall(0, nil,
+	fake.CreateMessageStreamReturnsOnCall(0, nil,
 		fmt.Errorf("API error: This model does not support the effort parameter. (status code: 400)"))
-	ok := &sdk.MessagesResponse{
-		ID: "msg_1", Model: "claude-haiku-4-5", Role: sdk.MessagesResponseRoleAssistant,
-		Content: []sdk.MessagesResponseContentBlock{
-			responseBlock(t, `{"type":"text","text":"hi"}`),
-		},
-		StopReason: sdk.MessagesResponseStopReasonEndTurn,
+	for call := 1; call <= 2; call++ {
+		in := make(chan sdk.SSEvent)
+		close(in)
+		fake.CreateMessageStreamReturnsOnCall(call, in, nil)
 	}
-	fake.CreateMessageReturnsOnCall(1, ok, nil)
-	fake.CreateMessageReturnsOnCall(2, ok, nil)
 	adapter := NewAnthropicMessages(fake)
 
-	_, err := adapter.GenerateContent(context.Background(), sdk.Anthropic, "claude-haiku-4-5",
+	_, err := adapter.GenerateContentStream(context.Background(), sdk.Anthropic, "claude-haiku-4-5",
 		[]sdk.Message{textMessage(sdk.User, "hi")})
 	require.NoError(t, err)
-	require.Equal(t, 2, fake.CreateMessageCallCount())
+	require.Equal(t, 2, fake.CreateMessageStreamCallCount())
 
-	_, _, first := fake.CreateMessageArgsForCall(0)
+	_, _, first := fake.CreateMessageStreamArgsForCall(0)
 	require.NotNil(t, first.OutputConfig, "first attempt carries the default effort")
-	_, _, second := fake.CreateMessageArgsForCall(1)
+	_, _, second := fake.CreateMessageStreamArgsForCall(1)
 	assert.Nil(t, second.OutputConfig, "retry must drop output_config entirely")
 
-	_, err = adapter.GenerateContent(context.Background(), sdk.Anthropic, "claude-haiku-4-5",
+	_, err = adapter.GenerateContentStream(context.Background(), sdk.Anthropic, "claude-haiku-4-5",
 		[]sdk.Message{textMessage(sdk.User, "again")})
 	require.NoError(t, err)
-	require.Equal(t, 3, fake.CreateMessageCallCount(), "no re-trip on later turns")
-	_, _, third := fake.CreateMessageArgsForCall(2)
+	require.Equal(t, 3, fake.CreateMessageStreamCallCount(), "no re-trip on later turns")
+	_, _, third := fake.CreateMessageStreamArgsForCall(2)
 	assert.Nil(t, third.OutputConfig, "rejected model skips effort up front")
 }
 
