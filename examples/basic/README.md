@@ -195,9 +195,8 @@ infer config get tools.safety                          # Show current settings
 infer config set tools.bash.require_approval true
 infer config set tools.web_search.require_approval false
 
-# Manage sandbox directories (comma-separated, replaces the whole list)
-infer config get tools.sandbox.directories
-infer config set tools.sandbox.directories ".,/tmp,.github"
+# The sandbox policy lives in ~/.infer/sandbox.yaml (or .infer/sandbox.yaml per project)
+cat ~/.infer/sandbox.yaml
 ```
 
 ### Version Information

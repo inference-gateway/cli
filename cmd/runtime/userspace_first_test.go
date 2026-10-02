@@ -110,3 +110,27 @@ func TestLoadLayeredConfigProjectOverridesHome(t *testing.T) {
 	require.Equal(t, 7, v.GetInt("agent.max_turns"), "keys absent from the project layer are inherited from home")
 	require.Equal(t, []string{"/data"}, v.GetStringSlice("tools.sandbox.directories"), "list keys are replaced wholesale, not extended")
 }
+
+// TestInitConfigSandboxSidecar pins that the sandbox policy comes from
+// sandbox.yaml alone: a tools.sandbox block in config.yaml is ignored.
+func TestInitConfigSandboxSidecar(t *testing.T) {
+	homeDir, projectDir := splitHomeProjectEnv(t)
+
+	homeCfg := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(homeCfg), 0o755))
+	require.NoError(t, os.WriteFile(homeCfg, []byte("---\ntools:\n  sandbox:\n    directories:\n      - /legacy\n"), 0o644))
+
+	initConfig()
+	require.Equal(t, config.DefaultSandboxConfig(), &Cfg.Tools.Sandbox, "config.yaml never carries the policy")
+
+	sandboxFile := filepath.Join(projectDir, config.DefaultSandboxPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(sandboxFile), 0o755))
+	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\ndirectories:\n  - /policy\n"), 0o644))
+
+	initConfig()
+	require.Equal(t, []string{"/policy"}, Cfg.Tools.Sandbox.Directories)
+
+	t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", "")
+	initConfig()
+	require.Equal(t, []string{"/policy"}, Cfg.Tools.Sandbox.Directories, "an empty env list never lifts the restriction")
+}

@@ -66,7 +66,7 @@ though a command-line flag (e.g. `infer headless --model`) still wins over all o
 
 > **List-valued keys replace, they do not merge.** Viper's `MergeInConfig`
 > deep-merges maps but substitutes slices wholesale, so a list in the project
-> layer (e.g. `tools.sandbox.directories`, `tools.bash.mode.*.allow`,
+> layer (e.g. `tools.bash.mode.*.allow`,
 > `tools.web_fetch.allowed_domains`) *replaces* the userspace value rather than
 > extending it. Keep project overrides sparse for this reason.
 
@@ -118,20 +118,6 @@ logging:
   insights_min_level: warn # Lowest level `infer insights` folds into its report (debug|info|warn|error|dpanic|panic|fatal)
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
-  sandbox:
-    directories: [".", "/tmp"] # Allowed directories for tool operations
-    protected_paths: # Paths excluded from tool access for security
-      - .infer/
-      - .git/
-      - *.env
-      - .environment
-      - auth.yaml
-      - *.key
-      - *.pem
-      - id_rsa
-      - id_dsa
-      - id_ecdsa
-      - id_ed25519
   bash:
     enabled: true
     # Per-mode allow-list (default-deny). The effective list for a mode is
@@ -347,9 +333,8 @@ telemetry:
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.max_result_bytes**: Byte cap on a single tool result before it is truncated for the model (default: `250000`).
   Set via `INFER_TOOLS_MAX_RESULT_BYTES`.
-- **tools.sandbox.directories**: Allowed directories for tool operations (default: [".", "/tmp"])
-- **tools.sandbox.protected_paths**: Paths excluded from tool access for security. Default:
-  [".infer/", ".git/", "*.env", ".environment", "auth.yaml", "*.key", "*.pem", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"]
+- The sandbox policy (allowed directories and protected paths) lives in `sandbox.yaml`, not here. See
+  [Blocks in Their Own File](#blocks-in-their-own-file).
 - **tools.bash.mode.\<mode\>.allow**: Per-mode bash allow-list (regexes matched against the whole command). `<mode>` is one of `all`
   (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective list is `mode.all.allow` unioned with the active mode's
   list. Anything unmatched is denied (approval in chat, rejection in headless agent mode). The `.*` sentinel (default for `auto`) means
@@ -960,6 +945,11 @@ entry lists its keys and points at the guide that owns the behaviour.
 The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
+- **`sandbox.yaml`** - `directories` (default `[".", "/tmp"]`) and `protected_paths` (default `.infer/`,
+  `.git/`, `*.env`, `.environment`, `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`,
+  `id_ed25519`). The project file replaces the userspace one. The agent's file tools can never write
+  either copy, whatever `protected_paths` says, so the agent cannot widen its own sandbox. `infer config set`
+  does not reach these keys: edit the file. Env: `INFER_TOOLS_SANDBOX_DIRECTORIES`.
 - **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`, `telegram`,
   `whatsapp`. See [Channels](channels.md).
 - **`heartbeat.yaml`** - `enabled`, `interval`, `initial_delay`, `model`, `prompt`. See
@@ -1010,7 +1000,7 @@ OPENAI_API_KEY: sk-...
 
 A missing or unreadable `auth.yaml` changes nothing, and a malformed one is
 ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`); it is on the sandbox
-`protected_paths` list, so agent tools cannot read or edit it.
+`protected_paths` list in `sandbox.yaml`, so agent tools cannot read or edit it.
 
 ### Gateway Configuration
 
@@ -1261,7 +1251,8 @@ tools:
 
 **Sandbox Configuration:**
 
-- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated list of allowed directories (default: `.,/tmp`)
+- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated list of allowed directories (default: `.,/tmp`). It
+  overrides `sandbox.yaml`. An empty value is ignored rather than lifting the restriction.
 
 ### Storage Configuration
 

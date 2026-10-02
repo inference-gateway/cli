@@ -125,7 +125,7 @@ environment overrides. Keys are dotted paths into `config.yaml`.
 infer config get                          # dump the whole effective config
 infer config get agent.model
 infer config get tools.bash               # print a whole subtree
-infer config get tools.sandbox.directories
+infer config get tools.web_search
 infer config get tools.web_fetch -f json
 ```
 
@@ -157,7 +157,7 @@ infer config set tools.grep.backend ripgrep
 infer config set tools.safety.require_approval true
 
 # List values (comma-separated, replaces the whole list)
-infer config set tools.sandbox.directories ".,/tmp,/data"
+infer config set tools.bash.mode.standard.allow "^git status$,^ls"
 infer config set tools.web_fetch.allowed_domains "example.com,github.com"
 
 # Write a project-level override into ./.infer/config.yaml instead

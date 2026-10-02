@@ -15,7 +15,7 @@ func TestResolveConfigKeyKind(t *testing.T) {
 		{"tools.bash.enabled", reflect.Bool, true},
 		{"agent.max_turns", reflect.Int, true},
 		{"gateway.timeout", reflect.Int, true},
-		{"tools.sandbox.directories", reflect.Slice, true},
+		{"tools.sandbox.directories", reflect.Invalid, false},
 		{"nonexistent", reflect.Invalid, false},
 		{"tools.nope.enabled", reflect.Invalid, false},
 		{"agent.model.deeper", reflect.Invalid, false},

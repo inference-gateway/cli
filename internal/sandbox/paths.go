@@ -78,6 +78,9 @@ func ValidateWrite(cfg *config.Config, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
+	if isSandboxPolicyFile(absPath) {
+		return fmt.Errorf("path '%s' is the sandbox policy, which infer's file tools never edit", path)
+	}
 	if isWithinCustomToolsDir(cfg, absPath) {
 		return fmt.Errorf("path '%s' is in a custom tools directory, which infer's file tools never edit", path)
 	}
@@ -88,6 +91,22 @@ func ValidateWrite(cfg *config.Config, path string) error {
 		return fmt.Errorf("path '%s' is in a read-only library directory", path)
 	}
 	return nil
+}
+
+// isSandboxPolicyFile reports whether absPath is a sandbox.yaml, whatever the
+// configured protected paths say, so the agent can never widen its own sandbox.
+func isSandboxPolicyFile(absPath string) bool {
+	path := config.CanonicalPath(absPath)
+	for _, file := range config.SandboxFilePaths() {
+		absFile, err := filepath.Abs(file)
+		if err != nil {
+			continue
+		}
+		if path == config.CanonicalPath(absFile) {
+			return true
+		}
+	}
+	return false
 }
 
 // isWithinCustomToolsDir reports whether absPath is inside a directory custom

@@ -411,7 +411,7 @@ type ClipboardImageOptimizeConfig struct {
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
 	Enabled         bool                      `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox         SandboxConfig             `yaml:"sandbox" mapstructure:"sandbox"`
+	Sandbox         SandboxConfig             `yaml:"-" mapstructure:"-"`
 	Bash            BashToolConfig            `yaml:"bash" mapstructure:"bash"`
 	Read            ReadToolConfig            `yaml:"read" mapstructure:"read"`
 	Write           WriteToolConfig           `yaml:"write" mapstructure:"write"`
@@ -639,12 +639,6 @@ type BashModesConfig struct {
 	Plan     BashModeAllowConfig `yaml:"plan" mapstructure:"plan"`
 	Standard BashModeAllowConfig `yaml:"standard" mapstructure:"standard"`
 	Auto     BashModeAllowConfig `yaml:"auto" mapstructure:"auto"`
-}
-
-// SandboxConfig contains sandbox directory settings
-type SandboxConfig struct {
-	Directories    []string `yaml:"directories" mapstructure:"directories"`
-	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
 // Approval-behaviour values for SafetyConfig.ApprovalBehaviour - they select HOW a
@@ -1184,22 +1178,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled:        true,
 			MaxResultBytes: 250000,
-			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp"},
-				ProtectedPaths: []string{
-					ConfigDirName + "/",
-					".git/",
-					"*.env",
-					".environment",
-					"auth.yaml",
-					"*.key",
-					"*.pem",
-					"id_rsa",
-					"id_dsa",
-					"id_ecdsa",
-					"id_ed25519",
-				},
-			},
+			Sandbox:        *DefaultSandboxConfig(),
 			Bash: BashToolConfig{
 				Enabled: true,
 				Timeout: 120,

@@ -73,4 +73,4 @@ Repo-wide invariants:
 
 ## Config
 
-- Split YAML under `.infer/` (project) and `~/.infer/` (user): `config.yaml`, `prompts.yaml`, `agents.yaml`, `keybindings.yaml`, `mcp.yaml`, `shortcuts/*.yaml`, … Env overrides use `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
+- Split YAML under `.infer/` (project) and `~/.infer/` (user): `config.yaml`, `sandbox.yaml`, `prompts.yaml`, `agents.yaml`, `keybindings.yaml`, `mcp.yaml`, `shortcuts/*.yaml`, … Env overrides use `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).

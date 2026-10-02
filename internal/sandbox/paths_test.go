@@ -300,3 +300,23 @@ func TestValidatePathInSandbox_PluginsCarveOut(t *testing.T) {
 	cfg.Plugins.Enabled = false
 	require.Error(t, ValidateRead(cfg, skillPath), "carve-out must be gated on plugins.enabled")
 }
+
+// TestValidateWrite_SandboxPolicyFile locks in that the agent can never edit
+// its own policy: both sandbox.yaml locations stay unwritable even when the
+// user empties protected_paths, while reading them is still allowed.
+func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
+	project := t.TempDir()
+	home := t.TempDir()
+	t.Chdir(project)
+	t.Setenv("HOME", home)
+
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{project, home}
+	cfg.Tools.Sandbox.ProtectedPaths = nil
+
+	for _, file := range config.SandboxFilePaths() {
+		require.NoError(t, ValidateRead(cfg, file), "reading %s", file)
+		require.ErrorContains(t, ValidateWrite(cfg, file), "sandbox policy", "writing %s", file)
+	}
+	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
+}

@@ -309,6 +309,8 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	cfg.Judge = *judgeCfg
 	applySidecarEnv(&cfg.Judge, "judge")
 
+	cfg.Tools.Sandbox = *loadSandboxConfig()
+
 	channelsPath := sidecarPath(config.ChannelsFileName)
 	channelsCfg, err := config.LoadChannels(channelsPath)
 	if err != nil {
@@ -523,4 +525,21 @@ func sameConfigFile(a, b string) bool {
 		return filepath.Clean(a) == filepath.Clean(b)
 	}
 	return aAbs == bAbs
+}
+
+// loadSandboxConfig reads sandbox.yaml and applies the INFER_TOOLS_SANDBOX_*
+// env overrides. An empty env list never lifts the directory restriction.
+func loadSandboxConfig() *config.SandboxConfig {
+	path := sidecarPath(config.SandboxFileName)
+	sandboxCfg, err := config.LoadSandbox(path)
+	if err != nil {
+		logger.Warn("failed to load sandbox config, using defaults", "error", err, "path", path)
+		sandboxCfg = config.DefaultSandboxConfig()
+	}
+	dirs := sandboxCfg.Directories
+	applySidecarEnv(sandboxCfg, "tools.sandbox")
+	if len(sandboxCfg.Directories) == 0 {
+		sandboxCfg.Directories = dirs
+	}
+	return sandboxCfg
 }
