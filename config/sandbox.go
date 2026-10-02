@@ -23,11 +23,17 @@ type SandboxConfig struct {
 	Denied  []sandboxdomain.Denied  `yaml:"denied"`
 }
 
-// DefaultSandboxConfig allows the working directory and /tmp and denies the
-// config dir, git metadata and the usual credential files.
+// DefaultSandboxConfig allows the working directory, /tmp and the userspace
+// scratch dir, keeps the config dirs read-only, and denies git metadata and
+// the usual credential files. Narrower allowed entries come first because the
+// first match wins.
 func DefaultSandboxConfig() *SandboxConfig {
+	allowed := []sandboxdomain.Allowed{
+		{Path: "~/" + ConfigDirName + "/tmp", Access: sandboxdomain.AccessWrite},
+		{Path: ConfigDirName + "/", Access: sandboxdomain.AccessRead},
+	}
+	allowed = append(allowed, sandboxdomain.Allow(".", "/tmp", "/private/tmp")...)
 	denied := sandboxdomain.Deny(
-		ConfigDirName+"/",
 		".git/",
 		"*.env",
 		".environment",
@@ -39,7 +45,7 @@ func DefaultSandboxConfig() *SandboxConfig {
 		"id_ecdsa",
 		"id_ed25519",
 	)
-	return &SandboxConfig{Allowed: sandboxdomain.Allow(".", "/tmp"), Denied: denied}
+	return &SandboxConfig{Allowed: allowed, Denied: denied}
 }
 
 // Validate rejects an entry with no path or an unknown access or behaviour.

@@ -124,11 +124,13 @@ func TestSandboxDirectoriesEnvironmentVariableWithSpaces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
 			t.Setenv("INFER_TOOLS_SANDBOX_DIRECTORIES", tt.env)
 
 			initConfig()
 
-			assert.Equal(t, sandboxdomain.Allow(".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test"), Cfg.Tools.Sandbox.Allowed)
+			want := append(config.DefaultSandboxConfig().Allowed, sandboxdomain.Allow(".", "/tmp", "/Users/x/Documents/Inference Gateway Desktop/Test")...)
+			assert.Equal(t, want, Cfg.Tools.Sandbox.Allowed)
 		})
 	}
 }

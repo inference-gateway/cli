@@ -13,7 +13,7 @@ func TestPathValidator_Validate(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Sandbox.Allowed = sandboxdomain.Allow(tempDir)
+	cfg.Tools.Sandbox.Allowed = append([]sandboxdomain.Allowed{{Path: config.ConfigDirName + "/", Access: sandboxdomain.AccessRead}}, sandboxdomain.Allow(tempDir)...)
 
 	validator := NewPathValidator(cfg)
 
@@ -70,10 +70,10 @@ func TestPathValidator_Validate(t *testing.T) {
 			errorMsg:  "excluded for security",
 		},
 		{
-			name:      "protected .infer directory",
+			name:      "read-only .infer directory",
 			path:      filepath.Join(tempDir, config.DefaultConfigPath),
 			wantError: true,
-			errorMsg:  "excluded for security",
+			errorMsg:  "denied by the sandbox",
 		},
 		{
 			name:      "projects.yaml carve-out under the config dir",

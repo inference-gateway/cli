@@ -945,8 +945,9 @@ entry lists its keys and points at the guide that owns the behaviour.
 The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
-- **`sandbox.yaml`** - `allowed` (default `.` and `/tmp`) and `denied` (default `.infer/`, `.git/`, `*.env`,
-  `.environment`, `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
+- **`sandbox.yaml`** - `allowed` (default `~/.infer/tmp`, `.infer/` read-only, `.` and `/tmp`) and `denied`
+  (default `.git/`, `*.env`, `.environment`, `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`,
+  `id_ed25519`). Each entry is a
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
   `on_violation: block|approval` (default block). Denied wins over allowed, the first matching entry in each
   list wins, and a path outside `allowed` or a write into a read-only entry asks the user. Paths are anchored

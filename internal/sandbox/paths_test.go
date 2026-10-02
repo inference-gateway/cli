@@ -49,24 +49,22 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 			}
 		})
 
-		t.Run("user config.yaml still denied (protected paths)", func(t *testing.T) {
-			denied := filepath.Join(home, config.ConfigDirName, "config.yaml")
-			if err := ValidateRead(cfg, denied); err == nil {
-				t.Fatalf("expected %s to be denied", denied)
+		t.Run("user config files are read-only", func(t *testing.T) {
+			for _, name := range []string{"config.yaml", "conversations.db"} {
+				p := filepath.Join(home, config.ConfigDirName, name)
+				if err := ValidateRead(cfg, p); err != nil {
+					t.Fatalf("expected %s readable, got %v", p, err)
+				}
+				if err := ValidateWrite(cfg, p); err == nil {
+					t.Fatalf("expected %s not writable", p)
+				}
 			}
 		})
 
-		t.Run("user conversations.db still denied (protected paths)", func(t *testing.T) {
-			denied := filepath.Join(home, config.ConfigDirName, "conversations.db")
-			if err := ValidateRead(cfg, denied); err == nil {
-				t.Fatalf("expected %s to be denied", denied)
-			}
-		})
-
-		t.Run("lookalike sibling dir not allowed", func(t *testing.T) {
+		t.Run("lookalike sibling dir is not a carve-out", func(t *testing.T) {
 			sibling := filepath.Join(home, config.ConfigDirName, "skills-evil", "SKILL.md")
-			if err := ValidateRead(cfg, sibling); err == nil {
-				t.Fatalf("expected sibling %s rejected (prefix must be a path boundary)", sibling)
+			if err := ValidateWrite(cfg, sibling); err == nil {
+				t.Fatalf("expected sibling %s not writable (prefix must be a path boundary)", sibling)
 			}
 		})
 
@@ -78,13 +76,13 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 		})
 	})
 
-	t.Run("skills disabled: carve-out is off, skills dir denied", func(t *testing.T) {
+	t.Run("skills disabled: carve-out is off, skills dir is read-only", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.Agent.Skills.Enabled = false
 
 		for _, p := range []string{userSkill, projectSkill, relSkill} {
-			if err := ValidateRead(cfg, p); err == nil {
-				t.Fatalf("expected %s denied while skills are disabled", p)
+			if err := ValidateWrite(cfg, p); err == nil {
+				t.Fatalf("expected %s not writable while skills are disabled", p)
 			}
 		}
 	})
@@ -142,7 +140,7 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 }
 
 // TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
-// the config dir: sensitive config files are denied wholesale, and the old
+// the config dir: config files are readable but never writable, and the old
 // project-local .infer/tmp is no longer a sandbox carve-out (runtime
 // artifacts moved to ~/.infer/projects/<project-slug>/). This config has no
 // configDir set, so GetConfigDir() is the relative ".infer" - the case where a
@@ -152,21 +150,28 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 	cfg := config.DefaultConfig()
 
-	denied := []string{
+	readOnly := []string{
 		config.ConfigDirName + "/config.yaml",
 		config.ConfigDirName + "/agents.yaml",
 		config.ConfigDirName + "/conversations.db",
 		config.ConfigDirName + "/shortcuts/git.yaml",
 		config.ConfigDirName + "/tmp/scratch.txt",
-		config.ConfigDirName + "/tmp/leaked.env",
 	}
-	for _, p := range denied {
-		t.Run("deny "+p, func(t *testing.T) {
-			if err := ValidateRead(cfg, p); err == nil {
-				t.Fatalf("expected %s to be denied", p)
+	for _, p := range readOnly {
+		t.Run("read-only "+p, func(t *testing.T) {
+			if err := ValidateRead(cfg, p); err != nil {
+				t.Fatalf("expected %s readable, got %v", p, err)
+			}
+			if err := ValidateWrite(cfg, p); err == nil {
+				t.Fatalf("expected %s not writable", p)
 			}
 		})
 	}
+	t.Run("deny .infer/tmp/leaked.env", func(t *testing.T) {
+		if err := ValidateRead(cfg, config.ConfigDirName+"/tmp/leaked.env"); err == nil {
+			t.Fatal("expected a denied pattern to win inside the config dir")
+		}
+	})
 
 	allowed := []string{
 		config.ConfigDirName + "/plans/2026-06-01-do-thing.md",
@@ -265,14 +270,17 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 		})
 	}
 
-	denied := []string{
+	readOnly := []string{
 		filepath.Join(userspaceConfigDir, "config.yaml"),
 		filepath.Join(userspaceConfigDir, "agents.yaml"),
 	}
-	for _, p := range denied {
-		t.Run("deny "+p, func(t *testing.T) {
-			if err := ValidateRead(cfg, p); err == nil {
-				t.Fatalf("expected %s to be denied", p)
+	for _, p := range readOnly {
+		t.Run("read-only "+p, func(t *testing.T) {
+			if err := ValidateRead(cfg, p); err != nil {
+				t.Fatalf("expected %s readable, got %v", p, err)
+			}
+			if err := ValidateWrite(cfg, p); err == nil {
+				t.Fatalf("expected %s not writable", p)
 			}
 		})
 	}
@@ -299,7 +307,7 @@ func TestValidatePathInSandbox_PluginsCarveOut(t *testing.T) {
 	require.Error(t, ValidateRead(cfg, envPath), "file-level protections must still apply inside the plugins dir")
 
 	cfg.Plugins.Enabled = false
-	require.Error(t, ValidateRead(cfg, skillPath), "carve-out must be gated on plugins.enabled")
+	require.Error(t, ValidateWrite(cfg, skillPath), "carve-out must be gated on plugins.enabled")
 }
 
 // TestValidateWrite_SandboxPolicyFile locks in that the agent can never edit
