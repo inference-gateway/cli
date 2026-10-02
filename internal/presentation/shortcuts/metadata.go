@@ -18,6 +18,7 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg.Register(NewContextShortcut(nil, nil, nil))
 	reg.Register(NewCostShortcut(nil))
 	reg.Register(NewExitShortcut())
+	reg.Register(NewEffortShortcut(nil, nil))
 	reg.Register(NewSwitchShortcut(nil))
 	reg.Register(NewThemeShortcut(nil))
 	reg.Register(NewToolsShortcut())
@@ -35,6 +36,10 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 		reg.Register(NewAgentsShortcut())
 	}
 	reg.Register(NewA2ATaskManagementShortcut())
+
+	if cfg.IsSpeechToTextEnabled() {
+		reg.Register(NewVoiceShortcut(cfg.SpeechToText, nil, nil))
+	}
 
 	configDirs := config.ConfigLookupDirs()
 	if err := reg.LoadCustomShortcuts(configDirs, nil, nil, nil, nil); err != nil {

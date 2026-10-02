@@ -3,11 +3,18 @@ package shortcuts
 import (
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 
+	zap "go.uber.org/zap"
+	zapcore "go.uber.org/zap/zapcore"
+	observer "go.uber.org/zap/zaptest/observer"
+
 	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 func writeShortcutFile(t *testing.T, dir, file, name, description string) {
@@ -88,4 +95,41 @@ func TestConfigLookupDirsWithoutProjectLayer(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 
 	require.Equal(t, []string{filepath.Join(homeDir, config.ConfigDirName)}, config.ConfigLookupDirs())
+}
+
+// TestShadowWarningOncePerProcess pins that the shadow warning fires once per
+// process, not once per registry: the container, the daemon's metadata registry
+// and every CLI command build their own registries, so one stale
+// ~/.infer/shortcuts/a2a.yaml used to repeat the warning on each of them.
+func TestShadowWarningOncePerProcess(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	writeShortcutFile(t, filepath.Join(homeDir, config.ConfigDirName), "a2a.yaml", "agents", "custom agents")
+
+	observerCore, logs := observer.New(zapcore.WarnLevel)
+	prevLogger := logger.GetGlobalLogger()
+	logger.SetGlobalLogger(zap.New(observerCore))
+	t.Cleanup(func() { logger.SetGlobalLogger(prevLogger) })
+
+	prevWarned := warnedShadowed
+	warnedShadowed = new(sync.Map)
+	t.Cleanup(func() { warnedShadowed = prevWarned })
+
+	for range 2 {
+		registry := NewRegistry()
+		registry.Register(NewAgentsShortcut())
+		require.NoError(t, registry.LoadCustomShortcuts(config.ConfigLookupDirs(), nil, nil, nil, nil))
+		_, ok := registry.Get("agents")
+		require.True(t, ok, "built-in /agents must survive the custom override")
+	}
+
+	entries := logs.AllUntimed()
+	require.Len(t, entries, 1, "the shadow warning must fire once per process, not once per registry")
+	require.Contains(t, entries[0].Message, "delete or rename")
+
+	fields := entries[0].ContextMap()
+	require.Equal(t, "agents", fields["name"])
+	file, ok := fields["file"].(string)
+	require.True(t, ok, "the file field must be a string")
+	require.True(t, strings.HasSuffix(file, "a2a.yaml"), "file = %s", file)
 }
