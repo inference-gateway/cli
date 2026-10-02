@@ -158,30 +158,6 @@ func TestMessagesReasoningEffort(t *testing.T) {
 	}
 }
 
-// TestMessagesSyncRun covers the non-streaming (headless) path over
-// /v1/messages.
-func TestMessagesSyncRun(t *testing.T) {
-	e := newAnthropicEnv(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
-	defer cancel()
-
-	resp, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
-		RequestID: "req-messages-sync",
-		Model:     testAnthropicModel,
-		Messages:  []sdk.Message{userMessage(t, "say hello")},
-	})
-	require.NoError(t, err)
-	require.Equal(t, "Hello! How can I help?", resp.Content)
-	require.NotNil(t, resp.Usage)
-	require.EqualValues(t, 15, resp.Usage.TotalTokens)
-
-	reqs := e.gateway.Requests()
-	require.Len(t, reqs, 1)
-	require.False(t, reqs[0].Stream, "AgentService.Run must use the non-streaming path")
-	require.Equal(t, "/v1/messages", reqs[0].Endpoint)
-}
-
 func requestBlocks(t *testing.T, m sdk.MessagesMessage) []sdk.MessagesRequestContentBlock {
 	t.Helper()
 	blocks, err := m.Content.AsMessagesMessageContent1()

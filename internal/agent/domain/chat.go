@@ -40,14 +40,3 @@ type ChatMetrics struct {
 	Duration time.Duration
 	Usage    *sdk.CompletionUsage
 }
-
-// ChatSyncResponse represents a synchronous chat completion response
-type ChatSyncResponse struct {
-	RequestID        string                              `json:"request_id"`
-	Content          string                              `json:"content"`
-	ReasoningContent string                              `json:"reasoning_content,omitempty"`
-	ToolCalls        []sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
-	Usage            *sdk.CompletionUsage                `json:"usage,omitempty"`
-	Duration         time.Duration                       `json:"duration"`
-	FinishReason     string                              `json:"finish_reason,omitempty"`
-}

@@ -468,21 +468,6 @@ func (s *Agent) SetMemoryBackend(backend memory.MemoryBackend) {
 	s.memoryBackend = backend
 }
 
-// Run executes an agent task synchronously (for background/batch processing)
-// turnOutput is the assembled result of a single model turn, produced by the
-// sync or streaming executor passed to runTurn.
-type turnOutput struct {
-	content      string
-	reasoning    string
-	toolCalls    []sdk.ChatCompletionMessageToolCall
-	finishReason string
-	usage        *sdk.CompletionUsage
-}
-
-// turnExec issues the actual model call (sync or streaming) against a prepared
-// client and returns the assembled output.
-type turnExec func(ctx context.Context, client sdk.Client, provider sdk.Provider, model string, messages []sdk.Message) (turnOutput, error)
-
 // advertisedTools returns the tool definitions to send with a request. All
 // mid-session modes advertise the same full list so a mode switch never
 // invalidates the provider's prompt cache; restrictions apply at execution
@@ -496,236 +481,6 @@ func (s *Agent) advertisedTools() []sdk.ChatCompletionTool {
 		return s.toolService.ListToolsForMode(agentdomain.AgentModeReadOnly)
 	}
 	return s.toolService.ListTools()
-}
-
-// runTurn wraps a single model turn with the shared preamble/postamble - message
-// prep, timeout + span, client + tool construction, metrics, response assembly -
-// and delegates the model call itself to exec. Run and RunStreaming differ only
-// in exec (and whether streaming usage is requested).
-func (s *Agent) runTurn(ctx context.Context, req *agentdomain.AgentRequest, stream bool, exec turnExec) (*agentdomain.ChatSyncResponse, error) {
-	if err := s.validateRequest(req); err != nil {
-		return nil, err
-	}
-
-	optimizedMessages := req.Messages
-	if s.optimizer != nil {
-		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages, req.Model, false)
-	}
-
-	messages := s.addSystemPrompt(optimizedMessages)
-	if tail, ok := s.volatileTailMessage(optimizedMessages, req.IsChatMode); ok && !conversationAwaitsToolResults(optimizedMessages) {
-		messages = append(messages, tail)
-	}
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
-	defer cancel()
-
-	timeoutCtx, turnSpan := s.recorder.StartLLMTurnSpan(timeoutCtx, req.Model)
-	defer turnSpan.End()
-
-	startTime := time.Now()
-
-	provider, modelName, err := s.parseProvider(req.Model)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", req.Model, err)
-	}
-
-	opts := &sdk.CreateChatCompletionRequest{
-		MaxTokens:       &s.maxTokens,
-		ReasoningEffort: s.reasoningEffortOptionFor(req.Model),
-	}
-	if stream {
-		opts.StreamOptions = &sdk.ChatCompletionStreamOptions{IncludeUsage: true}
-	}
-	client := s.client.WithOptions(opts).WithMiddlewareOptions(&sdk.MiddlewareOptions{SkipMCP: true})
-
-	var availableTools []sdk.ChatCompletionTool
-	if s.toolService != nil {
-		availableTools = s.advertisedTools()
-		if len(availableTools) > 0 {
-			client = client.WithTools(&availableTools)
-		}
-	}
-
-	out, err := exec(timeoutCtx, client, sdk.Provider(provider), modelName, messages)
-	if err != nil {
-		telemetry.SetSpanError(timeoutCtx, err)
-		return nil, err
-	}
-
-	effectiveUsage := s.storeIterationMetrics(timeoutCtx, req.RequestID, req.Model, startTime, out.usage, &storeIterationMetricsInput{
-		inputMessages:   messages,
-		outputContent:   out.content,
-		outputToolCalls: out.toolCalls,
-		availableTools:  availableTools,
-	})
-
-	return &agentdomain.ChatSyncResponse{
-		RequestID:        req.RequestID,
-		Content:          out.content,
-		ReasoningContent: out.reasoning,
-		ToolCalls:        out.toolCalls,
-		Usage:            effectiveUsage,
-		Duration:         time.Since(startTime),
-		FinishReason:     out.finishReason,
-	}, nil
-}
-
-func (s *Agent) Run(ctx context.Context, req *agentdomain.AgentRequest) (*agentdomain.ChatSyncResponse, error) {
-	return s.runTurn(ctx, req, false, func(ctx context.Context, client sdk.Client, provider sdk.Provider, model string, messages []sdk.Message) (turnOutput, error) {
-		response, err := client.GenerateContent(ctx, provider, model, messages)
-		if err != nil {
-			return turnOutput{}, fmt.Errorf("failed to generate content: %w", err)
-		}
-		content, reasoning, toolCalls, finishReason := extractFirstChoice(response)
-		return turnOutput{
-			content:      content,
-			reasoning:    reasoning,
-			toolCalls:    toolCalls,
-			finishReason: finishReason,
-			usage:        response.Usage,
-		}, nil
-	})
-}
-
-// RunStreaming executes a single model turn with streaming, invoking onDelta
-// for each content/reasoning/tool-call delta as it arrives, and returns the
-// same assembled ChatSyncResponse as Run: the streaming counterpart for callers
-// that own their own agentic loop (the headless AG-UI agent). onDelta may be nil.
-func (s *Agent) RunStreaming(
-	ctx context.Context,
-	req *agentdomain.AgentRequest,
-	onDelta func(content, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk),
-) (*agentdomain.ChatSyncResponse, error) {
-	return s.runTurn(ctx, req, true, func(ctx context.Context, client sdk.Client, provider sdk.Provider, model string, messages []sdk.Message) (turnOutput, error) {
-		events, err := client.GenerateContentStream(ctx, provider, model, messages)
-		if err != nil {
-			return turnOutput{}, fmt.Errorf("failed to generate content stream: %w", err)
-		}
-
-		s.clearToolCallsMap()
-
-		var acc streamAccumulator
-		for streaming := true; streaming; {
-			select {
-			case <-ctx.Done():
-				return turnOutput{}, fmt.Errorf("failed to generate content stream: %w", ctx.Err())
-			case event, ok := <-events:
-				if ok {
-					acc.ingest(event, onDelta)
-				} else {
-					streaming = false
-				}
-			}
-		}
-
-		s.accumulateToolCalls(acc.toolDeltas)
-		accumulated := s.getAccumulatedToolCalls()
-		toolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(accumulated))
-		for _, tc := range accumulated {
-			toolCalls = append(toolCalls, *tc)
-		}
-
-		return turnOutput{
-			content:      acc.content.String(),
-			reasoning:    acc.reasoning.String(),
-			toolCalls:    toolCalls,
-			finishReason: acc.finishReason,
-			usage:        acc.usage,
-		}, nil
-	})
-}
-
-// streamAccumulator folds streaming SSE events into the assembled content,
-// reasoning, tool-call deltas, usage, and finish reason for one model turn.
-type streamAccumulator struct {
-	content      strings.Builder
-	reasoning    strings.Builder
-	toolDeltas   []sdk.ChatCompletionMessageToolCallChunk
-	usage        *sdk.CompletionUsage
-	finishReason string
-}
-
-// ingest folds one SSE event in, invoking onDelta (may be nil) for each
-// non-empty content/reasoning/tool-call delta.
-func (a *streamAccumulator) ingest(
-	event sdk.SSEvent,
-	onDelta func(content, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk),
-) {
-	if event.Event == nil || event.Data == nil {
-		return
-	}
-	switch string(*event.Event) {
-	case "message_stop", "system_init", "hook_event", "tool_failure", "result_metadata":
-		return
-	}
-	var streamResponse sdk.CreateChatCompletionStreamResponse
-	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-		logger.Error("failed to unmarshal chat completion stream response", "error", err)
-		return
-	}
-	if streamResponse.Usage != nil {
-		a.usage = streamResponse.Usage
-	}
-	for _, choice := range streamResponse.Choices {
-		a.ingestChoice(choice, onDelta)
-	}
-}
-
-func (a *streamAccumulator) ingestChoice(
-	choice sdk.ChatCompletionStreamChoice,
-	onDelta func(content, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk),
-) {
-	deltaContent := choice.Delta.Content
-	if deltaContent != "" {
-		a.content.WriteString(deltaContent)
-	}
-	reasoning := extractReasoningForEvent(choice.Delta)
-	if reasoning != "" {
-		a.reasoning.WriteString(reasoning)
-	}
-	var toolCalls []sdk.ChatCompletionMessageToolCallChunk
-	if choice.Delta.ToolCalls != nil {
-		toolCalls = *choice.Delta.ToolCalls
-		a.toolDeltas = append(a.toolDeltas, toolCalls...)
-	}
-	if choice.FinishReason != "" {
-		a.finishReason = string(choice.FinishReason)
-	}
-	if onDelta != nil && (deltaContent != "" || reasoning != "" || len(toolCalls) > 0) {
-		onDelta(deltaContent, reasoning, toolCalls)
-	}
-}
-
-// extractFirstChoice pulls content, reasoning, tool calls, and finish reason
-// from the first choice of a non-streaming response. Reasoning preference
-// matches the streaming path in agent_streaming.go.
-func extractFirstChoice(response *sdk.CreateChatCompletionResponse) (string, string, []sdk.ChatCompletionMessageToolCall, string) {
-	if len(response.Choices) == 0 {
-		return "", "", nil, ""
-	}
-
-	choice := response.Choices[0]
-
-	content, err := choice.Message.Content.AsMessageContent0()
-	if err != nil {
-		content = ""
-	}
-
-	reasoning := ""
-	switch {
-	case choice.Message.Reasoning != nil && *choice.Message.Reasoning != "":
-		reasoning = *choice.Message.Reasoning
-	case choice.Message.ReasoningContent != nil && *choice.Message.ReasoningContent != "":
-		reasoning = *choice.Message.ReasoningContent
-	}
-
-	var toolCalls []sdk.ChatCompletionMessageToolCall
-	if choice.Message.ToolCalls != nil {
-		toolCalls = *choice.Message.ToolCalls
-	}
-
-	return content, reasoning, toolCalls, string(choice.FinishReason)
 }
 
 // ensureConversationIntegrity enforces the OpenAI tool_call/response
@@ -973,9 +728,6 @@ type storeIterationMetricsInput struct {
 
 // storeIterationMetrics stores metrics for the current iteration and accumulates session tokens.
 // If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
-// It returns the effective (possibly polyfilled) usage that was accumulated, or nil when there
-// was nothing to record. Both the streaming path and the sync Run path funnel through here so
-// chat and headless token accounting stay identical.
 func (s *Agent) storeIterationMetrics(
 	ctx context.Context,
 	requestID string,
@@ -983,7 +735,7 @@ func (s *Agent) storeIterationMetrics(
 	startTime time.Time,
 	usage *sdk.CompletionUsage,
 	polyfillInput *storeIterationMetricsInput,
-) *sdk.CompletionUsage {
+) {
 	effectiveUsage := usage
 
 	if s.tokenizer != nil && s.tokenizer.ShouldUsePolyfill(usage) && polyfillInput != nil {
@@ -996,7 +748,7 @@ func (s *Agent) storeIterationMetrics(
 	}
 
 	if effectiveUsage == nil {
-		return nil
+		return
 	}
 
 	metrics := &agentdomain.ChatMetrics{
@@ -1034,8 +786,6 @@ func (s *Agent) storeIterationMetrics(
 		s.recorder.RecordUsage(model, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens), cached, cacheWrite)
 	}
 	telemetry.SetSpanUsage(ctx, int(effectiveUsage.PromptTokens), int(effectiveUsage.CompletionTokens))
-
-	return effectiveUsage
 }
 
 func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
