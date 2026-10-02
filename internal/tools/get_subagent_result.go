@@ -57,7 +57,7 @@ func (t *GetSubagentResultTool) Execute(ctx context.Context, args map[string]any
 			ToolName:  ToolGetSubagentResult,
 			Arguments: args,
 			Success:   false,
-			Error:     fmt.Sprintf("Subagent %s is still running and will notify you AUTOMATICALLY when it finishes. END YOUR TURN NOW - do NOT call this again, and do NOT CloseSubagent to fetch a result. Its '[Subagent Completed: ...]' message arrives in the conversation on its own; act on it then.", labelOrSession(s.Label, s.SessionID)),
+			Error:     fmt.Sprintf("Subagent %s is still running and will notify you AUTOMATICALLY when it finishes. Do NOT call this again, and do NOT CloseSubagent to fetch a result. To get its result sooner, SendSubagentInput it a message asking it to wrap up and report now. Then END YOUR TURN. Its '[Subagent Completed: ...]' message arrives in the conversation on its own; act on it then.", labelOrSession(s.Label, s.SessionID)),
 		}, nil
 	}
 

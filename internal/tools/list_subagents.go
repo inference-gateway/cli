@@ -167,7 +167,7 @@ func (t *ListSubagentsTool) formatList(result *agentdomain.ToolExecutionResult) 
 			fmt.Fprintf(&out, "   elapsed: %s\n", elapsed)
 		}
 	}
-	out.WriteString("\nRunning subagents notify you automatically when they finish - do not poll. Use CloseSubagent(subagent_id=\"<id>\") only to stop one early or tidy a finished pane.")
+	out.WriteString("\nRunning subagents notify you automatically when they finish - do not poll. SendSubagentInput steers a running one or tells it to wrap up and report now. Use CloseSubagent(subagent_id=\"<id>\") only to stop one early or tidy a finished pane.")
 	return out.String()
 }
 
