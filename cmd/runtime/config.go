@@ -45,6 +45,9 @@ func resolveViperEnvironmentVariables(v *viper.Viper, cfg any, keyPrefix string)
 			tag = strings.ToLower(fieldType.Name)
 		}
 		tag = strings.SplitN(tag, ",", 2)[0]
+		if tag == "-" {
+			continue
+		}
 
 		var key string
 		if keyPrefix == "" {
@@ -171,6 +174,29 @@ func applySidecarEnv(cfg any, prefix string) {
 	v.AllowEmptyEnv(true)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	resolveViperEnvironmentVariables(v, cfg, prefix)
+}
+
+// applyBashAllowAppends adds the commands of --tools-bash-allow-append (or
+// INFER_TOOLS_BASH_ALLOW_APPEND) to the mode.all allow-list, after tools.yaml
+// and the INFER_TOOLS_* overrides are in place.
+func applyBashAllowAppends(tools *config.ToolsConfig, root *cobra.Command) {
+	if override := resolveFlagEnvOverride(root, "tools-bash-allow-append", "INFER_TOOLS_BASH_ALLOW_APPEND"); override != "" {
+		tools.Bash.Mode.All.Allow = append(tools.Bash.Mode.All.Allow, parseDelimitedList(override)...)
+	}
+}
+
+// warnIgnoredToolsConfig points at what no longer feeds the tools config so
+// nobody silently loses an allow-list: a `tools:` block in any config.yaml and
+// a project .infer/tools.yaml. Called after logger.Init, where Warn writes.
+func warnIgnoredToolsConfig(v *viper.Viper) {
+	if v.IsSet("tools") {
+		logger.Warn("ignoring the legacy `tools:` block in config.yaml",
+			"hint", "run infer init to move it to ~/.infer/tools.yaml, then remove the block")
+	}
+	if _, err := os.Stat(filepath.Join(config.ConfigDirName, config.ToolsFileName)); err == nil {
+		logger.Warn("ignoring project .infer/tools.yaml",
+			"hint", "the tools config is read from ~/.infer/tools.yaml only")
+	}
 }
 
 // resolveRemindersConfig resolves the reminders configuration, layering the
@@ -310,6 +336,18 @@ func loadConfigFromViper(v *viper.Viper, root *cobra.Command) (*config.Config, e
 	}
 	cfg.Judge = *judgeCfg
 	applySidecarEnv(&cfg.Judge, "judge")
+
+	toolsPath, err := config.UserToolsPath()
+	if err != nil {
+		return nil, err
+	}
+	toolsCfg, err := config.LoadTools(toolsPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading tools config %s: %w", toolsPath, err)
+	}
+	cfg.Tools = *toolsCfg
+	applySidecarEnv(&cfg.Tools, "tools")
+	applyBashAllowAppends(&cfg.Tools, root)
 
 	sandboxCfg, err := loadSandboxConfig()
 	if err != nil {

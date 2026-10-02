@@ -43,8 +43,6 @@ func (s *State) Initialize(root *cobra.Command) error {
 	if err := loadLayeredConfig(v); err != nil {
 		return err
 	}
-	applyBashAllowAppends(v, root)
-
 	cfg, err := loadConfigFromViper(v, root)
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -69,6 +67,7 @@ func (s *State) Initialize(root *cobra.Command) error {
 		ArchiveMaxSizeMB: v.GetInt("logging.archive.max_size_mb"),
 	}
 	logger.Init(s.loggerCfg)
+	warnIgnoredToolsConfig(v)
 	return nil
 }
 
@@ -108,13 +107,6 @@ func resolveFlagEnvOverride(root *cobra.Command, flagName, envName string) strin
 		return value
 	}
 	return ""
-}
-
-func applyBashAllowAppends(v *viper.Viper, root *cobra.Command) {
-	if override := resolveFlagEnvOverride(root, "tools-bash-allow-append", "INFER_TOOLS_BASH_ALLOW_APPEND"); override != "" {
-		const key = "tools.bash.mode.all.allow"
-		v.Set(key, append(v.GetStringSlice(key), parseDelimitedList(override)...))
-	}
 }
 
 // loadLayeredConfig seeds defaults, then reads the userspace baseline
