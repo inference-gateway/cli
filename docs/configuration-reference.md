@@ -116,7 +116,8 @@ logging:
     enabled: true # Automatically archive oversized log files (default: true)
     max_size_mb: 1024 # Threshold in MB; files exceeding this are gzip-compressed and truncated (default: 1024 = 1 GB)
   insights_min_level: warn # Lowest level `infer insights` folds into its report (debug|info|warn|error|dpanic|panic|fatal)
-tools:
+tools:  # moved: this section lives in ~/.infer/tools.yaml, not here
+  # The block below is kept for reference only; infer ignores a `tools:` block in config.yaml.
   enabled: true # Tools are enabled by default with safe read-only commands
   bash:
     enabled: true
@@ -332,6 +333,9 @@ telemetry:
   `INFER_LOGGING_INSIGHTS_MIN_LEVEL`.
 
 ### Tool Settings
+
+The tools policy lives in `~/.infer/tools.yaml`, not in `config.yaml`. `infer config get tools.*`
+still prints the effective value, but `infer config set tools.*` fails - edit `tools.yaml` directly.
 
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
 - **tools.max_result_bytes**: Byte cap on a single tool result before it is truncated for the model (default: `250000`).
@@ -1185,7 +1189,7 @@ directory in the [Directory Structure](directory-structure.md).
 **Bash Tool Allow-List Configuration:**
 
 The Bash allow-list is **per agent mode** and configured in YAML. Set
-`tools.bash.mode.<mode>.allow` in `config.yaml`, where `<mode>` is `all`
+`tools.bash.mode.<mode>.allow` in `~/.infer/tools.yaml`, where `<mode>` is `all`
 (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective
 list for a mode is `mode.all.allow` unioned with that mode's list; anything
 unmatched is denied (it prompts for approval in chat, or is rejected with a
@@ -1225,7 +1229,7 @@ rewriting config or relaxing a mode to `.*`:
 > sentinel `.*` (default for `auto`) means unrestricted and skips the guard.
 > See [Bash Tool restricted operators](tools-reference.md#bash-tool) for details.
 
-**Example (`config.yaml`):**
+**Example (`~/.infer/tools.yaml`):**
 
 ```yaml
 tools:
@@ -1453,7 +1457,7 @@ infer config set agent.model "deepseek/deepseek-v4-pro"
 
 # 2. Project-specific overrides
 infer config set agent.model "openai/gpt-4o" --project    # Project-specific model
-infer config set tools.bash.enabled true --project        # Enable bash tools for this project
+infer config set agent.max_turns 30 --project             # Project-specific turn limit
 
 # 3. Runtime overrides
 INFER_AGENT_MAX_TURNS=100 infer chat  # Temporary turn limit

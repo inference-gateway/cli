@@ -53,6 +53,7 @@ for the full precedence rules.
 ├── prompts.yaml          # LLM system prompts (agent, git, conversation, tools, ...)
 ├── keybindings.yaml      # chat UI keyboard shortcuts
 ├── sandbox.yaml          # sandbox policy: filesystem.allowed and filesystem.denied
+├── tools.yaml            # tool approval policy and bash allow-list
 ├── channels.yaml         # remote messaging channels (Telegram, ...)
 ├── computer_use.yaml     # computer-use / vision settings
 ├── browser_use.yaml      # browser automation (Playwright) settings
@@ -139,6 +140,11 @@ project wants to override a config file it commits its own sparse
   and `denied` paths they never may (optionally `on_violation: approval`).
   Userspace only, a project copy is ignored, and the agent's file tools cannot
   write this file, whatever it says.
+- **`tools.yaml`** - the tool approval policy: per-tool `enabled` flags,
+  `require_approval` overrides, `safety` and the per-mode bash allow-list.
+  Userspace only, a project copy is ignored, and the agent's file tools cannot
+  write this file. A legacy `tools:` block in `config.yaml` is auto-migrated
+  here on first init.
 - **`channels.yaml`** - remote messaging transports (Telegram, ...) and
   per-channel allowlists. See [Channels](channels.md). On first init, a
   legacy `channels:` block in `config.yaml` is auto-migrated here.

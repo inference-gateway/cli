@@ -151,15 +151,11 @@ infer config set agent.max_concurrent_tools 5
 infer config set agent.skills.enabled true
 
 # Tools
-infer config set tools.enabled true
-infer config set tools.bash.enabled true
-infer config set tools.web_search.enabled true
-infer config set tools.grep.backend ripgrep
-infer config set tools.safety.require_approval true
+# The tools policy lives in ~/.infer/tools.yaml, not config.yaml.
+# infer config get tools.* works, but infer config set tools.* is rejected.
 
 # List values (comma-separated, replaces the whole list)
-infer config set tools.bash.mode.standard.allow "^git status$,^ls"
-infer config set tools.web_fetch.allowed_domains "example.com,github.com"
+infer config set gateway.include_models "openai/gpt-4o,anthropic/claude-4-opus"
 
 # Write a project-level override into ./.infer/config.yaml instead
 infer config set agent.model "openai/gpt-4o" --project
@@ -168,9 +164,10 @@ infer config set agent.model "openai/gpt-4o" --project
 > System prompts live in `prompts.yaml` (e.g. `prompts.agent.system_prompt`), which is edited
 > directly rather than via `config set`.
 
-Tool *configuration* (enable/disable, allowed, sandbox, backends, domains, approval) is done with
-`config get`/`config set` on the `tools.*` keys - see the examples above. To run a tool directly or
-check a command against the allowed list, use the top-level `infer tools` command below.
+Tool *configuration* (enable/disable, allow-lists, sandbox, backends, domains, approval) lives in
+`~/.infer/tools.yaml`. `infer config get tools.*` reads it, but `infer config set tools.*` is rejected -
+edit `tools.yaml` directly. To run a tool directly or check a command against the allowed list, use the
+top-level `infer tools` command below.
 
 ### `infer tools`
 
