@@ -19,19 +19,18 @@ const ToolSandboxAccess = "SandboxAccess"
 type Access string
 
 const (
-	AccessNone  Access = "none"
 	AccessRead  Access = "read"
 	AccessWrite Access = "write"
 )
 
-var accessRank = map[Access]int{AccessNone: 0, AccessRead: 1, AccessWrite: 2}
+var accessRank = map[Access]int{AccessRead: 1, AccessWrite: 2}
 
 // Allows reports whether a holder of a may perform want.
 func (a Access) Allows(want Access) bool {
 	return accessRank[a] >= accessRank[want]
 }
 
-// Valid reports whether a is one of the three access levels.
+// Valid reports whether a is one of the two access levels.
 func (a Access) Valid() bool {
 	_, ok := accessRank[a]
 	return ok

@@ -120,7 +120,7 @@ func implicitAccess(cfg *config.Config, absPath string) (sandboxdomain.Access, b
 	case isWithinGoLibDirs(absPath):
 		return sandboxdomain.AccessRead, true
 	}
-	return sandboxdomain.AccessNone, false
+	return "", false
 }
 
 func granted(absPath string, access sandboxdomain.Access) bool {

@@ -11,7 +11,7 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
+func TestValidateRead_SkillsCarveOut(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Skip("no home dir available")
@@ -88,13 +88,13 @@ func TestValidatePathInSandbox_SkillsCarveOut(t *testing.T) {
 	})
 }
 
-// TestValidatePathInSandbox_AgentsSkillsCarveOut covers the .agents/skills open
+// TestValidateRead_AgentsSkillsCarveOut covers the .agents/skills open
 // standard. Unlike .infer/, the .agents/ directory is not in ProtectedPaths, so
 // the carve-out is only observable against a *restrictive* sandbox: with skills
 // enabled, .agents/skills/** must be readable even though it sits outside the
 // configured sandbox dirs (parity with .infer/skills), while non-skills paths
 // under .agents and lookalike siblings stay denied.
-func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
+func TestValidateRead_AgentsSkillsCarveOut(t *testing.T) {
 	sandboxDir := t.TempDir()
 
 	agentsSkill, err := filepath.Abs(filepath.Join(config.AgentsDirName, "skills", "demo", "SKILL.md"))
@@ -139,7 +139,7 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 	})
 }
 
-// TestValidatePathInSandbox_ConfigDir locks in the directory-wide protection of
+// TestValidateRead_ConfigDir locks in the directory-wide protection of
 // the config dir: config files are readable but never writable, and the old
 // project-local .infer/tmp is no longer a sandbox carve-out (runtime
 // artifacts moved to ~/.infer/projects/<project-slug>/). This config has no
@@ -147,7 +147,7 @@ func TestValidatePathInSandbox_AgentsSkillsCarveOut(t *testing.T) {
 // config-relative check would miss the userspace runtime dirs entirely, so the
 // ~/.infer plans and artifacts entries below are the ones that matter here.
 // Hard protections like *.env apply everywhere.
-func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
+func TestValidateRead_ConfigDir(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	readOnly := []string{
@@ -190,11 +190,11 @@ func TestValidatePathInSandbox_ConfigDir(t *testing.T) {
 	}
 }
 
-// TestValidatePathInSandbox_GoLibCarveOut locks in that the Go module cache is
+// TestValidateWrite_GoLibCarveOut locks in that the Go module cache is
 // readable via the carve-out but rejected for writes — including via relative
 // paths, which must be resolved before the read-only check (regression: raw
 // relative paths used to bypass ValidateWrite's prefix match).
-func TestValidatePathInSandbox_GoLibCarveOut(t *testing.T) {
+func TestValidateWrite_GoLibCarveOut(t *testing.T) {
 	modcache := t.TempDir()
 	t.Setenv("GOMODCACHE", modcache)
 	cfg := config.DefaultConfig()
@@ -237,12 +237,12 @@ func TestValidatePathInSandbox_GoLibCarveOut(t *testing.T) {
 	})
 }
 
-// TestValidatePathInSandbox_ConfigDirUserspace locks in that the tmp/plans
+// TestValidateRead_ConfigDirUserspace locks in that the tmp/plans
 // carve-out also covers the resolved userspace config dir (~/.infer). config.When the
 // config is loaded from the userspace location, GetConfigDir() returns an
 // absolute home path and plans are written there - the sandbox must still
 // allow the agent to read them back.
-func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
+func TestValidateRead_ConfigDirUserspace(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	homeDir, err := os.UserHomeDir()
@@ -293,7 +293,7 @@ func TestValidatePathInSandbox_ConfigDirUserspace(t *testing.T) {
 	})
 }
 
-func TestValidatePathInSandbox_PluginsCarveOut(t *testing.T) {
+func TestValidateRead_PluginsCarveOut(t *testing.T) {
 	t.Chdir(t.TempDir())
 	pluginsDir := filepath.Join(config.ConfigDirName, config.PluginsDirName)
 	cfg := config.DefaultConfig()

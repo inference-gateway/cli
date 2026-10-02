@@ -93,7 +93,7 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	}
 }
 
-func TestValidatePathInSandbox_Symlinks(t *testing.T) {
+func TestValidateWrite_Symlinks(t *testing.T) {
 	t.Cleanup(func() {
 		sandboxdomain.Granted = sandboxdomain.Grants{}
 	})
@@ -175,7 +175,7 @@ func mustSymlink(t *testing.T, target, link string) {
 	}
 }
 
-func TestValidatePathInSandboxWrite_CustomToolsDirs(t *testing.T) {
+func TestValidateWrite_CustomToolsDirs(t *testing.T) {
 	project := t.TempDir()
 	t.Chdir(project)
 	userTools := filepath.Join(t.TempDir(), "my-tools")
