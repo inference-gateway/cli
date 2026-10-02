@@ -13,9 +13,9 @@ An agentic command-line assistant that writes code, understands project context,
 
 <br/>
 
-<img src="./assets/tui-chat.png" width="760" alt="infer chat - the interactive TUI with model selection, streaming responses, and a live status bar" />
+<img src="./assets/subagents.gif" alt="infer chat in plan mode fans out 5 subagents to search for docs drift, then opens their live transcripts" />
 
-*The `infer chat` TUI - [watch the animated demo](https://docs.inference-gateway.com/cli#quick-start)*
+*Plan mode fanning out 5 subagents, each live transcript one keypress away - [Subagents](docs/subagents.md)*
 
 </div>
 
