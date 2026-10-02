@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/agent/domain"
-	"github.com/inference-gateway/sdk"
 )
 
 type FakeAgentService struct {
@@ -51,35 +50,6 @@ type FakeAgentService struct {
 	}
 	getReasoningEffortReturnsOnCall map[int]struct {
 		result1 string
-	}
-	RunStub        func(context.Context, *domain.AgentRequest) (*domain.ChatSyncResponse, error)
-	runMutex       sync.RWMutex
-	runArgsForCall []struct {
-		arg1 context.Context
-		arg2 *domain.AgentRequest
-	}
-	runReturns struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}
-	runReturnsOnCall map[int]struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}
-	RunStreamingStub        func(context.Context, *domain.AgentRequest, func(content string, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)) (*domain.ChatSyncResponse, error)
-	runStreamingMutex       sync.RWMutex
-	runStreamingArgsForCall []struct {
-		arg1 context.Context
-		arg2 *domain.AgentRequest
-		arg3 func(content string, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)
-	}
-	runStreamingReturns struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}
-	runStreamingReturnsOnCall map[int]struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
 	}
 	RunWithStreamStub        func(context.Context, *domain.AgentRequest) (<-chan domain.ChatEvent, error)
 	runWithStreamMutex       sync.RWMutex
@@ -336,137 +306,6 @@ func (fake *FakeAgentService) GetReasoningEffortReturnsOnCall(i int, result1 str
 	fake.getReasoningEffortReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
-}
-
-func (fake *FakeAgentService) Run(arg1 context.Context, arg2 *domain.AgentRequest) (*domain.ChatSyncResponse, error) {
-	fake.runMutex.Lock()
-	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
-	fake.runArgsForCall = append(fake.runArgsForCall, struct {
-		arg1 context.Context
-		arg2 *domain.AgentRequest
-	}{arg1, arg2})
-	stub := fake.RunStub
-	fakeReturns := fake.runReturns
-	fake.recordInvocation("Run", []interface{}{arg1, arg2})
-	fake.runMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeAgentService) RunCallCount() int {
-	fake.runMutex.RLock()
-	defer fake.runMutex.RUnlock()
-	return len(fake.runArgsForCall)
-}
-
-func (fake *FakeAgentService) RunCalls(stub func(context.Context, *domain.AgentRequest) (*domain.ChatSyncResponse, error)) {
-	fake.runMutex.Lock()
-	defer fake.runMutex.Unlock()
-	fake.RunStub = stub
-}
-
-func (fake *FakeAgentService) RunArgsForCall(i int) (context.Context, *domain.AgentRequest) {
-	fake.runMutex.RLock()
-	defer fake.runMutex.RUnlock()
-	argsForCall := fake.runArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeAgentService) RunReturns(result1 *domain.ChatSyncResponse, result2 error) {
-	fake.runMutex.Lock()
-	defer fake.runMutex.Unlock()
-	fake.RunStub = nil
-	fake.runReturns = struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeAgentService) RunReturnsOnCall(i int, result1 *domain.ChatSyncResponse, result2 error) {
-	fake.runMutex.Lock()
-	defer fake.runMutex.Unlock()
-	fake.RunStub = nil
-	if fake.runReturnsOnCall == nil {
-		fake.runReturnsOnCall = make(map[int]struct {
-			result1 *domain.ChatSyncResponse
-			result2 error
-		})
-	}
-	fake.runReturnsOnCall[i] = struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeAgentService) RunStreaming(arg1 context.Context, arg2 *domain.AgentRequest, arg3 func(content string, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)) (*domain.ChatSyncResponse, error) {
-	fake.runStreamingMutex.Lock()
-	ret, specificReturn := fake.runStreamingReturnsOnCall[len(fake.runStreamingArgsForCall)]
-	fake.runStreamingArgsForCall = append(fake.runStreamingArgsForCall, struct {
-		arg1 context.Context
-		arg2 *domain.AgentRequest
-		arg3 func(content string, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)
-	}{arg1, arg2, arg3})
-	stub := fake.RunStreamingStub
-	fakeReturns := fake.runStreamingReturns
-	fake.recordInvocation("RunStreaming", []interface{}{arg1, arg2, arg3})
-	fake.runStreamingMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2, arg3)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeAgentService) RunStreamingCallCount() int {
-	fake.runStreamingMutex.RLock()
-	defer fake.runStreamingMutex.RUnlock()
-	return len(fake.runStreamingArgsForCall)
-}
-
-func (fake *FakeAgentService) RunStreamingCalls(stub func(context.Context, *domain.AgentRequest, func(content string, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)) (*domain.ChatSyncResponse, error)) {
-	fake.runStreamingMutex.Lock()
-	defer fake.runStreamingMutex.Unlock()
-	fake.RunStreamingStub = stub
-}
-
-func (fake *FakeAgentService) RunStreamingArgsForCall(i int) (context.Context, *domain.AgentRequest, func(content string, reasoning string, toolCalls []sdk.ChatCompletionMessageToolCallChunk)) {
-	fake.runStreamingMutex.RLock()
-	defer fake.runStreamingMutex.RUnlock()
-	argsForCall := fake.runStreamingArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
-}
-
-func (fake *FakeAgentService) RunStreamingReturns(result1 *domain.ChatSyncResponse, result2 error) {
-	fake.runStreamingMutex.Lock()
-	defer fake.runStreamingMutex.Unlock()
-	fake.RunStreamingStub = nil
-	fake.runStreamingReturns = struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeAgentService) RunStreamingReturnsOnCall(i int, result1 *domain.ChatSyncResponse, result2 error) {
-	fake.runStreamingMutex.Lock()
-	defer fake.runStreamingMutex.Unlock()
-	fake.RunStreamingStub = nil
-	if fake.runStreamingReturnsOnCall == nil {
-		fake.runStreamingReturnsOnCall = make(map[int]struct {
-			result1 *domain.ChatSyncResponse
-			result2 error
-		})
-	}
-	fake.runStreamingReturnsOnCall[i] = struct {
-		result1 *domain.ChatSyncResponse
-		result2 error
-	}{result1, result2}
 }
 
 func (fake *FakeAgentService) RunWithStream(arg1 context.Context, arg2 *domain.AgentRequest) (<-chan domain.ChatEvent, error) {

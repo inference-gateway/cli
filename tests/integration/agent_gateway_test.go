@@ -328,8 +328,11 @@ func TestStreamUsageIsCaptured(t *testing.T) {
 	require.NotNil(t, final.Metrics.Usage.PromptTokensDetails, "cached tokens must survive SSE unmarshaling")
 	require.NotNil(t, final.Metrics.Usage.PromptTokensDetails.CachedTokens)
 	require.EqualValues(t, 64, *final.Metrics.Usage.PromptTokensDetails.CachedTokens)
-	require.Equal(t, 64, e.container.GetConversationRepository().GetSessionTokens().TotalCachedTokens,
-		"cached tokens must accumulate into the session stats")
+	stats := e.container.GetConversationRepository().GetSessionTokens()
+	require.Equal(t, 64, stats.TotalCachedTokens, "cached tokens must accumulate into the session stats")
+	require.Equal(t, 100, stats.TotalInputTokens)
+	require.Equal(t, 42, stats.TotalOutputTokens)
+	require.Equal(t, 1, stats.RequestCount)
 }
 
 func TestStreamRetriesOn429ThenRecovers(t *testing.T) {
@@ -421,62 +424,6 @@ func TestStreamCancelMidStreamReturnsPromptly(t *testing.T) {
 	if len(res.completes) > 0 {
 		require.True(t, res.final(t).Cancelled, "a cancelled run must be marked Cancelled")
 	}
-}
-
-func TestSyncRunParsesNonStreamingResponse(t *testing.T) {
-	e := newEnv(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
-	defer cancel()
-
-	resp, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
-		RequestID: "req-sync",
-		Model:     testModel,
-		Messages:  []sdk.Message{userMessage(t, "say hello")},
-	})
-	require.NoError(t, err)
-	require.Equal(t, "Hello! How can I help?", resp.Content)
-	require.NotNil(t, resp.Usage)
-	require.EqualValues(t, 15, resp.Usage.TotalTokens)
-
-	reqs := e.gateway.Requests()
-	require.Len(t, reqs, 1)
-	require.False(t, reqs[0].Stream, "AgentService.Run must use the non-streaming path")
-	require.Equal(t, "gpt-4o", reqs[0].Model, "provider prefix must be stripped from the wire model")
-	require.Equal(t, "openai", reqs[0].Provider)
-}
-
-// TestSyncAndStreamAccumulateIdenticalSessionTokens is the acceptance check:
-// both the sync (headless) and streaming (chat) paths funnel through the same
-// storeIterationMetrics accumulator, so for an identical scenario the session
-// totals in the shared conversation repository must match.
-func TestSyncAndStreamAccumulateIdenticalSessionTokens(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
-	defer cancel()
-
-	syncEnv := newEnv(t)
-	resp, err := syncEnv.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
-		RequestID: "req-usage-sync",
-		Model:     testModel,
-		Messages:  []sdk.Message{userMessage(t, "report your usage")},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp.Usage)
-	require.EqualValues(t, 142, resp.Usage.TotalTokens)
-
-	syncStats := syncEnv.container.GetConversationRepository().GetSessionTokens()
-	require.Equal(t, 142, syncStats.TotalTokens, "sync Run must accumulate into the shared session sink")
-	require.Equal(t, 100, syncStats.TotalInputTokens)
-	require.Equal(t, 42, syncStats.TotalOutputTokens)
-	require.Equal(t, 1, syncStats.RequestCount)
-	require.Equal(t, 64, syncStats.TotalCachedTokens, "sync path must accumulate cached tokens too")
-
-	streamEnv := newEnv(t)
-	res := streamEnv.runStream(ctx, t, "report your usage")
-	require.Empty(t, res.errs)
-
-	streamStats := streamEnv.container.GetConversationRepository().GetSessionTokens()
-	require.Equal(t, streamStats, syncStats, "headless totals must equal chat totals for the same scenario")
 }
 
 // TestStreamSystemPromptStableWithVolatileTail asserts message[0] is
@@ -584,37 +531,6 @@ func TestStreamToolsStableAcrossModeSwitch(t *testing.T) {
 	require.True(t, sawModeReminder, "mode-change instructions must arrive as an appended reminder")
 }
 
-// TestSyncRunAppendsVolatileTail covers the non-streaming path.
-func TestSyncRunAppendsVolatileTail(t *testing.T) {
-	e := newEnv(t, func(cfg *config.Config) {
-		cfg.Prompts.Agent.SystemPrompt = "You are a test agent."
-	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
-	defer cancel()
-
-	_, err := e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
-		RequestID: "req-sync-tail",
-		Model:     testModel,
-		Messages:  []sdk.Message{userMessage(t, "say hello")},
-	})
-	require.NoError(t, err)
-
-	bodies := e.completionBodies()
-	require.Len(t, bodies, 1)
-
-	system, err := bodies[0].Messages[0].Content.AsMessageContent0()
-	require.NoError(t, err)
-	require.NotContains(t, system, "Current date:")
-
-	last := bodies[0].Messages[len(bodies[0].Messages)-1]
-	require.Equal(t, sdk.User, last.Role)
-	content, err := last.Content.AsMessageContent0()
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(content, "<system-reminder>"))
-	require.Contains(t, content, "Current date:")
-}
-
 // TestStreamResumedMidToolCallStillGetsVolatileTail: a session resumed from a
 // mid-tool-call interruption gets its orphaned tool_calls closed by
 // conversation repair before streaming, so the volatile tail must still ride
@@ -657,12 +573,10 @@ func TestStreamResumedMidToolCallStillGetsVolatileTail(t *testing.T) {
 	require.Contains(t, content, "Current date:")
 }
 
-// TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail forces the token
-// polyfill (the mock reports zero usage) with a volatile tail present: the
-// streaming estimate must count the same inputs the sync path counts,
-// including the tail. Both runs share one env so the estimated payloads are
-// byte-identical.
-func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
+// TestStreamPolyfillEstimatesZeroUsage forces the token polyfill (the mock
+// reports zero usage) with a volatile tail present, so the session still
+// records an estimated input and output count.
+func TestStreamPolyfillEstimatesZeroUsage(t *testing.T) {
 	defs, err := mockgateway.Load([]byte("fallback:\n  content: Done.\n  usage:\n    prompt_tokens: 0\n    completion_tokens: 0\n"))
 	require.NoError(t, err)
 	e := newEnvWithScenarios(t, defs, func(cfg *config.Config) {
@@ -672,23 +586,12 @@ func TestPolyfillTokensIdenticalAcrossSyncAndStreamWithTail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()
 
-	_, err = e.container.GetAgentService().Run(ctx, &agentdomain.AgentRequest{
-		RequestID: "req-polyfill-sync",
-		Model:     testModel,
-		Messages:  []sdk.Message{userMessage(t, "estimate me")},
-	})
-	require.NoError(t, err)
-
-	syncStats := e.container.GetConversationRepository().GetSessionTokens()
-	require.Positive(t, syncStats.TotalInputTokens, "zero server usage must engage the polyfill")
-
 	res := e.runStream(ctx, t, "estimate me")
 	require.Empty(t, res.errs)
 
-	finalStats := e.container.GetConversationRepository().GetSessionTokens()
-	require.Equal(t, syncStats.TotalInputTokens, finalStats.TotalInputTokens-syncStats.TotalInputTokens,
-		"stream polyfill must count the same inputs (incl. the volatile tail) as sync")
-	require.Equal(t, syncStats.TotalOutputTokens, finalStats.TotalOutputTokens-syncStats.TotalOutputTokens)
+	stats := e.container.GetConversationRepository().GetSessionTokens()
+	require.Positive(t, stats.TotalInputTokens, "zero server usage must engage the polyfill")
+	require.Positive(t, stats.TotalOutputTokens)
 }
 
 // TestStreamVolatileTailRefreshesGitBranchMidRun is the e2e acceptance check

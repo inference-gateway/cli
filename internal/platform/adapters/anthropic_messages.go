@@ -791,7 +791,7 @@ func mapStopReason(reason string) sdk.FinishReason {
 }
 
 // translateResponse converts a non-streaming Messages response into the
-// chat-completions shape used by the sync Run path.
+// chat-completions shape GenerateContent returns.
 func (a *AnthropicMessages) translateResponse(resp *sdk.MessagesResponse) *sdk.CreateChatCompletionResponse {
 	var text, thinking strings.Builder
 	var toolCalls []sdk.ChatCompletionMessageToolCall
