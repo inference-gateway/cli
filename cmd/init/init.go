@@ -72,6 +72,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	remindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
 	channelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
 	sandboxPath := filepath.Join(homeCfgDir, config.SandboxFileName)
+	toolsPath := filepath.Join(homeCfgDir, config.ToolsFileName)
 	heartbeatPath := filepath.Join(homeCfgDir, config.HeartbeatFileName)
 	judgePath := filepath.Join(homeCfgDir, config.JudgeFileName)
 	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
@@ -181,6 +182,11 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create sandbox config file: %w", err)
 	}
 
+	toolsCreated, toolsMigrated, err := createToolsConfigFile(state.Viper(), toolsPath)
+	if err != nil {
+		return fmt.Errorf("failed to create tools config file: %w", err)
+	}
+
 	hbCreated, err := createFileIfAbsent(heartbeatPath, overwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
@@ -239,6 +245,9 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	if sandboxCreated {
 		fmt.Printf("   Created: %s\n", sandboxPath)
 	}
+	if toolsCreated {
+		fmt.Printf("   Created: %s\n", toolsPath)
+	}
 	if hbCreated {
 		fmt.Printf("   Created: %s\n", heartbeatPath)
 	}
@@ -260,6 +269,10 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	if cuMigrated {
 		fmt.Printf("\n%s Migrated legacy `computer_use:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), computerUsePath)
 		fmt.Printf("   You can now remove the `computer_use:` block from %s.\n", configPath)
+	}
+	if toolsMigrated {
+		fmt.Printf("\n%s Migrated legacy `tools:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), toolsPath)
+		fmt.Printf("   You can now remove the `tools:` block from %s.\n", configPath)
 	}
 	fmt.Println("")
 	fmt.Println("This userspace configuration is the shared baseline for all your projects.")
@@ -580,6 +593,32 @@ func createComputerUseConfigFile(v *viper.Viper, path string) (bool, error) {
 		return false, err
 	}
 	return migrated, nil
+}
+
+// createToolsConfigFile seeds ~/.infer/tools.yaml from the in-code defaults
+// and migrates a legacy `tools:` block out of config.yaml. It never clobbers
+// an existing tools.yaml, so re-running init keeps a user's approval policy.
+func createToolsConfigFile(v *viper.Viper, path string) (created, migrated bool, err error) {
+	if fileExists(path) {
+		return false, false, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return false, false, fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	toolsCfg := config.DefaultToolsConfig()
+	if v != nil && v.IsSet("tools") {
+		legacy := config.DefaultToolsConfig()
+		if err := v.UnmarshalKey("tools", legacy); err == nil {
+			toolsCfg = legacy
+			migrated = true
+		}
+	}
+
+	if err := config.SaveTools(path, toolsCfg); err != nil {
+		return false, false, err
+	}
+	return true, migrated, nil
 }
 
 // createAgentsConfigFile writes a fresh agents.yaml seeded from the in-code

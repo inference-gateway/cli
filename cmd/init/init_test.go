@@ -10,6 +10,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	cobra "github.com/spf13/cobra"
+	viper "github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v3"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
@@ -63,7 +64,7 @@ func TestInitializeProject(t *testing.T) {
 
 	require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
 
-	for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml", "sandbox.yaml"} {
+	for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml", "sandbox.yaml", "tools.yaml"} {
 		require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
 	}
 	require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))
@@ -98,6 +99,33 @@ func TestInitWritesConfigYAMLWithDocMarker(t *testing.T) {
 	if !strings.Contains(string(content), "gateway:") {
 		t.Errorf("config file does not contain expected gateway section")
 	}
+}
+
+func TestCreateToolsConfigFileMigratesAndDoesNotClobber(t *testing.T) {
+	homeDir, _ := splitHomeProjectEnv(t)
+	path := filepath.Join(homeDir, config.ConfigDirName, config.ToolsFileName)
+
+	v := viper.New()
+	v.Set("tools", map[string]any{"web_search": map[string]any{"enabled": false}})
+
+	created, migrated, err := createToolsConfigFile(v, path)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.True(t, migrated)
+
+	cfg, err := config.LoadTools(path)
+	require.NoError(t, err)
+	require.False(t, cfg.WebSearch.Enabled, "a legacy tools block should be migrated into tools.yaml")
+
+	require.NoError(t, os.WriteFile(path, []byte("---\nweb_search:\n  max_results: 42\n"), 0o644))
+	created, migrated, err = createToolsConfigFile(v, path)
+	require.NoError(t, err)
+	require.False(t, created)
+	require.False(t, migrated)
+
+	cfg, err = config.LoadTools(path)
+	require.NoError(t, err)
+	require.Equal(t, 42, cfg.WebSearch.MaxResults, "an existing tools.yaml must never be clobbered")
 }
 
 func TestCheckFileExists(t *testing.T) {
