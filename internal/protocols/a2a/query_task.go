@@ -91,7 +91,7 @@ func (t *QueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agen
 	}
 
 	adkClient := a2ainfra.NewClient(agentURL)
-	queryParams := adk.TaskQueryParams{ID: taskID}
+	queryParams := adk.GetTaskRequest{ID: taskID}
 	taskResponse, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
 		logger.Error("failed to query task", "agent_url", agentURL, "task_id", taskID, "error", err)

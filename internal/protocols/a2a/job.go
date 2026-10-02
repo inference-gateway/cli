@@ -197,7 +197,7 @@ func (j *a2aJob) retainedTask(result agentdomain.ToolExecutionResult) (a2adomain
 
 	task := adk.Task{
 		ID:        submit.TaskID,
-		ContextID: submit.ContextID,
+		ContextID: &submit.ContextID,
 		Status:    adk.TaskStatus{State: adk.TaskState(submit.State)},
 	}
 	if submit.Task != nil {
@@ -221,7 +221,7 @@ func (j *a2aJob) retainedTask(result agentdomain.ToolExecutionResult) (a2adomain
 // anything non-terminal) is not retained.
 func retainableA2AState(state adk.TaskState) bool {
 	switch a2adomain.NormalizeTaskState(state) {
-	case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCancelled:
+	case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCanceled:
 		return true
 	default:
 		return false

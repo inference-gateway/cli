@@ -121,7 +121,8 @@ func TestA2AJob_PollsUnderSubmitSpan(t *testing.T) {
 // what the task view reads off a retained TaskInfo.
 func TestA2AJob_RetainedTask(t *testing.T) {
 	started := time.Now().Add(-2 * time.Minute)
-	fullTask := &adk.Task{ID: "t1", ContextID: "ctx1", Status: adk.TaskStatus{State: adk.TaskStateCompleted}}
+	ctx1, ctx2 := "ctx1", "ctx2"
+	fullTask := &adk.Task{ID: "t1", ContextID: &ctx1, Status: adk.TaskStatus{State: adk.TaskStateCompleted}}
 
 	tests := []struct {
 		name      string
@@ -141,16 +142,16 @@ func TestA2AJob_RetainedTask(t *testing.T) {
 		},
 		{
 			name:      "failed carries the full task",
-			data:      SubmitTaskResult{TaskID: "t2", ContextID: "ctx2", AgentURL: "http://agent", State: string(adk.TaskStateFailed), Task: &adk.Task{ID: "t2", ContextID: "ctx2", Status: adk.TaskStatus{State: adk.TaskStateFailed}}},
+			data:      SubmitTaskResult{TaskID: "t2", ContextID: "ctx2", AgentURL: "http://agent", State: string(adk.TaskStateFailed), Task: &adk.Task{ID: "t2", ContextID: &ctx2, Status: adk.TaskStatus{State: adk.TaskStateFailed}}},
 			wantOK:    true,
 			wantState: adk.TaskStateFailed,
 			wantID:    "t2", wantCtx: "ctx2", wantURL: "http://agent",
 		},
 		{
 			name:      "canceled without task is reconstructed from state",
-			data:      SubmitTaskResult{TaskID: "t3", ContextID: "ctx3", AgentURL: "http://agent", State: string(adk.TaskStateCancelled)},
+			data:      SubmitTaskResult{TaskID: "t3", ContextID: "ctx3", AgentURL: "http://agent", State: string(adk.TaskStateCanceled)},
 			wantOK:    true,
-			wantState: adk.TaskStateCancelled,
+			wantState: adk.TaskStateCanceled,
 			wantID:    "t3", wantCtx: "ctx3", wantURL: "http://agent",
 		},
 		{
@@ -186,8 +187,8 @@ func TestA2AJob_RetainedTask(t *testing.T) {
 			if info.Task.ID != tt.wantID {
 				t.Errorf("task id = %q, want %q", info.Task.ID, tt.wantID)
 			}
-			if info.Task.ContextID != tt.wantCtx {
-				t.Errorf("context id = %q, want %q", info.Task.ContextID, tt.wantCtx)
+			if got := info.Task.GetContextID(); got != tt.wantCtx {
+				t.Errorf("context id = %q, want %q", got, tt.wantCtx)
 			}
 			if info.AgentURL != tt.wantURL {
 				t.Errorf("agent url = %q, want %q", info.AgentURL, tt.wantURL)
@@ -211,7 +212,7 @@ func TestRetainableA2AState(t *testing.T) {
 	}{
 		{adk.TaskStateCompleted, true},
 		{adk.TaskStateFailed, true},
-		{adk.TaskStateCancelled, true},
+		{adk.TaskStateCanceled, true},
 		{"completed", true},
 		{"canceled", true},
 		{"CANCELLED", true},

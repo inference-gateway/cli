@@ -18,13 +18,10 @@ func textFromParts(parts []adk.Part) string {
 }
 
 // errorFromDataParts returns the first non-empty "error" string value found
-// in any DataPart of parts, or "".
+// in any data part of parts, or "".
 func errorFromDataParts(parts []adk.Part) string {
 	for _, p := range parts {
-		if p.Data == nil {
-			continue
-		}
-		if e, ok := p.Data.Data["error"].(string); ok && e != "" {
+		if e, ok := p.DataMap()["error"].(string); ok && e != "" {
 			return e
 		}
 	}

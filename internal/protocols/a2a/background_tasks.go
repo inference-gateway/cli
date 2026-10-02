@@ -103,7 +103,7 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 func (s *BackgroundTaskService) sendCancelToAgent(task *a2adomain.TaskPollingState) error {
 	adkClient := s.createADKClient(task.AgentURL)
 
-	taskStatus, err := adkClient.GetTask(context.Background(), adk.TaskQueryParams{
+	taskStatus, err := adkClient.GetTask(context.Background(), adk.GetTaskRequest{
 		ID: task.TaskID,
 	})
 
@@ -112,8 +112,8 @@ func (s *BackgroundTaskService) sendCancelToAgent(task *a2adomain.TaskPollingSta
 	} else if taskStatus != nil {
 		var currentTask adk.Task
 		if mapErr := mapToStruct(taskStatus.Result, &currentTask); mapErr == nil {
-			switch currentTask.Status.State {
-			case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCancelled, adk.TaskStateRejected:
+			switch a2adomain.NormalizeTaskState(currentTask.Status.State) {
+			case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCanceled, adk.TaskStateRejected:
 				logger.Info("task is already in terminal state, skipping cancel request",
 					"task_id", task.TaskID,
 					"state", currentTask.Status.State)
@@ -122,7 +122,7 @@ func (s *BackgroundTaskService) sendCancelToAgent(task *a2adomain.TaskPollingSta
 		}
 	}
 
-	_, err = adkClient.CancelTask(context.Background(), adk.TaskIdParams{
+	_, err = adkClient.CancelTask(context.Background(), adk.CancelTaskRequest{
 		ID: task.TaskID,
 	})
 
