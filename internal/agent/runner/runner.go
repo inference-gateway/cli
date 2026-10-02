@@ -116,14 +116,17 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	}
 
 	scanErr := scanner.Err()
+	if scanErr != nil {
+		_ = cmd.Process.Kill()
+	}
 	waitErr := cmd.Wait()
 	_ = stderrWriter.Close()
 	result.Stderr = <-lastStderrLine
-	if waitErr != nil {
-		return result, waitErr
-	}
 	if scanErr != nil {
 		return result, fmt.Errorf("read agent output: %w", scanErr)
+	}
+	if waitErr != nil {
+		return result, waitErr
 	}
 	return result, nil
 }

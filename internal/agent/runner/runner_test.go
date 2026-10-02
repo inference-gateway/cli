@@ -1,7 +1,9 @@
 package runner
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"testing"
@@ -200,5 +202,21 @@ func TestRunPassesStdin(t *testing.T) {
 	}
 	if len(lines) != 1 || lines[0] != `{"type":"run_agent_input"}` {
 		t.Fatalf("child echoed %q", lines)
+	}
+}
+
+func TestRunStopsTheChildOnAnOversizedLine(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	_, err := Run(ctx, Options{
+		Exec: func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "sh", "-c", "exec head -c 11000000 /dev/zero")
+		},
+		SessionID: "s1",
+		Prompt:    "do",
+	})
+	if !errors.Is(err, bufio.ErrTooLong) {
+		t.Fatalf("Run error = %v, want bufio.ErrTooLong before the deadline", err)
 	}
 }
