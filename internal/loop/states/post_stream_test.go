@@ -1,0 +1,158 @@
+package states_test
+
+import (
+	"testing"
+
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/loop/states"
+)
+
+// TestPostStreamState_Handle covers the routing after a completed stream:
+// tool calls route to EvaluatingTools even with messages queued (the queue
+// drains after the tools run), queued messages otherwise return to CheckingQueue,
+// no tools after at least one turn completes (publishing the final chat event
+// and clearing HasToolResults), and turn zero continues the loop.
+func TestPostStreamState_Handle(t *testing.T) {
+	tests := []struct {
+		name            string
+		setup           func(f *stateFixture)
+		transitionErr   error
+		wantErr         bool
+		wantTransitions []states.AgentExecutionState
+		wantEvents      []states.AgentEvent
+		check           func(t *testing.T, f *stateFixture)
+	}{
+		{
+			name:            "queued messages return to checking queue",
+			setup:           func(f *stateFixture) { f.queue.IsEmptyReturns(false) },
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+		},
+		{
+			name:            "tool calls route to evaluating tools",
+			setup:           func(f *stateFixture) { *f.ctx.CurrentToolCalls = makeTools(1) },
+			wantTransitions: []states.AgentExecutionState{states.StateEvaluatingTools},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+		},
+		{
+			name: "tool calls run before queued messages",
+			setup: func(f *stateFixture) {
+				f.queue.IsEmptyReturns(false)
+				*f.ctx.CurrentToolCalls = makeTools(2)
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateEvaluatingTools},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+		},
+		{
+			name: "no tools after a turn completes",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.ctx.AgentCtx.HasToolResults = true
+				f.sm.CanTransitionReturns(true)
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				assert.False(t, f.ctx.AgentCtx.HasToolResults, "HasToolResults must be cleared")
+				require.Len(t, f.completeCalls, 1, "final chat completion must be published")
+				assert.Empty(t, f.completeCalls[0].toolCalls)
+			},
+		},
+		{
+			name: "headless waits for background tasks and completes when nothing was queued",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.sm.CanTransitionReturns(true)
+				f.ctx.WaitForBackgroundTasks = func() { f.drainCalls++ }
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				assert.Equal(t, 1, f.drainCalls, "headless must wait for background tasks before completing")
+				require.Len(t, f.completeCalls, 1)
+			},
+		},
+		{
+			name: "headless routes background completion notes back through checking queue",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.sm.CanTransitionReturns(true)
+				f.ctx.WaitForBackgroundTasks = func() { f.queue.IsEmptyReturns(false) }
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCheckingQueue},
+			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				assert.Empty(t, f.completeCalls, "run must not complete while a background result is unreported")
+			},
+		},
+		{
+			name: "chat mode never waits for background tasks",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.ctx.Request.IsChatMode = true
+				f.sm.CanTransitionReturns(true)
+				f.ctx.WaitForBackgroundTasks = func() { t.Fatal("chat mode must not block on background tasks") }
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+			wantEvents:      []states.AgentEvent{states.CompletionRequestedEvent{}},
+		},
+		{
+			name:            "no tools on turn zero continues the loop",
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
+		},
+		{
+			name: "continuation nudge publishes the finished turn before streaming again",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				*f.ctx.CurrentReasoning = "reasoned"
+			},
+			wantTransitions: []states.AgentExecutionState{states.StateStreamingLLM},
+			wantEvents:      []states.AgentEvent{states.StartStreamingEvent{}},
+			check: func(t *testing.T, f *stateFixture) {
+				require.Len(t, f.completeCalls, 1, "the nudged turn must be published before the loop continues")
+				assert.Empty(t, f.completeCalls[0].toolCalls)
+				assert.Equal(t, "reasoned", f.completeCalls[0].reasoning)
+			},
+		},
+		{
+			name: "transition failure is returned",
+			setup: func(f *stateFixture) {
+				f.ctx.AgentCtx.Turns = 1
+				f.sm.CanTransitionReturns(true)
+			},
+			transitionErr:   errBoom,
+			wantErr:         true,
+			wantTransitions: []states.AgentExecutionState{states.StateCompleting},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newStateFixture()
+			hooks := f.recordHooks()
+			if tt.setup != nil {
+				tt.setup(f)
+			}
+			f.sm.TransitionReturns(tt.transitionErr)
+			s := states.NewPostStreamState(f.ctx)
+			assert.Equal(t, states.StatePostStream, s.Name())
+
+			err := s.Handle(states.MessageReceivedEvent{})
+
+			if tt.wantErr {
+				assert.ErrorIs(t, err, errBoom)
+			} else {
+				assert.NoError(t, err)
+			}
+			assertTransitions(t, f.sm, tt.wantTransitions...)
+			assertEvents(t, f.events, tt.wantEvents...)
+			assert.Equal(t, []agentdomain.HookPoint{agentdomain.HookPostStream}, *hooks, "post_stream hook dispatched on every path")
+			if tt.check != nil {
+				tt.check(t, f)
+			}
+		})
+	}
+}

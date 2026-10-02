@@ -10,10 +10,10 @@ import (
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	loop "github.com/inference-gateway/cli/internal/loop"
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {
@@ -45,7 +45,7 @@ func NewCommand(state *runtime.State) *cobra.Command {
 
 			tokenizer := conversation.NewTokenizerService(conversation.DefaultTokenizerConfig())
 			out := cmd.OutOrStdout()
-			if sectioned, ok := agentService.(interface{ SystemPromptSections() []agent.PromptSection }); ok {
+			if sectioned, ok := agentService.(interface{ SystemPromptSections() []loop.PromptSection }); ok {
 				inTail := false
 				for _, section := range sectioned.SystemPromptSections() {
 					if section.Volatile && !inTail {

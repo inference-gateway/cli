@@ -1,23 +1,18 @@
 # agent
 
-**What** - the agent bounded context: the event-driven state machine that turns a user turn into model calls, tool calls and approvals.
-**Why** - the loop is the core domain of the CLI, and every other context exists to hand it tools, storage or transport.
-**How** - `agent_event_driven.go` routes events to `states/`, which runs one executor per state. `agent_state_machine.go`
-defines the allowed transitions, and `domain/` holds the ports the loop calls.
+**What** - the agent bounded context: what an agent is (its mode, tools, chat events and the ports it calls) and the adapters behind those ports.
+**Why** - the agent is one concept with two ways to run it. [`loop`](../loop) runs one in process, and the contexts
+that only need its model or its adapters depend on this context, never on the loop.
+**How** - `domain/` is the shared kernel every context may import. `infrastructure/` adapts its ports to the outside world.
 
 ## How it plugs in
 
-- `domain/` is the shared kernel (tool contracts and results, agent mode, chat events) plus the service ports the
-  loop calls: skills, GitHub, command hooks, system reminders, user questions, media and image annotation.
-- The capabilities implement those ports: `skills` the skills service, `github` the issue and setup services,
-  `plugins` a command-hook provider.
-- The loop is a conformist to the Inference Gateway SDK: it uses the SDK's message and tool-call types directly,
-  so an SDK change reaches the loop without a translation layer.
+- `domain/` holds the tool contracts and results, agent mode, chat events and the service ports the loop calls.
+  The a2a, browser, computer and MCP tools implement its tool contracts.
 - `infrastructure/` holds the adapters for the file, frame-source and media ports. The media adapters call the gateway.
-- `internal/container/container.go` builds the agent and wires every port.
+- `internal/container/container.go` builds the adapters and hands them to the loop.
 
 ## Related
 
-- [Plan Mode](../../docs/plan-mode.md)
-- [Judge Mode](../../docs/judge-mode.md)
+- [loop](../loop) - the in-process agent loop
 - [Subagents](../../docs/subagents.md)

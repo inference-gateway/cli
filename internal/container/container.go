@@ -17,7 +17,6 @@ import (
 	mockgateway "github.com/inference-gateway/tokenless/gateway"
 
 	config "github.com/inference-gateway/cli/config"
-	agent "github.com/inference-gateway/cli/internal/agent"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	audio "github.com/inference-gateway/cli/internal/audio"
@@ -35,6 +34,7 @@ import (
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	insights "github.com/inference-gateway/cli/internal/insights"
+	loop "github.com/inference-gateway/cli/internal/loop"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -271,7 +271,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
 		Tools:         c.toolService,
-		Approval:      agent.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
+		Approval:      loop.NewStandardApprovalPolicy(c.config, c.stateManager, c.toolService),
 		Models:        c.modelService,
 		Modes:         c.stateManager,
 		History:       c.GetShellHistoryStorage(),
@@ -481,10 +481,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	})
 
 	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
-		llmToolService := agent.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
+		llmToolService := loop.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 		c.toolService = llmToolService
 	} else {
-		c.toolService = agent.NewNoOpToolService()
+		c.toolService = loop.NewNoOpToolService()
 	}
 	if c.telemetryRecorder != nil {
 		c.toolService = telemetry.NewToolService(c.toolService, c.telemetryRecorder)
@@ -521,7 +521,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.githubIssueService = githubissues.New()
 
 	agentClient := adapters.NewAnthropicMessages(c.createAgentSDKClient())
-	agentImpl := agent.NewAgent(
+	agentImpl := loop.NewAgent(
 		agentClient,
 		c.toolService,
 		c.config,

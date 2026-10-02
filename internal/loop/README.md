@@ -1,0 +1,26 @@
+# loop
+
+**What** - the agent loop bounded context: the event-driven state machine that turns a user turn into model calls, tool calls and approvals.
+**Why** - the loop is the core domain of the CLI, and every other context exists to hand it tools, storage or transport.
+**How** - `agent_event_driven.go` routes events to `states/`, which runs one executor per state. `agent_state_machine.go`
+defines the allowed transitions, and [`agent/domain`](../agent/domain) holds the ports the loop calls.
+
+## How it plugs in
+
+- The loop keeps no `domain/` of its own. It runs the agent that [`agent/domain`](../agent/domain) defines: the shared
+  kernel (tool contracts and results, agent mode, chat events) plus the service ports the loop calls: skills, GitHub,
+  command hooks, system reminders, user questions, media and image annotation.
+- The capabilities implement those ports: `skills` the skills service, `github` the issue and setup services,
+  `plugins` a command-hook provider. [`agent/infrastructure`](../agent/infrastructure) holds the file, frame-source
+  and media adapters.
+- The loop is a conformist to the Inference Gateway SDK: it uses the SDK's message and tool-call types directly,
+  so an SDK change reaches the loop without a translation layer.
+- The tools context never imports the loop. depguard enforces it, because the loop consumes tools.
+- `internal/container/container.go` builds the agent and wires every port.
+
+## Related
+
+- [agent](../agent) - the agent model and how one is spawned out of process
+- [Plan Mode](../../docs/plan-mode.md)
+- [Judge Mode](../../docs/judge-mode.md)
+- [Subagents](../../docs/subagents.md)

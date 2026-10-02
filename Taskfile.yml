@@ -301,8 +301,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskRegistry
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ApprovalPolicy
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states AgentStateMachine
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/agent/states StateHandler
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/loop/states AgentStateMachine
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/states internal/loop/states StateHandler
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/mcp internal/protocols/mcp/domain Client
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/protocols/a2a/domain AgentCardService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/a2a internal/protocols/a2a/domain TaskTracker
@@ -352,7 +352,7 @@ tasks:
     sources:
       - "internal/protocols/a2a/domain/*.go"
       - "internal/agent/domain/*.go"
-      - "internal/agent/states/*.go"
+      - "internal/loop/states/*.go"
       - "internal/binaries/domain/*.go"
       - "internal/conversation/domain/*.go"
       - "internal/platform/memory/*.go"

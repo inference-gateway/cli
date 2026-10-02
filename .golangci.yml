@@ -49,16 +49,14 @@ linters:
           deny:
             - pkg: github.com/inference-gateway/cli/internal
               desc: "a domain/ package imports only stdlib, external types and the agent/domain shared kernel"
-        tools-do-not-import-the-agent:
+        tools-do-not-import-the-loop:
           list-mode: lax
           files:
             - "**/internal/tools/**"
             - "!$test"
-          allow:
-            - github.com/inference-gateway/cli/internal/agent/domain
           deny:
-            - pkg: github.com/inference-gateway/cli/internal/agent
-              desc: "the agent context consumes the tools context, never the other way round; agent/domain stays the shared kernel"
+            - pkg: github.com/inference-gateway/cli/internal/loop
+              desc: "the loop consumes the tools context, never the other way round"
         container-is-the-root:
           list-mode: lax
           files:
