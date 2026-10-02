@@ -176,26 +176,6 @@ func (t *DefaultTheme) GetDiffAddColor() string    { return colors.DiffAddColor.
 func (t *DefaultTheme) GetDiffRemoveColor() string { return colors.DiffRemoveColor.ANSI }
 
 // Layout calculation utilities
-func CalculateConversationHeight(totalHeight int) int {
-	inputHeight := CalculateInputHeight(totalHeight)
-	statusHeight := CalculateStatusHeight(totalHeight)
-	inputStatusBarHeight := 1
-
-	extraLines := 5
-	if totalHeight < 12 {
-		extraLines = 3
-	}
-
-	conversationHeight := totalHeight - inputHeight - statusHeight - inputStatusBarHeight - extraLines
-
-	minConversationHeight := 3
-	if conversationHeight < minConversationHeight {
-		conversationHeight = minConversationHeight
-	}
-
-	return conversationHeight
-}
-
 func CalculateInputHeight(totalHeight int) int {
 	if totalHeight < 8 {
 		return 2

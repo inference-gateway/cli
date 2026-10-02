@@ -198,31 +198,56 @@ func TestSubagentRowsRenderBelowTheStatusBar(t *testing.T) {
 	}
 }
 
-// TestLayoutBudgetsTheSubagentList pins that the rows under the composer take
-// their lines from the conversation, so a scrolled list never pushes the frame
-// past the terminal.
-func TestLayoutBudgetsTheSubagentList(t *testing.T) {
-	renderer := NewApplicationViewRenderer(styles.NewProvider(styles.NewThemeProvider()))
-	data := ChatInterfaceData{Width: 120, Height: 40}
+// TestLayoutFillsTheTerminalHeight pins that the frame is exactly as tall as the
+// terminal: the transcript takes every row the measured chrome leaves, so the
+// composer sits on the bottom row and a jobs list shrinks the transcript by its
+// own line count instead of pushing the frame past the terminal.
+func TestLayoutFillsTheTerminalHeight(t *testing.T) {
+	const width = 120
+	styleProvider := styles.NewProvider(styles.NewThemeProvider())
 
-	jobs := make([]scheddomain.TrackedJob, 0, 7)
-	for i := range 7 {
-		jobs = append(jobs, subagentJob(fmt.Sprintf("w%d", i), scheddomain.JobRunning, time.Now().Add(-time.Duration(7-i)*time.Second), nil))
+	jobs := make([]scheddomain.TrackedJob, 0, 5)
+	for i := range 5 {
+		jobs = append(jobs, subagentJob(fmt.Sprintf("w%d", i), scheddomain.JobRunning, time.Now().Add(-time.Duration(5-i)*time.Second), nil))
 	}
-	list := newList(listOpts{jobs: jobs, linger: 5, indicator: true})
-	list.Focus()
-	for range maxSubagentRows {
-		list.SelectNext()
-	}
-	listLines := strings.Count(list.Render(), "\n") + 1
 
-	helpBar := &tuimocks.FakeHelpBarComponent{}
-	without := renderer.calculateComponentHeights(data, data.Height, nil, helpBar, nil, nil, nil, nil, nil, nil, nil)
-	with := renderer.calculateComponentHeights(data, data.Height, nil, helpBar, nil, nil, nil, nil, nil, nil, list)
-	if with.subagentListHeight != listLines {
-		t.Fatalf("list height = %d, want the %d rendered lines", with.subagentListHeight, listLines)
-	}
-	if got, want := without.conversationHeight-with.conversationHeight, listLines; got != want {
-		t.Errorf("conversation shrank by %d lines, want %d", got, want)
+	for _, height := range []int{29, 40} {
+		for _, withList := range []bool{false, true} {
+			t.Run(fmt.Sprintf("height %d list %t", height, withList), func(t *testing.T) {
+				renderer := NewApplicationViewRenderer(styleProvider)
+				data := ChatInterfaceData{Width: width, Height: height}
+
+				conversation := &tuimocks.FakeConversationRenderer{}
+				conversation.SetHeightCalls(func(h int) { conversation.RenderReturns(strings.Repeat("\n", h-1)) })
+				input := &tuimocks.FakeInputComponent{}
+				input.RenderReturns("╭──╮\n│ > │\n╰──╯")
+				status := &tuimocks.FakeStatusComponent{}
+				status.RenderReturns(" Response complete")
+				statusBar := NewInputStatusBar(styleProvider)
+				helpBar := &tuimocks.FakeHelpBarComponent{}
+
+				var list *SubagentList
+				if withList {
+					list = newList(listOpts{jobs: jobs, linger: 5, indicator: true})
+					list.Update(tea.WindowSizeMsg{Width: width, Height: height})
+				}
+
+				renderer.Layout(data, conversation, input, nil, statusBar, status, nil, helpBar, nil, nil, nil, nil, nil, nil, list)
+				frame := renderer.RenderChatInterface(data, conversation, input, nil, statusBar, list, status, nil, helpBar, nil, nil, nil, nil, nil, nil)
+
+				if got := strings.Count(frame, "\n") + 1; got != height {
+					t.Fatalf("frame is %d lines, want %d:\n%s", got, height, plain(frame))
+				}
+				if !withList {
+					return
+				}
+				listLines := strings.Count(list.Render(), "\n") + 1
+				bare := NewApplicationViewRenderer(styleProvider)
+				bare.Layout(data, conversation, input, nil, statusBar, status, nil, helpBar, nil, nil, nil, nil, nil, nil, nil)
+				if got := bare.ConversationHeight() - renderer.ConversationHeight(); got != listLines {
+					t.Errorf("transcript shrank by %d lines, want the list's %d", got, listLines)
+				}
+			})
+		}
 	}
 }

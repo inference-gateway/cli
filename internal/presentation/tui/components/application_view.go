@@ -30,9 +30,9 @@ type ChatInterfaceData struct {
 	QueuedMessages []convdomain.QueuedMessage
 }
 
-// Layout computes component heights for the current state and pushes sizes
-// into the components. Call it from Update (not View) whenever state changes;
-// component setters are no-ops when the size is unchanged.
+// Layout sizes the chat components for the current state. Call it from Update
+// (not View) whenever state changes. The transcript gets every row the measured
+// chrome leaves, so the frame always fills the terminal.
 func (r *ApplicationViewRenderer) Layout(
 	data ChatInterfaceData,
 	conversationView tui.ConversationRenderer,
@@ -40,6 +40,7 @@ func (r *ApplicationViewRenderer) Layout(
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
 	statusView tui.StatusComponent,
+	modeIndicator *ModeIndicator,
 	helpBar tui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
@@ -53,10 +54,24 @@ func (r *ApplicationViewRenderer) Layout(
 		return
 	}
 
-	r.heights = r.calculateComponentHeights(data, data.Height, conversationView, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, subagentList)
+	r.heights = componentHeights{
+		inputHeight:  tui.CalculateInputHeight(data.Height),
+		statusHeight: tui.CalculateStatusHeight(data.Height),
+	}
+	r.setComponentDimensions(data, conversationView, inputView, autocomplete, inputStatusBar, statusView,
+		queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch)
 
-	r.setComponentDimensions(data.Width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, r.heights)
+	chrome := r.assembleComponents(data, r.renderHeader(data, data.Width), "", inputView.Render(), conversationView, statusView, modeIndicator,
+		inputView, inputStatusBar, subagentList, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, data.Width, r.heights.statusHeight)
+	chromeLines := strings.Count(strings.Join(chrome, "\n"), "\n")
+
+	r.heights.conversationHeight = max(minConversationHeight, data.Height-chromeLines)
+	conversationView.SetHeight(r.heights.conversationHeight)
+}
+
+// ConversationHeight returns the transcript height set by the last Layout call.
+func (r *ApplicationViewRenderer) ConversationHeight() int {
+	return r.heights.conversationHeight
 }
 
 // RenderChatInterface renders the main chat interface using the sizes set by
@@ -90,108 +105,19 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	return strings.Join(components, "\n")
 }
 
-// componentHeights holds calculated heights for various components
+const minConversationHeight = 3
+
+// componentHeights holds the heights the layout hands to the sized components
 type componentHeights struct {
-	headerHeight        int
-	helpBarHeight       int
-	queueBoxHeight      int
-	todoBoxHeight       int
-	approvalBoxHeight   int
-	questionBoxHeight   int
-	attachmentsHeight   int
-	historySearchHeight int
-	subagentListHeight  int
-	conversationHeight  int
-	inputHeight         int
-	statusHeight        int
+	conversationHeight int
+	inputHeight        int
+	statusHeight       int
 }
 
-// calculateComponentHeights calculates the heights for all components
-func (r *ApplicationViewRenderer) calculateComponentHeights(
-	data ChatInterfaceData,
-	totalHeight int,
-	conversationView tui.ConversationRenderer,
-	helpBar tui.HelpBarComponent,
-	queueBoxView *QueueBoxView,
-	todoBoxView *TodoBoxView,
-	approvalBoxView *ApprovalBoxView,
-	questionFormView *QuestionFormView,
-	snippetAttachments *SnippetAttachmentsView,
-	historySearch *HistorySearchView,
-	subagentList *SubagentList,
-) componentHeights {
-	if approvalBoxView != nil {
-		approvalBoxView.SetHeight(totalHeight)
-	}
-	if questionFormView != nil {
-		questionFormView.SetHeight(totalHeight)
-	}
-
-	heights := componentHeights{
-		headerHeight: 3,
-	}
-
-	if helpBar.IsEnabled() {
-		heights.helpBarHeight = 6
-	}
-
-	if queueBoxView != nil && len(data.QueuedMessages) > 0 {
-		totalItems := len(data.QueuedMessages)
-		heights.queueBoxHeight = totalItems + 4
-	}
-
-	if todoBoxView != nil && todoBoxView.HasTodos() {
-		heights.todoBoxHeight = todoBoxView.GetHeight()
-	}
-
-	if snippetAttachments != nil {
-		heights.attachmentsHeight = snippetAttachments.GetHeight()
-	}
-
-	if historySearch != nil {
-		heights.historySearchHeight = historySearch.GetHeight()
-	}
-
-	if subagentList != nil {
-		if rows := subagentList.Render(); rows != "" {
-			heights.subagentListHeight = strings.Count(rows, "\n") + 1
-		}
-	}
-
-	if approvalBoxView != nil {
-		approvalContent := approvalBoxView.Render()
-		if approvalContent != "" {
-			lines := strings.Count(approvalContent, "\n") + 1
-			heights.approvalBoxHeight = lines + 2
-		}
-	}
-
-	if questionFormView != nil {
-		questionContent := questionFormView.Render()
-		if questionContent != "" {
-			lines := strings.Count(questionContent, "\n") + 1
-			heights.questionBoxHeight = lines + 2
-		}
-	}
-
-	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
-		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight -
-		heights.questionBoxHeight - heights.attachmentsHeight - heights.historySearchHeight -
-		heights.subagentListHeight
-	heights.conversationHeight = tui.CalculateConversationHeight(adjustedHeight)
-	heights.inputHeight = tui.CalculateInputHeight(adjustedHeight)
-	heights.statusHeight = tui.CalculateStatusHeight(adjustedHeight)
-
-	if heights.conversationHeight < 3 {
-		heights.conversationHeight = 3
-	}
-
-	return heights
-}
-
-// setComponentDimensions sets the width and height for all components
+// setComponentDimensions sets the width of every component and the heights
+// that are known before the chrome is measured
 func (r *ApplicationViewRenderer) setComponentDimensions(
-	width int,
+	data ChatInterfaceData,
 	conversationView tui.ConversationRenderer,
 	inputView tui.InputComponent,
 	autocomplete tui.AutocompleteComponent,
@@ -203,14 +129,11 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	questionFormView *QuestionFormView,
 	snippetAttachments *SnippetAttachmentsView,
 	historySearch *HistorySearchView,
-	heights componentHeights,
 ) {
-	conversationWidth := formatting.GetResponsiveWidth(width)
-
-	conversationView.SetWidth(conversationWidth)
-	conversationView.SetHeight(heights.conversationHeight)
+	width := data.Width
+	conversationView.SetWidth(formatting.GetResponsiveWidth(width))
 	inputView.SetWidth(width)
-	inputView.SetHeight(heights.inputHeight)
+	inputView.SetHeight(r.heights.inputHeight)
 	inputStatusBar.SetWidth(width)
 	statusView.SetWidth(width)
 
@@ -233,10 +156,12 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 
 	if approvalBoxView != nil {
 		approvalBoxView.SetWidth(width)
+		approvalBoxView.SetHeight(data.Height)
 	}
 
 	if questionFormView != nil {
 		questionFormView.SetWidth(width)
+		questionFormView.SetHeight(data.Height)
 	}
 
 	if historySearch != nil {
