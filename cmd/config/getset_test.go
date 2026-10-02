@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	cobra "github.com/spf13/cobra"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestResolveConfigKeyKind(t *testing.T) {
@@ -49,6 +51,28 @@ func TestSetConfigValueRejectsToolsKeys(t *testing.T) {
 		if !strings.Contains(err.Error(), "tools.yaml") {
 			t.Errorf("error for %q should name tools.yaml, got %q", key, err)
 		}
+	}
+}
+
+func TestInjectTools(t *testing.T) {
+	tools := config.DefaultToolsConfig()
+	tools.WebSearch.MaxResults = 42
+
+	root := map[string]any{"agent": map[string]any{"model": "gpt"}}
+	if err := injectTools(root, *tools); err != nil {
+		t.Fatalf("injectTools: %v", err)
+	}
+
+	section, ok := root["tools"].(map[string]any)
+	if !ok {
+		t.Fatalf("tools section missing or not a map: %#v", root["tools"])
+	}
+	webSearch, ok := section["web_search"].(map[string]any)
+	if !ok {
+		t.Fatalf("web_search missing: %#v", section)
+	}
+	if got := webSearch["max_results"]; got != 42 {
+		t.Fatalf("max_results = %v, want 42", got)
 	}
 }
 
