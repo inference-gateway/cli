@@ -2012,6 +2012,7 @@ func (app *ChatApplication) layoutChatInterface() {
 		app.autocomplete,
 		app.inputStatusBar,
 		app.statusView,
+		app.modeIndicator,
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
@@ -2147,9 +2148,7 @@ func shouldRouteToUIComponents(msg tea.Msg) bool {
 }
 
 func (app *ChatApplication) getPageSize() int {
-	_, height := app.stateManager.GetDimensions()
-	conversationHeight := factory.CalculateConversationHeight(height)
-	return max(1, conversationHeight-2)
+	return max(1, app.applicationViewRenderer.ConversationHeight()-2)
 }
 
 // toggleToolResultExpansion toggles expansion of all tool results

@@ -413,7 +413,7 @@ func (cv *ConversationView) rebuild() {
 func (cv *ConversationView) Render() string {
 	content := cv.Viewport.View()
 	if len(cv.conversation) == 0 && cv.navigationMode != NavigationModeMessageHistory {
-		content = cv.renderWelcome()
+		content = lipgloss.NewStyle().Height(cv.height).Render(cv.renderWelcome())
 	}
 
 	lines := strings.Split(content, "\n")
