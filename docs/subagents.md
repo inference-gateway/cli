@@ -127,8 +127,9 @@ can talk to it without respawning and losing its context:
 - `SendSubagentInput` with `text` sends the subagent a follow-up message - new
   information, a correction, a question about its result - which it runs as its
   next turn in the same session, and the parent is notified again when that turn
-  ends. A message sent while the subagent is mid-turn is queued and runs next,
-  nothing is lost and no note is duplicated. `keys` and `submit=false` drive an
+  ends. A message sent while the subagent is mid-turn reaches it right after
+  its current tool call, so asking a running subagent to wrap up and report now
+  works. Nothing is lost and no note is duplicated. `keys` and `submit=false` drive an
   interactive pane's TUI and fail for a headless subagent.
 - A subagent that sits idle for `tools.agent.idle_timeout` seconds after a
   completed turn is closed with one `[Subagent Closed: <label>]` note carrying

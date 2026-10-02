@@ -312,7 +312,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
 	}
 
-	msg := fmt.Sprintf("Dispatched %d subagent(s) in %s mode. END YOUR TURN NOW - you will be notified automatically when each completes; do NOT poll with ListSubagents/GetSubagentResult.", len(dispatched), mode)
+	msg := fmt.Sprintf("Dispatched %d subagent(s) in %s mode. END YOUR TURN NOW - you will be notified automatically when each completes; do NOT poll with ListSubagents/GetSubagentResult. To hurry or redirect one, SendSubagentInput it.", len(dispatched), mode)
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
