@@ -3,7 +3,7 @@ name: config
 description: >
   Change infer settings from chat. Use when the user types /config <request>
   (e.g. /config set the gateway timeout to 300, /config switch the model to
-  anthropic/claude-sonnet-4-5, /config what is my max_turns) or asks to check
+  anthropic/claude-sonnet-5-5, /config what is my max_turns) or asks to check
   or change an infer setting in config.yaml: it maps the request to the
   dotted config key, shows the current value, writes the change with
   `infer config set` only after the user confirms, and hands /reload back to
