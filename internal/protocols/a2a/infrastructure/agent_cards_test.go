@@ -14,7 +14,9 @@ import (
 
 func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 	tmpDir := t.TempDir()
-	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	t.Chdir(tmpDir)
+	t.Setenv("HOME", tmpDir)
+	agentsPath := filepath.Join(tmpDir, config.DefaultAgentsPath)
 
 	agentsCfg, err := config.LoadAgents(agentsPath)
 	require.NoError(t, err)
@@ -32,9 +34,8 @@ func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		}
 
 		svc := &AgentCardClient{
-			config:     cfg,
-			agentsPath: agentsPath,
-			cache:      make(map[string]*a2adomain.CachedAgentCard),
+			config: cfg,
+			cache:  make(map[string]*a2adomain.CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -49,9 +50,8 @@ func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg.A2A.Agents = []string{}
 
 		svc := &AgentCardClient{
-			config:     cfg,
-			agentsPath: agentsPath,
-			cache:      make(map[string]*a2adomain.CachedAgentCard),
+			config: cfg,
+			cache:  make(map[string]*a2adomain.CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -65,9 +65,8 @@ func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 		cfg.A2A.Agents = nil
 
 		svc := &AgentCardClient{
-			config:     cfg,
-			agentsPath: agentsPath,
-			cache:      make(map[string]*a2adomain.CachedAgentCard),
+			config: cfg,
+			cache:  make(map[string]*a2adomain.CachedAgentCard),
 		}
 
 		agents := svc.GetConfiguredAgents()
@@ -78,16 +77,15 @@ func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 }
 
 func TestAgentCardClient_GetConfiguredAgents_NoAgentsConfigured(t *testing.T) {
-	tmpDir := t.TempDir()
-	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 
 	cfg := config.DefaultConfig()
 	cfg.A2A.Agents = nil
 
 	svc := &AgentCardClient{
-		config:     cfg,
-		agentsPath: agentsPath,
-		cache:      make(map[string]*a2adomain.CachedAgentCard),
+		config: cfg,
+		cache:  make(map[string]*a2adomain.CachedAgentCard),
 	}
 
 	agents := svc.GetConfiguredAgents()

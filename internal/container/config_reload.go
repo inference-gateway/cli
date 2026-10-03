@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,9 +23,9 @@ func (c *ServiceContainer) EnableConfigReload(load func() (*config.Config, error
 	c.startupConfig = startup
 }
 
-// ReloadConfig loads the configuration again and copies the hot keys into the
-// running config, so services keep their pointers. Other changed keys are only
-// reported for a restart, so tools, sandbox and approval policy stay fixed.
+// ReloadConfig copies the hot keys of a fresh config into the running one, so
+// services keep their pointers, and reconciles the A2A agents with agents.yaml.
+// Other changed keys are only reported for a restart, so policy stays fixed.
 // ponytail: no lock. A turn started in the same instant or a repaint can race
 // the write, an RWMutex around config is the upgrade if that ever matters.
 func (c *ServiceContainer) ReloadConfig() (applied, restart []string, err error) {
@@ -60,6 +61,14 @@ func (c *ServiceContainer) ReloadConfig() (applied, restart []string, err error)
 	for _, key := range config.ChangedKeys(c.startupConfig, fresh) {
 		if _, ok := hotConfigKey(hot, key); !ok {
 			restart = append(restart, key)
+		}
+	}
+	if c.agentSupervisor != nil {
+		changes, err := c.agentSupervisor.ReconcileAgents(context.Background())
+		if err != nil {
+			errs = append(errs, fmt.Errorf("agents.yaml: %w", err))
+		} else if !changes.IsEmpty() {
+			applied = append(applied, changes.String())
 		}
 	}
 	return applied, restart, errors.Join(errs...)

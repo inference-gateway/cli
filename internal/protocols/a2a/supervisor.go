@@ -3,11 +3,14 @@ package a2a
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,15 +39,12 @@ type AgentSupervisor struct {
 	containerRuntime     containerruntime.ContainerRuntime
 	containers           map[string]string
 	assignedPorts        map[string]int
-	externalAgents       map[string]string
 	isRunning            bool
 	statusCallback       func(agentName string, state a2adomain.AgentState, message string, url string, image string)
 	pullProgressCallback func(agentName string, done, total int)
 	containersMutex      sync.Mutex
 	a2aAgentService      a2adomain.AgentCardService
-	probeStop            chan struct{}
-	probeStopOnce        sync.Once
-	probeWg              sync.WaitGroup
+	runs                 map[string]*agentRun
 	startWg              sync.WaitGroup
 	agentStates          map[string]a2adomain.AgentState
 }
@@ -59,7 +59,7 @@ func NewAgentSupervisor(sessionID convdomain.SessionID, cfg *config.Config, agen
 		containers:       make(map[string]string),
 		assignedPorts:    make(map[string]int),
 		a2aAgentService:  a2aService,
-		probeStop:        make(chan struct{}),
+		runs:             make(map[string]*agentRun),
 		agentStates:      make(map[string]a2adomain.AgentState),
 	}
 }
@@ -90,48 +90,172 @@ func (s *AgentSupervisor) notifyPullProgress(agentName string, done, total int) 
 
 // StartAgents starts all local agents (run: true) and monitors external agents
 func (s *AgentSupervisor) StartAgents(ctx context.Context) error {
-	if utils.IsRunningInContainer() {
-		logger.Debug("running in container mode - skipping local agent startup, only discovering remote agents")
-		s.initializeExternalAgents(ctx)
-		s.isRunning = true
-		return nil
-	}
-
-	agentsToStart := []config.AgentEntry{}
-	for _, agent := range s.agentsConfig.Agents {
-		if agent.Run {
-			agentsToStart = append(agentsToStart, agent)
-		}
-	}
-
-	if s.containerRuntime != nil && len(agentsToStart) > 0 {
-		if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
-			logger.Error("failed to ensure container network; local agents cannot start", "session", s.sessionID, "error", err)
-			for _, agent := range agentsToStart {
-				s.notifyStatus(agent.Name, a2adomain.AgentStateFailed, "container network unavailable", agent.URL, agent.OCI)
-			}
-			s.initializeExternalAgents(ctx)
-			s.isRunning = true
-			return nil
-		}
-	}
-
-	for _, agent := range agentsToStart {
-		s.startWg.Add(1)
-		go func(agent config.AgentEntry) {
-			defer s.startWg.Done()
-			s.startAgentAsync(ctx, agent)
-		}(agent)
-	}
-
-	if len(agentsToStart) > 0 {
-		logger.Info("starting local agents in background", "count", len(agentsToStart))
-	}
-
-	s.initializeExternalAgents(ctx)
-
+	s.superviseAgents(ctx, SupervisedAgents(s.config, s.agentsConfig), 2*time.Second)
 	s.isRunning = true
 	return nil
+}
+
+// ReconcileAgents re-reads agents.yaml and brings the supervised agents in line
+// with it. Agents that left or changed are stopped first, and a removed agent is
+// announced as removed only once nothing can report on it any more.
+func (s *AgentSupervisor) ReconcileAgents(ctx context.Context) (a2adomain.AgentChanges, error) {
+	fresh, err := config.LoadAgents(config.ResolveAgentsPath())
+	if err != nil {
+		return a2adomain.AgentChanges{}, err
+	}
+	current := SupervisedAgents(s.config, s.agentsConfig)
+	desired := SupervisedAgents(s.config, fresh)
+	s.agentsConfig = fresh
+
+	var changes a2adomain.AgentChanges
+	starting := make(map[string]config.AgentEntry)
+	for _, name := range slices.Sorted(maps.Keys(current)) {
+		entry, kept := desired[name]
+		if kept && reflect.DeepEqual(entry, current[name]) {
+			continue
+		}
+		s.stopRun(name)
+		_ = s.StopAgent(ctx, name)
+		if !kept {
+			changes.Removed = append(changes.Removed, name)
+			s.notifyStatus(name, a2adomain.AgentStateRemoved, "Removed from agents.yaml", current[name].URL, current[name].OCI)
+			continue
+		}
+		changes.Restarted = append(changes.Restarted, name)
+		starting[name] = entry
+	}
+	for _, name := range slices.Sorted(maps.Keys(desired)) {
+		if _, known := current[name]; !known {
+			changes.Added = append(changes.Added, name)
+			starting[name] = desired[name]
+		}
+	}
+
+	s.superviseAgents(ctx, starting, 0)
+	return changes, nil
+}
+
+// SupervisedAgents maps every agent the supervisor starts or probes to its
+// entry: run: true agents as configured, external agents by name and URL.
+func SupervisedAgents(cfg *config.Config, agents *config.AgentsConfig) map[string]config.AgentEntry {
+	supervised := make(map[string]config.AgentEntry)
+	for name, agentURL := range ExternalAgents(cfg, agents) {
+		supervised[name] = config.AgentEntry{Name: name, URL: agentURL}
+	}
+	for _, agent := range agents.Agents {
+		if agent.Run {
+			supervised[agent.Name] = agent
+		}
+	}
+	return supervised
+}
+
+// superviseAgents starts the run: true agents in containers once the network
+// exists and probes the external ones after probeDelay. Inside a container only
+// the external agents are probed.
+func (s *AgentSupervisor) superviseAgents(ctx context.Context, agents map[string]config.AgentEntry, probeDelay time.Duration) {
+	var local []config.AgentEntry
+	for _, name := range slices.Sorted(maps.Keys(agents)) {
+		agent := agents[name]
+		switch {
+		case !agent.Run:
+			s.watchExternalAgent(ctx, agent, probeDelay)
+		case !utils.IsRunningInContainer():
+			local = append(local, agent)
+		}
+	}
+	if len(local) == 0 {
+		return
+	}
+
+	if s.containerRuntime != nil {
+		if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
+			logger.Error("failed to ensure container network; local agents cannot start", "session", s.sessionID, "error", err)
+			for _, agent := range local {
+				s.notifyStatus(agent.Name, a2adomain.AgentStateFailed, "container network unavailable", agent.URL, agent.OCI)
+			}
+			return
+		}
+	}
+
+	logger.Info("starting local agents in background", "count", len(local))
+	for _, agent := range local {
+		s.notifyStatus(agent.Name, a2adomain.AgentStateStarting, "Queued", agent.URL, agent.OCI)
+		s.startWg.Add(1)
+		started := s.goAgent(ctx, agent.Name, func(ctx context.Context) {
+			defer s.startWg.Done()
+			s.startAgentAsync(ctx, agent)
+		})
+		if !started {
+			s.startWg.Done()
+		}
+	}
+}
+
+// agentRun scopes the start and probe goroutines of one agent, so reconciling
+// can stop that agent and wait it out without touching the others.
+type agentRun struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+}
+
+// goAgent runs fn on its own goroutine under the named agent's context and
+// reports whether it did. Once the agent is stopped its context is done, so fn
+// is not started and no orphaned run is left behind.
+func (s *AgentSupervisor) goAgent(ctx context.Context, name string, fn func(context.Context)) bool {
+	s.containersMutex.Lock()
+	if ctx.Err() != nil {
+		s.containersMutex.Unlock()
+		return false
+	}
+	run, ok := s.runs[name]
+	if !ok {
+		runCtx, cancel := context.WithCancel(ctx)
+		run = &agentRun{ctx: runCtx, cancel: cancel}
+		s.runs[name] = run
+	}
+	run.wg.Add(1)
+	s.containersMutex.Unlock()
+
+	go func() {
+		defer run.wg.Done()
+		fn(run.ctx)
+	}()
+	return true
+}
+
+// stopRun cancels the agent's goroutines and waits until they have exited, so
+// no status for the agent arrives afterwards, then forgets its state and
+// releases its port for the next start.
+func (s *AgentSupervisor) stopRun(name string) {
+	s.containersMutex.Lock()
+	run := s.runs[name]
+	delete(s.runs, name)
+	if run != nil {
+		run.cancel()
+	}
+	s.containersMutex.Unlock()
+
+	if run != nil {
+		run.wg.Wait()
+	}
+
+	s.containersMutex.Lock()
+	if port, assigned := s.assignedPorts[name]; assigned {
+		config.ReleasePort(port)
+	}
+	delete(s.agentStates, name)
+	delete(s.assignedPorts, name)
+	s.containersMutex.Unlock()
+}
+
+// livenessInterval is how often a ready agent is probed again.
+func (s *AgentSupervisor) livenessInterval() time.Duration {
+	if interval := time.Duration(s.config.A2A.LivenessProbeInterval) * time.Second; interval > 0 {
+		return interval
+	}
+	return 30 * time.Second
 }
 
 // WaitForAgentsReady blocks until every run:true agent started by StartAgents
@@ -161,61 +285,37 @@ func (s *AgentSupervisor) WaitForAgentsReady(ctx context.Context) {
 	}
 }
 
-// initializeExternalAgents loads external agents and monitors their readiness
-func (s *AgentSupervisor) initializeExternalAgents(ctx context.Context) {
-	s.externalAgents = ExternalAgents(s.config, s.agentsConfig)
-	if len(s.externalAgents) == 0 {
-		return
-	}
-
-	logger.Info("monitoring external agents", "count", len(s.externalAgents))
-
-	go s.monitorExternalAgents(ctx)
-}
-
-// monitorExternalAgents monitors the readiness of external agents with periodic probes
-func (s *AgentSupervisor) monitorExternalAgents(ctx context.Context) {
-	time.Sleep(2 * time.Second)
-
+// watchExternalAgent announces an external agent, probes it once after delay,
+// then on every liveness interval when liveness probes are enabled.
+func (s *AgentSupervisor) watchExternalAgent(ctx context.Context, agent config.AgentEntry, delay time.Duration) {
 	if s.a2aAgentService == nil {
-		logger.Warn("cannot monitor external agents: A2A service not available")
+		logger.Warn("cannot monitor external agent: A2A service not available", "name", agent.Name)
 		return
 	}
 
-	for agentName, agentURL := range s.externalAgents {
-		s.probeExternalAgent(ctx, agentName, agentURL)
-	}
+	s.notifyStatus(agent.Name, a2adomain.AgentStateWaitingReady, "Probing", agent.URL, "")
+	s.goAgent(ctx, agent.Name, func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		s.probeExternalAgent(ctx, agent.Name, agent.URL)
+		if !s.config.A2A.LivenessProbeEnabled {
+			return
+		}
 
-	if !s.config.A2A.LivenessProbeEnabled {
-		return
-	}
-
-	interval := time.Duration(s.config.A2A.LivenessProbeInterval) * time.Second
-	if interval <= 0 {
-		interval = 30 * time.Second
-	}
-
-	logger.Info("starting A2A agent liveness probes", "interval", interval, "agent_count", len(s.externalAgents))
-	for agentName, agentURL := range s.externalAgents {
-		s.probeWg.Add(1)
-		name, url := agentName, agentURL
-		go func() {
-			defer s.probeWg.Done()
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-s.probeStop:
-					return
-				case <-ticker.C:
-					s.probeExternalAgent(ctx, name, url)
-				}
+		ticker := time.NewTicker(s.livenessInterval())
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.probeExternalAgent(ctx, agent.Name, agent.URL)
 			}
-		}()
-	}
+		}
+	})
 }
 
 // probeExternalAgent performs a single liveness probe for an external agent
@@ -288,7 +388,7 @@ func AgentNameFromURL(url string) string {
 
 // startAgentAsync starts a single agent asynchronously with status updates
 func (s *AgentSupervisor) startAgentAsync(ctx context.Context, agent config.AgentEntry) {
-	if err := s.StartAgent(ctx, agent); err != nil {
+	if err := s.StartAgent(ctx, agent); err != nil && ctx.Err() == nil {
 		logger.Warn("failed to start agent", "name", agent.Name, "error", err)
 		s.notifyStatus(agent.Name, a2adomain.AgentStateFailed, fmt.Sprintf("Failed to start: %v", err), agent.URL, agent.OCI)
 	}
@@ -329,7 +429,7 @@ func (s *AgentSupervisor) StartAgent(ctx context.Context, agent config.AgentEntr
 
 	s.notifyStatus(agent.Name, a2adomain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := s.waitForReady(ctx, agent); err != nil {
-		if stopErr := s.StopAgent(ctx, agent.Name); stopErr != nil {
+		if stopErr := s.StopAgent(context.WithoutCancel(ctx), agent.Name); stopErr != nil {
 			logger.Warn("failed to stop agent during error cleanup", "name", agent.Name, "error", stopErr)
 		}
 		return fmt.Errorf("agent failed to become ready: %w", err)
@@ -351,17 +451,10 @@ func (s *AgentSupervisor) StartAgent(ctx context.Context, agent config.AgentEntr
 
 // startLocalAgentProbe starts a periodic health check for a local (docker) agent
 func (s *AgentSupervisor) startLocalAgentProbe(ctx context.Context, agent config.AgentEntry) {
-	interval := time.Duration(s.config.A2A.LivenessProbeInterval) * time.Second
-	if interval <= 0 {
-		interval = 30 * time.Second
-	}
-
 	healthURL := strings.TrimSuffix(agent.URL, "/") + "/health"
 
-	s.probeWg.Add(1)
-	go func() {
-		defer s.probeWg.Done()
-		ticker := time.NewTicker(interval)
+	s.goAgent(ctx, agent.Name, func(ctx context.Context) {
+		ticker := time.NewTicker(s.livenessInterval())
 		defer ticker.Stop()
 
 		httpClient := &http.Client{Timeout: 5 * time.Second}
@@ -370,13 +463,11 @@ func (s *AgentSupervisor) startLocalAgentProbe(ctx context.Context, agent config
 			select {
 			case <-ctx.Done():
 				return
-			case <-s.probeStop:
-				return
 			case <-ticker.C:
 				s.probeLocalAgent(ctx, httpClient, agent, healthURL)
 			}
 		}
-	}()
+	})
 }
 
 // probeLocalAgent performs a single health check for a local (docker) agent
@@ -430,10 +521,17 @@ func (s *AgentSupervisor) handleLocalProbeResult(agent config.AgentEntry, newSta
 
 // StopAgents stops all running agent containers, cancels liveness probes, and cleans up the network
 func (s *AgentSupervisor) StopAgents(ctx context.Context) error {
-	s.probeStopOnce.Do(func() { close(s.probeStop) })
-	s.probeWg.Wait()
+	s.containersMutex.Lock()
+	running := slices.Collect(maps.Keys(s.runs))
+	s.containersMutex.Unlock()
+	for _, agentName := range running {
+		s.stopRun(agentName)
+	}
 
-	for agentName := range s.containers {
+	s.containersMutex.Lock()
+	started := slices.Collect(maps.Keys(s.containers))
+	s.containersMutex.Unlock()
+	for _, agentName := range started {
 		if err := s.StopAgent(ctx, agentName); err != nil {
 			logger.Warn("failed to stop agent", "name", agentName, "error", err)
 		}
@@ -471,13 +569,12 @@ func sharedAgentContainerName(agentName string) string {
 
 // StopAgent stops a single agent container
 func (s *AgentSupervisor) StopAgent(ctx context.Context, agentName string) error {
-	containerID, exists := s.containers[agentName]
-	if !exists || containerID == "" {
-		return nil
-	}
+	s.containersMutex.Lock()
+	containerID := s.containers[agentName]
+	delete(s.containers, agentName)
+	s.containersMutex.Unlock()
 
-	if !s.containerExists(containerID) {
-		delete(s.containers, agentName)
+	if containerID == "" || !s.containerExists(containerID) {
 		return nil
 	}
 
@@ -485,8 +582,6 @@ func (s *AgentSupervisor) StopAgent(ctx context.Context, agentName string) error
 	if err := cmd.Run(); err != nil {
 		logger.Warn("failed to stop agent container", "name", agentName, "error", err)
 	}
-
-	delete(s.containers, agentName)
 	return nil
 }
 

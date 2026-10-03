@@ -61,7 +61,8 @@ These shortcuts are available out of the box:
 - `/reload` - Re-read the config files and `INFER_*` env and apply what a running chat can pick up: `gateway.timeout`, `agent.model`,
   `agent.max_turns`, `agent.max_tokens`, `agent.reasoning_effort` and the whole `chat.status_bar` section. The status line names the
   applied keys and every other changed key, which takes effect on the next `infer chat`, so tools, sandbox and approval policy never change
-  mid-session. Refused while the agent is busy.
+  mid-session. It also re-reads `agents.yaml`: new A2A agents start, removed ones stop and edited ones restart, shown as
+  `agents +added -removed ~restarted`. Refused while the agent is busy.
 - `/stats [since] [vertical|table]` - Summarize the local telemetry: tool calls, tokens and cost by model, sessions by mode. Wraps `infer stats`
 - `/traces [session-id]` - Render the span tree of a session, or the most recent one. Wraps `infer traces`
 - `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)

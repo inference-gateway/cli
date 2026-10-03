@@ -711,10 +711,16 @@ func (s *ApplicationState) InitializeAgentReadiness(totalAgents int) {
 	}
 }
 
-// UpdateAgentStatus updates the status of a specific agent
+// UpdateAgentStatus updates the status of a specific agent. A removed agent
+// leaves the tracking, and the first agent added to a chat that started without
+// any begins it.
 func (s *ApplicationState) UpdateAgentStatus(name string, state a2adomain.AgentState, message string, url string, image string) {
-	if s.agentReadiness == nil {
+	if state == a2adomain.AgentStateRemoved {
+		s.RemoveAgent(name)
 		return
+	}
+	if s.agentReadiness == nil {
+		s.InitializeAgentReadiness(0)
 	}
 
 	agent, exists := s.agentReadiness.Agents[name]
@@ -733,8 +739,10 @@ func (s *ApplicationState) UpdateAgentStatus(name string, state a2adomain.AgentS
 }
 
 // recountReadyAgents derives ReadyAgents from the per-agent states so the
-// count can never drift when agents flap between Ready and Failed.
+// count can never drift when agents flap between Ready and Failed. The total
+// grows with agents added after startup.
 func (s *ApplicationState) recountReadyAgents() {
+	s.agentReadiness.TotalAgents = max(s.agentReadiness.TotalAgents, len(s.agentReadiness.Agents))
 	ready := 0
 	for _, agent := range s.agentReadiness.Agents {
 		if agent.State == a2adomain.AgentStateReady {

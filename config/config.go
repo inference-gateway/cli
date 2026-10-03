@@ -1709,3 +1709,11 @@ func FindAvailablePort(basePort int) int {
 	}
 	return basePort
 }
+
+// ReleasePort hands a port from FindAvailablePort back, so an agent restarted
+// in the same process can take its own port again.
+func ReleasePort(port int) {
+	portMutex.Lock()
+	defer portMutex.Unlock()
+	delete(allocatedPorts, port)
+}

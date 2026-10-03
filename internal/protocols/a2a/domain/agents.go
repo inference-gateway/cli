@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
@@ -38,11 +39,42 @@ type AgentSupervisor interface {
 	// IsRunning returns whether any agents are running
 	IsRunning() bool
 
+	// ReconcileAgents brings the supervised agents in line with agents.yaml:
+	// agents no longer configured stop, new ones start, edited ones restart
+	ReconcileAgents(ctx context.Context) (AgentChanges, error)
+
 	// SetStatusCallback sets the callback function for agent status updates
 	SetStatusCallback(callback func(agentName string, state AgentState, message string, url string, image string))
 
 	// SetPullProgressCallback sets the callback function for image pull progress updates
 	SetPullProgressCallback(callback func(agentName string, done, total int))
+}
+
+// AgentChanges is what reconciling the supervised agents with agents.yaml
+// did: the agents that joined, left, or restarted with an edited entry.
+type AgentChanges struct {
+	Added     []string
+	Removed   []string
+	Restarted []string
+}
+
+// IsEmpty reports whether reconciling left every agent as it was.
+func (c AgentChanges) IsEmpty() bool {
+	return len(c.Added)+len(c.Removed)+len(c.Restarted) == 0
+}
+
+// String summarizes the changes as "agents +added -removed ~restarted".
+func (c AgentChanges) String() string {
+	parts := []string{"agents"}
+	for _, group := range []struct {
+		sign  string
+		names []string
+	}{{"+", c.Added}, {"-", c.Removed}, {"~", c.Restarted}} {
+		for _, name := range group.names {
+			parts = append(parts, group.sign+name)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // AgentState represents the current state of an agent
@@ -55,6 +87,7 @@ const (
 	AgentStateWaitingReady
 	AgentStateReady
 	AgentStateFailed
+	AgentStateRemoved
 )
 
 func (a AgentState) String() string {
@@ -71,6 +104,8 @@ func (a AgentState) String() string {
 		return "Ready"
 	case AgentStateFailed:
 		return "Failed"
+	case AgentStateRemoved:
+		return "Removed"
 	default:
 		return "Unknown"
 	}
@@ -91,6 +126,8 @@ func (a AgentState) DisplayName() string {
 		return "ready"
 	case AgentStateFailed:
 		return "failed"
+	case AgentStateRemoved:
+		return "removed"
 	default:
 		return "unknown"
 	}

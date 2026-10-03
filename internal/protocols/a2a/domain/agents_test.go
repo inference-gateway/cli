@@ -14,6 +14,7 @@ func TestAgentStateNames(t *testing.T) {
 		{AgentStateWaitingReady, "WaitingReady", "waiting"},
 		{AgentStateReady, "Ready", "ready"},
 		{AgentStateFailed, "Failed", "failed"},
+		{AgentStateRemoved, "Removed", "removed"},
 		{AgentState(99), "Unknown", "unknown"},
 	}
 	for _, tt := range tests {
@@ -25,5 +26,15 @@ func TestAgentStateNames(t *testing.T) {
 				t.Errorf("AgentState(%d).DisplayName() = %q, want %q", tt.s, got, tt.wantDisplay)
 			}
 		})
+	}
+}
+
+func TestAgentChangesString(t *testing.T) {
+	changes := AgentChanges{Added: []string{"mock-agent"}, Removed: []string{"old"}, Restarted: []string{"browser-agent"}}
+	if got, want := changes.String(), "agents +mock-agent -old ~browser-agent"; got != want {
+		t.Errorf("String() = %q, want %q", got, want)
+	}
+	if changes.IsEmpty() || !(AgentChanges{}).IsEmpty() {
+		t.Error("IsEmpty must be true only without changes")
 	}
 }
