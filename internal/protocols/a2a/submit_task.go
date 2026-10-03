@@ -206,14 +206,15 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 		return t.errorResult(args, startTime, fmt.Sprintf("A2A task submission failed: %v", err))
 	}
 
-	var submittedTask adk.Task
-	if err := mapToStruct(taskResponse.Result, &submittedTask); err != nil {
+	var sendResponse adk.SendMessageResponse
+	if err := mapToStruct(taskResponse.Result, &sendResponse); err != nil {
 		return t.errorResult(args, startTime, "Failed to parse task submission response")
 	}
 
-	if submittedTask.ID == "" {
+	if sendResponse.Task == nil || sendResponse.Task.ID == "" {
 		return t.errorResult(args, startTime, "Task submitted but no task ID received")
 	}
+	submittedTask := *sendResponse.Task
 
 	taskID := submittedTask.ID
 	receivedContextID := submittedTask.GetContextID()

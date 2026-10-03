@@ -4,7 +4,7 @@ metadata:
   name: mock-agent
   namespace: infer
 spec:
-  image: ghcr.io/inference-gateway/mock-agent:0.4.0
+  image: ghcr.io/inference-gateway/mock-agent:0.4.12
   agent:
     maxChatCompletionIterations: 10
   resources:

@@ -60,13 +60,13 @@ mixes the two, so *always know which shape you're looking at*:
 **The `schemas` proto now tracks upstream v1.0.1.** It is `package lf.a2a.v1`,
 spells `TASK_STATE_CANCELED` (single L), moves `protocol_version` onto each
 `AgentInterface` (required, field 4), and names the push-config RPCs
-`Create…`/`List…Configs`. **The CLI runtime (ADK v0.30) carries those v1.0.1
-types** (`TASK_STATE_*` states, the unified `Part`, `securityRequirements`, and
-`supportedInterfaces` with the deprecated `url`/`preferredTransport` gone), but
-its JSON-RPC methods are still v0.x slash names (`message/send`, `tasks/get`).
-That rename was deliberately left open as a separate decision. Remote agents may
-report either state casing - the CLI maps both through `NormalizeTaskState`
-(`internal/protocols/a2a/domain/tasks.go`).
+`Create…`/`List…Configs`. **The CLI runtime (ADK v0.32) speaks v1.0.1 end to
+end**: the `TASK_STATE_*` states, the unified `Part`, `securityRequirements`,
+`supportedInterfaces` (the deprecated `url`/`preferredTransport` gone), and the
+PascalCase JSON-RPC methods (`SendMessage`, `GetTask`) since ADK v0.31. Agents
+built on an older ADK answer only the slash names and return `-32601` (method
+not found) to the CLI. Remote agents may report either state casing - the CLI
+maps both through `NormalizeTaskState` (`internal/protocols/a2a/domain/tasks.go`).
 
 > **Do not mix shapes.** Pick a target version, read *that* version's schema, and
 > use its field/method names. The well-known path also moved with versions:
@@ -126,23 +126,23 @@ offer several. They are **functionally equivalent** - same operations, same
 semantics. `protocolBinding` values: `JSONRPC`, `GRPC`, `HTTP+JSON` (JSON-RPC is
 the default when a preference is unspecified).
 
-| Operation | v0.x JSON-RPC | v1.0 / gRPC | HTTP+JSON (REST) |
+| Operation | JSON-RPC / gRPC (v1.0) | HTTP+JSON (REST) | v0.x JSON-RPC (legacy) |
 | --- | --- | --- | --- |
-| Send message | `message/send` | `SendMessage` | `POST /message:send` |
-| Stream | `message/stream` | `SendStreamingMessage` | `POST /message:stream` |
-| Get task | `tasks/get` | `GetTask` | `GET /tasks/{id}` |
-| List tasks | `tasks/list` | `ListTasks` | `GET /tasks` |
-| Cancel task | `tasks/cancel` | `CancelTask` | `POST /tasks/{id}:cancel` |
-| Resubscribe | `tasks/resubscribe` | `SubscribeToTask` | `GET /tasks/{id}:subscribe` |
-| Push config | `tasks/pushNotificationConfig/*` | `{Create,Get,List,Delete}TaskPushNotificationConfig(s)` | `/tasks/{id}/pushNotificationConfigs` |
-| Extended card | `agent/getAuthenticatedExtendedCard` | `GetExtendedAgentCard` | `GET /extendedAgentCard` |
+| Send message | `SendMessage` | `POST /message:send` | `message/send` |
+| Stream | `SendStreamingMessage` | `POST /message:stream` | `message/stream` |
+| Get task | `GetTask` | `GET /tasks/{id}` | `tasks/get` |
+| List tasks | `ListTasks` | `GET /tasks` | `tasks/list` |
+| Cancel task | `CancelTask` | `POST /tasks/{id}:cancel` | `tasks/cancel` |
+| Subscribe | `SubscribeToTask` | `GET /tasks/{id}:subscribe` | `tasks/resubscribe` |
+| Push config | `{Create,Get,List,Delete}TaskPushNotificationConfig(s)` | `/tasks/{id}/pushNotificationConfigs` | `tasks/pushNotificationConfig/*` |
+| Extended card | `GetExtendedAgentCard` | `GET /extendedAgentCard` | `agent/getAuthenticatedExtendedCard` |
 
 > **In this repo:** the ADK client (`client.NewClient(url)`) speaks **JSON-RPC**
-> with v0.x method names - `GetAgentCard`, `SendTask` (→ `message/send`),
-> `GetTask` (→ `tasks/get`) - while `schemas` stores the proto/gRPC form. Same
-> operations, different binding; that's why method names differ between the
-> schema you read and the calls the runtime makes, even though the payload types
-> match the schema.
+> with the v1.0.1 method names: `SendTask` → `SendMessage`, `GetTask` →
+> `GetTask`, `CancelTask` → `CancelTask`. The Go method names lag the wire names,
+> so read the wire name off the table above. `SendMessage` returns a
+> `SendMessageResponse` wrapper (`{"task": …}` or `{"message": …}`), while
+> `GetTask` returns the bare `Task`.
 
 ## Task lifecycle
 
@@ -178,14 +178,14 @@ is version-dependent - see the version map; normalize `canceled`,
 The spec's canonical patterns are three (note: **polling is a sub-mode of
 request/response**, not a separate pattern):
 
-- **Synchronous request/response** - `message/send`; optionally **poll**
-  `tasks/get` on an interval for longer work. Simplest, always available; use
+- **Synchronous request/response** - `SendMessage`; optionally **poll**
+  `GetTask` on an interval for longer work. Simplest, always available; use
   **exponential backoff** (this is what the CLI's A2A tools do).
-- **Streaming (SSE)** - `message/stream` / `tasks/resubscribe`. Requires
+- **Streaming (SSE)** - `SendStreamingMessage` / `SubscribeToTask`. Requires
   `capabilities.streaming`. The server emits `TaskStatusUpdateEvent` (watch
   `final: true` for the terminal event) and `TaskArtifactUpdateEvent` (chunks).
   Best for real-time incremental output; resubscribe to resume a dropped stream.
-- **Push notifications** - `tasks/pushNotificationConfig/set` a webhook, for
+- **Push notifications** - `CreateTaskPushNotificationConfig` a webhook, for
   long-running work (minutes→days) or disconnected clients (mobile, serverless).
   Requires `capabilities.pushNotifications`.
 
@@ -240,7 +240,7 @@ failure** (the work ran and failed → a Task in state `failed`, reason in
 ## Versioning & interoperability
 
 - Set/read `protocolVersion`; negotiate on `capabilities` - don't call
-  `message/stream` unless the card advertises `streaming`.
+  `SendStreamingMessage` unless the card advertises `streaming`.
 - Add fields backward-compatibly; keep advertised transports equivalent.
 - Validate with the official
   [A2A Inspector](https://github.com/a2aproject/a2a-inspector) (card + JSON-RPC

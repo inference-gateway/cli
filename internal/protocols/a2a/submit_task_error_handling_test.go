@@ -147,7 +147,7 @@ func TestSubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		}
 
 		mockClient := &adkmocks.FakeA2AClient{}
-		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: completedTask}, nil)
+		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &completedTask}}, nil)
 
 		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
 
@@ -245,7 +245,7 @@ func TestSubmitTaskTool_ContextReuse(t *testing.T) {
 
 			mockClient := &adkmocks.FakeA2AClient{}
 			mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: existingTask}, tt.getTaskError)
-			mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
+			mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &newTask}}, nil)
 
 			tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
 
@@ -326,7 +326,7 @@ func TestSubmitTaskTool_MultipleAgents(t *testing.T) {
 
 		mockClient := &adkmocks.FakeA2AClient{}
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: workingTaskAgent1}, nil)
-		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTaskAgent2}, nil)
+		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &newTaskAgent2}}, nil)
 
 		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
 
@@ -385,7 +385,7 @@ func TestSubmitTaskTool_NoExistingTask(t *testing.T) {
 		}
 
 		mockClient := &adkmocks.FakeA2AClient{}
-		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
+		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &newTask}}, nil)
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 
 		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)

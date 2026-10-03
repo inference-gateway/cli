@@ -113,7 +113,7 @@ func TestSubmitTaskTool_Execute_RequestsImmediateReturn(t *testing.T) {
 	}
 
 	mockClient := &adkmocks.FakeA2AClient{}
-	mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: submittedTask}, nil)
+	mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &submittedTask}}, nil)
 
 	tool := NewSubmitTaskToolWithClient(cfg, nil, nil, nil, mockClient)
 

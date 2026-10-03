@@ -45,7 +45,7 @@ services:
       - a2a-traces-network
 
   mock-agent:
-    image: ghcr.io/inference-gateway/mock-agent:0.3.2
+    image: ghcr.io/inference-gateway/mock-agent:0.4.12
     environment:
       A2A_AGENT_URL: http://mock-agent:8080
       A2A_AGENT_CLIENT_PROVIDER: ""
