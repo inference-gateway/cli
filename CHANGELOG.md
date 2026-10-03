@@ -5,6 +5,81 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.224.0](https://github.com/inference-gateway/cli/compare/v0.223.0...v0.224.0) (2026-10-03)
+
+### 🚀 Features
+
+* **a2a:** speak A2A v1.0.1 and reconcile agents.yaml on /reload ([#1510](https://github.com/inference-gateway/cli/issues/1510)) ([c74439c](https://github.com/inference-gateway/cli/commit/c74439c1445f4fde5b9c4d43cf0aaa6e3a8e2dd2)), closes [#1509](https://github.com/inference-gateway/cli/issues/1509), references [inference-gateway/adk#342](https://github.com/inference-gateway/adk/issues/342)
+
+### 📚 Documentation
+
+* **skills:** update a2a-protocol version map for the v1.0.1 type migration ([#1506](https://github.com/inference-gateway/cli/issues/1506)) ([cdccb45](https://github.com/inference-gateway/cli/commit/cdccb458cabab2ba17a13d60bebde443345ead52))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.224.0 --help
+npx @inference-gateway/cli@0.224.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.224.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.224.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.224.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.224.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.224.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.223.0](https://github.com/inference-gateway/cli/compare/v0.222.2...v0.223.0) (2026-10-03)
 
 ### 🚀 Features
