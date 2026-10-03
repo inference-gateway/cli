@@ -5,6 +5,102 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.223.0](https://github.com/inference-gateway/cli/compare/v0.222.2...v0.223.0) (2026-10-03)
+
+### 🚀 Features
+
+* **config:** move the tools policy into a protected userspace tools.yaml ([#1507](https://github.com/inference-gateway/cli/issues/1507)) ([dc014c2](https://github.com/inference-gateway/cli/commit/dc014c2ee62d63ad8ab4c7c75f5ad490b77cb751)), closes [#1501](https://github.com/inference-gateway/cli/issues/1501), references [#1499](https://github.com/inference-gateway/cli/issues/1499) [#1502](https://github.com/inference-gateway/cli/issues/1502) [inference-gateway/docs#914](https://github.com/inference-gateway/docs/issues/914)
+* reload configuration in chat and add a built-in /config skill ([#1508](https://github.com/inference-gateway/cli/issues/1508)) ([d777ef3](https://github.com/inference-gateway/cli/commit/d777ef3be5195e5938b3b1778b0c9f4537f27ceb)), closes [#1502](https://github.com/inference-gateway/cli/issues/1502) [#1499](https://github.com/inference-gateway/cli/issues/1499), references [inference-gateway/docs#916](https://github.com/inference-gateway/docs/issues/916)
+
+### 🐛 Bug Fixes
+
+* **presentation:** dim the sub-agent stats icons at a zero count ([#1504](https://github.com/inference-gateway/cli/issues/1504)) ([83c8934](https://github.com/inference-gateway/cli/commit/83c8934d9c2e5381f1926fa1f458e6430dcf4ad7)), closes [#1498](https://github.com/inference-gateway/cli/issues/1498)
+* **tools:** point the model at SendSubagentInput to wrap up running subagents ([#1487](https://github.com/inference-gateway/cli/issues/1487)) ([7d7e00c](https://github.com/inference-gateway/cli/commit/7d7e00cbe573fff0b14140b94913ac05625bc3ea))
+* **plugins:** report failed rollback in Commit instead of swallowing it ([#1497](https://github.com/inference-gateway/cli/issues/1497)) ([3520fe2](https://github.com/inference-gateway/cli/commit/3520fe268ad720065b4b9add6279b57be3ce28f1)), closes [#1492](https://github.com/inference-gateway/cli/issues/1492)
+
+### ♻️ Code Refactoring
+
+* **config:** group media output under tmp/media, scoped to the open project ([#1486](https://github.com/inference-gateway/cli/issues/1486)) ([8c171ca](https://github.com/inference-gateway/cli/commit/8c171ca6fbe17ed23b6394b2298344f38f54fcab))
+* **projects:** move internal/platform/project to internal/projects ([#1489](https://github.com/inference-gateway/cli/issues/1489)) ([e2ebdb7](https://github.com/inference-gateway/cli/commit/e2ebdb7f6901c7908fca41332aa9f98b69784b55))
+* **agent:** organise the agent context and rename the runner to headless ([#1488](https://github.com/inference-gateway/cli/issues/1488)) ([519464c](https://github.com/inference-gateway/cli/commit/519464ced4ecaaa3f642c49b4437c4520a27d549))
+* **tools:** replace hand-rolled contains helpers with stdlib ([#1495](https://github.com/inference-gateway/cli/issues/1495)) ([7386566](https://github.com/inference-gateway/cli/commit/7386566c41d05587521244225284fa8397ca6eb3)), closes [#1490](https://github.com/inference-gateway/cli/issues/1490)
+* **platform:** unify tilde expansion into utils.ExpandHome ([#1496](https://github.com/inference-gateway/cli/issues/1496)) ([6db3504](https://github.com/inference-gateway/cli/commit/6db3504a546223479bd9ef3cdde47094e68da6fb)), closes [#1491](https://github.com/inference-gateway/cli/issues/1491)
+
+### 🔧 Build System
+
+* **deps:** bump the gomod group with 2 updates ([#1503](https://github.com/inference-gateway/cli/issues/1503)) ([6237a82](https://github.com/inference-gateway/cli/commit/6237a82718425b48010aff5d2b9bf7f6fdfdca2d))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.283 -> 2.1.285 ([#1485](https://github.com/inference-gateway/cli/issues/1485)) ([8692a4a](https://github.com/inference-gateway/cli/commit/8692a4a58b3f9afcafd332595f12c7f6a29fff44))
+* **deps:** bump Go toolchain from 1.26.7 to 1.26.8 ([#1500](https://github.com/inference-gateway/cli/issues/1500)) ([77c76b7](https://github.com/inference-gateway/cli/commit/77c76b71b70cc2fedc582f4979fbaa3ba3bdb980)), closes [#1493](https://github.com/inference-gateway/cli/issues/1493)
+* **deps:** bump golangci-lint from v2.13.2 to v2.14.0 ([#1505](https://github.com/inference-gateway/cli/issues/1505)) ([5dd2e1c](https://github.com/inference-gateway/cli/commit/5dd2e1cfc78e93f3088d61b256233aa842377332)), closes [#1494](https://github.com/inference-gateway/cli/issues/1494)
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.223.0 --help
+npx @inference-gateway/cli@0.223.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.223.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.223.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.223.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.223.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.223.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.222.2](https://github.com/inference-gateway/cli/compare/v0.222.1...v0.222.2) (2026-10-02)
 
 ### 🐛 Bug Fixes

@@ -18,7 +18,7 @@
         pkgs = import nixpkgs { inherit system; };
         inherit (pkgs) lib;
 
-        version = "0.222.2";
+        version = "0.223.0";
 
         infer = pkgs.buildGoModule (finalAttrs: {
           __structuredAttrs = true;
@@ -46,7 +46,7 @@
               );
           };
 
-          vendorHash = "sha256-ODQaz7bem82N40+ChLutyaRDu5TW2Ly3EPY1Ub34S4s=";
+          vendorHash = "sha256-a93RN5g0s6J0ObXqtaWVBUSNEJoB9liIbMVLFMqPW34=";
 
           goSum = ./go.sum;
 
