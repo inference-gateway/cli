@@ -331,6 +331,9 @@ connections to specialized A2A agents for task delegation and distributed proces
 
 - `--project`: Apply to the project configuration (`./.infer/`) instead of the userspace baseline (`~/.infer/`)
 
+A running `infer chat` applies `add`, `update` and `remove` when you type `/reload`. In chat,
+`/config add the mock-agent` runs `infer agents add` for you after you confirm.
+
 **Update Flags:**
 
 - `--url <url>`: Update agent URL
