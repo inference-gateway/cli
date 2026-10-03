@@ -14,6 +14,9 @@ and the tools return normal tool results.
   artifacts itself when `a2a.task.artifacts_auto_download` is on. Otherwise it tells the model to fetch them with `WebFetch`.
 - `AgentSupervisor` starts the configured local agent containers. Agents are declared in `agents.yaml`, and the
   feature is gated by the `a2a` config section.
+- `ReconcileAgents` brings a running chat in line with an edited `agents.yaml` on `/reload`. It reports the
+  difference as `AgentChanges`. A removed agent is announced as `AgentStateRemoved` on the status stream once its
+  goroutines have exited, and the TUI readiness drops it.
 - The `/agents` and `/tasks` shortcuts read the same state.
 
 ## Related

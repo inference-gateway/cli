@@ -163,7 +163,8 @@ skill you authored there yourself. Current built-ins:
 - **`config`** - turn `/config <request>` (e.g. `/config set the gateway
   timeout to 300`) into a confirmed `infer config set`: it finds the dotted
   key, shows `key: old -> new`, writes only after your approval, and leaves
-  `/reload` to apply it to the running chat. It refuses tool, sandbox, MCP,
+  `/reload` to apply it to the running chat. It adds and removes A2A agents
+  too (`/config add the mock-agent`) through `infer agents`. It refuses tool, sandbox, MCP,
   channel, plugin, hook and judge policy and secrets, and names the file to
   edit by hand instead.
 

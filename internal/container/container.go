@@ -330,14 +330,7 @@ func (c *ServiceContainer) initializeAgentSupervisor() {
 		return
 	}
 
-	agentCount := len(a2a.ExternalAgents(c.config, agentsConfig))
-	for _, agent := range agentsConfig.Agents {
-		if agent.Run {
-			agentCount++
-		}
-	}
-
-	if agentCount > 0 {
+	if agentCount := len(a2a.SupervisedAgents(c.config, agentsConfig)); agentCount > 0 {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 

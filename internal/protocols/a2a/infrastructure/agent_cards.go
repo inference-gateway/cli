@@ -2,8 +2,6 @@ package infrastructure
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,29 +14,14 @@ import (
 
 type AgentCardClient struct {
 	config     *config.Config
-	agentsPath string
 	cache      map[string]*a2adomain.CachedAgentCard
 	cacheMutex sync.RWMutex
 }
 
 func NewAgentCardClient(cfg *config.Config) *AgentCardClient {
-	agentsPath := config.DefaultAgentsPath
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		userspacePath := filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
-		if _, err := os.Stat(userspacePath); err == nil {
-			agentsPath = userspacePath
-		}
-	}
-
-	if _, err := os.Stat(config.DefaultAgentsPath); err == nil {
-		agentsPath = config.DefaultAgentsPath
-	}
-
 	return &AgentCardClient{
-		config:     cfg,
-		agentsPath: agentsPath,
-		cache:      make(map[string]*a2adomain.CachedAgentCard),
+		config: cfg,
+		cache:  make(map[string]*a2adomain.CachedAgentCard),
 	}
 }
 
@@ -111,7 +94,7 @@ func (s *AgentCardClient) GetConfiguredAgents() []string {
 		return s.config.A2A.Agents
 	}
 
-	urls, err := config.GetAgentURLs(s.agentsPath)
+	urls, err := config.GetAgentURLs(config.ResolveAgentsPath())
 	if err != nil {
 		logger.Error("failed to load agents from agents.yaml", "error", err)
 		return []string{}

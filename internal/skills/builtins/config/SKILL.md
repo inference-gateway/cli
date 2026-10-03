@@ -3,12 +3,13 @@ name: config
 description: >
   Change infer settings from chat. Use when the user types /config <request>
   (e.g. /config set the gateway timeout to 300, /config switch the model to
-  anthropic/claude-sonnet-5-5, /config what is my max_turns) or asks to check
-  or change an infer setting in config.yaml: it maps the request to the
-  dotted config key, shows the current value, writes the change with
-  `infer config set` only after the user confirms, and hands /reload back to
-  apply it. Built-in and CLI-specific. Never for tool, bash allow-list,
-  sandbox, MCP, channel, plugin, hook or judge policy, or for secrets.
+  anthropic/claude-sonnet-5-5, /config what is my max_turns, /config add the
+  mock-agent) or asks to check or change an infer setting in config.yaml or
+  an A2A agent in agents.yaml: it maps the request to the dotted config key
+  or the `infer agents` command, shows what changes, writes it only after the
+  user confirms, and hands /reload back to apply it. Built-in and
+  CLI-specific. Never for tool, bash allow-list, sandbox, MCP, channel,
+  plugin, hook or judge policy, or for secrets.
 license: Apache-2.0
 ---
 
@@ -73,6 +74,27 @@ End with: "Saved. Type /reload to apply it to this session - it tells you if
 the key needs a restart instead." Don't claim the running session already
 uses the new value. Only /reload knows which keys it can apply live.
 
+## A2A agents
+
+The A2A agents live in `agents.yaml`, which `infer config set` cannot reach.
+Map these requests onto `infer agents` instead:
+
+- Add: `infer agents add <name> [url]`. Known agents (`mock-agent`,
+  `browser-agent`, ...) and agents in the catalog resolve by name, so the URL
+  is only needed for any other agent.
+- Remove: `infer agents remove <name>`.
+- List or inspect: `infer agents list`, `infer agents show <name>`.
+
+Writes go to `~/.infer/agents.yaml`. When the project has its own
+`.infer/agents.yaml`, the chat reads that file instead, so add `--project`.
+
+Confirm the exact command with AskUserQuestion, options `Apply` and `Cancel`,
+like any other change. Say so when the agent runs locally (`run: true`, the
+default for the known agents): /reload then pulls its image and starts a
+container. After applying, read it back with `infer agents show <name>` and
+end with: "Saved. Type /reload to start it." For a removal: "Type /reload to
+stop it."
+
 ## Out of bounds
 
 These change what the agent may do or carry credentials, so they stay with
@@ -94,6 +116,6 @@ Prompts and other settings kept in their own files (`prompts.yaml`,
 
 ## Approval
 
-`infer config get` and `infer config set` are not auto-approved by default:
+`infer config` and `infer agents` calls are not auto-approved by default:
 each call goes through the normal approval gate unless the operator
 allow-listed it in `tools.bash.mode.<mode>.allow`. Expect prompts in chat.

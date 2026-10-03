@@ -70,7 +70,7 @@ message and watch the collector logs:
 ```bash
 kubectl port-forward -n infer svc/mock-agent 8081:8080 &
 curl -s -X POST http://localhost:8081/a2a -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"hello"}],"messageId":"m1","kind":"message"}}}'
+  -d '{"jsonrpc":"2.0","id":"1","method":"SendMessage","params":{"message":{"role":"ROLE_USER","parts":[{"text":"hello"}],"messageId":"m1"}}}'
 kubectl logs -n infer deploy/otel-collector | grep Traces
 ```
 
@@ -165,10 +165,9 @@ Those `tool.*` spans are real: the scenario's `task_description` is
 `simulate 3 tool calls`, which the mock agent routes through its real
 instrumented tool path (see its
 [simulating tool calls](https://github.com/inference-gateway/mock-agent/blob/main/docs/simulating-tool-calls.md)
-docs). It needs `mock-agent` >= 0.4.0; earlier images emit only `a2a.request`.
-The agent then reports the task as `TASK_STATE_CANCELLED` (`max streaming
-iterations reached`) - the spans are emitted either way, which is all this demo
-is about.
+docs). It needs `mock-agent` >= 0.4.12, the first image that speaks the A2A
+v1.0.1 method names (`SendMessage`, `GetTask`) the CLI calls. The agent then
+reports the task as `TASK_STATE_COMPLETED`.
 
 The Orchestrator points at the **operator-managed Gateway**
 (`http://inference-gateway:8080`), whose OpenAI provider is pointed at the mock

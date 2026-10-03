@@ -179,3 +179,47 @@ func TestAgentsView_InheritedToolsAndModelShown(t *testing.T) {
 		t.Errorf("capabilities = %q, want the inherited placeholders", caps)
 	}
 }
+
+func TestAgentsView_CursorSkipsSectionRows(t *testing.T) {
+	view, _ := newAgentsViewForTest(
+		&tui.AgentReadinessState{
+			TotalAgents: 1,
+			Agents:      map[string]*tui.AgentStatus{"writer": {Name: "writer", URL: "http://localhost:8081", State: a2adomain.AgentStateReady, Message: "Ready"}},
+		},
+		[]agentdomain.SubagentInfo{{Name: "explorer"}},
+	)
+
+	if got := view.list.Index(); got != 1 {
+		t.Fatalf("cursor should start on the first agent, got index %d", got)
+	}
+	if got := view.list.SelectedItem().(agentItem); got.detail != "http://localhost:8081" {
+		t.Errorf("a ready agent shows its URL, not the Ready message, got %q", got.detail)
+	}
+
+	for _, step := range []struct {
+		code tea.Key
+		want int
+	}{
+		{tea.Key{Code: tea.KeyDown}, 3},
+		{tea.Key{Code: tea.KeyUp}, 1},
+		{tea.Key{Code: tea.KeyUp}, 1},
+	} {
+		model, _ := view.Update(tea.KeyPressMsg(step.code))
+		view = model.(*AgentsView)
+		if got := view.list.Index(); got != step.want {
+			t.Fatalf("after %v the cursor is on index %d, want %d", step.code, got, step.want)
+		}
+	}
+}
+
+func TestAgentsView_ResetReopensAfterCancel(t *testing.T) {
+	view, _ := newAgentsViewForTest(nil, []agentdomain.SubagentInfo{{Name: "explorer"}})
+
+	model, _ := view.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	view = model.(*AgentsView)
+	view.Reset()
+
+	if view.IsCancelled() {
+		t.Fatal("Reset must clear the cancel left over from the previous visit")
+	}
+}

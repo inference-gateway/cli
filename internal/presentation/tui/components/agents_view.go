@@ -11,7 +11,6 @@ import (
 	key "charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
-	lipgloss "charm.land/lipgloss/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -60,9 +59,9 @@ type agentSection struct {
 // FilterValue keeps the group header visible when the filter names it.
 func (s agentSection) FilterValue() string { return s.title }
 
-// agentDelegate renders an agentItem on two rows: the name on the left with
-// its type and state chips aligned to the right edge, then its detail line
-// dimmed. Group titles render as one bold line.
+// agentDelegate renders an agentItem on two rows: the name followed by its
+// type and state chips, then its detail line dimmed. Group titles render as one
+// bold line indented like the list title.
 type agentDelegate struct {
 	styleProvider *styles.Provider
 }
@@ -74,7 +73,7 @@ func (d agentDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d agentDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	if section, ok := item.(agentSection); ok {
 		title := d.styleProvider.RenderWithColorAndBold(section.title, d.styleProvider.GetThemeColor("accent"))
-		_, _ = fmt.Fprint(w, title+"\n")
+		_, _ = fmt.Fprint(w, "  "+title+"\n")
 		return
 	}
 
@@ -108,7 +107,7 @@ func (d agentDelegate) Render(w io.Writer, m list.Model, index int, item list.It
 		detail = d.styleProvider.RenderWithColor("      "+detail, d.styleProvider.GetThemeColor("dim"))
 	}
 
-	_, _ = fmt.Fprint(w, d.styleProvider.PlaceHorizontal(m.Width(), name, kind+" "+state)+"\n"+detail)
+	_, _ = fmt.Fprint(w, name+" "+kind+" "+state+"\n"+detail)
 }
 
 // subagentCapabilities summarizes the preset: the tool allowlist (or the
@@ -142,13 +141,11 @@ func NewAgentsView(readiness AgentReadiness, catalog SubagentCatalog, styleProvi
 		agentDelegate{styleProvider: styleProvider},
 		80, 24,
 	)
-	l.SetShowStatusBar(true)
+	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
 	l.DisableQuitKeybindings()
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(styleProvider.GetThemeColor("accent"))).
-		Bold(true)
+	l.Styles.Title = toolsTitleStyle(styleProvider)
 
 	m := &AgentsView{
 		list:          l,
@@ -179,9 +176,24 @@ func (m *AgentsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.refreshItems()
 	}
 
+	prev := m.list.Index()
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
+	m.skipSection(prev)
 	return m, cmd
+}
+
+// skipSection moves the cursor off a group title, which is not an agent: on in
+// the direction it travelled from prev, or down when that runs off the top.
+func (m *AgentsView) skipSection(prev int) {
+	if _, onSection := m.list.SelectedItem().(agentSection); !onSection {
+		return
+	}
+	if index := m.list.Index(); index < prev && index > 0 {
+		m.list.CursorUp()
+		return
+	}
+	m.list.CursorDown()
 }
 
 // handleKey intercepts the cancel keys when the list is not actively
@@ -229,9 +241,11 @@ func (m *AgentsView) SetHeight(height int) {
 
 // Reset returns the view to its initial state and rebuilds the items.
 func (m *AgentsView) Reset() {
+	m.cancelled = false
 	m.list.ResetFilter()
 	m.refreshItems()
 	m.list.Select(0)
+	m.skipSection(0)
 }
 
 // refreshItems rebuilds the rows and title without touching the user's
@@ -302,6 +316,9 @@ func (m *AgentsView) a2aItems() []list.Item {
 			failed: status.State == a2adomain.AgentStateFailed,
 		}
 		item.detail = cmp.Or(status.Error, status.Message, status.URL)
+		if status.State == a2adomain.AgentStateReady {
+			item.detail = cmp.Or(status.URL, status.Message)
+		}
 		item.detail = strings.Join(strings.Fields(item.detail), " ")
 		if status.State == a2adomain.AgentStatePullingImage && status.LayersTotal > 0 {
 			item.detail = fmt.Sprintf("%s (%d/%d layers)", item.detail, status.LayersDone, status.LayersTotal)

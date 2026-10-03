@@ -4,6 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +14,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 )
 
 // TestResolveAgentEnv verifies the A2A agent container env resolution order:
@@ -271,4 +276,54 @@ func TestAgentSupervisor_WaitForAgentsReady(t *testing.T) {
 	supervisor.WaitForAgentsReady(ctx)
 	require.Less(t, time.Since(start), time.Second, "WaitForAgentsReady should respect ctx cancellation")
 	supervisor.startWg.Done()
+}
+
+func TestAgentSupervisor_ReconcileAgents(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+
+	cfg := config.DefaultConfig()
+	cfg.A2A.LivenessProbeEnabled = false
+
+	var mu sync.Mutex
+	var statuses []string
+	supervisor := NewAgentSupervisor("session", cfg, &config.AgentsConfig{}, nil, a2ainfra.NewAgentCardClient(cfg))
+	supervisor.SetStatusCallback(func(name string, state a2adomain.AgentState, _, _, _ string) {
+		mu.Lock()
+		defer mu.Unlock()
+		statuses = append(statuses, name+":"+state.String())
+	})
+	t.Cleanup(func() { _ = supervisor.StopAgents(context.Background()) })
+
+	configure := func(names ...string) {
+		agents := &config.AgentsConfig{}
+		for _, name := range names {
+			agents.Agents = append(agents.Agents, config.AgentEntry{Name: name, URL: "http://127.0.0.1:1"})
+		}
+		require.NoError(t, config.SaveAgents(config.DefaultAgentsPath, agents))
+	}
+
+	configure("a")
+	changes, err := supervisor.ReconcileAgents(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, a2adomain.AgentChanges{Added: []string{"a"}}, changes)
+
+	configure("b")
+	changes, err = supervisor.ReconcileAgents(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, a2adomain.AgentChanges{Added: []string{"b"}, Removed: []string{"a"}}, changes)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Contains(statuses, "b:Failed")
+	}, 5*time.Second, 10*time.Millisecond, "the added agent is probed")
+
+	mu.Lock()
+	defer mu.Unlock()
+	removedAt := slices.Index(statuses, "a:Removed")
+	require.NotEqual(t, -1, removedAt, "the removed agent is announced as removed: %v", statuses)
+	for _, status := range statuses[removedAt+1:] {
+		require.False(t, strings.HasPrefix(status, "a:"), "no status may follow the removal: %v", statuses)
+	}
 }

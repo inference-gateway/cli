@@ -806,3 +806,15 @@ func TestSkillsRepository(t *testing.T) {
 		}
 	}
 }
+
+func TestReleasePortLetsTheSamePortBeFoundAgain(t *testing.T) {
+	port := FindAvailablePort(43100)
+	if again := FindAvailablePort(43100); again == port {
+		t.Fatalf("an allocated port must not be handed out twice, got %d", again)
+	}
+
+	ReleasePort(port)
+	if got := FindAvailablePort(43100); got != port {
+		t.Fatalf("a released port must be found again, got %d want %d", got, port)
+	}
+}
