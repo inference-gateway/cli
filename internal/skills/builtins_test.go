@@ -14,7 +14,7 @@ func TestSeedBuiltins_SeedsWhenMissing(t *testing.T) {
 	dest := t.TempDir()
 	require.NoError(t, SeedBuiltins(dest, false))
 
-	for _, name := range []string{"tmux", "bug", "demo"} {
+	for _, name := range []string{"tmux", "bug", "demo", "config"} {
 		sk, loadErr := LoadSkillMetadata(filepath.Join(dest, name), name, agentdomain.SkillScopeUser, "")
 		require.Nil(t, loadErr, "seeded built-in must validate")
 		require.NotNil(t, sk)
@@ -29,6 +29,10 @@ func TestSeedBuiltins_SeedsWhenMissing(t *testing.T) {
 	demo, loadErr := LoadSkillMetadata(filepath.Join(dest, "demo"), "demo", agentdomain.SkillScopeUser, "")
 	require.Nil(t, loadErr)
 	require.Contains(t, demo.Description, "/demo", "description must route /demo invocations")
+
+	cfgSkill, loadErr := LoadSkillMetadata(filepath.Join(dest, "config"), "config", agentdomain.SkillScopeUser, "")
+	require.Nil(t, loadErr)
+	require.Contains(t, cfgSkill.Description, "/config", "description must route /config invocations")
 }
 
 func TestSeedBuiltins_DoesNotOverwriteUserEdits(t *testing.T) {

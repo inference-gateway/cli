@@ -42,8 +42,6 @@ type Agent struct {
 	skillsService      agentdomain.SkillsService
 	messageQueue       convdomain.MessageQueue
 	stateManager       stateStore
-	timeoutSeconds     int
-	maxTokens          int
 	optimizer          convdomain.ConversationOptimizer
 	tokenizer          usageEstimator
 	approvalPolicy     agentdomain.ApprovalPolicy
@@ -372,7 +370,6 @@ func NewAgent(
 	skillsService agentdomain.SkillsService,
 	messageQueue convdomain.MessageQueue,
 	stateManager stateStore,
-	timeoutSeconds int,
 	optimizer convdomain.ConversationOptimizer,
 	bgRegistry scheddomain.BackgroundTaskRegistry,
 	rolloverManager convdomain.SessionRollover,
@@ -389,8 +386,6 @@ func NewAgent(
 		skillsService:      skillsService,
 		messageQueue:       messageQueue,
 		stateManager:       stateManager,
-		timeoutSeconds:     timeoutSeconds,
-		maxTokens:          cfg.GetAgentConfig().MaxTokens,
 		reasoningEffort:    cfg.GetAgentConfig().ReasoningEffort,
 		optimizer:          optimizer,
 		tokenizer:          tokenizer,

@@ -229,7 +229,7 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 	case shortcuts.SideEffectClearConversation:
 		return s.handleClearConversationSideEffect()
 	case shortcuts.SideEffectReloadConfig:
-		return s.handleReloadConfigSideEffect()
+		return s.handleReloadConfigSideEffect(data)
 	case shortcuts.SideEffectShowHelp:
 		return s.handleShowHelpSideEffect()
 	case shortcuts.SideEffectExit:
@@ -347,9 +347,10 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 	)()
 }
 
-func (s *ChatShortcutHandler) handleReloadConfigSideEffect() tea.Msg {
+func (s *ChatShortcutHandler) handleReloadConfigSideEffect(data any) tea.Msg {
+	summary, _ := data.(string)
 	return tui.SetStatusEvent{
-		Message:    "Configuration reloaded successfully",
+		Message:    summary,
 		Spinner:    false,
 		StatusType: tui.StatusDefault,
 	}

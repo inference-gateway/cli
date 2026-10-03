@@ -74,7 +74,7 @@ and have a conversational interface with the inference gateway.`,
 				return runNonInteractiveChat(cfg)
 			}
 
-			return StartChatSession(cfg, sessionID)
+			return StartChatSession(cfg, sessionID, state.LoadConfig)
 		},
 	}
 
@@ -121,16 +121,18 @@ func applyWebFlags(cmd *cobra.Command, cfg *config.Config) {
 	}
 }
 
-// StartChatSession starts a chat session
+// StartChatSession starts a chat session. loadConfig re-reads the
+// configuration for /reload.
 //
 //nolint:funlen // Chat session initialization requires multiple setup steps
-func StartChatSession(cfg *config.Config, sessionID string) error {
+func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*config.Config, error)) error {
 	_ = clipboard.Init()
 
 	_ = streamevent.SetWriter(io.Discard)
 
 	telemetry.ExecutionMode = telemetry.ExecInteractive
 	services := container.NewServiceContainer(cfg)
+	services.EnableConfigReload(loadConfig)
 
 	telemetryRec := services.GetTelemetryRecorder()
 	sessionStart := time.Now()
