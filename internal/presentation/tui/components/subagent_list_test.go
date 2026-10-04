@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -151,12 +150,12 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 		{
 			name:        "running row shows its label and live elapsed",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobRunning, runningStarted, nil)}, linger: 5, indicator: true},
-			wantStrings: []string{"reviewer", "subagent", "2.0s"},
+			wantStrings: []string{"reviewer", "subagent", "2s"},
 		},
 		{
 			name:        "finished row lingers with a checkmark and total duration",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobCompleted, longAgoStarted, &recentlyDone)}, linger: 5, indicator: true},
-			wantStrings: []string{"reviewer", icons.CheckMark, "40.0s"},
+			wantStrings: []string{"reviewer", icons.CheckMark, "40s"},
 		},
 		{
 			name:      "finished row drops once the linger window passed",
@@ -171,7 +170,7 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 		{
 			name:        "failed row shows a cross",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("tester", scheddomain.JobFailed, failedStarted, &failedDone)}, linger: 5, indicator: true},
-			wantStrings: []string{"tester", icons.CrossMark, "8.0s"},
+			wantStrings: []string{"tester", icons.CrossMark, "8s"},
 		},
 		{
 			name:      "renders nothing when no sub-agents run or linger",
@@ -392,24 +391,14 @@ func TestSubagentListFitsLabelColumnToWidestName(t *testing.T) {
 	}
 }
 
-func TestSubagentListRefreshTick(t *testing.T) {
+func TestSubagentListHasRows(t *testing.T) {
 	running := []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobRunning, time.Now().Add(-2*time.Second), nil)}
 
-	list := newList(listOpts{jobs: running, linger: 5, indicator: true})
-	if _, cmd := list.Update(agentdomain.BackgroundTasksChangedEvent{}); cmd == nil {
-		t.Error("expected the list to arm a refresh tick while rows are visible")
+	if !newList(listOpts{jobs: running, linger: 5, indicator: true}).HasRows() {
+		t.Error("expected a running row to keep the live clock ticking")
 	}
-	if list.tickEpoch != 1 {
-		t.Errorf("tickEpoch = %d, want 1 after arming one tick", list.tickEpoch)
-	}
-	if cmd := list.handleRefreshTick(list.tickEpoch + 1); cmd != nil {
-		t.Error("expected a stale epoch to stop the tick chain")
-	}
-	if cmd := list.handleRefreshTick(list.tickEpoch); cmd == nil {
-		t.Error("expected the current epoch to keep the chain alive while rows are visible")
-	}
-	if _, cmd := newList(listOpts{linger: 5, indicator: true}).Update(agentdomain.BackgroundTasksChangedEvent{}); cmd != nil {
-		t.Error("expected no ticker to be armed without visible rows")
+	if newList(listOpts{linger: 5, indicator: true}).HasRows() {
+		t.Error("expected no rows, so the live clock can stop")
 	}
 }
 

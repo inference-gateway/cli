@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	spinner "charm.land/bubbles/v2/spinner"
 	viewport "charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
@@ -62,6 +61,7 @@ type ConversationView struct {
 	rawFormat              bool
 	stateManager           tui.PlanApprovalPrompt
 	renderedContent        string
+	renderedPreviews       string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
 	// index; an entry re-renders only when its fingerprint changes. Cleared
@@ -508,6 +508,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 	if cv.toolCallRenderer != nil {
 		toolPreviews := cv.toolCallRenderer.RenderPreviews()
+		cv.renderedPreviews = toolPreviews
 		if toolPreviews != "" {
 			b.WriteString(toolPreviews)
 			b.WriteString("\n\n")
@@ -1183,8 +1184,9 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv.handleStreamingContentEvent(msg, cmd)
 	case tui.ScrollRequestEvent:
 		return cv.handleScrollRequestEvent(msg, cmd)
-	case spinner.TickMsg:
-		return cv.handleSpinnerTick(msg, cmd)
+	case tui.LiveTickEvent:
+		cv.repaintChangedPreviews()
+		return cv, cmd
 	case streamingRenderTickMsg:
 		return cv.handleStreamingRenderTick(cmd)
 	default:
@@ -1274,21 +1276,16 @@ func (cv *ConversationView) handleScrollRequestEvent(msg tui.ScrollRequestEvent,
 	return cv, cmd
 }
 
-// handleSpinnerTick forwards spinner ticks to the ToolCallRenderer and
-// repaints while it has live previews.
-func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
-	if cv.toolCallRenderer == nil {
-		return cv, cmd
+// repaintChangedPreviews rebuilds the viewport on a live tick only when the
+// running tool cards read differently, since a rebuild re-lays out the whole
+// conversation. Their counters and glyphs step once a second.
+func (cv *ConversationView) repaintChangedPreviews() {
+	if cv.toolCallRenderer == nil || cv.navigationMode == NavigationModeMessageHistory {
+		return
 	}
-	updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
-	cv.toolCallRenderer = updatedRenderer
-	if cv.navigationMode != NavigationModeMessageHistory && cv.toolCallRenderer.HasActivePreviews() {
+	if cv.toolCallRenderer.RenderPreviews() != cv.renderedPreviews {
 		cv.updateViewportContent()
 	}
-	if rendererCmd != nil {
-		cmd = tea.Batch(cmd, rendererCmd)
-	}
-	return cv, cmd
 }
 
 // handleDefaultEvents processes all other events

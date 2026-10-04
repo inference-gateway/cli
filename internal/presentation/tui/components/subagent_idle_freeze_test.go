@@ -20,7 +20,7 @@ import (
 
 // An idle keep-alive headless subagent (turn done, waiting on stdin for a
 // follow-up) reads as completed at its turn end, renders a check mark over a
-// frozen elapsed, lingers out with its refresh tick and wakes back up when the
+// frozen elapsed, lingers out on the live clock and wakes back up when the
 // parent sends a follow-up.
 func TestIdleSubagentJobFreezesElapsedAndLingersOut(t *testing.T) {
 	sup := jobs.NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
@@ -52,8 +52,8 @@ func TestIdleSubagentJobFreezesElapsedAndLingersOut(t *testing.T) {
 	list.SetRegistry(scheduler.NewBackgroundTaskRegistry(0, sup))
 	list.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
 
-	if list.maybeRefreshTick() == nil {
-		t.Fatal("a visible row must arm the refresh tick")
+	if !list.HasRows() {
+		t.Fatal("a visible row must keep the live clock ticking")
 	}
 	first := list.Render()
 	time.Sleep(500 * time.Millisecond)
@@ -64,8 +64,8 @@ func TestIdleSubagentJobFreezesElapsedAndLingersOut(t *testing.T) {
 	if gone := list.Render(); gone != "" {
 		t.Errorf("the completed row must drop after the linger window, still %q", strings.Split(gone, "\n")[0])
 	}
-	if list.maybeRefreshTick() != nil {
-		t.Error("the refresh tick chain must die once no row is visible")
+	if list.HasRows() {
+		t.Error("the live clock must stop once no row is visible")
 	}
 
 	keeper.IdleReturns(false)

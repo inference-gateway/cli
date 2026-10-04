@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
@@ -43,7 +42,6 @@ type SubagentList struct {
 	config        *config.Config
 	styleProvider *styles.Provider
 	width         int
-	tickEpoch     int
 	focused       bool
 	selectedID    string
 	viewingID     string
@@ -54,11 +52,6 @@ type SubagentList struct {
 func NewSubagentList(styleProvider *styles.Provider) *SubagentList {
 	return &SubagentList{styleProvider: styleProvider}
 }
-
-// subagentRefreshTickMsg drives the live elapsed column and the linger
-// countdown - the task view's taskRefreshTickMsg pattern, armed only while
-// rows are on screen instead of an idle poller.
-type subagentRefreshTickMsg struct{ epoch int }
 
 // SetRegistry wires the shared background task registry, the data source
 // for every tracked sub-agent.
@@ -77,35 +70,17 @@ func (l *SubagentList) Init() tea.Cmd { return nil }
 func (l *SubagentList) View() tea.View { return tea.NewView(l.Render()) }
 
 func (l *SubagentList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		l.width = msg.Width
-	case agentdomain.BackgroundTasksChangedEvent:
-		cmd = l.maybeRefreshTick()
-	case subagentRefreshTickMsg:
-		cmd = l.handleRefreshTick(msg.epoch)
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		l.width = size.Width
 	}
-	return l, cmd
+	return l, nil
 }
 
-func (l *SubagentList) handleRefreshTick(epoch int) tea.Cmd {
-	if epoch != l.tickEpoch {
-		return nil
-	}
-	return l.maybeRefreshTick()
-}
-
-// maybeRefreshTick keeps exactly one 1s chain alive while any row (running
-// or lingering) is visible, letting it die the moment the list empties -
-// a bounded animation tick, not an idle poller.
-func (l *SubagentList) maybeRefreshTick() tea.Cmd {
-	if len(l.snapshotRows()) == 0 {
-		return nil
-	}
-	l.tickEpoch++
-	epoch := l.tickEpoch
-	return tea.Tick(time.Second, func(time.Time) tea.Msg { return subagentRefreshTickMsg{epoch: epoch} })
+// HasRows reports whether any row, running or lingering, is on screen. The
+// chat's live clock ticks once a second while it holds, which advances the
+// elapsed column and drops rows whose linger ran out.
+func (l *SubagentList) HasRows() bool {
+	return len(l.snapshotRows()) > 0
 }
 
 // subagentRow carries one row's render inputs derived from the registry.

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	progress "charm.land/bubbles/v2/progress"
-	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -21,7 +20,6 @@ type StatusView struct {
 	message          string
 	isError          bool
 	isSpinner        bool
-	spinner          spinner.Model
 	startTime        time.Time
 	baseMessage      string
 	debugInfo        string
@@ -61,13 +59,10 @@ type StatusState struct {
 }
 
 func NewStatusView(styleProvider *styles.Provider) *StatusView {
-	s := newModernSpinner()
-	s.Style = styleProvider.GetSpinnerStyle()
 	return &StatusView{
 		message:       "",
 		isError:       false,
 		isSpinner:     false,
-		spinner:       s,
 		styleProvider: styleProvider,
 	}
 }
@@ -179,12 +174,11 @@ func (sv *StatusView) SaveCurrentState() {
 }
 
 // RestoreSavedState restores the previously saved status state
-func (sv *StatusView) RestoreSavedState() tea.Cmd {
+func (sv *StatusView) RestoreSavedState() {
 	if sv.savedState == nil {
-		return nil
+		return
 	}
 
-	wasSpinner := sv.savedState.isSpinner
 	sv.message = sv.savedState.message
 	sv.isError = sv.savedState.isError
 	sv.isSpinner = sv.savedState.isSpinner
@@ -194,12 +188,6 @@ func (sv *StatusView) RestoreSavedState() tea.Cmd {
 	sv.progress = sv.savedState.progress
 
 	sv.savedState = nil
-
-	if wasSpinner {
-		return sv.spinner.Tick
-	}
-
-	return nil
 }
 
 // HasSavedState returns true if there's a saved state that can be restored
@@ -301,19 +289,17 @@ func (sv *StatusView) formatErrorStatus() (string, string, string) {
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
-	prefix := sv.spinner.View()
-
-	elapsed := time.Since(sv.startTime)
-	seconds := elapsed.Seconds()
+	prefix := sv.styleProvider.GetSpinnerStyle().Render(spinnerFrame(time.Now(), SpinnerFrameInterval))
+	elapsed := formatDuration(time.Since(sv.startTime))
 
 	if reconnecting := sv.reconnectingMessage(); reconnecting != "" {
-		message := fmt.Sprintf("%s (%.1fs)", reconnecting, seconds)
+		message := fmt.Sprintf("%s (%s)", reconnecting, elapsed)
 		return prefix, sv.styleProvider.GetThemeColor("status"),
 			sv.styleProvider.RenderWithColor(message, sv.styleProvider.GetThemeColor("error"))
 	}
 
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
-	displayMessage := fmt.Sprintf("%s (%.1fs)", baseMsg, seconds)
+	displayMessage := fmt.Sprintf("%s (%s)", baseMsg, elapsed)
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage
@@ -343,7 +329,7 @@ type approvalOverlayReader interface {
 // on resume, calls shift with the paused duration so callers can push their
 // running timers forward.
 func syncApprovalPause(sm approvalOverlayReader, pausedAt *time.Time, shift func(time.Duration)) {
-	if awaitingUserDecision(sm) {
+	if AwaitingUserDecision(sm) {
 		if pausedAt.IsZero() {
 			*pausedAt = time.Now()
 		}
@@ -355,9 +341,9 @@ func syncApprovalPause(sm approvalOverlayReader, pausedAt *time.Time, shift func
 	}
 }
 
-// awaitingUserDecision reports whether an approval, plan-approval, or
+// AwaitingUserDecision reports whether an approval, plan-approval, or
 // user-question overlay is blocked on the user.
-func awaitingUserDecision(sm approvalOverlayReader) bool {
+func AwaitingUserDecision(sm approvalOverlayReader) bool {
 	if sm == nil {
 		return false
 	}
@@ -369,7 +355,7 @@ func awaitingUserDecision(sm approvalOverlayReader) bool {
 // reconnectingMessage returns the reconnect notice when the HTTP client is
 // retrying or the stream has stalled past the configured threshold, empty
 // otherwise. Derived from state on each render, so it appears and clears with
-// the regular spinner tick.
+// the live clock.
 func (sv *StatusView) reconnectingMessage() string {
 	if sv.stateManager == nil {
 		return ""
@@ -392,7 +378,7 @@ func (sv *StatusView) formatNormalStatus() (string, string, string) {
 }
 
 // Bubble Tea interface
-func (sv *StatusView) Init() tea.Cmd { return sv.spinner.Tick }
+func (sv *StatusView) Init() tea.Cmd { return nil }
 
 func (sv *StatusView) View() tea.View { return tea.NewView(sv.Render()) }
 
@@ -403,16 +389,9 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sv.SetWidth(windowMsg.Width)
 	}
 
-	if sv.isSpinner {
-		sv.spinner, cmd = sv.spinner.Update(msg)
-	}
-
 	switch msg := msg.(type) {
 	case agentdomain.ChatStartEvent:
 		sv.ShowSpinnerWithType("Starting response...", tui.StatusGenerating, nil)
-		if cmd == nil {
-			cmd = sv.spinner.Tick
-		}
 
 	case agentdomain.ChatCompleteEvent:
 		sv.endTurn(msg.Cancelled)
@@ -428,9 +407,6 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sv.toolName = msg.ToolName
 		if msg.Spinner {
 			sv.ShowSpinnerWithType(msg.Message, msg.StatusType, msg.Progress)
-			if cmd == nil {
-				cmd = sv.spinner.Tick
-			}
 		} else {
 			sv.ShowStatusWithType(msg.Message, msg.StatusType, msg.Progress)
 		}
@@ -450,10 +426,7 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tui.RestoreStatusStateEvent:
 		if sv.HasSavedState() {
-			restoreCmd := sv.RestoreSavedState()
-			if cmd == nil {
-				cmd = restoreCmd
-			}
+			sv.RestoreSavedState()
 		}
 
 	case tui.DebugKeyEvent:

@@ -350,3 +350,10 @@ func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }
 type HeartbeatEvent struct {
 	At time.Time
 }
+
+// LiveTickEvent is the chat's one repaint clock for live indicators: spinner
+// glyphs, elapsed counters and lingering job rows. The app arms it only while
+// one is on screen, at a spinner frame while the status line animates and once
+// a second otherwise, so components render from the wall clock and own no
+// ticker. Handlers repaint only what changed, since repaints are expensive.
+type LiveTickEvent struct{}

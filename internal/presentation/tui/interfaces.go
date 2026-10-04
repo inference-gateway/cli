@@ -115,7 +115,7 @@ type StatusComponent interface {
 	SetHeight(height int)
 	Render() string
 	SaveCurrentState()
-	RestoreSavedState() tea.Cmd
+	RestoreSavedState()
 	HasSavedState() bool
 }
 
