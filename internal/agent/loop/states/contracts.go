@@ -104,6 +104,9 @@ const (
 	StatePostToolExecution
 	// StateCompleting indicates finalizing loop
 	StateCompleting
+	// StateInputRequired indicates the run is blocked on the user: a tool
+	// approval, a sandbox approval or a question is waiting for an answer
+	StateInputRequired
 	// StateStopped indicates loop terminated
 	StateStopped
 	// StateCancelled indicates user cancelled
@@ -134,6 +137,8 @@ func (s AgentExecutionState) String() string {
 		return "PostToolExecution"
 	case StateCompleting:
 		return "Completing"
+	case StateInputRequired:
+		return "InputRequired"
 	case StateStopped:
 		return "Stopped"
 	case StateCancelled:
@@ -143,4 +148,14 @@ func (s AgentExecutionState) String() string {
 	default:
 		return "Unknown"
 	}
+}
+
+// IsWorking reports whether the agent is spending its own time in this state.
+// At rest, at a terminal state and while blocked on the user it is not.
+func (s AgentExecutionState) IsWorking() bool {
+	switch s {
+	case StateIdle, StateInputRequired, StateStopped, StateCancelled, StateError:
+		return false
+	}
+	return true
 }

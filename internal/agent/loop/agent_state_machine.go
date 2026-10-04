@@ -7,6 +7,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	states "github.com/inference-gateway/cli/internal/agent/loop/states"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -16,7 +17,7 @@ import (
 //
 // State Flow:
 //
-//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/BlockingTools/ExecutingTools → PostToolExecution → CheckingQueue (loop) → Completing → Idle
+//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/BlockingTools/ExecutingTools (⇄ InputRequired while a prompt waits on the user) → PostToolExecution → CheckingQueue (loop) → Completing → Idle
 //
 // State Descriptions:
 //   - Idle: Agent is not executing, waiting for work
@@ -147,6 +148,11 @@ func (sm *stateMachine) registerTransitions() {
 
 	sm.addTransition(states.StateExecutingTools, states.StateStopped, nil, nil)
 
+	for _, state := range []states.AgentExecutionState{states.StateApprovingTools, states.StateExecutingTools} {
+		sm.addTransition(state, states.StateInputRequired, nil, nil)
+		sm.addTransition(states.StateInputRequired, state, nil, nil)
+	}
+
 	sm.addTransition(states.StatePostToolExecution, states.StateCheckingQueue, nil, nil)
 
 	sm.addTransition(states.StatePostToolExecution, states.StateCompleting,
@@ -222,6 +228,7 @@ func (sm *stateMachine) Transition(ctx *states.AgentContext, targetState states.
 	var sessionID string
 	if ctx.ConversationRepo != nil {
 		sessionID = ctx.ConversationRepo.GetCurrentConversationID()
+		trackWorkingTime(ctx.ConversationRepo, sm.previousState, sm.currentState)
 	}
 
 	logger.Info("state transition",
@@ -231,6 +238,19 @@ func (sm *stateMachine) Transition(ctx *states.AgentContext, targetState states.
 		"request_id", ctx.RequestID)
 
 	return nil
+}
+
+// trackWorkingTime runs the session stopwatch while the loop is in a working
+// state and stops it when the loop rests, ends or waits on the user.
+func trackWorkingTime(repo convdomain.ConversationRepository, from, to states.AgentExecutionState) {
+	if from.IsWorking() == to.IsWorking() {
+		return
+	}
+	if to.IsWorking() {
+		repo.StartWorking()
+		return
+	}
+	repo.StopWorking()
 }
 
 // findTransition finds a matching transition from current state to target state

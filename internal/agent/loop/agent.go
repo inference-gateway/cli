@@ -109,6 +109,17 @@ func (sc *sessionCancel) Cancel() {
 type eventPublisher struct {
 	requestID  string
 	chatEvents chan<- agentdomain.ChatEvent
+	inputGate  func(wait func())
+}
+
+// awaitUser runs wait with the run marked as blocked on the user, so the wait
+// is not counted as agent working time.
+func (p *eventPublisher) awaitUser(wait func()) {
+	if p.inputGate == nil {
+		wait()
+		return
+	}
+	p.inputGate(wait)
 }
 
 // newEventPublisher creates a new event publisher for the given request
@@ -140,15 +151,20 @@ func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []a
 		ResponseChan: responseChan,
 	}
 
-	select {
-	case answers, open := <-responseChan:
-		if !open {
-			return nil, false, nil
+	var answers []agentdomain.UserQuestionAnswer
+	var answered bool
+	var err error
+	b.publisher.awaitUser(func() {
+		select {
+		case answers, answered = <-responseChan:
+		case <-ctx.Done():
+			err = ctx.Err()
 		}
-		return answers, true, nil
-	case <-ctx.Done():
-		return nil, false, ctx.Err()
+	})
+	if !answered {
+		return nil, false, err
 	}
+	return answers, true, nil
 }
 
 // publishChatStart publishes a ChatStartEvent
@@ -625,6 +641,9 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 			close(chatEvents)
 			s.deregisterSession(req.RequestID)
 			sc.Cancel()
+			if s.conversationRepo != nil {
+				s.conversationRepo.StopWorking()
+			}
 		}()
 		defer func() {
 			if r := recover(); r != nil {
@@ -978,14 +997,16 @@ func (s *Agent) requestSandboxApproval(
 		ResponseChan: responseChan,
 	}
 
-	select {
-	case response := <-responseChan:
-		allow = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
-		return allow, response == agentdomain.ApprovalAutoAccept
-	case <-ctx.Done():
-	case <-time.After(constants.ApprovalTimeout):
-	}
-	return false, false
+	eventPublisher.awaitUser(func() {
+		select {
+		case response := <-responseChan:
+			allow = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
+			always = response == agentdomain.ApprovalAutoAccept
+		case <-ctx.Done():
+		case <-time.After(constants.ApprovalTimeout):
+		}
+	})
+	return allow, always
 }
 
 // executeToolOnce performs the actual tool execution without approval checks
@@ -1410,21 +1431,23 @@ func (s *Agent) requestHumanApproval(
 	var approved bool
 	var err error
 
-	select {
-	case response, open := <-responseChan:
-		if !open {
-			break
+	eventPublisher.awaitUser(func() {
+		select {
+		case response, open := <-responseChan:
+			if !open {
+				break
+			}
+			if response == agentdomain.ApprovalAutoAccept {
+				logger.Info("switching to auto-accept mode from approval response")
+				s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
+			}
+			approved = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
+		case <-ctx.Done():
+			err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
+		case <-time.After(constants.ApprovalTimeout):
+			err = fmt.Errorf("approval request timed out")
 		}
-		if response == agentdomain.ApprovalAutoAccept {
-			logger.Info("switching to auto-accept mode from approval response")
-			s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
-		}
-		approved = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
-	case <-ctx.Done():
-		err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
-	case <-time.After(constants.ApprovalTimeout):
-		err = fmt.Errorf("approval request timed out")
-	}
+	})
 
 	if err != nil || !approved {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)

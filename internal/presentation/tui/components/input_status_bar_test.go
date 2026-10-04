@@ -1273,130 +1273,18 @@ func TestInputStatusBar_QueueIndicatorRenderLifecycle(t *testing.T) {
 	}
 }
 
-// timedStatusBar returns a status bar over a fake repository holding one
-// session, plus the working time the bar has banked on it so far.
-func timedStatusBar() (*InputStatusBar, *convmocks.FakeConversationRepository) {
+func TestInputStatusBar_DurationShowsTheSessionWorkingTime(t *testing.T) {
 	repo := &convmocks.FakeConversationRepository{}
-	repo.GetCurrentConversationIDReturns("session-1")
-	repo.GetMessageCountReturns(1)
-	repo.AddActiveDurationStub = func(d time.Duration) error {
-		repo.GetActiveDurationReturns(repo.GetActiveDuration() + d.Truncate(time.Second))
-		return nil
-	}
 	isb := NewInputStatusBar(nil)
 	isb.conversationRepo = repo
-	return isb, repo
-}
-
-func TestInputStatusBar_DurationAccumulatesAcrossRuns(t *testing.T) {
-	toolCalls := []sdk.ChatCompletionMessageToolCall{{}}
-	isb, repo := timedStatusBar()
 
 	if got := isb.buildDurationIndicator(); got != "" {
 		t.Fatalf("before the first run got %q, want nothing", got)
 	}
 
-	isb.Update(agentdomain.ChatStartEvent{})
-	isb.runStartedAt = isb.runStartedAt.Add(-3 * time.Second)
-	isb.Update(agentdomain.ChatCompleteEvent{ToolCalls: toolCalls})
-	isb.Update(agentdomain.ChatStartEvent{})
-	if repo.AddActiveDurationCallCount() != 0 {
-		t.Fatal("a turn with tool calls must keep the stopwatch running")
-	}
-	if got := isb.buildDurationIndicator(); got != "3s" {
-		t.Errorf("mid-run got %q, want the live 3s", got)
-	}
-
-	isb.Update(agentdomain.ChatCompleteEvent{})
-	isb.Update(agentdomain.ChatCompleteEvent{})
-	if repo.AddActiveDurationCallCount() != 1 {
-		t.Fatalf("banked %d times, want a final answer to bank the run once", repo.AddActiveDurationCallCount())
-	}
-	if got := isb.buildDurationIndicator(); got != "3s" {
-		t.Errorf("at a terminal state got %q, want the held 3s", got)
-	}
-
-	isb.Update(agentdomain.ChatStartEvent{})
-	isb.runStartedAt = isb.runStartedAt.Add(-2 * time.Second)
-	isb.Update(agentdomain.ChatErrorEvent{})
-	if got := isb.buildDurationIndicator(); got != "5s" {
-		t.Errorf("after a second run got %q, want the accumulated 5s", got)
-	}
-}
-
-func TestInputStatusBar_DurationStopsWhenTheUserInterrupts(t *testing.T) {
-	state := tui.NewApplicationState()
-	state.StartChatSession("req", "model", nil)
-	isb, _ := timedStatusBar()
-	isb.stateManager = state
-
-	isb.Update(agentdomain.ChatStartEvent{})
-	isb.runStartedAt = isb.runStartedAt.Add(-4 * time.Second)
-
-	state.EndChatSession()
-	isb.Update(tui.SetStatusEvent{Message: "User interrupted"})
-
-	if !isb.runStartedAt.IsZero() {
-		t.Fatal("an interrupt ends the chat session, which must stop the stopwatch")
-	}
-	if got := isb.buildDurationIndicator(); got != "4s" {
-		t.Errorf("after an interrupt got %q, want the held 4s", got)
-	}
-}
-
-func TestInputStatusBar_DurationPausesWhileWaitingOnTheUser(t *testing.T) {
-	state := tui.NewApplicationState()
-	state.StartChatSession("req", "model", nil)
-	isb, _ := timedStatusBar()
-	isb.stateManager = state
-
-	isb.Update(agentdomain.ChatStartEvent{})
-	isb.runStartedAt = isb.runStartedAt.Add(-4 * time.Second)
-
-	state.SetupUserQuestionUIState(nil, nil)
-	isb.Update(tui.SetStatusEvent{})
-	if !isb.runStartedAt.IsZero() {
-		t.Fatal("a question waiting on the user must pause the stopwatch")
-	}
-	if got := isb.buildDurationIndicator(); got != "4s" {
-		t.Errorf("while waiting got %q, want the held 4s", got)
-	}
-
-	state.ClearUserQuestionUIState()
-	isb.Update(tui.SetStatusEvent{})
-	if isb.runStartedAt.IsZero() {
-		t.Fatal("an answered question must resume the stopwatch")
-	}
-	isb.runStartedAt = isb.runStartedAt.Add(-2 * time.Second)
-	isb.Update(agentdomain.ChatCompleteEvent{})
-	if got := isb.buildDurationIndicator(); got != "6s" {
-		t.Errorf("after the run got %q, want 6s without the wait", got)
-	}
-}
-
-func TestInputStatusBar_DurationFollowsTheSession(t *testing.T) {
-	tests := []struct {
-		name   string
-		change func(repo *convmocks.FakeConversationRepository)
-	}{
-		{"a cleared session", func(repo *convmocks.FakeConversationRepository) { repo.GetMessageCountReturns(0) }},
-		{"a new session", func(repo *convmocks.FakeConversationRepository) { repo.GetCurrentConversationIDReturns("session-2") }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			isb, repo := timedStatusBar()
-			isb.Update(agentdomain.ChatStartEvent{})
-			isb.runStartedAt = isb.runStartedAt.Add(-4 * time.Second)
-
-			tt.change(repo)
-			if got := isb.buildDurationIndicator(); got != "" {
-				t.Errorf("mid-run got %q, want the old session's time gone", got)
-			}
-			isb.Update(agentdomain.ChatCompleteEvent{Cancelled: true})
-			if repo.AddActiveDurationCallCount() != 0 {
-				t.Error("the old session's run must not be banked on the new one")
-			}
-		})
+	repo.GetActiveDurationReturns(65 * time.Second)
+	if got := isb.buildDurationIndicator(); got != "1m5s" {
+		t.Errorf("got %q, want 1m5s", got)
 	}
 }
 
