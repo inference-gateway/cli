@@ -197,10 +197,10 @@ then settles on the reported totals for as long as the row lingers. An interacti
 it finishes. An A2A task shows the usage its agent attaches to the task, which ADK agents do when the task ends:
 
 ```text
-┌ npm run build shell       2.0s
-│ reviewer      subagent ✓ 40.0s
+┌ npm run build shell       2s
+│ reviewer      subagent ✓ 40s
 │ └ 12 ✓ 1 ✗ · 61.2k tokens C.58.1k
-└ tester        subagent ✗ 48.0s
+└ tester        subagent ✗ 48s
   └ 3 ✓ 4 ✗ · 890 tokens
 ```
 
