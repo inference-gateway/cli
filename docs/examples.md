@@ -25,6 +25,7 @@ Most examples ship a Docker Compose file:
 | [gpu-provisioning](../examples/gpu-provisioning/) | Renting an on-demand cloud GPU running llama.cpp via `infer gpu` (RunPod) |
 | [postgres-storage](../examples/postgres-storage/) | Persisting conversations to PostgreSQL |
 | [a2a-traces](../examples/a2a-traces/) | End-to-end OpenTelemetry traces between the CLI and an A2A agent |
+| [a2a-gateway](../examples/a2a-gateway/) | Every A2A agent behind the gateway, addressed by tenant, with a mock model and no API key |
 
 There is also an [examples/kubernetes](../examples/kubernetes/) manifest set for running the gateway and an
 agent on a cluster.

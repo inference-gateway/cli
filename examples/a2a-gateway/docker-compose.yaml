@@ -1,0 +1,38 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    environment:
+      A2A_ENABLED: true
+      A2A_AGENTS: mock=http://mock-agent:8080,mock-b=http://mock-agent-b:8080
+    depends_on:
+      - mock-agent
+      - mock-agent-b
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-network
+
+  mock-agent:
+    image: ghcr.io/inference-gateway/mock-agent:latest
+    pull_policy: always
+    environment:
+      A2A_AGENT_URL: http://mock-agent:8080
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-network
+
+  mock-agent-b:
+    image: ghcr.io/inference-gateway/mock-agent:latest
+    pull_policy: always
+    environment:
+      A2A_AGENT_URL: http://mock-agent-b:8080
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-network
+
+networks:
+  a2a-gateway-network:
+    driver: bridge

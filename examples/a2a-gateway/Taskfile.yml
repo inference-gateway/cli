@@ -1,0 +1,80 @@
+version: '3'
+
+vars:
+  INFER: infer
+  GATEWAY: http://localhost:8080
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_A2A_ENABLED: 'true'
+  INFER_A2A_AGENTS: '{{.GATEWAY}}'
+  INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL: 'false'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  up:
+    desc: Start the gateway and the two agents behind it
+    cmds:
+      - docker compose up -d
+
+  down:
+    desc: Stop everything
+    cmds:
+      - docker compose down
+
+  card:
+    desc: Show the gateway's merged agent card and its registry
+    cmds:
+      - "curl -s {{.GATEWAY}}/.well-known/agent-card.json | jq '{skills: [.skills[].id], interfaces: .supportedInterfaces}'"
+      - "curl -s {{.GATEWAY}}/a2a/agents | jq '.agents[] | {alias, url, reachable}'"
+
+  one-agent:
+    desc: The model delegates to mock-b by naming it as the tenant
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask mock-b to echo hello
+
+  both-agents:
+    desc: The model delegates to both agents in one turn, through the same gateway URL
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask both agents to echo hello
+
+  no-tenant:
+    desc: The model names no tenant, the gateway lists the aliases and the model retries with one
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: echo hello through the gateway
+
+  execute:
+    desc: Submit a task yourself, without the model
+    cmds:
+      - "{{.INFER}} tools execute A2A_SubmitTask '{\"agent_url\":\"{{.GATEWAY}}\",\"tenant\":\"mock\",\"task_description\":\"echo hello\"}'"
+
+  chat:
+    desc: Chat with the mock model
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  all:
+    desc: Run every headless scenario
+    cmds:
+      - task: one-agent
+      - task: both-agents
+      - task: no-tenant
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.INFER}} headless --no-save \"{{.PROMPT}}\" | grep -E '\"role\":\"(tool|user)\"'"

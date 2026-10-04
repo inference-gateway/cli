@@ -147,11 +147,13 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 	}
 
 	requestedContextID, _ := args["context_id"].(string)
+	tenant, _ := args["tenant"].(string)
+	trackedAgent := trackerKey(agentURL, tenant)
 	existingContextID := requestedContextID
 	var existingTaskID string
 	if t.taskTracker != nil {
 		if existingContextID == "" {
-			existingContextID = t.taskTracker.GetLatestContextForAgent(agentURL)
+			existingContextID = t.taskTracker.GetLatestContextForAgent(trackedAgent)
 		}
 		if existingContextID != "" {
 			existingTaskID = t.taskTracker.GetLatestTaskForContext(existingContextID)
@@ -195,6 +197,9 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 			ReturnImmediately:   &returnImmediately,
 		},
 	}
+	if tenant != "" {
+		sendRequest.Tenant = &tenant
+	}
 
 	taskResponse, err := adkClient.SendTask(ctx, sendRequest)
 	if err != nil {
@@ -221,7 +226,7 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 
 	if t.taskTracker != nil && receivedContextID != "" {
 		if !t.taskTracker.HasContext(receivedContextID) {
-			t.taskTracker.RegisterContext(agentURL, receivedContextID)
+			t.taskTracker.RegisterContext(trackedAgent, receivedContextID)
 		}
 
 		isCompleted := submittedTask.Status.State == adk.TaskStateCompleted
@@ -348,6 +353,15 @@ func (t *SubmitTaskTool) runA2APolling(
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
 		}
 	}
+}
+
+// trackerKey tells apart the agents a gateway fronts under one URL, so a
+// task paused on one tenant is never resumed through another.
+func trackerKey(agentURL, tenant string) string {
+	if tenant == "" {
+		return agentURL
+	}
+	return agentURL + "#" + tenant
 }
 
 func (t *SubmitTaskTool) getOrCreateClient(agentURL string) client.A2AClient {
