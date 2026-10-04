@@ -143,6 +143,7 @@ func DefaultToolsConfig() *ToolsConfig {
 			MaxDepth:           1,
 			InheritMock:        true,
 			IdleTimeout:        300,
+			WrapUpMessage:      "Time's up: wrap up and get to your final message.",
 			CompletedRetention: 5,
 		},
 		Safety: SafetyConfig{

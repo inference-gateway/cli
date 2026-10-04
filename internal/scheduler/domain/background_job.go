@@ -64,8 +64,8 @@ type JobSignal struct {
 }
 
 // WindSignal is the one-directional graceful control signal the supervisor pushes
-// into a running job. WindWrapUp asks it to start finishing (inject a wind-down
-// prompt, SIGTERM, or cancel the remote task); WindStop terminates it now (kill
+// into a running job. WindWrapUp asks it to start finishing (send the configured
+// wrap-up message to an agent, SIGTERM a shell); WindStop terminates it now (kill
 // pane, SIGKILL, cancel). Graceful shutdown sends WindWrapUp to all jobs, waits a
 // grace window, then WindStop. The supervisor also uses WindStop as the teardown
 // when it reaps a finished job.

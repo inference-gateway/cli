@@ -1,7 +1,10 @@
 package a2a
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -23,6 +26,7 @@ type a2aJob struct {
 	agentURL       string
 	taskID         string
 	state          *a2adomain.TaskPollingState
+	tenant         string
 	spanCtx        trace.SpanContext
 	bag            baggage.Baggage
 	mu             sync.RWMutex
@@ -159,10 +163,45 @@ func (j *a2aJob) PollingState() a2adomain.TaskPollingState {
 	return st
 }
 
-// Wind is a no-op: the supervisor cancels Run's context on WindStop, which stops
-// the local polling loop. The remote task is cancelled by CancelBackgroundTask
-// (the task-view cancel action), whose terminal state the loop then observes.
-func (j *a2aJob) Wind(_ context.Context, _ scheddomain.WindSignal) error { return nil }
+// Wind sends the configured wrap-up message to a task paused on input-required,
+// the only state in which the protocol takes a follow-up, and reports why not
+// otherwise. WindStop needs nothing here: the supervisor cancels Run's context
+// and CancelBackgroundTask cancels the remote task.
+func (j *a2aJob) Wind(ctx context.Context, sig scheddomain.WindSignal) error {
+	message := j.wrapUpMessage()
+	if sig != scheddomain.WindWrapUp || message == "" {
+		return nil
+	}
+	if !j.awaitsInput() {
+		return fmt.Errorf("task is %s and cannot receive input", cmp.Or(j.PollingState().LastKnownState, "running"))
+	}
+	args := map[string]any{"agent_url": j.agentURL, "task_description": message, "context_id": j.state.ContextID}
+	if j.tenant != "" {
+		args["tenant"] = j.tenant
+	}
+	result, err := j.tool.Execute(ctx, args)
+	if err != nil {
+		return err
+	}
+	if !result.Success {
+		return errors.New(result.Error)
+	}
+	return nil
+}
+
+func (j *a2aJob) wrapUpMessage() string {
+	if j.tool == nil || j.tool.config == nil {
+		return ""
+	}
+	return j.tool.config.Tools.Agent.WrapUpMessage
+}
+
+// awaitsInput reports whether this task is still the one its context is paused
+// on, so a message resumes it instead of opening a new task.
+func (j *a2aJob) awaitsInput() bool {
+	paused := a2adomain.NormalizeTaskState(adk.TaskState(j.PollingState().LastKnownState)) == adk.TaskStateInputRequired
+	return paused && j.tool.taskTracker != nil && j.tool.taskTracker.GetLatestTaskForContext(j.state.ContextID) == j.taskID
+}
 
 // Close stops polling on reap (idempotent with the defer in runA2APolling). The
 // task stays in the A2A context graph for resume/history.

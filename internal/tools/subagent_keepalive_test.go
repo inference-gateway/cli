@@ -230,3 +230,37 @@ func TestHeadlessSubagentJob_KeepAliveCrashReportsFailure(t *testing.T) {
 		t.Fatalf("status = %s", s.Status)
 	}
 }
+
+// A wrap-up request reaches a busy keep-alive subagent as its next turn, is
+// refused while it idles and is ignored once it has exited.
+func TestHeadlessSubagentJob_WindWrapUp(t *testing.T) {
+	job, tool := newKeepAliveTestJob(t, 0)
+	job.wrapUp = "wrap up"
+	turns := make(chan string, 4)
+	tool.runHeadless = fakeKeepAliveChild(t, turns)
+	emit, _ := collectNotes()
+	done := make(chan agentdomain.ToolExecutionResult, 1)
+	go func() { done <- job.Run(t.Context(), emit) }()
+
+	waitTurn(t, turns, "task")
+	if err := job.Wind(t.Context(), scheddomain.WindWrapUp); err == nil || !strings.Contains(err.Error(), "idle") {
+		t.Fatalf("an idle subagent has nothing to wrap up, got %v", err)
+	}
+
+	if err := tool.tracker.SetSubagentStatus("k1", scheddomain.SubagentRunning); err != nil {
+		t.Fatal(err)
+	}
+	if err := job.Wind(t.Context(), scheddomain.WindWrapUp); err != nil {
+		t.Fatalf("wrap-up of a busy subagent: %v", err)
+	}
+	waitTurn(t, turns, "re:wrap up")
+
+	job.hangUp()
+	<-done
+	if err := job.Wind(t.Context(), scheddomain.WindWrapUp); err != nil {
+		t.Fatalf("an exited subagent must ignore the wrap-up, got %v", err)
+	}
+	if err := (&headlessSubagentJob{wrapUp: "wrap up"}).Wind(t.Context(), scheddomain.WindWrapUp); err != nil {
+		t.Fatalf("a one-shot subagent must ignore the wrap-up, got %v", err)
+	}
+}

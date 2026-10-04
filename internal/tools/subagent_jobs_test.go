@@ -418,3 +418,42 @@ func TestInteractiveSubagentJob_IdleTimeoutFromConfig(t *testing.T) {
 		t.Fatalf("idle timeout = %v, want 7s", j.idleTimeout)
 	}
 }
+
+// A wrap-up request types the configured message into a live pane and submits
+// it, re-arming a subagent that was not running. A gone pane ignores it.
+func TestInteractiveSubagentJob_WindWrapUp(t *testing.T) {
+	tests := []struct {
+		name       string
+		pane       paneState
+		status     scheddomain.SubagentStatus
+		wantSent   bool
+		wantStatus scheddomain.SubagentStatus
+	}{
+		{"running pane takes the message", paneAlive, scheddomain.SubagentRunning, true, scheddomain.SubagentRunning},
+		{"idle pane is re-armed", paneAlive, scheddomain.SubagentCompleted, true, scheddomain.SubagentRunning},
+		{"gone pane ignores it", paneGone, scheddomain.SubagentCompleted, false, scheddomain.SubagentCompleted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			j := fastInteractiveJob(func() scheddomain.PaneObservation { return scheddomain.PaneObservation{} })
+			j.wrapUp = "wrap up"
+			j.paneState = func(context.Context, string) paneState { return tt.pane }
+			var sent []string
+			j.sendKeys = func(_ context.Context, _, text string, keys []string) error {
+				sent = append([]string{text}, keys...)
+				return nil
+			}
+			_ = j.tool.tracker.SetSubagentStatus("s1", tt.status)
+
+			if err := j.Wind(t.Context(), scheddomain.WindWrapUp); err != nil {
+				t.Fatalf("Wind: %v", err)
+			}
+			if got := strings.Join(sent, "|"); (got == "wrap up|Enter") != tt.wantSent {
+				t.Fatalf("sent %q, want sent=%v", got, tt.wantSent)
+			}
+			if got := j.tool.tracker.GetSubagent("s1").Status; got != tt.wantStatus {
+				t.Fatalf("status = %s, want %s", got, tt.wantStatus)
+			}
+		})
+	}
+}

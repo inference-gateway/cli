@@ -405,6 +405,10 @@ tools:
   result turn, no pane change and no pending approval - before the parent monitor closes its pane automatically
   (default: `300`; `0` disables the auto-close). A subagent reports done on its task turn, which closes the pane
   right away, so the timeout only catches one that never reports done. Env: `INFER_TOOLS_AGENT_IDLE_TIMEOUT`.
+- **tools.agent.wrap_up_message**: The message a sub-agent or A2A task receives when it is asked to wrap up,
+  by pressing `c` on its row in the job list under the composer
+  (default: `Time's up: wrap up and get to your final message.`). An empty value disables the key.
+  Env: `INFER_TOOLS_AGENT_WRAP_UP_MESSAGE`.
 - **tools.agent.mode**: Whether spawned subagents run `headless` (background, the default) or `interactive`
   (a tmux pane you can watch). Env: `INFER_TOOLS_AGENT_MODE`.
 - **tools.agent.max_depth**: How deep the Agent tool may nest. A listed Agent tool is disabled inside a subagent

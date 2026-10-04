@@ -35,6 +35,16 @@ type jobTranscriptLoadedMsg struct {
 // jobTranscriptTickMsg re-reads the viewed job's transcript.
 type jobTranscriptTickMsg struct{ jobID string }
 
+// jobWrapUpMsg reports whether a job took the wrap-up request, with the reason
+// when it could not.
+type jobWrapUpMsg struct {
+	jobID string
+	err   error
+}
+
+// wrapUpRequestedNote confirms a delivered wrap-up request under the job list.
+const wrapUpRequestedNote = "wrap-up requested"
+
 // SetTranscriptStore wires the store sub-agent transcripts are read from.
 func (app *ChatApplication) SetTranscriptStore(store TranscriptStore) {
 	app.transcriptStore = store
@@ -103,12 +113,28 @@ func (app *ChatApplication) handleJobListKeys(keyMsg tea.KeyPressMsg) ([]tea.Cmd
 		}
 		app.stopViewingJob()
 		return nil, true
+	case key.Matches(keyMsg, gk.jobWrapUp):
+		return app.wrapUpSelectedJob(), true
 	case keyMsg.Text != "":
 		app.blurJobList()
 		return nil, false
 	default:
 		return nil, false
 	}
+}
+
+// wrapUpSelectedJob asks the selected sub-agent or A2A task to finish and
+// report. It runs off the update loop because an A2A task is reached over the
+// network. Any other row ignores the key.
+func (app *ChatApplication) wrapUpSelectedJob() []tea.Cmd {
+	job, ok := app.subagentList.SelectedJob()
+	if !ok || !app.subagentList.CanWrapUp() || app.backgroundTaskRegistry == nil {
+		return nil
+	}
+	registry, jobID := app.backgroundTaskRegistry, job.Meta.ID
+	return []tea.Cmd{func() tea.Msg {
+		return jobWrapUpMsg{jobID: jobID, err: registry.WindJob(jobID, scheddomain.WindWrapUp)}
+	}}
 }
 
 // followSelection keeps the transcript on the selected job while one is viewed.
@@ -186,9 +212,17 @@ func (app *ChatApplication) storedTranscript(sessionID string) []convdomain.Conv
 }
 
 // handleJobTranscriptMsg shows a loaded transcript and keeps it fresh while
-// its job stays on screen. It reports false for any other message.
+// its job stays on screen, and notes the outcome of a wrap-up request. It
+// reports false for any other message.
 func (app *ChatApplication) handleJobTranscriptMsg(msg tea.Msg) ([]tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case jobWrapUpMsg:
+		note := wrapUpRequestedNote
+		if msg.err != nil {
+			note = msg.err.Error()
+		}
+		app.subagentList.SetNote(msg.jobID, note)
+		return nil, true
 	case jobTranscriptTickMsg:
 		if msg.jobID != app.viewedJobID {
 			return nil, true
