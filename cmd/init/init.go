@@ -278,7 +278,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	fmt.Println("")
 	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  - Set default model: infer config set agent.model <model-name>")
-	fmt.Println("  - Configure tools: infer config tools --help")
+	fmt.Printf("  - Configure tools: Edit %s\n", toolsPath)
 	fmt.Printf("  - Customize shortcuts: Edit %s or add your own\n", scmShortcutsPath)
 	fmt.Println("  - Start chatting: infer chat")
 	fmt.Println("")

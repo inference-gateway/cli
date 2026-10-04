@@ -128,7 +128,7 @@ project wants to override a config file it commits its own sparse
 `.infer/<file>`, created with `infer config set --project` (see
 [The Two Layers](#the-two-layers)).
 
-- **`config.yaml`** - gateway, tools, storage, agent, chat, web and pricing
+- **`config.yaml`** - gateway, storage, agent, chat, web and pricing
   settings. Edit by hand or via `infer config ...`. Full option-by-option
   reference: [Configuration Reference](configuration-reference.md).
 - **`prompts.yaml`** - system prompts the LLM sees (agent, git,
