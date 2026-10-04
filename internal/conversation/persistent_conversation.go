@@ -131,6 +131,7 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 	r.metadataMutex.Unlock()
 
 	r.SetSessionStats(metadata.TokenStats, metadata.CostStats)
+	r.setActiveDuration(metadata.ActiveDuration)
 
 	if r.taskTracker != nil {
 		r.taskTracker.ClearAllAgents()
@@ -152,6 +153,7 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	allEntries := r.GetMessages()
 	tokenStats := r.GetSessionTokens()
 	costStats := r.GetSessionCostStats()
+	activeDuration := r.GetActiveDuration()
 
 	entries := make([]convdomain.ConversationEntry, 0, len(allEntries))
 	for _, entry := range allEntries {
@@ -165,6 +167,7 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	r.metadata.MessageCount = len(entries)
 	r.metadata.TokenStats = tokenStats
 	r.metadata.CostStats = costStats
+	r.metadata.ActiveDuration = activeDuration
 	metadata := r.metadata
 	r.metadataMutex.Unlock()
 

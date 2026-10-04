@@ -848,6 +848,7 @@ type StatusBarIndicators struct {
 	ContextUsage  bool `yaml:"context_usage" mapstructure:"context_usage"`
 	SessionTokens bool `yaml:"session_tokens" mapstructure:"session_tokens"`
 	Cost          bool `yaml:"cost" mapstructure:"cost"`
+	Duration      bool `yaml:"duration" mapstructure:"duration"`
 	GitBranch     bool `yaml:"git_branch" mapstructure:"git_branch"`
 	GitPR         bool `yaml:"git_pr" mapstructure:"git_pr"`
 	Subagents     bool `yaml:"subagents" mapstructure:"subagents"`
@@ -1061,6 +1062,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			ContextUsage:  true,
 			SessionTokens: true,
 			Cost:          true,
+			Duration:      true,
 			GitBranch:     true,
 			GitPR:         true,
 			Subagents:     true,

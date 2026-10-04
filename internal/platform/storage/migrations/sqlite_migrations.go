@@ -131,5 +131,15 @@ func GetSQLiteMigrations() []Migration {
 				ALTER TABLE conversations DROP COLUMN project;
 			`,
 		},
+		{
+			Version:     "008",
+			Description: "Conversation active duration column for the session working time",
+			UpSQL: `
+				ALTER TABLE conversations ADD COLUMN active_duration_ms INTEGER NOT NULL DEFAULT 0;
+			`,
+			DownSQL: `
+				ALTER TABLE conversations DROP COLUMN active_duration_ms;
+			`,
+		},
 	}
 }

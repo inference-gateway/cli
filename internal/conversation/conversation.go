@@ -30,6 +30,7 @@ type InMemoryConversationRepository struct {
 	mutex            sync.RWMutex
 	sessionStats     convdomain.SessionTokenStats
 	costStats        convdomain.SessionCostStats
+	activeDuration   time.Duration
 	formatterService ToolFormatter
 	pricingService   convdomain.PricingService
 }
@@ -188,6 +189,7 @@ func (r *InMemoryConversationRepository) Clear() error {
 		PerModelStats: make(map[string]*convdomain.ModelCostStats),
 		Currency:      "USD",
 	}
+	r.activeDuration = 0
 	return nil
 }
 
@@ -226,6 +228,7 @@ func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 		PerModelStats: make(map[string]*convdomain.ModelCostStats),
 		Currency:      "USD",
 	}
+	r.activeDuration = 0
 	return nil
 }
 
@@ -494,6 +497,30 @@ func (r *InMemoryConversationRepository) GetSessionCostStats() convdomain.Sessio
 	}
 
 	return stats
+}
+
+// AddActiveDuration adds one run's working time to the session total.
+func (r *InMemoryConversationRepository) AddActiveDuration(d time.Duration) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.activeDuration += d
+	return nil
+}
+
+// GetActiveDuration returns how long the agent has worked in this session.
+func (r *InMemoryConversationRepository) GetActiveDuration() time.Duration {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return r.activeDuration
+}
+
+func (r *InMemoryConversationRepository) setActiveDuration(d time.Duration) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.activeDuration = d
 }
 
 // SetSessionStats sets the session token and cost statistics (used when loading conversations)

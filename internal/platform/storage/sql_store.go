@@ -92,8 +92,8 @@ func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, 
 	_, err = s.db.ExecContext(ctx, s.rebind(`
 		INSERT INTO conversations (id, project, title, count, messages, total_input_tokens, total_output_tokens,
 		                          request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
-		                          created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                          created_at, updated_at, active_duration_ms)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			project = excluded.project,
 			title = excluded.title,
@@ -108,11 +108,13 @@ func (s *sqlStore) SaveConversation(ctx context.Context, conversationID string, 
 			title_generated = excluded.title_generated,
 			title_invalidated = excluded.title_invalidated,
 			title_generation_time = excluded.title_generation_time,
-			updated_at = excluded.updated_at
+			updated_at = excluded.updated_at,
+			active_duration_ms = excluded.active_duration_ms
 	`), conversationID, metadata.Project, metadata.Title, len(entries), string(messagesJSON),
 		metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens, metadata.TokenStats.RequestCount,
 		string(costStatsJSON), string(modelsJSON), string(tagsJSON), metadata.TitleGenerated, metadata.TitleInvalidated,
-		metadata.TitleGenerationTime, metadata.CreatedAt.Format(time.RFC3339), metadata.UpdatedAt.Format(time.RFC3339))
+		metadata.TitleGenerationTime, metadata.CreatedAt.Format(time.RFC3339), metadata.UpdatedAt.Format(time.RFC3339),
+		metadata.ActiveDuration.Milliseconds())
 	if err != nil {
 		return fmt.Errorf("failed to save conversation: %w", err)
 	}
@@ -140,19 +142,20 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 	var metadata convdomain.ConversationMetadata
 	var messagesJSON, modelsJSON, tagsJSON, costStatsJSON string
 	var totalInputTokens, totalOutputTokens, requestCount int
+	var activeDurationMS int64
 	var titleGenerationTime sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, s.rebind(`
 		SELECT id, project, title, count, messages, total_input_tokens, total_output_tokens,
 		       request_count, cost_stats, models, tags, title_generated, title_invalidated, title_generation_time,
-		       created_at, updated_at
+		       created_at, updated_at, active_duration_ms
 		FROM conversations WHERE id = ?
 	`), conversationID).Scan(
 		&metadata.ID, &metadata.Project, &metadata.Title, &metadata.MessageCount,
 		&messagesJSON, &totalInputTokens, &totalOutputTokens,
 		&requestCount, &costStatsJSON, &modelsJSON, &tagsJSON,
 		&metadata.TitleGenerated, &metadata.TitleInvalidated, &titleGenerationTime,
-		&metadata.CreatedAt, &metadata.UpdatedAt,
+		&metadata.CreatedAt, &metadata.UpdatedAt, &activeDurationMS,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -167,6 +170,8 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 		TotalTokens:       totalInputTokens + totalOutputTokens,
 		RequestCount:      requestCount,
 	}
+
+	metadata.ActiveDuration = time.Duration(activeDurationMS) * time.Millisecond
 
 	if costStatsJSON != "" && costStatsJSON != "{}" {
 		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
@@ -342,11 +347,11 @@ func (s *sqlStore) UpdateConversationMetadata(ctx context.Context, conversationI
 		UPDATE conversations
 		SET title = ?, updated_at = ?, models = ?, tags = ?,
 		    total_input_tokens = ?, total_output_tokens = ?, request_count = ?, cost_stats = ?,
-		    title_generated = ?, title_invalidated = ?, title_generation_time = ?
+		    title_generated = ?, title_invalidated = ?, title_generation_time = ?, active_duration_ms = ?
 		WHERE id = ?
 	`), metadata.Title, metadata.UpdatedAt.Format(time.RFC3339), modelsJSON, string(tagsJSON),
 		metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens, metadata.TokenStats.RequestCount, string(costStatsJSON),
-		metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime, conversationID)
+		metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime, metadata.ActiveDuration.Milliseconds(), conversationID)
 	if err != nil {
 		return fmt.Errorf("failed to update conversation metadata: %w", err)
 	}

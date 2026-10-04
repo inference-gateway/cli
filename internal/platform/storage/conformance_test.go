@@ -100,6 +100,7 @@ func conformanceBasicOperations(t *testing.T, storage ConversationStorage) {
 		assert.Equal(t, len(entries), loadedMetadata.MessageCount)
 		assert.Equal(t, metadata.TokenStats, loadedMetadata.TokenStats)
 		assert.Equal(t, metadata.Tags, loadedMetadata.Tags)
+		assert.Equal(t, metadata.ActiveDuration, loadedMetadata.ActiveDuration)
 
 		assert.Len(t, loadedEntries, len(entries))
 		for i, entry := range entries {
@@ -350,8 +351,9 @@ func createTestMetadata(id string) convdomain.ConversationMetadata {
 			TotalTokens:       250,
 			RequestCount:      2,
 		},
-		Model: "claude-4",
-		Tags:  []string{"test", "demo"},
+		Model:          "claude-4",
+		Tags:           []string{"test", "demo"},
+		ActiveDuration: 90 * time.Second,
 	}
 }
 
