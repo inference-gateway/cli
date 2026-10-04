@@ -306,3 +306,21 @@ func TestA2AJobStatsFollowTaskMetadata(t *testing.T) {
 		t.Fatalf("stats = %+v, want %+v", got, want)
 	}
 }
+
+// TestA2AJobStatsWithoutUsage: an agent that reports execution stats but no
+// usage gets its tool counts shown and no token figures.
+func TestA2AJobStatsWithoutUsage(t *testing.T) {
+	j := &a2aJob{taskID: "t1", agentURL: "http://a"}
+	metadata := map[string]any{
+		"execution_stats": map[string]any{"failed_tools": float64(0), "iterations": float64(3), "messages": float64(1), "tool_calls": float64(1)},
+	}
+	j.recordStats(adk.Task{ID: "t1", Metadata: &metadata})
+
+	got := j.Stats()
+	if got == nil {
+		t.Fatal("stats = nil, want the tool counts")
+	}
+	if want := "Tools: 1 succeeded, 0 failed"; got.String() != want {
+		t.Fatalf("String() = %q, want %q", got.String(), want)
+	}
+}

@@ -742,7 +742,9 @@ func (t *TaskView) renderTaskInfo() string {
 
 	if task.Stats != nil {
 		fmt.Fprintf(&content, "%-12s %d succeeded, %d failed\n", t.styleProvider.RenderDimText("Tools:"), task.Stats.ToolsSucceeded, task.Stats.ToolsFailed)
-		fmt.Fprintf(&content, "%-12s %d in, %d out\n", t.styleProvider.RenderDimText("Tokens:"), task.Stats.InputTokens, task.Stats.OutputTokens)
+		if task.Stats.InputTokens+task.Stats.OutputTokens > 0 {
+			fmt.Fprintf(&content, "%-12s %d in, %d out\n", t.styleProvider.RenderDimText("Tokens:"), task.Stats.InputTokens, task.Stats.OutputTokens)
+		}
 	}
 
 	if task.TaskRef != nil {

@@ -185,6 +185,7 @@ Tools: 12 succeeded, 1 failed | Tokens: 60448 in, 745 out
 - **Tokens** are the input and output tokens of the whole subagent session, every turn of a headless
   subagent included. `C.` is the slice of them the provider served from its prompt cache, in the same
   notation the status bar uses for the conversation itself, and is dropped while the run reported no cache hits.
+  A run that reported no usage, such as an A2A agent that sends none, shows no token figures at all.
 
 A failed tool call does not fail the subagent. A subagent fails only when its run ends with an error, so the
 counts are how the parent tells a clean run from one that struggled. A subagent that crashes before it writes

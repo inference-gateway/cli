@@ -418,17 +418,22 @@ func (l *SubagentList) statsView(stats scheddomain.SubagentRunStats, index, coun
 	if stats.ToolsFailed > 0 {
 		crossColor = l.styleProvider.GetThemeColor("error")
 	}
-	line := fmt.Sprintf("%s└ %d %s %d %s %s", trunk,
+	line := fmt.Sprintf("%s└ %d %s %d %s", trunk,
 		stats.ToolsSucceeded, l.styleProvider.RenderWithColor(icons.CheckMark, checkColor),
-		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, crossColor),
-		l.styleProvider.RenderWithColor(statsTokens(stats), dim))
+		stats.ToolsFailed, l.styleProvider.RenderWithColor(icons.CrossMark, crossColor))
+	if tokens := statsTokens(stats); tokens != "" {
+		line += " " + l.styleProvider.RenderWithColor(tokens, dim)
+	}
 	return l.padToWidth(line, width)
 }
 
 // statsTokens is a run's token figures: the input and output it burned, then
 // the cached slice (C.) in the status bar's notation, dropped while the run
-// reported no cache hits.
+// reported no cache hits. It is empty while the run reported no usage.
 func statsTokens(stats scheddomain.SubagentRunStats) string {
+	if stats.InputTokens+stats.OutputTokens == 0 {
+		return ""
+	}
 	text := "· " + compactCount(stats.InputTokens+stats.OutputTokens) + " tokens"
 	if stats.CachedTokens > 0 {
 		text += " C." + compactCount(stats.CachedTokens)
