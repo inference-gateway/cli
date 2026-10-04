@@ -83,6 +83,7 @@ type ChatApplication struct {
 	autocomplete         tui.AutocompleteComponent
 	inputStatusBar       tui.InputStatusBarComponent
 	subagentList         *components.SubagentList
+	liveClock            liveClock
 	statusView           tui.StatusComponent
 	modeIndicator        *components.ModeIndicator
 	helpBar              tui.HelpBarComponent
@@ -482,6 +483,12 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		msg = ev.Event
 	}
+	if tick, ok := msg.(liveClockTickMsg); ok {
+		if !app.liveClock.fire(tick) {
+			return app, nil
+		}
+		msg, handlerMsg = tui.LiveTickEvent{}, tui.LiveTickEvent{}
+	}
 
 	start := time.Now()
 	defer logSlowUpdate(start, msg)
@@ -543,6 +550,8 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	app.lastView = viewBefore
 
 	app.layoutChatInterface()
+
+	cmds = append(cmds, app.liveClock.sync(app.liveCadence()))
 
 	return app, tea.Batch(cmds...)
 }

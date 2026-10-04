@@ -24,26 +24,26 @@ func TestStatusViewTurnDurationSummary(t *testing.T) {
 			name:     "completed turn keeps a Done in summary until the next turn",
 			started:  time.Now().Add(-2 * time.Second),
 			event:    func() tea.Msg { return agentdomain.ChatCompleteEvent{} },
-			wantText: "Done in 2.0s",
+			wantText: "Done in 2s",
 		},
 		{
 			name:     "cancelled turn keeps a Cancelled after summary",
 			started:  time.Now().Add(-2 * time.Second),
 			event:    func() tea.Msg { return agentdomain.ChatCompleteEvent{Cancelled: true} },
-			wantText: "Cancelled after 2.0s",
+			wantText: "Cancelled after 2s",
 		},
 		{
 			name:     "failed turn shows Failed after with the error",
 			started:  time.Now().Add(-2 * time.Second),
 			event:    func() tea.Msg { return agentdomain.ChatErrorEvent{Error: errors.New("boom")} },
-			wantText: "Failed after 2.0s: boom",
+			wantText: "Failed after 2s: boom",
 		},
 		{
 			name:     "approval pause held at completion stays excluded like the live counter",
 			started:  time.Now().Add(-3 * time.Second),
 			paused:   time.Now().Add(-time.Second),
 			event:    func() tea.Msg { return agentdomain.ChatCompleteEvent{} },
-			wantText: "Done in 2.0s",
+			wantText: "Done in 2s",
 		},
 		{
 			name:       "a completion without a running turn renders nothing",
@@ -87,7 +87,7 @@ func TestStatusViewTurnDurationFormatMatchesToolRows(t *testing.T) {
 	sv.startTime = time.Now().Add(-75 * time.Second)
 	_, _ = sv.Update(agentdomain.ChatCompleteEvent{})
 
-	if got := plain(sv.Render()); !strings.Contains(got, "1m15.0s") {
+	if got := plain(sv.Render()); !strings.Contains(got, "1m15s") {
 		t.Errorf("expected the same long-duration format tool rows use, got %q", got)
 	}
 }

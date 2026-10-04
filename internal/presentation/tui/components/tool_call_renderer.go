@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	spinner "charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -18,13 +17,11 @@ import (
 type ToolCallRenderer struct {
 	width            int
 	height           int
-	spinner          spinner.Model
 	tools            map[string]*ToolRenderState
 	toolsOrder       []string
 	styleProvider    *styles.Provider
 	toolFormatter    tui.ToolFormatter
 	keyHintFormatter KeyHintFormatter
-	lastTimerRender  time.Time
 	stateManager     approvalOverlayReader
 	pausedAt         time.Time
 }
@@ -102,16 +99,13 @@ type ToolRenderState struct {
 
 func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
 	return &ToolCallRenderer{
-		spinner:       newModernSpinner(),
 		tools:         make(map[string]*ToolRenderState),
 		styleProvider: styleProvider,
 		width:         80,
 	}
 }
 
-func (r *ToolCallRenderer) Init() tea.Cmd {
-	return r.spinner.Tick
-}
+func (r *ToolCallRenderer) Init() tea.Cmd { return nil }
 
 func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { // nolint:gocyclo
 	var cmd tea.Cmd
@@ -131,9 +125,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 
 	case agentdomain.BashOutputChunkEvent:
 		return r.handleBashOutputStream(msg)
-
-	case spinner.TickMsg:
-		return r.handleSpinnerTick(msg)
 	}
 
 	return r, cmd
@@ -161,9 +152,6 @@ func (r *ToolCallRenderer) handleToolCallPreview(msg tui.ToolCallPreviewEvent) (
 		IsComplete: msg.IsComplete,
 	}
 
-	if len(r.tools) == 1 {
-		return r, r.spinner.Tick
-	}
 	return r, nil
 }
 
@@ -180,9 +168,6 @@ func (r *ToolCallRenderer) handleToolExecutionProgress(msg agentdomain.ToolExecu
 			Arguments:  msg.Arguments,
 			StartTime:  now,
 			LastUpdate: now,
-		}
-		if len(r.tools) == 1 {
-			return r, r.spinner.Tick
 		}
 		return r, nil
 	}
@@ -213,13 +198,6 @@ func (r *ToolCallRenderer) handleBashOutputStream(msg agentdomain.BashOutputChun
 		state.LastUpdate = time.Now()
 	}
 	return r, nil
-}
-
-func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
-	var cmd tea.Cmd
-	r.spinner, cmd = r.spinner.Update(msg)
-	r.lastTimerRender = time.Now()
-	return r, cmd
 }
 
 func (r *ToolCallRenderer) SetWidth(width int) {
@@ -294,7 +272,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		iconColor = "dim"
 		statusColor = "dim"
 	case "running", "starting", "saving", "executing", "streaming":
-		statusIcon = r.spinner.View()
+		statusIcon = spinnerFrame(time.Now(), time.Second)
 		switch {
 		case !r.pausedAt.IsZero():
 			statusIcon = icons.QueuedIcon
@@ -361,17 +339,6 @@ func (r *ToolCallRenderer) HasActivePreviews() bool {
 		}
 	}
 	return false
-}
-
-// formatDuration formats a duration in a human-readable way (always in seconds with 1 decimal)
-func formatDuration(d time.Duration) string {
-	seconds := d.Seconds()
-	if seconds < 60 {
-		return fmt.Sprintf("%.1fs", seconds)
-	}
-	minutes := int(seconds / 60)
-	remainingSeconds := seconds - float64(minutes*60)
-	return fmt.Sprintf("%dm%.1fs", minutes, remainingSeconds)
 }
 
 // shouldRenderBashOutput determines if Bash tool output should be rendered

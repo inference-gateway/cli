@@ -11,7 +11,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -392,24 +391,14 @@ func TestSubagentListFitsLabelColumnToWidestName(t *testing.T) {
 	}
 }
 
-func TestSubagentListRefreshTick(t *testing.T) {
+func TestSubagentListHasRows(t *testing.T) {
 	running := []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobRunning, time.Now().Add(-2*time.Second), nil)}
 
-	list := newList(listOpts{jobs: running, linger: 5, indicator: true})
-	if _, cmd := list.Update(agentdomain.BackgroundTasksChangedEvent{}); cmd == nil {
-		t.Error("expected the list to arm a refresh tick while rows are visible")
+	if !newList(listOpts{jobs: running, linger: 5, indicator: true}).HasRows() {
+		t.Error("expected a running row to keep the live clock ticking")
 	}
-	if list.tickEpoch != 1 {
-		t.Errorf("tickEpoch = %d, want 1 after arming one tick", list.tickEpoch)
-	}
-	if cmd := list.handleRefreshTick(list.tickEpoch + 1); cmd != nil {
-		t.Error("expected a stale epoch to stop the tick chain")
-	}
-	if cmd := list.handleRefreshTick(list.tickEpoch); cmd == nil {
-		t.Error("expected the current epoch to keep the chain alive while rows are visible")
-	}
-	if _, cmd := newList(listOpts{linger: 5, indicator: true}).Update(agentdomain.BackgroundTasksChangedEvent{}); cmd != nil {
-		t.Error("expected no ticker to be armed without visible rows")
+	if newList(listOpts{linger: 5, indicator: true}).HasRows() {
+		t.Error("expected no rows, so the live clock can stop")
 	}
 }
 
