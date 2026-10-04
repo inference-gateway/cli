@@ -151,12 +151,12 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 		{
 			name:        "running row shows its label and live elapsed",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobRunning, runningStarted, nil)}, linger: 5, indicator: true},
-			wantStrings: []string{"reviewer", "subagent", "2.0s"},
+			wantStrings: []string{"reviewer", "subagent", "2s"},
 		},
 		{
 			name:        "finished row lingers with a checkmark and total duration",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("reviewer", scheddomain.JobCompleted, longAgoStarted, &recentlyDone)}, linger: 5, indicator: true},
-			wantStrings: []string{"reviewer", icons.CheckMark, "40.0s"},
+			wantStrings: []string{"reviewer", icons.CheckMark, "40s"},
 		},
 		{
 			name:      "finished row drops once the linger window passed",
@@ -171,7 +171,7 @@ func TestSubagentListRenderLifecycle(t *testing.T) {
 		{
 			name:        "failed row shows a cross",
 			opts:        listOpts{jobs: []scheddomain.TrackedJob{subagentJob("tester", scheddomain.JobFailed, failedStarted, &failedDone)}, linger: 5, indicator: true},
-			wantStrings: []string{"tester", icons.CrossMark, "8.0s"},
+			wantStrings: []string{"tester", icons.CrossMark, "8s"},
 		},
 		{
 			name:      "renders nothing when no sub-agents run or linger",

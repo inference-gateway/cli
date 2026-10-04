@@ -137,7 +137,7 @@ func (l *SubagentList) measureRows(rows []subagentRow, blockWidth int) rowWidths
 	for _, row := range rows {
 		widths.label = max(widths.label, l.styleProvider.GetWidth(rowLabel(row)))
 		widths.kind = max(widths.kind, l.styleProvider.GetWidth(row.kind))
-		if w := l.styleProvider.GetWidth(formatDuration(row.elapsed)); w > widths.duration {
+		if w := l.styleProvider.GetWidth(row.elapsed.String()); w > widths.duration {
 			widths.duration = w
 		}
 		if !row.running {
@@ -175,7 +175,7 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 			id:      job.Meta.ID,
 			label:   jobRowLabel(job),
 			kind:    jobRowKind(job),
-			elapsed: end.Sub(job.Meta.StartedAt),
+			elapsed: end.Sub(job.Meta.StartedAt).Truncate(time.Second),
 			running: job.Status == scheddomain.JobRunning,
 			failed:  job.Status == scheddomain.JobFailed,
 			stats:   job.Stats,
@@ -474,7 +474,7 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 	label := formatting.PadText(rowLabel(row), widths.label) + " " +
 		l.styleProvider.RenderWithColor(formatting.PadText(row.kind, widths.kind), l.styleProvider.GetThemeColor("accent"))
 	dim := l.styleProvider.GetThemeColor("dim")
-	elapsed := formatDuration(row.elapsed)
+	elapsed := row.elapsed.String()
 	elapsedCol := strings.Repeat(" ", widths.duration-l.styleProvider.GetWidth(elapsed)) +
 		l.styleProvider.RenderWithColor(elapsed, dim)
 	if row.running {
