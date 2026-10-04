@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	cobra "github.com/spf13/cobra"
+
+	output "github.com/inference-gateway/cli/cmd/output"
+	config "github.com/inference-gateway/cli/config"
 )
 
 func TestResolveTagFlag(t *testing.T) {
@@ -40,30 +43,27 @@ func TestResolveTagFlag(t *testing.T) {
 	}
 }
 
-func TestRequiresModel(t *testing.T) {
-	tests := []struct {
-		name     string
-		agent    string
-		run      bool
-		expected bool
-	}{
-		{"mock-agent does not require a model even when run locally", "mock-agent", true, false},
-		{"browser-agent requires a model when run locally", "browser-agent", true, true},
-		{"google-calendar-agent requires a model when run locally", "google-calendar-agent", true, true},
-		{"documentation-agent requires a model when run locally", "documentation-agent", true, true},
-		{"n8n-agent requires a model when run locally", "n8n-agent", true, true},
-		{"unknown agent requires a model when run locally", "unknown-agent", true, true},
-		{"mock-agent does not require a model when not run locally", "mock-agent", false, false},
-		{"browser-agent does not require a model when not run locally", "browser-agent", false, false},
-		{"unknown agent does not require a model when not run locally", "unknown-agent", false, false},
+func TestAddAgentWithoutModelInheritsAtStart(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	c := &command{renderer: output.NewRenderer()}
+
+	var err error
+	captureStdout(t, func() {
+		err = c.addAgent(&cobra.Command{}, "browser-agent", "http://localhost:8083", "", "ghcr.io/inference-gateway/browser-agent:latest", true, "", nil)
+	})
+	if err != nil {
+		t.Fatalf("addAgent() without a model error = %v, want the entry written", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := requiresModel(tt.agent, tt.run)
-			if got != tt.expected {
-				t.Errorf("requiresModel(%q, %v) = %v, want %v", tt.agent, tt.run, got, tt.expected)
-			}
-		})
+	path, err := agentsConfigPath(&cobra.Command{})
+	if err != nil {
+		t.Fatalf("agentsConfigPath() error = %v", err)
+	}
+	cfg, err := config.LoadAgents(path)
+	if err != nil {
+		t.Fatalf("LoadAgents() error = %v", err)
+	}
+	if len(cfg.Agents) != 1 || !cfg.Agents[0].Run || cfg.Agents[0].Model != "" {
+		t.Errorf("agents = %+v, want one locally run entry with no pinned model", cfg.Agents)
 	}
 }
