@@ -423,3 +423,73 @@ func TestIsLocalA2AAgent(t *testing.T) {
 		})
 	}
 }
+
+func TestEntryForURL_MatchesTheWholeOrigin(t *testing.T) {
+	cfg := &config.AgentsConfig{Agents: []config.AgentEntry{
+		{Name: "research", URL: "https://Research.example.com/a2a"},
+		{Name: "local", URL: "http://localhost:8080"},
+	}}
+
+	tests := []struct {
+		name string
+		url  string
+		want string
+	}{
+		{"same origin, other path", "https://research.example.com/.well-known/agent-card.json", "research"},
+		{"default port spelled out", "https://research.example.com:443", "research"},
+		{"same host, other port", "https://research.example.com:8443", ""},
+		{"same host, other scheme", "http://research.example.com", ""},
+		{"explicit port", "http://localhost:8080/a2a", "local"},
+		{"other port on localhost", "http://localhost:9090", ""},
+		{"not a URL", "research", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent, ok := cfg.EntryForURL(tt.url)
+			require.Equal(t, tt.want != "", ok)
+			require.Equal(t, tt.want, agent.Name)
+		})
+	}
+}
+
+// TestLoadAgents_AuthNamesVariablesNotSecrets: a loaded and rewritten
+// agents.yaml only ever holds the variable names, never the secrets behind them.
+func TestLoadAgents_AuthNamesVariablesNotSecrets(t *testing.T) {
+	t.Setenv("RESEARCH_TOKEN", "s3cret-token")
+	t.Setenv("BILLING_CLIENT_SECRET", "s3cret-client")
+	path := filepath.Join(t.TempDir(), "agents.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`agents:
+  - name: research
+    url: https://research.example.com
+    auth:
+      token_env: RESEARCH_TOKEN
+  - name: billing
+    url: https://billing.example.com
+    auth:
+      oidc:
+        issuer_url: https://idp.example.com/realms/agents
+        client_id: infer
+        client_secret_env: BILLING_CLIENT_SECRET
+        audience: billing-agent
+`), 0o600))
+
+	cfg, err := config.LoadAgents(path)
+	require.NoError(t, err)
+	research, err := cfg.ReadEntry("research")
+	require.NoError(t, err)
+	require.Equal(t, &config.AgentAuth{TokenEnv: "RESEARCH_TOKEN"}, research.Auth)
+	billing, err := cfg.ReadEntry("billing")
+	require.NoError(t, err)
+	require.Equal(t, &config.AgentOIDC{
+		IssuerURL:       "https://idp.example.com/realms/agents",
+		ClientID:        "infer",
+		ClientSecretEnv: "BILLING_CLIENT_SECRET",
+		Audience:        "billing-agent",
+	}, billing.Auth.OIDC)
+
+	require.NoError(t, cfg.DeleteEntry("research"))
+	rewritten, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(rewritten), "client_secret_env: BILLING_CLIENT_SECRET")
+	require.NotContains(t, string(rewritten), "s3cret")
+}

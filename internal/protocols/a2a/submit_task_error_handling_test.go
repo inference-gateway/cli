@@ -13,6 +13,8 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func TestSubmitTaskTool_isTaskNotFoundError(t *testing.T) {
@@ -403,4 +405,49 @@ func TestSubmitTaskTool_NoExistingTask(t *testing.T) {
 		assert.Equal(t, 1, tracker.AddTaskCallCount())
 		assert.Equal(t, 1, tracker.RegisterContextCallCount())
 	})
+}
+
+func authTestConfig() *config.Config {
+	return &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools:   config.A2AToolsConfig{SubmitTask: config.SubmitTaskToolConfig{Enabled: true}},
+			Task:    config.A2ATaskConfig{StatusPollSeconds: 1},
+		},
+	}
+}
+
+func TestSubmitTaskTool_RejectedSubmissionIsAnAuthFailure(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	client := &adkmocks.FakeA2AClient{}
+	client.SendTaskReturns(nil, errors.New(`unexpected status code: 401, body: {"error":"invalid token"}`))
+	tool := NewSubmitTaskToolWithClient(authTestConfig(), nil, nil, nil, client)
+
+	result, err := tool.Execute(t.Context(), map[string]any{
+		"agent_url":        "https://research.example.com",
+		"task_description": "summarise",
+	})
+
+	assert.NoError(t, err)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Error, `Authentication failed for A2A agent "research.example.com"`)
+	assert.NotContains(t, result.Error, "invalid token")
+}
+
+// TestSubmitTaskTool_PollingStopsOnAuthFailure: a rejected credential is
+// rejected on every poll, so the job fails instead of polling forever.
+func TestSubmitTaskTool_PollingStopsOnAuthFailure(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	client := &adkmocks.FakeA2AClient{}
+	client.GetTaskReturns(nil, errors.New("unexpected status code: 403, body: forbidden"))
+	tool := NewSubmitTaskToolWithClient(authTestConfig(), nil, nil, nil, client)
+	state := &a2adomain.TaskPollingState{TaskID: "t1", ContextID: "ctx1", AgentURL: "https://research.example.com"}
+
+	result := tool.runA2APolling(t.Context(), state.AgentURL, "t1", state, func(scheddomain.JobSignal) {}, func(adk.Task) {})
+
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Error, `Authentication failed for A2A agent "research.example.com"`)
+	assert.Equal(t, 1, client.GetTaskCallCount())
 }
