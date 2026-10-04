@@ -1255,7 +1255,6 @@ Submit tasks to specialized A2A agents for distributed processing.
 **Features:**
 
 - **Task Delegation**: Submit complex tasks to specialized agents
-- **Streaming Responses**: Real-time task execution updates
 - **Task Continuity**: Continue an earlier task's conversation by passing its `context_id`
 - **Task Tracking**: Automatic tracking of submitted tasks with IDs
 - **Error Handling**: Comprehensive error reporting and retry logic
@@ -1319,12 +1318,15 @@ Query the status and results of previously submitted tasks.
 ```text
 1. Query agent capabilities:        A2A_QueryAgent
 2. Submit task for processing:      A2A_SubmitTask
-3. Monitor task progress:           A2A_QueryTask
+3. Wait for the completion notification, which arrives automatically
 ```
+
+`A2A_QueryTask` is for tasks that are no longer polled in the background - it is refused while the
+background poller owns the task.
 
 ## A2A Configuration
 
-A2A tools are configured in the tools section:
+A2A tools are configured in the `a2a.tools` block of `config.yaml`:
 
 ```yaml
 a2a:

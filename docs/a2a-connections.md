@@ -80,19 +80,6 @@ The LLM will use the `A2A_SubmitTask` tool:
 }
 ```
 
-Optional metadata can be included:
-
-```json
-{
-  "agent_url": "http://localhost:8081",
-  "task_description": "Review pull request for best practices",
-  "metadata": {
-    "pull_request_id": "123",
-    "focus_areas": ["security", "performance"]
-  }
-}
-```
-
 #### A2A_QueryAgent Tool - Get Agent Information
 
 The `A2A_QueryAgent` tool gets information from A2A agents:
@@ -334,7 +321,7 @@ Test connection to agent at http://localhost:8081
 Enable verbose logging and check for:
 
 - ADK client connection attempts
-- Streaming event processing
+- Background task polling
 - Task completion status
 - Error stack traces
 
