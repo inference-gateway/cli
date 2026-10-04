@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,5 +167,32 @@ func TestJobListFocusNeedsARow(t *testing.T) {
 	app.backgroundTaskRegistry.(*schedmocks.FakeBackgroundTaskRegistry).SnapshotReturns(nil)
 	if _, handled := app.handleJobTranscriptMsg(app.loadJobTranscript(app.viewedJobID)()); !handled || app.jobListFocused {
 		t.Fatal("a reaped job should end the view and return focus to the input")
+	}
+}
+
+func TestJobListWrapUpKey(t *testing.T) {
+	app, _ := newJobListTestApp(t)
+	registry := app.backgroundTaskRegistry.(*schedmocks.FakeBackgroundTaskRegistry)
+	wrapUp := tea.KeyPressMsg{Text: "c", Code: 'c'}
+	app.focusJobList()
+
+	cmds, handled := app.handleJobListKeys(wrapUp)
+	if !handled || !app.jobListFocused || len(cmds) != 1 {
+		t.Fatalf("c on a running sub-agent should request a wrap-up and keep focus, got handled=%v focused=%v cmds=%d", handled, app.jobListFocused, len(cmds))
+	}
+	if _, ok := app.handleJobTranscriptMsg(cmds[0]()); !ok {
+		t.Fatal("the wrap-up outcome should be handled")
+	}
+	if id, sig := registry.WindJobArgsForCall(0); id != "sub-1" || sig != scheddomain.WindWrapUp {
+		t.Fatalf("WindJob(%q, %v), want sub-1 wrap-up", id, sig)
+	}
+	if got := app.subagentList.Render(); !strings.Contains(got, wrapUpRequestedNote) {
+		t.Fatalf("the list should note the request, got %q", got)
+	}
+
+	_, _ = app.handleJobListKeys(tea.KeyPressMsg{Code: tea.KeyDown})
+	cmds, handled = app.handleJobListKeys(wrapUp)
+	if !handled || !app.jobListFocused || len(cmds) != 0 || registry.WindJobCallCount() != 1 {
+		t.Fatalf("c on a shell row is a no-op, got handled=%v focused=%v cmds=%d winds=%d", handled, app.jobListFocused, len(cmds), registry.WindJobCallCount())
 	}
 }

@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -90,12 +89,7 @@ func (t *SendSubagentInputTool) Execute(ctx context.Context, args map[string]any
 		return t.fail(args, fmt.Sprintf("Failed to send input to subagent %s: %v", labelOrSession(s.Label, s.SessionID), err)), nil
 	}
 
-	rearmed := false
-	if submit && s.Status != scheddomain.SubagentRunning {
-		_ = os.Remove(subagentResultFilePath(s.SessionID))
-		_ = t.tracker.SetSubagentStatus(s.ID, scheddomain.SubagentRunning)
-		rearmed = true
-	}
+	rearmed := submit && rearmSubagent(t.tracker, s)
 
 	msg := fmt.Sprintf("Sent input to subagent %s.", labelOrSession(s.Label, s.SessionID))
 	if rearmed {

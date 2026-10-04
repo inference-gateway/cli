@@ -39,7 +39,9 @@ system with better visibility into task status and history.
 
 - `↑/↓` or `j/k`: Navigate between tasks
 - `i` or `Enter`: View detailed task information
-- `c`: Cancel the selected active task
+- `c`: Cancel the selected active task. This is a hard stop. To let a sub-agent or A2A task finish and report
+  instead, press `c` on its row in the job list under the composer
+  (see [Subagents](subagents.md#asking-a-job-to-wrap-up))
 - `/`: Search tasks by agent name, task ID, or status
 - `1`-`5`: Switch view tabs
 - `pgup`/`b` and `pgdown`/`f`: Page through the list

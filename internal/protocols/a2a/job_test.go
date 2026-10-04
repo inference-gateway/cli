@@ -324,3 +324,46 @@ func TestA2AJobStatsWithoutUsage(t *testing.T) {
 		t.Fatalf("String() = %q, want %q", got.String(), want)
 	}
 }
+
+// A wrap-up request resumes a task paused on input-required with the configured
+// message and is refused, without touching the agent, in any other state.
+func TestA2AJob_WindWrapUp(t *testing.T) {
+	tests := []struct {
+		name     string
+		state    adk.TaskState
+		wantSent bool
+	}{
+		{"input-required takes the message", adk.TaskStateInputRequired, true},
+		{"working cannot receive input", adk.TaskStateWorking, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{A2A: config.A2AConfig{Enabled: true, Tools: config.A2AToolsConfig{SubmitTask: config.SubmitTaskToolConfig{Enabled: true}}}}
+			cfg.Tools.Agent.WrapUpMessage = "wrap up"
+			tracker := NewTaskTracker(nil)
+			tracker.RegisterContext("http://agent", "ctx1")
+			tracker.AddTask("ctx1", "t1")
+
+			task := adk.Task{ID: "t1", ContextID: new("ctx1"), Status: adk.TaskStatus{State: tt.state}}
+			client := &adkmocks.FakeA2AClient{}
+			client.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: task}, nil)
+			client.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &task}}, nil)
+
+			tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, client)
+			j := &a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: &a2adomain.TaskPollingState{ContextID: "ctx1"}}
+			j.recordState(string(tt.state))
+
+			err := j.Wind(t.Context(), scheddomain.WindWrapUp)
+			if (err == nil) != tt.wantSent || (client.SendTaskCallCount() == 1) != tt.wantSent {
+				t.Fatalf("Wind err=%v, sends=%d, want sent=%v", err, client.SendTaskCallCount(), tt.wantSent)
+			}
+			if !tt.wantSent {
+				return
+			}
+			_, request := client.SendTaskArgsForCall(0)
+			if got := request.Message; got.TaskID == nil || *got.TaskID != "t1" || len(got.Parts) != 1 {
+				t.Fatalf("the message must resume t1, got %+v", got)
+			}
+		})
+	}
+}

@@ -260,6 +260,7 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 			agentURL: agentURL,
 			taskID:   taskID,
 			state:    pollingState,
+			tenant:   tenant,
 			spanCtx:  trace.SpanContextFromContext(ctx),
 			bag:      baggage.FromContext(ctx),
 		})

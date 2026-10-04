@@ -436,7 +436,9 @@ select models and have conversations.
   typing any other key lands back in the input seamlessly
 - **↓** (on the status indicators, while background jobs are listed below them): Select the job list.
   **↑**/**↓** pick a job, **enter** shows that job's transcript in place of the chat's, **esc** goes back to
-  the chat's transcript and then to the input
+  the chat's transcript and then to the input. On a sub-agent or A2A row, **c** asks the job to wrap up and
+  report (see [Subagents](subagents.md#asking-a-job-to-wrap-up)). The hint under the rows lists the key
+  whenever the selected row can take it
 
 **Agent Modes:**
 

@@ -566,6 +566,7 @@ type AgentToolConfig struct {
 	Model              string                   `yaml:"model,omitempty" mapstructure:"model,omitempty"`
 	InheritMock        bool                     `yaml:"inherit_mock" mapstructure:"inherit_mock"`
 	IdleTimeout        int                      `yaml:"idle_timeout" mapstructure:"idle_timeout"`
+	WrapUpMessage      string                   `yaml:"wrap_up_message" mapstructure:"wrap_up_message"`
 	CompletedRetention int                      `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
 

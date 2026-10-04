@@ -39,6 +39,7 @@ type headlessSubagentJob struct {
 	// each turn itself and closes the child after idleTimeout without input.
 	keepAlive   bool
 	idleTimeout time.Duration
+	wrapUp      string
 	stdinRead   *os.File
 	emit        func(scheddomain.JobSignal)
 
@@ -67,6 +68,7 @@ func newKeepAliveSubagentJob(tool *AgentTool, spec AgentTaskSpec, state *scheddo
 		return job
 	}
 	job.keepAlive, job.stdinRead, job.stdinWrite = true, r, w
+	job.wrapUp = tool.config.Tools.Agent.WrapUpMessage
 	if secs := tool.config.Tools.Agent.IdleTimeout; secs > 0 {
 		job.idleTimeout = time.Duration(secs) * time.Second
 	}
@@ -428,9 +430,25 @@ func (j *headlessSubagentJob) signalDone() {
 	}
 }
 
-// Wind is a no-op: the supervisor cancels Run's context, which kills the
-// subprocess.
-func (j *headlessSubagentJob) Wind(_ context.Context, _ scheddomain.WindSignal) error { return nil }
+// Wind asks a keep-alive subagent to wrap up by sending it the configured
+// message as its next turn. A stop needs nothing here: the supervisor cancels
+// Run's context, which kills the subprocess.
+func (j *headlessSubagentJob) Wind(_ context.Context, sig scheddomain.WindSignal) error {
+	if sig != scheddomain.WindWrapUp || j.wrapUp == "" || !j.acceptsInput() {
+		return nil
+	}
+	if j.Idle() {
+		return fmt.Errorf("subagent %s is idle, nothing to wrap up", j.label())
+	}
+	return j.send(j.wrapUp)
+}
+
+// acceptsInput reports whether the child still reads follow-up messages.
+func (j *headlessSubagentJob) acceptsInput() bool {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.keepAlive && !j.closing && j.stdinWrite != nil
+}
 
 // Close removes the subagent from the tracker on reap.
 func (j *headlessSubagentJob) Close() {
@@ -444,9 +462,12 @@ func (j *headlessSubagentJob) Close() {
 // outcome tears the subagent down inline. The result file's done flag is the
 // completion signal and screen stability is only an idle hint.
 type interactiveSubagentJob struct {
-	tool    *AgentTool
-	state   *scheddomain.SubagentState
-	inspect func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation
+	tool      *AgentTool
+	state     *scheddomain.SubagentState
+	inspect   func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation
+	sendKeys  func(ctx context.Context, paneID, text string, keys []string) error
+	paneState func(ctx context.Context, paneID string) paneState
+	wrapUp    string
 
 	// Heuristic tunables (overridable in tests).
 	pollInterval time.Duration
@@ -464,6 +485,8 @@ func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState
 		tool:         tool,
 		state:        state,
 		inspect:      NewPaneInspector(),
+		sendKeys:     tmuxSendKeys,
+		paneState:    tmuxPaneState,
 		pollInterval: 2 * time.Second,
 		grace:        4 * time.Second,
 		stableNeeded: 3,
@@ -472,6 +495,7 @@ func newInteractiveSubagentJob(tool *AgentTool, state *scheddomain.SubagentState
 		if secs := tool.config.Tools.Agent.IdleTimeout; secs > 0 {
 			j.idleTimeout = time.Duration(secs) * time.Second
 		}
+		j.wrapUp = tool.config.Tools.Agent.WrapUpMessage
 	}
 	return j
 }
@@ -671,12 +695,33 @@ func closedMessage(label, reason, body string) string {
 }
 
 // Wind kills the pane on WindStop, which makes Run tear down and return.
-// WindWrapUp is a no-op because a user-driven pane has no graceful wind-down.
+// WindWrapUp types the configured message into the pane and submits it, so the
+// subagent finishes and reports. A closed subagent ignores it.
 func (j *interactiveSubagentJob) Wind(ctx context.Context, sig scheddomain.WindSignal) error {
 	if sig == scheddomain.WindStop {
 		return tmuxKillPane(ctx, j.state.PaneID)
 	}
+	s := j.tool.tracker.GetSubagent(j.state.ID)
+	if s == nil || j.wrapUp == "" || j.paneState(ctx, s.PaneID) == paneGone {
+		return nil
+	}
+	if err := j.sendKeys(ctx, s.PaneID, j.wrapUp, []string{"Enter"}); err != nil {
+		return fmt.Errorf("send wrap-up to subagent %s: %w", labelOrSession(s.Label, s.SessionID), err)
+	}
+	rearmSubagent(j.tool.tracker, s)
 	return nil
+}
+
+// rearmSubagent marks a subagent that was handed a new turn as running again
+// and drops its stale result file, so the completion watcher reports the new
+// turn. It reports false for a subagent that was already running.
+func rearmSubagent(tracker scheddomain.SubagentTracker, s *scheddomain.SubagentState) bool {
+	if s.Status == scheddomain.SubagentRunning {
+		return false
+	}
+	_ = os.Remove(subagentResultFilePath(s.SessionID))
+	_ = tracker.SetSubagentStatus(s.ID, scheddomain.SubagentRunning)
+	return true
 }
 
 // Close drops the subagent from the tracker on reap. The monitor's teardown

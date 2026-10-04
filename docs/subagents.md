@@ -143,6 +143,24 @@ can talk to it without respawning and losing its context:
 - `tools.agent.wait: true` (blocking fan-in) is unchanged: a blocking subagent
   returns its first turn and is not kept alive.
 
+## Asking a Job to Wrap Up
+
+A sub-agent or A2A task that runs long can be told to finish and report without losing its work. Select the
+job list under the composer (`↓` from the input, then `↓` again from the status indicators), move to the row
+and press `c`. The hint under the rows shows `c wrap up` whenever the selected row can take it, and the same
+line then confirms `wrap-up requested` or says why the job could not take it.
+
+- A headless subagent receives the message as its next turn, right after its current tool call. The parent
+  still gets the normal `[Subagent Completed: <label>]` note when that turn ends. An idle subagent has
+  nothing to wrap up, so it is left alone.
+- An interactive subagent has the message typed into its tmux pane and submitted. The pane is not closed.
+- An A2A task takes the message only while it is paused on `input-required`. In any other state the task
+  cannot receive input and nothing is cancelled.
+- Shells and recordings ignore the key. To stop a job outright, use `cancel` in the Task view.
+
+The message is `tools.agent.wrap_up_message`, by default `Time's up: wrap up and get to your final message.`
+`INFER_TOOLS_AGENT_WRAP_UP_MESSAGE` overrides it and an empty value disables the key.
+
 ## Interactive Subagents
 
 With `tools.agent.mode: interactive` a delegated subagent runs as a live

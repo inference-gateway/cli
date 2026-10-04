@@ -45,6 +45,8 @@ type SubagentList struct {
 	focused       bool
 	selectedID    string
 	viewingID     string
+	noteID        string
+	note          string
 	offset        int
 }
 
@@ -231,6 +233,7 @@ func (l *SubagentList) Focus() bool {
 func (l *SubagentList) Blur() {
 	l.focused = false
 	l.viewingID = ""
+	l.note = ""
 }
 
 // IsFocused reports whether the list holds the keyboard selection.
@@ -261,6 +264,7 @@ func (l *SubagentList) moveSelection(delta int) bool {
 		return false
 	}
 	l.selectedID = rows[next].id
+	l.note = ""
 	return true
 }
 
@@ -290,13 +294,50 @@ func (l *SubagentList) Job(id string) (scheddomain.TrackedJob, bool) {
 // past the linger window. An empty ID clears it.
 func (l *SubagentList) SetViewing(id string) { l.viewingID = id }
 
-// focusHint is the key legend shown under the rows while the list has focus.
+// focusHint is the line under the rows while the list has focus: the note left
+// on the selected job, otherwise the key legend. The legend offers the wrap-up
+// key only on a row that can take it.
 func (l *SubagentList) focusHint() string {
-	if l.viewingID != "" {
-		return "↑/↓ switch · esc back to chat"
+	job, selected := l.SelectedJob()
+	if selected && l.note != "" && job.Meta.ID == l.noteID {
+		return l.note
 	}
-	return "↑/↓ select · enter view · esc back"
+	wrapUp := ""
+	if selected && l.canWrapUp(job) {
+		wrapUp = " · c wrap up"
+	}
+	if l.viewingID != "" {
+		return "↑/↓ switch" + wrapUp + " · esc back to chat"
+	}
+	return "↑/↓ select · enter view" + wrapUp + " · esc back"
 }
+
+// CanWrapUp reports whether the selected job can be asked to finish and report.
+func (l *SubagentList) CanWrapUp() bool {
+	job, ok := l.SelectedJob()
+	return ok && l.canWrapUp(job)
+}
+
+// canWrapUp holds for a running sub-agent and for an A2A task, unless the
+// wrap-up message is configured empty. A task paused on input-required is
+// finished to the supervisor yet still takes a message, so an A2A row decides
+// for itself.
+func (l *SubagentList) canWrapUp(job scheddomain.TrackedJob) bool {
+	if l.config != nil && l.config.Tools.Agent.WrapUpMessage == "" {
+		return false
+	}
+	switch job.Meta.Kind {
+	case scheddomain.JobKindA2A:
+		return true
+	case scheddomain.JobKindSubagent:
+		return job.Status == scheddomain.JobRunning
+	}
+	return false
+}
+
+// SetNote leaves a one-line note on a job, shown in place of the key legend
+// while that job stays selected.
+func (l *SubagentList) SetNote(jobID, note string) { l.noteID, l.note = jobID, note }
 
 // jobRowKind is the row's metadata tag: the job kind, followed by where the work
 // runs when the job says so (an A2A task is "a2a local" or "a2a external").

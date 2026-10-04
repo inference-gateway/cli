@@ -69,6 +69,7 @@ func newList(opts listOpts) *SubagentList {
 	cfg := &config.Config{}
 	cfg.Chat.StatusBar.Indicators.Subagents = opts.indicator
 	cfg.Chat.StatusBar.SubagentLingerSeconds = opts.linger
+	cfg.Tools.Agent.WrapUpMessage = "wrap up"
 	list.SetConfig(cfg)
 	list.SetRegistry(&fakeRegistry{jobs: opts.jobs})
 	return list
@@ -536,6 +537,37 @@ func TestSubagentListStatsIconsDimAtZero(t *testing.T) {
 			want += strings.Repeat(" ", width-provider.GetWidth(want))
 			if got := list.statsView(tt.stats, 0, 1, width); got != want {
 				t.Errorf("statsView() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// TestSubagentListWrapUpHint: the wrap-up key is offered only on a row that can
+// take it, and a note left on the selected job replaces the legend.
+func TestSubagentListWrapUpHint(t *testing.T) {
+	now := time.Now()
+	done := now.Add(-time.Second)
+	tests := []struct {
+		name string
+		job  scheddomain.TrackedJob
+		want bool
+	}{
+		{"running sub-agent", subagentJob("a", scheddomain.JobRunning, now, nil), true},
+		{"finished sub-agent", subagentJob("a", scheddomain.JobCompleted, now, &done), false},
+		{"a2a task", a2aJob("t1", "http://agent:8080", scheddomain.JobRunning, now, nil), true},
+		{"paused a2a task", a2aJob("t1", "http://agent:8080", scheddomain.JobCompleted, now, &done), true},
+		{"shell", shellJob("sh1", "make", scheddomain.JobRunning, now), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			list := newList(listOpts{indicator: true, linger: 60, jobs: []scheddomain.TrackedJob{tt.job}})
+			list.Focus()
+			if got := strings.Contains(plain(list.Render()), "c wrap up"); got != tt.want || list.CanWrapUp() != tt.want {
+				t.Fatalf("wrap-up hint shown=%v can=%v, want %v", got, list.CanWrapUp(), tt.want)
+			}
+			list.SetNote(tt.job.Meta.ID, "wrap-up requested")
+			if got := plain(list.Render()); !strings.Contains(got, "wrap-up requested") || strings.Contains(got, "esc back") {
+				t.Fatalf("the note should replace the legend, got %q", got)
 			}
 		})
 	}
