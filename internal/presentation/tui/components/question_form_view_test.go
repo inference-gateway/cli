@@ -76,10 +76,26 @@ func TestQuestionFormView_RendersQuestion(t *testing.T) {
 	v, _ := newQuestionFormForTest(questionStateForTest())
 
 	out := v.Render()
-	for _, want := range []string{"Format", "(1/1)", "Which output format?", "JSON", "YAML", "Other"} {
+	for _, want := range []string{"Format", "Which output format?", "JSON", "machine readable", "YAML", "Other"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected render to contain %q, got:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "1 of 1") {
+		t.Errorf("expected no progress counter for a single question, got:\n%s", out)
+	}
+}
+
+func TestQuestionFormView_RendersProgressCounter(t *testing.T) {
+	question := agentdomain.UserQuestion{
+		Header:   "Fmt",
+		Question: "q",
+		Options:  []agentdomain.UserQuestionOption{{Label: "A"}, {Label: "B"}},
+	}
+	v, _ := newQuestionFormForTest(questionStateForTest(question, question))
+
+	if out := v.Render(); !strings.Contains(out, "1 of 2") {
+		t.Errorf("expected the progress counter, got:\n%s", out)
 	}
 }
 

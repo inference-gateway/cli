@@ -564,7 +564,7 @@ func (iv *InputView) renderDisabledPlaceholder() string {
 	}
 
 	if iv.stateManager.GetPlanApprovalUIState() != nil {
-		return iv.styleProvider.RenderDimText("⏸  Plan approval required - use ←/→ or h/l to navigate, Enter/y to accept (auto), n to reject, s to approve each step")
+		return iv.styleProvider.RenderDimText("⏸  Plan approval required")
 	}
 
 	if iv.stateManager.GetApprovalUIState() != nil {

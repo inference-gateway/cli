@@ -77,7 +77,7 @@ func (s *Service) planApprovalRequestedCmds(_ string) []tea.Cmd {
 		},
 		func() tea.Msg {
 			return tui.SetStatusEvent{
-				Message:    "Plan ready - use arrow keys to select and Enter to confirm",
+				Message:    "Plan ready for review",
 				Spinner:    false,
 				StatusType: tui.StatusDefault,
 			}
@@ -95,7 +95,7 @@ func (s *Service) HandleUserQuestionRequested(msg agentdomain.UserQuestionReques
 
 	return func() tea.Msg {
 		return tui.SetStatusEvent{
-			Message:    "Please answer the question(s) - ↑/↓ move, space toggle, enter to continue, esc to cancel",
+			Message:    "Waiting for your answer",
 			Spinner:    false,
 			StatusType: tui.StatusDefault,
 		}
