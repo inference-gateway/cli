@@ -680,7 +680,7 @@ cli/
 Global port registry prevents race conditions:
 
 ```go
-// internal/config/config.go
+// config/config.go
 var (
     allocatedPorts = make(map[int]bool)
     portMutex      sync.Mutex

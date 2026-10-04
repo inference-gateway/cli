@@ -153,9 +153,11 @@ The background job system:
 
 Title generation works with all supported storage backends:
 
+- **JSONL** (the default `storage.type`): Full support, scoped to the current project's store
 - **SQLite**: Full support with database schema migration
 - **PostgreSQL**: Full support with database schema migration
 - **Redis**: Full support using JSON metadata storage
+- **Cloudflare D1**: Full support with database schema migration
 - **In-Memory**: Not supported (titles would be lost on restart)
 
 ## Best Practices
