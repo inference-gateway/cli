@@ -307,7 +307,7 @@ func TestIsBashCommandAllowed_FindActions(t *testing.T) {
 	}
 }
 
-func TestIsBashCommandAllowed_GitStatusFlags(t *testing.T) {
+func TestIsBashCommandAllowed_ReadOnlyDefaults(t *testing.T) {
 	cfg := config.DefaultConfig()
 	allowed := []string{
 		"git status",
@@ -315,10 +315,28 @@ func TestIsBashCommandAllowed_GitStatusFlags(t *testing.T) {
 		"git status -s",
 		"git status --porcelain --untracked-files=all",
 		"git status -sb 2>&1",
+		"git rev-parse HEAD",
+		"git rev-parse --show-toplevel",
+		"git merge-base origin/main HEAD",
+		"git ls-remote origin",
+		"git ls-remote --heads origin main",
+		"which go",
 	}
 	for _, cmd := range allowed {
 		if !IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
 			t.Errorf("expected read-only %q to be allowed", cmd)
+		}
+	}
+
+	denied := []string{
+		"git ls-remote --upload-pack=touch .",
+		"git ls-remote --upload-pack touch .",
+		"git ls-remote --exec=touch origin",
+		"git rev-parse --output=x",
+	}
+	for _, cmd := range denied {
+		if IsBashCommandAllowed(cfg, cmd, agentdomain.AgentModeStandard) {
+			t.Errorf("expected %q NOT to be allowed", cmd)
 		}
 	}
 }
@@ -855,6 +873,8 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh project list --owner o", "gh project view 7", "gh project item-list 7",
 		"gh api repos/inference-gateway/.github/contents/ISSUE_TEMPLATE",
 		"gh api repos/o/r/contents/docs/README.md",
+		"gh api repos/o/r/contents/docs/README.md -H 'Accept: application/vnd.github.raw'",
+		`gh api repos/o/r/contents/docs/README.md -H "Accept: application/vnd.github.raw"`,
 		"gh api 'user/repos?per_page=100' --paginate --jq '.[].full_name'",
 		"gh api user/repos --paginate",
 	}
@@ -873,6 +893,7 @@ func TestIsBashCommandAllowed_GhDefaults(t *testing.T) {
 		"gh project item-add 7 --url u", "gh project item-edit 7 --field Status",
 		"gh api repos/o/r/issues -X POST",
 		"gh api repos/o/r/contents/x -X PUT", "gh api repos/o/r/contents/x -f content=y",
+		"gh api repos/o/r/contents/x -H 'Accept: application/json' -X PUT",
 		"gh api user",
 		"gh api user/repos -X POST", "gh api user/repos -f name=x",
 		"env", "printenv", "printenv PATH",
