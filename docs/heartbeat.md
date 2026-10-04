@@ -64,12 +64,14 @@ Key properties:
 infer init
 ```
 
-This creates `.infer/heartbeat.yaml` (disabled by default) and
-includes a `system_prompt_heartbeat` entry in `.infer/prompts.yaml`.
+This creates `~/.infer/heartbeat.yaml` (disabled by default) and
+includes a `system_prompt_heartbeat` entry in `~/.infer/prompts.yaml`.
+A project `.infer/heartbeat.yaml`, when present, is read instead of
+the userspace one.
 
 ### 2. Enable and tune the heartbeat
 
-Edit `.infer/heartbeat.yaml`:
+Edit `~/.infer/heartbeat.yaml`:
 
 ```yaml
 ---
@@ -82,7 +84,7 @@ prompt: "Heartbeat tick - check for any pending tasks, todos, or background work
 
 The `prompt` field is the **user message** sent to the agent each
 tick. The **system prompt** (the steering instructions) lives in
-`.infer/prompts.yaml`:
+`~/.infer/prompts.yaml`:
 
 ```yaml
 agent:
@@ -122,7 +124,7 @@ INFO heartbeat tick complete  conversation_id=…
 
 ## Configuration reference
 
-### `.infer/heartbeat.yaml`
+### `~/.infer/heartbeat.yaml` (or a project `.infer/heartbeat.yaml`)
 
 | Field           | Type            | Default     | Description                                                                                |
 | --------------- | --------------- | ----------- | ------------------------------------------------------------------------------------------ |
