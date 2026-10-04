@@ -127,10 +127,15 @@ type SubagentRunStats struct {
 	CachedTokens   int `json:"cached_tokens,omitempty"`
 }
 
-// String renders the stats as the one line the parent agent reads.
+// String renders the stats as the one line the parent agent reads. Zero tokens
+// means the run reported no usage, as some A2A agents do, so the token part is
+// dropped rather than claiming none were spent.
 func (s SubagentRunStats) String() string {
-	return fmt.Sprintf("Tools: %d succeeded, %d failed | Tokens: %d in, %d out",
-		s.ToolsSucceeded, s.ToolsFailed, s.InputTokens, s.OutputTokens)
+	text := fmt.Sprintf("Tools: %d succeeded, %d failed", s.ToolsSucceeded, s.ToolsFailed)
+	if s.InputTokens+s.OutputTokens == 0 {
+		return text
+	}
+	return text + fmt.Sprintf(" | Tokens: %d in, %d out", s.InputTokens, s.OutputTokens)
 }
 
 // WriteSubagentResultFile writes rf to path through a temp file and rename, so

@@ -295,8 +295,8 @@ func TestA2AJobStatsFollowTaskMetadata(t *testing.T) {
 	}
 
 	metadata := map[string]any{
-		"usage":           map[string]any{"prompt_tokens": float64(1200), "completion_tokens": float64(80)},
-		"execution_stats": map[string]any{"tool_calls": float64(4), "failed_tools": float64(1)},
+		adk.UsageMetadataKey:          map[string]any{"prompt_tokens": float64(1200), "completion_tokens": float64(80)},
+		adk.ExecutionStatsMetadataKey: map[string]any{"tool_calls": float64(4), "failed_tools": float64(1)},
 	}
 	j.recordStats(adk.Task{ID: "t1", Metadata: &metadata})
 	j.recordStats(adk.Task{ID: "t1"})
@@ -304,5 +304,23 @@ func TestA2AJobStatsFollowTaskMetadata(t *testing.T) {
 	want := scheddomain.SubagentRunStats{ToolsSucceeded: 3, ToolsFailed: 1, InputTokens: 1200, OutputTokens: 80}
 	if got := j.Stats(); got == nil || *got != want {
 		t.Fatalf("stats = %+v, want %+v", got, want)
+	}
+}
+
+// TestA2AJobStatsWithoutUsage: an agent that reports execution stats but no
+// usage gets its tool counts shown and no token figures.
+func TestA2AJobStatsWithoutUsage(t *testing.T) {
+	j := &a2aJob{taskID: "t1", agentURL: "http://a"}
+	metadata := map[string]any{
+		adk.ExecutionStatsMetadataKey: map[string]any{"failed_tools": float64(0), "iterations": float64(3), "messages": float64(1), "tool_calls": float64(1)},
+	}
+	j.recordStats(adk.Task{ID: "t1", Metadata: &metadata})
+
+	got := j.Stats()
+	if got == nil {
+		t.Fatal("stats = nil, want the tool counts")
+	}
+	if want := "Tools: 1 succeeded, 0 failed"; got.String() != want {
+		t.Fatalf("String() = %q, want %q", got.String(), want)
 	}
 }

@@ -2,14 +2,17 @@ package infrastructure
 
 import (
 	client "github.com/inference-gateway/adk/client"
+	adk "github.com/inference-gateway/adk/types"
 
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
 // NewClient returns an ADK client for the agent at agentURL whose requests
-// carry the session's trace context, so remote spans nest under ours.
+// carry the session's trace context, so remote spans nest under ours. Every
+// request activates the usage extension, so tasks come back with their usage.
 func NewClient(agentURL string) client.A2AClient {
 	cfg := client.DefaultConfig(agentURL)
 	cfg.Transport = telemetry.PropagationTransport(nil)
+	cfg.Headers["A2A-Extensions"] = adk.UsageExtensionURI
 	return client.NewClientWithConfig(cfg)
 }

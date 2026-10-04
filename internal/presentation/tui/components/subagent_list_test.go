@@ -542,8 +542,8 @@ func TestSubagentListStatsIconsDimAtZero(t *testing.T) {
 	const width = 60
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			want := fmt.Sprintf("└ %d %s %d %s %s", tt.stats.ToolsSucceeded, tick(tt.tickColor),
-				tt.stats.ToolsFailed, cross(tt.crossColor), provider.RenderWithColor("· 0 tokens", dim))
+			want := fmt.Sprintf("└ %d %s %d %s", tt.stats.ToolsSucceeded, tick(tt.tickColor),
+				tt.stats.ToolsFailed, cross(tt.crossColor))
 			want += strings.Repeat(" ", width-provider.GetWidth(want))
 			if got := list.statsView(tt.stats, 0, 1, width); got != want {
 				t.Errorf("statsView() = %q, want %q", got, want)

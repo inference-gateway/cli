@@ -655,21 +655,20 @@ func (t *SubmitTaskTool) formatA2ATaskData(data any, metadata map[string]string)
 	return dataContent.String(), hasMetadata
 }
 
-// appendTaskMetadataLines writes "Usage:" / "Execution Stats:" lines
-// from Task.Metadata into the formatted result, so the persisted history
-// view shows per-task token consumption and tool counts. Silently no-ops
-// when the remote agent didn't attach metadata (older ADK, or
-// EnableUsageMetadata=false).
+// appendTaskMetadataLines writes "Usage:" / "Execution Stats:" lines from the
+// usage extension's task metadata into the formatted result, so the persisted
+// history view shows per-task token consumption and tool counts. It no-ops
+// when the remote agent does not serve the extension.
 func (t *SubmitTaskTool) appendTaskMetadataLines(builder *strings.Builder, task *adk.Task) {
 	if task == nil || task.Metadata == nil {
 		return
 	}
 	meta := *task.Metadata
 
-	if usageLine := formatMetadataMap(meta, "usage"); usageLine != "" {
+	if usageLine := formatMetadataMap(meta, adk.UsageMetadataKey); usageLine != "" {
 		fmt.Fprintf(builder, "Usage: %s\n", usageLine)
 	}
-	if statsLine := formatMetadataMap(meta, "execution_stats"); statsLine != "" {
+	if statsLine := formatMetadataMap(meta, adk.ExecutionStatsMetadataKey); statsLine != "" {
 		fmt.Fprintf(builder, "Execution Stats: %s\n", statsLine)
 	}
 }
