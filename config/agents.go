@@ -39,8 +39,8 @@ type AgentAuth struct {
 }
 
 // AgentOIDC is the client of a client-credentials grant. Where to get the token
-// is declared by the agent card's security schemes, not here. IssuerURL is an
-// optional pin: the card may then only point at that issuer.
+// is declared by the agent card's security schemes. IssuerURL is optional: the
+// card may then only point at that issuer, and it is used when the card declares none.
 type AgentOIDC struct {
 	ClientID        string `yaml:"client_id" mapstructure:"client_id"`
 	ClientSecretEnv string `yaml:"client_secret_env" mapstructure:"client_secret_env"`

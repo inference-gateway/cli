@@ -209,7 +209,8 @@ type tokenEndpoint struct {
 // declaredTokenEndpoint reads the token endpoint from the security schemes of
 // the agent's card: an openIdConnect scheme through its discovery document, or
 // an oauth2 scheme's client-credentials flow. With a pinned issuer the card may
-// only point there, so a tampered card cannot send the client secret elsewhere.
+// only point there, so a tampered card cannot send the client secret elsewhere,
+// and a card that declares no scheme falls back to that issuer.
 func declaredTokenEndpoint(agentURL, pinnedIssuer string) (tokenEndpoint, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), oidcHTTPClient.Timeout)
 	defer cancel()
@@ -234,7 +235,11 @@ func declaredTokenEndpoint(agentURL, pinnedIssuer string) (tokenEndpoint, error)
 			return endpoint, checkPinnedIssuer(endpoint.url, pinnedIssuer)
 		}
 	}
-	return tokenEndpoint{}, errors.New("the agent card declares no openIdConnect or oauth2 client-credentials security scheme")
+	if pinnedIssuer == "" {
+		return tokenEndpoint{}, errors.New("the agent card declares no openIdConnect or oauth2 client-credentials security scheme, set auth.oidc.issuer_url")
+	}
+	fallbackURL, err := discoverTokenEndpoint(strings.TrimSuffix(pinnedIssuer, "/") + "/.well-known/openid-configuration")
+	return tokenEndpoint{url: fallbackURL}, err
 }
 
 func requiredScopes(card *adk.AgentCard, schemeName string) []string {

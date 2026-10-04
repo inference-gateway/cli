@@ -210,7 +210,7 @@ agents:
         client_id: infer
         client_secret_env: BILLING_AGENT_CLIENT_SECRET
         audience: billing-agent                            # Optional
-        issuer_url: https://idp.example.com/realms/agents  # Optional pin, see below
+        issuer_url: https://idp.example.com/realms/agents  # Optional, see below
 ```
 
 You do not configure where the token comes from. As the A2A protocol defines, the agent declares it in the
@@ -222,8 +222,15 @@ You do not configure where the token comes from. As the A2A protocol defines, th
 The scopes the card's `securityRequirements` list for that scheme are requested with the token. The CLI fetches
 a token with the client-credentials grant, reuses it across requests and refreshes it shortly before it expires.
 
-The client secret is sent to the token endpoint the card names. Set `issuer_url` to pin it: the CLI then refuses
-a card that points anywhere outside that issuer, so a tampered card cannot collect the secret.
+`issuer_url` is optional and does two things:
+
+- **Pin.** The client secret is sent to the token endpoint the card names. With `issuer_url` set, the CLI refuses
+  a card that points anywhere outside that issuer, so a tampered card cannot collect the secret.
+- **Fallback.** An agent whose card declares no security scheme cannot say where its tokens come from. The CLI
+  then discovers the token endpoint from `issuer_url`. Without it, such an agent fails with an authentication error.
+
+The [a2a-auth example](../examples/a2a-auth/) runs one agent behind a bearer token and one behind OIDC with
+Keycloak, with a mock model and no API key.
 
 ### Notes
 

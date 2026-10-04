@@ -261,7 +261,7 @@ a2a:
   never shown in logs, tool results or `infer agents list`.
 - Credentials are sent only to the origin of the agent they are configured for.
 - For OIDC the token endpoint is read from the `securitySchemes` of the agent card. An optional `issuer_url`
-  pins the issuer the card may point at.
+  pins the issuer the card may point at and is used when the card declares none.
 
 ### Network Security
 

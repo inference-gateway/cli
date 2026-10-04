@@ -116,9 +116,9 @@ func TestNewClient_KeepsCredentialsOnTheAgentOrigin(t *testing.T) {
 	}
 }
 
-// fakeIssuer serves an OIDC discovery document and a token endpoint. Its first
-// token expires at once, later ones are long lived.
-func fakeIssuer(t *testing.T) (*httptest.Server, *atomic.Int32) {
+// fakeIssuer serves an OIDC discovery document and a token endpoint that
+// insists on wantScope. Its first token expires at once, later ones are long lived.
+func fakeIssuer(t *testing.T, wantScope string) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var tokenRequests atomic.Int32
 	var issuer *httptest.Server
@@ -128,7 +128,7 @@ func fakeIssuer(t *testing.T) (*httptest.Server, *atomic.Int32) {
 			_, _ = fmt.Fprintf(w, `{"token_endpoint":%q}`, issuer.URL+"/token")
 			return
 		}
-		if err := r.ParseForm(); err != nil || r.Form.Get("audience") != "research-agent" || r.Form.Get("scope") != "tasks" {
+		if err := r.ParseForm(); err != nil || r.Form.Get("audience") != "research-agent" || r.Form.Get("scope") != wantScope {
 			http.Error(w, "missing audience or scope", http.StatusBadRequest)
 			return
 		}
@@ -170,7 +170,7 @@ func TestNewClient_OIDCTokenComesFromTheCardAndIsReused(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			issuer, _ := fakeIssuer(t)
+			issuer, _ := fakeIssuer(t, "tasks")
 			agent := &authRecorder{card: fmt.Sprintf(
 				`{"name":"research","securitySchemes":{"idp":%s},"securityRequirements":[{"schemes":{"idp":{"list":["tasks"]}}}]}`,
 				tt.scheme(issuer.URL))}
@@ -190,6 +190,25 @@ func TestNewClient_OIDCTokenComesFromTheCardAndIsReused(t *testing.T) {
 				t.Fatalf("Authorization headers = %q, want %q (one card read, the first token expires at once, the second is reused)", got, want)
 			}
 		})
+	}
+}
+
+// TestNewClient_OIDCFallsBackToTheConfiguredIssuer: an agent whose card
+// declares no security scheme is reached through auth.oidc.issuer_url.
+func TestNewClient_OIDCFallsBackToTheConfiguredIssuer(t *testing.T) {
+	issuer, _ := fakeIssuer(t, "")
+	agent := &authRecorder{}
+	srv := httptest.NewServer(agent)
+	defer srv.Close()
+	writeAgentsYAML(t, fmt.Sprintf(oidcAgentsYAML, srv.URL)+"        issuer_url: "+issuer.URL+"\n")
+	t.Setenv("RESEARCH_CLIENT_SECRET", "s3cret")
+
+	if _, err := NewClient(srv.URL).GetTask(t.Context(), adk.GetTaskRequest{ID: "t1"}); err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	want := []string{"", "Bearer token-1"}
+	if got := agent.headers(); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("Authorization headers = %q, want %q", got, want)
 	}
 }
 
@@ -216,7 +235,7 @@ func TestNewClient_OIDCRefusesACardItCannotTrust(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			issuer, tokenRequests := fakeIssuer(t)
+			issuer, tokenRequests := fakeIssuer(t, "tasks")
 			srv := httptest.NewServer(&authRecorder{card: tt.card(issuer.URL)})
 			defer srv.Close()
 			agents := fmt.Sprintf(oidcAgentsYAML, srv.URL)
