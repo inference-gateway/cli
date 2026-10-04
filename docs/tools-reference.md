@@ -503,11 +503,15 @@ tools:
           - git diff( .*)?
           - git remote( -v)?
           - git show( .*)?
+          - git rev-parse( .*)?
+          - git merge-base( .*)?
+          - git ls-remote( --(heads|branches|tags|refs|symref|quiet|exit-code|get-url)| -[htq]+| [^ -][^ ]*)*
+          - which( .*)?
           - gh (issue|pr|repo|release|run|workflow) (list|view|status|diff|checks)( .*)?
           - gh auth status( .*)?
           - gh search (issues|code|prs|repos|commits)( .*)?
           - gh project (list|view|item-list|field-list)( .*)?
-          - gh api repos/[^ ]+/contents/[^ ]+
+          - 'gh api repos/[^ ]+/contents/[^ ]+( -H [''"]?Accept: application/vnd\.github\.raw[''"]?)?'
           - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
           - infer binaries status( .*)?
       plan:       # read-only planning mode adds nothing
