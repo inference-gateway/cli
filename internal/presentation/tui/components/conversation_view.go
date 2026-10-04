@@ -675,7 +675,7 @@ func (cv *ConversationView) tryRenderSpecialEntry(entry convdomain.ConversationE
 		}
 	case "assistant":
 		if entry.IsPlan {
-			return true, cv.renderPlanEntry(entry, index)
+			return true, cv.renderPlanEntry(entry)
 		}
 		if entry.PendingToolCall != nil {
 			return true, cv.renderPendingToolEntry(entry)
@@ -1336,69 +1336,63 @@ func (cv *ConversationView) renderToolCommandEntry(_ convdomain.ConversationEntr
 	return message + "\n"
 }
 
-// renderPlanEntry renders the plan body as a regular markdown-rendered
-// assistant message under a status-aware header, followed by inline
-// approval buttons while approval is pending.
-func (cv *ConversationView) renderPlanEntry(entry convdomain.ConversationEntry, index int) string {
-	var result strings.Builder
-
-	color, role := cv.planRoleAndColor(entry)
-	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
+// renderPlanEntry renders a plan behind a rail in its approval status color:
+// a status chip, the markdown body and the approval actions while pending.
+func (cv *ConversationView) renderPlanEntry(entry convdomain.ConversationEntry) string {
+	color, status := cv.planColorAndStatus(entry)
 
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 
-	wrapWidth := max(cv.width-2, 40)
+	wrapWidth := max(cv.width-4, 40)
 
-	var formattedContent string
+	var body string
 	switch entry.PlanApprovalStatus {
 	case convdomain.PlanApprovalRejected:
 		plain := formatting.FormatResponsiveMessage(contentStr, wrapWidth)
-		formattedContent = cv.styleProvider.RenderWithColor(plain, color)
+		body = cv.styleProvider.RenderWithColor(plain, color)
 	default:
-		formattedContent = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
+		body = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
 	}
 
-	result.WriteString(roleStyled)
-	result.WriteString("\n\n")
-	for line := range strings.SplitSeq(formattedContent, "\n") {
-		if line == "" {
-			result.WriteString("\n")
-			continue
-		}
-		result.WriteString("  ")
-		result.WriteString(line)
-		result.WriteString("\n")
+	parts := []string{
+		cv.styleProvider.RenderChip("Plan", color) + " " + cv.styleProvider.RenderDimText(status),
+		"",
+		strings.Trim(body, "\n"),
 	}
-
 	if entry.PlanApprovalStatus == convdomain.PlanApprovalPending {
-		result.WriteString("\n")
-		result.WriteString(cv.renderInlineApprovalButtons(index))
-		result.WriteString("\n")
+		parts = append(parts, "", cv.renderPlanApprovalActions())
 	}
 
-	return result.String() + "\n"
+	return cv.styleProvider.RenderRail(strings.Join(parts, "\n"), color) + "\n\n"
 }
 
-// planRoleAndColor returns the role label + theme color for a plan entry
+// planColorAndStatus returns the theme color and status text for a plan entry
 // based on its approval status.
-func (cv *ConversationView) planRoleAndColor(entry convdomain.ConversationEntry) (string, string) {
+func (cv *ConversationView) planColorAndStatus(entry convdomain.ConversationEntry) (string, string) {
 	switch entry.PlanApprovalStatus {
 	case convdomain.PlanApprovalPending:
-		return cv.styleProvider.GetThemeColor("accent"), "Plan (Pending Approval)"
+		return cv.styleProvider.GetThemeColor("accent"), "pending approval"
 	case convdomain.PlanApprovalAccepted:
-		return cv.styleProvider.GetThemeColor("success"), "Plan (Accepted)"
+		return cv.styleProvider.GetThemeColor("success"), "accepted"
 	case convdomain.PlanApprovalRejected:
-		return cv.styleProvider.GetThemeColor("dim"), "Plan (Rejected)"
+		return cv.styleProvider.GetThemeColor("dim"), "rejected"
 	default:
-		return cv.getAssistantColor(), "Plan"
+		return cv.getAssistantColor(), ""
 	}
 }
 
-// renderInlineApprovalButtons renders inline approval buttons for a plan
-func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
+var planApprovalLabels = [...]string{
+	agentdomain.PlanApprovalAccept:         "Accept",
+	agentdomain.PlanApprovalReject:         "Reject",
+	agentdomain.PlanApprovalAcceptStandard: "Approve each step",
+}
+
+// renderPlanApprovalActions renders the plan actions on one row, the selected
+// one as an accent chip, above the keys that drive them.
+func (cv *ConversationView) renderPlanApprovalActions() string {
 	selectedIndex := 0
 	if cv.stateManager != nil {
 		if planState := cv.stateManager.GetPlanApprovalUIState(); planState != nil {
@@ -1406,47 +1400,18 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		}
 	}
 
-	acceptText := "Accept"
-	rejectText := "Reject"
-	standardText := "Approve Each Step"
-
-	successColor := cv.styleProvider.GetThemeColor("success")
-	errorColor := cv.styleProvider.GetThemeColor("error")
 	accentColor := cv.styleProvider.GetThemeColor("accent")
-	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
-
-	var acceptStyled, rejectStyled, standardStyled string
-	if selectedIndex == int(agentdomain.PlanApprovalAccept) {
-		acceptStyled = cv.styleProvider.RenderStyledText("[ "+acceptText+" ]", styles.StyleOptions{
-			Foreground: successColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		acceptStyled = cv.styleProvider.RenderWithColor("[ "+acceptText+" ]", successColor)
+	actions := make([]string, len(planApprovalLabels))
+	for i, label := range planApprovalLabels {
+		if i == selectedIndex {
+			actions[i] = cv.styleProvider.RenderChip(label, accentColor)
+			continue
+		}
+		actions[i] = cv.styleProvider.RenderDimText(" " + label + " ")
 	}
 
-	if selectedIndex == int(agentdomain.PlanApprovalReject) {
-		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
-			Foreground: errorColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
-	}
-
-	if selectedIndex == int(agentdomain.PlanApprovalAcceptStandard) {
-		standardStyled = cv.styleProvider.RenderStyledText("[ "+standardText+" ]", styles.StyleOptions{
-			Foreground: accentColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		standardStyled = cv.styleProvider.RenderWithColor("[ "+standardText+" ]", accentColor)
-	}
-
-	return fmt.Sprintf("  %s  %s  %s", acceptStyled, rejectStyled, standardStyled)
+	hint := cv.styleProvider.RenderDimText("←→ choose · enter confirm · esc reject")
+	return strings.Join(actions, " ") + "\n" + hint
 }
 
 // renderPendingToolEntry renders a pending tool call that requires approval

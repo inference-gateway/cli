@@ -10,6 +10,7 @@ import (
 	huh "charm.land/huh/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
@@ -20,14 +21,14 @@ const minQuestionOptionWidth = 20
 
 // otherOptionLabel is the synthesized free-text choice appended to every
 // question. It is not one of the model-provided options.
-const otherOptionLabel = "Other (type your own)"
+const otherOptionLabel = "Other…"
 
 // otherSentinel is the option value standing in for the synthesized "Other"
 // row; real options are their index into question.Options.
 const otherSentinel = -1
 
-// QuestionFormView drives the interactive AskUserQuestion form as a bordered
-// box floating above the input (mirroring ApprovalBoxView). It owns the
+// QuestionFormView drives the interactive AskUserQuestion form behind an accent
+// rail floating above the input. It owns the
 // answer-in-progress state as one huh form per question; the state store only
 // carries the questions, the overlay-active flag, and the response channel.
 // The agent loop is blocked in the tool goroutine until the answers are sent
@@ -142,21 +143,18 @@ func (qv *QuestionFormView) buildForm() {
 	for i, opt := range question.Options {
 		label := opt.Label
 		if opt.Description != "" {
-			label = fmt.Sprintf("%s - %s", opt.Label, opt.Description)
+			label = opt.Label + "\n  " + qv.styleProvider.RenderDimText(opt.Description)
 		}
 		options = append(options, huh.NewOption(label, i))
 	}
 	options = append(options, huh.NewOption(otherOptionLabel, otherSentinel))
 
-	title := fmt.Sprintf("%s (%d/%d)", strings.TrimSpace(question.Header), qv.idx+1, len(qv.active.Questions))
 	qv.other = ""
 
 	var choiceField huh.Field
 	if question.MultiSelect {
 		qv.multi = nil
 		choiceField = huh.NewMultiSelect[int]().
-			Title(title).
-			Description(question.Question).
 			Options(options...).
 			Validate(func(v []int) error {
 				if len(v) == 0 {
@@ -168,14 +166,12 @@ func (qv *QuestionFormView) buildForm() {
 	} else {
 		qv.single = defaultUserQuestionOption(question)
 		choiceField = huh.NewSelect[int]().
-			Title(title).
-			Description(question.Question).
 			Options(options...).
 			Value(&qv.single)
 	}
 
 	otherInput := huh.NewInput().
-		Title(otherOptionLabel).
+		Title("Your answer").
 		Validate(func(s string) error {
 			if strings.TrimSpace(s) == "" {
 				return fmt.Errorf("answer is required")
@@ -194,7 +190,7 @@ func (qv *QuestionFormView) buildForm() {
 		WithShowHelp(true).
 		WithWidth(qv.textBudget()).
 		WithKeyMap(keymap).
-		WithTheme(huhTheme(qv.styleProvider))
+		WithTheme(questionHuhTheme(qv.styleProvider))
 }
 
 // otherChosen reports whether the synthesized "Other" row is currently chosen.
@@ -245,14 +241,30 @@ func (qv *QuestionFormView) Render() string {
 		return ""
 	}
 	accentColor := qv.styleProvider.GetThemeColor("accent")
-	return qv.styleProvider.RenderBorderedBox(qv.form.View(), accentColor, 0, 1)
+	question := qv.active.Questions[qv.idx]
+	parts := []string{
+		qv.renderHeader(question.Header, accentColor),
+		qv.styleProvider.RenderBold(formatting.WrapText(question.Question, qv.textBudget())),
+		qv.form.View(),
+	}
+	return qv.styleProvider.RenderRail(strings.Join(parts, "\n\n"), accentColor)
 }
 
-// textBudget is the display width available inside the bordered box after
-// reserving room for the border (2) and horizontal padding (2), plus slack
+// renderHeader renders the question's header chip, followed by the progress
+// counter when the prompt holds more than one question.
+func (qv *QuestionFormView) renderHeader(header, chipColor string) string {
+	chip := qv.styleProvider.RenderChip(strings.TrimSpace(header), chipColor)
+	total := len(qv.active.Questions)
+	if total == 1 {
+		return chip
+	}
+	return chip + " " + qv.styleProvider.RenderDimText(fmt.Sprintf("%d of %d", qv.idx+1, total))
+}
+
+// textBudget is the display width available beside the rail (2), plus slack
 // from the right edge.
 func (qv *QuestionFormView) textBudget() int {
-	budget := qv.width - 6
+	budget := qv.width - 4
 	if budget < minQuestionOptionWidth {
 		return minQuestionOptionWidth
 	}

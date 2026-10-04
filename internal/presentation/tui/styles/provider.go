@@ -17,6 +17,8 @@ var (
 	boldStyle    = lipgloss.NewStyle().Bold(true)
 	reverseStyle = lipgloss.NewStyle().Reverse(true)
 	roundedBox   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder(), true)
+	railStyle    = lipgloss.NewStyle().Border(lipgloss.NormalBorder(), false, false, false, true).PaddingLeft(1)
+	chipStyle    = lipgloss.NewStyle().Reverse(true).Bold(true).Padding(0, 1)
 )
 
 // themedStyles holds every style derived from theme colors, pre-baked once per
@@ -661,6 +663,18 @@ func (p *Provider) RenderBorderedBox(text, borderColor string, paddingV, padding
 		BorderForeground(lipgloss.Color(borderColor)).
 		Padding(paddingV, paddingH).
 		Render(text)
+}
+
+// RenderRail renders content behind a thin colored rail on its left edge, the
+// borderless frame of the prompts that wait on the user.
+func (p *Provider) RenderRail(content, railColor string) string {
+	return railStyle.BorderForeground(lipgloss.Color(railColor)).Render(content)
+}
+
+// RenderChip renders text as a padded pill in the given color. Reverse video
+// keeps the label legible on every theme, since Theme exposes no background.
+func (p *Provider) RenderChip(text, hexColor string) string {
+	return chipStyle.Foreground(lipgloss.Color(hexColor)).Render(text)
 }
 
 // RenderTitledCard renders content in a rounded, width-set, padded box with title

@@ -74,3 +74,24 @@ func approvalHuhTheme(p *styles.Provider) huh.Theme {
 		return t
 	})
 }
+
+// questionHuhTheme is huhTheme without the field border, since the question
+// prompt draws its own rail, and with the Charm selector and check glyphs.
+func questionHuhTheme(p *styles.Provider) huh.Theme {
+	base := huhTheme(p)
+	return huh.ThemeFunc(func(isDark bool) *huh.Styles {
+		t := base.Theme(isDark)
+		if p == nil {
+			return t
+		}
+		dim := lipgloss.Color(p.GetThemeColor("dim"))
+		for _, s := range []*huh.FieldStyles{&t.Focused, &t.Blurred} {
+			s.Base = lipgloss.NewStyle()
+			s.SelectSelector = s.SelectSelector.SetString("❯ ")
+			s.MultiSelectSelector = s.MultiSelectSelector.SetString("❯ ")
+			s.SelectedPrefix = s.SelectedPrefix.SetString("✓ ")
+			s.UnselectedPrefix = s.UnselectedPrefix.SetString("• ").Foreground(dim)
+		}
+		return t
+	})
+}

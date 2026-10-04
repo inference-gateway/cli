@@ -153,11 +153,10 @@ func (sv *StatusView) endTurn(cancelled bool) {
 // elapsedExcludingApprovals returns the spinner wall time minus any pause
 // currently held on a user decision, matching the live counter.
 func (sv *StatusView) elapsedExcludingApprovals() time.Duration {
-	elapsed := time.Since(sv.startTime)
 	if !sv.pausedAt.IsZero() {
-		elapsed -= time.Since(sv.pausedAt)
+		return sv.pausedAt.Sub(sv.startTime)
 	}
-	return elapsed
+	return time.Since(sv.startTime)
 }
 
 // SaveCurrentState saves the current status state for later restoration
