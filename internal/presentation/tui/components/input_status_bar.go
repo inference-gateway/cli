@@ -57,6 +57,7 @@ type InputStatusBar struct {
 	currentInputText       string
 	runStartedAt           time.Time
 	runConversationID      string
+	runPaused              bool
 
 	// Keyboard focus state: when focused, selected indexes the actionable
 	// indicators (those that open a view) in build order.
@@ -107,6 +108,9 @@ type statusBarState interface {
 	agentdomain.AgentModeState
 	AgentReadiness
 	GetChatSession() *tui.ChatSession
+	GetApprovalUIState() *tui.ApprovalUIState
+	GetPlanApprovalUIState() *tui.PlanApprovalUIState
+	GetUserQuestionUIState() *tui.UserQuestionUIState
 }
 
 // SetStateManager sets the state manager
@@ -964,17 +968,23 @@ func (isb *InputStatusBar) timingCurrentSession() bool {
 // it at a terminal state: an error, a cancel or a final answer with no tool
 // calls. A turn with tool calls feeds back in, so the stopwatch keeps running.
 // An interrupt ends the chat session before its cancel event arrives, so a
-// missing session stops the stopwatch too.
+// missing session stops the stopwatch too. A prompt waiting on the user pauses it.
 func (isb *InputStatusBar) trackRun(msg tea.Msg) tea.Cmd {
 	if isb.stateManager != nil && isb.stateManager.GetChatSession() == nil {
+		isb.runPaused = false
 		return isb.stopRun()
+	}
+	if isb.waitingOnUser() {
+		isb.runPaused = isb.runPaused || !isb.runStartedAt.IsZero()
+		return isb.stopRun()
+	}
+	if isb.runPaused {
+		isb.runPaused = false
+		isb.startRun()
 	}
 	switch msg := msg.(type) {
 	case agentdomain.ChatStartEvent:
-		if isb.runStartedAt.IsZero() && isb.conversationRepo != nil {
-			isb.runStartedAt = time.Now()
-			isb.runConversationID = isb.conversationRepo.GetCurrentConversationID()
-		}
+		isb.startRun()
 	case agentdomain.ChatCompleteEvent:
 		if msg.Cancelled || len(msg.ToolCalls) == 0 {
 			return isb.stopRun()
@@ -983,6 +993,23 @@ func (isb *InputStatusBar) trackRun(msg tea.Msg) tea.Cmd {
 		return isb.stopRun()
 	}
 	return nil
+}
+
+// waitingOnUser reports whether the run is blocked on a question or an
+// approval, which is the user's time and not the agent's.
+func (isb *InputStatusBar) waitingOnUser() bool {
+	return isb.stateManager != nil &&
+		(isb.stateManager.GetUserQuestionUIState() != nil ||
+			isb.stateManager.GetApprovalUIState() != nil ||
+			isb.stateManager.GetPlanApprovalUIState() != nil)
+}
+
+// startRun starts timing against the session on screen unless a run is already timed.
+func (isb *InputStatusBar) startRun() {
+	if isb.runStartedAt.IsZero() && isb.conversationRepo != nil {
+		isb.runStartedAt = time.Now()
+		isb.runConversationID = isb.conversationRepo.GetCurrentConversationID()
+	}
 }
 
 // stopRun banks the run's working time on the session it was timed against
