@@ -174,9 +174,9 @@ func (sv *StatusView) SaveCurrentState() {
 }
 
 // RestoreSavedState restores the previously saved status state
-func (sv *StatusView) RestoreSavedState() tea.Cmd {
+func (sv *StatusView) RestoreSavedState() {
 	if sv.savedState == nil {
-		return nil
+		return
 	}
 
 	sv.message = sv.savedState.message
@@ -188,7 +188,6 @@ func (sv *StatusView) RestoreSavedState() tea.Cmd {
 	sv.progress = sv.savedState.progress
 
 	sv.savedState = nil
-	return nil
 }
 
 // HasSavedState returns true if there's a saved state that can be restored
@@ -427,7 +426,7 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tui.RestoreStatusStateEvent:
 		if sv.HasSavedState() {
-			cmd = sv.RestoreSavedState()
+			sv.RestoreSavedState()
 		}
 
 	case tui.DebugKeyEvent:
