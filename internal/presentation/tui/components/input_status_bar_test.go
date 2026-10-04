@@ -1344,6 +1344,36 @@ func TestInputStatusBar_DurationStopsWhenTheUserInterrupts(t *testing.T) {
 	}
 }
 
+func TestInputStatusBar_DurationPausesWhileWaitingOnTheUser(t *testing.T) {
+	state := tui.NewApplicationState()
+	state.StartChatSession("req", "model", nil)
+	isb, _ := timedStatusBar()
+	isb.stateManager = state
+
+	isb.Update(agentdomain.ChatStartEvent{})
+	isb.runStartedAt = isb.runStartedAt.Add(-4 * time.Second)
+
+	state.SetupUserQuestionUIState(nil, nil)
+	isb.Update(tui.SetStatusEvent{})
+	if !isb.runStartedAt.IsZero() {
+		t.Fatal("a question waiting on the user must pause the stopwatch")
+	}
+	if got := isb.buildDurationIndicator(); got != "4s" {
+		t.Errorf("while waiting got %q, want the held 4s", got)
+	}
+
+	state.ClearUserQuestionUIState()
+	isb.Update(tui.SetStatusEvent{})
+	if isb.runStartedAt.IsZero() {
+		t.Fatal("an answered question must resume the stopwatch")
+	}
+	isb.runStartedAt = isb.runStartedAt.Add(-2 * time.Second)
+	isb.Update(agentdomain.ChatCompleteEvent{})
+	if got := isb.buildDurationIndicator(); got != "6s" {
+		t.Errorf("after the run got %q, want 6s without the wait", got)
+	}
+}
+
 func TestInputStatusBar_DurationFollowsTheSession(t *testing.T) {
 	tests := []struct {
 		name   string
