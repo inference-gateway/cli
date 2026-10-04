@@ -31,6 +31,7 @@ type InMemoryConversationRepository struct {
 	sessionStats     convdomain.SessionTokenStats
 	costStats        convdomain.SessionCostStats
 	activeDuration   time.Duration
+	workingSince     time.Time
 	formatterService ToolFormatter
 	pricingService   convdomain.PricingService
 }
@@ -189,7 +190,7 @@ func (r *InMemoryConversationRepository) Clear() error {
 		PerModelStats: make(map[string]*convdomain.ModelCostStats),
 		Currency:      "USD",
 	}
-	r.activeDuration = 0
+	r.activeDuration, r.workingSince = 0, time.Time{}
 	return nil
 }
 
@@ -228,7 +229,7 @@ func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 		PerModelStats: make(map[string]*convdomain.ModelCostStats),
 		Currency:      "USD",
 	}
-	r.activeDuration = 0
+	r.activeDuration, r.workingSince = 0, time.Time{}
 	return nil
 }
 
@@ -499,28 +500,45 @@ func (r *InMemoryConversationRepository) GetSessionCostStats() convdomain.Sessio
 	return stats
 }
 
-// AddActiveDuration adds one run's working time to the session total.
-func (r *InMemoryConversationRepository) AddActiveDuration(d time.Duration) error {
+// StartWorking starts the session stopwatch unless it is already running.
+func (r *InMemoryConversationRepository) StartWorking() {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	r.activeDuration += d
-	return nil
+	if r.workingSince.IsZero() {
+		r.workingSince = time.Now()
+	}
 }
 
-// GetActiveDuration returns how long the agent has worked in this session.
+// StopWorking banks the time worked since the stopwatch started.
+func (r *InMemoryConversationRepository) StopWorking() {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.activeDuration, r.workingSince = r.workedSoFar(), time.Time{}
+}
+
+// GetActiveDuration returns how long the agent has worked in this session,
+// including the run in flight.
 func (r *InMemoryConversationRepository) GetActiveDuration() time.Duration {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	return r.activeDuration
+	return r.workedSoFar()
+}
+
+func (r *InMemoryConversationRepository) workedSoFar() time.Duration {
+	if r.workingSince.IsZero() {
+		return r.activeDuration
+	}
+	return r.activeDuration + time.Since(r.workingSince)
 }
 
 func (r *InMemoryConversationRepository) setActiveDuration(d time.Duration) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	r.activeDuration = d
+	r.activeDuration, r.workingSince = d, time.Time{}
 }
 
 // SetSessionStats sets the session token and cost statistics (used when loading conversations)

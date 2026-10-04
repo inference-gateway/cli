@@ -1,7 +1,6 @@
 package components
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -55,9 +53,6 @@ type InputStatusBar struct {
 	versionInfo            tui.VersionInfo
 	styleProvider          *styles.Provider
 	currentInputText       string
-	runStartedAt           time.Time
-	runConversationID      string
-	runPaused              bool
 
 	// Keyboard focus state: when focused, selected indexes the actionable
 	// indicators (those that open a view) in build order.
@@ -107,10 +102,6 @@ func (isb *InputStatusBar) SetThemeService(themeService tui.ThemeService) {
 type statusBarState interface {
 	agentdomain.AgentModeState
 	AgentReadiness
-	GetChatSession() *tui.ChatSession
-	GetApprovalUIState() *tui.ApprovalUIState
-	GetPlanApprovalUIState() *tui.PlanApprovalUIState
-	GetUserQuestionUIState() *tui.UserQuestionUIState
 }
 
 // SetStateManager sets the state manager
@@ -938,113 +929,18 @@ func (isb *InputStatusBar) buildCostIndicator() string {
 	}
 }
 
-// buildDurationIndicator shows how long the agent has worked in this session:
-// a stopwatch that runs while a run is in flight, holds at a terminal state
-// and resumes with the next run. Empty before the session's first run.
+// buildDurationIndicator shows how long the agent has worked in this session.
+// Empty until the session has a full second of it.
 func (isb *InputStatusBar) buildDurationIndicator() string {
 	if isb.conversationRepo == nil {
 		return ""
 	}
 	total := isb.conversationRepo.GetActiveDuration()
-	if isb.timingCurrentSession() {
-		total += time.Since(isb.runStartedAt)
-	}
-	if total == 0 {
+	if total < time.Second {
 		return ""
 	}
 	return formatDuration(total)
 }
-
-// timingCurrentSession reports whether a run is being timed and still belongs
-// to the session on screen. A session cleared or swapped mid-run drops it.
-func (isb *InputStatusBar) timingCurrentSession() bool {
-	return !isb.runStartedAt.IsZero() &&
-		isb.conversationRepo != nil &&
-		isb.conversationRepo.GetCurrentConversationID() == isb.runConversationID &&
-		isb.conversationRepo.GetMessageCount() > 0
-}
-
-// trackRun starts the session stopwatch on the first turn of a run and stops
-// it at a terminal state: an error, a cancel or a final answer with no tool
-// calls. A turn with tool calls feeds back in, so the stopwatch keeps running.
-// An interrupt ends the chat session before its cancel event arrives, so a
-// missing session stops the stopwatch too. A prompt waiting on the user pauses it.
-func (isb *InputStatusBar) trackRun(msg tea.Msg) tea.Cmd {
-	if isb.stateManager != nil && isb.stateManager.GetChatSession() == nil {
-		isb.runPaused = false
-		return isb.stopRun()
-	}
-	if isb.waitingOnUser() {
-		isb.runPaused = isb.runPaused || !isb.runStartedAt.IsZero()
-		return isb.stopRun()
-	}
-	if isb.runPaused {
-		isb.runPaused = false
-		isb.startRun()
-	}
-	switch msg := msg.(type) {
-	case agentdomain.ChatStartEvent:
-		isb.startRun()
-	case agentdomain.ChatCompleteEvent:
-		if msg.Cancelled || len(msg.ToolCalls) == 0 {
-			return isb.stopRun()
-		}
-	case agentdomain.ChatErrorEvent:
-		return isb.stopRun()
-	}
-	return nil
-}
-
-// waitingOnUser reports whether the run is blocked on a question or an
-// approval, which is the user's time and not the agent's.
-func (isb *InputStatusBar) waitingOnUser() bool {
-	return isb.stateManager != nil &&
-		(isb.stateManager.GetUserQuestionUIState() != nil ||
-			isb.stateManager.GetApprovalUIState() != nil ||
-			isb.stateManager.GetPlanApprovalUIState() != nil)
-}
-
-// startRun starts timing against the session on screen unless a run is already timed.
-func (isb *InputStatusBar) startRun() {
-	if isb.runStartedAt.IsZero() && isb.conversationRepo != nil {
-		isb.runStartedAt = time.Now()
-		isb.runConversationID = isb.conversationRepo.GetCurrentConversationID()
-	}
-}
-
-// stopRun banks the run's working time on the session it was timed against
-// and returns the command that persists it, since a run ends after its last
-// message and nothing else would save the new total.
-func (isb *InputStatusBar) stopRun() tea.Cmd {
-	if isb.runStartedAt.IsZero() {
-		return nil
-	}
-	banked := isb.timingCurrentSession()
-	if banked {
-		_ = isb.conversationRepo.AddActiveDuration(time.Since(isb.runStartedAt))
-	}
-	isb.runStartedAt = time.Time{}
-
-	saver, persistent := isb.conversationRepo.(conversationSaver)
-	if !banked || !persistent {
-		return nil
-	}
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), sessionSaveTimeout)
-		defer cancel()
-		if err := saver.SaveConversation(ctx); err != nil {
-			logger.Debug("failed to save the session working time", "error", err)
-		}
-		return nil
-	}
-}
-
-// conversationSaver is the persistence a storage-backed repository adds.
-type conversationSaver interface {
-	SaveConversation(ctx context.Context) error
-}
-
-const sessionSaveTimeout = 30 * time.Second
 
 // getToolInfo returns tool count and token information
 func (isb *InputStatusBar) getToolInfo() string {
@@ -1118,5 +1014,5 @@ func (isb *InputStatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		isb.SetWidth(windowMsg.Width)
 	}
-	return isb, isb.trackRun(msg)
+	return isb, nil
 }

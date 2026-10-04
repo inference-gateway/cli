@@ -50,6 +50,11 @@ type eventDrivenAgent struct {
 	mu sync.Mutex
 	wg sync.WaitGroup
 
+	// Prompts waiting on the user and the state the first one suspended
+	promptMu    sync.Mutex
+	openPrompts int
+	resumeState states.AgentExecutionState
+
 	// Testability - can be overridden in tests
 	toolExecutor func()
 }
@@ -101,6 +106,7 @@ func newEventDrivenAgent(
 
 	agent.toolExecutor = agent.executeTools
 	agent.registerStateHandlers()
+	eventPublisher.inputGate = agent.awaitUser
 
 	return agent
 }
@@ -189,10 +195,48 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 	a.registerHandler(states.NewBlockingToolsState(ctx))
 	a.registerHandler(states.NewExecutingToolsState(ctx))
 	a.registerHandler(states.NewPostToolExecutionState(ctx))
+	a.registerHandler(states.NewInputRequiredState(ctx))
 	a.registerHandler(states.NewCompletingState(ctx))
 	a.registerHandler(states.NewErrorState(ctx))
 	a.registerHandler(states.NewCancelledState(ctx))
 	a.registerHandler(states.NewStoppedState(ctx))
+}
+
+// awaitUser runs wait in the InputRequired state and resumes the state the
+// loop left once the last open prompt is answered.
+func (a *eventDrivenAgent) awaitUser(wait func()) {
+	a.enterInputRequired()
+	defer a.leaveInputRequired()
+	wait()
+}
+
+func (a *eventDrivenAgent) enterInputRequired() {
+	a.promptMu.Lock()
+	defer a.promptMu.Unlock()
+
+	a.openPrompts++
+	if a.openPrompts > 1 {
+		return
+	}
+	a.resumeState = a.stateMachine.GetCurrentState()
+	if err := a.stateMachine.Transition(a.agentCtx, states.StateInputRequired); err != nil {
+		logger.Debug("prompt opened outside a tool state", "error", err)
+	}
+}
+
+// leaveInputRequired resumes the suspended state. A run that was cancelled or
+// failed while the prompt was open stays where it is.
+func (a *eventDrivenAgent) leaveInputRequired() {
+	a.promptMu.Lock()
+	defer a.promptMu.Unlock()
+
+	a.openPrompts--
+	if a.openPrompts > 0 || a.stateMachine.GetCurrentState() != states.StateInputRequired {
+		return
+	}
+	if err := a.stateMachine.Transition(a.agentCtx, a.resumeState); err != nil {
+		logger.Error("failed to resume after the user answered", "error", err)
+	}
 }
 
 // registerHandler registers a single state handler

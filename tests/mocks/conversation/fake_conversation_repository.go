@@ -12,17 +12,6 @@ import (
 )
 
 type FakeConversationRepository struct {
-	AddActiveDurationStub        func(time.Duration) error
-	addActiveDurationMutex       sync.RWMutex
-	addActiveDurationArgsForCall []struct {
-		arg1 time.Duration
-	}
-	addActiveDurationReturns struct {
-		result1 error
-	}
-	addActiveDurationReturnsOnCall map[int]struct {
-		result1 error
-	}
 	AddCachedTokensStub        func(int)
 	addCachedTokensMutex       sync.RWMutex
 	addCachedTokensArgsForCall []struct {
@@ -232,6 +221,14 @@ type FakeConversationRepository struct {
 	startNewConversationReturnsOnCall map[int]struct {
 		result1 error
 	}
+	StartWorkingStub        func()
+	startWorkingMutex       sync.RWMutex
+	startWorkingArgsForCall []struct {
+	}
+	StopWorkingStub        func()
+	stopWorkingMutex       sync.RWMutex
+	stopWorkingArgsForCall []struct {
+	}
 	UpdateLastMessageStub        func(string) error
 	updateLastMessageMutex       sync.RWMutex
 	updateLastMessageArgsForCall []struct {
@@ -256,67 +253,6 @@ type FakeConversationRepository struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
-}
-
-func (fake *FakeConversationRepository) AddActiveDuration(arg1 time.Duration) error {
-	fake.addActiveDurationMutex.Lock()
-	ret, specificReturn := fake.addActiveDurationReturnsOnCall[len(fake.addActiveDurationArgsForCall)]
-	fake.addActiveDurationArgsForCall = append(fake.addActiveDurationArgsForCall, struct {
-		arg1 time.Duration
-	}{arg1})
-	stub := fake.AddActiveDurationStub
-	fakeReturns := fake.addActiveDurationReturns
-	fake.recordInvocation("AddActiveDuration", []interface{}{arg1})
-	fake.addActiveDurationMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeConversationRepository) AddActiveDurationCallCount() int {
-	fake.addActiveDurationMutex.RLock()
-	defer fake.addActiveDurationMutex.RUnlock()
-	return len(fake.addActiveDurationArgsForCall)
-}
-
-func (fake *FakeConversationRepository) AddActiveDurationCalls(stub func(time.Duration) error) {
-	fake.addActiveDurationMutex.Lock()
-	defer fake.addActiveDurationMutex.Unlock()
-	fake.AddActiveDurationStub = stub
-}
-
-func (fake *FakeConversationRepository) AddActiveDurationArgsForCall(i int) time.Duration {
-	fake.addActiveDurationMutex.RLock()
-	defer fake.addActiveDurationMutex.RUnlock()
-	argsForCall := fake.addActiveDurationArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeConversationRepository) AddActiveDurationReturns(result1 error) {
-	fake.addActiveDurationMutex.Lock()
-	defer fake.addActiveDurationMutex.Unlock()
-	fake.AddActiveDurationStub = nil
-	fake.addActiveDurationReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeConversationRepository) AddActiveDurationReturnsOnCall(i int, result1 error) {
-	fake.addActiveDurationMutex.Lock()
-	defer fake.addActiveDurationMutex.Unlock()
-	fake.AddActiveDurationStub = nil
-	if fake.addActiveDurationReturnsOnCall == nil {
-		fake.addActiveDurationReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.addActiveDurationReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeConversationRepository) AddCachedTokens(arg1 int) {
@@ -1418,6 +1354,54 @@ func (fake *FakeConversationRepository) StartNewConversationReturnsOnCall(i int,
 	fake.startNewConversationReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *FakeConversationRepository) StartWorking() {
+	fake.startWorkingMutex.Lock()
+	fake.startWorkingArgsForCall = append(fake.startWorkingArgsForCall, struct {
+	}{})
+	stub := fake.StartWorkingStub
+	fake.recordInvocation("StartWorking", []interface{}{})
+	fake.startWorkingMutex.Unlock()
+	if stub != nil {
+		fake.StartWorkingStub()
+	}
+}
+
+func (fake *FakeConversationRepository) StartWorkingCallCount() int {
+	fake.startWorkingMutex.RLock()
+	defer fake.startWorkingMutex.RUnlock()
+	return len(fake.startWorkingArgsForCall)
+}
+
+func (fake *FakeConversationRepository) StartWorkingCalls(stub func()) {
+	fake.startWorkingMutex.Lock()
+	defer fake.startWorkingMutex.Unlock()
+	fake.StartWorkingStub = stub
+}
+
+func (fake *FakeConversationRepository) StopWorking() {
+	fake.stopWorkingMutex.Lock()
+	fake.stopWorkingArgsForCall = append(fake.stopWorkingArgsForCall, struct {
+	}{})
+	stub := fake.StopWorkingStub
+	fake.recordInvocation("StopWorking", []interface{}{})
+	fake.stopWorkingMutex.Unlock()
+	if stub != nil {
+		fake.StopWorkingStub()
+	}
+}
+
+func (fake *FakeConversationRepository) StopWorkingCallCount() int {
+	fake.stopWorkingMutex.RLock()
+	defer fake.stopWorkingMutex.RUnlock()
+	return len(fake.stopWorkingArgsForCall)
+}
+
+func (fake *FakeConversationRepository) StopWorkingCalls(stub func()) {
+	fake.stopWorkingMutex.Lock()
+	defer fake.stopWorkingMutex.Unlock()
+	fake.StopWorkingStub = stub
 }
 
 func (fake *FakeConversationRepository) UpdateLastMessage(arg1 string) error {

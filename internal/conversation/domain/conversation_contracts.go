@@ -129,7 +129,8 @@ type ConversationRepository interface {
 	AddCachedTokens(tokens int)
 	GetSessionTokens() SessionTokenStats
 	GetSessionCostStats() SessionCostStats
-	AddActiveDuration(d time.Duration) error
+	StartWorking()
+	StopWorking()
 	GetActiveDuration() time.Duration
 
 	FormatToolResultForLLM(result *agentdomain.ToolExecutionResult) string

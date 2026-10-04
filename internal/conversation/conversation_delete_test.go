@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -259,19 +260,34 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_BoundaryConditi
 	}
 }
 
-func TestActiveDurationAccumulatesAndResetsWithTheSession(t *testing.T) {
-	repo := NewInMemoryConversationRepository(nil, nil)
+func TestActiveDurationCountsOnlyWhileWorkingAndResetsWithTheSession(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		repo := NewInMemoryConversationRepository(nil, nil)
 
-	_ = repo.AddActiveDuration(3 * time.Second)
-	_ = repo.AddActiveDuration(2 * time.Second)
-	if got := repo.GetActiveDuration(); got != 5*time.Second {
-		t.Fatalf("GetActiveDuration() = %v, want the 5s sum of both runs", got)
-	}
+		repo.StartWorking()
+		time.Sleep(3 * time.Second)
+		repo.StartWorking()
+		if got := repo.GetActiveDuration(); got != 3*time.Second {
+			t.Fatalf("GetActiveDuration() = %v mid-run, want the live 3s", got)
+		}
+		repo.StopWorking()
+		time.Sleep(time.Minute)
+		repo.StopWorking()
+		repo.StartWorking()
+		time.Sleep(2 * time.Second)
+		repo.StopWorking()
+		if got := repo.GetActiveDuration(); got != 5*time.Second {
+			t.Fatalf("GetActiveDuration() = %v, want the 5s worked without the wait", got)
+		}
 
-	if err := repo.StartNewConversation("next"); err != nil {
-		t.Fatalf("StartNewConversation() error = %v", err)
-	}
-	if got := repo.GetActiveDuration(); got != 0 {
-		t.Errorf("GetActiveDuration() = %v after a new session, want 0", got)
-	}
+		repo.StartWorking()
+		if err := repo.StartNewConversation("next"); err != nil {
+			t.Fatalf("StartNewConversation() error = %v", err)
+		}
+		time.Sleep(time.Second)
+		repo.StopWorking()
+		if got := repo.GetActiveDuration(); got != 0 {
+			t.Errorf("GetActiveDuration() = %v after a new session, want 0", got)
+		}
+	})
 }
