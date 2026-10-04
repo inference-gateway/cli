@@ -138,6 +138,7 @@ chat:
       context_usage: true
       session_tokens: true
       cost: true
+      duration: true
       git_branch: true
       git_pr: true
       subagents: true
@@ -758,6 +759,9 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
         when local commits are unpushed (or the branch has no upstream); uncommitted wins when both apply
       - Long branch names are truncated with "..." indicator
     - **cost**: Running cost of the session (default: `true`)
+    - **duration**: How long the agent has worked in this session (default: `true`). The counter runs
+      while the agent works, holds when it reaches a terminal state and resumes with the next run.
+      It is saved with the session, so a resumed session continues its count and a new one starts from zero
     - **git_pr**: The pull request attached to the current branch, when there is one (default: `true`)
     - **subagents**: The stacked list of background jobs, one row per subagent, A2A task, shell or
       recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
@@ -782,6 +786,7 @@ chat:
       context_usage: true
       session_tokens: true
       cost: true
+      duration: true         # Show the time the agent has worked this session
       git_branch: true       # Show current Git branch
       git_pr: true           # Show the branch's pull request when there is one
       subagents: true        # Show the stacked background-job rows

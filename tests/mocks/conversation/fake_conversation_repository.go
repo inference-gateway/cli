@@ -4,6 +4,7 @@ package conversation
 import (
 	"context"
 	"sync"
+	"time"
 
 	domaina "github.com/inference-gateway/cli/internal/agent/domain"
 	"github.com/inference-gateway/cli/internal/conversation/domain"
@@ -11,6 +12,17 @@ import (
 )
 
 type FakeConversationRepository struct {
+	AddActiveDurationStub        func(time.Duration) error
+	addActiveDurationMutex       sync.RWMutex
+	addActiveDurationArgsForCall []struct {
+		arg1 time.Duration
+	}
+	addActiveDurationReturns struct {
+		result1 error
+	}
+	addActiveDurationReturnsOnCall map[int]struct {
+		result1 error
+	}
 	AddCachedTokensStub        func(int)
 	addCachedTokensMutex       sync.RWMutex
 	addCachedTokensArgsForCall []struct {
@@ -121,6 +133,16 @@ type FakeConversationRepository struct {
 	}
 	formatToolResultForUIReturnsOnCall map[int]struct {
 		result1 string
+	}
+	GetActiveDurationStub        func() time.Duration
+	getActiveDurationMutex       sync.RWMutex
+	getActiveDurationArgsForCall []struct {
+	}
+	getActiveDurationReturns struct {
+		result1 time.Duration
+	}
+	getActiveDurationReturnsOnCall map[int]struct {
+		result1 time.Duration
 	}
 	GetCurrentConversationIDStub        func() string
 	getCurrentConversationIDMutex       sync.RWMutex
@@ -234,6 +256,67 @@ type FakeConversationRepository struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeConversationRepository) AddActiveDuration(arg1 time.Duration) error {
+	fake.addActiveDurationMutex.Lock()
+	ret, specificReturn := fake.addActiveDurationReturnsOnCall[len(fake.addActiveDurationArgsForCall)]
+	fake.addActiveDurationArgsForCall = append(fake.addActiveDurationArgsForCall, struct {
+		arg1 time.Duration
+	}{arg1})
+	stub := fake.AddActiveDurationStub
+	fakeReturns := fake.addActiveDurationReturns
+	fake.recordInvocation("AddActiveDuration", []interface{}{arg1})
+	fake.addActiveDurationMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) AddActiveDurationCallCount() int {
+	fake.addActiveDurationMutex.RLock()
+	defer fake.addActiveDurationMutex.RUnlock()
+	return len(fake.addActiveDurationArgsForCall)
+}
+
+func (fake *FakeConversationRepository) AddActiveDurationCalls(stub func(time.Duration) error) {
+	fake.addActiveDurationMutex.Lock()
+	defer fake.addActiveDurationMutex.Unlock()
+	fake.AddActiveDurationStub = stub
+}
+
+func (fake *FakeConversationRepository) AddActiveDurationArgsForCall(i int) time.Duration {
+	fake.addActiveDurationMutex.RLock()
+	defer fake.addActiveDurationMutex.RUnlock()
+	argsForCall := fake.addActiveDurationArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRepository) AddActiveDurationReturns(result1 error) {
+	fake.addActiveDurationMutex.Lock()
+	defer fake.addActiveDurationMutex.Unlock()
+	fake.AddActiveDurationStub = nil
+	fake.addActiveDurationReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) AddActiveDurationReturnsOnCall(i int, result1 error) {
+	fake.addActiveDurationMutex.Lock()
+	defer fake.addActiveDurationMutex.Unlock()
+	fake.AddActiveDurationStub = nil
+	if fake.addActiveDurationReturnsOnCall == nil {
+		fake.addActiveDurationReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.addActiveDurationReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeConversationRepository) AddCachedTokens(arg1 int) {
@@ -808,6 +891,59 @@ func (fake *FakeConversationRepository) FormatToolResultForUIReturnsOnCall(i int
 	}
 	fake.formatToolResultForUIReturnsOnCall[i] = struct {
 		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetActiveDuration() time.Duration {
+	fake.getActiveDurationMutex.Lock()
+	ret, specificReturn := fake.getActiveDurationReturnsOnCall[len(fake.getActiveDurationArgsForCall)]
+	fake.getActiveDurationArgsForCall = append(fake.getActiveDurationArgsForCall, struct {
+	}{})
+	stub := fake.GetActiveDurationStub
+	fakeReturns := fake.getActiveDurationReturns
+	fake.recordInvocation("GetActiveDuration", []interface{}{})
+	fake.getActiveDurationMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) GetActiveDurationCallCount() int {
+	fake.getActiveDurationMutex.RLock()
+	defer fake.getActiveDurationMutex.RUnlock()
+	return len(fake.getActiveDurationArgsForCall)
+}
+
+func (fake *FakeConversationRepository) GetActiveDurationCalls(stub func() time.Duration) {
+	fake.getActiveDurationMutex.Lock()
+	defer fake.getActiveDurationMutex.Unlock()
+	fake.GetActiveDurationStub = stub
+}
+
+func (fake *FakeConversationRepository) GetActiveDurationReturns(result1 time.Duration) {
+	fake.getActiveDurationMutex.Lock()
+	defer fake.getActiveDurationMutex.Unlock()
+	fake.GetActiveDurationStub = nil
+	fake.getActiveDurationReturns = struct {
+		result1 time.Duration
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetActiveDurationReturnsOnCall(i int, result1 time.Duration) {
+	fake.getActiveDurationMutex.Lock()
+	defer fake.getActiveDurationMutex.Unlock()
+	fake.GetActiveDurationStub = nil
+	if fake.getActiveDurationReturnsOnCall == nil {
+		fake.getActiveDurationReturnsOnCall = make(map[int]struct {
+			result1 time.Duration
+		})
+	}
+	fake.getActiveDurationReturnsOnCall[i] = struct {
+		result1 time.Duration
 	}{result1}
 }
 

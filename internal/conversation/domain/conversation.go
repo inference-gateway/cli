@@ -81,6 +81,10 @@ type ConversationMetadata struct {
 	TitleGenerationTime *time.Time        `json:"title_generation_time,omitempty"`
 	ContextID           string            `json:"context_id,omitempty"`
 
+	// ActiveDuration is how long the agent has worked in this session, summed
+	// over its runs. Time spent idle between runs does not count.
+	ActiveDuration time.Duration `json:"active_duration,omitempty"`
+
 	// ParentSessionID is the orchestrator session that spawned this one
 	// (e.g. a subagent's parent). Empty for top-level sessions.
 	ParentSessionID string `json:"parent_session_id"`

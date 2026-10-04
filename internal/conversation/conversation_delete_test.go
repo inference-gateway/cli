@@ -258,3 +258,20 @@ func TestInMemoryConversationRepository_DeleteMessagesAfterIndex_BoundaryConditi
 		t.Errorf("Message content = %q, want %q", content, "first")
 	}
 }
+
+func TestActiveDurationAccumulatesAndResetsWithTheSession(t *testing.T) {
+	repo := NewInMemoryConversationRepository(nil, nil)
+
+	_ = repo.AddActiveDuration(3 * time.Second)
+	_ = repo.AddActiveDuration(2 * time.Second)
+	if got := repo.GetActiveDuration(); got != 5*time.Second {
+		t.Fatalf("GetActiveDuration() = %v, want the 5s sum of both runs", got)
+	}
+
+	if err := repo.StartNewConversation("next"); err != nil {
+		t.Fatalf("StartNewConversation() error = %v", err)
+	}
+	if got := repo.GetActiveDuration(); got != 0 {
+		t.Errorf("GetActiveDuration() = %v after a new session, want 0", got)
+	}
+}
