@@ -1,0 +1,15 @@
+---
+agents:
+  - name: token-agent
+    url: http://localhost:8091
+    run: false
+    auth:
+      token_env: TOKEN_AGENT_TOKEN
+  - name: oidc-agent
+    url: http://localhost:8092
+    run: false
+    auth:
+      oidc:
+        client_id: infer
+        client_secret_env: OIDC_AGENT_CLIENT_SECRET
+        issuer_url: http://localhost:8090/realms/a2a

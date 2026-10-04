@@ -1,0 +1,93 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_A2A_ENABLED: 'true'
+  INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL: 'false'
+  TOKEN_AGENT_TOKEN: demo-token
+  OIDC_AGENT_CLIENT_SECRET: infer-secret
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  up:
+    desc: Start the token agent, Keycloak and the OIDC agent
+    cmds:
+      - docker compose up -d --wait mock-agent-token mock-agent-oidc
+
+  down:
+    desc: Stop everything
+    cmds:
+      - docker compose down
+
+  status:
+    desc: Probe both agents with the credentials from agents.yaml
+    cmds:
+      - '{{.INFER}} agents status --project'
+
+  token:
+    desc: The model delegates to the agent behind a static bearer token
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask the token agent to echo hello
+
+  oidc:
+    desc: The model delegates to the agent behind OIDC, with a token from Keycloak
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask the oidc agent to echo hello
+
+  wrong-token:
+    desc: A wrong bearer token is rejected and reported as an authentication failure
+    cmds:
+      - task: headless
+        vars:
+          OVERRIDE: TOKEN_AGENT_TOKEN=not-the-token
+          PROMPT: ask the token agent to echo hello
+
+  missing-token:
+    desc: An unset token variable is reported before any request is sent
+    cmds:
+      - task: headless
+        vars:
+          OVERRIDE: TOKEN_AGENT_TOKEN=
+          PROMPT: ask the token agent to echo hello
+
+  wrong-secret:
+    desc: Keycloak refuses a wrong client secret, reported as an authentication failure
+    cmds:
+      - task: headless
+        vars:
+          OVERRIDE: OIDC_AGENT_CLIENT_SECRET=not-the-secret
+          PROMPT: ask the oidc agent to echo hello
+
+  chat:
+    desc: Chat with the mock model
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  all:
+    desc: Run every headless scenario
+    cmds:
+      - task: token
+      - task: oidc
+      - task: wrong-token
+      - task: missing-token
+      - task: wrong-secret
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.OVERRIDE}} {{.INFER}} headless --no-save \"{{.PROMPT}}\" | grep -E '\"role\":\"(tool|user)\"'"
