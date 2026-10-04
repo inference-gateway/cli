@@ -49,6 +49,16 @@ type FakeConversationRenderer struct {
 	isRawFormatReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsStreamingStub        func() bool
+	isStreamingMutex       sync.RWMutex
+	isStreamingArgsForCall []struct {
+	}
+	isStreamingReturns struct {
+		result1 bool
+	}
+	isStreamingReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	IsThinkingExpandedStub        func(int) bool
 	isThinkingExpandedMutex       sync.RWMutex
 	isThinkingExpandedArgsForCall []struct {
@@ -329,6 +339,59 @@ func (fake *FakeConversationRenderer) IsRawFormatReturnsOnCall(i int, result1 bo
 		})
 	}
 	fake.isRawFormatReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConversationRenderer) IsStreaming() bool {
+	fake.isStreamingMutex.Lock()
+	ret, specificReturn := fake.isStreamingReturnsOnCall[len(fake.isStreamingArgsForCall)]
+	fake.isStreamingArgsForCall = append(fake.isStreamingArgsForCall, struct {
+	}{})
+	stub := fake.IsStreamingStub
+	fakeReturns := fake.isStreamingReturns
+	fake.recordInvocation("IsStreaming", []interface{}{})
+	fake.isStreamingMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRenderer) IsStreamingCallCount() int {
+	fake.isStreamingMutex.RLock()
+	defer fake.isStreamingMutex.RUnlock()
+	return len(fake.isStreamingArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) IsStreamingCalls(stub func() bool) {
+	fake.isStreamingMutex.Lock()
+	defer fake.isStreamingMutex.Unlock()
+	fake.IsStreamingStub = stub
+}
+
+func (fake *FakeConversationRenderer) IsStreamingReturns(result1 bool) {
+	fake.isStreamingMutex.Lock()
+	defer fake.isStreamingMutex.Unlock()
+	fake.IsStreamingStub = nil
+	fake.isStreamingReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConversationRenderer) IsStreamingReturnsOnCall(i int, result1 bool) {
+	fake.isStreamingMutex.Lock()
+	defer fake.isStreamingMutex.Unlock()
+	fake.IsStreamingStub = nil
+	if fake.isStreamingReturnsOnCall == nil {
+		fake.isStreamingReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isStreamingReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

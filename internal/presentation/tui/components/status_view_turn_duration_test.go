@@ -91,3 +91,24 @@ func TestStatusViewTurnDurationFormatMatchesToolRows(t *testing.T) {
 		t.Errorf("expected the same long-duration format tool rows use, got %q", got)
 	}
 }
+
+func TestSpinnerTurnsEvenlyOnTheStreamCadence(t *testing.T) {
+	tick := time.Unix(1_700_000_000, 0).Truncate(StreamFrameInterval)
+	var changes []int
+	last := spinnerFrame(tick, SpinnerFrameInterval)
+	for i := 1; i <= 16; i++ {
+		tick = tick.Add(StreamFrameInterval)
+		if frame := spinnerFrame(tick.Add(time.Millisecond), SpinnerFrameInterval); frame != last {
+			changes = append(changes, i)
+			last = frame
+		}
+	}
+	if len(changes) != 8 {
+		t.Fatalf("spinner changed on ticks %v, want one change every second tick", changes)
+	}
+	for i := 1; i < len(changes); i++ {
+		if changes[i]-changes[i-1] != 2 {
+			t.Fatalf("spinner changed on ticks %v, want an even two-tick step", changes)
+		}
+	}
+}

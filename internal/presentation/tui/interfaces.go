@@ -62,6 +62,7 @@ type Theme interface {
 // ConversationRenderer interface for conversation display
 type ConversationRenderer interface {
 	SetConversation([]convdomain.ConversationEntry)
+	IsStreaming() bool
 	GetScrollOffset() int
 	CanScrollUp() bool
 	CanScrollDown() bool
