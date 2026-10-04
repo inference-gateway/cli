@@ -408,9 +408,9 @@ func TestConversationView_StreamingLifecycle(t *testing.T) {
 }
 
 // TestConversationView_StreamingRenderCoalesced pins the coalescing contract: streamed
-// deltas must not each trigger a full viewport rebuild. Instead they mark the view
-// dirty and a single coalescing tick performs one rebuild, re-arming until the
-// stream ends. Per-token rebuilds are what scrambled the screen mid-generation.
+// deltas must not each trigger a full viewport rebuild. They mark the view dirty and
+// the next live tick performs one rebuild. Per-token rebuilds are what scrambled the
+// screen mid-generation.
 func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
 	cv := NewConversationView(createMockStyleProvider())
 	cv.SetWidth(100)
@@ -418,39 +418,37 @@ func TestConversationView_StreamingRenderCoalesced(t *testing.T) {
 
 	const marker = "STREAMED_MARKER"
 
-	_, cmd := cv.handleStreamingContentEvent(tui.StreamingContentEvent{Content: marker + " one "}, nil)
-	if cmd == nil {
-		t.Fatal("first streamed delta should arm the render tick (non-nil cmd)")
+	for _, delta := range []string{marker + " one ", "two "} {
+		if _, cmd := cv.Update(tui.StreamingContentEvent{Content: delta}); cmd != nil {
+			t.Fatal("a streamed delta must not arm a ticker of its own")
+		}
 	}
-
-	if _, cmd2 := cv.handleStreamingContentEvent(tui.StreamingContentEvent{Content: "two "}, nil); cmd2 != nil {
-		t.Fatal("subsequent streamed deltas must not arm a second render tick")
+	if !cv.IsStreaming() {
+		t.Fatal("a streamed delta should put the live clock on the stream cadence")
 	}
-
 	if strings.Contains(cv.renderedContent, marker) {
 		t.Fatal("streamed content must not be rendered synchronously on every delta")
 	}
-	if !cv.streamingDirty {
-		t.Fatal("streamed content should mark the view dirty")
-	}
 
-	_, tickCmd := cv.handleStreamingRenderTick(nil)
+	cv.Update(tui.LiveTickEvent{})
 	if !strings.Contains(cv.renderedContent, marker) {
-		t.Fatal("render tick should rebuild the viewport with the streamed content")
+		t.Fatal("the live tick should rebuild the viewport with the streamed content")
 	}
 	if cv.streamingDirty {
-		t.Fatal("render tick should clear the dirty flag")
-	}
-	if tickCmd == nil {
-		t.Fatal("render tick should re-arm while streaming is active")
+		t.Fatal("the live tick should clear the dirty flag")
 	}
 
-	cv.flushStreamingBuffer()
-	if _, stopCmd := cv.handleStreamingRenderTick(nil); stopCmd != nil {
-		t.Fatal("render tick should stop re-arming once streaming ends")
+	rebuilt := cv.renderedContent
+	cv.renderedContent = "untouched"
+	cv.Update(tui.LiveTickEvent{})
+	if cv.renderedContent != "untouched" {
+		t.Fatal("a live tick with no new delta must not rebuild the viewport")
 	}
-	if cv.streamingRenderArmed {
-		t.Fatal("render tick should disarm once streaming ends")
+	cv.renderedContent = rebuilt
+
+	cv.flushStreamingBuffer()
+	if cv.IsStreaming() {
+		t.Fatal("the live clock should leave the stream cadence once streaming ends")
 	}
 }
 

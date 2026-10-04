@@ -45,11 +45,14 @@ func (c *liveClock) fire(msg liveClockTickMsg) bool {
 	return true
 }
 
-// liveCadence is how often the chat's live indicators need a repaint: every
-// spinner frame while the status line animates, every second while only
-// counters run and never while nothing is live. A prompt waiting on the user
-// freezes the turn's timers, so only background job rows keep ticking then.
+// liveCadence is how often the chat needs a repaint: every stream frame while
+// a reply streams, every spinner frame while the status line animates, every
+// second while only counters run and never while nothing is live. A prompt
+// waiting on the user freezes the turn's timers, so only job rows tick then.
 func (app *ChatApplication) liveCadence() time.Duration {
+	if app.conversationView != nil && app.conversationView.IsStreaming() {
+		return components.StreamFrameInterval
+	}
 	if !components.AwaitingUserDecision(app.stateManager) {
 		if app.statusView != nil && app.statusView.IsShowingSpinner() {
 			return components.SpinnerFrameInterval
