@@ -26,7 +26,7 @@ directory. This creates:
 
 - `.infer/` under `~/.infer/` with:
   - `config.yaml` - Main configuration file (the shared baseline)
-  - `prompts.yaml`, `keybindings.yaml`, `sandbox.yaml`, `channels.yaml`, `heartbeat.yaml`,
+  - `prompts.yaml`, `keybindings.yaml`, `sandbox.yaml`, `tools.yaml`, `channels.yaml`, `heartbeat.yaml`,
     `judge.yaml`, `hooks.yaml`, `reminders.yaml`, `memory.yaml`, `computer_use.yaml`,
     `browser_use.yaml`, `agents.yaml`, `mcp.yaml`, `shortcuts/`, `skills/` - the split config
     files and directories

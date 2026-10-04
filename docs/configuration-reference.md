@@ -66,9 +66,9 @@ though a command-line flag (e.g. `infer headless --model`) still wins over all o
 
 > **List-valued keys replace, they do not merge.** Viper's `MergeInConfig`
 > deep-merges maps but substitutes slices wholesale, so a list in the project
-> layer (e.g. `tools.bash.mode.*.allow`,
-> `tools.web_fetch.allowed_domains`) *replaces* the userspace value rather than
-> extending it. Keep project overrides sparse for this reason.
+> layer (e.g. `gateway.include_models`, `gateway.exclude_models`) *replaces* the
+> userspace value rather than extending it. Keep project overrides sparse for
+> this reason.
 
 ### Usage Examples
 
