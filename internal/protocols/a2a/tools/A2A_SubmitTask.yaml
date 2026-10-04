@@ -12,6 +12,9 @@ parameters:
     task_description:
       type: string
       description: The question to ask or work to perform. Can be a question, task, action, or continuation of existing work
+    tenant:
+      type: string
+      description: Optional tenant naming the agent behind a gateway that fronts several agents, taken from the tenant of an interface on its agent card. Omit for an agent served directly
   required:
     - agent_url
     - task_description

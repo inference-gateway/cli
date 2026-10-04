@@ -132,6 +132,60 @@ func TestSubmitTaskTool_Execute_RequestsImmediateReturn(t *testing.T) {
 	assert.True(t, *sendRequest.Configuration.ReturnImmediately, "A2A_SubmitTask returns after the task is created and the background poller takes over")
 }
 
+func TestSubmitTaskTool_Execute_Tenant(t *testing.T) {
+	const gatewayURL = "http://gateway:8080"
+	pausedTaskID := "mock-b:task-b"
+
+	tests := []struct {
+		name         string
+		tenant       string
+		wantTenant   *string
+		wantResumeID *string
+	}{
+		{name: "agent served directly sends no tenant"},
+		{name: "tenant is forwarded and another tenant's paused task stays paused", tenant: "mock", wantTenant: ptrString("mock")},
+		{name: "same tenant resumes its paused task", tenant: "mock-b", wantTenant: ptrString("mock-b"), wantResumeID: &pausedTaskID},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{A2A: config.A2AConfig{
+				Enabled: true,
+				Tools:   config.A2AToolsConfig{SubmitTask: config.SubmitTaskToolConfig{Enabled: true}},
+			}}
+
+			tracker := NewTaskTracker(nil)
+			tracker.RegisterContext(trackerKey(gatewayURL, "mock-b"), "context-b")
+			tracker.AddTask("context-b", pausedTaskID)
+
+			mockClient := &adkmocks.FakeA2AClient{}
+			mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.Task{
+				ID:     pausedTaskID,
+				Status: adk.TaskStatus{State: adk.TaskStateInputRequired},
+			}}, nil)
+			mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &adk.Task{
+				ID:        "mock:task-1",
+				ContextID: ptrString("context-1"),
+				Status:    adk.TaskStatus{State: adk.TaskStateWorking},
+			}}}, nil)
+
+			tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+			args := map[string]any{"agent_url": gatewayURL, "task_description": "echo hello"}
+			if tt.tenant != "" {
+				args["tenant"] = tt.tenant
+			}
+
+			result, err := tool.Execute(context.Background(), args)
+			require.NoError(t, err)
+			require.True(t, result.Success, result.Error)
+
+			_, sendRequest := mockClient.SendTaskArgsForCall(0)
+			assert.Equal(t, tt.wantTenant, sendRequest.Tenant)
+			assert.Equal(t, tt.wantResumeID, sendRequest.Message.TaskID)
+		})
+	}
+}
+
 func TestSubmitTaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
 	tool := NewSubmitTaskTool(cfg, nil, nil, nil)

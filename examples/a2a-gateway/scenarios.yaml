@@ -1,0 +1,46 @@
+fallback:
+  content: 'Try "ask mock-b to echo hello", "ask both agents to echo hello" or "echo hello through the gateway".'
+scenarios:
+  - name: one-agent
+    match: '(?i)ask mock-b to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock-b
+              task_description: echo hello
+      - content: I delegated the task to mock-b through the gateway.
+      - content: mock-b finished the task.
+  - name: both-agents
+    match: '(?i)ask both agents to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock
+              task_description: echo hello
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock-b
+              task_description: echo hello
+      - content: I delegated the task to mock and mock-b through the gateway.
+      - content: Both agents finished the task.
+  - name: no-tenant
+    match: '(?i)echo hello through the gateway'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              task_description: echo hello
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock
+              task_description: echo hello
+      - content: The gateway fronts several agents, so I named mock as the tenant.
+      - content: mock finished the task.

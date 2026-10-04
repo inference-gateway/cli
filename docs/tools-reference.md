@@ -1249,6 +1249,8 @@ Submit tasks to specialized A2A agents for distributed processing.
 - `agent_url` (required): URL of the A2A agent server
 - `task_description` (required): Description of the task to perform
 - `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
+- `tenant` (optional): The agent to address behind a gateway that fronts several agents, taken from the `tenant` of an
+  interface on the gateway's agent card
 
 **Features:**
 
