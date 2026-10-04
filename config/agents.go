@@ -38,12 +38,14 @@ type AgentAuth struct {
 	OIDC     *AgentOIDC `yaml:"oidc,omitempty" mapstructure:"oidc,omitempty"`
 }
 
-// AgentOIDC is an OIDC client-credentials grant against the issuer an agent trusts.
+// AgentOIDC is the client of a client-credentials grant. Where to get the token
+// is declared by the agent card's security schemes, not here. IssuerURL is an
+// optional pin: the card may then only point at that issuer.
 type AgentOIDC struct {
-	IssuerURL       string `yaml:"issuer_url" mapstructure:"issuer_url"`
 	ClientID        string `yaml:"client_id" mapstructure:"client_id"`
 	ClientSecretEnv string `yaml:"client_secret_env" mapstructure:"client_secret_env"`
 	Audience        string `yaml:"audience,omitempty" mapstructure:"audience,omitempty"`
+	IssuerURL       string `yaml:"issuer_url,omitempty" mapstructure:"issuer_url,omitempty"`
 }
 
 // DefaultAgentsConfig returns a default agents configuration

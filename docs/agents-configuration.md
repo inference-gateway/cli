@@ -207,14 +207,23 @@ agents:
     url: https://billing.example.com
     auth:
       oidc:
-        issuer_url: https://idp.example.com/realms/agents
         client_id: infer
         client_secret_env: BILLING_AGENT_CLIENT_SECRET
-        audience: billing-agent   # Optional
+        audience: billing-agent                            # Optional
+        issuer_url: https://idp.example.com/realms/agents  # Optional pin, see below
 ```
 
-The CLI reads the token endpoint from `<issuer_url>/.well-known/openid-configuration`, fetches a token with the
-client-credentials grant, reuses it across requests and refreshes it shortly before it expires.
+You do not configure where the token comes from. As the A2A protocol defines, the agent declares it in the
+`securitySchemes` of its agent card, and the CLI reads it from there:
+
+- an `openIdConnect` scheme gives the OpenID Connect discovery URL, whose document names the token endpoint
+- an `oauth2` scheme with a `clientCredentials` flow gives the token URL directly
+
+The scopes the card's `securityRequirements` list for that scheme are requested with the token. The CLI fetches
+a token with the client-credentials grant, reuses it across requests and refreshes it shortly before it expires.
+
+The client secret is sent to the token endpoint the card names. Set `issuer_url` to pin it: the CLI then refuses
+a card that points anywhere outside that issuer, so a tampered card cannot collect the secret.
 
 ### Notes
 

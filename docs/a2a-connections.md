@@ -260,6 +260,8 @@ a2a:
 - Secrets are read from environment variables named in the block. They are never stored in `agents.yaml` and
   never shown in logs, tool results or `infer agents list`.
 - Credentials are sent only to the origin of the agent they are configured for.
+- For OIDC the token endpoint is read from the `securitySchemes` of the agent card. An optional `issuer_url`
+  pins the issuer the card may point at.
 
 ### Network Security
 

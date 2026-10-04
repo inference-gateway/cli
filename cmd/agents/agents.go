@@ -830,7 +830,7 @@ func (c *command) showAgent(cmd *cobra.Command, name string) error {
 // variable its secret is read from. The secret itself is never loaded here.
 func describeAuth(auth config.AgentAuth) string {
 	if auth.OIDC != nil {
-		return fmt.Sprintf("OIDC client %s at %s (secret from %s)", auth.OIDC.ClientID, auth.OIDC.IssuerURL, auth.OIDC.ClientSecretEnv)
+		return fmt.Sprintf("OIDC client %s (secret from %s)", auth.OIDC.ClientID, auth.OIDC.ClientSecretEnv)
 	}
 	return fmt.Sprintf("bearer token from %s", auth.TokenEnv)
 }

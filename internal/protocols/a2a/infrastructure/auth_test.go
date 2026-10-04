@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -35,6 +36,7 @@ func writeAgentsYAML(t *testing.T, body string) {
 type authRecorder struct {
 	mu   sync.Mutex
 	seen []string
+	card string
 }
 
 func (r *authRecorder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -43,7 +45,7 @@ func (r *authRecorder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	if req.Method == http.MethodGet {
-		_, _ = w.Write([]byte(`{"name":"research"}`))
+		_, _ = w.Write([]byte(cmp.Or(r.card, `{"name":"research"}`)))
 		return
 	}
 	_, _ = w.Write([]byte(jsonRPCResult))
@@ -114,9 +116,10 @@ func TestNewClient_KeepsCredentialsOnTheAgentOrigin(t *testing.T) {
 	}
 }
 
-// TestNewClient_OIDCTokenIsFetchedOnceAndRefreshed: clients are built per
-// request, yet they share one token until it is about to expire.
-func TestNewClient_OIDCTokenIsFetchedOnceAndRefreshed(t *testing.T) {
+// fakeIssuer serves an OIDC discovery document and a token endpoint. Its first
+// token expires at once, later ones are long lived.
+func fakeIssuer(t *testing.T) (*httptest.Server, *atomic.Int32) {
+	t.Helper()
 	var tokenRequests atomic.Int32
 	var issuer *httptest.Server
 	issuer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -125,8 +128,8 @@ func TestNewClient_OIDCTokenIsFetchedOnceAndRefreshed(t *testing.T) {
 			_, _ = fmt.Fprintf(w, `{"token_endpoint":%q}`, issuer.URL+"/token")
 			return
 		}
-		if err := r.ParseForm(); err != nil || r.Form.Get("audience") != "research-agent" {
-			http.Error(w, "missing audience", http.StatusBadRequest)
+		if err := r.ParseForm(); err != nil || r.Form.Get("audience") != "research-agent" || r.Form.Get("scope") != "tasks" {
+			http.Error(w, "missing audience or scope", http.StatusBadRequest)
 			return
 		}
 		n := tokenRequests.Add(1)
@@ -136,32 +139,103 @@ func TestNewClient_OIDCTokenIsFetchedOnceAndRefreshed(t *testing.T) {
 		}
 		_, _ = fmt.Fprintf(w, `{"access_token":"token-%d","token_type":"Bearer","expires_in":%d}`, n, expiresIn)
 	}))
-	defer issuer.Close()
+	t.Cleanup(issuer.Close)
+	return issuer, &tokenRequests
+}
 
-	agent := &authRecorder{}
-	srv := httptest.NewServer(agent)
-	defer srv.Close()
-	writeAgentsYAML(t, fmt.Sprintf(`agents:
+const oidcAgentsYAML = `agents:
   - name: research
     url: %s
     auth:
       oidc:
-        issuer_url: %s
         client_id: infer
         client_secret_env: RESEARCH_CLIENT_SECRET
         audience: research-agent
-`, srv.URL, issuer.URL))
-	t.Setenv("RESEARCH_CLIENT_SECRET", "s3cret")
+`
 
-	for range 4 {
-		if _, err := NewClient(srv.URL).GetTask(t.Context(), adk.GetTaskRequest{ID: "t1"}); err != nil {
-			t.Fatalf("GetTask: %v", err)
-		}
+// TestNewClient_OIDCTokenComesFromTheCardAndIsReused: the agent card says
+// where tokens are issued. Clients are built per request, yet they share one
+// token until it is about to expire.
+func TestNewClient_OIDCTokenComesFromTheCardAndIsReused(t *testing.T) {
+	tests := []struct {
+		name   string
+		scheme func(issuerURL string) string
+	}{
+		{"openIdConnect scheme", func(issuerURL string) string {
+			return fmt.Sprintf(`{"openIdConnectSecurityScheme":{"openIdConnectUrl":%q}}`, issuerURL+"/.well-known/openid-configuration")
+		}},
+		{"oauth2 client-credentials flow", func(issuerURL string) string {
+			return fmt.Sprintf(`{"oauth2SecurityScheme":{"flows":{"clientCredentials":{"tokenUrl":%q,"scopes":{}}}}}`, issuerURL+"/token")
+		}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			issuer, _ := fakeIssuer(t)
+			agent := &authRecorder{card: fmt.Sprintf(
+				`{"name":"research","securitySchemes":{"idp":%s},"securityRequirements":[{"schemes":{"idp":{"list":["tasks"]}}}]}`,
+				tt.scheme(issuer.URL))}
+			srv := httptest.NewServer(agent)
+			defer srv.Close()
+			writeAgentsYAML(t, fmt.Sprintf(oidcAgentsYAML, srv.URL))
+			t.Setenv("RESEARCH_CLIENT_SECRET", "s3cret")
 
-	want := []string{"Bearer token-1", "Bearer token-2", "Bearer token-2", "Bearer token-2"}
-	if got := agent.headers(); strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("Authorization headers = %q, want %q (first token expires at once, the second is reused)", got, want)
+			for range 4 {
+				if _, err := NewClient(srv.URL).GetTask(t.Context(), adk.GetTaskRequest{ID: "t1"}); err != nil {
+					t.Fatalf("GetTask: %v", err)
+				}
+			}
+
+			want := []string{"", "Bearer token-1", "Bearer token-2", "Bearer token-2", "Bearer token-2"}
+			if got := agent.headers(); strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Fatalf("Authorization headers = %q, want %q (one card read, the first token expires at once, the second is reused)", got, want)
+			}
+		})
+	}
+}
+
+func TestNewClient_OIDCRefusesACardItCannotTrust(t *testing.T) {
+	tests := []struct {
+		name       string
+		card       func(issuerURL string) string
+		pin        string
+		wantReason string
+	}{
+		{
+			name:       "card declares no usable scheme",
+			card:       func(string) string { return `{"name":"research"}` },
+			wantReason: "declares no openIdConnect or oauth2 client-credentials security scheme",
+		},
+		{
+			name: "card points outside the pinned issuer",
+			card: func(issuerURL string) string {
+				return fmt.Sprintf(`{"name":"research","securitySchemes":{"idp":{"openIdConnectSecurityScheme":{"openIdConnectUrl":%q}}}}`, issuerURL+"/.well-known/openid-configuration")
+			},
+			pin:        "https://idp.example.com/realms/agents",
+			wantReason: "outside the pinned issuer_url",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			issuer, tokenRequests := fakeIssuer(t)
+			srv := httptest.NewServer(&authRecorder{card: tt.card(issuer.URL)})
+			defer srv.Close()
+			agents := fmt.Sprintf(oidcAgentsYAML, srv.URL)
+			if tt.pin != "" {
+				agents += "        issuer_url: " + tt.pin + "\n"
+			}
+			writeAgentsYAML(t, agents)
+			t.Setenv("RESEARCH_CLIENT_SECRET", "s3cret")
+
+			_, err := NewClient(srv.URL).GetAgentCard(t.Context())
+
+			var authErr *AuthError
+			if !errors.As(err, &authErr) || !strings.Contains(authErr.Reason, tt.wantReason) {
+				t.Fatalf("err = %v, want an AuthError containing %q", err, tt.wantReason)
+			}
+			if n := tokenRequests.Load(); n != 0 {
+				t.Fatalf("the client secret was sent to the issuer %d times", n)
+			}
+		})
 	}
 }
 

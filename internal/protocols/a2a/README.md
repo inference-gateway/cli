@@ -15,7 +15,8 @@ and the tools return normal tool results.
 - `AgentSupervisor` starts the configured local agent containers. Agents are declared in `agents.yaml`, and the
   feature is gated by the `a2a` config section.
 - An agent's `auth` block in `agents.yaml` gives it credentials, a bearer token or an OIDC client-credentials
-  grant with the secrets read from the environment. `infrastructure.NewClient` adds them to every request to
+  grant with the secrets read from the environment. The token endpoint of the grant comes from the security
+  schemes on the agent card. `infrastructure.NewClient` adds them to every request to
   that agent's origin, and a rejection reaches the model as an authentication failure naming the agent.
 - `ReconcileAgents` brings a running chat in line with an edited `agents.yaml` on `/reload`. It reports the
   difference as `AgentChanges`. A removed agent is announced as `AgentStateRemoved` on the status stream once its
