@@ -590,7 +590,7 @@ infer headless "Analyze @error.log and this screenshot" --files debug-screen.png
 # Output as AG-UI protocol events
 infer headless --format ag-ui "fix the failing test"
 
-# Long-lived worker: one AG-UI run per user_message frame on stdin
+# Long-lived worker: one AG-UI run per run_agent_input frame on stdin
 infer headless --serve --session-id abc-123-def
 
 # Session resumption - list conversations to find session IDs

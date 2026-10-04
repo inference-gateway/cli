@@ -155,7 +155,8 @@ auto-with-judge mode forces the judge regardless of `approval_behaviour`.
 
 - `--format json` emits a `judge_verdict` event per decision (tool, decision, reason,
   turn).
-- `--format ag-ui` mirrors it as a custom event.
+- `--format ag-ui` mirrors it as an `ACTIVITY_SNAPSHOT` of type `judge_verdict` keyed
+  `judge:<tool>:<turn>`.
 - `--format text` prints a line for rejections.
 - TUI users see the status line flash `Action rejected by judge policy (<model>): <reason>`,
   the judge model next to the `AUTO+JUDGE` mode indicator, and the model in each

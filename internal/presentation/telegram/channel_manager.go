@@ -259,9 +259,9 @@ func (cm *ChannelManagerService) SetThreadDriver(router sessionsdomain.ThreadRou
 
 // handleMessage delivers one inbound message to its sender's thread: a
 // resume_conversation frame keeps the chat following the deterministic
-// session id per sender on the daemon's working dir, and the user_message
-// frame carries the text with the images as attachments for the worker to
-// turn into content parts. No subprocess is spawned per message.
+// session id per sender on the daemon's working dir, and the run_agent_input
+// frame carries the text with the images as content parts. No subprocess is
+// spawned per message.
 func (cm *ChannelManagerService) handleMessage(ctx context.Context, msg chn.InboundMessage) {
 	_, projectDir, threadOpts, missing := cm.threadDriver()
 	if missing {
