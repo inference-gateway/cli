@@ -45,6 +45,7 @@ agents:
   This is automatically expanded to `A2A_AGENT_CLIENT_PROVIDER` and `A2A_AGENT_CLIENT_MODEL` environment variables.
   When omitted, a locally run agent starts on the CLI's default model (`agent.model` in `config.yaml`),
   so agents follow whatever model you currently use unless you pin one here.
+  When `agent.model` is empty too, no model is passed and the agent starts on its own default.
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
 
