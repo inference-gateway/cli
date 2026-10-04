@@ -295,8 +295,8 @@ func TestA2AJobStatsFollowTaskMetadata(t *testing.T) {
 	}
 
 	metadata := map[string]any{
-		"usage":           map[string]any{"prompt_tokens": float64(1200), "completion_tokens": float64(80)},
-		"execution_stats": map[string]any{"tool_calls": float64(4), "failed_tools": float64(1)},
+		adk.UsageMetadataKey:          map[string]any{"prompt_tokens": float64(1200), "completion_tokens": float64(80)},
+		adk.ExecutionStatsMetadataKey: map[string]any{"tool_calls": float64(4), "failed_tools": float64(1)},
 	}
 	j.recordStats(adk.Task{ID: "t1", Metadata: &metadata})
 	j.recordStats(adk.Task{ID: "t1"})
@@ -312,7 +312,7 @@ func TestA2AJobStatsFollowTaskMetadata(t *testing.T) {
 func TestA2AJobStatsWithoutUsage(t *testing.T) {
 	j := &a2aJob{taskID: "t1", agentURL: "http://a"}
 	metadata := map[string]any{
-		"execution_stats": map[string]any{"failed_tools": float64(0), "iterations": float64(3), "messages": float64(1), "tool_calls": float64(1)},
+		adk.ExecutionStatsMetadataKey: map[string]any{"failed_tools": float64(0), "iterations": float64(3), "messages": float64(1), "tool_calls": float64(1)},
 	}
 	j.recordStats(adk.Task{ID: "t1", Metadata: &metadata})
 

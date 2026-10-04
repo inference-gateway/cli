@@ -88,14 +88,12 @@ task's progress:
 > _   (input)
 ```
 
-When the remote agent completes, the line expands to a tree-style block
-showing the token usage and execution statistics from the agent's
-`Task.metadata` (populated by ADK ≥ 0.19.0):
+When the remote agent completes, the row gains a child line with the tool
+calls and tokens from the agent's [usage extension](https://github.com/inference-gateway/schemas/tree/main/a2a/extensions/usage/v1),
+which the CLI activates on every request and ADK ≥ 0.33.0 agents serve:
 
 ```text
-✓ Agent(google-calendar-agent=completed)
-  ├── usage={"prompt_tokens":156,"completion_tokens":89,"total_tokens":245}
-  └── execution_stats={"iterations":2,"messages":4,"tool_calls":1,"failed_tools":0}
+└ 1 ✓ 0 ✗ · 245 tokens
 ```
 
 The indicator auto-disappears 5 seconds later so the conversation stays tidy.
@@ -106,10 +104,10 @@ Try it: ask the CLI a question that requires the calendar agent (e.g.
 "What's on my calendar today?") and watch the indicator appear and then
 auto-clear after the agent responds.
 
-> **Note:** The `usage=…` suffix only appears when the remote agent runs
-> ADK ≥ 0.19.0 with `EnableUsageMetadata` enabled (the default in 0.19.0+).
-> If you see `Agent(name=completed)` with no `usage=…`, the agent image
-> needs to be rebuilt against the newer ADK. The friendly agent name
+> **Note:** The token figure only appears when the remote agent runs
+> ADK ≥ 0.33.0 with `EnableUsageMetadata` enabled (the default). If a
+> finished row shows no tokens, the agent image needs to be rebuilt against
+> the newer ADK. The friendly agent name
 > (e.g. `mock-agent` vs the raw URL) is resolved from
 > `~/.infer/agents.yaml` - if you've only registered agents via
 > `INFER_A2A_AGENTS`, the indicator will show the URL instead.

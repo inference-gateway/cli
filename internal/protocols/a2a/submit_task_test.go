@@ -329,12 +329,12 @@ func TestSubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
 
 	metadata := adk.Struct{
-		"usage": map[string]any{
+		adk.UsageMetadataKey: map[string]any{
 			"prompt_tokens":     21695,
 			"completion_tokens": 607,
 			"total_tokens":      22302,
 		},
-		"execution_stats": map[string]any{
+		adk.ExecutionStatsMetadataKey: map[string]any{
 			"iterations":   5,
 			"messages":     4,
 			"tool_calls":   2,

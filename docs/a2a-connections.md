@@ -139,16 +139,19 @@ The rows update in place as the task progresses through its lifecycle:
 `input-required` is paused rather than finished, so it keeps its row and resumes
 when the agent is sent input.
 
-When the remote task reports its `metadata` (ADK ≥ 0.19.0 agents with
-`EnableUsageMetadata` enabled, the default), the finished row gains one child
-line with the tool calls that succeeded and failed and the tokens consumed:
+When the remote agent serves the [usage extension](https://github.com/inference-gateway/schemas/tree/main/a2a/extensions/usage/v1)
+(ADK ≥ 0.33.0 agents with `EnableUsageMetadata` enabled, the default), the
+finished row gains one child line with the tool calls that succeeded and failed
+and the tokens consumed. The CLI activates the extension on every request with
+the `A2A-Extensions` header:
 
 ```text
 └ 2 ✓ 0 ✗ · 950 tokens
 ```
 
-The child line is omitted when the remote agent emits no such metadata, for
-older ADK versions for example. A failed task shows the cross icon in place of
+The child line is omitted when the remote agent does not serve the extension,
+for older ADK versions for example, and the token figure is dropped when the
+agent reports tool counts but no usage. A failed task shows the cross icon in place of
 the check mark and no further detail, with the error available through
 `A2A_QueryTask`.
 

@@ -93,13 +93,13 @@ func (j *a2aJob) Stats() *scheddomain.SubagentRunStats {
 }
 
 // taskRunStats reads the token usage and tool counts an agent attaches to its
-// task metadata, nil when it attached neither.
+// task metadata through the usage extension, nil when it attached neither.
 func taskRunStats(task adk.Task) *scheddomain.SubagentRunStats {
 	if task.Metadata == nil {
 		return nil
 	}
-	usage, hasUsage := (*task.Metadata)["usage"].(map[string]any)
-	execution, hasExecution := (*task.Metadata)["execution_stats"].(map[string]any)
+	usage, hasUsage := (*task.Metadata)[adk.UsageMetadataKey].(map[string]any)
+	execution, hasExecution := (*task.Metadata)[adk.ExecutionStatsMetadataKey].(map[string]any)
 	if !hasUsage && !hasExecution {
 		return nil
 	}
