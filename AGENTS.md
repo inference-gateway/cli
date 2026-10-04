@@ -5,7 +5,7 @@ A README for coding agents on the **Inference Gateway CLI** — an agentic CLI (
 ## Stack
 
 - Go 1.26, module `github.com/inference-gateway/cli`. Entry: `cmd/infer/main.go` → `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
-- Dev env pinned by **flox** (`.flox/env/manifest.toml`); run everything through `flox activate --`.
+- Dev env pinned by **flox** (`.flox/env/manifest.toml`). Run everything through `flox activate --`.
 
 ## Build / Test / Lint
 
@@ -32,7 +32,7 @@ Contexts: `agent`, `binaries`, `browser`, `computer`, `conversation`, `sandbox`,
 
 Repo-wide invariants:
 
-- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root; the A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the loop (`agent/loop`) back. `domain/` packages stay pure (the depguard rule covers the single-level `<context>/domain/` packages, the nested `protocols/*/domain` packages follow the same rule by convention), and only `cmd/` may import `internal/container`.
+- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root. The A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the loop (`agent/loop`) back. `domain/` packages stay pure (the depguard rule covers the single-level `<context>/domain/` packages, the nested `protocols/*/domain` packages follow the same rule by convention), and only `cmd/` may import `internal/container`.
 - `internal/tools/registry.go` is the source of truth for registered tools. Read `internal/tools/AGENTS.md` before touching a tool manifest, a tool name or the registry.
 
 ## Package AGENTS files
@@ -46,8 +46,8 @@ Repo-wide invariants:
 
 ## Testing
 
-- Stdlib `testing`, colocated `_test.go`, prefer table-driven. Mocks are **counterfeiter** output committed to `tests/mocks/` — never hand-edit; a new interface in a `domain/` package needs a line in Taskfile's `mocks:generate`.
-- Manual runs: never hand-start gateway containers — `flox activate -- go run ./cmd/infer chat` (or `headless <prompt>`) auto-starts the local gateway and tears it down. `INFER_GATEWAY_MOCK=true` exercises the TUI/e2e without a real LLM; the mock matches prompts against scenarios (`INFER_GATEWAY_MOCK_SCENARIOS` overrides).
+- Stdlib `testing`, colocated `_test.go`, prefer table-driven. Mocks are **counterfeiter** output committed to `tests/mocks/` — never hand-edit. A new interface in a `domain/` package needs a line in Taskfile's `mocks:generate`.
+- Manual runs: never hand-start gateway containers — `flox activate -- go run ./cmd/infer chat` (or `headless <prompt>`) auto-starts the local gateway and tears it down. `INFER_GATEWAY_MOCK=true` exercises the TUI/e2e without a real LLM. The mock matches prompts against scenarios (`INFER_GATEWAY_MOCK_SCENARIOS` overrides).
 
 ## Style & Commits
 
@@ -57,7 +57,8 @@ Repo-wide invariants:
 - No inline comments inside function bodies.
 - Doc comments on functions and types are at most 5 lines: what it does and why, not how.
   Aim for 3. Genuinely multi-step docs (ordered lists, state routing) restructure their steps into the code body instead of growing the docblock. Never reference GitHub issues or PRs - ticket context belongs in commit messages, PR bodies, and CHANGELOG.md.
-- No semicolons in doc comments, commit messages or PR bodies. Split the clauses into separate sentences.
+- No semicolons in documentation prose (Markdown files, doc comments): split the sentence or use
+  a dash instead. The same goes for commit messages and PR bodies.
 - No comments above modules, packages, or files.
 - Tool directives are not comments and stay where the tool needs them (lint suppressions, build
   tags, compiler pragmas, code generation markers). Here: `//nolint:...`, `//go:...` (incl. `//go:build`, `//go:generate`), `#nosec`.
@@ -65,11 +66,11 @@ Repo-wide invariants:
 
 ## Security Gotchas
 
-- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`; effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted; standard/plan are read-only, and an allowed command still asks when a path it names leaves the sandbox (`internal/sandbox/bash_paths.go`). `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
+- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`, effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted - standard/plan are read-only, and an allowed command still asks when a path it names leaves the sandbox (`internal/sandbox/bash_paths.go`). `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
 - **The path policy is `sandbox.yaml`** (`filesystem.allowed:` with optional `access: read`, `filesystem.denied:` with optional `on_violation: approval`, denied wins, a blocking denied entry over one that asks, outside allowed asks, config dirs ask by default). Userspace only: a project `.infer/sandbox.yaml` is ignored. It is never agent-writable and `infer config set` cannot reach it.
-- Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`; forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
+- Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`, forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
 - Project custom tools (`.infer/tools/`, `.agents/tools/`) always need approval outside auto mode, whatever their manifest says.
-- Never commit secrets; credentials live in `.env` (never committed).
+- Never commit secrets. Credentials live in `.env` (never committed).
 - `infer init --overwrite` wipes `~/.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) in the userspace config dir. None of them is ever in the repository.
 
 ## Config
