@@ -134,17 +134,16 @@ $ ls ~/.infer/plans/
 
 When the model calls `RequestPlanApproval`, the chat TUI:
 
-1. Renders the saved plan in a dedicated panel.
-2. Shows a status line: `Plan ready - use arrow keys to select and Enter
-   to confirm`.
-3. Offers three options:
+1. Renders the saved plan in the conversation behind an accent rail.
+2. Shows a status line: `Plan ready for review`.
+3. Offers three options, chosen with `←`/`→` and confirmed with `Enter`:
 
-   - **Accept** (`Enter`/`y`) - agent switches to Auto-Accept mode (no
-     per-tool approval prompts) and executes the plan.
-   - **Reject** (`n`) - chat session ends; you can write a follow-up message
-     with feedback and the agent re-iterates the plan.
-   - **Approve Each Step** (`s`) - agent switches to Standard mode and
-     executes the plan, prompting for approval on each action.
+   - **Accept** - agent switches to Auto-Accept mode (no per-tool approval
+     prompts) and executes the plan.
+   - **Reject** (also `Esc`) - chat session ends. You can write a follow-up
+     message with feedback and the agent re-iterates the plan.
+   - **Approve each step** - agent switches to Standard mode and executes
+     the plan, prompting for approval on each action.
 
 In all three cases the stored plan remains as an audit trail. Rejecting a
 plan does **not** delete it.

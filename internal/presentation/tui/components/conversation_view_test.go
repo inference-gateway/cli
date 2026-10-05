@@ -613,6 +613,20 @@ func TestConversationView_RenderCache(t *testing.T) {
 	})
 }
 
+func TestConversationView_PendingPlanRendersActions(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	entry := renderCacheConversation()[1]
+	entry.IsPlan = true
+	entry.PlanApprovalStatus = convdomain.PlanApprovalPending
+
+	out := cv.renderPlanEntry(entry)
+	for _, want := range []string{"Plan", "pending approval", "Accept", "Reject", "Approve each step", "enter confirm"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected render to contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
 // heightFormatter renders a tool result as `collapsed` lines when collapsed and
 // `expanded` lines when expanded, giving scroll-anchoring math a real height delta.
 type heightFormatter struct{ collapsed, expanded int }
