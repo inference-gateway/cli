@@ -214,6 +214,8 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
 
+	a2ainfra.UseGatewayCredential(cfg.Gateway.URL, cfg.Gateway.APIKey)
+
 	if cfg.Gateway.Mock {
 		container.startMockGateway()
 	}

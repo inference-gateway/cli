@@ -331,3 +331,139 @@ func fetchTask(t *testing.T, c client.A2AClient) error {
 	_, err := c.GetTask(t.Context(), adk.GetTaskRequest{ID: "t1"})
 	return err
 }
+
+// useGatewayCredential makes key the credential of the gateway at gatewayURL for one test.
+func useGatewayCredential(t *testing.T, gatewayURL, key string) {
+	t.Helper()
+	UseGatewayCredential(gatewayURL, key)
+	t.Cleanup(func() { UseGatewayCredential("", "") })
+}
+
+func TestNewClient_SendsGatewayKeyOnEveryRequestType(t *testing.T) {
+	requests := map[string]func(t *testing.T, c client.A2AClient) error{
+		"agent card": fetchCard,
+		"send message": func(t *testing.T, c client.A2AClient) error {
+			_, err := c.SendTask(t.Context(), adk.SendMessageRequest{})
+			return err
+		},
+		"get task": fetchTask,
+		"cancel task": func(t *testing.T, c client.A2AClient) error {
+			_, err := c.CancelTask(t.Context(), adk.CancelTaskRequest{ID: "t1"})
+			return err
+		},
+	}
+	for name, send := range requests {
+		t.Run(name, func(t *testing.T) {
+			gateway := &authRecorder{}
+			srv := httptest.NewServer(gateway)
+			defer srv.Close()
+			writeAgentsYAML(t, "agents: []\n")
+			useGatewayCredential(t, srv.URL+"/v1", "gateway-key")
+
+			if err := send(t, NewClient(srv.URL)); err != nil {
+				t.Fatalf("request failed: %v", err)
+			}
+			if got := gateway.headers(); len(got) != 1 || got[0] != "Bearer gateway-key" {
+				t.Fatalf("Authorization headers = %q, want one Bearer gateway-key", got)
+			}
+		})
+	}
+}
+
+func TestNewClient_KeepsGatewayKeyOnTheGateway(t *testing.T) {
+	other := &authRecorder{}
+	otherSrv := httptest.NewServer(other)
+	defer otherSrv.Close()
+	gateway := httptest.NewServer(http.RedirectHandler(otherSrv.URL+"/.well-known/agent-card.json", http.StatusFound))
+	defer gateway.Close()
+	writeAgentsYAML(t, "agents: []\n")
+	useGatewayCredential(t, gateway.URL, "gateway-key")
+
+	if _, err := NewClient(gateway.URL).GetAgentCard(t.Context()); err != nil {
+		t.Fatalf("redirected card fetch: %v", err)
+	}
+	if _, err := NewClient(otherSrv.URL).GetAgentCard(t.Context()); err != nil {
+		t.Fatalf("other agent card fetch: %v", err)
+	}
+	for _, header := range other.headers() {
+		if header != "" {
+			t.Fatalf("another origin received Authorization %q", header)
+		}
+	}
+}
+
+func TestNewClient_AgentCredentialsBeatTheGatewayKey(t *testing.T) {
+	gateway := &authRecorder{}
+	srv := httptest.NewServer(gateway)
+	defer srv.Close()
+	writeAgentsYAML(t, fmt.Sprintf("agents:\n  - name: gateway\n    url: %s\n    auth:\n      token_env: GATEWAY_AGENT_TOKEN\n", srv.URL))
+	t.Setenv("GATEWAY_AGENT_TOKEN", "agent-token")
+	useGatewayCredential(t, srv.URL, "gateway-key")
+
+	if err := fetchTask(t, NewClient(srv.URL)); err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if got := gateway.headers(); len(got) != 1 || got[0] != "Bearer agent-token" {
+		t.Fatalf("Authorization headers = %q, want one Bearer agent-token", got)
+	}
+}
+
+// TestRejection_ReadsTheGatewayResponses pins the ADK error text Rejection
+// reads a gateway 401 and a guardrail 403 from.
+func TestRejection_ReadsTheGatewayResponses(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     int
+		body       string
+		want       []string
+		wantAbsent string
+	}{
+		{
+			name:       "401 is an authentication failure without the body",
+			status:     http.StatusUnauthorized,
+			body:       `{"error":"unauthorized body-marker"}`,
+			want:       []string{"Authentication failed", "401", "gateway.api_key"},
+			wantAbsent: "body-marker",
+		},
+		{
+			name:       "403 with a JSON-RPC error carries the policy message",
+			status:     http.StatusForbidden,
+			body:       `{"jsonrpc":"2.0","id":"1","error":{"code":-32001,"message":"request contains sensitive payment information"}}`,
+			want:       []string{"refused by a guardrail policy", "request contains sensitive payment information"},
+			wantAbsent: "Authentication failed",
+		},
+		{
+			name:       "403 without a JSON-RPC error stays an authentication failure",
+			status:     http.StatusForbidden,
+			body:       `{"error":"forbidden body-marker"}`,
+			want:       []string{"Authentication failed", "403"},
+			wantAbsent: "body-marker",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				http.Error(w, tt.body, tt.status)
+			}))
+			defer srv.Close()
+			writeAgentsYAML(t, "agents: []\n")
+			useGatewayCredential(t, srv.URL, "gateway-key")
+
+			message, rejected := Rejection(srv.URL, fetchTask(t, NewClient(srv.URL)))
+
+			if !rejected {
+				t.Fatal("Rejection did not recognise the response")
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(message, want) {
+					t.Errorf("message %q does not contain %q", message, want)
+				}
+			}
+			for _, leaked := range []string{"gateway-key", tt.wantAbsent} {
+				if strings.Contains(message, leaked) {
+					t.Errorf("message %q contains %q", message, leaked)
+				}
+			}
+		})
+	}
+}

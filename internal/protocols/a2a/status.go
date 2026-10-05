@@ -65,7 +65,7 @@ func probeAgentCard(ctx context.Context, status *AgentStatus) {
 	if _, err := a2ainfra.NewClient(status.URL).GetAgentCard(checkCtx); err != nil {
 		status.State = a2adomain.AgentStateFailed.String()
 		status.Error = err.Error()
-		if message, rejected := a2ainfra.AuthFailure(status.URL, err); rejected {
+		if message, rejected := a2ainfra.Rejection(status.URL, err); rejected {
 			status.Error = message
 		}
 		return

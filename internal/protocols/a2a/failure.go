@@ -9,10 +9,11 @@ import (
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 )
 
-// requestFailure describes a failed request to an agent for the model. An
-// authentication failure is named as one, anything else keeps the action and its error.
+// requestFailure describes a failed request to an agent for the model. A policy
+// refusal or an authentication failure is named as one, anything else keeps
+// the action and its error.
 func requestFailure(agentURL, action string, err error) string {
-	if message, ok := a2ainfra.AuthFailure(agentURL, err); ok {
+	if message, ok := a2ainfra.Rejection(agentURL, err); ok {
 		return message
 	}
 	return fmt.Sprintf("%s: %v", action, err)

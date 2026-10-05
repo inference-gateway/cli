@@ -263,6 +263,24 @@ a2a:
 - For OIDC the token endpoint is read from the `securitySchemes` of the agent card. An optional `issuer_url`
   pins the issuer the card may point at and is used when the card declares none.
 
+#### Authenticating to the gateway
+
+With `AUTH_ENABLED` the Inference Gateway requires a bearer token on `POST /a2a`, the same token it requires for
+inference. When an agent URL is the configured `gateway.url`, `infer` sends `gateway.api_key` as that token on
+every A2A request to it.
+
+```bash
+export INFER_GATEWAY_URL=https://gateway.example.com
+export INFER_GATEWAY_API_KEY="$ACCESS_TOKEN"
+export INFER_A2A_AGENTS=https://gateway.example.com
+```
+
+- The gateway token is sent to the gateway's origin only, never to another agent.
+- An `auth` block for the gateway in `agents.yaml` takes precedence over `gateway.api_key`. Use `auth.oidc`
+  there for long sessions, since it refreshes the token and `gateway.api_key` is a fixed value.
+- A guardrail policy that blocks an A2A request reaches the model as a tool error with the policy's message.
+- With `gateway.run` and a port the CLI reassigned, the match still uses the configured `gateway.url`.
+
 ### Network Security
 
 - A2A connections require proper URL validation
@@ -310,6 +328,7 @@ Tools provide descriptive error messages:
 - "agent_url parameter is required and must be a string"
 - "A2A task submission failed: [specific error]"
 - "Authentication failed for A2A agent \"[name]\": [reason]" - missing or rejected credentials (`401`/`403`)
+- "The request was refused by a guardrail policy: [policy message]" - a gateway guardrail blocked the request (`403`)
 
 ## Troubleshooting
 
