@@ -253,6 +253,16 @@ a2a:
 - Tools validate required parameters before execution
 - Invalid configurations result in clear error messages
 
+### Authentication
+
+- An agent entry in `agents.yaml` can carry an `auth` block with a static bearer token or an OIDC
+  client-credentials grant. See [Authentication](agents-configuration.md#authentication).
+- Secrets are read from environment variables named in the block. They are never stored in `agents.yaml` and
+  never shown in logs, tool results or `infer agents list`.
+- Credentials are sent only to the origin of the agent they are configured for.
+- For OIDC the token endpoint is read from the `securitySchemes` of the agent card. An optional `issuer_url`
+  pins the issuer the card may point at and is used when the card declares none.
+
 ### Network Security
 
 - A2A connections require proper URL validation
@@ -299,6 +309,7 @@ Tools provide descriptive error messages:
 - "A2A connections are disabled in configuration"
 - "agent_url parameter is required and must be a string"
 - "A2A task submission failed: [specific error]"
+- "Authentication failed for A2A agent \"[name]\": [reason]" - missing or rejected credentials (`401`/`403`)
 
 ## Troubleshooting
 

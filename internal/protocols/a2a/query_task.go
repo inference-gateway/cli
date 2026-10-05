@@ -95,7 +95,7 @@ func (t *QueryTaskTool) Execute(ctx context.Context, args map[string]any) (*agen
 	taskResponse, err := adkClient.GetTask(ctx, queryParams)
 	if err != nil {
 		logger.Error("failed to query task", "agent_url", agentURL, "task_id", taskID, "error", err)
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to query task: %v", err))
+		return t.errorResult(args, startTime, requestFailure(agentURL, "Failed to query task", err))
 	}
 
 	taskBytes, err := json.Marshal(taskResponse.Result)

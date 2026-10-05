@@ -31,6 +31,8 @@ agents:
     model: provider/model-name    # Optional: AI model to use (e.g., deepseek/deepseek-v4-pro)
     environment:                  # Optional: Environment variables for the agent
       KEY: VALUE
+    auth:                         # Optional: Credentials sent to the agent (see Authentication)
+      token_env: AGENT_TOKEN
 ```
 
 ### Field Descriptions
@@ -48,6 +50,8 @@ agents:
   When `agent.model` is empty too, no model is passed and the agent starts on its own default.
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
+- **auth**: Credentials the CLI sends to the agent, a static bearer token or an OIDC client-credentials grant.
+  It names the environment variables that hold the secrets. See [Authentication](#authentication).
 
 ## CLI Commands
 
@@ -167,6 +171,79 @@ infer agents remove code-reviewer
 # Remove from the project configuration
 infer agents remove project-helper --project
 ```
+
+## Authentication
+
+An agent that protects its `/a2a` endpoint needs credentials. Add an `auth` block to the agent's entry and the
+CLI sends an `Authorization: Bearer` header on every request to that agent: the agent card fetch, task
+submission, background task polling, task cancellation and the liveness probe.
+
+The `auth` block never holds a secret. It names the environment variable the secret is read from, so
+`agents.yaml` stays safe to commit and `infer agents list` and `infer agents show` only ever print the variable name.
+
+### Static Bearer Token
+
+For an ADK agent started with `A2A_AUTH_TOKEN`:
+
+```yaml
+agents:
+  - name: research
+    url: https://research.example.com
+    auth:
+      token_env: RESEARCH_AGENT_TOKEN
+```
+
+```bash
+export RESEARCH_AGENT_TOKEN=...
+```
+
+### OIDC Client Credentials
+
+For an ADK agent started with `A2A_AUTH_ENABLED`, `A2A_AUTH_ISSUER_URL`, `A2A_AUTH_CLIENT_ID` and `A2A_AUTH_AUDIENCE`:
+
+```yaml
+agents:
+  - name: billing
+    url: https://billing.example.com
+    auth:
+      oidc:
+        client_id: infer
+        client_secret_env: BILLING_AGENT_CLIENT_SECRET
+        audience: billing-agent                            # Optional
+        issuer_url: https://idp.example.com/realms/agents  # Optional, see below
+```
+
+You do not configure where the token comes from. As the A2A protocol defines, the agent declares it in the
+`securitySchemes` of its agent card, and the CLI reads it from there:
+
+- an `openIdConnect` scheme gives the OpenID Connect discovery URL, whose document names the token endpoint
+- an `oauth2` scheme with a `clientCredentials` flow gives the token URL directly
+
+The scopes the card's `securityRequirements` list for that scheme are requested with the token. The CLI fetches
+a token with the client-credentials grant, reuses it across requests and refreshes it shortly before it expires.
+
+`issuer_url` is optional and does two things:
+
+- **Pin.** The client secret is sent to the token endpoint the card names. With `issuer_url` set, the CLI refuses
+  a card that points anywhere outside that issuer, so a tampered card cannot collect the secret.
+- **Fallback.** An agent whose card declares no security scheme cannot say where its tokens come from. The CLI
+  then discovers the token endpoint from `issuer_url`. Without it, such an agent fails with an authentication error.
+
+The [a2a-auth example](../examples/a2a-auth/) runs one agent behind a bearer token and one behind OIDC with
+Keycloak, with a mock model and no API key.
+
+### Notes
+
+- Set either `token_env` or `oidc`, not both.
+- Reference the variable by name (`token_env: RESEARCH_AGENT_TOKEN`). Do not write `${RESEARCH_AGENT_TOKEN}`
+  here - substitution would put the secret itself in the field.
+- Credentials are matched by origin (scheme, host and port) of the agent's `url` and are only sent there. A
+  redirect to another origin or another service on the same host does not receive them.
+- The credentials also apply when `INFER_A2A_AGENTS` supplies the agent list, as long as `agents.yaml` has an
+  entry with the same origin.
+- A missing variable, a failed token request or a `401`/`403` from the agent is reported to the model as
+  `Authentication failed for A2A agent "<name>": ...`. A background task whose polling is rejected ends as failed.
+- There are no `infer agents add` flags for `auth` yet - edit `agents.yaml` directly.
 
 ## Environment Variable Substitution
 

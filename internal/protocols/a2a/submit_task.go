@@ -208,7 +208,7 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 			t.taskTracker.RemoveTask(existingTaskID)
 			return t.errorResult(args, startTime, fmt.Sprintf("Previous task no longer exists (cleared from tracker): %v", err))
 		}
-		return t.errorResult(args, startTime, fmt.Sprintf("A2A task submission failed: %v", err))
+		return t.errorResult(args, startTime, requestFailure(agentURL, "A2A task submission failed", err))
 	}
 
 	var sendResponse adk.SendMessageResponse
@@ -335,6 +335,9 @@ func (t *SubmitTaskTool) runA2APolling(
 				pollAttempt, currentInterval, time.Since(state.StartedAt))
 
 			currentTask, err := t.queryTask(ctx, adkClient, taskID)
+			if message, rejected := a2ainfra.AuthFailure(agentURL, err); rejected {
+				return authFailedResult(agentURL, taskID, state.ContextID, message)
+			}
 			if err != nil || currentTask == nil {
 				currentInterval = t.handleQueryError(agentURL, taskID, strategy, currentInterval, state, ticker, err)
 				continue
@@ -353,6 +356,24 @@ func (t *SubmitTaskTool) runA2APolling(
 
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
 		}
+	}
+}
+
+// authFailedResult ends the polling of a task whose agent no longer accepts
+// the credentials, since retrying would be rejected the same way forever.
+func authFailedResult(agentURL, taskID, contextID, message string) agentdomain.ToolExecutionResult {
+	return agentdomain.ToolExecutionResult{
+		ToolName: ToolSubmitTask,
+		Success:  false,
+		Error:    message,
+		Data: SubmitTaskResult{
+			TaskID:    taskID,
+			ContextID: contextID,
+			AgentURL:  agentURL,
+			State:     string(adk.TaskStateFailed),
+			Success:   false,
+			Message:   message,
+		},
 	}
 }
 

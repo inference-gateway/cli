@@ -126,3 +126,25 @@ func TestMarkdownAgentMode(t *testing.T) {
 		})
 	}
 }
+
+func TestDescribeAuth_NamesTheVariableNotTheSecret(t *testing.T) {
+	t.Setenv("RESEARCH_TOKEN", "s3cret-token")
+	t.Setenv("BILLING_CLIENT_SECRET", "s3cret-client")
+
+	bearer := describeAuth(config.AgentAuth{TokenEnv: "RESEARCH_TOKEN"})
+	oidc := describeAuth(config.AgentAuth{OIDC: &config.AgentOIDC{
+		IssuerURL:       "https://idp.example.com/realms/agents",
+		ClientID:        "infer",
+		ClientSecretEnv: "BILLING_CLIENT_SECRET",
+	}})
+
+	if bearer != "bearer token from RESEARCH_TOKEN" {
+		t.Errorf("bearer description = %q", bearer)
+	}
+	if !strings.Contains(oidc, "BILLING_CLIENT_SECRET") || !strings.Contains(oidc, "infer") {
+		t.Errorf("oidc description = %q", oidc)
+	}
+	if strings.Contains(bearer+oidc, "s3cret") {
+		t.Errorf("descriptions leak a secret: %q %q", bearer, oidc)
+	}
+}

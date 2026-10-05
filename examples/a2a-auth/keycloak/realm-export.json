@@ -1,0 +1,36 @@
+{
+  "realm": "a2a",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "displayName": "A2A agents",
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "infer",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "infer-secret",
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "mock-agent-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "mock-agent",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

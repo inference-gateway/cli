@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -26,6 +27,25 @@ type AgentEntry struct {
 	Run          bool              `yaml:"run" mapstructure:"run"`
 	Model        string            `yaml:"model,omitempty" mapstructure:"model,omitempty"`
 	Environment  map[string]string `yaml:"environment,omitempty" mapstructure:"environment,omitempty"`
+	Auth         *AgentAuth        `yaml:"auth,omitempty" mapstructure:"auth,omitempty"`
+}
+
+// AgentAuth says how to authenticate to an agent: a static bearer token or an
+// OIDC client-credentials grant. Secrets are named by environment variable and
+// never stored, so agents.yaml stays safe to print and to rewrite.
+type AgentAuth struct {
+	TokenEnv string     `yaml:"token_env,omitempty" mapstructure:"token_env,omitempty"`
+	OIDC     *AgentOIDC `yaml:"oidc,omitempty" mapstructure:"oidc,omitempty"`
+}
+
+// AgentOIDC is the client of a client-credentials grant. Where to get the token
+// is declared by the agent card's security schemes. IssuerURL is optional: the
+// card may then only point at that issuer, and it is used when the card declares none.
+type AgentOIDC struct {
+	ClientID        string `yaml:"client_id" mapstructure:"client_id"`
+	ClientSecretEnv string `yaml:"client_secret_env" mapstructure:"client_secret_env"`
+	Audience        string `yaml:"audience,omitempty" mapstructure:"audience,omitempty"`
+	IssuerURL       string `yaml:"issuer_url,omitempty" mapstructure:"issuer_url,omitempty"`
 }
 
 // DefaultAgentsConfig returns a default agents configuration
@@ -147,6 +167,33 @@ func (c *AgentsConfig) DeleteEntry(name string) error {
 
 // ListEntries implements CollectionConfig.
 func (c *AgentsConfig) ListEntries() []AgentEntry { return c.Agents }
+
+// EntryForURL returns the configured agent served from the origin of rawURL.
+// The whole origin is compared, so an agent's credentials never reach another
+// service on the same host.
+func (c *AgentsConfig) EntryForURL(rawURL string) (AgentEntry, bool) {
+	origin := URLOrigin(rawURL)
+	if origin == "" {
+		return AgentEntry{}, false
+	}
+	i := slices.IndexFunc(c.Agents, func(agent AgentEntry) bool { return URLOrigin(agent.URL) == origin })
+	if i < 0 {
+		return AgentEntry{}, false
+	}
+	return c.Agents[i], true
+}
+
+// URLOrigin returns the scheme, host and port of rawURL in a comparable form,
+// with the scheme's default port filled in. It returns "" for a URL without a host.
+func URLOrigin(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Hostname() == "" {
+		return ""
+	}
+	scheme := strings.ToLower(u.Scheme)
+	port := cmp.Or(u.Port(), map[string]string{"http": "80", "https": "443"}[scheme])
+	return scheme + "://" + strings.ToLower(u.Hostname()) + ":" + port
+}
 
 // GetAgentURLs returns URLs of all configured agents.
 func GetAgentURLs(path string) ([]string, error) {

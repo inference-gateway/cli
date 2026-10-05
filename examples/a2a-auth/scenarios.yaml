@@ -1,0 +1,23 @@
+fallback:
+  content: 'Try "ask the token agent to echo hello" or "ask the oidc agent to echo hello".'
+scenarios:
+  - name: token-agent
+    match: '(?i)ask the token agent to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8091
+              task_description: echo hello
+      - content: I asked the token agent to echo hello.
+      - content: The token agent answered.
+  - name: oidc-agent
+    match: '(?i)ask the oidc agent to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8092
+              task_description: echo hello
+      - content: I asked the oidc agent to echo hello.
+      - content: The oidc agent answered.

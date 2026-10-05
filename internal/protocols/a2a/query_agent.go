@@ -74,7 +74,7 @@ func (t *QueryAgentTool) Execute(ctx context.Context, args map[string]any) (*age
 	response, err := adkClient.GetAgentCard(ctx)
 	if err != nil {
 		logger.Error("failed to fetch agent card", "agent_url", agentURL, "error", err)
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to fetch agent card: %v", err))
+		return t.errorResult(args, startTime, requestFailure(agentURL, "Failed to fetch agent card", err))
 	}
 
 	return &agentdomain.ToolExecutionResult{
