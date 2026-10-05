@@ -75,10 +75,10 @@ The last two take a few seconds, because the request is retried before the failu
 
 ## Configuration notes
 
-- The A2A protocol has an agent declare how to authenticate in the `securitySchemes` of its agent card, and
-  `infer` reads the OIDC token endpoint from there. The mock agent does not declare them yet, so
-  `auth.oidc.issuer_url` names the issuer instead. For an agent that does declare them, `issuer_url` is optional
-  and pins the issuer the card may point at.
+- The A2A protocol has an agent declare how to authenticate in the `securitySchemes` of its agent card. The OIDC
+  agent declares an `openIdConnect` scheme that points at the Keycloak realm, and `infer` reads the token endpoint
+  from there, so `agents.yaml` only holds the client. Set `auth.oidc.issuer_url` to pin the issuer the card may
+  point at, or to name the issuer for an agent whose card declares no scheme.
 - Keycloak and the OIDC agent share one network namespace (`network_mode: service:keycloak`), so the issuer is
   `http://localhost:8090/realms/a2a` for `infer` on your machine and for the agent in its container. The token's
   issuer has to match on both sides.

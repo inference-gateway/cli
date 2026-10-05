@@ -12,4 +12,3 @@ agents:
       oidc:
         client_id: infer
         client_secret_env: OIDC_AGENT_CLIENT_SECRET
-        issuer_url: http://localhost:8090/realms/a2a

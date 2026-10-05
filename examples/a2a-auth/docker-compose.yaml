@@ -1,7 +1,7 @@
 ---
 services:
   mock-agent-token:
-    image: ghcr.io/inference-gateway/mock-agent:latest
+    image: ghcr.io/inference-gateway/mock-agent:0.5.0
     pull_policy: always
     ports:
       - "8091:8080"
@@ -46,7 +46,7 @@ services:
       - a2a-auth-network
 
   mock-agent-oidc:
-    image: ghcr.io/inference-gateway/mock-agent:latest
+    image: ghcr.io/inference-gateway/mock-agent:0.5.0
     pull_policy: always
     network_mode: service:keycloak
     environment:
