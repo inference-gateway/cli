@@ -1,0 +1,35 @@
+fallback:
+  content: 'Try "ask mock to echo hello", "ask mock-b to echo hello" or "ask mock to charge card 4111 1111 1111 1111".'
+scenarios:
+  - name: authorized
+    match: '(?i)ask mock to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock
+              task_description: echo hello
+      - content: I delegated the task to mock through the gateway.
+      - content: mock finished the task.
+  - name: basic-auth
+    match: '(?i)ask mock-b to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock-b
+              task_description: echo hello
+      - content: I delegated the task to mock-b through the gateway.
+      - content: mock-b finished the task.
+  - name: pii
+    match: '(?i)ask mock to charge card'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8080
+              tenant: mock
+              task_description: charge card 4111 1111 1111 1111
+      - content: The gateway refused the task because it contains payment information.

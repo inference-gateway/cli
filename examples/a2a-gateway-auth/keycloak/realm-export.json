@@ -1,0 +1,36 @@
+{
+  "realm": "inference-gateway-realm",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "displayName": "Inference Gateway",
+  "accessTokenLifespan": 3600,
+  "clients": [
+    {
+      "clientId": "inference-gateway-client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "very-secret",
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "name": "inference-gateway-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "inference-gateway-client",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}
