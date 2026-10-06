@@ -829,13 +829,20 @@ func (c *command) showAgent(cmd *cobra.Command, name string) error {
 	return nil
 }
 
-// describeAuth names an agent's authentication mode and the environment
-// variable its secret is read from. The secret itself is never loaded here.
+// describeAuth names an agent's authentication mode and where its token comes
+// from. No secret is loaded, and a command's arguments stay out since one may
+// carry a secret.
 func describeAuth(auth config.AgentAuth) string {
-	if auth.OIDC != nil {
+	switch {
+	case auth.OIDC != nil:
 		return fmt.Sprintf("OIDC client %s (secret from %s)", auth.OIDC.ClientID, auth.OIDC.ClientSecretEnv)
+	case auth.TokenFile != "":
+		return fmt.Sprintf("bearer token from file %s", auth.TokenFile)
+	case len(auth.TokenCommand) > 0:
+		return fmt.Sprintf("bearer token from command %s", auth.TokenCommand[0])
+	default:
+		return fmt.Sprintf("bearer token from %s", auth.TokenEnv)
 	}
-	return fmt.Sprintf("bearer token from %s", auth.TokenEnv)
 }
 
 func (c *command) initAgents(cmd *cobra.Command, _ []string) error {

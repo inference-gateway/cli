@@ -93,4 +93,6 @@ The last two take a few seconds, because the request is retried before the failu
 - [A2A Agents Configuration, Authentication](../../docs/agents-configuration.md#authentication)
 - [A2A Connections](../../docs/a2a-connections.md)
 - [a2a-gateway](../a2a-gateway/), every agent behind the gateway
+- [a2a-auth-gcp](../a2a-auth-gcp/), [a2a-auth-entraid](../a2a-auth-entraid/) and [a2a-auth-aws](../a2a-auth-aws/),
+  the same agent behind a cloud identity provider
 - [The gateway's Keycloak example](https://github.com/inference-gateway/inference-gateway/tree/main/examples/docker-compose/auth-keycloak)

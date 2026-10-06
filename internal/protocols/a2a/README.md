@@ -14,10 +14,11 @@ and the tools return normal tool results.
   artifacts itself when `a2a.task.artifacts_auto_download` is on. Otherwise it tells the model to fetch them with `WebFetch`.
 - `AgentSupervisor` starts the configured local agent containers. Agents are declared in `agents.yaml`, and the
   feature is gated by the `a2a` config section.
-- An agent's `auth` block in `agents.yaml` gives it credentials, a bearer token or an OIDC client-credentials
-  grant with the secrets read from the environment. The token endpoint of the grant comes from the security
-  schemes on the agent card. `infrastructure.NewClient` adds them to every request to
-  that agent's origin, and a rejection reaches the model as an authentication failure naming the agent.
+- An agent's `auth` block in `agents.yaml` gives it credentials: a bearer token from an environment variable,
+  a file re-read per request or a command (userspace file only, cached until the token expires), or an OIDC
+  client-credentials grant. The token endpoint of the grant comes from the security schemes on the agent card.
+  `infrastructure.NewClient` adds them to every request to that agent's origin, and a rejection reaches the model
+  as an authentication failure naming the agent.
 - The gateway is an agent too. An agent URL on the origin of `gateway.url` gets `gateway.api_key` as its bearer
   token, unless `agents.yaml` gives it an `auth` block. The composition root hands the pair over with
   `infrastructure.UseGatewayCredential`. A guardrail refusal from the gateway, a 403 with a JSON-RPC error,

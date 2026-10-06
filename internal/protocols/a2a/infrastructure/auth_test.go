@@ -2,15 +2,19 @@ package infrastructure
 
 import (
 	"cmp"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
@@ -472,5 +476,209 @@ func TestRejection_ReadsTheGatewayResponses(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// writeUserspaceAgentsYAML makes body the ~/.infer/agents.yaml of a home
+// directory that holds no project, so token_command is honoured.
+func writeUserspaceAgentsYAML(t *testing.T, body string) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("HOME", dir)
+	if err := os.MkdirAll(filepath.Join(dir, ".infer"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".infer", "agents.yaml"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "project"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(filepath.Join(dir, "project"))
+}
+
+func TestNewClient_TokenFileIsReadOnEveryRequest(t *testing.T) {
+	agent := &authRecorder{}
+	srv := httptest.NewServer(agent)
+	defer srv.Close()
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("first\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeAgentsYAML(t, fmt.Sprintf("agents:\n  - name: research\n    url: %s\n    auth:\n      token_file: %s\n", srv.URL, tokenPath))
+
+	c := NewClient(srv.URL)
+	if err := fetchCard(t, c); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tokenPath, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := fetchTask(t, c); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"Bearer first", "Bearer second"}
+	if got := agent.headers(); !slices.Equal(got, want) {
+		t.Fatalf("headers = %q, want %q", got, want)
+	}
+}
+
+func TestNewClient_UnreadableOrEmptyTokenFileIsAnAuthError(t *testing.T) {
+	empty := filepath.Join(t.TempDir(), "empty")
+	if err := os.WriteFile(empty, []byte(" \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range map[string]string{"missing": filepath.Join(t.TempDir(), "missing"), "empty": empty} {
+		t.Run(name, func(t *testing.T) {
+			agent := &authRecorder{}
+			srv := httptest.NewServer(agent)
+			defer srv.Close()
+			writeAgentsYAML(t, fmt.Sprintf("agents:\n  - name: research\n    url: %s\n    auth:\n      token_file: %s\n", srv.URL, path))
+
+			err := fetchCard(t, NewClient(srv.URL))
+
+			var authErr *AuthError
+			if !errors.As(err, &authErr) || !strings.Contains(authErr.Reason, path) {
+				t.Fatalf("err = %v, want an AuthError naming %s", err, path)
+			}
+			if len(agent.headers()) != 0 {
+				t.Fatal("a request was sent without credentials")
+			}
+		})
+	}
+}
+
+// countingTokenCommand returns an argv that prints token and appends one line
+// to a counter file, and a function reading how often it ran.
+func countingTokenCommand(t *testing.T, token string) ([]string, func() int) {
+	t.Helper()
+	counter := filepath.Join(t.TempDir(), "runs")
+	argv := []string{"sh", "-c", fmt.Sprintf("echo run >> %s && printf '%%s\\n' '%s'", counter, token)}
+	runs := func() int {
+		data, _ := os.ReadFile(counter)
+		return strings.Count(string(data), "run")
+	}
+	return argv, runs
+}
+
+func agentsYAMLWithCommand(url string, argv []string) string {
+	quoted := make([]string, len(argv))
+	for i, arg := range argv {
+		quoted[i] = fmt.Sprintf("%q", arg)
+	}
+	return fmt.Sprintf("agents:\n  - name: research\n    url: %s\n    auth:\n      token_command: [%s]\n", url, strings.Join(quoted, ", "))
+}
+
+func expiredJWT(t *testing.T) string {
+	t.Helper()
+	payload := base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"exp":%d}`, time.Now().Add(-time.Minute).Unix())))
+	return "eyJhbGciOiJub25lIn0." + payload + ".sig"
+}
+
+func TestNewClient_TokenCommandIsReusedUntilItExpires(t *testing.T) {
+	agent := &authRecorder{}
+	srv := httptest.NewServer(agent)
+	defer srv.Close()
+	argv, runs := countingTokenCommand(t, "cmd-token")
+	writeUserspaceAgentsYAML(t, agentsYAMLWithCommand(srv.URL, argv))
+
+	c := NewClient(srv.URL)
+	for range 2 {
+		if err := fetchTask(t, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got := agent.headers(); !slices.Equal(got, []string{"Bearer cmd-token", "Bearer cmd-token"}) {
+		t.Fatalf("headers = %q", got)
+	}
+	if runs() != 1 {
+		t.Fatalf("the command ran %d times, want once", runs())
+	}
+}
+
+func TestNewClient_ExpiredJWTFromTokenCommandIsFetchedAgain(t *testing.T) {
+	agent := &authRecorder{}
+	srv := httptest.NewServer(agent)
+	defer srv.Close()
+	argv, runs := countingTokenCommand(t, expiredJWT(t))
+	writeUserspaceAgentsYAML(t, agentsYAMLWithCommand(srv.URL, argv))
+
+	c := NewClient(srv.URL)
+	for range 2 {
+		if err := fetchTask(t, c); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if runs() != 2 {
+		t.Fatalf("the command ran %d times, want twice", runs())
+	}
+}
+
+func TestNewClient_FailingTokenCommandIsAnAuthErrorWithoutItsOutput(t *testing.T) {
+	tests := []struct {
+		name string
+		argv []string
+		want string
+	}{
+		{"non-zero exit", []string{"sh", "-c", "echo leaked-secret; exit 3"}, "exit status 3"},
+		{"no output", []string{"true"}, "printed no token"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := &authRecorder{}
+			srv := httptest.NewServer(agent)
+			defer srv.Close()
+			writeUserspaceAgentsYAML(t, agentsYAMLWithCommand(srv.URL, tt.argv))
+
+			err := fetchCard(t, NewClient(srv.URL))
+
+			var authErr *AuthError
+			if !errors.As(err, &authErr) || !strings.Contains(authErr.Reason, tt.want) {
+				t.Fatalf("err = %v, want an AuthError containing %q", err, tt.want)
+			}
+			if strings.Contains(authErr.Reason, "leaked-secret") {
+				t.Fatalf("the error quotes the command output: %v", err)
+			}
+			if len(agent.headers()) != 0 {
+				t.Fatal("a request was sent without credentials")
+			}
+		})
+	}
+}
+
+func TestNewClient_TokenCommandInAProjectFileIsRefused(t *testing.T) {
+	agent := &authRecorder{}
+	srv := httptest.NewServer(agent)
+	defer srv.Close()
+	writeAgentsYAML(t, agentsYAMLWithCommand(srv.URL, []string{"echo", "tok"}))
+	t.Setenv("HOME", t.TempDir())
+
+	err := fetchCard(t, NewClient(srv.URL))
+
+	var authErr *AuthError
+	if !errors.As(err, &authErr) || !strings.Contains(authErr.Reason, "~/.infer/agents.yaml") {
+		t.Fatalf("err = %v, want an AuthError naming the userspace file", err)
+	}
+	if len(agent.headers()) != 0 {
+		t.Fatal("a request was sent without credentials")
+	}
+}
+
+func TestNewClient_SeveralCredentialSourcesAreAnAuthError(t *testing.T) {
+	agent := &authRecorder{}
+	srv := httptest.NewServer(agent)
+	defer srv.Close()
+	t.Setenv("RESEARCH_TOKEN", "s3cret")
+	writeAgentsYAML(t, fmt.Sprintf("agents:\n  - name: research\n    url: %s\n    auth:\n      token_env: RESEARCH_TOKEN\n      token_file: /dev/null\n", srv.URL))
+
+	err := fetchCard(t, NewClient(srv.URL))
+
+	var authErr *AuthError
+	if !errors.As(err, &authErr) || !strings.Contains(authErr.Reason, "keep one") {
+		t.Fatalf("err = %v, want an AuthError asking for one source", err)
 	}
 }
