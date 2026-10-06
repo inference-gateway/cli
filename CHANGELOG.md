@@ -5,6 +5,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.226.0](https://github.com/inference-gateway/cli/compare/v0.225.0...v0.226.0) (2026-10-06)
+
+### 🚀 Features
+
+* **a2a:** authenticate A2A calls to the gateway and surface its refusals ([#1543](https://github.com/inference-gateway/cli/issues/1543)) ([d92030d](https://github.com/inference-gateway/cli/commit/d92030df7420458b93e594c40e74109159599af7)), closes [#1515](https://github.com/inference-gateway/cli/issues/1515), references [#1514](https://github.com/inference-gateway/cli/issues/1514) [#1513](https://github.com/inference-gateway/cli/issues/1513)
+* **a2a:** authenticate to agents with per-agent credentials, with an a2a-auth example ([#1542](https://github.com/inference-gateway/cli/issues/1542)) ([658701e](https://github.com/inference-gateway/cli/commit/658701e444a12bb2e138abb18ee4ae48fbfce9e6)), closes [#1514](https://github.com/inference-gateway/cli/issues/1514) [#1512](https://github.com/inference-gateway/cli/issues/1512) [inference-gateway/adl-cli#482](https://github.com/inference-gateway/adl-cli/issues/482), references [#1512](https://github.com/inference-gateway/cli/issues/1512) [inference-gateway/mock-agent#172](https://github.com/inference-gateway/mock-agent/issues/172)
+* **tui:** restyle the question and plan approval prompts with a quiet rail ([#1541](https://github.com/inference-gateway/cli/issues/1541)) ([9762e88](https://github.com/inference-gateway/cli/commit/9762e88e2fcc0baaa7bf04056a71afa9065234a3))
+
+### 🐛 Bug Fixes
+
+* CLI bugs an insights report surfaced ([#1545](https://github.com/inference-gateway/cli/issues/1545)) ([64b0890](https://github.com/inference-gateway/cli/commit/64b0890cabc118569c37e45e5c64b9238b840716))
+* **tui:** pause the session working time while a prompt waits on the user ([#1539](https://github.com/inference-gateway/cli/issues/1539)) ([7c0dfb0](https://github.com/inference-gateway/cli/commit/7c0dfb0dcd5893ac91785f8d19997c4a8e3d1bdf))
+
+### ♻️ Code Refactoring
+
+* **agent:** add an InputRequired loop state and drive the working time from it ([#1540](https://github.com/inference-gateway/cli/issues/1540)) ([8aceb20](https://github.com/inference-gateway/cli/commit/8aceb20a1f7e8526a496448a2f1bd51232712467))
+* **a2a:** match ADK errors by type instead of parsing their text ([#1548](https://github.com/inference-gateway/cli/issues/1548)) ([991a727](https://github.com/inference-gateway/cli/commit/991a7274187ed0842e54cd2a43dbff3091e895df)), references [inference-gateway/adk#400](https://github.com/inference-gateway/adk/issues/400)
+
+### 📚 Documentation
+
+* **examples:** add a2a-gateway-auth for auth, guardrails and telemetry on A2A traffic ([#1544](https://github.com/inference-gateway/cli/issues/1544)) ([e33f287](https://github.com/inference-gateway/cli/commit/e33f287c98cb61d617abb83d88beee3a583d2ac4)), closes [#1513](https://github.com/inference-gateway/cli/issues/1513)
+
+### 🧹 Maintenance
+
+* **flox:** bump claude-code to 2.1.289 ([398b3dd](https://github.com/inference-gateway/cli/commit/398b3dd181d1e77b793a3d9b5dceccd8dbbe608b))
+* **deps:** bump flox environment packages ([9d18b0b](https://github.com/inference-gateway/cli/commit/9d18b0be49b8379425dcd95094efbf829df221b2))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.226.0 --help
+npx @inference-gateway/cli@0.226.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.226.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.226.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.226.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.226.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.226.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.225.0](https://github.com/inference-gateway/cli/compare/v0.224.0...v0.225.0) (2026-10-04)
 
 ### 🚀 Features
