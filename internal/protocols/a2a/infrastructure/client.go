@@ -9,10 +9,10 @@ import (
 
 // NewClient returns an ADK client for the agent at agentURL whose requests
 // carry the session's trace context, so remote spans nest under ours, and the
-// credentials agents.yaml gives the agent. Every request activates the usage
-// extension, so tasks come back with their usage.
+// credentials agents.yaml gives the agent. They go to the host the agent
+// actually runs on. Every request activates the usage extension.
 func NewClient(agentURL string) client.A2AClient {
-	cfg := client.DefaultConfig(agentURL)
+	cfg := client.DefaultConfig(runningURL(agentURL))
 	cfg.Transport = telemetry.PropagationTransport(newAuthTransport(agentURL))
 	cfg.Headers["A2A-Extensions"] = adk.UsageExtensionURI
 	return client.NewClientWithConfig(cfg)

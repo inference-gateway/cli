@@ -433,6 +433,13 @@ func TestRejection_ReadsTheGatewayResponses(t *testing.T) {
 			wantAbsent: "Authentication failed",
 		},
 		{
+			name:       "method not found says retrying will not help",
+			status:     http.StatusOK,
+			body:       `{"jsonrpc":"2.0","id":"1","error":{"code":-32601,"message":"method not found: GetTask"}}`,
+			want:       []string{"does not implement the A2A method", "Retrying will not help"},
+			wantAbsent: "Authentication failed",
+		},
+		{
 			name:       "403 without a JSON-RPC error stays an authentication failure",
 			status:     http.StatusForbidden,
 			body:       `{"error":"forbidden body-marker"}`,

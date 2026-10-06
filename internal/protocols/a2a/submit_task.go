@@ -216,6 +216,9 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 		return t.errorResult(args, startTime, "Failed to parse task submission response")
 	}
 
+	if sendResponse.Task == nil && sendResponse.Message != nil {
+		return t.directReply(args, startTime, agentURL, *sendResponse.Message)
+	}
 	if sendResponse.Task == nil || sendResponse.Task.ID == "" {
 		return t.errorResult(args, startTime, "Task submitted but no task ID received")
 	}
@@ -877,6 +880,29 @@ func (t *SubmitTaskTool) ShouldAlwaysExpand() bool {
 }
 
 // errorResult creates an error result
+// directReply is the result when the agent answers with a message instead of
+// a task. The answer is final, so there is nothing to track or poll.
+func (t *SubmitTaskTool) directReply(args map[string]any, startTime time.Time, agentURL string, reply adk.Message) (*agentdomain.ToolExecutionResult, error) {
+	var contextID string
+	if reply.ContextID != nil {
+		contextID = *reply.ContextID
+	}
+	return &agentdomain.ToolExecutionResult{
+		ToolName:  ToolSubmitTask,
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(startTime),
+		Data: SubmitTaskResult{
+			ContextID:  contextID,
+			AgentURL:   agentURL,
+			State:      string(adk.TaskStateCompleted),
+			Success:    true,
+			Message:    fmt.Sprintf("%s answered directly", agentURL),
+			TaskResult: textFromParts(reply.Parts),
+		},
+	}, nil
+}
+
 func (t *SubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*agentdomain.ToolExecutionResult, error) {
 	agentURL, _ := args["agent_url"].(string)
 
