@@ -14,7 +14,7 @@ parameters:
       description: The subagent id from ListSubagents or the Agent result
     submit:
       type: boolean
-      description: Interactive subagents only. Press Enter to submit a prompt and wait for the subagent to finish (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.
+      description: Interactive subagents only. Press Enter to submit the prompt (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.
     text:
       type: string
       description: The message to send (a follow-up prompt, new information, a correction). Typed literally into an interactive pane.

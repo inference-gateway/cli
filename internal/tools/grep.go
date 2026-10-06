@@ -299,7 +299,8 @@ func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, arg
 	rgArgs := t.buildRipgrepArgs(outputMode, args)
 	rgArgs = append(rgArgs, "-e", pattern, "--", searchPath)
 
-	result, err := t.executeRipgrep(ctx, rgArgs, outputMode, pattern, start)
+	headLimit, _ := args["head_limit"].(float64)
+	result, err := t.executeRipgrep(ctx, rgArgs, outputMode, pattern, int(headLimit), start)
 	if err != nil {
 		return nil, err
 	}
@@ -383,17 +384,11 @@ func (t *GrepTool) addSearchOptions(rgArgs []string, args map[string]any) []stri
 		}
 	}
 
-	if headLimit, exists := args["head_limit"]; exists {
-		if headLimitFloat, ok := headLimit.(float64); ok {
-			rgArgs = append(rgArgs, "--max-count", strconv.Itoa(int(headLimitFloat)))
-		}
-	}
-
 	return rgArgs
 }
 
 // executeRipgrep runs the ripgrep command and processes the output
-func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMode, pattern string, start time.Time) (*GrepResult, error) {
+func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMode, pattern string, headLimit int, start time.Time) (*GrepResult, error) {
 	cmd := exec.CommandContext(ctx, t.ripgrepPath, rgArgs...)
 	output, err := cmd.Output()
 	if err != nil {
@@ -414,13 +409,14 @@ func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMo
 		return nil, fmt.Errorf("ripgrep execution failed: %w", err)
 	}
 
-	result := t.parseRipgrepOutput(string(output), outputMode, pattern)
+	result := t.parseRipgrepOutput(string(output), outputMode, pattern, headLimit)
 	result.Duration = time.Since(start).String()
 	return result, nil
 }
 
-// parseRipgrepOutput parses ripgrep output into GrepResult
-func (t *GrepTool) parseRipgrepOutput(output, outputMode, pattern string) *GrepResult {
+// parseRipgrepOutput parses ripgrep output into GrepResult, keeping only the
+// first headLimit lines when it is set, like "| head -N".
+func (t *GrepTool) parseRipgrepOutput(output, outputMode, pattern string, headLimit int) *GrepResult {
 	result := &GrepResult{
 		Pattern:    pattern,
 		OutputMode: outputMode,
@@ -432,6 +428,9 @@ func (t *GrepTool) parseRipgrepOutput(output, outputMode, pattern string) *GrepR
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) == 1 && lines[0] == "" {
 		return result
+	}
+	if headLimit > 0 {
+		lines = lines[:min(len(lines), headLimit)]
 	}
 
 	switch outputMode {
