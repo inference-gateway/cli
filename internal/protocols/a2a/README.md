@@ -18,6 +18,10 @@ and the tools return normal tool results.
   grant with the secrets read from the environment. The token endpoint of the grant comes from the security
   schemes on the agent card. `infrastructure.NewClient` adds them to every request to
   that agent's origin, and a rejection reaches the model as an authentication failure naming the agent.
+- The gateway is an agent too. An agent URL on the origin of `gateway.url` gets `gateway.api_key` as its bearer
+  token, unless `agents.yaml` gives it an `auth` block. The composition root hands the pair over with
+  `infrastructure.UseGatewayCredential`. A guardrail refusal from the gateway, a 403 with a JSON-RPC error,
+  reaches the model with the policy's message.
 - `ReconcileAgents` brings a running chat in line with an edited `agents.yaml` on `/reload`. It reports the
   difference as `AgentChanges`. A removed agent is announced as `AgentStateRemoved` on the status stream once its
   goroutines have exited, and the TUI readiness drops it.

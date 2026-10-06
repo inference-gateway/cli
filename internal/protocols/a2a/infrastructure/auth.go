@@ -57,9 +57,52 @@ func AuthFailure(agentURL string, err error) (string, bool) {
 	}
 	rejected := &AuthError{
 		Agent:  agentDisplayName(agentURL),
-		Reason: fmt.Sprintf("the agent rejected the request with status %s, check its auth settings in agents.yaml", match[1]),
+		Reason: fmt.Sprintf("the agent rejected the request with status %s, check %s", match[1], credentialSetting(agentURL)),
 	}
 	return rejected.Error(), true
+}
+
+// credentialSetting names the setting that holds the credentials sent to agentURL.
+func credentialSetting(agentURL string) string {
+	if agent, ok := configuredAgent(agentURL); (!ok || agent.Auth == nil) && isGateway(agentURL) {
+		return "gateway.api_key"
+	}
+	return "its auth settings in agents.yaml"
+}
+
+// refusedByPolicy matches the ADK client's error for a 403 response and captures its body.
+var refusedByPolicy = regexp.MustCompile(`unexpected status code[^:]*: 403, body: (\{.*\})`)
+
+// PolicyRefusal describes err for the model when the gateway's guardrails
+// refused the request: a 403 whose body is a JSON-RPC error. The message
+// carries the policy's own words.
+func PolicyRefusal(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	match := refusedByPolicy.FindStringSubmatch(err.Error())
+	if match == nil {
+		return "", false
+	}
+	var envelope struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal([]byte(match[1]), &envelope) != nil || envelope.Error.Message == "" {
+		return "", false
+	}
+	return "The request was refused by a guardrail policy: " + envelope.Error.Message, true
+}
+
+// Rejection describes err for the model when the agent turned the request
+// down for good, so retrying is pointless: a policy refusal or an
+// authentication failure.
+func Rejection(agentURL string, err error) (string, bool) {
+	if message, ok := PolicyRefusal(err); ok {
+		return message, true
+	}
+	return AuthFailure(agentURL, err)
 }
 
 func agentDisplayName(agentURL string) string {
@@ -80,30 +123,54 @@ func configuredAgent(agentURL string) (config.AgentEntry, bool) {
 	return agents.EntryForURL(agentURL)
 }
 
+// gatewayCredential is the bearer token the gateway expects, and the origin it belongs to.
+// ponytail: one process-wide value set at startup. Pass it through NewClient
+// if clients ever need different gateways.
+var gatewayCredential struct {
+	origin string
+	token  string
+}
+
+// UseGatewayCredential makes apiKey the bearer token of A2A requests to the
+// gateway at gatewayURL, the token the gateway also expects on inference.
+func UseGatewayCredential(gatewayURL, apiKey string) {
+	gatewayCredential.origin = config.URLOrigin(gatewayURL)
+	gatewayCredential.token = apiKey
+}
+
 // authTransport adds an agent's credentials to the requests sent to its
 // origin. Requests to any other origin, such as a redirect target, pass
 // through untouched so a credential never leaves its agent.
 type authTransport struct {
 	base   http.RoundTripper
-	agent  config.AgentEntry
 	origin string
+	token  func() (string, error)
 }
 
-// newAuthTransport returns the transport for the agent at agentURL: one that
-// authenticates when agents.yaml gives the agent credentials, the default otherwise.
+// newAuthTransport returns the transport for the agent at agentURL. It
+// authenticates with the credentials agents.yaml gives the agent, or with the
+// gateway credential when the agent is the gateway. Any other agent gets the default.
 func newAuthTransport(agentURL string) http.RoundTripper {
-	agent, ok := configuredAgent(agentURL)
-	if !ok || agent.Auth == nil {
-		return http.DefaultTransport
+	origin := config.URLOrigin(agentURL)
+	if agent, ok := configuredAgent(agentURL); ok && agent.Auth != nil {
+		return authTransport{base: http.DefaultTransport, origin: origin, token: func() (string, error) { return bearerToken(agent) }}
 	}
-	return authTransport{base: http.DefaultTransport, agent: agent, origin: config.URLOrigin(agentURL)}
+	if token := gatewayCredential.token; token != "" && isGateway(agentURL) {
+		return authTransport{base: http.DefaultTransport, origin: origin, token: func() (string, error) { return token, nil }}
+	}
+	return http.DefaultTransport
+}
+
+func isGateway(agentURL string) bool {
+	origin := config.URLOrigin(agentURL)
+	return origin != "" && origin == gatewayCredential.origin
 }
 
 func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if config.URLOrigin(req.URL.String()) != t.origin {
 		return t.base.RoundTrip(req)
 	}
-	token, err := bearerToken(t.agent)
+	token, err := t.token()
 	if err != nil {
 		if req.Body != nil {
 			_ = req.Body.Close()

@@ -335,7 +335,7 @@ func (t *SubmitTaskTool) runA2APolling(
 				pollAttempt, currentInterval, time.Since(state.StartedAt))
 
 			currentTask, err := t.queryTask(ctx, adkClient, taskID)
-			if message, rejected := a2ainfra.AuthFailure(agentURL, err); rejected {
+			if message, rejected := a2ainfra.Rejection(agentURL, err); rejected {
 				return authFailedResult(agentURL, taskID, state.ContextID, message)
 			}
 			if err != nil || currentTask == nil {
@@ -359,8 +359,8 @@ func (t *SubmitTaskTool) runA2APolling(
 	}
 }
 
-// authFailedResult ends the polling of a task whose agent no longer accepts
-// the credentials, since retrying would be rejected the same way forever.
+// authFailedResult ends the polling of a task whose agent rejects the
+// request for good, since retrying would be rejected the same way forever.
 func authFailedResult(agentURL, taskID, contextID, message string) agentdomain.ToolExecutionResult {
 	return agentdomain.ToolExecutionResult{
 		ToolName: ToolSubmitTask,
