@@ -1,10 +1,16 @@
 package root
 
 import (
+	"bytes"
+	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	fang "charm.land/fang/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	output "github.com/inference-gateway/cli/cmd/output"
 )
@@ -48,4 +54,13 @@ func TestNewCommandReturnsIndependentTrees(t *testing.T) {
 	secondChat, _, err := second.Find([]string{"chat"})
 	require.NoError(t, err)
 	require.NotSame(t, firstChat, secondChat)
+}
+
+func TestPrintError_KeepsTheCaseOfTheMessage(t *testing.T) {
+	var out bytes.Buffer
+	styles := fang.Styles{ErrorText: lipgloss.NewStyle().Transform(strings.ToUpper)}
+
+	printError(&out, styles, errors.New("--model is required"))
+
+	require.Contains(t, out.String(), "--model is required")
 }
