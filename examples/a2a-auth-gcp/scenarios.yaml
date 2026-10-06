@@ -1,0 +1,13 @@
+fallback:
+  content: 'Try "ask the gcp agent to echo hello".'
+scenarios:
+  - name: gcp-agent
+    match: '(?i)ask the gcp agent to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8093
+              task_description: echo hello
+      - content: I asked the gcp agent to echo hello.
+      - content: The gcp agent answered.

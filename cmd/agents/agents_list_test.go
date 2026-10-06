@@ -138,13 +138,22 @@ func TestDescribeAuth_NamesTheVariableNotTheSecret(t *testing.T) {
 		ClientSecretEnv: "BILLING_CLIENT_SECRET",
 	}})
 
+	file := describeAuth(config.AgentAuth{TokenFile: "/run/secrets/token"})
+	command := describeAuth(config.AgentAuth{TokenCommand: []string{"gcloud", "auth", "print-identity-token", "--audiences=s3cret-audience"}})
+
 	if bearer != "bearer token from RESEARCH_TOKEN" {
 		t.Errorf("bearer description = %q", bearer)
+	}
+	if file != "bearer token from file /run/secrets/token" {
+		t.Errorf("file description = %q", file)
+	}
+	if command != "bearer token from command gcloud" {
+		t.Errorf("command description = %q", command)
 	}
 	if !strings.Contains(oidc, "BILLING_CLIENT_SECRET") || !strings.Contains(oidc, "infer") {
 		t.Errorf("oidc description = %q", oidc)
 	}
-	if strings.Contains(bearer+oidc, "s3cret") {
-		t.Errorf("descriptions leak a secret: %q %q", bearer, oidc)
+	if strings.Contains(bearer+oidc+file+command, "s3cret") {
+		t.Errorf("descriptions leak a secret: %q %q %q %q", bearer, oidc, file, command)
 	}
 }

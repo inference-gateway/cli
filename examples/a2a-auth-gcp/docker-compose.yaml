@@ -1,0 +1,18 @@
+---
+# One A2A agent with Google as the identity provider. Google's issuer is shared by every
+# Google account, so any service account that mints a token for AGENT_AUDIENCE passes, see the README.
+services:
+  mock-agent:
+    image: ghcr.io/inference-gateway/mock-agent:0.5.0
+    pull_policy: always
+    env_file:
+      - .env
+    ports:
+      - "8093:8080"
+    environment:
+      A2A_AGENT_URL: http://localhost:8093
+      A2A_AUTH_ENABLED: true
+      A2A_AUTH_ISSUER_URL: https://accounts.google.com
+      A2A_AUTH_CLIENT_ID: infer
+      A2A_AUTH_AUDIENCE: ${AGENT_AUDIENCE}
+    restart: unless-stopped

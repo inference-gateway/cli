@@ -255,10 +255,10 @@ a2a:
 
 ### Authentication
 
-- An agent entry in `agents.yaml` can carry an `auth` block with a static bearer token or an OIDC
-  client-credentials grant. See [Authentication](agents-configuration.md#authentication).
-- Secrets are read from environment variables named in the block. They are never stored in `agents.yaml` and
-  never shown in logs, tool results or `infer agents list`.
+- An agent entry in `agents.yaml` can carry an `auth` block: a bearer token from an environment variable, a
+  file or a command, or an OIDC client-credentials grant. See [Authentication](agents-configuration.md#authentication).
+- The block names where the secret comes from. Secrets are never stored in `agents.yaml` and never shown in
+  logs, tool results or `infer agents list`.
 - Credentials are sent only to the origin of the agent they are configured for.
 - For OIDC the token endpoint is read from the `securitySchemes` of the agent card. An optional `issuer_url`
   pins the issuer the card may point at and is used when the card declares none.

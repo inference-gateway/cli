@@ -1,0 +1,73 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+dotenv: ['.env']
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_A2A_ENABLED: 'true'
+  INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL: 'false'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  up:
+    desc: Start the agent, trusting the tenant's v2.0 issuer
+    cmds:
+      - docker compose up -d --wait
+
+  down:
+    desc: Stop the agent
+    cmds:
+      - docker compose down
+
+  token:
+    desc: Print an access token for the agent's API as the signed-in az account, into .token
+    cmds:
+      - ./get-token.sh > .token
+
+  status:
+    desc: Probe the agent with the credentials from agents.yaml
+    cmds:
+      - '{{.INFER}} agents status --project'
+
+  delegate:
+    desc: The model delegates to the agent, authenticated with the provider's token
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask the entra agent to echo hello
+
+  wrong-token:
+    desc: A wrong client secret is refused by Entra and reported as an authentication failure
+    env:
+      AZURE_CLIENT_SECRET: not-the-secret
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask the entra agent to echo hello
+
+  chat:
+    desc: Chat with the mock model
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  all:
+    desc: Run every headless scenario
+    cmds:
+      - task: delegate
+      - task: wrong-token
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.INFER}} headless --no-save \"{{.PROMPT}}\" | grep -E '\"role\":\"(tool|user)\"'"

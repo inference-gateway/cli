@@ -1,0 +1,18 @@
+---
+# One A2A agent with an Amazon Cognito user pool as the identity provider. Cognito machine tokens
+# carry no aud, so the agent checks client_id against the audience instead, see the README.
+services:
+  mock-agent:
+    image: ghcr.io/inference-gateway/mock-agent:0.5.0
+    pull_policy: always
+    env_file:
+      - .env
+    ports:
+      - "8093:8080"
+    environment:
+      A2A_AGENT_URL: http://localhost:8093
+      A2A_AUTH_ENABLED: true
+      A2A_AUTH_ISSUER_URL: https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}
+      A2A_AUTH_CLIENT_ID: ${COGNITO_CLIENT_ID}
+      A2A_AUTH_AUDIENCE: ${COGNITO_CLIENT_ID}
+    restart: unless-stopped

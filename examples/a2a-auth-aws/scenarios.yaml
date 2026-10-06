@@ -1,0 +1,13 @@
+fallback:
+  content: 'Try "ask the aws agent to echo hello".'
+scenarios:
+  - name: aws-agent
+    match: '(?i)ask the aws agent to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8093
+              task_description: echo hello
+      - content: I asked the aws agent to echo hello.
+      - content: The aws agent answered.

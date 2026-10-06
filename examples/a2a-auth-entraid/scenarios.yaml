@@ -1,0 +1,13 @@
+fallback:
+  content: 'Try "ask the entra agent to echo hello".'
+scenarios:
+  - name: entra-agent
+    match: '(?i)ask the entra agent to echo hello'
+    turns:
+      - tool_calls:
+          - name: A2A_SubmitTask
+            args:
+              agent_url: http://localhost:8093
+              task_description: echo hello
+      - content: I asked the entra agent to echo hello.
+      - content: The entra agent answered.

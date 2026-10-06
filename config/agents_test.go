@@ -471,6 +471,15 @@ func TestLoadAgents_AuthNamesVariablesNotSecrets(t *testing.T) {
         client_id: infer
         client_secret_env: BILLING_CLIENT_SECRET
         audience: billing-agent
+        scopes: [api://billing/.default]
+  - name: cluster
+    url: https://cluster.example.com
+    auth:
+      token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  - name: cloud
+    url: https://cloud.example.com
+    auth:
+      token_command: [gcloud, auth, print-identity-token, --audiences=https://cloud.example.com]
 `), 0o600))
 
 	cfg, err := config.LoadAgents(path)
@@ -485,7 +494,14 @@ func TestLoadAgents_AuthNamesVariablesNotSecrets(t *testing.T) {
 		ClientID:        "infer",
 		ClientSecretEnv: "BILLING_CLIENT_SECRET",
 		Audience:        "billing-agent",
+		Scopes:          []string{"api://billing/.default"},
 	}, billing.Auth.OIDC)
+	cluster, err := cfg.ReadEntry("cluster")
+	require.NoError(t, err)
+	require.Equal(t, &config.AgentAuth{TokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"}, cluster.Auth)
+	cloud, err := cfg.ReadEntry("cloud")
+	require.NoError(t, err)
+	require.Equal(t, []string{"gcloud", "auth", "print-identity-token", "--audiences=https://cloud.example.com"}, cloud.Auth.TokenCommand)
 
 	require.NoError(t, cfg.DeleteEntry("research"))
 	rewritten, err := os.ReadFile(path)

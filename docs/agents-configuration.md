@@ -50,8 +50,8 @@ agents:
   When `agent.model` is empty too, no model is passed and the agent starts on its own default.
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
-- **auth**: Credentials the CLI sends to the agent, a static bearer token or an OIDC client-credentials grant.
-  It names the environment variables that hold the secrets. See [Authentication](#authentication).
+- **auth**: Credentials the CLI sends to the agent: a bearer token from an environment variable, a file or a
+  command, or an OIDC client-credentials grant. It never holds a secret. See [Authentication](#authentication).
 
 ## CLI Commands
 
@@ -197,6 +197,48 @@ agents:
 export RESEARCH_AGENT_TOKEN=...
 ```
 
+### Bearer Token from a File
+
+For a token that a platform writes and rotates on disk: the projected service account token of a Kubernetes pod,
+a JWT-SVID written by [spiffe-helper](https://github.com/spiffe/spiffe-helper), or a token rendered by Vault Agent.
+The CLI reads the file on every request, so a rotated token is picked up without a restart.
+
+```yaml
+agents:
+  - name: research
+    url: https://research.example.com
+    auth:
+      token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+```
+
+Nothing is provisioned to the CLI itself: the platform attests the workload and hands it the token. Pair it with
+an agent whose `A2A_AUTH_ISSUER_URL` is the platform's issuer, for example the cluster's OIDC discovery endpoint or
+the SPIRE OIDC Discovery Provider.
+
+### Bearer Token from a Command
+
+For a token minted by a cloud CLI or a secrets broker. The command's stdout, trimmed, is the token. It runs without
+a shell, under a 10 second timeout, and its output is reused until the token expires: the `exp` claim when it is a
+JWT, otherwise five minutes.
+
+```yaml
+agents:
+  - name: billing
+    url: https://billing.example.com
+    auth:
+      token_command: [gcloud, auth, print-identity-token, --audiences=https://billing.example.com]
+```
+
+| Provider | Command |
+| --- | --- |
+| Google Cloud | `gcloud auth print-identity-token --audiences=<agent audience>` (with `--impersonate-service-account` off GCP) |
+| Microsoft Entra ID | `az account get-access-token --resource api://<api app id> --query accessToken -o tsv` |
+| HashiCorp Vault | `vault read -field=token identity/oidc/token/<role>` |
+
+`token_command` is read from `~/.infer/agents.yaml` only. A project `.infer/agents.yaml` arrives with a clone and
+the agent card is fetched without approval, so a command there is refused with an authentication error. Use
+`token_file` in a project file. A failed command is reported by its name and exit status, never its output.
+
 ### OIDC Client Credentials
 
 For an ADK agent started with `A2A_AUTH_ENABLED`, `A2A_AUTH_ISSUER_URL`, `A2A_AUTH_CLIENT_ID` and `A2A_AUTH_AUDIENCE`:
@@ -211,6 +253,7 @@ agents:
         client_secret_env: BILLING_AGENT_CLIENT_SECRET
         audience: billing-agent                            # Optional
         issuer_url: https://idp.example.com/realms/agents  # Optional, see below
+        scopes: [api://billing-agent/.default]             # Optional, added to the card's scopes
 ```
 
 You do not configure where the token comes from. As the A2A protocol defines, the agent declares it in the
@@ -219,8 +262,9 @@ You do not configure where the token comes from. As the A2A protocol defines, th
 - an `openIdConnect` scheme gives the OpenID Connect discovery URL, whose document names the token endpoint
 - an `oauth2` scheme with a `clientCredentials` flow gives the token URL directly
 
-The scopes the card's `securityRequirements` list for that scheme are requested with the token. The CLI fetches
-a token with the client-credentials grant, reuses it across requests and refreshes it shortly before it expires.
+The scopes the card's `securityRequirements` list for that scheme are requested with the token, plus any in
+`scopes`. Microsoft Entra ID needs `api://<api app id>/.default` there, since the ADK card declares none. The CLI
+fetches a token with the client-credentials grant, reuses it across requests and refreshes it shortly before it expires.
 
 `issuer_url` is optional and does two things:
 
@@ -230,11 +274,13 @@ a token with the client-credentials grant, reuses it across requests and refresh
   then discovers the token endpoint from `issuer_url`. Without it, such an agent fails with an authentication error.
 
 The [a2a-auth example](../examples/a2a-auth/) runs one agent behind a bearer token and one behind OIDC with
-Keycloak, with a mock model and no API key.
+Keycloak, with a mock model and no API key. The [a2a-auth-gcp](../examples/a2a-auth-gcp/),
+[a2a-auth-entraid](../examples/a2a-auth-entraid/) and [a2a-auth-aws](../examples/a2a-auth-aws/) examples put
+an agent behind Google, Microsoft Entra ID and Amazon Cognito and authenticate with the provider's own tokens.
 
 ### Notes
 
-- Set either `token_env` or `oidc`, not both.
+- Set exactly one of `token_env`, `token_file`, `token_command` and `oidc`.
 - Reference the variable by name (`token_env: RESEARCH_AGENT_TOKEN`). Do not write `${RESEARCH_AGENT_TOKEN}`
   here - substitution would put the secret itself in the field.
 - Credentials are matched by origin (scheme, host and port) of the agent's `url` and are only sent there. A

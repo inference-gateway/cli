@@ -30,22 +30,27 @@ type AgentEntry struct {
 	Auth         *AgentAuth        `yaml:"auth,omitempty" mapstructure:"auth,omitempty"`
 }
 
-// AgentAuth says how to authenticate to an agent: a static bearer token or an
-// OIDC client-credentials grant. Secrets are named by environment variable and
-// never stored, so agents.yaml stays safe to print and to rewrite.
+// AgentAuth says where the bearer token for an agent comes from: an environment
+// variable, a file re-read on every request, a command, or an OIDC
+// client-credentials grant. Exactly one is set. No secret is ever stored here,
+// so agents.yaml stays safe to print and to rewrite.
 type AgentAuth struct {
-	TokenEnv string     `yaml:"token_env,omitempty" mapstructure:"token_env,omitempty"`
-	OIDC     *AgentOIDC `yaml:"oidc,omitempty" mapstructure:"oidc,omitempty"`
+	TokenEnv     string     `yaml:"token_env,omitempty" mapstructure:"token_env,omitempty"`
+	TokenFile    string     `yaml:"token_file,omitempty" mapstructure:"token_file,omitempty"`
+	TokenCommand []string   `yaml:"token_command,omitempty" mapstructure:"token_command,omitempty"`
+	OIDC         *AgentOIDC `yaml:"oidc,omitempty" mapstructure:"oidc,omitempty"`
 }
 
 // AgentOIDC is the client of a client-credentials grant. Where to get the token
 // is declared by the agent card's security schemes. IssuerURL is optional: the
 // card may then only point at that issuer, and it is used when the card declares none.
+// Scopes are requested in addition to the ones the card requires.
 type AgentOIDC struct {
-	ClientID        string `yaml:"client_id" mapstructure:"client_id"`
-	ClientSecretEnv string `yaml:"client_secret_env" mapstructure:"client_secret_env"`
-	Audience        string `yaml:"audience,omitempty" mapstructure:"audience,omitempty"`
-	IssuerURL       string `yaml:"issuer_url,omitempty" mapstructure:"issuer_url,omitempty"`
+	ClientID        string   `yaml:"client_id" mapstructure:"client_id"`
+	ClientSecretEnv string   `yaml:"client_secret_env" mapstructure:"client_secret_env"`
+	Audience        string   `yaml:"audience,omitempty" mapstructure:"audience,omitempty"`
+	IssuerURL       string   `yaml:"issuer_url,omitempty" mapstructure:"issuer_url,omitempty"`
+	Scopes          []string `yaml:"scopes,omitempty" mapstructure:"scopes,omitempty"`
 }
 
 // DefaultAgentsConfig returns a default agents configuration

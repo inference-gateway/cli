@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -184,15 +187,25 @@ func (t authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func bearerToken(agent config.AgentEntry) (string, error) {
 	auth := agent.Auth
+	sources := 0
+	for _, set := range []bool{auth.TokenEnv != "", auth.TokenFile != "", len(auth.TokenCommand) > 0, auth.OIDC != nil} {
+		if set {
+			sources++
+		}
+	}
 	switch {
-	case auth.TokenEnv != "" && auth.OIDC != nil:
-		return "", &AuthError{Agent: agent.Name, Reason: "auth sets both token_env and oidc, keep one"}
+	case sources > 1:
+		return "", &AuthError{Agent: agent.Name, Reason: "auth sets more than one of token_env, token_file, token_command and oidc, keep one"}
 	case auth.OIDC != nil:
 		return oidcToken(agent)
 	case auth.TokenEnv != "":
 		return secretFromEnv(agent.Name, auth.TokenEnv)
+	case auth.TokenFile != "":
+		return secretFromFile(agent.Name, auth.TokenFile)
+	case len(auth.TokenCommand) > 0:
+		return commandToken(agent)
 	default:
-		return "", &AuthError{Agent: agent.Name, Reason: "auth sets neither token_env nor oidc"}
+		return "", &AuthError{Agent: agent.Name, Reason: "auth sets none of token_env, token_file, token_command and oidc"}
 	}
 }
 
@@ -203,12 +216,133 @@ func secretFromEnv(agentName, variable string) (string, error) {
 	return "", &AuthError{Agent: agentName, Reason: fmt.Sprintf("environment variable %s is not set", variable)}
 }
 
-var oidcHTTPClient = &http.Client{Timeout: 10 * time.Second}
+// secretFromFile reads the token on every call, so a token rotated in place by
+// the kubelet, spiffe-helper or a secrets agent is picked up without a restart.
+func secretFromFile(agentName, path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", &AuthError{Agent: agentName, Reason: fmt.Sprintf("reading token_file %s: %v", path, err)}
+	}
+	if token := strings.TrimSpace(string(data)); token != "" {
+		return token, nil
+	}
+	return "", &AuthError{Agent: agentName, Reason: fmt.Sprintf("token_file %s is empty", path)}
+}
+
+// credentialTimeout bounds one token fetch, whether from an issuer or a command.
+const credentialTimeout = 10 * time.Second
+
+// opaqueTokenTTL is how long a command's token is reused when it is not a JWT
+// that states its own expiry.
+// ponytail: flat 5 minute TTL for opaque tokens, add token_ttl if a provider needs it.
+const opaqueTokenTTL = 5 * time.Minute
+
+type commandCacheKey struct {
+	agentURL string
+	command  string
+}
+
+type cachedToken struct {
+	token   string
+	expires time.Time
+}
+
+// commandTokens keeps the last token each command produced until it expires,
+// so a cloud CLI is not run on every request.
+var commandTokens = struct {
+	sync.Mutex
+	byCommand map[commandCacheKey]cachedToken
+}{byCommand: map[commandCacheKey]cachedToken{}}
+
+// commandToken runs the agent's token_command and returns its stdout. The
+// command is only honoured from the userspace agents.yaml, since a project file
+// arrives with a clone and the agent card fetch runs without approval.
+func commandToken(agent config.AgentEntry) (string, error) {
+	if !agentsPathIsUserspace() {
+		return "", &AuthError{Agent: agent.Name, Reason: "token_command is only read from ~/.infer/agents.yaml"}
+	}
+	key := commandCacheKey{agentURL: agent.URL, command: strings.Join(agent.Auth.TokenCommand, "\x00")}
+
+	commandTokens.Lock()
+	defer commandTokens.Unlock()
+
+	if cached, ok := commandTokens.byCommand[key]; ok && time.Now().Before(cached.expires) {
+		return cached.token, nil
+	}
+	token, err := runTokenCommand(agent.Name, agent.Auth.TokenCommand)
+	if err != nil {
+		return "", err
+	}
+	commandTokens.byCommand[key] = cachedToken{token: token, expires: tokenExpiry(token)}
+	return token, nil
+}
+
+func runTokenCommand(agentName string, argv []string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), credentialTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Stderr = nil
+	stdout, err := cmd.Output()
+	if err != nil {
+		return "", &AuthError{Agent: agentName, Reason: fmt.Sprintf("token_command %s failed: %s", argv[0], commandFailure(ctx, err))}
+	}
+	if token := strings.TrimSpace(string(stdout)); token != "" {
+		return token, nil
+	}
+	return "", &AuthError{Agent: agentName, Reason: fmt.Sprintf("token_command %s printed no token", argv[0])}
+}
+
+// commandFailure names why a command failed without quoting its output, which
+// may carry the token or another secret.
+func commandFailure(ctx context.Context, err error) string {
+	if ctx.Err() != nil {
+		return fmt.Sprintf("timed out after %s", credentialTimeout)
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return fmt.Sprintf("exit status %d", exit.ExitCode())
+	}
+	return err.Error()
+}
+
+// tokenExpiry is when a command's token stops being reused: shortly before the
+// exp claim when the token is a JWT, otherwise after opaqueTokenTTL.
+func tokenExpiry(token string) time.Time {
+	fallback := time.Now().Add(opaqueTokenTTL)
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return fallback
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return fallback
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.Exp == 0 {
+		return fallback
+	}
+	return time.Unix(claims.Exp, 0).Add(-30 * time.Second)
+}
+
+func agentsPathIsUserspace() bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	userspace := filepath.Join(home, config.ConfigDirName, config.AgentsFileName)
+	resolved, err := filepath.Abs(config.ResolveAgentsPath())
+	return err == nil && resolved == userspace
+}
+
+var oidcHTTPClient = &http.Client{Timeout: credentialTimeout}
 
 // oidcGrant identifies one client-credentials grant: a client at one agent.
 type oidcGrant struct {
 	agentURL string
-	client   config.AgentOIDC
+	client   string
 }
 
 // oidcTokenSources keeps one token source per grant for the life of the
@@ -236,7 +370,8 @@ func oidcToken(agent config.AgentEntry) (string, error) {
 // a token once and refreshes it shortly before it expires. The token endpoint
 // is the one the agent card declares.
 func oidcTokenSource(agent config.AgentEntry) (oauth2.TokenSource, error) {
-	grant := oidcGrant{agentURL: agent.URL, client: *agent.Auth.OIDC}
+	oidc := *agent.Auth.OIDC
+	grant := oidcGrant{agentURL: agent.URL, client: fmt.Sprintf("%+v", oidc)}
 
 	oidcTokenSources.Lock()
 	defer oidcTokenSources.Unlock()
@@ -244,22 +379,22 @@ func oidcTokenSource(agent config.AgentEntry) (oauth2.TokenSource, error) {
 	if source, ok := oidcTokenSources.byGrant[grant]; ok {
 		return source, nil
 	}
-	secret, err := secretFromEnv(agent.Name, grant.client.ClientSecretEnv)
+	secret, err := secretFromEnv(agent.Name, oidc.ClientSecretEnv)
 	if err != nil {
 		return nil, err
 	}
-	endpoint, err := declaredTokenEndpoint(agent.URL, grant.client.IssuerURL)
+	endpoint, err := declaredTokenEndpoint(agent.URL, oidc.IssuerURL)
 	if err != nil {
 		return nil, &AuthError{Agent: agent.Name, Reason: err.Error()}
 	}
 	credentials := clientcredentials.Config{
-		ClientID:     grant.client.ClientID,
+		ClientID:     oidc.ClientID,
 		ClientSecret: secret,
 		TokenURL:     endpoint.url,
-		Scopes:       endpoint.scopes,
+		Scopes:       append(endpoint.scopes, oidc.Scopes...),
 	}
-	if grant.client.Audience != "" {
-		credentials.EndpointParams = url.Values{"audience": {grant.client.Audience}}
+	if oidc.Audience != "" {
+		credentials.EndpointParams = url.Values{"audience": {oidc.Audience}}
 	}
 	source := credentials.TokenSource(context.WithValue(context.Background(), oauth2.HTTPClient, oidcHTTPClient))
 	oidcTokenSources.byGrant[grant] = source
@@ -279,7 +414,7 @@ type tokenEndpoint struct {
 // only point there, so a tampered card cannot send the client secret elsewhere,
 // and a card that declares no scheme falls back to that issuer.
 func declaredTokenEndpoint(agentURL, pinnedIssuer string) (tokenEndpoint, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), oidcHTTPClient.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), credentialTimeout)
 	defer cancel()
 
 	card, err := client.NewClient(runningURL(agentURL)).GetAgentCard(ctx)
