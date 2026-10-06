@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -35,11 +34,6 @@ func (e *AuthError) Error() string {
 	return fmt.Sprintf("Authentication failed for A2A agent %q: %s", e.Agent, e.Reason)
 }
 
-// rejectedStatus matches the ADK client's error for a 401 or 403 response.
-// ponytail: ADK has no typed HTTP error, so the status is read from the
-// message. Switch to errors.As once ADK exposes the status code.
-var rejectedStatus = regexp.MustCompile(`unexpected status code[^:]*: (401|403)\b`)
-
 // AuthFailure describes err for the model when it is an authentication
 // failure: credentials that could not be obtained, or a 401 or 403 from the
 // agent. The message names the agent and leaves the response body out.
@@ -51,13 +45,13 @@ func AuthFailure(agentURL string, err error) (string, bool) {
 	if errors.As(err, &authErr) {
 		return authErr.Error(), true
 	}
-	match := rejectedStatus.FindStringSubmatch(err.Error())
-	if match == nil {
+	var status *adk.HTTPStatusError
+	if !errors.As(err, &status) || (status.StatusCode != http.StatusUnauthorized && status.StatusCode != http.StatusForbidden) {
 		return "", false
 	}
 	rejected := &AuthError{
 		Agent:  agentDisplayName(agentURL),
-		Reason: fmt.Sprintf("the agent rejected the request with status %s, check %s", match[1], credentialSetting(agentURL)),
+		Reason: fmt.Sprintf("the agent rejected the request with status %d, check %s", status.StatusCode, credentialSetting(agentURL)),
 	}
 	return rejected.Error(), true
 }
@@ -70,18 +64,12 @@ func credentialSetting(agentURL string) string {
 	return "its auth settings in agents.yaml"
 }
 
-// refusedByPolicy matches the ADK client's error for a 403 response and captures its body.
-var refusedByPolicy = regexp.MustCompile(`unexpected status code[^:]*: 403, body: (\{.*\})`)
-
 // PolicyRefusal describes err for the model when the gateway's guardrails
 // refused the request: a 403 whose body is a JSON-RPC error. The message
 // carries the policy's own words.
 func PolicyRefusal(err error) (string, bool) {
-	if err == nil {
-		return "", false
-	}
-	match := refusedByPolicy.FindStringSubmatch(err.Error())
-	if match == nil {
+	var status *adk.HTTPStatusError
+	if !errors.As(err, &status) || status.StatusCode != http.StatusForbidden {
 		return "", false
 	}
 	var envelope struct {
@@ -89,20 +77,16 @@ func PolicyRefusal(err error) (string, bool) {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if json.Unmarshal([]byte(match[1]), &envelope) != nil || envelope.Error.Message == "" {
+	if json.Unmarshal([]byte(status.Body), &envelope) != nil || envelope.Error.Message == "" {
 		return "", false
 	}
 	return "The request was refused by a guardrail policy: " + envelope.Error.Message, true
 }
 
-// methodNotFound is how the ADK client ends the error for a JSON-RPC
-// "method not found" answer.
-const methodNotFound = "(code: -32601)"
-
-// MethodUnsupported describes err for the model when the agent does not
+// methodUnsupported describes err for the model when the agent does not
 // implement the A2A method that was called, which no retry can change.
-func MethodUnsupported(agentURL string, err error) (string, bool) {
-	if err == nil || !strings.Contains(err.Error(), methodNotFound) {
+func methodUnsupported(agentURL string, err error) (string, bool) {
+	if !errors.Is(err, adk.ErrMethodNotFound) {
 		return "", false
 	}
 	return fmt.Sprintf("A2A agent %q does not implement the A2A method that was called, so it likely speaks another A2A protocol version than this CLI (v1.0). Retrying will not help.", agentDisplayName(agentURL)), true
@@ -115,7 +99,7 @@ func Rejection(agentURL string, err error) (string, bool) {
 	if message, ok := PolicyRefusal(err); ok {
 		return message, true
 	}
-	if message, ok := MethodUnsupported(agentURL, err); ok {
+	if message, ok := methodUnsupported(agentURL, err); ok {
 		return message, true
 	}
 	return AuthFailure(agentURL, err)
