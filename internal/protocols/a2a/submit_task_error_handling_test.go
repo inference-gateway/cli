@@ -3,6 +3,7 @@ package a2a
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -421,7 +422,7 @@ func TestSubmitTaskTool_RejectedSubmissionIsAnAuthFailure(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	client := &adkmocks.FakeA2AClient{}
-	client.SendTaskReturns(nil, errors.New(`unexpected status code: 401, body: {"error":"invalid token"}`))
+	client.SendTaskReturns(nil, &adk.HTTPStatusError{StatusCode: http.StatusUnauthorized, Body: `{"error":"invalid token"}`})
 	tool := NewSubmitTaskToolWithClient(authTestConfig(), nil, nil, nil, client)
 
 	result, err := tool.Execute(t.Context(), map[string]any{
@@ -441,7 +442,7 @@ func TestSubmitTaskTool_PollingStopsOnAuthFailure(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("HOME", t.TempDir())
 	client := &adkmocks.FakeA2AClient{}
-	client.GetTaskReturns(nil, errors.New("unexpected status code: 403, body: forbidden"))
+	client.GetTaskReturns(nil, &adk.HTTPStatusError{StatusCode: http.StatusForbidden, Body: "forbidden"})
 	tool := NewSubmitTaskToolWithClient(authTestConfig(), nil, nil, nil, client)
 	state := &a2adomain.TaskPollingState{TaskID: "t1", ContextID: "ctx1", AgentURL: "https://research.example.com"}
 
