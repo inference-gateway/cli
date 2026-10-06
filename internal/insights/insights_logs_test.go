@@ -190,14 +190,14 @@ func TestLogFailureWithoutConversationReachesDigest(t *testing.T) {
 	}
 
 	prompt := buildDigest(nil, nil, nil, "", digest)
-	for _, want := range []string{"LOG FAILURES", "x400", "failed to start gateway container", "port 8080 already in use"} {
+	for _, want := range []string{"LOG WARNINGS AND ERRORS", "x400", "failed to start gateway container", "port 8080 already in use"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("digest missing %q:\n%s", want, prompt)
 		}
 	}
 
 	report := renderReport(reportMeta{Generated: now, LogRecords: digest.Scanned, LogGroups: len(digest.Groups)}, nil, nil, digest, "x")
-	for _, want := range []string{"log_records: 400", "log_groups: 1", "## Log failures", "| 400 |"} {
+	for _, want := range []string{"log_records: 400", "log_groups: 1", "## Log warnings and errors", "| 400 | error |"} {
 		if !strings.Contains(report, want) {
 			t.Errorf("report missing %q:\n%s", want, report)
 		}

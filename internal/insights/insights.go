@@ -127,7 +127,7 @@ func (g *Generator) Generate(ctx context.Context, since time.Time, progress io.W
 
 	memory := g.memoryIndex()
 
-	_, _ = fmt.Fprintf(progress, "Read %d sessions and %d log failure groups\n", len(sessions), len(logs.Groups))
+	_, _ = fmt.Fprintf(progress, "Read %d sessions and %d log groups\n", len(sessions), len(logs.Groups))
 	_, _ = fmt.Fprintf(progress, "Analyzing with %s, can take minutes...\n", model)
 	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
 	if err != nil {
@@ -370,17 +370,18 @@ func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telem
 	}
 
 	if len(logs.Groups) > 0 {
-		b.WriteString("\nLOG FAILURES (from the log files, most frequent first)\n")
-		b.WriteString("These are failures the sessions above never recorded - crashes, startup and\n")
-		b.WriteString("background errors. xN is how many times that same line recurred: a high N\n")
-		b.WriteString("over a short span is a retry loop that never succeeded, the same N spread\n")
-		b.WriteString("over days is a chronic fault. Near-identical lines are already folded together.\n")
+		b.WriteString("\nLOG WARNINGS AND ERRORS (from the log files, most frequent first)\n")
+		b.WriteString("A line naming a tool repeats a failed tool call the sessions above already\n")
+		b.WriteString("counted. The rest never reached a session - crashes, startup and background\n")
+		b.WriteString("problems. xN is how many times that same line recurred: a high N over a short\n")
+		b.WriteString("span is a retry loop that never succeeded, the same N spread over days is a\n")
+		b.WriteString("chronic fault. Near-identical lines are already folded together.\n")
 		for _, g := range logs.Groups {
 			tool := ""
 			if g.Tool != "" {
 				tool = "tool " + g.Tool + ": "
 			}
-			fmt.Fprintf(&b, "- x%d [%s .. %s] %s%s\n", g.Count,
+			fmt.Fprintf(&b, "- x%d %s [%s .. %s] %s%s\n", g.Count, g.Level,
 				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), tool, g.Sample)
 		}
 	}
@@ -421,11 +422,13 @@ For each recurring failure: what is actually going wrong and the concrete fix
 Skip tools whose failures look incidental rather than systematic.
 
 ### Failures that never reached a session
-Recurring failures from LOG FAILURES below, which no saved session recorded - crashes,
-startup and background errors. For each: what is actually going wrong and the concrete
-fix. Read the count with the time span: a high count over seconds is a retry loop that
-never succeeded, the same count spread over days is a chronic fault. Skip anything that
-looks incidental. If there are no log failures, say so in one line.
+Recurring problems from LOG WARNINGS AND ERRORS below that no saved session recorded -
+crashes, startup and background problems. Lines naming a tool repeat the failed tool
+calls above, so do not count them again. A warn is a recoverable problem, so report one
+only when it costs the user something. For each: what is actually going wrong and the
+concrete fix. Read the count with the time span: a high count over seconds is a retry
+loop that never succeeded, the same count spread over days is a chronic fault. Skip
+anything that looks incidental. If there is nothing to report, say so in one line.
 
 PERSISTENT MEMORY below, when present, is what the agent has already learned about
 this user. Use it as context so you do not suggest what they already do; never
@@ -516,11 +519,11 @@ func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.Too
 	}
 
 	if len(logs.Groups) > 0 {
-		b.WriteString("## Log failures\n\n")
-		b.WriteString("| Count | First | Last | Tool | Message | Trace |\n")
-		b.WriteString("|-------|-------|------|------|---------|-------|\n")
+		b.WriteString("## Log warnings and errors\n\n")
+		b.WriteString("| Count | Level | First | Last | Tool | Message | Trace |\n")
+		b.WriteString("|-------|-------|-------|------|------|---------|-------|\n")
 		for _, g := range logs.Groups {
-			fmt.Fprintf(&b, "| %d | %s | %s | %s | %s | %s |\n", g.Count,
+			fmt.Fprintf(&b, "| %d | %s | %s | %s | %s | %s | %s |\n", g.Count, g.Level,
 				g.First.Format(time.RFC3339), g.Last.Format(time.RFC3339), g.Tool,
 				strings.ReplaceAll(g.Sample, "|", "\\|"), g.TraceID)
 		}

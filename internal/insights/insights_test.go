@@ -440,7 +440,7 @@ func TestLogSectionSurvivesManySessions(t *testing.T) {
 	if len(digest) > maxDigestChars+3 {
 		t.Errorf("digest not bounded: %d chars", len(digest))
 	}
-	for _, want := range []string{"LOG FAILURES", "x400", "failed to start gateway container"} {
+	for _, want := range []string{"LOG WARNINGS AND ERRORS", "x400", "failed to start gateway container"} {
 		if !strings.Contains(digest, want) {
 			t.Errorf("a busy session store must not crowd out %q:\n...%s", want, digest[max(0, len(digest)-400):])
 		}
@@ -459,11 +459,11 @@ func TestPromptCoversEveryDigestSection(t *testing.T) {
 	)
 
 	headings := map[string]string{
-		"PERSISTENT MEMORY": "PERSISTENT MEMORY",
-		"SESSIONS":          "sessions",
-		"TOOL CALL TOTALS":  "Tool calls that keep failing",
-		"FAILED TOOL CALLS": "Tool calls that keep failing",
-		"LOG FAILURES":      "LOG FAILURES",
+		"PERSISTENT MEMORY":       "PERSISTENT MEMORY",
+		"SESSIONS":                "sessions",
+		"TOOL CALL TOTALS":        "Tool calls that keep failing",
+		"FAILED TOOL CALLS":       "Tool calls that keep failing",
+		"LOG WARNINGS AND ERRORS": "LOG WARNINGS AND ERRORS",
 	}
 	for section, instruction := range headings {
 		if !strings.Contains(digest, section) {
