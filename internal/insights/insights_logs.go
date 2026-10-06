@@ -35,6 +35,7 @@ var logNoise = regexp.MustCompile(`(/[\w.\-/]+)|(\b[0-9a-f]{8,}\b)`)
 // same count spread over days is a chronic fault.
 type logGroup struct {
 	Template string
+	Level    string
 	Count    int
 	First    time.Time
 	Last     time.Time
@@ -172,7 +173,7 @@ func addLogRecord(groups map[string]*logGroup, rec logRecord, when time.Time) {
 		if len(groups) >= maxLogTemplates {
 			return
 		}
-		g = &logGroup{Template: key, First: when, Last: when, Sample: oneLine(raw, maxLogSampleChars), Tool: rec.Tool}
+		g = &logGroup{Template: key, Level: rec.Level, First: when, Last: when, Sample: oneLine(raw, maxLogSampleChars), Tool: rec.Tool}
 		groups[key] = g
 	}
 	if g.TraceID == "" {

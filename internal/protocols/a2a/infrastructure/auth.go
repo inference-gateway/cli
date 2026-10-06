@@ -95,11 +95,27 @@ func PolicyRefusal(err error) (string, bool) {
 	return "The request was refused by a guardrail policy: " + envelope.Error.Message, true
 }
 
+// methodNotFound is how the ADK client ends the error for a JSON-RPC
+// "method not found" answer.
+const methodNotFound = "(code: -32601)"
+
+// MethodUnsupported describes err for the model when the agent does not
+// implement the A2A method that was called, which no retry can change.
+func MethodUnsupported(agentURL string, err error) (string, bool) {
+	if err == nil || !strings.Contains(err.Error(), methodNotFound) {
+		return "", false
+	}
+	return fmt.Sprintf("A2A agent %q does not implement the A2A method that was called, so it likely speaks another A2A protocol version than this CLI (v1.0). Retrying will not help.", agentDisplayName(agentURL)), true
+}
+
 // Rejection describes err for the model when the agent turned the request
-// down for good, so retrying is pointless: a policy refusal or an
-// authentication failure.
+// down for good, so retrying is pointless: a policy refusal, an
+// authentication failure or a method the agent does not implement.
 func Rejection(agentURL string, err error) (string, bool) {
 	if message, ok := PolicyRefusal(err); ok {
+		return message, true
+	}
+	if message, ok := MethodUnsupported(agentURL, err); ok {
 		return message, true
 	}
 	return AuthFailure(agentURL, err)
@@ -151,7 +167,7 @@ type authTransport struct {
 // authenticates with the credentials agents.yaml gives the agent, or with the
 // gateway credential when the agent is the gateway. Any other agent gets the default.
 func newAuthTransport(agentURL string) http.RoundTripper {
-	origin := config.URLOrigin(agentURL)
+	origin := config.URLOrigin(runningURL(agentURL))
 	if agent, ok := configuredAgent(agentURL); ok && agent.Auth != nil {
 		return authTransport{base: http.DefaultTransport, origin: origin, token: func() (string, error) { return bearerToken(agent) }}
 	}
@@ -282,7 +298,7 @@ func declaredTokenEndpoint(agentURL, pinnedIssuer string) (tokenEndpoint, error)
 	ctx, cancel := context.WithTimeout(context.Background(), oidcHTTPClient.Timeout)
 	defer cancel()
 
-	card, err := client.NewClient(agentURL).GetAgentCard(ctx)
+	card, err := client.NewClient(runningURL(agentURL)).GetAgentCard(ctx)
 	if err != nil {
 		return tokenEndpoint{}, fmt.Errorf("reading the security schemes of the agent card: %w", err)
 	}

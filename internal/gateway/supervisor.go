@@ -162,15 +162,15 @@ func (gm *Supervisor) startContainer(ctx context.Context) error {
 		}
 	}
 
+	if err := gm.pullImage(ctx); err != nil {
+		logger.Warn("failed to pull image, attempting to use local image", "error", err)
+		fmt.Println("• Could not pull latest image, using cached version")
+	}
+
 	if gm.containerRuntime != nil {
 		if err := gm.containerRuntime.EnsureNetwork(ctx); err != nil {
 			logger.Warn("failed to create Docker network", "session", gm.sessionID, "error", err)
 		}
-	}
-
-	if err := gm.pullImage(ctx); err != nil {
-		logger.Warn("failed to pull image, attempting to use local image", "error", err)
-		fmt.Println("• Could not pull latest image, using cached version")
 	}
 
 	if gm.config.Gateway.Debug {

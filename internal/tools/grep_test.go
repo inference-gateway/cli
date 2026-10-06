@@ -648,6 +648,17 @@ func TestGrepTool_RipgrepDetection(t *testing.T) {
 	t.Logf("Ripgrep detected at: %s", tool.ripgrepPath)
 }
 
+func TestGrepTool_RipgrepHeadLimitCapsTheTotal(t *testing.T) {
+	tool := &GrepTool{}
+	output := "a.go:1:x\na.go:2:y\nb.go:1:z\nb.go:2:w\n"
+
+	result := tool.parseRipgrepOutput(output, "content", "x", 3)
+
+	if len(result.Matches) != 3 || result.Total != 3 {
+		t.Fatalf("got %d matches (total %d), want 3 across both files like | head -3", len(result.Matches), result.Total)
+	}
+}
+
 func TestGrepTool_HybridSearch(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{

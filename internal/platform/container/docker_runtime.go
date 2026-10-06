@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -13,7 +14,7 @@ import (
 type DockerRuntime struct {
 	sessionID      string
 	networkName    string
-	networkCreated bool
+	networkCreated atomic.Bool
 }
 
 // NewDockerRuntime creates a new Docker runtime manager
@@ -30,16 +31,12 @@ func (dr *DockerRuntime) GetNetworkName() string {
 }
 
 // EnsureNetwork creates the shared Docker network if it doesn't exist. The
-// network is reused across sessions, so at most one ever exists. If creation
-// fails because the IPAM address pools are exhausted (leaked networks from
-// prior sessions), it prunes those and retries once.
+// network is reused across sessions and any of them may remove it, so every
+// call checks again. If creation fails because the IPAM address pools are
+// exhausted (leaked networks from prior sessions), it prunes those and retries once.
 func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
-	if dr.networkCreated {
-		return nil
-	}
-
 	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dr.networkName).Run(); err == nil {
-		dr.networkCreated = true
+		dr.networkCreated.Store(true)
 		return nil
 	}
 
@@ -54,7 +51,7 @@ func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
 		}
 	}
 
-	dr.networkCreated = true
+	dr.networkCreated.Store(true)
 	logger.Info("docker network ready", "session", dr.sessionID, "network", dr.networkName)
 	return nil
 }
@@ -79,20 +76,20 @@ func (dr *DockerRuntime) createNetwork(ctx context.Context) error {
 // (keeping networkCreated set so a later call retries once the network frees
 // up). It is never an error to fail here - shutdown must not block.
 func (dr *DockerRuntime) CleanupNetwork(ctx context.Context) error {
-	if !dr.networkCreated {
+	if !dr.networkCreated.Load() {
 		return nil
 	}
 
 	output, err := exec.CommandContext(ctx, "docker", "network", "rm", dr.networkName).CombinedOutput()
 	if err == nil {
-		dr.networkCreated = false
+		dr.networkCreated.Store(false)
 		logger.Info("docker network removed successfully", "network", dr.networkName)
 		return nil
 	}
 
 	switch gone, inUse := interpretNetworkRm(string(output)); {
 	case gone:
-		dr.networkCreated = false
+		dr.networkCreated.Store(false)
 	case inUse:
 		logger.Debug("docker network still in use by another session; leaving in place", "network", dr.networkName)
 	default:

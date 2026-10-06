@@ -2,7 +2,9 @@ package a2a
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"net/http"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +32,9 @@ import (
 const (
 	// AgentContainerPrefix is the naming prefix for agent containers
 	AgentContainerPrefix = "inference-agent-"
+
+	// readinessLogLines is how much of a container's log a failed start reports.
+	readinessLogLines = 20
 )
 
 // AgentSupervisor manages the lifecycle of A2A agent containers (local and external)
@@ -248,6 +254,7 @@ func (s *AgentSupervisor) stopRun(name string) {
 	delete(s.agentStates, name)
 	delete(s.assignedPorts, name)
 	s.containersMutex.Unlock()
+	a2ainfra.UnrouteAgent(name)
 }
 
 // livenessInterval is how often a ready agent is probed again.
@@ -429,6 +436,9 @@ func (s *AgentSupervisor) StartAgent(ctx context.Context, agent config.AgentEntr
 
 	s.notifyStatus(agent.Name, a2adomain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := s.waitForReady(ctx, agent); err != nil {
+		if diagnosis := s.readinessDiagnosis(ctx, agent.Name); diagnosis != "" {
+			err = fmt.Errorf("%w, %s", err, diagnosis)
+		}
 		if stopErr := s.StopAgent(context.WithoutCancel(ctx), agent.Name); stopErr != nil {
 			logger.Warn("failed to stop agent during error cleanup", "name", agent.Name, "error", stopErr)
 		}
@@ -451,7 +461,7 @@ func (s *AgentSupervisor) StartAgent(ctx context.Context, agent config.AgentEntr
 
 // startLocalAgentProbe starts a periodic health check for a local (docker) agent
 func (s *AgentSupervisor) startLocalAgentProbe(ctx context.Context, agent config.AgentEntry) {
-	healthURL := strings.TrimSuffix(agent.URL, "/") + "/health"
+	healthURL := strings.TrimSuffix(s.localURL(agent), "/") + "/health"
 
 	s.goAgent(ctx, agent.Name, func(ctx context.Context) {
 		ticker := time.NewTicker(s.livenessInterval())
@@ -669,6 +679,12 @@ func (s *AgentSupervisor) startContainer(ctx context.Context, agent config.Agent
 
 	args = append(args, agent.OCI)
 
+	if s.containerRuntime != nil {
+		if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
+			return err
+		}
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	var outputBuf, errBuf strings.Builder
 	cmd.Stdout = &outputBuf
@@ -682,6 +698,7 @@ func (s *AgentSupervisor) startContainer(ctx context.Context, agent config.Agent
 	s.containersMutex.Lock()
 	s.containers[agent.Name] = containerID
 	s.containersMutex.Unlock()
+	a2ainfra.RouteAgent(agent.Name, agent.URL, setURLPort(agent.URL, assignedPort))
 	return nil
 }
 
@@ -762,7 +779,8 @@ func resolveAgentEnv(env, dotEnvVars, authKeys map[string]string) map[string]str
 	return resolvedEnv
 }
 
-// loadDotEnvFile loads environment variables from .env file in the current directory
+// loadDotEnvFile loads the optional .env file in the current directory. A
+// missing file yields no variables and no error.
 func (s *AgentSupervisor) loadDotEnvFile() (map[string]string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -770,8 +788,8 @@ func (s *AgentSupervisor) loadDotEnvFile() (map[string]string, error) {
 	}
 
 	dotEnvPath := filepath.Join(cwd, ".env")
-	if _, err := os.Stat(dotEnvPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf(".env file not found at %s", dotEnvPath)
+	if _, err := os.Stat(dotEnvPath); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
 	}
 
 	envMap, err := gotenv.Read(dotEnvPath)
@@ -814,9 +832,37 @@ func (s *AgentSupervisor) runningContainerID(expectedName string) string {
 	return ""
 }
 
+// localURL returns the URL this session's container for agent listens on: the
+// configured URL on the host port the agent was actually given.
+func (s *AgentSupervisor) localURL(agent config.AgentEntry) string {
+	s.containersMutex.Lock()
+	port, assigned := s.assignedPorts[agent.Name]
+	s.containersMutex.Unlock()
+	if !assigned {
+		return agent.URL
+	}
+	return setURLPort(agent.URL, port)
+}
+
+// readinessDiagnosis says why the agent's container never became ready, before
+// --rm deletes it with its logs: the tail of its log, or that it already exited.
+func (s *AgentSupervisor) readinessDiagnosis(ctx context.Context, agentName string) string {
+	s.containersMutex.Lock()
+	containerID := s.containers[agentName]
+	s.containersMutex.Unlock()
+	if containerID == "" || ctx.Err() != nil {
+		return ""
+	}
+	output, err := exec.CommandContext(ctx, "docker", "logs", "--tail", strconv.Itoa(readinessLogLines), containerID).CombinedOutput()
+	if err != nil {
+		return "the container exited before it became ready"
+	}
+	return "last container logs:\n" + strings.TrimSpace(string(output))
+}
+
 // waitForReady waits for an agent to become ready
 func (s *AgentSupervisor) waitForReady(ctx context.Context, agent config.AgentEntry) error {
-	healthURL := strings.TrimSuffix(agent.URL, "/") + "/health"
+	healthURL := strings.TrimSuffix(s.localURL(agent), "/") + "/health"
 
 	timeout := 30 * time.Second
 	deadline := time.Now().Add(timeout)

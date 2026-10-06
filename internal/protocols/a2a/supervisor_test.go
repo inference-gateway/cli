@@ -102,9 +102,8 @@ func TestAgentSupervisor_loadDotEnvFile_NotFound(t *testing.T) {
 	supervisor := NewAgentSupervisor(sessionID, cfg, agentsConfig, nil, nil)
 
 	envMap, err := supervisor.loadDotEnvFile()
-	require.Error(t, err)
+	require.NoError(t, err, "a project without a .env file is normal")
 	require.Nil(t, envMap)
-	require.Contains(t, err.Error(), ".env file not found")
 }
 
 func TestAgentSupervisor_loadDotEnvFile_InvalidFormat(t *testing.T) {
@@ -220,6 +219,16 @@ func TestAgentTelemetryEnv(t *testing.T) {
 
 	require.Equal(t, "http://host.docker.internal:4318", agentTelemetryEnv("http://127.0.0.1:4318")["A2A_OTEL_EXPORTER_OTLP_ENDPOINT"])
 	require.Equal(t, "https://otel.example.com:4318", agentTelemetryEnv("https://otel.example.com:4318")["A2A_OTEL_EXPORTER_OTLP_ENDPOINT"])
+}
+
+func TestAgentSupervisor_localURL(t *testing.T) {
+	supervisor := NewAgentSupervisor(convdomain.GenerateSessionID(), &config.Config{}, &config.AgentsConfig{}, nil, nil)
+	agent := config.AgentEntry{Name: "research", URL: "http://localhost:8081"}
+
+	require.Equal(t, "http://localhost:8081", supervisor.localURL(agent), "an agent without a container keeps its configured URL")
+
+	supervisor.assignedPorts[agent.Name] = 8082
+	require.Equal(t, "http://localhost:8082", supervisor.localURL(agent), "probes must reach the port the container was given")
 }
 
 func TestSetURLPort(t *testing.T) {

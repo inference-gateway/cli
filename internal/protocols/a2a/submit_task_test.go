@@ -132,6 +132,41 @@ func TestSubmitTaskTool_Execute_RequestsImmediateReturn(t *testing.T) {
 	assert.True(t, *sendRequest.Configuration.ReturnImmediately, "A2A_SubmitTask returns after the task is created and the background poller takes over")
 }
 
+func TestSubmitTaskTool_Execute_DirectMessageReplyIsTheAnswer(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{Enabled: true},
+			},
+		},
+	}
+
+	reply := adk.Message{
+		MessageID: "msg-1",
+		ContextID: ptrString("context-1"),
+		Role:      adk.RoleAgent,
+		Parts:     []adk.Part{{Text: ptrString("the answer is 42")}},
+	}
+	mockClient := &adkmocks.FakeA2AClient{}
+	mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Message: &reply}}, nil)
+
+	tool := NewSubmitTaskToolWithClient(cfg, nil, nil, nil, mockClient)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"agent_url":        "http://test-agent",
+		"task_description": "What is the answer?",
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Success, result.Error)
+	data, ok := result.Data.(SubmitTaskResult)
+	require.True(t, ok)
+	assert.Equal(t, "the answer is 42", data.TaskResult)
+	assert.Equal(t, "context-1", data.ContextID)
+	assert.Empty(t, data.TaskID, "a message reply starts no task to poll")
+}
+
 func TestSubmitTaskTool_Execute_Tenant(t *testing.T) {
 	const gatewayURL = "http://gateway:8080"
 	pausedTaskID := "mock-b:task-b"

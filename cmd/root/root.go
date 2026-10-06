@@ -130,9 +130,11 @@ func Execute() {
 }
 
 // printError logs a failed command's error as JSON for a collecting parent,
-// and otherwise prints it styled for a person.
+// and otherwise prints it styled for a person. The text keeps its case, as fang
+// would title-case its first word and turn a flag like --model into --Model.
 func printError(w io.Writer, styles fang.Styles, err error) {
 	if !logger.ReportExitError(os.Stderr, err) {
+		styles.ErrorText = styles.ErrorText.UnsetTransform()
 		fang.DefaultErrorHandler(w, styles, err)
 	}
 }
