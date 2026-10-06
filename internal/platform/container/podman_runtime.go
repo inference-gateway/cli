@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -13,7 +14,7 @@ import (
 type PodmanRuntime struct {
 	sessionID      string
 	networkName    string
-	networkCreated bool
+	networkCreated atomic.Bool
 }
 
 // NewPodmanRuntime creates a new Podman runtime manager
@@ -30,16 +31,12 @@ func (pr *PodmanRuntime) GetNetworkName() string {
 }
 
 // EnsureNetwork creates the shared Podman network if it doesn't exist. The
-// network is reused across sessions, so at most one ever exists. If creation
-// fails because the IPAM address pools are exhausted (leaked networks from
-// prior sessions), it prunes those and retries once.
+// network is reused across sessions and any of them may remove it, so every
+// call checks again. If creation fails because the IPAM address pools are
+// exhausted (leaked networks from prior sessions), it prunes those and retries once.
 func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
-	if pr.networkCreated {
-		return nil
-	}
-
 	if err := exec.CommandContext(ctx, "podman", "network", "inspect", pr.networkName).Run(); err == nil {
-		pr.networkCreated = true
+		pr.networkCreated.Store(true)
 		return nil
 	}
 
@@ -54,7 +51,7 @@ func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
 		}
 	}
 
-	pr.networkCreated = true
+	pr.networkCreated.Store(true)
 	logger.Info("podman network ready", "session", pr.sessionID, "network", pr.networkName)
 	return nil
 }
@@ -79,20 +76,20 @@ func (pr *PodmanRuntime) createNetwork(ctx context.Context) error {
 // (keeping networkCreated set so a later call retries once the network frees
 // up). It is never an error to fail here - shutdown must not block.
 func (pr *PodmanRuntime) CleanupNetwork(ctx context.Context) error {
-	if !pr.networkCreated {
+	if !pr.networkCreated.Load() {
 		return nil
 	}
 
 	output, err := exec.CommandContext(ctx, "podman", "network", "rm", pr.networkName).CombinedOutput()
 	if err == nil {
-		pr.networkCreated = false
+		pr.networkCreated.Store(false)
 		logger.Info("podman network removed successfully", "network", pr.networkName)
 		return nil
 	}
 
 	switch gone, inUse := interpretNetworkRm(string(output)); {
 	case gone:
-		pr.networkCreated = false
+		pr.networkCreated.Store(false)
 	case inUse:
 		logger.Debug("podman network still in use by another session; leaving in place", "network", pr.networkName)
 	default:

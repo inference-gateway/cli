@@ -711,6 +711,9 @@ func (s *Supervisor) startContainer(ctx context.Context, server config.MCPServer
 		env[key] = os.ExpandEnv(value)
 	}
 
+	if err := s.containerRuntime.EnsureNetwork(ctx); err != nil {
+		return err
+	}
 	containerID, err := s.containerRuntime.RunContainer(ctx, containerruntime.RunContainerOptions{
 		Name:         containerName,
 		Image:        server.OCI,
