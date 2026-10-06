@@ -27,6 +27,7 @@ Most examples ship a Docker Compose file:
 | [a2a-traces](../examples/a2a-traces/) | End-to-end OpenTelemetry traces between the CLI and an A2A agent |
 | [a2a-gateway](../examples/a2a-gateway/) | Every A2A agent behind the gateway, addressed by tenant, with a mock model and no API key |
 | [a2a-auth](../examples/a2a-auth/) | A2A agents behind a bearer token and behind OIDC with Keycloak, with a mock model and no API key |
+| [a2a-gateway-auth](../examples/a2a-gateway-auth/) | The gateway applying OIDC auth, guardrails and tracing to A2A traffic, with a mock model and no API key |
 
 There is also an [examples/kubernetes](../examples/kubernetes/) manifest set for running the gateway and an
 agent on a cluster.

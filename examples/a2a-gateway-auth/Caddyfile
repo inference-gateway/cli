@@ -1,0 +1,6 @@
+:8080 {
+	basic_auth {
+		gateway $2a$14$4itmOQGWiXReu4I2MRvX2OXMrH6f1pyMAwFr1eWDgc4Z2JyChZqVK
+	}
+	reverse_proxy mock-agent-b:8080
+}

@@ -1,0 +1,112 @@
+---
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.2
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://keycloak:8080
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-auth-network
+
+  keycloak-ready:
+    image: curlimages/curl:latest
+    depends_on:
+      - keycloak
+    restart: "no"
+    entrypoint:
+      - sh
+      - -c
+      - |
+        until curl -sf http://keycloak:8080/realms/inference-gateway-realm/.well-known/openid-configuration > /dev/null; do
+          echo 'Waiting for the Keycloak realm...'
+          sleep 3
+        done
+    networks:
+      - a2a-gateway-auth-network
+
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+      - "9464:9464"
+    environment:
+      A2A_ENABLED: true
+      A2A_AGENTS: mock=http://mock-agent:8080,mock-b=http://gateway:demo-password@mock-agent-b-proxy:8080
+      AUTH_ENABLED: true
+      AUTH_OIDC_ISSUER: http://keycloak:8080/realms/inference-gateway-realm
+      AUTH_OIDC_CLIENT_ID: inference-gateway-client
+      GUARDRAILS_ENABLED: true
+      GUARDRAILS_POLICY_DIR: /etc/inference-gateway/guardrails/policies
+      TELEMETRY_ENABLED: true
+      TELEMETRY_METRICS_PORT: 9464
+      TELEMETRY_TRACING_ENABLED: true
+      TELEMETRY_TRACING_OTLP_ENDPOINT: http://otel-collector:4318
+    volumes:
+      - ./policies:/etc/inference-gateway/guardrails/policies:ro
+    depends_on:
+      keycloak-ready:
+        condition: service_completed_successfully
+      mock-agent:
+        condition: service_started
+      mock-agent-b-proxy:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-auth-network
+
+  mock-agent:
+    image: ghcr.io/inference-gateway/mock-agent:0.5.0
+    pull_policy: always
+    environment:
+      A2A_AGENT_URL: http://mock-agent:8080
+      A2A_TELEMETRY_ENABLED: true
+      A2A_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-auth-network
+
+  mock-agent-b:
+    image: ghcr.io/inference-gateway/mock-agent:0.5.0
+    pull_policy: always
+    environment:
+      A2A_AGENT_URL: http://mock-agent-b-proxy:8080
+      A2A_TELEMETRY_ENABLED: true
+      A2A_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-auth-network
+
+  mock-agent-b-proxy:
+    image: caddy:2
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - mock-agent-b
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-auth-network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.130.0
+    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+    networks:
+      - a2a-gateway-auth-network
+
+networks:
+  a2a-gateway-auth-network:
+    driver: bridge

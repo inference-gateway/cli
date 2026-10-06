@@ -1,0 +1,106 @@
+version: '3'
+
+vars:
+  INFER: infer
+  GATEWAY: http://localhost:8080
+  KEYCLOAK: http://localhost:8081
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_GATEWAY_URL: '{{.GATEWAY}}'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_A2A_ENABLED: 'true'
+  INFER_A2A_AGENTS: '{{.GATEWAY}}'
+  INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL: 'false'
+  INFER_TELEMETRY_ENABLED: 'true'
+  INFER_TELEMETRY_RECEIVER_ADDRESS: 0.0.0.0:4319
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  up:
+    desc: Start Keycloak, the gateway, the two agents and the collector
+    cmds:
+      - docker compose up -d --wait inference-gateway
+
+  down:
+    desc: Stop everything
+    cmds:
+      - docker compose down
+
+  token:
+    desc: Print an access token for the gateway, from Keycloak's client-credentials grant
+    silent: true
+    cmds:
+      - >-
+        curl -sf {{.KEYCLOAK}}/realms/inference-gateway-realm/protocol/openid-connect/token
+        -d grant_type=client_credentials -d client_id=inference-gateway-client -d client_secret=very-secret
+        | jq -r .access_token
+
+  authorized:
+    desc: With a token, the model delegates to mock through the gateway
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask mock to echo hello
+
+  basic-auth:
+    desc: The gateway reaches mock-b with the basic auth from its A2A_AGENTS URL
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask mock-b to echo hello
+
+  no-token:
+    desc: Without a token the gateway answers 401 and the model sees an authentication failure
+    cmds:
+      - task: headless
+        vars:
+          TOKEN: ''
+          PROMPT: ask mock to echo hello
+
+  pii:
+    desc: A task with a card number is blocked by a guardrail policy and the model sees the policy message
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask mock to charge card 4111 1111 1111 1111
+
+  trace:
+    desc: Delegate, then show the session's trace from the CLI through the gateway
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: ask mock to echo hello
+      - '{{.INFER}} traces'
+
+  metrics:
+    desc: Show the gateway's A2A request metrics, per agent and method
+    cmds:
+      - curl -s http://localhost:9464/metrics | grep a2a
+
+  chat:
+    desc: Chat with the mock model, authenticated to the gateway
+    interactive: true
+    cmds:
+      - 'INFER_GATEWAY_API_KEY=$(task token) {{.INFER}} chat'
+
+  all:
+    desc: Run every headless scenario
+    cmds:
+      - task: authorized
+      - task: basic-auth
+      - task: no-token
+      - task: pii
+
+  headless:
+    internal: true
+    vars:
+      TOKEN: '{{if hasKey . "TOKEN"}}{{.TOKEN}}{{else}}$(task token){{end}}'
+    cmds:
+      - "INFER_GATEWAY_API_KEY={{.TOKEN}} {{.INFER}} headless --no-save \"{{.PROMPT}}\" | grep -E '\"role\":\"(tool|user)\"'"
