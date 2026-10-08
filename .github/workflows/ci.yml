@@ -153,6 +153,12 @@ jobs:
     - name: Run tests with race detector
       run: go test -race -tags purego ./...
 
+    - name: Run AT-SPI accessibility integration test
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends xvfb at-spi2-core dbus python3-gi gir1.2-gtk-3.0
+        xvfb-run -a dbus-run-session -- go test -tags purego -v -run TestAtspiIntegration ./internal/computer/infrastructure/accessibility/
+
   e2e:
     needs:
       - build

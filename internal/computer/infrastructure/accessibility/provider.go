@@ -58,10 +58,14 @@ type unsupportedProvider struct{}
 // by a short-lived helper process, so a fatal foreign-library fault cannot
 // terminate the CLI process.
 func NewProvider() Provider {
-	if runtime.GOOS != "darwin" {
+	if !hasNativeProvider() {
 		return unsupportedProvider{}
 	}
 	return &subprocessProvider{command: helperCommand, timeout: helperTimeout}
+}
+
+func hasNativeProvider() bool {
+	return runtime.GOOS == "darwin" || runtime.GOOS == "linux"
 }
 
 func (unsupportedProvider) Elements(context.Context, string) ([]computerdomain.UIElement, error) {
@@ -88,7 +92,7 @@ func (p *subprocessProvider) Press(ctx context.Context, target, label string) er
 // WindowBounds returns the [x1, y1, x2, y2] screen bounds (logical points)
 // of the focused window of target, which uses the same syntax as Elements.
 func WindowBounds(ctx context.Context, target string) ([4]int, error) {
-	if runtime.GOOS != "darwin" {
+	if !hasNativeProvider() {
 		return [4]int{}, fmt.Errorf("%w: %s", ErrUnsupported, runtime.GOOS)
 	}
 	p := &subprocessProvider{command: helperCommand, timeout: helperTimeout}

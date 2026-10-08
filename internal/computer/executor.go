@@ -204,8 +204,6 @@ func accessibilityFallback(prefix string, err error) string {
 	switch {
 	case errors.Is(err, accessibility.ErrPermission):
 		detail = "macOS Accessibility permission is not granted to infer"
-	case errors.Is(err, accessibility.ErrUnsupported):
-		detail = "the platform accessibility provider is not implemented"
 	case errors.Is(err, accessibility.ErrElementNotFound):
 		detail = "no pressable element matched that label"
 	}

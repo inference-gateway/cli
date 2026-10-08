@@ -25,8 +25,6 @@ const (
 	axValueCGPointType              = 1
 	axValueCGSizeType               = 2
 	axErrorSuccess                  = 0
-	maxTreeDepth                    = 12
-	maxTreeElements                 = 250
 	cgWindowListOptionOnScreenOnly  = 1 << 0
 	cgWindowListExcludeDesktopItems = 1 << 4
 )
@@ -64,14 +62,6 @@ type bridge struct {
 	ownerName   uintptr
 	ownerPID    uintptr
 	windowLayer uintptr
-}
-
-func nativeResponse(req request) response {
-	elements, err := runNative(req)
-	if err != nil {
-		return errorResponse(err)
-	}
-	return response{Elements: elements}
 }
 
 func runNative(req request) ([]computerdomain.UIElement, error) {

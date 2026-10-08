@@ -10,8 +10,6 @@ import (
 
 	xproto "github.com/jezek/xgb/xproto"
 	xgbutil "github.com/jezek/xgbutil"
-	ewmh "github.com/jezek/xgbutil/ewmh"
-	icccm "github.com/jezek/xgbutil/icccm"
 	xwindow "github.com/jezek/xgbutil/xwindow"
 
 	accessibility "github.com/inference-gateway/cli/internal/computer/infrastructure/accessibility"
@@ -69,14 +67,9 @@ func WindowBounds(_ context.Context, window string) (display.Region, error) {
 
 	var win xproto.Window
 	if t.frontmost {
-		win, _ = ewmh.ActiveWindowGet(x)
+		win = accessibility.FrontmostWindow(x)
 	} else {
-		stack, _ := ewmh.ClientListStackingGet(x)
-		for i := len(stack) - 1; i >= 0 && win == 0; i-- {
-			if windowMatches(x, stack[i], t) {
-				win = stack[i]
-			}
-		}
+		win = accessibility.TopmostWindow(x, t.pid, t.name)
 	}
 	if win == 0 {
 		return display.Region{}, errNoWindow(window)
@@ -86,13 +79,4 @@ func WindowBounds(_ context.Context, window string) (display.Region, error) {
 		return display.Region{}, fmt.Errorf("read window geometry: %w", err)
 	}
 	return display.Region{X: g.X(), Y: g.Y(), Width: g.Width(), Height: g.Height()}, nil
-}
-
-func windowMatches(x *xgbutil.XUtil, win xproto.Window, t target) bool {
-	if t.pid != 0 {
-		pid, err := ewmh.WmPidGet(x, win)
-		return err == nil && int(pid) == t.pid
-	}
-	class, err := icccm.WmClassGet(x, win)
-	return err == nil && (accessibility.ApplicationNamesMatch(class.Class, t.name) || accessibility.ApplicationNamesMatch(class.Instance, t.name))
 }

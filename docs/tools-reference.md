@@ -898,8 +898,8 @@ tools:
 - `cursor`, `move`, `click`, `double_click`, `triple_click`, `scroll`, `type`, and `key` - inspect or
   operate the pointer and keyboard.
 
-The `accessibility` and `press` actions accept an optional `target`: `frontmost` (default), `dock`,
-`menubar`, `pid:<number>`, `app:<name>`, or a bare application name. `press` also requires the exact
+The `accessibility` and `press` actions accept an optional `target`: `frontmost` (default), `dock` and
+`menubar` (macOS only), `pid:<number>`, `app:<name>`, or a bare application name. `press` also requires the exact
 `label` returned by `accessibility`.
 
 Under `computer_use.approval: destructive`, `accessibility`, `screenshot`, and `cursor` bypass
@@ -999,15 +999,25 @@ returns a text description for text-only models (see [Configuration Reference](c
 
 ## Accessibility Provider
 
-The macOS provider uses PureGo to call CoreFoundation, CoreGraphics, and AXUIElement directly; it has
-no cgo, Swift, or Objective-C source. Native calls run in a short-lived helper process using JSON over
-standard I/O. A helper crash, timeout, missing Accessibility permission, or unavailable tree returns
-screenshot fallback guidance to the agent instead of terminating the CLI. Grant the `infer` process
-permission in System Settings > Privacy & Security > Accessibility.
+Native calls run in a short-lived helper process using JSON over standard I/O. A helper crash, timeout,
+missing permission, or unavailable tree returns screenshot fallback guidance to the agent instead of
+terminating the CLI.
 
-Linux AT-SPI and Windows UIA providers can implement the same provider contract later. Until then,
-those platforms report `unsupported; use screenshot` for accessibility actions while the other
-`Computer` actions continue to work.
+- **macOS** - PureGo calls CoreFoundation, CoreGraphics, and AXUIElement directly, with no cgo, Swift, or
+  Objective-C source. Grant the `infer` process permission in System Settings > Privacy & Security >
+  Accessibility.
+- **Linux (X11)** - the provider speaks AT-SPI2 over D-Bus in pure Go, with no cgo or libatspi. It needs a
+  session D-Bus and `at-spi2-core`, whose bus launcher and registry are D-Bus activated, so
+  `xvfb-run dbus-run-session` is enough on a virtual display. GTK 3 and WebKitGTK apps load the AT-SPI
+  bridge on their own, and web content in a Tauri app appears with screen bounding boxes. `NO_AT_BRIDGE=1`
+  in an app's environment turns its bridge off and hides it from the tree. `frontmost`, `app:<name>` and
+  bare names resolve through the window manager, or through the X root window when none runs. `dock` and
+  `menubar` are macOS-only. Wayland sessions report `unsupported` for now, like recording.
+- **Windows** - no provider yet. Accessibility actions report `unsupported` while the other `Computer`
+  actions keep working.
+
+`press` performs the element's `press`, `click` or `activate` action, or its only named action (a web
+link's `jump`). The `accessibility` result lists that action as `press` on every platform.
 
 ---
 
