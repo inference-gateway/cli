@@ -1012,7 +1012,9 @@ terminating the CLI.
   bridge on their own, and web content in a Tauri app appears with screen bounding boxes. `NO_AT_BRIDGE=1`
   in an app's environment turns its bridge off and hides it from the tree. `frontmost`, `app:<name>` and
   bare names resolve through the window manager, or through the X root window when none runs. `dock` and
-  `menubar` are macOS-only. Wayland sessions report `unsupported` for now, like recording.
+  `menubar` are macOS-only. Wayland sessions report `unsupported` for now, like recording. `at-spi2-core`
+  2.52 (Ubuntu 24.04) is the known-good minimum - the walker uses `GetChildren`, `GetInterfaces` and
+  `NActions`, and older stacks report `unavailable`.
 - **Windows** - no provider yet. Accessibility actions report `unsupported` while the other `Computer`
   actions keep working.
 

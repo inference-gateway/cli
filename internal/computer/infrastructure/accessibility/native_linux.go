@@ -25,7 +25,6 @@ const (
 	nullPath           = "/org/a11y/atspi/null"
 	componentInterface = "org.a11y.atspi.Component"
 	actionInterface    = "org.a11y.atspi.Action"
-	stateActive        = 1
 	stateChecked       = 4
 	stateEnabled       = 8
 	stateFocused       = 12
@@ -99,8 +98,6 @@ func run(ctx context.Context, bus atspiBus, pid uint32, req request) ([]computer
 		return collect(ctx, bus, app), nil
 	case "press":
 		return nil, press(ctx, bus, app, req.Label)
-	case "window":
-		return focusedWindow(ctx, bus, app, req.Target)
 	default:
 		return nil, fmt.Errorf("%w: unknown helper action %q", ErrUnavailable, req.Action)
 	}
@@ -393,29 +390,4 @@ func doAction(ctx context.Context, bus atspiBus, node accessible, label, action 
 		return fmt.Errorf("%w: DoAction %q on %q returned false", ErrUnavailable, action, label)
 	}
 	return nil
-}
-
-// focusedWindow returns the bounds of the app's active frame, or of its first frame with
-// bounds when none is active.
-func focusedWindow(ctx context.Context, bus atspiBus, app accessible, target string) ([]computerdomain.UIElement, error) {
-	frames, _ := bus.children(ctx, app)
-	var first []computerdomain.UIElement
-	for _, frame := range frames {
-		interfaces, _ := bus.interfaces(ctx, frame)
-		box, ok := boxOf(ctx, bus, frame, interfaces)
-		if !ok {
-			continue
-		}
-		window := []computerdomain.UIElement{{Role: "window", BBox: box}}
-		if states, _ := bus.states(ctx, frame); hasState(states, stateActive) {
-			return window, nil
-		}
-		if first == nil {
-			first = window
-		}
-	}
-	if first == nil {
-		return nil, fmt.Errorf("%w: no window for target %q", ErrElementNotFound, target)
-	}
-	return first, nil
 }

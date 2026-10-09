@@ -19,7 +19,6 @@ import (
 const (
 	stateBitEnabled = uint64(1) << stateEnabled
 	stateBitFocused = uint64(1) << stateFocused
-	stateBitActive  = uint64(1) << stateActive
 )
 
 type fakeNode struct {
@@ -269,9 +268,7 @@ func TestRun(t *testing.T) {
 		apps: []accessible{ref(":1.5", "/root"), app},
 		pids: map[string]uint32{":1.5": 10, ":1.6": 20},
 		nodes: map[accessible]fakeNode{
-			app:                  {role: "application", children: []accessible{ref(":1.6", "/a"), ref(":1.6", "/b")}},
-			ref(":1.6", "/a"):    {role: "frame", box: rect{0, 0, 100, 100}},
-			ref(":1.6", "/b"):    {role: "frame", states: stateBitActive, box: rect{50, 60, 200, 100}},
+			app:                  {role: "application"},
 			ref(":1.5", "/root"): {role: "application"},
 		},
 	}
@@ -282,8 +279,6 @@ func TestRun(t *testing.T) {
 		want    []computerdomain.UIElement
 		wantErr error
 	}{
-		{name: "window prefers the active frame", pid: 20, action: "window", want: []computerdomain.UIElement{{Role: "window", BBox: [4]int{50, 60, 250, 160}}}},
-		{name: "window without frames", pid: 10, action: "window", wantErr: ErrElementNotFound},
 		{name: "no application for pid", pid: 30, action: "elements", wantErr: ErrUnavailable},
 		{name: "unknown action", pid: 20, action: "zoom", wantErr: ErrUnavailable},
 	}
