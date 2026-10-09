@@ -521,7 +521,7 @@
               "type": "object"
             },
             "target": {
-              "description": "accessibility/press only: frontmost (default), dock, menubar, pid:\u003cnumber\u003e, app:\u003cname\u003e, or a bare application name.",
+              "description": "accessibility/press only: frontmost (default), dock or menubar (macOS only), pid:\u003cnumber\u003e, app:\u003cname\u003e, or a bare application name.",
               "type": "string"
             },
             "text": {

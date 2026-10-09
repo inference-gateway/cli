@@ -21,7 +21,8 @@ screenshot:
 ```
 
 The display backend is detected automatically on macOS, Linux and Windows. The accessibility tree is
-macOS-only for now, and other platforms fall back to screenshots. Actions are governed by
+read on macOS and on Linux under X11 (AT-SPI2, which needs `at-spi2-core` and a session D-Bus). Wayland
+and Windows fall back to screenshots. Actions are governed by
 `computer_use.enabled`, rate limits and `computer_use.approval`. The
 [desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
 (monitor, screen overlay, approvals). For a sandboxed desktop to drive, see

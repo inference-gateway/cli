@@ -3,6 +3,7 @@ package computer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -111,7 +112,7 @@ func TestAccessibilityFallbackClassifiesErrors(t *testing.T) {
 		err  error
 		want string
 	}{
-		{accessibility.ErrUnsupported, "not implemented"},
+		{fmt.Errorf("%w: wayland", accessibility.ErrUnsupported), "unsupported on this platform: wayland"},
 		{accessibility.ErrPermission, "permission"},
 		{accessibility.ErrElementNotFound, "no pressable element"},
 		{errors.New("boom"), "boom"},

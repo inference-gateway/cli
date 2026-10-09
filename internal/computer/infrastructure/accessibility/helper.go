@@ -8,6 +8,11 @@ import (
 	"os"
 )
 
+const (
+	maxTreeDepth    = 12
+	maxTreeElements = 250
+)
+
 // IsHelperProcess reports whether this process was launched as the isolated
 // accessibility bridge. The CLI entry point checks this before constructing
 // any services or presentation state.
@@ -28,7 +33,11 @@ func RunHelper(input io.Reader, output io.Writer) (err error) {
 	if err := json.NewDecoder(input).Decode(&req); err != nil {
 		return encoder.Encode(response{Code: "unavailable", Error: "decode request: " + err.Error()})
 	}
-	return encoder.Encode(nativeResponse(req))
+	elements, err := runNative(req)
+	if err != nil {
+		return encoder.Encode(errorResponse(err))
+	}
+	return encoder.Encode(response{Elements: elements})
 }
 
 func errorResponse(err error) response {
