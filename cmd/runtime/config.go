@@ -426,6 +426,7 @@ func applyPromptsEnvOverrides(cfg *config.Config) {
 		"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS":                   &cfg.Prompts.Agent.CustomInstructions,
 		"INFER_PROMPTS_GIT_COMMIT_MESSAGE_SYSTEM_PROMPT":            &cfg.Prompts.Git.CommitMessage.SystemPrompt,
 		"INFER_PROMPTS_CONVERSATION_TITLE_GENERATION_SYSTEM_PROMPT": &cfg.Prompts.Conversation.TitleGeneration.SystemPrompt,
+		"INFER_PROMPTS_CHAT_SUGGESTIONS_SYSTEM_PROMPT":              &cfg.Prompts.Chat.Suggestions.SystemPrompt,
 		"INFER_PROMPTS_VISION_ANNOTATOR_SCREEN_SYSTEM_PROMPT":       &cfg.Prompts.Vision.Annotator.ScreenSystemPrompt,
 		"INFER_PROMPTS_VISION_ANNOTATOR_SCENE_SYSTEM_PROMPT":        &cfg.Prompts.Vision.Annotator.SceneSystemPrompt,
 		"INFER_PROMPTS_INIT_PROMPT":                                 &cfg.Prompts.Init.Prompt,
