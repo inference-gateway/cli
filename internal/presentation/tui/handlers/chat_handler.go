@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -51,6 +52,9 @@ type ChatHandler struct {
 	completionRunner       tui.ChatCompletionRunner
 	directExec             tui.DirectExecutionService
 	toolCoordinator        tui.ToolExecutionCoordinator
+	suggestions            tui.NextStepSuggestionRunner
+	suggestionGate         tui.SuggestionGate
+	suggestionCancel       context.CancelFunc
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
 	skillsService          agentdomain.SkillsService
@@ -81,6 +85,8 @@ func NewChatHandler(
 	completionRunner tui.ChatCompletionRunner,
 	directExec tui.DirectExecutionService,
 	toolCoordinator tui.ToolExecutionCoordinator,
+	suggestions tui.NextStepSuggestionRunner,
+	suggestionGate tui.SuggestionGate,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:           agentService,
@@ -105,6 +111,8 @@ func NewChatHandler(
 		completionRunner:       completionRunner,
 		directExec:             directExec,
 		toolCoordinator:        toolCoordinator,
+		suggestions:            suggestions,
+		suggestionGate:         suggestionGate,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -150,6 +158,10 @@ func (h *ChatHandler) rearmChatListener(source <-chan agentdomain.ChatEvent) tea
 // return nil.
 func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
 	switch m := msg.(type) {
+	case tui.NextStepSuggestionEvent:
+		if m.Suggestion == "" {
+			h.cancelSuggestionRequest()
+		}
 	case tui.ChatCompletionRequestedEvent:
 		if h.stateManager.GetChatSession() != m.Session {
 			return nil
@@ -273,14 +285,14 @@ func (h *ChatHandler) HandleUserInputEvent(
 func (h *ChatHandler) HandleConversationSelectedEvent(
 	msg tui.ConversationSelectedEvent,
 ) tea.Cmd {
-	return h.handleConversationSelected(msg)
+	return tea.Batch(h.dismissNextStepSuggestion(), h.handleConversationSelected(msg))
 }
 
 func (h *ChatHandler) HandleChatStartEvent(
 	msg agentdomain.ChatStartEvent,
 ) tea.Cmd {
 	h.toolCoordinator.SetActiveToolCallID("")
-	return h.completionRunner.HandleChatStart(msg)
+	return tea.Batch(h.completionRunner.HandleChatStart(msg), h.dismissNextStepSuggestion())
 }
 
 func (h *ChatHandler) HandleChatChunkEvent(
@@ -297,10 +309,65 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 	if msg.Cancelled {
 		h.toolCoordinator.SetActiveToolCallID("")
 	}
+	if h.shouldRequestNextStepSuggestion(msg) {
+		return tea.Batch(cmd, h.requestNextStepSuggestion())
+	}
 	if h.shouldDrainAfterComplete(msg) {
 		return tea.Batch(cmd, drainQueueCmd())
 	}
 	return cmd
+}
+
+// shouldRequestNextStepSuggestion reports whether a terminal assistant turn
+// should trigger the one next-step suggestion request: not cancelled, no tool
+// calls feeding back in, no queued work (a drain would start a fresh turn)
+// and a UI quiet gate the chat application owns (empty input, no autocomplete
+// popup, no overlay form, not busy).
+func (h *ChatHandler) shouldRequestNextStepSuggestion(msg agentdomain.ChatCompleteEvent) bool {
+	if h.suggestions == nil || h.suggestionGate == nil {
+		return false
+	}
+	if h.config == nil || !h.config.Chat.Suggestions.Enabled {
+		return false
+	}
+	if msg.Cancelled || len(msg.ToolCalls) > 0 {
+		return false
+	}
+	if !h.messageQueue.IsEmpty() {
+		return false
+	}
+	if h.stateManager.IsAgentBusy() {
+		return false
+	}
+	return h.suggestionGate.CanRequestSuggestion()
+}
+
+// requestNextStepSuggestion runs the suggestion call off the Update loop and
+// returns its result as a UI event. A fresh, cancelable context replaces any
+// previously outstanding request.
+func (h *ChatHandler) requestNextStepSuggestion() tea.Cmd {
+	h.cancelSuggestionRequest()
+	ctx, cancel := context.WithCancel(context.Background())
+	h.suggestionCancel = cancel
+	return func() tea.Msg {
+		defer cancel()
+		return tui.NextStepSuggestionEvent{Suggestion: h.suggestions.GenerateNextStepSuggestion(ctx)}
+	}
+}
+
+// dismissNextStepSuggestion cancels any in-flight suggestion request and
+// clears a shown one via the UI event.
+func (h *ChatHandler) dismissNextStepSuggestion() tea.Cmd {
+	h.cancelSuggestionRequest()
+	return func() tea.Msg { return tui.NextStepSuggestionEvent{} }
+}
+
+// cancelSuggestionRequest cancels an outstanding suggestion LLM call, if any.
+func (h *ChatHandler) cancelSuggestionRequest() {
+	if h.suggestionCancel != nil {
+		h.suggestionCancel()
+		h.suggestionCancel = nil
+	}
 }
 
 // shouldDrainAfterComplete reports whether a completed turn should trigger a queue
@@ -323,7 +390,7 @@ func (h *ChatHandler) HandleChatErrorEvent(
 	msg agentdomain.ChatErrorEvent,
 ) tea.Cmd {
 	h.toolCoordinator.SetActiveToolCallID("")
-	return h.completionRunner.HandleChatError(msg)
+	return tea.Batch(h.completionRunner.HandleChatError(msg), h.dismissNextStepSuggestion())
 }
 
 func (h *ChatHandler) HandleOptimizationStatusEvent(
@@ -400,7 +467,7 @@ func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 func (h *ChatHandler) HandleMessageQueuedEvent(
 	_ agentdomain.MessageQueuedEvent,
 ) tea.Cmd {
-	return h.handleMessageQueued()
+	return tea.Batch(h.handleMessageQueued(), h.dismissNextStepSuggestion())
 }
 
 func (h *ChatHandler) HandleToolCancelledEvent(

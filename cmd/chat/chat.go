@@ -250,6 +250,7 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 		services.GetToolExecutionCoordinator(),
 		services.GetShellHistoryStorage(),
 		services.GetTokenEstimator(),
+		services.GetNextStepSuggestionRunner(),
 	)
 	application.SetTranscriptStore(services.GetStorage())
 	program := tea.NewProgram(application)

@@ -115,6 +115,7 @@ func TestChatApplication_QuestionFormRendersOnEvent(t *testing.T) {
 		c.GetToolExecutionCoordinator(),
 		c.GetShellHistoryStorage(),
 		c.GetTokenEstimator(),
+		nil,
 	)
 
 	c.GetStateStore().SetDimensions(120, 40)

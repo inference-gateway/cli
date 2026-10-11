@@ -399,6 +399,8 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150, 0, 0)
@@ -717,6 +719,8 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 		fakeRunner,
 		fakeDirect,
 		fakeToolCoord,
+		nil,
+		nil,
 	)
 }
 

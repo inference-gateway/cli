@@ -72,6 +72,7 @@ type ChatApplication struct {
 	chatCompletionRunner     tui.ChatCompletionRunner
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
+	suggestionRunner         tui.NextStepSuggestionRunner
 
 	// State management
 	stateManager *statemanager.Store
@@ -188,6 +189,7 @@ func NewChatApplication(
 	toolExecutionCoordinator tui.ToolExecutionCoordinator,
 	shellHistoryStore storage.ShellHistoryStorage,
 	tokenEstimator convdomain.TokenEstimator,
+	suggestionRunner tui.NextStepSuggestionRunner,
 ) *ChatApplication {
 	initialView := tui.ViewStateModelSelection
 	if defaultModel != "" {
@@ -220,6 +222,7 @@ func NewChatApplication(
 		chatCompletionRunner:     chatCompletionRunner,
 		directExecutionService:   directExecutionService,
 		toolExecutionCoordinator: toolExecutionCoordinator,
+		suggestionRunner:         suggestionRunner,
 		availableModels:          models,
 		stateManager:             stateManager,
 		messageQueue:             messageQueue,
@@ -383,6 +386,8 @@ func NewChatApplication(
 		app.chatCompletionRunner,
 		app.directExecutionService,
 		app.toolExecutionCoordinator,
+		app.suggestionRunner,
+		app,
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(
@@ -598,6 +603,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case githubSetupCheckedMsg:
 		return tea.Batch(app.handleGithubSetupChecked(m)...)
 
+	case tui.NextStepSuggestionEvent:
+		return app.applyNextStepSuggestion(m)
+
 	case tui.TriggerHelpViewEvent:
 		return tea.Batch(app.handleHelpViewTrigger()...)
 
@@ -609,6 +617,31 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 
 	}
 
+	return nil
+}
+
+// CanRequestSuggestion implements tui.SuggestionGate: the chat UI is quiet
+// enough to request or install a next-step suggestion.
+func (app *ChatApplication) CanRequestSuggestion() bool {
+	if app.stateManager.IsAgentBusy() {
+		return false
+	}
+
+	autocompleteVisible := app.autocomplete != nil && app.autocomplete.IsVisible()
+	return !app.isInputBlocked(app.stateManager.GetCurrentView()) &&
+		(app.inputView == nil || app.inputView.GetInput() == "") &&
+		!autocompleteVisible
+}
+
+// applyNextStepSuggestion installs a delivered suggestion into the empty
+// input, or clears one. Non-empty suggestions are dropped when the UI has
+// meanwhile moved on - a fresh turn, an overlay or typed text wins.
+func (app *ChatApplication) applyNextStepSuggestion(ev tui.NextStepSuggestionEvent) tea.Cmd {
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		if ev.Suggestion == "" || app.CanRequestSuggestion() {
+			iv.SetNextStepSuggestion(ev.Suggestion)
+		}
+	}
 	return nil
 }
 

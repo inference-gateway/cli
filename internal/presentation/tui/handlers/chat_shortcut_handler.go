@@ -75,6 +75,7 @@ func (s *ChatShortcutHandler) executeShortcut(
 						StatusType: tui.StatusDefault,
 					}
 				},
+				s.handler.dismissNextStepSuggestion(),
 			)()
 
 		default:
@@ -344,6 +345,7 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 				StatusType: tui.StatusDefault,
 			}
 		},
+		s.handler.dismissNextStepSuggestion(),
 	)()
 }
 
@@ -416,6 +418,7 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 				StatusType: tui.StatusDefault,
 			}
 		},
+		s.handler.dismissNextStepSuggestion(),
 	)()
 }
 
