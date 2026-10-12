@@ -1195,6 +1195,7 @@ func TestInputStatusBar_RenderRightSegmentDropOrder(t *testing.T) {
 func TestInputStatusBar_QueueIndicator(t *testing.T) {
 	tests := []struct {
 		name          string
+		backend       string
 		isEmpty       bool
 		size          int
 		queueDisabled bool
@@ -1203,6 +1204,11 @@ func TestInputStatusBar_QueueIndicator(t *testing.T) {
 		{name: "empty queue has no indicator", isEmpty: true, size: 0, want: ""},
 		{name: "one queued message", size: 1, want: icons.QueueIcon + " 1 queued"},
 		{name: "several queued messages", size: 3, want: icons.QueueIcon + " 3 queued"},
+		{name: "memory keeps the icon and count", backend: "memory", size: 2, want: icons.QueueIcon + " 2 queued"},
+		{name: "empty durable queue still names the backend", backend: "redis", isEmpty: true, size: 0, want: "redis"},
+		{name: "durable backend names the backend and count", backend: "redis", size: 3, want: "redis 3 queued"},
+		{name: "sqlite backend names the backend", backend: "sqlite", size: 1, want: "sqlite 1 queued"},
+		{name: "postgres backend names the backend", backend: "postgres", size: 4, want: "postgres 4 queued"},
 		{name: "toggle off hides the indicator", size: 3, queueDisabled: true, want: ""},
 	}
 	for _, tt := range tests {
@@ -1213,13 +1219,17 @@ func TestInputStatusBar_QueueIndicator(t *testing.T) {
 				statusBar.config.Chat.StatusBar.Indicators.Queue = false
 			}
 			queue := &convmocks.FakeMessageQueue{}
+			queue.BackendNameReturns(tt.backend)
 			queue.IsEmptyReturns(tt.isEmpty)
 			queue.SizeReturns(tt.size)
 			statusBar.SetMessageQueue(queue)
 
 			got := ""
 			for _, part := range statusBar.buildIndicatorParts("test-model") {
-				if strings.Contains(part.text, "queued") {
+				if part.text == "" {
+					continue
+				}
+				if strings.Contains(part.text, "queued") || part.text == tt.backend {
 					got = part.text
 					break
 				}
@@ -1245,6 +1255,29 @@ func TestInputStatusBar_QueueIndicatorAccentColor(t *testing.T) {
 		}
 		if part.color != "#ff9e64" {
 			t.Errorf("queue indicator color = %q, want the theme accent #ff9e64", part.color)
+		}
+		return
+	}
+	t.Fatal("queue indicator missing from indicator parts")
+}
+
+func TestInputStatusBar_QueueIndicatorUnreachableErrorColor(t *testing.T) {
+	statusBar := newSelectableStatusBar()
+	statusBar.styleProvider = agentStartupProvider()
+	wantError := statusBar.styleProvider.GetThemeColor("error")
+	queue := &convmocks.FakeMessageQueue{}
+	queue.BackendNameReturns("redis")
+	queue.IsEmptyReturns(false)
+	queue.SizeReturns(2)
+	queue.UnreachableReturns(true)
+	statusBar.SetMessageQueue(queue)
+
+	for _, part := range statusBar.buildIndicatorParts("test-model") {
+		if !strings.Contains(part.text, "redis") {
+			continue
+		}
+		if part.color != wantError {
+			t.Errorf("unreachable queue indicator color = %q, want %q", part.color, wantError)
 		}
 		return
 	}
