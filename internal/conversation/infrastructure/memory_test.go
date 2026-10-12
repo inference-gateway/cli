@@ -1,6 +1,7 @@
-package conversation
+package infrastructure
 
 import (
+	"context"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -21,11 +22,11 @@ func TestMessageQueueService(t *testing.T) {
 		dequeues   int
 		wantSize   int
 		wantEmpty  bool
-		wantPeekID string
+		wantHeadID string
 	}{
 		{name: "empty queue", wantSize: 0, wantEmpty: true},
-		{name: "single message", enqueue: []string{"r1"}, wantSize: 1, wantPeekID: "r1"},
-		{name: "fifo order after partial dequeue", enqueue: []string{"r1", "r2", "r3"}, dequeues: 1, wantSize: 2, wantPeekID: "r2"},
+		{name: "single message", enqueue: []string{"r1"}, wantSize: 1, wantHeadID: "r1"},
+		{name: "fifo order after partial dequeue", enqueue: []string{"r1", "r2", "r3"}, dequeues: 1, wantSize: 2, wantHeadID: "r2"},
 		{name: "dequeue drains queue", enqueue: []string{"r1", "r2"}, dequeues: 2, wantSize: 0, wantEmpty: true},
 		{name: "dequeue past empty returns nil", enqueue: []string{"r1"}, dequeues: 3, wantSize: 0, wantEmpty: true},
 	}
@@ -33,13 +34,16 @@ func TestMessageQueueService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mq := NewMessageQueueService()
+			ctx := context.Background()
 			for _, id := range tt.enqueue {
-				mq.Enqueue(userMsg("msg-"+id), convdomain.QueueSourceComposer, id)
+				assert.NoError(t, mq.Enqueue(ctx, userMsg("msg-"+id), convdomain.QueueSourceComposer, id))
 			}
 
 			dequeued := make([]string, 0, tt.dequeues)
 			for i := 0; i < tt.dequeues; i++ {
-				if msg := mq.Dequeue(); msg != nil {
+				msg, err := mq.Dequeue(ctx)
+				assert.NoError(t, err)
+				if msg != nil {
 					dequeued = append(dequeued, msg.RequestID)
 				}
 			}
@@ -50,14 +54,6 @@ func TestMessageQueueService(t *testing.T) {
 			assert.Equal(t, tt.wantSize, mq.Size())
 			assert.Equal(t, tt.wantEmpty, mq.IsEmpty())
 
-			peeked := mq.Peek()
-			if tt.wantPeekID == "" {
-				assert.Nil(t, peeked)
-			} else if assert.NotNil(t, peeked) {
-				assert.Equal(t, tt.wantPeekID, peeked.RequestID)
-				assert.Equal(t, tt.wantSize, mq.Size(), "Peek must not remove")
-			}
-
 			all := mq.GetAll()
 			assert.Len(t, all, tt.wantSize)
 			for i, qm := range all {
@@ -65,20 +61,40 @@ func TestMessageQueueService(t *testing.T) {
 				assert.Equal(t, convdomain.QueueSourceComposer, qm.Source)
 			}
 
-			mq.Clear()
+			assert.NoError(t, mq.Clear(ctx))
 			assert.True(t, mq.IsEmpty())
 			assert.Zero(t, mq.Size())
-			assert.Nil(t, mq.Dequeue())
+			msg, err := mq.Dequeue(ctx)
+			assert.NoError(t, err)
+			assert.Nil(t, msg)
 		})
 	}
 }
 
 func TestMessageQueueService_GetAllReturnsCopy(t *testing.T) {
 	mq := NewMessageQueueService()
-	mq.Enqueue(userMsg("a"), convdomain.QueueSourceComposer, "r1")
+	ctx := context.Background()
+	assert.NoError(t, mq.Enqueue(ctx, userMsg("a"), convdomain.QueueSourceComposer, "r1"))
 
 	all := mq.GetAll()
 	all[0].RequestID = "mutated"
 
-	assert.Equal(t, "r1", mq.Peek().RequestID)
+	assert.Equal(t, "r1", mq.GetAll()[0].RequestID)
+}
+
+func TestMessageQueueService_DrainReturnsAllInOrder(t *testing.T) {
+	mq := NewMessageQueueService()
+	ctx := context.Background()
+	assert.NoError(t, mq.Enqueue(ctx, userMsg("a"), convdomain.QueueSourceComposer, "r1"))
+	assert.NoError(t, mq.Enqueue(ctx, userMsg("b"), convdomain.QueueSourceStdin, "r2"))
+	assert.NoError(t, mq.Enqueue(ctx, userMsg("c"), convdomain.QueueSourceShell, "r3"))
+
+	drained, err := mq.Drain(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"r1", "r2", "r3"}, []string{drained[0].RequestID, drained[1].RequestID, drained[2].RequestID})
+	assert.True(t, mq.IsEmpty(), "drain must empty the queue")
+
+	drained, err = mq.Drain(ctx)
+	assert.NoError(t, err)
+	assert.Empty(t, drained)
 }

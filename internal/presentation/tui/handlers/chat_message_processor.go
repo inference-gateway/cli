@@ -408,7 +408,15 @@ func (p *ChatMessageProcessor) processChatMessage(
 
 	if p.handler.stateManager.IsAgentBusy() {
 		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
-		p.handler.messageQueue.Enqueue(message, convdomain.QueueSourceComposer, requestID)
+		if err := p.handler.messageQueue.Enqueue(context.Background(), message, convdomain.QueueSourceComposer, requestID); err != nil {
+			logger.Error("chat: failed to queue the message", "error", err)
+			return func() tea.Msg {
+				return tui.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to queue the message: %v", err),
+					Sticky: false,
+				}
+			}
+		}
 		logger.Info("chat input queued - agent busy",
 			"request_id", requestID,
 			"queue_size_after_enqueue", p.handler.messageQueue.Size())

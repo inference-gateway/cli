@@ -17,8 +17,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	conv "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
@@ -1386,8 +1386,8 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 		{Role: sdk.Assistant, Content: sdk.NewMessageContent("reading"), ToolCalls: &toolCalls},
 	}
 
-	queue := conv.NewMessageQueueService()
-	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, convdomain.QueueSourceComposer, "req-1")
+	queue := convinfra.NewMessageQueueService()
+	_ = queue.Enqueue(context.Background(), sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Hi")}, convdomain.QueueSourceComposer, "req-1")
 
 	repo := &convmocks.FakeConversationRepository{}
 
@@ -1399,7 +1399,7 @@ func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 	eventCh := make(chan agentdomain.ChatEvent, 16)
 	publisher := newEventPublisher("req-1", eventCh)
 
-	drained := svc.batchDrainQueue(&conversation, publisher)
+	drained := svc.batchDrainQueue(context.Background(), &conversation, publisher)
 
 	assert.Equal(t, 1, drained, "exactly one queued message should be drained")
 	require.Len(t, conversation, 6, "conversation must be user, assistant, tool×3, user")
@@ -1458,8 +1458,8 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 		{Role: sdk.Tool, Content: sdk.NewMessageContent(convdomain.CancelledToolResponseContent), ToolCallID: &idA},
 	}
 
-	queue := conv.NewMessageQueueService()
-	queue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, convdomain.QueueSourceComposer, "req-x")
+	queue := convinfra.NewMessageQueueService()
+	_ = queue.Enqueue(context.Background(), sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("u2")}, convdomain.QueueSourceComposer, "req-x")
 
 	repo := &convmocks.FakeConversationRepository{}
 	svc := &Agent{
@@ -1470,7 +1470,7 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 	eventCh := make(chan agentdomain.ChatEvent, 8)
 	publisher := newEventPublisher("req-x", eventCh)
 
-	drained := svc.batchDrainQueue(&conversation, publisher)
+	drained := svc.batchDrainQueue(context.Background(), &conversation, publisher)
 	assert.Equal(t, 1, drained)
 	require.Len(t, conversation, 4, "no new synthetics should be inserted")
 

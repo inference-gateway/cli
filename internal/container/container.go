@@ -31,6 +31,7 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	daemon "github.com/inference-gateway/cli/internal/daemon"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
@@ -422,7 +423,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.musicService = agentinfra.NewMusicService(c.config, c.createRawSDKClient())
 	c.sfxService = agentinfra.NewSFXService(c.config, c.createRawSDKClient())
 	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient())
-	c.messageQueue = conversation.NewMessageQueueService()
+	c.messageQueue = convinfra.NewMessageQueueService()
 
 	c.initializeMCPSupervisor()
 

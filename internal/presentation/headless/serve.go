@@ -41,11 +41,11 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
-	if fn, direct, err := queuedDirectCall(svc.GetMessageQueue()); direct {
+	if fn, direct, err := queuedDirectCall(ctx, svc.GetMessageQueue()); direct {
 		runServeDirect(ctx, svc, ctl, req, fn, err)
 		return
 	}
-	moveQueuedMessages(svc.GetMessageQueue(), repo)
+	moveQueuedMessages(ctx, svc.GetMessageQueue(), repo)
 	req.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
 
 	rec := svc.GetTelemetryRecorder()
@@ -75,20 +75,40 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 // queuedDirectCall reports whether the turn is one `!cmd` or `!!Tool(...)`
 // message, which runs through the tool service without a model the way a
 // one-shot headless task does, and takes it off the queue. Any other queue
-// is left for the agent turn.
-func queuedDirectCall(queue convdomain.MessageQueue) (fn sdk.ChatCompletionMessageToolCallFunction, direct bool, err error) {
+// is left for the agent turn. On a shared backend the drain decides over the
+// queue's real head, so two workers never act on a stale snapshot.
+func queuedDirectCall(ctx context.Context, queue convdomain.MessageQueue) (fn sdk.ChatCompletionMessageToolCallFunction, direct bool, err error) {
 	if queue.Size() != 1 {
 		return fn, false, nil
 	}
-	text, terr := queue.Peek().Message.Content.AsMessageContent0()
+	drained, derr := queue.Drain(ctx)
+	if derr != nil {
+		return fn, false, derr
+	}
+	if len(drained) != 1 {
+		putBack(ctx, queue, drained)
+		return fn, false, nil
+	}
+	text, terr := drained[0].Message.Content.AsMessageContent0()
 	if terr != nil {
+		putBack(ctx, queue, drained)
 		return fn, false, nil
 	}
 	fn, direct, err = directCall(text)
-	if direct {
-		queue.Dequeue()
+	if !direct {
+		putBack(ctx, queue, drained)
+		return fn, false, err
 	}
 	return fn, direct, err
+}
+
+// putBack re-enqueues drained entries in their original order.
+func putBack(ctx context.Context, queue convdomain.MessageQueue, drained []convdomain.QueuedMessage) {
+	for _, m := range drained {
+		if err := queue.Enqueue(ctx, m.Message, m.Source, m.RequestID); err != nil {
+			logger.Warn("failed to put a queued message back", "error", err)
+		}
+	}
 }
 
 // runServeDirect renders a direct task as one run of its own: the tool call
@@ -109,8 +129,12 @@ func runServeDirect(ctx context.Context, svc Services, ctl *headlessControl, req
 
 // moveQueuedMessages persists every queued message into the conversation, the way
 // the agent's own queue drain does mid-run, so the next run starts from them.
-func moveQueuedMessages(queue convdomain.MessageQueue, repo convdomain.ConversationRepository) {
-	for msg := queue.Dequeue(); msg != nil; msg = queue.Dequeue() {
+func moveQueuedMessages(ctx context.Context, queue convdomain.MessageQueue, repo convdomain.ConversationRepository) {
+	drained, err := queue.Drain(ctx)
+	if err != nil {
+		logger.Warn("failed to drain the message queue", "error", err)
+	}
+	for _, msg := range drained {
 		if err := repo.AddMessage(convdomain.ConversationEntry{Message: msg.Message, Time: time.Now()}); err != nil {
 			logger.Warn("failed to persist a queued message", "error", err)
 		}

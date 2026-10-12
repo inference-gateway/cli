@@ -3,6 +3,7 @@ package headless
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"strings"
@@ -144,10 +145,15 @@ func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 			logger.Warn("dropping a run input message with an unusable attachment", "error", err)
 			continue
 		}
-		c.messageQueue.Enqueue(message, convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
+		if err := c.messageQueue.Enqueue(context.Background(), message, convdomain.QueueSourceStdin, ipc.UserMessageRequestID); err != nil {
+			logger.Error("failed to enqueue the run input message", "error", err)
+			continue
+		}
 	}
 	if len(input.Messages) == 0 && len(input.Resume) == 0 {
-		c.messageQueue.Enqueue(userMessageText(continuePrompt), convdomain.QueueSourceStdin, ipc.UserMessageRequestID)
+		if err := c.messageQueue.Enqueue(context.Background(), userMessageText(continuePrompt), convdomain.QueueSourceStdin, ipc.UserMessageRequestID); err != nil {
+			logger.Error("failed to enqueue the continue prompt", "error", err)
+		}
 	}
 	for _, entry := range input.Resume {
 		c.answerResume(entry)

@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"context"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -225,7 +226,7 @@ func TestBatchDrainQueue(t *testing.T) {
 		{
 			name: "empty_queue_returns_zero",
 			setupQueue: func(q *convmocks.FakeMessageQueue) {
-				q.IsEmptyReturns(true)
+				q.DrainReturns(nil, nil)
 			},
 			expectedBatched: 0,
 			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
@@ -238,15 +239,12 @@ func TestBatchDrainQueue(t *testing.T) {
 		{
 			name: "queue_with_one_message",
 			setupQueue: func(q *convmocks.FakeMessageQueue) {
-				callCount := 0
-				q.IsEmptyCalls(func() bool {
-					callCount++
-					return callCount > 1
-				})
-				q.DequeueReturns(&convdomain.QueuedMessage{
-					Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("queued message")},
-					RequestID: "req-1",
-				})
+				q.DrainReturns([]convdomain.QueuedMessage{
+					{
+						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("queued message")},
+						RequestID: "req-1",
+					},
+				}, nil)
 			},
 			expectedBatched: 1,
 			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
@@ -261,23 +259,20 @@ func TestBatchDrainQueue(t *testing.T) {
 		{
 			name: "queue_with_multiple_messages",
 			setupQueue: func(q *convmocks.FakeMessageQueue) {
-				callCount := 0
-				q.IsEmptyCalls(func() bool {
-					callCount++
-					return callCount > 3
-				})
-
-				dequeueCount := 0
-				q.DequeueCalls(func() *convdomain.QueuedMessage {
-					dequeueCount++
-					if dequeueCount > 3 {
-						return nil
-					}
-					return &convdomain.QueuedMessage{
-						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("message " + string(rune('0'+dequeueCount)))},
-						RequestID: "req-" + string(rune('0'+dequeueCount)),
-					}
-				})
+				q.DrainReturns([]convdomain.QueuedMessage{
+					{
+						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("message 1")},
+						RequestID: "req-1",
+					},
+					{
+						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("message 2")},
+						RequestID: "req-2",
+					},
+					{
+						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("message 3")},
+						RequestID: "req-3",
+					},
+				}, nil)
 			},
 			expectedBatched: 3,
 			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
@@ -290,30 +285,16 @@ func TestBatchDrainQueue(t *testing.T) {
 		{
 			name: "queue_preserves_message_order",
 			setupQueue: func(q *convmocks.FakeMessageQueue) {
-				callCount := 0
-				q.IsEmptyCalls(func() bool {
-					callCount++
-					return callCount > 2
-				})
-
-				dequeueCount := 0
-				q.DequeueCalls(func() *convdomain.QueuedMessage {
-					dequeueCount++
-					switch dequeueCount {
-					case 1:
-						return &convdomain.QueuedMessage{
-							Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("first")},
-							RequestID: "req-1",
-						}
-					case 2:
-						return &convdomain.QueuedMessage{
-							Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("second")},
-							RequestID: "req-2",
-						}
-					default:
-						return nil
-					}
-				})
+				q.DrainReturns([]convdomain.QueuedMessage{
+					{
+						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("first")},
+						RequestID: "req-1",
+					},
+					{
+						Message:   sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("second")},
+						RequestID: "req-2",
+					},
+				}, nil)
 			},
 			expectedBatched: 2,
 			verifyRepo: func(t *testing.T, repo *convmocks.FakeConversationRepository) {
@@ -348,7 +329,7 @@ func TestBatchDrainQueue(t *testing.T) {
 				chatEvents: make(chan agentdomain.ChatEvent, 10),
 			}
 
-			result := agentService.batchDrainQueue(conversation, eventPublisher)
+			result := agentService.batchDrainQueue(context.Background(), conversation, eventPublisher)
 
 			assert.Equal(t, tt.expectedBatched, result)
 
@@ -374,7 +355,7 @@ func TestBatchDrainQueue_NilMessageQueue(t *testing.T) {
 		chatEvents: make(chan agentdomain.ChatEvent, 10),
 	}
 
-	result := agentService.batchDrainQueue(conversation, eventPublisher)
+	result := agentService.batchDrainQueue(context.Background(), conversation, eventPublisher)
 
 	assert.Equal(t, 0, result)
 	assert.Equal(t, 0, len(*conversation))

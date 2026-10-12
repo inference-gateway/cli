@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
@@ -31,13 +32,15 @@ func TestIsBashTask(t *testing.T) {
 }
 
 func TestQueuedDirectCall(t *testing.T) {
-	queue := conversation.NewMessageQueueService()
-	if _, direct, _ := queuedDirectCall(queue); direct {
+	queue := convinfra.NewMessageQueueService()
+	ctx := context.Background()
+	if _, direct, _ := queuedDirectCall(ctx, queue); direct {
 		t.Fatal("an empty queue is no direct task")
 	}
 
-	queue.Enqueue(userMessageText("!echo hi"), "", "")
-	fn, direct, err := queuedDirectCall(queue)
+	_ = queue.Enqueue(ctx, userMessageText("!echo hi"), "", "")
+
+	fn, direct, err := queuedDirectCall(ctx, queue)
 	if !direct || err != nil || fn.Name != "Bash" || fn.Arguments != `{"command":"echo hi"}` {
 		t.Fatalf("one !cmd message: direct=%v err=%v fn=%+v", direct, err, fn)
 	}
@@ -45,14 +48,14 @@ func TestQueuedDirectCall(t *testing.T) {
 		t.Fatal("the direct task stays queued")
 	}
 
-	queue.Enqueue(userMessageText("!!Read"), "", "")
-	if _, direct, err := queuedDirectCall(queue); !direct || err == nil {
+	_ = queue.Enqueue(ctx, userMessageText("!!Read"), "", "")
+	if _, direct, err := queuedDirectCall(ctx, queue); !direct || err == nil {
 		t.Fatalf("a malformed tool call is a direct task with an error: direct=%v err=%v", direct, err)
 	}
 
-	queue.Enqueue(userMessageText("!ls"), "", "")
-	queue.Enqueue(userMessageText("and explain"), "", "")
-	if _, direct, _ := queuedDirectCall(queue); direct || queue.Size() != 2 {
+	_ = queue.Enqueue(ctx, userMessageText("!ls"), "", "")
+	_ = queue.Enqueue(ctx, userMessageText("and explain"), "", "")
+	if _, direct, _ := queuedDirectCall(ctx, queue); direct || queue.Size() != 2 {
 		t.Fatal("a turn of several messages goes to the agent untouched")
 	}
 }

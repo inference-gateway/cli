@@ -1,6 +1,7 @@
-package conversation
+package infrastructure
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -9,7 +10,8 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
-// MessageQueueService manages a centralized queue for messages waiting to be processed
+// MessageQueueService manages the in-memory message queue: the process-local
+// default backend where nothing can fail and nothing survives a restart.
 type MessageQueueService struct {
 	mu       sync.RWMutex
 	messages []convdomain.QueuedMessage
@@ -23,7 +25,7 @@ func NewMessageQueueService() *MessageQueueService {
 }
 
 // Enqueue adds a message to the queue with its origin source and request ID
-func (mq *MessageQueueService) Enqueue(message sdk.Message, source convdomain.QueuedMessageSource, requestID string) {
+func (mq *MessageQueueService) Enqueue(_ context.Context, message sdk.Message, source convdomain.QueuedMessageSource, requestID string) error {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
@@ -33,34 +35,32 @@ func (mq *MessageQueueService) Enqueue(message sdk.Message, source convdomain.Qu
 		RequestID: requestID,
 		Source:    source,
 	})
+	return nil
+}
+
+// Drain removes and returns every queued message, oldest first
+func (mq *MessageQueueService) Drain(_ context.Context) ([]convdomain.QueuedMessage, error) {
+	mq.mu.Lock()
+	defer mq.mu.Unlock()
+
+	drained := mq.messages
+	mq.messages = make([]convdomain.QueuedMessage, 0)
+	return drained, nil
 }
 
 // Dequeue removes and returns the next message from the queue
 // Returns nil if the queue is empty
-func (mq *MessageQueueService) Dequeue() *convdomain.QueuedMessage {
+func (mq *MessageQueueService) Dequeue(_ context.Context) (*convdomain.QueuedMessage, error) {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
 	if len(mq.messages) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	msg := mq.messages[0]
 	mq.messages = mq.messages[1:]
-	return &msg
-}
-
-// Peek returns the next message without removing it
-// Returns nil if the queue is empty
-func (mq *MessageQueueService) Peek() *convdomain.QueuedMessage {
-	mq.mu.RLock()
-	defer mq.mu.RUnlock()
-
-	if len(mq.messages) == 0 {
-		return nil
-	}
-
-	return &mq.messages[0]
+	return &msg, nil
 }
 
 // Size returns the number of messages in the queue
@@ -80,11 +80,12 @@ func (mq *MessageQueueService) IsEmpty() bool {
 }
 
 // Clear removes all messages from the queue
-func (mq *MessageQueueService) Clear() {
+func (mq *MessageQueueService) Clear(_ context.Context) error {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
 	mq.messages = make([]convdomain.QueuedMessage, 0)
+	return nil
 }
 
 // GetAll returns all messages in the queue without removing them

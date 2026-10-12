@@ -22,6 +22,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
@@ -110,7 +111,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 			shortcutRegistry := shortcuts.NewRegistry()
 			stateManager := statemanager.NewStore(false)
-			messageQueue := conversation.NewMessageQueueService()
+			messageQueue := convinfra.NewMessageQueueService()
 
 			fakeDirect := &tuimocks.FakeDirectExecutionService{}
 			fakeDirect.HandleBashCommandReturns(func() tea.Msg { return nil })
@@ -463,7 +464,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
 				stateManager:     stateManager,
-				messageQueue:     conversation.NewMessageQueueService(),
+				messageQueue:     convinfra.NewMessageQueueService(),
 				completionRunner: &tuimocks.FakeChatCompletionRunner{},
 			}
 
@@ -505,7 +506,7 @@ func TestChatMessageProcessor_processChatMessage_AsyncRolloverPath(t *testing.T)
 		sessionRolloverManager: mgr,
 		modelService:           mockModel,
 		stateManager:           stateManager,
-		messageQueue:           conversation.NewMessageQueueService(),
+		messageQueue:           convinfra.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
 	}
 	processor := NewChatMessageProcessor(handler)
@@ -553,7 +554,7 @@ func TestChatMessageProcessor_processChatMessage_SyncPathWhenManagerNil(t *testi
 		sessionRolloverManager: nil,
 		modelService:           &convmocks.FakeModelService{},
 		stateManager:           stateManager,
-		messageQueue:           conversation.NewMessageQueueService(),
+		messageQueue:           convinfra.NewMessageQueueService(),
 		completionRunner:       fakeRunner,
 	}
 	processor := NewChatMessageProcessor(handler)
@@ -592,7 +593,7 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 		conversationRepo: conversationRepo,
 		modelService:     &convmocks.FakeModelService{},
 		stateManager:     stateManager,
-		messageQueue:     conversation.NewMessageQueueService(),
+		messageQueue:     convinfra.NewMessageQueueService(),
 		completionRunner: fakeRunner,
 	}
 	handler.messageProcessor = NewChatMessageProcessor(handler)

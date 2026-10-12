@@ -151,7 +151,7 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 		},
 		AddMessage: a.service.conversationRepo.AddMessage,
 		BatchDrainQueue: func() int {
-			return a.service.batchDrainQueue(a.agentCtx.Conversation, a.eventPublisher)
+			return a.service.batchDrainQueue(a.agentCtx.Ctx, a.agentCtx.Conversation, a.eventPublisher)
 		},
 		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error) {
 			return a.service.requestToolApproval(a.agentCtx.Ctx, toolCall, a.eventPublisher)

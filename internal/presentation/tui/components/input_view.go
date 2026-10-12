@@ -834,18 +834,21 @@ func (iv *InputView) IsNavigatingHistory() bool {
 }
 
 // navigateHistoryUp moves up in history (to older messages).
-// If the message queue is non-empty, it dequeues the queued message and
-// restores its content into the input field instead of navigating history,
-// so the user can edit and re-send it. The message is removed from the
-// queue so the agent stops processing it.
+// If the queue's head is a composer entry, it dequeues it and restores its
+// content into the input field instead of navigating history, so the user
+// can edit and re-send it. The entry becomes plain composer text again, so
+// the agent stops processing it: job results stay queued, and an entry
+// whose content is not plain text (e.g. image-only) is re-queued rather
+// than consumed.
 func (iv *InputView) navigateHistoryUp() {
-	if iv.messageQueue != nil && !iv.messageQueue.IsEmpty() {
-		if qm := iv.messageQueue.Dequeue(); qm != nil {
-			if content, err := qm.Message.Content.AsMessageContent0(); err == nil && content != "" {
+	if mq := iv.messageQueue; mq != nil && !mq.IsEmpty() {
+		if qm, derr := mq.Dequeue(context.Background()); derr == nil && qm != nil {
+			if content, cerr := qm.Message.Content.AsMessageContent0(); cerr == nil && content != "" && qm.Source == convdomain.QueueSourceComposer {
 				iv.SetText(content)
 				iv.SetCursor(len(content))
 				return
 			}
+			_ = mq.Enqueue(context.Background(), qm.Message, qm.Source, qm.RequestID)
 		}
 	}
 	newText := iv.historyManager.NavigateUp(iv.ta.Value())

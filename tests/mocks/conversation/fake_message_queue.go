@@ -2,6 +2,7 @@
 package conversation
 
 import (
+	"context"
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/conversation/domain"
@@ -9,26 +10,56 @@ import (
 )
 
 type FakeMessageQueue struct {
-	ClearStub        func()
+	ClearStub        func(context.Context) error
 	clearMutex       sync.RWMutex
 	clearArgsForCall []struct {
+		arg1 context.Context
 	}
-	DequeueStub        func() *domain.QueuedMessage
+	clearReturns struct {
+		result1 error
+	}
+	clearReturnsOnCall map[int]struct {
+		result1 error
+	}
+	DequeueStub        func(context.Context) (*domain.QueuedMessage, error)
 	dequeueMutex       sync.RWMutex
 	dequeueArgsForCall []struct {
+		arg1 context.Context
 	}
 	dequeueReturns struct {
 		result1 *domain.QueuedMessage
+		result2 error
 	}
 	dequeueReturnsOnCall map[int]struct {
 		result1 *domain.QueuedMessage
+		result2 error
 	}
-	EnqueueStub        func(sdk.Message, domain.QueuedMessageSource, string)
+	DrainStub        func(context.Context) ([]domain.QueuedMessage, error)
+	drainMutex       sync.RWMutex
+	drainArgsForCall []struct {
+		arg1 context.Context
+	}
+	drainReturns struct {
+		result1 []domain.QueuedMessage
+		result2 error
+	}
+	drainReturnsOnCall map[int]struct {
+		result1 []domain.QueuedMessage
+		result2 error
+	}
+	EnqueueStub        func(context.Context, sdk.Message, domain.QueuedMessageSource, string) error
 	enqueueMutex       sync.RWMutex
 	enqueueArgsForCall []struct {
-		arg1 sdk.Message
-		arg2 domain.QueuedMessageSource
-		arg3 string
+		arg1 context.Context
+		arg2 sdk.Message
+		arg3 domain.QueuedMessageSource
+		arg4 string
+	}
+	enqueueReturns struct {
+		result1 error
+	}
+	enqueueReturnsOnCall map[int]struct {
+		result1 error
 	}
 	GetAllStub        func() []domain.QueuedMessage
 	getAllMutex       sync.RWMutex
@@ -50,16 +81,6 @@ type FakeMessageQueue struct {
 	isEmptyReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	PeekStub        func() *domain.QueuedMessage
-	peekMutex       sync.RWMutex
-	peekArgsForCall []struct {
-	}
-	peekReturns struct {
-		result1 *domain.QueuedMessage
-	}
-	peekReturnsOnCall map[int]struct {
-		result1 *domain.QueuedMessage
-	}
 	SizeStub        func() int
 	sizeMutex       sync.RWMutex
 	sizeArgsForCall []struct {
@@ -74,16 +95,23 @@ type FakeMessageQueue struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeMessageQueue) Clear() {
+func (fake *FakeMessageQueue) Clear(arg1 context.Context) error {
 	fake.clearMutex.Lock()
+	ret, specificReturn := fake.clearReturnsOnCall[len(fake.clearArgsForCall)]
 	fake.clearArgsForCall = append(fake.clearArgsForCall, struct {
-	}{})
+		arg1 context.Context
+	}{arg1})
 	stub := fake.ClearStub
-	fake.recordInvocation("Clear", []interface{}{})
+	fakeReturns := fake.clearReturns
+	fake.recordInvocation("Clear", []interface{}{arg1})
 	fake.clearMutex.Unlock()
 	if stub != nil {
-		fake.ClearStub()
+		return stub(arg1)
 	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
 }
 
 func (fake *FakeMessageQueue) ClearCallCount() int {
@@ -92,28 +120,59 @@ func (fake *FakeMessageQueue) ClearCallCount() int {
 	return len(fake.clearArgsForCall)
 }
 
-func (fake *FakeMessageQueue) ClearCalls(stub func()) {
+func (fake *FakeMessageQueue) ClearCalls(stub func(context.Context) error) {
 	fake.clearMutex.Lock()
 	defer fake.clearMutex.Unlock()
 	fake.ClearStub = stub
 }
 
-func (fake *FakeMessageQueue) Dequeue() *domain.QueuedMessage {
+func (fake *FakeMessageQueue) ClearArgsForCall(i int) context.Context {
+	fake.clearMutex.RLock()
+	defer fake.clearMutex.RUnlock()
+	argsForCall := fake.clearArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeMessageQueue) ClearReturns(result1 error) {
+	fake.clearMutex.Lock()
+	defer fake.clearMutex.Unlock()
+	fake.ClearStub = nil
+	fake.clearReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeMessageQueue) ClearReturnsOnCall(i int, result1 error) {
+	fake.clearMutex.Lock()
+	defer fake.clearMutex.Unlock()
+	fake.ClearStub = nil
+	if fake.clearReturnsOnCall == nil {
+		fake.clearReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.clearReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeMessageQueue) Dequeue(arg1 context.Context) (*domain.QueuedMessage, error) {
 	fake.dequeueMutex.Lock()
 	ret, specificReturn := fake.dequeueReturnsOnCall[len(fake.dequeueArgsForCall)]
 	fake.dequeueArgsForCall = append(fake.dequeueArgsForCall, struct {
-	}{})
+		arg1 context.Context
+	}{arg1})
 	stub := fake.DequeueStub
 	fakeReturns := fake.dequeueReturns
-	fake.recordInvocation("Dequeue", []interface{}{})
+	fake.recordInvocation("Dequeue", []interface{}{arg1})
 	fake.dequeueMutex.Unlock()
 	if stub != nil {
-		return stub()
+		return stub(arg1)
 	}
 	if specificReturn {
-		return ret.result1
+		return ret.result1, ret.result2
 	}
-	return fakeReturns.result1
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeMessageQueue) DequeueCallCount() int {
@@ -122,48 +181,129 @@ func (fake *FakeMessageQueue) DequeueCallCount() int {
 	return len(fake.dequeueArgsForCall)
 }
 
-func (fake *FakeMessageQueue) DequeueCalls(stub func() *domain.QueuedMessage) {
+func (fake *FakeMessageQueue) DequeueCalls(stub func(context.Context) (*domain.QueuedMessage, error)) {
 	fake.dequeueMutex.Lock()
 	defer fake.dequeueMutex.Unlock()
 	fake.DequeueStub = stub
 }
 
-func (fake *FakeMessageQueue) DequeueReturns(result1 *domain.QueuedMessage) {
+func (fake *FakeMessageQueue) DequeueArgsForCall(i int) context.Context {
+	fake.dequeueMutex.RLock()
+	defer fake.dequeueMutex.RUnlock()
+	argsForCall := fake.dequeueArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeMessageQueue) DequeueReturns(result1 *domain.QueuedMessage, result2 error) {
 	fake.dequeueMutex.Lock()
 	defer fake.dequeueMutex.Unlock()
 	fake.DequeueStub = nil
 	fake.dequeueReturns = struct {
 		result1 *domain.QueuedMessage
-	}{result1}
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeMessageQueue) DequeueReturnsOnCall(i int, result1 *domain.QueuedMessage) {
+func (fake *FakeMessageQueue) DequeueReturnsOnCall(i int, result1 *domain.QueuedMessage, result2 error) {
 	fake.dequeueMutex.Lock()
 	defer fake.dequeueMutex.Unlock()
 	fake.DequeueStub = nil
 	if fake.dequeueReturnsOnCall == nil {
 		fake.dequeueReturnsOnCall = make(map[int]struct {
 			result1 *domain.QueuedMessage
+			result2 error
 		})
 	}
 	fake.dequeueReturnsOnCall[i] = struct {
 		result1 *domain.QueuedMessage
-	}{result1}
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeMessageQueue) Enqueue(arg1 sdk.Message, arg2 domain.QueuedMessageSource, arg3 string) {
+func (fake *FakeMessageQueue) Drain(arg1 context.Context) ([]domain.QueuedMessage, error) {
+	fake.drainMutex.Lock()
+	ret, specificReturn := fake.drainReturnsOnCall[len(fake.drainArgsForCall)]
+	fake.drainArgsForCall = append(fake.drainArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.DrainStub
+	fakeReturns := fake.drainReturns
+	fake.recordInvocation("Drain", []interface{}{arg1})
+	fake.drainMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeMessageQueue) DrainCallCount() int {
+	fake.drainMutex.RLock()
+	defer fake.drainMutex.RUnlock()
+	return len(fake.drainArgsForCall)
+}
+
+func (fake *FakeMessageQueue) DrainCalls(stub func(context.Context) ([]domain.QueuedMessage, error)) {
+	fake.drainMutex.Lock()
+	defer fake.drainMutex.Unlock()
+	fake.DrainStub = stub
+}
+
+func (fake *FakeMessageQueue) DrainArgsForCall(i int) context.Context {
+	fake.drainMutex.RLock()
+	defer fake.drainMutex.RUnlock()
+	argsForCall := fake.drainArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeMessageQueue) DrainReturns(result1 []domain.QueuedMessage, result2 error) {
+	fake.drainMutex.Lock()
+	defer fake.drainMutex.Unlock()
+	fake.DrainStub = nil
+	fake.drainReturns = struct {
+		result1 []domain.QueuedMessage
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeMessageQueue) DrainReturnsOnCall(i int, result1 []domain.QueuedMessage, result2 error) {
+	fake.drainMutex.Lock()
+	defer fake.drainMutex.Unlock()
+	fake.DrainStub = nil
+	if fake.drainReturnsOnCall == nil {
+		fake.drainReturnsOnCall = make(map[int]struct {
+			result1 []domain.QueuedMessage
+			result2 error
+		})
+	}
+	fake.drainReturnsOnCall[i] = struct {
+		result1 []domain.QueuedMessage
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeMessageQueue) Enqueue(arg1 context.Context, arg2 sdk.Message, arg3 domain.QueuedMessageSource, arg4 string) error {
 	fake.enqueueMutex.Lock()
+	ret, specificReturn := fake.enqueueReturnsOnCall[len(fake.enqueueArgsForCall)]
 	fake.enqueueArgsForCall = append(fake.enqueueArgsForCall, struct {
-		arg1 sdk.Message
-		arg2 domain.QueuedMessageSource
-		arg3 string
-	}{arg1, arg2, arg3})
+		arg1 context.Context
+		arg2 sdk.Message
+		arg3 domain.QueuedMessageSource
+		arg4 string
+	}{arg1, arg2, arg3, arg4})
 	stub := fake.EnqueueStub
-	fake.recordInvocation("Enqueue", []interface{}{arg1, arg2, arg3})
+	fakeReturns := fake.enqueueReturns
+	fake.recordInvocation("Enqueue", []interface{}{arg1, arg2, arg3, arg4})
 	fake.enqueueMutex.Unlock()
 	if stub != nil {
-		fake.EnqueueStub(arg1, arg2, arg3)
+		return stub(arg1, arg2, arg3, arg4)
 	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
 }
 
 func (fake *FakeMessageQueue) EnqueueCallCount() int {
@@ -172,17 +312,40 @@ func (fake *FakeMessageQueue) EnqueueCallCount() int {
 	return len(fake.enqueueArgsForCall)
 }
 
-func (fake *FakeMessageQueue) EnqueueCalls(stub func(sdk.Message, domain.QueuedMessageSource, string)) {
+func (fake *FakeMessageQueue) EnqueueCalls(stub func(context.Context, sdk.Message, domain.QueuedMessageSource, string) error) {
 	fake.enqueueMutex.Lock()
 	defer fake.enqueueMutex.Unlock()
 	fake.EnqueueStub = stub
 }
 
-func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (sdk.Message, domain.QueuedMessageSource, string) {
+func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (context.Context, sdk.Message, domain.QueuedMessageSource, string) {
 	fake.enqueueMutex.RLock()
 	defer fake.enqueueMutex.RUnlock()
 	argsForCall := fake.enqueueArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+}
+
+func (fake *FakeMessageQueue) EnqueueReturns(result1 error) {
+	fake.enqueueMutex.Lock()
+	defer fake.enqueueMutex.Unlock()
+	fake.EnqueueStub = nil
+	fake.enqueueReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeMessageQueue) EnqueueReturnsOnCall(i int, result1 error) {
+	fake.enqueueMutex.Lock()
+	defer fake.enqueueMutex.Unlock()
+	fake.EnqueueStub = nil
+	if fake.enqueueReturnsOnCall == nil {
+		fake.enqueueReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.enqueueReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeMessageQueue) GetAll() []domain.QueuedMessage {
@@ -288,59 +451,6 @@ func (fake *FakeMessageQueue) IsEmptyReturnsOnCall(i int, result1 bool) {
 	}
 	fake.isEmptyReturnsOnCall[i] = struct {
 		result1 bool
-	}{result1}
-}
-
-func (fake *FakeMessageQueue) Peek() *domain.QueuedMessage {
-	fake.peekMutex.Lock()
-	ret, specificReturn := fake.peekReturnsOnCall[len(fake.peekArgsForCall)]
-	fake.peekArgsForCall = append(fake.peekArgsForCall, struct {
-	}{})
-	stub := fake.PeekStub
-	fakeReturns := fake.peekReturns
-	fake.recordInvocation("Peek", []interface{}{})
-	fake.peekMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeMessageQueue) PeekCallCount() int {
-	fake.peekMutex.RLock()
-	defer fake.peekMutex.RUnlock()
-	return len(fake.peekArgsForCall)
-}
-
-func (fake *FakeMessageQueue) PeekCalls(stub func() *domain.QueuedMessage) {
-	fake.peekMutex.Lock()
-	defer fake.peekMutex.Unlock()
-	fake.PeekStub = stub
-}
-
-func (fake *FakeMessageQueue) PeekReturns(result1 *domain.QueuedMessage) {
-	fake.peekMutex.Lock()
-	defer fake.peekMutex.Unlock()
-	fake.PeekStub = nil
-	fake.peekReturns = struct {
-		result1 *domain.QueuedMessage
-	}{result1}
-}
-
-func (fake *FakeMessageQueue) PeekReturnsOnCall(i int, result1 *domain.QueuedMessage) {
-	fake.peekMutex.Lock()
-	defer fake.peekMutex.Unlock()
-	fake.PeekStub = nil
-	if fake.peekReturnsOnCall == nil {
-		fake.peekReturnsOnCall = make(map[int]struct {
-			result1 *domain.QueuedMessage
-		})
-	}
-	fake.peekReturnsOnCall[i] = struct {
-		result1 *domain.QueuedMessage
 	}{result1}
 }
 

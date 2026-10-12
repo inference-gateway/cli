@@ -346,7 +346,7 @@ func keepAlive(ctx context.Context, svc Services, ctl *headlessControl, notifica
 // agent turn over it in the run's format, the way runServeTurn does in AG-UI.
 func runFollowUpTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, opts Options, sessionID, model string, cfg *config.Config, groupKey string) error {
 	repo := svc.GetConversationRepository()
-	moveQueuedMessages(svc.GetMessageQueue(), repo)
+	moveQueuedMessages(ctx, svc.GetMessageQueue(), repo)
 	req := &agentdomain.AgentRequest{
 		RequestID:                  sessionID,
 		Model:                      model,

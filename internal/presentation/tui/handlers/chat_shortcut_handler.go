@@ -52,7 +52,9 @@ func (s *ChatShortcutHandler) executeShortcut(
 			}
 
 			if s.handler.messageQueue != nil {
-				s.handler.messageQueue.Clear()
+				if err := s.handler.messageQueue.Clear(context.Background()); err != nil {
+					logger.Warn("failed to clear the message queue", "error", err)
+				}
 			}
 
 			s.handler.stateManager.SetTodos([]agentdomain.TodoItem{})
@@ -324,7 +326,9 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 	}
 
 	if s.handler.messageQueue != nil {
-		s.handler.messageQueue.Clear()
+		if err := s.handler.messageQueue.Clear(context.Background()); err != nil {
+			logger.Warn("failed to clear the message queue", "error", err)
+		}
 	}
 
 	return tea.Batch(

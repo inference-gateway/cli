@@ -326,10 +326,14 @@ func (s *Supervisor) enqueue(content string, kind scheddomain.JobKind) {
 	if s.messageQueue == nil {
 		return
 	}
-	s.messageQueue.Enqueue(sdk.Message{
+	err := s.messageQueue.Enqueue(context.Background(), sdk.Message{
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(content),
 	}, queueSourceForKind(kind), "system")
+	if err != nil {
+		logger.Warn("failed to enqueue the job result", "error", err)
+		return
+	}
 	s.notify(agentdomain.DrainQueueEvent{})
 }
 
