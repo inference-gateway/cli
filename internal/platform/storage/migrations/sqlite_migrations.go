@@ -1,6 +1,8 @@
 package migrations
 
 // GetSQLiteMigrations returns all SQLite migrations in order
+//
+//nolint:funlen // the migration set is one data table
 func GetSQLiteMigrations() []Migration {
 	return []Migration{
 		{

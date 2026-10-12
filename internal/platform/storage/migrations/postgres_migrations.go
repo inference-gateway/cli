@@ -5,6 +5,8 @@ package migrations
 // embedded JSON messages) so both dialects share the same SQL core; only the
 // column types differ. JSON columns are TEXT: the app marshals JSON itself -
 // switch to JSONB only if server-side JSON querying is ever needed.
+//
+//nolint:funlen // the migration set is one data table
 func GetPostgresMigrations() []Migration {
 	return []Migration{
 		{
