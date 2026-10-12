@@ -208,4 +208,12 @@ type MessageQueue interface {
 	// GetAll returns a copy of the queued messages, oldest first, without
 	// removing them. Render-path read.
 	GetAll() []QueuedMessage
+
+	// BackendName names the active backend ("memory", "sqlite", "postgres",
+	// "redis") for the status bar indicator.
+	BackendName() string
+
+	// Unreachable reports whether the backend failed its latest operation. A
+	// render-path read over the persisted failure state, never a live probe.
+	Unreachable() bool
 }

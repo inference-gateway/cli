@@ -50,25 +50,13 @@ func verifyPostgresAvailable(config PostgresConfig) error {
 
 // NewPostgresStorage creates a new PostgreSQL storage instance
 func NewPostgresStorage(config PostgresConfig) (*PostgresStorage, error) {
-	if err := verifyPostgresAvailable(config); err != nil {
-		return nil, err
-	}
-
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
-
-	db, err := sql.Open("postgres", dsn)
+	db, err := OpenPostgres(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open PostgreSQL connection: %w", err)
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to ping PostgreSQL: %w", err)
-	}
 
 	runner := migrations.NewMigrationRunner(db, "postgres")
 	if _, err := runner.ApplyMigrations(ctx, migrations.GetPostgresMigrations()); err != nil {

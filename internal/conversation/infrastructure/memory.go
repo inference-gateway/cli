@@ -97,3 +97,13 @@ func (mq *MessageQueueService) GetAll() []convdomain.QueuedMessage {
 	copy(result, mq.messages)
 	return result
 }
+
+// BackendName names the active backend for the status bar indicator
+func (mq *MessageQueueService) BackendName() string {
+	return "memory"
+}
+
+// Unreachable reports whether the backend failed its latest operation; the memory queue never fails
+func (mq *MessageQueueService) Unreachable() bool {
+	return false
+}

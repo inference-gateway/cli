@@ -10,6 +10,16 @@ import (
 )
 
 type FakeMessageQueue struct {
+	BackendNameStub        func() string
+	backendNameMutex       sync.RWMutex
+	backendNameArgsForCall []struct {
+	}
+	backendNameReturns struct {
+		result1 string
+	}
+	backendNameReturnsOnCall map[int]struct {
+		result1 string
+	}
 	ClearStub        func(context.Context) error
 	clearMutex       sync.RWMutex
 	clearArgsForCall []struct {
@@ -91,8 +101,71 @@ type FakeMessageQueue struct {
 	sizeReturnsOnCall map[int]struct {
 		result1 int
 	}
+	UnreachableStub        func() bool
+	unreachableMutex       sync.RWMutex
+	unreachableArgsForCall []struct {
+	}
+	unreachableReturns struct {
+		result1 bool
+	}
+	unreachableReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeMessageQueue) BackendName() string {
+	fake.backendNameMutex.Lock()
+	ret, specificReturn := fake.backendNameReturnsOnCall[len(fake.backendNameArgsForCall)]
+	fake.backendNameArgsForCall = append(fake.backendNameArgsForCall, struct {
+	}{})
+	stub := fake.BackendNameStub
+	fakeReturns := fake.backendNameReturns
+	fake.recordInvocation("BackendName", []interface{}{})
+	fake.backendNameMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeMessageQueue) BackendNameCallCount() int {
+	fake.backendNameMutex.RLock()
+	defer fake.backendNameMutex.RUnlock()
+	return len(fake.backendNameArgsForCall)
+}
+
+func (fake *FakeMessageQueue) BackendNameCalls(stub func() string) {
+	fake.backendNameMutex.Lock()
+	defer fake.backendNameMutex.Unlock()
+	fake.BackendNameStub = stub
+}
+
+func (fake *FakeMessageQueue) BackendNameReturns(result1 string) {
+	fake.backendNameMutex.Lock()
+	defer fake.backendNameMutex.Unlock()
+	fake.BackendNameStub = nil
+	fake.backendNameReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeMessageQueue) BackendNameReturnsOnCall(i int, result1 string) {
+	fake.backendNameMutex.Lock()
+	defer fake.backendNameMutex.Unlock()
+	fake.BackendNameStub = nil
+	if fake.backendNameReturnsOnCall == nil {
+		fake.backendNameReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.backendNameReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeMessageQueue) Clear(arg1 context.Context) error {
@@ -504,6 +577,59 @@ func (fake *FakeMessageQueue) SizeReturnsOnCall(i int, result1 int) {
 	}
 	fake.sizeReturnsOnCall[i] = struct {
 		result1 int
+	}{result1}
+}
+
+func (fake *FakeMessageQueue) Unreachable() bool {
+	fake.unreachableMutex.Lock()
+	ret, specificReturn := fake.unreachableReturnsOnCall[len(fake.unreachableArgsForCall)]
+	fake.unreachableArgsForCall = append(fake.unreachableArgsForCall, struct {
+	}{})
+	stub := fake.UnreachableStub
+	fakeReturns := fake.unreachableReturns
+	fake.recordInvocation("Unreachable", []interface{}{})
+	fake.unreachableMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeMessageQueue) UnreachableCallCount() int {
+	fake.unreachableMutex.RLock()
+	defer fake.unreachableMutex.RUnlock()
+	return len(fake.unreachableArgsForCall)
+}
+
+func (fake *FakeMessageQueue) UnreachableCalls(stub func() bool) {
+	fake.unreachableMutex.Lock()
+	defer fake.unreachableMutex.Unlock()
+	fake.UnreachableStub = stub
+}
+
+func (fake *FakeMessageQueue) UnreachableReturns(result1 bool) {
+	fake.unreachableMutex.Lock()
+	defer fake.unreachableMutex.Unlock()
+	fake.UnreachableStub = nil
+	fake.unreachableReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeMessageQueue) UnreachableReturnsOnCall(i int, result1 bool) {
+	fake.unreachableMutex.Lock()
+	defer fake.unreachableMutex.Unlock()
+	fake.UnreachableStub = nil
+	if fake.unreachableReturnsOnCall == nil {
+		fake.unreachableReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.unreachableReturnsOnCall[i] = struct {
+		result1 bool
 	}{result1}
 }
 
