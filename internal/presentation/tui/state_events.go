@@ -69,6 +69,14 @@ type SetInputEvent struct {
 	Text string
 }
 
+// NextStepSuggestionEvent applies the one-line next-step suggestion as ghost
+// text in the empty chat input. A non-empty Suggestion installs it only when
+// the UI is quiet (empty input, no autocomplete or overlay); an empty one
+// clears a shown suggestion.
+type NextStepSuggestionEvent struct {
+	Suggestion string
+}
+
 // FocusStatusBarEvent moves keyboard focus to the status-indicator row below
 // the input, fired when arrow-down would otherwise be a no-op
 type FocusStatusBarEvent struct{}
@@ -76,6 +84,18 @@ type FocusStatusBarEvent struct{}
 // HistorySearchOpenEvent opens the fuzzy prompt-history search overlay above
 // the chat input
 type HistorySearchOpenEvent struct{}
+
+// SuggestionArmEvent asks the chat handler to start the quiet window after a
+// completed turn. It travels as a message so the timer runs outside the chat
+// listener's command sequence and never delays the next chat event.
+type SuggestionArmEvent struct{}
+
+// SuggestionQuietEvent fires when the quiet window after a completed turn
+// elapses. Generation ties it to the arm that scheduled it, so a later
+// keystroke, turn or dismissal leaves stale ticks ignored.
+type SuggestionQuietEvent struct {
+	Generation int
+}
 
 // AutocompleteUpdateEvent is fired when input text changes and autocomplete should update
 type AutocompleteUpdateEvent struct {

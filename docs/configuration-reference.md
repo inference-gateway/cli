@@ -124,6 +124,12 @@ agent:
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
   theme: "" # "" applies the built-in default, tokyo-night
+  suggestions: # Opt-in one-line next-step suggestion as ghost text after an assistant turn
+    enabled: false # Each completed assistant turn can spend one small LLM call
+    model: "" # Suggestion model, empty falls back to the active chat model
+    context_messages: 4 # Recent non-hidden messages grounding the suggestion
+    max_tokens: 512 # Output cap for the suggestion call, reasoning models spend thinking tokens against it
+    timeout: 10 # Seconds before the suggestion request is abandoned
   status_bar:
     enabled: true
     indicators:
@@ -771,11 +777,43 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
       recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
       how long a finished row lingers before it drops off
 
+- **chat.suggestions.enabled**: Show a one-line next-step suggestion as dim ghost text in the empty
+  chat input after an assistant turn completes (default: `false`). The request is sent about two
+  seconds after the turn completes, and only when the UI stayed quiet for that window - empty input,
+  no typing, no autocomplete popup, no overlay form, no busy turn, no queued messages - so it costs
+  at most one small LLM call per completed turn. Tab or Right Arrow accepts it into the input
+  without sending. Typing, Esc or a new turn dismisses it and cancels the in-flight request. Enable
+  it with `infer config set chat.suggestions.enabled true`, then `/reload` in a running chat
+
+- **chat.suggestions.model**: Model used for the suggestion call. Empty falls back to the model the
+  chat is currently using, then `agent.model` - a cheap, fast model fits since the answer is a
+  single line
+
+- **chat.suggestions.context_messages**: How many recent non-hidden conversation messages ground the
+  suggestion (default: `4`)
+
+- **chat.suggestions.max_tokens**: Output token cap for the suggestion call (default: `512`). Reasoning
+  models spend thinking tokens against it, and an answer that hits the cap is discarded rather than
+  shown truncated
+
+- **chat.suggestions.timeout**: Seconds before the suggestion request is abandoned (default: `10`).
+  The call is silent-fail - errors and non-conforming answers leave the input untouched and log at
+  debug level
+
+The suggestion system prompt lives in `prompts.yaml` under `chat.suggestions.system_prompt` and can
+be overridden with the `INFER_PROMPTS_CHAT_SUGGESTIONS_SYSTEM_PROMPT` environment variable.
+
 **Example Configuration:**
 
 ```yaml
 chat:
   theme: tokyo-night
+  suggestions:
+    enabled: true
+    model: ""           # Falls back to agent.model
+    context_messages: 4
+    max_tokens: 512
+    timeout: 10         # Seconds before the suggestion request is abandoned
   status_bar:
     enabled: true
     indicators:

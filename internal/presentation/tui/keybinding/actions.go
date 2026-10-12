@@ -157,6 +157,12 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
+	if input, ok := app.GetInputView().(*components.InputView); ok && input.HasNextStepSuggestion() {
+		return func() tea.Msg {
+			return tui.NextStepSuggestionEvent{}
+		}
+	}
+
 	if chatSession := stateManager.GetChatSession(); chatSession != nil {
 		agentService := app.GetAgentService()
 		if agentService != nil {
@@ -323,12 +329,11 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
-	inputView := app.GetInputView()
-	if inputView != nil {
-		if iv, ok := inputView.(*components.InputView); ok {
-			iv.TryHandleHistorySuggestionTab()
-		}
+	iv, ok := app.GetInputView().(*components.InputView)
+	if !ok {
+		return nil
 	}
+	_ = iv.TryHandleHistorySuggestionTab() || iv.AcceptNextStepSuggestion()
 	return nil
 }
 
@@ -609,6 +614,10 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) t
 
 	cursor := inputView.GetCursor()
 	text := inputView.GetInput()
+
+	if iv, ok := inputView.(*components.InputView); ok && iv.AcceptNextStepSuggestion() {
+		return nil
+	}
 
 	if cursor == len(text) {
 		if iv, ok := inputView.(*components.InputView); ok && iv.HasHistorySuggestion() {

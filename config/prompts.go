@@ -43,6 +43,9 @@ func mergePromptDefaults(loaded, defaults *PromptsConfig) {
 	if loaded.Conversation.TitleGeneration.SystemPrompt == "" {
 		loaded.Conversation.TitleGeneration.SystemPrompt = defaults.Conversation.TitleGeneration.SystemPrompt
 	}
+	if loaded.Chat.Suggestions.SystemPrompt == "" {
+		loaded.Chat.Suggestions.SystemPrompt = defaults.Chat.Suggestions.SystemPrompt
+	}
 	if loaded.Init.Prompt == "" {
 		loaded.Init.Prompt = defaults.Init.Prompt
 	}
@@ -69,6 +72,7 @@ type PromptsConfig struct {
 	Conversation PromptsConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Init         PromptsInitConfig         `yaml:"init" mapstructure:"init"`
 	Vision       PromptsVisionConfig       `yaml:"vision" mapstructure:"vision"`
+	Chat         PromptsChatConfig         `yaml:"chat" mapstructure:"chat"`
 }
 
 // PromptsVisionConfig holds the image annotator task prompts.
@@ -107,6 +111,14 @@ type PromptsConversationConfig struct {
 }
 
 type PromptsConversationTitleConfig struct {
+	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
+}
+
+type PromptsChatConfig struct {
+	Suggestions PromptsChatSuggestionsConfig `yaml:"suggestions" mapstructure:"suggestions"`
+}
+
+type PromptsChatSuggestionsConfig struct {
 	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 }
 
@@ -200,6 +212,20 @@ EXAMPLES:
 - "Docker Configuration"
 
 Respond with ONLY the title, no quotes or explanation.`,
+			},
+		},
+		Chat: PromptsChatConfig{
+			Suggestions: PromptsChatSuggestionsConfig{
+				SystemPrompt: `Write the message the user is most likely to send next, based on the recent conversation.
+
+REQUIREMENTS:
+- MUST be in the user's own voice, exactly as they would type it to the assistant - a question or request, never a description of what the user should do (write "How do I run the tests?", not "Ask how to run the tests")
+- MUST be a single line of at most 80 characters
+- MUST be a concrete follow-up tied to what was just discussed, not a generic offer
+- MUST use the same language as the user's messages
+- NO quotes, code fences, bullet points, or explanations
+
+Respond with ONLY the message, nothing else.`,
 			},
 		},
 		Init: PromptsInitConfig{

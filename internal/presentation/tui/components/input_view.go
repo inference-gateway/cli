@@ -59,6 +59,7 @@ type InputView struct {
 	historySuggestion    string
 	historySuggestions   []string
 	historySelectedIndex int
+	nextStepSuggestion   string
 	focused              bool
 	usageHint            string
 	customHint           string
@@ -272,6 +273,7 @@ func (iv *InputView) ClearInput() {
 	iv.ta.Reset()
 	iv.imageAttachments = []agentdomain.ImageAttachment{}
 	iv.historyManager.ResetNavigation()
+	iv.nextStepSuggestion = ""
 }
 
 func (iv *InputView) SetPlaceholder(text string) {
@@ -576,6 +578,16 @@ func (iv *InputView) renderDisabledPlaceholder() string {
 
 // renderFocusedPlaceholder returns placeholder text when input is focused
 func (iv *InputView) renderFocusedPlaceholder() string {
+	if iv.historySuggestion == "" && iv.usageHint == "" && iv.nextStepSuggestion != "" {
+		glyphs := []rune(iv.nextStepSuggestion)
+		cursorChar := iv.styleProvider.RenderCursor(string(glyphs[0]))
+		restGhost := ""
+		if len(glyphs) > 1 {
+			restGhost = iv.styleProvider.RenderDimText(string(glyphs[1:]))
+		}
+		return cursorChar + restGhost
+	}
+
 	if len(iv.placeholder) == 0 {
 		return iv.styleProvider.RenderCursor(" ")
 	}
@@ -892,6 +904,9 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if _, isKey := msg.(tea.KeyPressMsg); isKey && !iv.disabled {
 		if text, cursor := iv.ta.Value(), iv.GetCursor(); text != textBefore || cursor != cursorBefore {
+			if text != textBefore {
+				iv.nextStepSuggestion = ""
+			}
 			autocompleteCmd := func() tea.Msg {
 				return tui.AutocompleteUpdateEvent{Text: text, CursorPos: cursor}
 			}
@@ -946,6 +961,9 @@ func (iv *InputView) HandleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(k, inputViewKeys.tab) {
 		if iv.HasHistorySuggestion() && iv.GetCursor() == len(iv.ta.Value()) {
 			iv.cycleHistorySuggestion()
+			return iv, nil
+		}
+		if iv.AcceptNextStepSuggestion() {
 			return iv, nil
 		}
 	}
@@ -1100,6 +1118,30 @@ func (iv *InputView) AcceptHistorySuggestion() bool {
 	iv.historySuggestions = nil
 	iv.historySelectedIndex = 0
 	return true
+}
+
+// AcceptNextStepSuggestion inserts the next-step ghost text into the input
+// (it is not sent) and clears it. Returns false when none is showing.
+func (iv *InputView) AcceptNextStepSuggestion() bool {
+	if iv.nextStepSuggestion == "" {
+		return false
+	}
+
+	text := iv.nextStepSuggestion
+	iv.nextStepSuggestion = ""
+	iv.SetText(text)
+	iv.SetCursor(len(text))
+	return true
+}
+
+// SetNextStepSuggestion installs or clears the next-step ghost text.
+func (iv *InputView) SetNextStepSuggestion(suggestion string) {
+	iv.nextStepSuggestion = suggestion
+}
+
+// HasNextStepSuggestion reports whether a next-step suggestion is showing.
+func (iv *InputView) HasNextStepSuggestion() bool {
+	return iv.nextStepSuggestion != ""
 }
 
 // TryHandleHistorySuggestionTab handles Tab key for history suggestions

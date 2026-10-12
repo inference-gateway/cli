@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -49,6 +51,20 @@ type ChatHandler interface {
 type ChatEventListener interface {
 	ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd
 	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
+}
+
+// NextStepSuggestionRunner produces the one-line follow-up suggestion offered
+// as ghost text after a completed turn. Implementations are cheap, silent on
+// failure and return "" when nothing is available.
+type NextStepSuggestionRunner interface {
+	GenerateNextStepSuggestion(ctx context.Context) string
+}
+
+// SuggestionGate reports when the chat UI is quiet enough to request or
+// install a next-step suggestion: an empty, enabled input with no autocomplete
+// popup, overlay form or busy turn. Implemented by the chat application.
+type SuggestionGate interface {
+	CanRequestSuggestion() bool
 }
 
 // ChatChannelEvent is what ListenForChatEvents yields: the event plus the

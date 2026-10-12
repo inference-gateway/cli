@@ -142,6 +142,8 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				fakeRunner,
 				fakeDirect,
 				nil,
+				nil,
+				nil,
 			)
 
 			processor := NewChatMessageProcessor(handler)

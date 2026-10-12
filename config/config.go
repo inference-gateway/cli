@@ -821,10 +821,43 @@ type ConversationTitleConfig struct {
 
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
-	Theme         string            `yaml:"theme" mapstructure:"theme"`
-	Keybindings   KeybindingsConfig `yaml:"-" mapstructure:"-"`
-	StatusBar     StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
-	InputMaxLines int               `yaml:"input_max_lines" mapstructure:"input_max_lines"`
+	Theme         string                `yaml:"theme" mapstructure:"theme"`
+	Keybindings   KeybindingsConfig     `yaml:"-" mapstructure:"-"`
+	StatusBar     StatusBarConfig       `yaml:"status_bar" mapstructure:"status_bar"`
+	InputMaxLines int                   `yaml:"input_max_lines" mapstructure:"input_max_lines"`
+	Suggestions   ChatSuggestionsConfig `yaml:"suggestions" mapstructure:"suggestions"`
+}
+
+// ChatSuggestionsConfig contains settings for the one-line next-step suggestion
+// shown as ghost text in the empty chat input after an assistant turn
+// completes. The system prompt lives in prompts.yaml under
+// chat.suggestions.system_prompt.
+type ChatSuggestionsConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	ContextMessages int    `yaml:"context_messages" mapstructure:"context_messages"`
+	MaxTokens       int    `yaml:"max_tokens" mapstructure:"max_tokens"`
+	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+}
+
+// EffectiveSuggestions returns chat.suggestions with defaults applied: an
+// empty model falls back to agent.model and the remaining knobs fall back to
+// their built-in values when unset or misconfigured.
+func (c *Config) EffectiveSuggestions() ChatSuggestionsConfig {
+	s := c.Chat.Suggestions
+	if s.Model == "" {
+		s.Model = c.Agent.Model
+	}
+	if s.ContextMessages <= 0 {
+		s.ContextMessages = 4
+	}
+	if s.MaxTokens <= 0 {
+		s.MaxTokens = 512
+	}
+	if s.Timeout <= 0 {
+		s.Timeout = 10
+	}
+	return s
 }
 
 // StatusBarConfig contains settings for the chat status bar
@@ -1249,6 +1282,13 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			StatusBar:     GetDefaultStatusBarConfig(),
 			InputMaxLines: 20,
+			Suggestions: ChatSuggestionsConfig{
+				Enabled:         false,
+				Model:           "",
+				ContextMessages: 4,
+				MaxTokens:       512,
+				Timeout:         10,
+			},
 		},
 		A2A: A2AConfig{
 			Enabled:               true,

@@ -128,6 +128,7 @@ type ServiceContainer struct {
 
 	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
+	suggestionRunner       *conversation.ChatSuggestionGenerator
 	backgroundJobManager   *scheduler.TitleBackfill
 	backgroundShellService *scheduler.BackgroundShellService
 	memoryBackend          memory.MemoryBackend
@@ -933,6 +934,20 @@ func (c *ServiceContainer) GetDirectExecutionService() tui.DirectExecutionServic
 // approval, streaming-status, execution progress, active-tool tracking).
 func (c *ServiceContainer) GetToolExecutionCoordinator() tui.ToolExecutionCoordinator {
 	return c.toolExecutionCoordinator
+}
+
+// GetNextStepSuggestionRunner returns the one-line next-step suggestion
+// generator for the chat input's ghost text, built lazily here so both the
+// persistent and the in-memory conversation path share it.
+func (c *ServiceContainer) GetNextStepSuggestionRunner() tui.NextStepSuggestionRunner {
+	if c.suggestionRunner == nil {
+		var recorder conversation.SuggestionTelemetryRecorder
+		if c.telemetryRecorder != nil {
+			recorder = c.telemetryRecorder
+		}
+		c.suggestionRunner = conversation.NewChatSuggestionGenerator(c.createRawSDKClient(), c.conversationRepo, c.config, c.modelService.GetCurrentModel, recorder)
+	}
+	return c.suggestionRunner
 }
 
 // createRetryConfig creates a retry config with logging callback
