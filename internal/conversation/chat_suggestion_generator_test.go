@@ -52,13 +52,13 @@ func TestChatSuggestionGenerator_DisabledOrMissingModelSkipsCall(t *testing.T) {
 
 	client := &sdkmocks.FakeClient{}
 
-	disabled := NewChatSuggestionGenerator(client, repo, &config.Config{Agent: config.AgentConfig{Model: "anthropic/claude-4-haiku"}}, nil)
+	disabled := NewChatSuggestionGenerator(client, repo, &config.Config{Agent: config.AgentConfig{Model: "anthropic/claude-4-haiku"}}, nil, nil)
 	assert.Equal(t, "", disabled.GenerateNextStepSuggestion(context.Background()))
 	assert.Equal(t, 0, client.GenerateContentCallCount())
 
 	enabled := NewChatSuggestionGenerator(client, repo, &config.Config{
 		Chat: config.ChatConfig{Suggestions: config.ChatSuggestionsConfig{Enabled: true}},
-	}, nil)
+	}, nil, nil)
 	assert.Equal(t, "", enabled.GenerateNextStepSuggestion(context.Background()))
 	assert.Equal(t, 0, client.GenerateContentCallCount())
 }
@@ -93,11 +93,11 @@ func TestChatSuggestionGenerator_GenerateNextStepSuggestionReturnsSanitizedLine(
 	}
 
 	cfg := &config.Config{
-		Agent:   config.AgentConfig{Model: "anthropic/claude-4-haiku"},
 		Chat:    config.ChatConfig{Suggestions: config.ChatSuggestionsConfig{Enabled: true}},
 		Prompts: *config.DefaultPromptsConfig(),
 	}
-	generator := NewChatSuggestionGenerator(client, repo, cfg, nil)
+	activeModel := func() string { return "anthropic/claude-4-haiku" }
+	generator := NewChatSuggestionGenerator(client, repo, cfg, activeModel, nil)
 
 	suggestion := generator.GenerateNextStepSuggestion(context.Background())
 
@@ -106,6 +106,34 @@ func TestChatSuggestionGenerator_GenerateNextStepSuggestionReturnsSanitizedLine(
 	tokens := repo.GetSessionTokens()
 	assert.Equal(t, 120, tokens.TotalTokens)
 	assert.Equal(t, 1, tokens.RequestCount)
+}
+
+func TestChatSuggestionGenerator_DiscardsAnswerCutByMaxTokens(t *testing.T) {
+	repo := NewInMemoryConversationRepository(nil, nil)
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("how do I install it")},
+		Time:    time.Now(),
+	}))
+
+	client := &sdkmocks.FakeClient{}
+	client.WithOptionsReturns(client)
+	client.WithMiddlewareOptionsReturns(client)
+	client.GenerateContentReturns(&sdk.CreateChatCompletionResponse{
+		Choices: []sdk.ChatCompletionChoice{
+			{FinishReason: sdk.Length, Message: sdk.Message{Content: sdk.NewMessageContent("Show how to install and")}},
+		},
+		Usage: &sdk.CompletionUsage{PromptTokens: 200, CompletionTokens: 64, TotalTokens: 264},
+	}, nil)
+
+	cfg := &config.Config{
+		Agent:   config.AgentConfig{Model: "ollama_cloud/deepseek"},
+		Chat:    config.ChatConfig{Suggestions: config.ChatSuggestionsConfig{Enabled: true}},
+		Prompts: *config.DefaultPromptsConfig(),
+	}
+	generator := NewChatSuggestionGenerator(client, repo, cfg, nil, nil)
+
+	assert.Equal(t, "", generator.GenerateNextStepSuggestion(context.Background()))
+	assert.Equal(t, 264, repo.GetSessionTokens().TotalTokens, "the cut call still counts toward session usage")
 }
 
 func TestChatSuggestionGenerator_suggestionDialogReducesToolPayloads(t *testing.T) {
@@ -124,7 +152,7 @@ func TestChatSuggestionGenerator_suggestionDialogReducesToolPayloads(t *testing.
 		require.NoError(t, repo.AddMessage(entry))
 	}
 
-	generator := NewChatSuggestionGenerator(nil, repo, &config.Config{}, nil)
+	generator := NewChatSuggestionGenerator(nil, repo, &config.Config{}, nil, nil)
 	dialog := generator.suggestionDialog(4)
 
 	assert.Contains(t, dialog, "User: latest user question")

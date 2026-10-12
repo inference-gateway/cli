@@ -18,7 +18,7 @@ func TestEffectiveSuggestionsAppliesDefaults(t *testing.T) {
 
 	assert.Equal(t, "provider/model", got.Model)
 	assert.Equal(t, 4, got.ContextMessages)
-	assert.Equal(t, 64, got.MaxTokens)
+	assert.Equal(t, 256, got.MaxTokens)
 	assert.Equal(t, 10, got.Timeout)
 }
 

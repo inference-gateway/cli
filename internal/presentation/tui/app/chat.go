@@ -623,12 +623,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 // CanRequestSuggestion implements tui.SuggestionGate: the chat UI is quiet
 // enough to request or install a next-step suggestion.
 func (app *ChatApplication) CanRequestSuggestion() bool {
-	if app.stateManager.IsAgentBusy() {
-		return false
-	}
-
 	autocompleteVisible := app.autocomplete != nil && app.autocomplete.IsVisible()
-	return !app.isInputBlocked(app.stateManager.GetCurrentView()) &&
+	return !app.stateManager.IsAgentBusy() &&
+		!app.isInputBlocked(app.stateManager.GetCurrentView()) &&
 		(app.inputView == nil || app.inputView.GetInput() == "") &&
 		!autocompleteVisible
 }

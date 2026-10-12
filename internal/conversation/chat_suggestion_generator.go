@@ -1,7 +1,9 @@
 package conversation
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,16 +29,21 @@ type SuggestionTelemetryRecorder interface {
 // disabled, misconfigured, failed request, non-conforming answer - yields no
 // suggestion and logs at debug.
 type ChatSuggestionGenerator struct {
-	client   sdk.Client
-	repo     convdomain.ConversationRepository
-	config   *config.Config
-	recorder SuggestionTelemetryRecorder
+	client       sdk.Client
+	repo         convdomain.ConversationRepository
+	config       *config.Config
+	recorder     SuggestionTelemetryRecorder
+	currentModel func() string
 }
 
-// NewChatSuggestionGenerator creates the generator. recorder is optional
-// telemetry; the repo receives the call's tokens either way.
-func NewChatSuggestionGenerator(client sdk.Client, repo convdomain.ConversationRepository, config *config.Config, recorder SuggestionTelemetryRecorder) *ChatSuggestionGenerator {
-	return &ChatSuggestionGenerator{client: client, repo: repo, config: config, recorder: recorder}
+// NewChatSuggestionGenerator creates the generator. currentModel reports the
+// chat's active model (the fallback when chat.suggestions.model is empty) and
+// recorder is optional telemetry; the repo receives the call's tokens either way.
+func NewChatSuggestionGenerator(client sdk.Client, repo convdomain.ConversationRepository, config *config.Config, currentModel func() string, recorder SuggestionTelemetryRecorder) *ChatSuggestionGenerator {
+	if currentModel == nil {
+		currentModel = func() string { return "" }
+	}
+	return &ChatSuggestionGenerator{client: client, repo: repo, config: config, recorder: recorder, currentModel: currentModel}
 }
 
 // GenerateNextStepSuggestion asks the configured model for a one-line follow-up
@@ -48,6 +55,9 @@ func (g *ChatSuggestionGenerator) GenerateNextStepSuggestion(ctx context.Context
 	}
 
 	cfg := g.config.EffectiveSuggestions()
+	if g.config.Chat.Suggestions.Model == "" {
+		cfg.Model = cmp.Or(g.currentModel(), cfg.Model)
+	}
 	provider, modelName := config.ParseModel(cfg.Model)
 	if provider == "" {
 		logger.Debug("suggestion: no usable chat.suggestions.model configured", "model", cfg.Model)
@@ -74,13 +84,16 @@ func (g *ChatSuggestionGenerator) GenerateNextStepSuggestion(ctx context.Context
 		logger.Debug("suggestion: response had no choices")
 		return ""
 	}
+	g.recordUsage(cfg.Model, response.Usage)
 	raw, err := response.Choices[0].Message.Content.AsMessageContent0()
 	if err != nil {
 		logger.Debug("suggestion: could not read response content", "error", err)
 		return ""
 	}
-
-	g.recordUsage(cfg.Model, response.Usage)
+	if response.Choices[0].FinishReason == sdk.Length {
+		logger.Debug("suggestion: answer hit max_tokens, discarded", "max_tokens", cfg.MaxTokens, "content", truncateSuggestionLine(raw, 160))
+		return ""
+	}
 
 	return SanitizeNextStepSuggestion(raw)
 }
@@ -92,6 +105,7 @@ func (g *ChatSuggestionGenerator) recordUsage(model string, usage *sdk.Completio
 		return
 	}
 	usageInput, usageOutput, usageTotal := int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens)
+	logger.Debug("suggestion: request completed", "model", model, "prompt_tokens", usageInput, "completion_tokens", usageOutput)
 	if err := g.repo.AddTokenUsage(model, usageInput, usageOutput, usageTotal, 0, 0); err != nil {
 		logger.Debug("suggestion: failed to add token usage to session", "error", err)
 	}
@@ -113,27 +127,18 @@ func (g *ChatSuggestionGenerator) suggestionMessages(dialog string) []sdk.Messag
 // user and assistant turns plus condensed tool lines - as prompt text.
 func (g *ChatSuggestionGenerator) suggestionDialog(contextMessages int) string {
 	entries := g.repo.GetMessages()
-	relevant := make([]convdomain.ConversationEntry, 0, contextMessages)
-	for _, entry := range entries {
-		if entry.Hidden {
+	lines := make([]string, 0, contextMessages)
+	for i := len(entries) - 1; i >= 0 && contextMessages > 0; i-- {
+		if entries[i].Hidden {
 			continue
 		}
-		relevant = append(relevant, entry)
-	}
-	if len(relevant) > contextMessages {
-		relevant = relevant[len(relevant)-contextMessages:]
-	}
-
-	var dialog strings.Builder
-	for _, entry := range relevant {
-		line := suggestionLine(entry)
-		if line == "" {
-			continue
+		contextMessages--
+		if line := suggestionLine(entries[i]); line != "" {
+			lines = append(lines, line)
 		}
-		dialog.WriteString(line)
-		dialog.WriteString("\n")
 	}
-	return strings.TrimSpace(dialog.String())
+	slices.Reverse(lines)
+	return strings.Join(lines, "\n")
 }
 
 // suggestionLine summarises one entry to its labeled single line, or "" when

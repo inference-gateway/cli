@@ -19,6 +19,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
+// suggestionQuietPeriod is how long the input must stay untouched after a
+// completed turn before the one next-step suggestion request is sent.
+const suggestionQuietPeriod = 2 * time.Second
+
 // stateStore is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, the todo list, and event broadcast to external
@@ -55,6 +59,7 @@ type ChatHandler struct {
 	suggestions            tui.NextStepSuggestionRunner
 	suggestionGate         tui.SuggestionGate
 	suggestionCancel       context.CancelFunc
+	suggestionGeneration   int
 	messageProcessor       *ChatMessageProcessor
 	shortcutHandler        *ChatShortcutHandler
 	skillsService          agentdomain.SkillsService
@@ -162,6 +167,12 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		if m.Suggestion == "" {
 			h.cancelSuggestionRequest()
 		}
+	case tui.AutocompleteUpdateEvent:
+		h.cancelSuggestionRequest()
+	case tui.SuggestionArmEvent:
+		return h.armSuggestionTimer()
+	case tui.SuggestionQuietEvent:
+		return h.HandleSuggestionQuietEvent(m)
 	case tui.ChatCompletionRequestedEvent:
 		if h.stateManager.GetChatSession() != m.Session {
 			return nil
@@ -309,8 +320,8 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 	if msg.Cancelled {
 		h.toolCoordinator.SetActiveToolCallID("")
 	}
-	if h.shouldRequestNextStepSuggestion(msg) {
-		return tea.Batch(cmd, h.requestNextStepSuggestion())
+	if h.shouldArmSuggestionTimer(msg) {
+		return tea.Batch(cmd, func() tea.Msg { return tui.SuggestionArmEvent{} })
 	}
 	if h.shouldDrainAfterComplete(msg) {
 		return tea.Batch(cmd, drainQueueCmd())
@@ -318,12 +329,10 @@ func (h *ChatHandler) HandleChatCompleteEvent(
 	return cmd
 }
 
-// shouldRequestNextStepSuggestion reports whether a terminal assistant turn
-// should trigger the one next-step suggestion request: not cancelled, no tool
-// calls feeding back in, no queued work (a drain would start a fresh turn)
-// and a UI quiet gate the chat application owns (empty input, no autocomplete
-// popup, no overlay form, not busy).
-func (h *ChatHandler) shouldRequestNextStepSuggestion(msg agentdomain.ChatCompleteEvent) bool {
+// shouldArmSuggestionTimer reports whether a terminal assistant turn starts
+// the quiet window before one next-step suggestion request: suggestions wired
+// and enabled, not cancelled, no tool calls feeding back in, no queued work.
+func (h *ChatHandler) shouldArmSuggestionTimer(msg agentdomain.ChatCompleteEvent) bool {
 	if h.suggestions == nil || h.suggestionGate == nil {
 		return false
 	}
@@ -333,13 +342,33 @@ func (h *ChatHandler) shouldRequestNextStepSuggestion(msg agentdomain.ChatComple
 	if msg.Cancelled || len(msg.ToolCalls) > 0 {
 		return false
 	}
-	if !h.messageQueue.IsEmpty() {
-		return false
+	return h.messageQueue.IsEmpty()
+}
+
+// armSuggestionTimer schedules the quiet-window tick for the current
+// generation. The agent loop publishes the terminal ChatCompleteEvent twice
+// and typing bumps the generation, so only the last arm's tick survives.
+// Reached via SuggestionArmEvent, never from a chat channel event directly,
+// because Handle sequences the listener re-arm after the dispatched command.
+func (h *ChatHandler) armSuggestionTimer() tea.Cmd {
+	h.cancelSuggestionRequest()
+	generation := h.suggestionGeneration
+	return tea.Tick(suggestionQuietPeriod, func(time.Time) tea.Msg {
+		return tui.SuggestionQuietEvent{Generation: generation}
+	})
+}
+
+// HandleSuggestionQuietEvent requests the suggestion once the quiet window
+// elapsed, unless a newer arm or cancel superseded it or the UI gate (empty
+// input, no popup or overlay, idle agent) refuses.
+func (h *ChatHandler) HandleSuggestionQuietEvent(msg tui.SuggestionQuietEvent) tea.Cmd {
+	if msg.Generation != h.suggestionGeneration || !h.messageQueue.IsEmpty() {
+		return nil
 	}
-	if h.stateManager.IsAgentBusy() {
-		return false
+	if !h.suggestionGate.CanRequestSuggestion() {
+		return nil
 	}
-	return h.suggestionGate.CanRequestSuggestion()
+	return h.requestNextStepSuggestion()
 }
 
 // requestNextStepSuggestion runs the suggestion call off the Update loop and
@@ -362,8 +391,10 @@ func (h *ChatHandler) dismissNextStepSuggestion() tea.Cmd {
 	return func() tea.Msg { return tui.NextStepSuggestionEvent{} }
 }
 
-// cancelSuggestionRequest cancels an outstanding suggestion LLM call, if any.
+// cancelSuggestionRequest invalidates a pending quiet-window tick and cancels
+// an outstanding suggestion LLM call, if any.
 func (h *ChatHandler) cancelSuggestionRequest() {
+	h.suggestionGeneration++
 	if h.suggestionCancel != nil {
 		h.suggestionCancel()
 		h.suggestionCancel = nil

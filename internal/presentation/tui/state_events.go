@@ -85,6 +85,18 @@ type FocusStatusBarEvent struct{}
 // the chat input
 type HistorySearchOpenEvent struct{}
 
+// SuggestionArmEvent asks the chat handler to start the quiet window after a
+// completed turn. It travels as a message so the timer runs outside the chat
+// listener's command sequence and never delays the next chat event.
+type SuggestionArmEvent struct{}
+
+// SuggestionQuietEvent fires when the quiet window after a completed turn
+// elapses. Generation ties it to the arm that scheduled it, so a later
+// keystroke, turn or dismissal leaves stale ticks ignored.
+type SuggestionQuietEvent struct {
+	Generation int
+}
+
 // AutocompleteUpdateEvent is fired when input text changes and autocomplete should update
 type AutocompleteUpdateEvent struct {
 	Text      string

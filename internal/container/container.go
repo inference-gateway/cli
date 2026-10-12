@@ -945,7 +945,7 @@ func (c *ServiceContainer) GetNextStepSuggestionRunner() tui.NextStepSuggestionR
 		if c.telemetryRecorder != nil {
 			recorder = c.telemetryRecorder
 		}
-		c.suggestionRunner = conversation.NewChatSuggestionGenerator(c.createRawSDKClient(), c.conversationRepo, c.config, recorder)
+		c.suggestionRunner = conversation.NewChatSuggestionGenerator(c.createRawSDKClient(), c.conversationRepo, c.config, c.modelService.GetCurrentModel, recorder)
 	}
 	return c.suggestionRunner
 }

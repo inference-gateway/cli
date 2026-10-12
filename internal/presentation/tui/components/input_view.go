@@ -1144,11 +1144,6 @@ func (iv *InputView) HasNextStepSuggestion() bool {
 	return iv.nextStepSuggestion != ""
 }
 
-// ClearNextStepSuggestion removes the next-step ghost text.
-func (iv *InputView) ClearNextStepSuggestion() {
-	iv.nextStepSuggestion = ""
-}
-
 // TryHandleHistorySuggestionTab handles Tab key for history suggestions
 // Returns true if handled (either cycled or accepted), false if no suggestion available
 func (iv *InputView) TryHandleHistorySuggestionTab() bool {

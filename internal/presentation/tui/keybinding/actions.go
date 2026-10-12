@@ -158,7 +158,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	if input, ok := app.GetInputView().(*components.InputView); ok && input.HasNextStepSuggestion() {
-		input.ClearNextStepSuggestion()
 		return func() tea.Msg {
 			return tui.NextStepSuggestionEvent{}
 		}
@@ -334,9 +333,7 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	if !ok {
 		return nil
 	}
-	if iv.TryHandleHistorySuggestionTab() || iv.AcceptNextStepSuggestion() {
-		return nil
-	}
+	_ = iv.TryHandleHistorySuggestionTab() || iv.AcceptNextStepSuggestion()
 	return nil
 }
 

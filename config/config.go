@@ -852,7 +852,7 @@ func (c *Config) EffectiveSuggestions() ChatSuggestionsConfig {
 		s.ContextMessages = 4
 	}
 	if s.MaxTokens <= 0 {
-		s.MaxTokens = 64
+		s.MaxTokens = 256
 	}
 	if s.Timeout <= 0 {
 		s.Timeout = 10
@@ -1286,7 +1286,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:         false,
 				Model:           "",
 				ContextMessages: 4,
-				MaxTokens:       64,
+				MaxTokens:       256,
 				Timeout:         10,
 			},
 		},
