@@ -245,7 +245,7 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 
 ## Migration History
 
-Both dialects carry the same seven migrations:
+Both dialects carry the same nine migrations:
 
 | Version | Description |
 | ------- | ----------- |
@@ -256,6 +256,8 @@ Both dialects carry the same seven migrations:
 | 005 | Shell history table |
 | 006 | Scheduled job run records table |
 | 007 | Conversation project column for per-project grouping |
+| 008 | Conversation active duration column for the session working time |
+| 009 | Message queue table for durable queue backends |
 
 ### Version 001 (Initial Schema)
 
