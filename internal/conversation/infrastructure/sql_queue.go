@@ -9,10 +9,9 @@ import (
 	"strings"
 	"time"
 
-	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
-	storage "github.com/inference-gateway/cli/internal/platform/storage"
-
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	migrations "github.com/inference-gateway/cli/internal/platform/storage/migrations"
 )
 
 // sqlQueueBackend implements queueBackend over a SQL database: one
