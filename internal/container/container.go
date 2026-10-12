@@ -426,6 +426,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.initializeMCPSupervisor()
 
+	c.initializeMessageQueue()
+
 	c.ensureBackgroundTaskRegistry()
 	c.memoryBackend = memory.NewMemoryBackend(c.config)
 
@@ -454,7 +456,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
 	groupStore := c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
-	c.initializeMessageQueue()
 
 	if c.jobSupervisor != nil {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
