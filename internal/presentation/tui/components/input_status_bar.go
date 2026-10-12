@@ -507,14 +507,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("queue") {
 		if queuePart := isb.buildQueueIndicator(); queuePart != "" {
-			var color string
-			if isb.styleProvider != nil {
-				color = isb.styleProvider.GetThemeColor("accent")
-				if isb.messageQueue.Unreachable() {
-					color = isb.styleProvider.GetThemeColor("error")
-				}
-			}
-			parts = append(parts, indicatorPart{text: queuePart, color: color})
+			parts = append(parts, indicatorPart{text: queuePart, color: isb.queueIndicatorColor()})
 		}
 	}
 
@@ -986,6 +979,18 @@ func (isb *InputStatusBar) buildQueueIndicator() string {
 		return backend
 	}
 	return fmt.Sprintf("%s %d queued", backend, size)
+}
+
+// queueIndicatorColor picks the accent color normally and the theme error
+// color while the message queue backend is unreachable.
+func (isb *InputStatusBar) queueIndicatorColor() string {
+	if isb.styleProvider == nil {
+		return ""
+	}
+	if isb.messageQueue.Unreachable() {
+		return isb.styleProvider.GetThemeColor("error")
+	}
+	return isb.styleProvider.GetThemeColor("accent")
 }
 
 // getContextUsageIndicator returns a context usage indicator string.

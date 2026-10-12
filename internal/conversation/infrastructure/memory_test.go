@@ -94,10 +94,10 @@ func TestMessageQueueService_DrainReturnsAllInOrder(t *testing.T) {
 	assert.Equal(t, []string{"r1", "r2", "r3"}, []string{drained[0].RequestID, drained[1].RequestID, drained[2].RequestID})
 	assert.True(t, mq.IsEmpty(), "drain must empty the queue")
 
-	drained, err = mq.Drain(ctx)                                                                                    
-	assert.NoError(t, err)                                                                                          
-	assert.Empty(t, drained)                                                                                        
-}                                                                                                                   
+	drained, err = mq.Drain(ctx)
+	assert.NoError(t, err)
+	assert.Empty(t, drained)
+}
 
 func TestMessageQueueService_Conformance(t *testing.T) {
 	runMessageQueueConformance(t, func(t *testing.T) convdomain.MessageQueue {
