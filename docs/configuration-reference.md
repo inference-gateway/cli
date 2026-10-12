@@ -128,7 +128,7 @@ chat:
     enabled: false # Each completed assistant turn can spend one small LLM call
     model: "" # Suggestion model, empty falls back to the active chat model
     context_messages: 4 # Recent non-hidden messages grounding the suggestion
-    max_tokens: 256 # Output cap for the suggestion call, reasoning models spend thinking tokens against it
+    max_tokens: 512 # Output cap for the suggestion call, reasoning models spend thinking tokens against it
     timeout: 10 # Seconds before the suggestion request is abandoned
   status_bar:
     enabled: true
@@ -792,7 +792,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
 - **chat.suggestions.context_messages**: How many recent non-hidden conversation messages ground the
   suggestion (default: `4`)
 
-- **chat.suggestions.max_tokens**: Output token cap for the suggestion call (default: `256`). Reasoning
+- **chat.suggestions.max_tokens**: Output token cap for the suggestion call (default: `512`). Reasoning
   models spend thinking tokens against it, and an answer that hits the cap is discarded rather than
   shown truncated
 
@@ -812,7 +812,7 @@ chat:
     enabled: true
     model: ""           # Falls back to agent.model
     context_messages: 4
-    max_tokens: 256
+    max_tokens: 512
     timeout: 10         # Seconds before the suggestion request is abandoned
   status_bar:
     enabled: true

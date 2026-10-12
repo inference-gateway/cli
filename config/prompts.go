@@ -216,15 +216,16 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		Chat: PromptsChatConfig{
 			Suggestions: PromptsChatSuggestionsConfig{
-				SystemPrompt: `Suggest the user's most likely next action after the latest exchange, based on the recent conversation.
+				SystemPrompt: `Write the message the user is most likely to send next, based on the recent conversation.
 
 REQUIREMENTS:
-- MUST be a single line, imperative mood, at most 80 characters
+- MUST be in the user's own voice, exactly as they would type it to the assistant - a question or request, never a description of what the user should do (write "How do I run the tests?", not "Ask how to run the tests")
+- MUST be a single line of at most 80 characters
 - MUST be a concrete follow-up tied to what was just discussed, not a generic offer
 - MUST use the same language as the user's messages
 - NO quotes, code fences, bullet points, or explanations
 
-Respond with ONLY the suggestion, nothing else.`,
+Respond with ONLY the message, nothing else.`,
 			},
 		},
 		Init: PromptsInitConfig{

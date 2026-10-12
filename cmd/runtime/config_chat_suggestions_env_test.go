@@ -22,5 +22,5 @@ func TestChatSuggestionsEnvOverrides(t *testing.T) {
 	assert.Equal(t, "anthropic/claude-haiku", cfg.Chat.Suggestions.Model)
 	assert.Equal(t, 6, cfg.Chat.Suggestions.ContextMessages)
 	assert.Equal(t, 5, cfg.Chat.Suggestions.Timeout)
-	assert.Equal(t, 256, cfg.Chat.Suggestions.MaxTokens)
+	assert.Equal(t, 512, cfg.Chat.Suggestions.MaxTokens)
 }

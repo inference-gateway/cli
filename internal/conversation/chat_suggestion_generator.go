@@ -27,7 +27,7 @@ type SuggestionTelemetryRecorder interface {
 // ghost text in the chat input after an assistant turn completes. Unlike the
 // judge it is a convenience call with silent-fail semantics: every problem -
 // disabled, misconfigured, failed request, non-conforming answer - yields no
-// suggestion and logs at debug.
+// suggestion. Actionable outcomes log at warn, the rest at debug.
 type ChatSuggestionGenerator struct {
 	client       sdk.Client
 	repo         convdomain.ConversationRepository
@@ -60,7 +60,7 @@ func (g *ChatSuggestionGenerator) GenerateNextStepSuggestion(ctx context.Context
 	}
 	provider, modelName := config.ParseModel(cfg.Model)
 	if provider == "" {
-		logger.Debug("suggestion: no usable chat.suggestions.model configured", "model", cfg.Model)
+		logger.Warn("suggestion: no usable chat.suggestions.model configured", "model", cfg.Model)
 		return ""
 	}
 
@@ -77,7 +77,7 @@ func (g *ChatSuggestionGenerator) GenerateNextStepSuggestion(ctx context.Context
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{SkipMCP: true}).
 		GenerateContent(ctx, sdk.Provider(provider), modelName, g.suggestionMessages(dialog))
 	if err != nil {
-		logger.Debug("suggestion: request failed", "error", err)
+		logger.Warn("suggestion: request failed", "error", err)
 		return ""
 	}
 	if len(response.Choices) == 0 {
@@ -91,7 +91,7 @@ func (g *ChatSuggestionGenerator) GenerateNextStepSuggestion(ctx context.Context
 		return ""
 	}
 	if response.Choices[0].FinishReason == sdk.Length {
-		logger.Debug("suggestion: answer hit max_tokens, discarded", "max_tokens", cfg.MaxTokens, "content", truncateSuggestionLine(raw, 160))
+		logger.Warn("suggestion: answer hit max_tokens, discarded", "max_tokens", cfg.MaxTokens, "content", truncateSuggestionLine(raw, 160))
 		return ""
 	}
 
@@ -105,7 +105,7 @@ func (g *ChatSuggestionGenerator) recordUsage(model string, usage *sdk.Completio
 		return
 	}
 	usageInput, usageOutput, usageTotal := int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens)
-	logger.Debug("suggestion: request completed", "model", model, "prompt_tokens", usageInput, "completion_tokens", usageOutput)
+	logger.Info("suggestion: request completed", "model", model, "prompt_tokens", usageInput, "completion_tokens", usageOutput)
 	if err := g.repo.AddTokenUsage(model, usageInput, usageOutput, usageTotal, 0, 0); err != nil {
 		logger.Debug("suggestion: failed to add token usage to session", "error", err)
 	}
