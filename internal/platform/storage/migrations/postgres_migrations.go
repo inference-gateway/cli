@@ -148,17 +148,17 @@ func GetPostgresMigrations() []Migration {
 		{
 			Version:     "009",
 			Description: "Message queue table for durable queue backends",
-			UpSQL: `
-				CREATE TABLE IF NOT EXISTS message_queue (
-                    id         BIGSERIAL PRIMARY KEY,
-                    queue_name TEXT NOT NULL,
-                    role       TEXT NOT NULL,
-                    content    TEXT NOT NULL,
-                    source     TEXT NOT NULL,
-                    request_id TEXT NOT NULL DEFAULT '',
-                    queued_at  TIMESTAMP WITH TIME ZONE NOT NULL
-				)
-
+			UpSQL: `                                                                               
+				CREATE TABLE IF NOT EXISTS message_queue (                                         
+                    id         BIGSERIAL PRIMARY KEY,                                              
+                    queue_name TEXT NOT NULL,                                                      
+                    role       TEXT NOT NULL,                                                      
+                    content    TEXT NOT NULL,                                                      
+                    source     TEXT NOT NULL,                                                      
+                    request_id TEXT NOT NULL DEFAULT '',                                           
+                    queued_at  TIMESTAMP WITH TIME ZONE NOT NULL                                   
+				);                                                                                 
+                                                                                                       
 				CREATE INDEX IF NOT EXISTS idx_message_queue_name ON message_queue(queue_name, id);
 			`,
 			DownSQL: `
