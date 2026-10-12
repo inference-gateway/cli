@@ -111,12 +111,30 @@ func TestAgentServiceImpl_CancelRequest(t *testing.T) {
 	}
 }
 
+func queuedWorkQueue() *convmocks.FakeMessageQueue {
+	q := &convmocks.FakeMessageQueue{}
+	q.IsEmptyReturns(false)
+	return q
+}
+
+func emptyMessageQueue() *convmocks.FakeMessageQueue {
+	q := &convmocks.FakeMessageQueue{}
+	q.IsEmptyReturns(true)
+	return q
+}
+
 func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 	tests := []struct {
-		name        string
-		request     *agentdomain.AgentRequest
-		expectError bool
+		name         string
+		request      *agentdomain.AgentRequest
+		messageQueue convdomain.MessageQueue
+		expectError  bool
 	}{
+		{
+			name:        "nil_request",
+			request:     nil,
+			expectError: true,
+		},
 		{
 			name: "valid_request",
 			request: &agentdomain.AgentRequest{
@@ -158,15 +176,32 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "nil_request",
-			request:     nil,
-			expectError: true,
+			name: "empty_messages_with_queued_work_in_chat",
+			request: &agentdomain.AgentRequest{
+				RequestID:  "test-123",
+				Model:      "openai/gpt-4",
+				Messages:   []sdk.Message{},
+				IsChatMode: true,
+			},
+			messageQueue: queuedWorkQueue(),
+			expectError:  false,
+		},
+		{
+			name: "empty_messages_without_queued_work_in_chat",
+			request: &agentdomain.AgentRequest{
+				RequestID:  "test-123",
+				Model:      "openai/gpt-4",
+				Messages:   []sdk.Message{},
+				IsChatMode: true,
+			},
+			messageQueue: emptyMessageQueue(),
+			expectError:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agentService := &Agent{}
+			agentService := &Agent{messageQueue: tt.messageQueue}
 
 			err := agentService.validateRequest(tt.request)
 
