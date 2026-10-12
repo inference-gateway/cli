@@ -145,6 +145,7 @@ VALUES (
 
 ## See Also
 
+- [Example: message queue backends](../examples/queue-backends/README.md) - a runnable setup for each backend
 - [Configuration Reference](configuration-reference.md)
 - [Conversation Storage](conversation-storage.md)
 - [Database Migrations](database-migrations.md)
