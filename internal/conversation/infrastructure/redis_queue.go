@@ -96,36 +96,31 @@ func (b *redisQueueBackend) list(ctx context.Context, name string) ([]queuedReco
 	if err != nil {
 		return nil, fmt.Errorf("reading Redis list %s: %w", b.key(name), err)
 	}
-
-	records := make([]queuedRecord, 0, len(payloads))
-	for _, payload := range payloads {
-		record, decodeErr := decodeRecord([]byte(payload))
-		if decodeErr != nil {
-			continue
-		}
-		records = append(records, record)
-	}
-	return records, nil
+	return decodeRecords(payloads), nil
 }
 
-// redisRecords converts a Lua script response into queued records, skipping
-// payload entries that no longer decode (they are removed by the script).
-func redisRecords(response interface{}) []queuedRecord {
-	items, ok := response.([]interface{})
+// redisRecords converts a Lua script response into queued records.
+func redisRecords(response any) []queuedRecord {
+	items, ok := response.([]any)
 	if !ok {
 		return nil
 	}
-	records := make([]queuedRecord, 0, len(items))
+	payloads := make([]string, 0, len(items))
 	for _, item := range items {
-		payload, isString := item.(string)
-		if !isString {
-			continue
+		if payload, isString := item.(string); isString {
+			payloads = append(payloads, payload)
 		}
-		record, decodeErr := decodeRecord([]byte(payload))
-		if decodeErr != nil {
-			continue
+	}
+	return decodeRecords(payloads)
+}
+
+// decodeRecords parses list payloads, skipping entries that do not decode.
+func decodeRecords(payloads []string) []queuedRecord {
+	records := make([]queuedRecord, 0, len(payloads))
+	for _, payload := range payloads {
+		if record, err := decodeRecord([]byte(payload)); err == nil {
+			records = append(records, record)
 		}
-		records = append(records, record)
 	}
 	return records
 }

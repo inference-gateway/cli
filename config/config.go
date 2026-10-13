@@ -1077,6 +1077,16 @@ const (
 // DefaultQueuePollInterval is the cross-process wake-up cadence for non-memory backends
 const DefaultQueuePollInterval = "2s"
 
+var defaultQueuePollInterval = mustParseDuration(DefaultQueuePollInterval)
+
+func mustParseDuration(value string) time.Duration {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
 // QueueConfig configures the message queue. Type is deliberately separate from
 // storage.type: the storage default jsonl is not a queue backend and following
 // storage would silently make the default queue durable. The sqlite, postgres
@@ -1101,7 +1111,7 @@ func (q QueueConfig) ResolvePollInterval() time.Duration {
 	if d, err := time.ParseDuration(q.PollInterval); err == nil && d > 0 {
 		return d
 	}
-	return 2 * time.Second
+	return defaultQueuePollInterval
 }
 
 // A2ATaskConfig contains configuration for A2A task processing
@@ -1563,7 +1573,7 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	return c.Queue.validate()
 }
 
-// validateQueue checks the queue block: the backend must be one of the supported
+// validate checks the queue block: the backend must be one of the supported
 // queue types and the poll interval, when set, must be a positive duration
 func (q QueueConfig) validate() error {
 	switch q.Type {

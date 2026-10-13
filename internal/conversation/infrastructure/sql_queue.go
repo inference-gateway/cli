@@ -31,7 +31,7 @@ func NewSQLiteMessageQueue(sqliteConn storage.SQLiteConfig, name func() string, 
 		return nil, fmt.Errorf("queue backend sqlite: %w", err)
 	}
 
-	if _, err := applySQLMigrations(db, "sqlite"); err != nil {
+	if err := applySQLMigrations(db, "sqlite"); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("queue backend sqlite: %w", err)
 	}
@@ -48,7 +48,7 @@ func NewPostgresMessageQueue(pgConn storage.PostgresConfig, name func() string, 
 		return nil, fmt.Errorf("queue backend postgres: %w", err)
 	}
 
-	if _, err := applySQLMigrations(db, "postgres"); err != nil {
+	if err := applySQLMigrations(db, "postgres"); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("queue backend postgres: %w", err)
 	}
@@ -57,12 +57,13 @@ func NewPostgresMessageQueue(pgConn storage.PostgresConfig, name func() string, 
 }
 
 // applySQLMigrations brings the shared SQL schema up to date, idempotent per dialect.
-func applySQLMigrations(db *sql.DB, dialect string) (int, error) {
+func applySQLMigrations(db *sql.DB, dialect string) error {
 	set := migrations.GetSQLiteMigrations()
 	if dialect == "postgres" {
 		set = migrations.GetPostgresMigrations()
 	}
-	return migrations.NewMigrationRunner(db, dialect).ApplyMigrations(context.Background(), set)
+	_, err := migrations.NewMigrationRunner(db, dialect).ApplyMigrations(context.Background(), set)
+	return err
 }
 
 // placeholderSQL rewrites ? placeholders into $N slots for PostgreSQL; SQLite
