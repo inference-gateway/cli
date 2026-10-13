@@ -49,9 +49,10 @@ storage:
     port: 6379
 ```
 
-`name` scopes the queue. Without it the scope is the current conversation id,
-which is right for one process - with an explicit name, several infer processes
-and external producers share exactly this queue.
+`name` scopes the queue. Without it the scope is the process session id, which
+isolates one process but changes on every start - with an explicit name, the
+queue survives restarts and several infer processes and external producers
+share exactly this queue.
 
 ## Feed work from outside
 

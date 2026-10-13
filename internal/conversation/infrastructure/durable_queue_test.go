@@ -105,7 +105,7 @@ func (b *stubQueueBackend) injectRemote(records ...queuedRecord) {
 func newTestDurableQueue(t *testing.T, backend queueBackend) (*durableMessageQueue, *atomic.Int32) {
 	t.Helper()
 	var wakeCalls atomic.Int32
-	q := newDurableMessageQueue("redis", backend, func() string { return "shared" }, time.Hour, func() {
+	q := newDurableMessageQueue("redis", backend, "shared", time.Hour, func() {
 		wakeCalls.Add(1)
 	})
 	t.Cleanup(q.Stop)

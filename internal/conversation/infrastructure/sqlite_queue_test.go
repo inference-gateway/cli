@@ -22,7 +22,7 @@ import (
 func newSQLiteQueueAt(t *testing.T, prefix, path string) convdomain.MessageQueue {
 	t.Helper()
 	return newScopedTestQueue(t, prefix, func(scope string) (convdomain.MessageQueue, error) {
-		return NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, func() string { return scope }, time.Hour, func() {})
+		return NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, scope, time.Hour, func() {})
 	})
 }
 
@@ -42,12 +42,12 @@ func TestSQLiteMessageQueue_ScopesByName(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "queue.db")
 	ctx := context.Background()
 
-	owner, err := NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, func() string { return "q-one" }, time.Hour, func() {})
+	owner, err := NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, "q-one", time.Hour, func() {})
 	require.NoError(t, err)
 	t.Cleanup(func() { owner.(*durableMessageQueue).Stop() })
 	require.NoError(t, owner.Enqueue(ctx, userMsg("a"), convdomain.QueueSourceComposer, "r1"))
 
-	other, err := NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, func() string { return "q-two" }, time.Hour, func() {})
+	other, err := NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, "q-two", time.Hour, func() {})
 	require.NoError(t, err)
 	t.Cleanup(func() { other.(*durableMessageQueue).Stop() })
 
@@ -60,7 +60,7 @@ func TestSQLiteMessageQueue_UnusableDatabaseFailsStartup(t *testing.T) {
 	blocker := filepath.Join(t.TempDir(), "blocker")
 	require.NoError(t, os.WriteFile(blocker, []byte("occupies the directory name"), 0o600))
 
-	_, err := NewSQLiteMessageQueue(storage.SQLiteConfig{Path: filepath.Join(blocker, "queue.db")}, func() string { return "main" }, time.Hour, func() {})
+	_, err := NewSQLiteMessageQueue(storage.SQLiteConfig{Path: filepath.Join(blocker, "queue.db")}, "main", time.Hour, func() {})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "queue backend sqlite")
 }

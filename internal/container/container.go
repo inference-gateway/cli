@@ -1,6 +1,7 @@
 package container
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -641,9 +642,10 @@ func (c *ServiceContainer) initializeMessageQueue() {
 
 // newDurableQueue builds the sqlite, postgres or redis adapter, reusing the
 // matching storage.<type> connection settings so the queue never grows a
-// second host/port/password block.
+// second host/port/password block. The scope is resolved once: the explicit
+// queue.name, else this process's session ID, so it never drifts mid-run.
 func (c *ServiceContainer) newDurableQueue(backend config.QueueType) (convdomain.MessageQueue, error) {
-	name := c.queueNameResolver()
+	name := cmp.Or(c.config.Queue.Name, string(c.sessionID))
 	interval := c.config.Queue.ResolvePollInterval()
 	wake := func() { c.uiNotifier.Notify(agentdomain.DrainQueueEvent{}) }
 
@@ -674,24 +676,6 @@ func (c *ServiceContainer) newDurableQueue(backend config.QueueType) (convdomain
 		}, name, interval, wake)
 	default:
 		return nil, fmt.Errorf("unsupported queue backend: %s", backend)
-	}
-}
-
-// queueNameResolver scopes the durable queue: the explicit queue.name wins,
-// else the current conversation ID (a resumed conversation gets its pending
-// queue back, two local sessions never take each other's typed messages),
-// else the process session ID before a conversation exists.
-func (c *ServiceContainer) queueNameResolver() func() string {
-	return func() string {
-		if name := c.config.Queue.Name; name != "" {
-			return name
-		}
-		if c.conversationRepo != nil {
-			if id := c.conversationRepo.GetCurrentConversationID(); id != "" {
-				return id
-			}
-		}
-		return string(c.sessionID)
 	}
 }
 

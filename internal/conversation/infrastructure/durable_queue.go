@@ -49,7 +49,7 @@ type queueBackend interface {
 type durableMessageQueue struct {
 	backendName string
 	backend     queueBackend
-	name        func() string
+	name        string
 	wake        func()
 
 	interval time.Duration
@@ -63,7 +63,7 @@ type durableMessageQueue struct {
 }
 
 // newDurableMessageQueue assembles the wrapper and starts its poller.
-func newDurableMessageQueue(backendName string, backend queueBackend, name func() string, interval time.Duration, wake func()) *durableMessageQueue {
+func newDurableMessageQueue(backendName string, backend queueBackend, name string, interval time.Duration, wake func()) *durableMessageQueue {
 	q := &durableMessageQueue{
 		backendName: backendName,
 		backend:     backend,
@@ -92,7 +92,7 @@ func (q *durableMessageQueue) Enqueue(ctx context.Context, message sdk.Message, 
 		return fmt.Errorf("queue(%s) enqueue: %w", q.backendName, err)
 	}
 
-	if err := q.backend.enqueue(ctx, q.name(), record); err != nil {
+	if err := q.backend.enqueue(ctx, q.name, record); err != nil {
 		q.setUnreachable()
 		return fmt.Errorf("queue(%s) enqueue: %w", q.backendName, err)
 	}
@@ -107,7 +107,7 @@ func (q *durableMessageQueue) Enqueue(ctx context.Context, message sdk.Message, 
 
 // Drain atomically removes and returns every queued message, oldest first.
 func (q *durableMessageQueue) Drain(ctx context.Context) ([]convdomain.QueuedMessage, error) {
-	records, err := q.backend.drain(ctx, q.name())
+	records, err := q.backend.drain(ctx, q.name)
 	if err != nil {
 		q.setUnreachable()
 		return nil, fmt.Errorf("queue(%s) drain: %w", q.backendName, err)
@@ -120,7 +120,7 @@ func (q *durableMessageQueue) Drain(ctx context.Context) ([]convdomain.QueuedMes
 
 // Dequeue removes and returns the head message, or nil when the queue is empty.
 func (q *durableMessageQueue) Dequeue(ctx context.Context) (*convdomain.QueuedMessage, error) {
-	record, err := q.backend.dequeue(ctx, q.name())
+	record, err := q.backend.dequeue(ctx, q.name)
 	if err != nil {
 		q.setUnreachable()
 		return nil, fmt.Errorf("queue(%s) dequeue: %w", q.backendName, err)
@@ -140,7 +140,7 @@ func (q *durableMessageQueue) Dequeue(ctx context.Context) (*convdomain.QueuedMe
 
 // Clear removes all messages from the backend queue.
 func (q *durableMessageQueue) Clear(ctx context.Context) error {
-	if err := q.backend.clear(ctx, q.name()); err != nil {
+	if err := q.backend.clear(ctx, q.name); err != nil {
 		q.setUnreachable()
 		return fmt.Errorf("queue(%s) clear: %w", q.backendName, err)
 	}
@@ -237,7 +237,7 @@ func (q *durableMessageQueue) pollOnce() {
 	ctx, cancel := context.WithTimeout(context.Background(), q.interval)
 	defer cancel()
 
-	records, err := q.backend.list(ctx, q.name())
+	records, err := q.backend.list(ctx, q.name)
 	if err != nil {
 		q.setUnreachable()
 		return

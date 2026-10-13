@@ -31,7 +31,7 @@ return entries
 // NewRedisMessageQueue dials the storage.redis connection and returns the
 // Redis-backed queue adapter. Startup fails fast with an error naming the
 // backend when Redis is unreachable.
-func NewRedisMessageQueue(conn storage.RedisConfig, name func() string, interval time.Duration, wake func()) (convdomain.MessageQueue, error) {
+func NewRedisMessageQueue(conn storage.RedisConfig, name string, interval time.Duration, wake func()) (convdomain.MessageQueue, error) {
 	client, err := storage.OpenRedis(conn)
 	if err != nil {
 		return nil, fmt.Errorf("queue backend redis: %w", err)

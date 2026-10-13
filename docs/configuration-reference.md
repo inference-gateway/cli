@@ -992,8 +992,8 @@ entry lists its keys and points at the guide that owns the behaviour.
 - **`context_windows`**: a map of model id to context window in tokens, for models the CLI does not
   know about.
 - **`queue`**: `type` - `memory` (default) or a durable `sqlite`, `postgres` or `redis` queue that reuses
-  the matching `storage.<type>` connection settings; plus `name` (the scope, default the current
-  conversation id) and `poll_interval` (the cross-process look cadence, default `2s`). See
+  the matching `storage.<type>` connection settings; plus `name` (the scope, default the process
+  session id) and `poll_interval` (the cross-process look cadence, default `2s`). See
   [Message Queue](message-queue.md).
 - **`provisioner`**: `provider`, `gpu_type`, `model`, `image`, `cloud_type`, `disk_gb`, `max_hourly`,
   and `runpod` for the management-plane credential. See the [GPU command](commands-reference.md#infer-gpu).
@@ -1372,7 +1372,7 @@ tools:
 
 - `INFER_QUEUE_TYPE`: Message queue backend (`memory` (default), `sqlite`, `postgres` or `redis`). Non-memory backends dial
       with the matching `INFER_STORAGE_*` connection settings. See [Message Queue](message-queue.md)
-- `INFER_QUEUE_NAME`: Queue scope on a durable backend (default: empty, which resolves to the current conversation id)
+- `INFER_QUEUE_NAME`: Queue scope on a durable backend (default: empty, which resolves to the process session id)
 - `INFER_QUEUE_POLL_INTERVAL`: How often a durable backend looks for entries other processes wrote (default: `2s`)
 
 ### Scheduler Configuration

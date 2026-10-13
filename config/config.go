@@ -1095,10 +1095,10 @@ type QueueConfig struct {
 	// Type selects the backend. Empty means the process-local memory queue
 	Type QueueType `yaml:"type,omitempty" mapstructure:"type,omitempty"`
 
-	// Name scopes the queue on a durable backend. Empty means the current
-	// conversation ID: a resumed conversation gets its pending queue back and
-	// two local sessions never take each other's typed messages. A set name
-	// shares one queue across workers
+	// Name scopes the queue on a durable backend. Empty means this process's
+	// session ID, resolved once at startup, so two local sessions never take
+	// each other's typed messages. A set name is stable across restarts and
+	// shares one queue across workers and external producers
 	Name string `yaml:"name,omitempty" mapstructure:"name,omitempty"`
 
 	// PollInterval is how often a durable backend looks for entries pushed by

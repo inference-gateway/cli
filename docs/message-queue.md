@@ -50,11 +50,12 @@ Environment overrides follow the usual scheme:
 
 ## Scoping
 
-`queue.name` scopes the queue. Empty means the current conversation ID: a
-resumed conversation gets its pending queue back and two local sessions never
-take each other's typed messages. Before a conversation exists the process
-session ID is used. An explicit `queue.name` shares one queue across workers -
-set the same name for every process that should consume the work.
+`queue.name` scopes the queue. It is resolved once at startup and never changes
+while infer runs. Empty means this process's session ID, so two local sessions
+never take each other's typed messages - but a new session is a new scope, so
+nothing carries over a restart. Set an explicit `queue.name` for anything that
+should outlive the process or be fed from outside: the same name on every
+process that should consume the work, and on every external producer.
 
 ## Cross-process wake-up
 

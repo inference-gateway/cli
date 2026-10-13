@@ -25,7 +25,7 @@ type sqlQueueBackend struct {
 // NewSQLiteMessageQueue opens the storage.sqlite database, applies the schema
 // migrations and returns the durable queue adapter. Startup fails fast with an
 // error naming the backend when the database file is unusable.
-func NewSQLiteMessageQueue(sqliteConn storage.SQLiteConfig, name func() string, interval time.Duration, wake func()) (convdomain.MessageQueue, error) {
+func NewSQLiteMessageQueue(sqliteConn storage.SQLiteConfig, name string, interval time.Duration, wake func()) (convdomain.MessageQueue, error) {
 	db, err := storage.OpenSQLite(sqliteConn.Path)
 	if err != nil {
 		return nil, fmt.Errorf("queue backend sqlite: %w", err)
@@ -42,7 +42,7 @@ func NewSQLiteMessageQueue(sqliteConn storage.SQLiteConfig, name func() string, 
 // NewPostgresMessageQueue dials the storage.postgres connection, applies the
 // schema migrations and returns the durable queue adapter. Startup fails fast
 // with an error naming the backend when PostgreSQL is unreachable.
-func NewPostgresMessageQueue(pgConn storage.PostgresConfig, name func() string, interval time.Duration, wake func()) (convdomain.MessageQueue, error) {
+func NewPostgresMessageQueue(pgConn storage.PostgresConfig, name string, interval time.Duration, wake func()) (convdomain.MessageQueue, error) {
 	db, err := storage.OpenPostgres(pgConn)
 	if err != nil {
 		return nil, fmt.Errorf("queue backend postgres: %w", err)

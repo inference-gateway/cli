@@ -27,7 +27,7 @@ func TestPostgresMessageQueue_Conformance(t *testing.T) {
 
 	newQueue := func(t *testing.T) convdomain.MessageQueue {
 		return newScopedTestQueue(t, prefix, func(scope string) (convdomain.MessageQueue, error) {
-			return NewPostgresMessageQueue(cfg, func() string { return scope }, time.Hour, func() {})
+			return NewPostgresMessageQueue(cfg, scope, time.Hour, func() {})
 		})
 	}
 
