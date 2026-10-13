@@ -59,7 +59,10 @@ share exactly this queue.
 A producer writes one JSON record with `role`, `content`, `source`,
 `request_id` and `queued_at`; the field reference is
 [../../docs/message-queue.md](../../docs/message-queue.md#feeding-the-queue-from-outside-infer).
-One command per backend, with `queue.name: infer-shared` as above:
+One command per backend, with `queue.name: infer-shared` as above. The SQL
+table is created by infer's schema migration the first time it opens that
+backend, so start `infer chat` once with the queue configured before the
+`postgres` or `sqlite` insert:
 
 ```bash
 # redis - one list per queue scope, consume from the head

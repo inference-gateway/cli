@@ -122,13 +122,28 @@ func TestDurableQueue_RenderReadsStayLocal(t *testing.T) {
 	assert.Equal(t, 1, q.Size())
 	assert.False(t, q.IsEmpty())
 	assert.Len(t, q.GetAll(), 1)
-	assert.Zero(t, backend.lists.Load(), "render reads must not reach the backend")
+	assert.Equal(t, int32(1), backend.lists.Load(), "only the startup prime reaches the backend")
 
 	q.pollOnce()
-	assert.Equal(t, int32(1), backend.lists.Load(), "polling lists once")
+	assert.Equal(t, int32(2), backend.lists.Load(), "polling lists once")
 
 	assert.Equal(t, 1, q.Size())
-	assert.Equal(t, int32(1), backend.lists.Load())
+	assert.Equal(t, int32(2), backend.lists.Load())
+}
+
+func TestDurableQueue_PrimesSnapshotAtStartupAndWakesOnce(t *testing.T) {
+	backend := &stubQueueBackend{}
+	backend.injectRemote(queuedRecord{Role: "user", Content: []byte(`"waiting"`), Source: "a2a", RequestID: "pre"})
+	q, wakeCalls := newTestDurableQueue(t, backend)
+
+	assert.Equal(t, 1, q.Size(), "work already on the backend is visible before the first poll")
+	assert.False(t, q.IsEmpty())
+
+	q.pollOnce()
+	assert.Equal(t, int32(1), wakeCalls.Load(), "the first poll wakes the agent for pre-existing work")
+
+	q.pollOnce()
+	assert.Equal(t, int32(1), wakeCalls.Load(), "an unchanged queue does not wake again")
 }
 
 func TestDurableQueue_PollSyncsSnapshotAndWakes(t *testing.T) {

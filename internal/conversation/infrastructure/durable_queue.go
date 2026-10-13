@@ -60,9 +60,12 @@ type durableMessageQueue struct {
 	mu          sync.RWMutex
 	snapshot    []convdomain.QueuedMessage
 	unreachable bool
+	announced   bool
 }
 
-// newDurableMessageQueue assembles the wrapper and starts its poller.
+// newDurableMessageQueue assembles the wrapper, primes the snapshot so work
+// already waiting on the backend is visible from the first turn, and starts
+// the poller.
 func newDurableMessageQueue(backendName string, backend queueBackend, name string, interval time.Duration, wake func()) *durableMessageQueue {
 	q := &durableMessageQueue{
 		backendName: backendName,
@@ -73,8 +76,22 @@ func newDurableMessageQueue(backendName string, backend queueBackend, name strin
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
 	}
+	q.primeSnapshot()
 	go q.pollLoop()
 	return q
+}
+
+// primeSnapshot loads what the backend already holds at startup. A non-empty
+// queue stays unannounced so the first poll tick wakes the agent for it.
+func (q *durableMessageQueue) primeSnapshot() {
+	synced, ok := q.fetchSnapshot()
+	if !ok {
+		return
+	}
+	q.mu.Lock()
+	q.snapshot = synced
+	q.announced = len(synced) == 0
+	q.mu.Unlock()
 }
 
 // Stop ends the poller. Production runs never need it - the goroutine dies with
@@ -229,31 +246,40 @@ func (q *durableMessageQueue) pollLoop() {
 	}
 }
 
-// pollOnce syncs the snapshot from the backend and wakes the idle agent when a
-// remote producer pushed new entries. Decode failures of single records are
-// ignored here so one malformed payload written by a producer cannot flip the
-// backend into unreachable or wake-storm the agent.
+// pollOnce syncs the snapshot from the backend and wakes the idle agent when
+// entries appeared that it has not been told about: ones a remote producer
+// pushed since the last tick, or ones already waiting when the queue opened.
 func (q *durableMessageQueue) pollOnce() {
+	synced, ok := q.fetchSnapshot()
+	if !ok {
+		return
+	}
+
+	q.mu.Lock()
+	unchanged := q.announced && sameQueueContent(synced, q.snapshot)
+	q.snapshot = synced
+	q.announced = true
+	q.mu.Unlock()
+	if unchanged || len(synced) == 0 || q.wake == nil {
+		return
+	}
+	q.wake()
+}
+
+// fetchSnapshot lists the backend queue and tracks reachability. Malformed
+// records are skipped so one bad payload cannot flip the backend into
+// unreachable or wake-storm the agent.
+func (q *durableMessageQueue) fetchSnapshot() ([]convdomain.QueuedMessage, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), q.interval)
 	defer cancel()
 
 	records, err := q.backend.list(ctx, q.name)
 	if err != nil {
 		q.setUnreachable()
-		return
+		return nil, false
 	}
 	q.clearUnreachable()
-
-	synced := toQueuedMessages(records)
-
-	q.mu.Lock()
-	unchanged := sameQueueContent(synced, q.snapshot)
-	q.snapshot = synced
-	q.mu.Unlock()
-	if unchanged || len(synced) == 0 || q.wake == nil {
-		return
-	}
-	q.wake()
+	return toQueuedMessages(records), true
 }
 
 // toRecord converts a domain message into its stored wire format.
