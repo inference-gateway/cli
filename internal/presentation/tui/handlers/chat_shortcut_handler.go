@@ -12,12 +12,25 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	gitdiff "github.com/inference-gateway/cli/internal/presentation/tui/gitdiff"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
+
+// clearMessageQueue empties the queue under the update-loop timeout
+func (s *ChatShortcutHandler) clearMessageQueue() {
+	if s.handler.messageQueue == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.QueueCallTimeout)
+	defer cancel()
+	if err := s.handler.messageQueue.Clear(ctx); err != nil {
+		logger.Warn("failed to clear the message queue", "error", err)
+	}
+}
 
 // ChatShortcutHandler handles shortcut execution and side effects
 type ChatShortcutHandler struct {
@@ -51,11 +64,7 @@ func (s *ChatShortcutHandler) executeShortcut(
 				}
 			}
 
-			if s.handler.messageQueue != nil {
-				if err := s.handler.messageQueue.Clear(context.Background()); err != nil {
-					logger.Warn("failed to clear the message queue", "error", err)
-				}
-			}
+			s.clearMessageQueue()
 
 			s.handler.stateManager.SetTodos([]agentdomain.TodoItem{})
 
@@ -325,11 +334,7 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 		}
 	}
 
-	if s.handler.messageQueue != nil {
-		if err := s.handler.messageQueue.Clear(context.Background()); err != nil {
-			logger.Warn("failed to clear the message queue", "error", err)
-		}
-	}
+	s.clearMessageQueue()
 
 	return tea.Batch(
 		func() tea.Msg {

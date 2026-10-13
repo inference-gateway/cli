@@ -172,6 +172,22 @@ func TestDurableQueue_PollIgnoresMalformedRecords(t *testing.T) {
 	assert.Equal(t, "good", all[0].RequestID)
 }
 
+func TestDurableQueue_DrainKeepsDecodableRecordsNextToMalformedOnes(t *testing.T) {
+	backend := &stubQueueBackend{}
+	q, _ := newTestDurableQueue(t, backend)
+	backend.injectRemote(
+		queuedRecord{Role: "user", Content: []byte("not-json"), Source: "a2a", RequestID: "bad"},
+		queuedRecord{Role: "user", Content: []byte(`"hello"`), Source: "a2a", RequestID: "good"},
+	)
+
+	drained, err := q.Drain(context.Background())
+
+	require.NoError(t, err, "a malformed record is skipped, never reported as a drain failure")
+	require.Len(t, drained, 1)
+	assert.Equal(t, "good", drained[0].RequestID)
+	assert.False(t, q.Unreachable())
+}
+
 func TestDurableQueue_BackendFailureMarksUnreachableAndRecovers(t *testing.T) {
 	backend := &stubQueueBackend{}
 	q, _ := newTestDurableQueue(t, backend)

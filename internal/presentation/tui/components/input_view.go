@@ -842,13 +842,15 @@ func (iv *InputView) IsNavigatingHistory() bool {
 // than consumed.
 func (iv *InputView) navigateHistoryUp() {
 	if mq := iv.messageQueue; mq != nil && !mq.IsEmpty() {
-		if qm, derr := mq.Dequeue(context.Background()); derr == nil && qm != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), constants.QueueCallTimeout)
+		defer cancel()
+		if qm, derr := mq.Dequeue(ctx); derr == nil && qm != nil {
 			if content, cerr := qm.Message.Content.AsMessageContent0(); cerr == nil && content != "" && qm.Source == convdomain.QueueSourceComposer {
 				iv.SetText(content)
 				iv.SetCursor(len(content))
 				return
 			}
-			_ = mq.Enqueue(context.Background(), qm.Message, qm.Source, qm.RequestID)
+			_ = mq.Enqueue(ctx, qm.Message, qm.Source, qm.RequestID)
 		}
 	}
 	newText := iv.historyManager.NavigateUp(iv.ta.Value())

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
 // queuedRecord is the wire format every durable backend stores: role, content,
@@ -114,9 +114,8 @@ func (q *durableMessageQueue) Drain(ctx context.Context) ([]convdomain.QueuedMes
 	}
 	q.clearUnreachable()
 
-	queued, decodeErr := toQueuedMessages(records)
 	q.resetSnapshot()
-	return queued, decodeErr
+	return toQueuedMessages(records), nil
 }
 
 // Dequeue removes and returns the head message, or nil when the queue is empty.
@@ -245,7 +244,7 @@ func (q *durableMessageQueue) pollOnce() {
 	}
 	q.clearUnreachable()
 
-	synced, _ := toQueuedMessages(records)
+	synced := toQueuedMessages(records)
 
 	q.mu.Lock()
 	unchanged := sameQueueContent(synced, q.snapshot)
@@ -308,22 +307,22 @@ func decodeContent(raw json.RawMessage) (sdk.MessageContent, error) {
 	return content, nil
 }
 
-// toQueuedMessages decodes every record oldest first, dropping malformed
-// entries so one bad payload cannot wedge a drain or the poller.
-func toQueuedMessages(records []queuedRecord) ([]convdomain.QueuedMessage, error) {
+// toQueuedMessages decodes every record oldest first. A malformed entry is
+// logged and skipped: the records are already taken off the backend, so a
+// decode error must never cost the well-formed messages next to it.
+func toQueuedMessages(records []queuedRecord) []convdomain.QueuedMessage {
 	slices.SortStableFunc(records, func(a, b queuedRecord) int { return cmp.Compare(a.Seq, b.Seq) })
 
 	queued := make([]convdomain.QueuedMessage, 0, len(records))
-	var decodeErrs []error
 	for _, record := range records {
 		entry, err := record.toQueued()
 		if err != nil {
-			decodeErrs = append(decodeErrs, err)
+			logger.Warn("skipping a malformed queued record", "error", err)
 			continue
 		}
 		queued = append(queued, entry)
 	}
-	return queued, errors.Join(decodeErrs...)
+	return queued
 }
 
 // sameQueueContent cheaply tells whether a fresh backend snapshot matches the

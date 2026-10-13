@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
@@ -408,7 +409,9 @@ func (p *ChatMessageProcessor) processChatMessage(
 
 	if p.handler.stateManager.IsAgentBusy() {
 		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
-		if err := p.handler.messageQueue.Enqueue(context.Background(), message, convdomain.QueueSourceComposer, requestID); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), constants.QueueCallTimeout)
+		defer cancel()
+		if err := p.handler.messageQueue.Enqueue(ctx, message, convdomain.QueueSourceComposer, requestID); err != nil {
 			logger.Error("chat: failed to queue the message", "error", err)
 			return func() tea.Msg {
 				return tui.ShowErrorEvent{

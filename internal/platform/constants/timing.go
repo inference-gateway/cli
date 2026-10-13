@@ -24,6 +24,11 @@ const (
 	JobRunningLongThreshold = 5 * time.Minute
 )
 
+// QueueCallTimeout bounds a message queue call made on the TUI update loop,
+// so a hung durable backend (sqlite busy wait, dead postgres socket) cannot
+// freeze the interface
+const QueueCallTimeout = 2 * time.Second
+
 // GitCommandTimeout bounds ad-hoc git shells (branch lookups, log, rev-parse)
 // so a wedged git process can't hang the UI or system-prompt build.
 const GitCommandTimeout = 10 * time.Second
