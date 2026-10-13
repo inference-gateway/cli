@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -50,6 +51,7 @@ type Config struct {
 	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
 	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
+	Queue            QueueConfig            `yaml:"queue" mapstructure:"queue"`
 	Scheduler        SchedulerConfig        `yaml:"scheduler" mapstructure:"scheduler"`
 	Telemetry        TelemetryConfig        `yaml:"telemetry" mapstructure:"telemetry"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
@@ -1060,6 +1062,58 @@ type D1StorageConfig struct {
 	BaseURL    string `yaml:"base_url,omitempty" mapstructure:"base_url,omitempty"`
 }
 
+// QueueType selects the message queue backend
+type QueueType string
+
+// Queue backends. The memory queue is the process-local default, the others
+// keep queued work across restarts and can share one queue across processes.
+const (
+	QueueTypeMemory   QueueType = "memory"
+	QueueTypeSQLite   QueueType = "sqlite"
+	QueueTypePostgres QueueType = "postgres"
+	QueueTypeRedis    QueueType = "redis"
+)
+
+// DefaultQueuePollInterval is the cross-process wake-up cadence for non-memory backends
+const DefaultQueuePollInterval = "2s"
+
+var defaultQueuePollInterval = mustParseDuration(DefaultQueuePollInterval)
+
+func mustParseDuration(value string) time.Duration {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
+// QueueConfig configures the message queue. Type is deliberately separate from
+// storage.type: the storage default jsonl is not a queue backend and following
+// storage would silently make the default queue durable. The sqlite, postgres
+// and redis backends dial with the matching storage.<type> connection settings.
+type QueueConfig struct {
+	// Type selects the backend. Empty means the process-local memory queue
+	Type QueueType `yaml:"type,omitempty" mapstructure:"type,omitempty"`
+
+	// Name scopes the queue on a durable backend. Empty means this process's
+	// session ID, resolved once at startup, so two local sessions never take
+	// each other's typed messages. A set name is stable across restarts and
+	// shares one queue across workers and external producers
+	Name string `yaml:"name,omitempty" mapstructure:"name,omitempty"`
+
+	// PollInterval is how often a durable backend looks for entries pushed by
+	// other processes, e.g. "2s". Memory ignores it
+	PollInterval string `yaml:"poll_interval,omitempty" mapstructure:"poll_interval,omitempty"`
+}
+
+// ResolvePollInterval parses poll_interval, defaulting to DefaultQueuePollInterval
+func (q QueueConfig) ResolvePollInterval() time.Duration {
+	if d, err := time.ParseDuration(q.PollInterval); err == nil && d > 0 {
+		return d
+	}
+	return defaultQueuePollInterval
+}
+
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
 	StatusPollSeconds       int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
@@ -1242,6 +1296,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				APIToken:   "",
 				BaseURL:    "https://api.cloudflare.com/client/v4",
 			},
+		},
+		Queue: QueueConfig{
+			Type:         QueueTypeMemory,
+			PollInterval: DefaultQueuePollInterval,
 		},
 		Scheduler: SchedulerConfig{
 			Backend: SchedulerBackendLocal,
@@ -1510,6 +1568,32 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	}
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("invalid hooks: %w", err)
+	}
+
+	return c.Queue.validate()
+}
+
+// validate checks the queue block: the backend must be one of the supported
+// queue types and the poll interval, when set, must be a positive duration
+func (q QueueConfig) validate() error {
+	switch q.Type {
+	case "", QueueTypeMemory, QueueTypeSQLite, QueueTypePostgres, QueueTypeRedis:
+	default:
+		return fmt.Errorf(
+			"invalid queue.type %q: supported types are %q, %q, %q and %q",
+			q.Type,
+			QueueTypeMemory, QueueTypeSQLite, QueueTypePostgres, QueueTypeRedis,
+		)
+	}
+
+	if q.PollInterval != "" {
+		if d, err := time.ParseDuration(q.PollInterval); err != nil || d <= 0 {
+			return fmt.Errorf(
+				"invalid queue.poll_interval %q: must be a positive duration, e.g. %q",
+				q.PollInterval,
+				DefaultQueuePollInterval,
+			)
+		}
 	}
 	return nil
 }

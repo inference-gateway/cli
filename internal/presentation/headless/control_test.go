@@ -77,7 +77,7 @@ func TestHeadlessControl_RunInputMessages(t *testing.T) {
 	if queue.EnqueueCallCount() != 1 {
 		t.Fatalf("run input enqueue calls = %d, want 1", queue.EnqueueCallCount())
 	}
-	msg, source, reqID := queue.EnqueueArgsForCall(0)
+	_, msg, source, reqID := queue.EnqueueArgsForCall(0)
 	if source != convdomain.QueueSourceStdin || reqID != ipc.UserMessageRequestID || msg.Role != sdk.User {
 		t.Fatalf("enqueued (%+v, %q, %q), want user role tagged %q", msg, source, reqID, ipc.UserMessageRequestID)
 	}
@@ -91,7 +91,7 @@ func TestHeadlessControl_RunInputMessages(t *testing.T) {
 	if queue.EnqueueCallCount() != 2 {
 		t.Fatalf("the continue run enqueue calls = %d, want 2", queue.EnqueueCallCount())
 	}
-	continueMsg, _, _ := queue.EnqueueArgsForCall(1)
+	_, continueMsg, _, _ := queue.EnqueueArgsForCall(1)
 	text, _ := continueMsg.Content.AsMessageContent0()
 	if text != continuePrompt {
 		t.Fatalf("continue run enqueue = %q, want the continue prompt", text)
@@ -337,7 +337,7 @@ func TestHeadlessControl_RunInputAttachments(t *testing.T) {
 	if queue.EnqueueCallCount() != 1 {
 		t.Fatalf("enqueue calls = %d, want 1", queue.EnqueueCallCount())
 	}
-	msg, _, _ := queue.EnqueueArgsForCall(0)
+	_, msg, _, _ := queue.EnqueueArgsForCall(0)
 	parts, err := msg.Content.AsMessageContent1()
 	if err != nil || len(parts) != 2 {
 		t.Fatalf("expected a text part and an image part, got %d parts (%v)", len(parts), err)

@@ -18,6 +18,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
@@ -374,7 +375,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 
-	messageQueue := conversation.NewMessageQueueService()
+	messageQueue := convinfra.NewMessageQueueService()
 
 	handler := NewChatHandler(
 		nil,
@@ -670,7 +671,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*agentdomainmocks.FakeAg
 
 	conversationRepo := conversation.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
-	messageQueue := conversation.NewMessageQueueService()
+	messageQueue := convinfra.NewMessageQueueService()
 
 	nonNilCmd := func() tea.Msg { return nil }
 	fakeRunner := &tuimocks.FakeChatCompletionRunner{}

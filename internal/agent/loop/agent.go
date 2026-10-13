@@ -548,6 +548,7 @@ func (s *Agent) ensureConversationIntegrity(
 // batchDrainQueue drains all queued messages and adds them to conversation
 // Returns the number of messages drained
 func (s *Agent) batchDrainQueue(
+	ctx context.Context,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 ) int {
@@ -555,13 +556,10 @@ func (s *Agent) batchDrainQueue(
 		return 0
 	}
 
-	messages := []convdomain.QueuedMessage{}
-
-	for !s.messageQueue.IsEmpty() {
-		msg := s.messageQueue.Dequeue()
-		if msg != nil {
-			messages = append(messages, *msg)
-		}
+	messages, err := s.messageQueue.Drain(ctx)
+	if err != nil {
+		logger.Error("failed to drain the message queue", "error", err)
+		return 0
 	}
 
 	if len(messages) == 0 {

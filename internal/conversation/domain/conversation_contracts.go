@@ -178,28 +178,42 @@ type ModelService interface {
 	ValidateModel(modelID string) error
 }
 
-// MessageQueue handles centralized message queuing for all components
+// MessageQueue is the message queue port. The in-memory adapter is the
+// process-local default, the durable adapters (sqlite, postgres, redis) keep
+// the queue across restarts and may share one queue with other infer
+// processes.
 type MessageQueue interface {
-	// Enqueue adds a message to the queue, tagged with where it came from
-	Enqueue(message sdk.Message, source QueuedMessageSource, requestID string)
+	// Enqueue appends a message to the tail of the queue, tagged with where
+	// it came from.
+	Enqueue(ctx context.Context, message sdk.Message, source QueuedMessageSource, requestID string) error
 
-	// Dequeue removes and returns the next message from the queue
-	// Returns nil if the queue is empty
-	Dequeue() *QueuedMessage
+	// Drain atomically removes and returns every queued message, oldest
+	// first. On a shared backend two processes never receive the same message.
+	Drain(ctx context.Context) ([]QueuedMessage, error)
 
-	// Peek returns the next message without removing it
-	// Returns nil if the queue is empty
-	Peek() *QueuedMessage
+	// Dequeue removes and returns the head message, or returns nil when the
+	// queue is empty.
+	Dequeue(ctx context.Context) (*QueuedMessage, error)
 
-	// Size returns the number of messages in the queue
+	// Clear removes all messages from the queue.
+	Clear(ctx context.Context) error
+
+	// Size returns the number of messages in the queue. Render-path read: a
+	// durable backend answers from its local snapshot without a round trip.
 	Size() int
 
-	// IsEmpty returns true if the queue has no messages
+	// IsEmpty returns true when the queue holds no messages. Render-path read.
 	IsEmpty() bool
 
-	// Clear removes all messages from the queue
-	Clear()
-
-	// GetAll returns all messages in the queue without removing them
+	// GetAll returns a copy of the queued messages, oldest first, without
+	// removing them. Render-path read.
 	GetAll() []QueuedMessage
+
+	// BackendName names the active backend ("memory", "sqlite", "postgres",
+	// "redis") for the status bar indicator.
+	BackendName() string
+
+	// Unreachable reports whether the backend failed its latest operation. A
+	// render-path read over the persisted failure state, never a live probe.
+	Unreachable() bool
 }

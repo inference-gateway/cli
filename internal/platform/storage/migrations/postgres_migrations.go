@@ -5,6 +5,8 @@ package migrations
 // embedded JSON messages) so both dialects share the same SQL core; only the
 // column types differ. JSON columns are TEXT: the app marshals JSON itself -
 // switch to JSONB only if server-side JSON querying is ever needed.
+//
+//nolint:funlen // the migration set is one data table
 func GetPostgresMigrations() []Migration {
 	return []Migration{
 		{
@@ -143,6 +145,27 @@ func GetPostgresMigrations() []Migration {
 			`,
 			DownSQL: `
 				ALTER TABLE conversations DROP COLUMN active_duration_ms;
+			`,
+		},
+		{
+			Version:     "009",
+			Description: "Message queue table for durable queue backends",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS message_queue (
+                    id         BIGSERIAL PRIMARY KEY,
+                    queue_name TEXT NOT NULL,
+                    role       TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    source     TEXT NOT NULL,
+                    request_id TEXT NOT NULL DEFAULT '',
+                    queued_at  TIMESTAMP WITH TIME ZONE NOT NULL
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_message_queue_name ON message_queue(queue_name, id);
+			`,
+			DownSQL: `
+				DROP INDEX IF EXISTS idx_message_queue_name;
+				DROP TABLE IF EXISTS message_queue;
 			`,
 		},
 	}

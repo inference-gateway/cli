@@ -1092,13 +1092,20 @@ func (s *Agent) validateRequest(req *agentdomain.AgentRequest) error {
 	if req.RequestID == "" {
 		return fmt.Errorf("no request ID provided")
 	}
-	if len(req.Messages) == 0 {
+	if len(req.Messages) == 0 && !s.canStartFromQueue(req.IsChatMode) {
 		return fmt.Errorf("no messages provided")
 	}
 	if req.Model == "" {
 		return fmt.Errorf("no model specified")
 	}
 	return nil
+}
+
+// canStartFromQueue reports whether a chat turn may start with an empty
+// conversation: the queue poller wakes an idle agent and the CheckingQueue
+// state drains the queued work before the first LLM call.
+func (s *Agent) canStartFromQueue(isChatMode bool) bool {
+	return isChatMode && s.messageQueue != nil && !s.messageQueue.IsEmpty()
 }
 
 // parseProvider parses provider and model name from model string.

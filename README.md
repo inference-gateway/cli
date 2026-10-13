@@ -80,6 +80,7 @@ One line per feature, each linking to its full guide:
 - **Conversation history** - multiple storage backends - [Conversation Storage](docs/conversation-storage.md)
 - **Conversation versioning** - navigate back in time to a previous point - [Conversation Versioning](docs/conversation-versioning.md)
 - **Conversation titles** - AI-generated session titles - [Conversation Title Generation](docs/conversation-title-generation.md)
+- **Configurable message queue** - durable backends (sqlite, postgres, redis) that survive restarts and share work across processes - [Message Queue](docs/message-queue.md)
 - **Configuration** - two-layer YAML plus `INFER_*` environment overrides - [Configuration Reference](docs/configuration-reference.md)
 - **Directory structure** - what the CLI writes where, userspace and project side by side - [Directory Structure](docs/directory-structure.md)
 - **Configurable keybindings and themes** - [Configuration Reference](docs/configuration-reference.md#keybinding-configuration)

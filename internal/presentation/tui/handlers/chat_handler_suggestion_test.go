@@ -68,7 +68,7 @@ func TestChatHandler_shouldArmSuggestionTimer(t *testing.T) {
 			h.suggestions = tt.runner
 			h.suggestionGate = &suggestionGateFake{allow: true}
 			if tt.enqueue {
-				h.messageQueue.Enqueue(sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("queued")}, convdomain.QueueSourceComposer, "request")
+				_ = h.messageQueue.Enqueue(context.Background(), sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("queued")}, convdomain.QueueSourceComposer, "request")
 			}
 
 			assert.Equal(t, tt.want, h.shouldArmSuggestionTimer(tt.complete))

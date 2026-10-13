@@ -1,6 +1,7 @@
 package container
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	daemon "github.com/inference-gateway/cli/internal/daemon"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	githubissues "github.com/inference-gateway/cli/internal/github/issues"
@@ -422,9 +424,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.musicService = agentinfra.NewMusicService(c.config, c.createRawSDKClient())
 	c.sfxService = agentinfra.NewSFXService(c.config, c.createRawSDKClient())
 	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient())
-	c.messageQueue = conversation.NewMessageQueueService()
 
 	c.initializeMCPSupervisor()
+
+	c.initializeMessageQueue()
 
 	c.ensureBackgroundTaskRegistry()
 	c.memoryBackend = memory.NewMemoryBackend(c.config)
@@ -610,6 +613,70 @@ func (c *ServiceContainer) handleStorageInitFailure(
 
 	logger.Warn("using in-memory conversation storage (conversations will not be persisted)")
 	c.conversationRepo = conversation.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
+}
+
+// initializeMessageQueue picks the message queue backend for queue.type. The
+// memory default (also when the block is omitted) is the process-local queue
+// exactly as before. sqlite, postgres and redis dial with their matching
+// storage.<type> connection settings so queued work survives a restart and
+// can be shared by several infer processes; a backend that fails to open
+// aborts startup instead of silently falling back to memory.
+func (c *ServiceContainer) initializeMessageQueue() {
+	backend := c.config.Queue.Type
+	if backend == "" {
+		backend = config.QueueTypeMemory
+	}
+
+	if backend == config.QueueTypeMemory {
+		c.messageQueue = convinfra.NewMessageQueueService()
+		return
+	}
+
+	queue, err := c.newDurableQueue(backend)
+	if err != nil {
+		logger.Error("message queue backend is not available", "error", err, "type", string(backend))
+		panic(fmt.Sprintf("failed to initialize message queue backend %q: %v\n\nTo use the default in-memory queue instead, set:\n  queue.type: memory", backend, err))
+	}
+	c.messageQueue = queue
+}
+
+// newDurableQueue builds the sqlite, postgres or redis adapter, reusing the
+// matching storage.<type> connection settings so the queue never grows a
+// second host/port/password block. The scope is resolved once: the explicit
+// queue.name, else this process's session ID, so it never drifts mid-run.
+func (c *ServiceContainer) newDurableQueue(backend config.QueueType) (convdomain.MessageQueue, error) {
+	name := cmp.Or(c.config.Queue.Name, string(c.sessionID))
+	interval := c.config.Queue.ResolvePollInterval()
+	wake := func() { c.uiNotifier.Notify(agentdomain.DrainQueueEvent{}) }
+
+	switch backend {
+	case config.QueueTypeSQLite:
+		path := c.config.Storage.SQLite.Path
+		if path == "" {
+			path = storage.DefaultSQLitePath()
+		}
+		return convinfra.NewSQLiteMessageQueue(storage.SQLiteConfig{Path: path}, name, interval, wake)
+	case config.QueueTypePostgres:
+		pg := c.config.Storage.Postgres
+		return convinfra.NewPostgresMessageQueue(storage.PostgresConfig{
+			Host:     pg.Host,
+			Port:     pg.Port,
+			Database: pg.Database,
+			Username: pg.Username,
+			Password: pg.Password,
+			SSLMode:  pg.SSLMode,
+		}, name, interval, wake)
+	case config.QueueTypeRedis:
+		conn := c.config.Storage.Redis
+		return convinfra.NewRedisMessageQueue(storage.RedisConfig{
+			Host:     conn.Host,
+			Port:     conn.Port,
+			Password: conn.Password,
+			Database: conn.DB,
+		}, name, interval, wake)
+	default:
+		return nil, fmt.Errorf("unsupported queue backend: %s", backend)
+	}
 }
 
 // initializeStateManager creates the state manager before domain services need it

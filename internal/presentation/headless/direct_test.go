@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
@@ -31,29 +32,29 @@ func TestIsBashTask(t *testing.T) {
 }
 
 func TestQueuedDirectCall(t *testing.T) {
-	queue := conversation.NewMessageQueueService()
-	if _, direct, _ := queuedDirectCall(queue); direct {
-		t.Fatal("an empty queue is no direct task")
+	queued := func(texts ...string) []convdomain.QueuedMessage {
+		turn := make([]convdomain.QueuedMessage, 0, len(texts))
+		for _, text := range texts {
+			turn = append(turn, convdomain.QueuedMessage{Message: userMessageText(text)})
+		}
+		return turn
 	}
 
-	queue.Enqueue(userMessageText("!echo hi"), "", "")
-	fn, direct, err := queuedDirectCall(queue)
+	if _, direct, _ := queuedDirectCall(nil); direct {
+		t.Fatal("an empty turn is no direct task")
+	}
+
+	fn, direct, err := queuedDirectCall(queued("!echo hi"))
 	if !direct || err != nil || fn.Name != "Bash" || fn.Arguments != `{"command":"echo hi"}` {
 		t.Fatalf("one !cmd message: direct=%v err=%v fn=%+v", direct, err, fn)
 	}
-	if queue.Size() != 0 {
-		t.Fatal("the direct task stays queued")
-	}
 
-	queue.Enqueue(userMessageText("!!Read"), "", "")
-	if _, direct, err := queuedDirectCall(queue); !direct || err == nil {
+	if _, direct, err := queuedDirectCall(queued("!!Read")); !direct || err == nil {
 		t.Fatalf("a malformed tool call is a direct task with an error: direct=%v err=%v", direct, err)
 	}
 
-	queue.Enqueue(userMessageText("!ls"), "", "")
-	queue.Enqueue(userMessageText("and explain"), "", "")
-	if _, direct, _ := queuedDirectCall(queue); direct || queue.Size() != 2 {
-		t.Fatal("a turn of several messages goes to the agent untouched")
+	if _, direct, _ := queuedDirectCall(queued("!ls", "and explain")); direct {
+		t.Fatal("a turn of several messages goes to the agent")
 	}
 }
 

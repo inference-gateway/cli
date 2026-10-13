@@ -24,6 +24,7 @@ Most examples ship a Docker Compose file:
 | [working-offline](../examples/working-offline/) | Fully offline usage with local models via Ollama or llama.cpp |
 | [gpu-provisioning](../examples/gpu-provisioning/) | Renting an on-demand cloud GPU running llama.cpp via `infer gpu` (RunPod) |
 | [postgres-storage](../examples/postgres-storage/) | Persisting conversations to PostgreSQL |
+| [queue-backends](../examples/queue-backends/) | Every message queue backend (`memory`, `sqlite`, `postgres`, `redis`) plus external producers |
 | [a2a-traces](../examples/a2a-traces/) | End-to-end OpenTelemetry traces between the CLI and an A2A agent |
 | [a2a-gateway](../examples/a2a-gateway/) | Every A2A agent behind the gateway, addressed by tenant, with a mock model and no API key |
 | [a2a-auth](../examples/a2a-auth/) | A2A agents behind a bearer token and behind OIDC with Keycloak, with a mock model and no API key |

@@ -1,6 +1,8 @@
 package migrations
 
 // GetSQLiteMigrations returns all SQLite migrations in order
+//
+//nolint:funlen // the migration set is one data table
 func GetSQLiteMigrations() []Migration {
 	return []Migration{
 		{
@@ -139,6 +141,27 @@ func GetSQLiteMigrations() []Migration {
 			`,
 			DownSQL: `
 				ALTER TABLE conversations DROP COLUMN active_duration_ms;
+			`,
+		},
+		{
+			Version:     "009",
+			Description: "Message queue table for durable queue backends",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS message_queue (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    queue_name TEXT NOT NULL,
+                    role       TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    source     TEXT NOT NULL,
+                    request_id TEXT NOT NULL DEFAULT '',
+                    queued_at  DATETIME NOT NULL
+				);
+
+				CREATE INDEX IF NOT EXISTS idx_message_queue_name ON message_queue(queue_name, id);
+			`,
+			DownSQL: `
+				DROP INDEX IF EXISTS idx_message_queue_name;
+				DROP TABLE IF EXISTS message_queue;
 			`,
 		},
 	}

@@ -507,11 +507,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("queue") {
 		if queuePart := isb.buildQueueIndicator(); queuePart != "" {
-			var color string
-			if isb.styleProvider != nil {
-				color = isb.styleProvider.GetThemeColor("accent")
-			}
-			parts = append(parts, indicatorPart{text: queuePart, color: color})
+			parts = append(parts, indicatorPart{text: queuePart, color: isb.queueIndicatorColor()})
 		}
 	}
 
@@ -961,13 +957,40 @@ func (isb *InputStatusBar) getToolInfo() string {
 	return fmt.Sprintf("Tools: %d (%d)", count, tokens)
 }
 
-// buildQueueIndicator counts the messages waiting in the shared queue while
-// the agent is busy. Empty while the queue is empty.
+// buildQueueIndicator reads the message queue from the local snapshot:
+// memory shows the icon and count and stays hidden while empty, a durable
+// backend is always visible and names the backend so a queue fed by another
+// process stays observable even when it is empty.
 func (isb *InputStatusBar) buildQueueIndicator() string {
-	if isb.messageQueue == nil || isb.messageQueue.IsEmpty() {
+	if isb.messageQueue == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s %d queued", icons.QueueIcon, isb.messageQueue.Size())
+
+	backend := isb.messageQueue.BackendName()
+	size := isb.messageQueue.Size()
+
+	if backend == "" || backend == "memory" {
+		if size == 0 {
+			return ""
+		}
+		return fmt.Sprintf("%s %d queued", icons.QueueIcon, size)
+	}
+	if size == 0 {
+		return backend
+	}
+	return fmt.Sprintf("%s %d queued", backend, size)
+}
+
+// queueIndicatorColor picks the accent color normally and the theme error
+// color while the message queue backend is unreachable.
+func (isb *InputStatusBar) queueIndicatorColor() string {
+	if isb.styleProvider == nil {
+		return ""
+	}
+	if isb.messageQueue.Unreachable() {
+		return isb.styleProvider.GetThemeColor("error")
+	}
+	return isb.styleProvider.GetThemeColor("accent")
 }
 
 // getContextUsageIndicator returns a context usage indicator string.
