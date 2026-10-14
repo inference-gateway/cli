@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // robotBackend is the slice of robotgo's API the controller uses. macOS and
@@ -18,10 +19,10 @@ type robotBackend struct {
 	GetScaleSize  func(displayId ...int) (int, int)
 	CaptureImg    func(args ...int) (image.Image, error)
 	Location      func() (int, int)
-	Move          func(x, y int, displayId ...int)
+	Move          func(x, y int, displayId ...int) error
 	Click         func(args ...any) error
-	ScrollDir     func(x int, direction ...any)
-	Type          func(str string, args ...int)
+	ScrollDir     func(x int, direction ...any) error
+	Type          func(str string, args ...int) int
 	KeyTap        func(key string, args ...any) error
 }
 
@@ -158,8 +159,7 @@ func (c *robotController) MoveMouse(ctx context.Context, x, y int) error {
 			x, y, logicalWidth, logicalHeight)
 	}
 
-	robot.Move(x, y)
-	return nil
+	return robot.Move(x, y)
 }
 
 func (c *robotController) ClickMouse(ctx context.Context, button MouseButton, clicks int) error {
@@ -214,8 +214,7 @@ func (c *robotController) ScrollMouse(ctx context.Context, clicks int, direction
 		}
 	}
 
-	robot.ScrollDir(absAmount, scrollDir)
-	return nil
+	return robot.ScrollDir(absAmount, scrollDir)
 }
 
 func (c *robotController) TypeText(ctx context.Context, text string, delayMs int) error {
@@ -225,11 +224,15 @@ func (c *robotController) TypeText(ctx context.Context, text string, delayMs int
 
 	if delayMs > 0 {
 		for _, char := range text {
-			robot.Type(string(char))
+			if robot.Type(string(char)) < 1 {
+				return fmt.Errorf("failed to type character %q", string(char))
+			}
 			time.Sleep(time.Duration(delayMs) * time.Millisecond)
 		}
-	} else {
-		robot.Type(text)
+		return nil
+	}
+	if typed := robot.Type(text); typed < utf8.RuneCountInString(text) {
+		return fmt.Errorf("typed %d of %d characters", typed, utf8.RuneCountInString(text))
 	}
 	return nil
 }
