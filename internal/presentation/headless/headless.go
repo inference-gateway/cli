@@ -82,6 +82,7 @@ type Options struct {
 	Mode            string
 	Serve           bool
 	KeepAlive       bool
+	PromptOnly      bool
 }
 
 // resolveAgentMode picks the coding mode for a headless run: the --mode flag
@@ -148,7 +149,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	// The notes buffer the local agents' boot progress; the first run the
 	// process opens drains them as its activity entries.
 	notes := newStartupNotes()
-	if agentSupervisor := svc.GetAgentSupervisor(); agentSupervisor != nil && !isBashTask(opts.Task) {
+	if agentSupervisor := svc.GetAgentSupervisor(); agentSupervisor != nil && (!isBashTask(opts.Task) || opts.PromptOnly) {
 		startLocalAgents(agentSupervisor, cfg, opts.Format, notes)
 	}
 
@@ -243,14 +244,20 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		}
 	}
 
-	if direct, derr := runDirect(ctx, opts, svc.GetToolService(), conversationRepo, sessionID, selectedModel, cfg); direct {
-		rendered = true
-		return derr
+	if !opts.PromptOnly {
+		if direct, derr := runDirect(ctx, opts, svc.GetToolService(), conversationRepo, sessionID, selectedModel, cfg); direct {
+			rendered = true
+			return derr
+		}
 	}
 
-	out, handled, err := shortcuts.Run(ctx, svc.GetShortcutRegistry(), opts.Task, deps)
-	if err != nil {
-		return err
+	var out shortcuts.Outcome
+	var handled bool
+	if !opts.PromptOnly {
+		out, handled, err = shortcuts.Run(ctx, svc.GetShortcutRegistry(), opts.Task, deps)
+		if err != nil {
+			return err
+		}
 	}
 
 	task := opts.Task

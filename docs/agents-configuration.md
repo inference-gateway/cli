@@ -31,6 +31,8 @@ agents:
     model: provider/model-name    # Optional: AI model to use (e.g., deepseek/deepseek-v4-pro)
     environment:                  # Optional: Environment variables for the agent
       KEY: VALUE
+    headers:                      # Optional: Extra headers sent with every request to the agent
+      X-Custom-Trace: trace
     auth:                         # Optional: Credentials sent to the agent (see Authentication)
       token_env: AGENT_TOKEN
 ```
@@ -50,6 +52,9 @@ agents:
   When `agent.model` is empty too, no model is passed and the agent starts on its own default.
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
+- **headers**: Extra headers sent on every request to the agent, with `$VAR` and `${VAR}` expanded from
+  the environment when the client is created. An `auth` block also sets `Authorization`, so its
+  credentials win when both are configured.
 - **auth**: Credentials the CLI sends to the agent: a bearer token from an environment variable, a file or a
   command, or an OIDC client-credentials grant. It never holds a secret. See [Authentication](#authentication).
 
@@ -308,6 +313,7 @@ You can use either syntax:
 Environment variable substitution is supported in:
 
 - `environment` values
+- `headers` values
 - `model` field
 - Any string field in the configuration
 

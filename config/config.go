@@ -789,14 +789,15 @@ const DefaultAnthropicEffort = "low"
 
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
-	Enabled               bool           `yaml:"enabled" mapstructure:"enabled"`
-	Agents                []string       `yaml:"agents,omitempty" mapstructure:"agents"`
-	LivenessProbeEnabled  bool           `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
-	LivenessProbeInterval int            `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
-	AgentsReadyTimeoutSec int            `yaml:"agents_ready_timeout_sec" mapstructure:"agents_ready_timeout_sec"`
-	Cache                 A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
-	Task                  A2ATaskConfig  `yaml:"task" mapstructure:"task"`
-	Tools                 A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
+	Enabled               bool            `yaml:"enabled" mapstructure:"enabled"`
+	Agents                []string        `yaml:"agents,omitempty" mapstructure:"agents"`
+	LivenessProbeEnabled  bool            `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
+	LivenessProbeInterval int             `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	AgentsReadyTimeoutSec int             `yaml:"agents_ready_timeout_sec" mapstructure:"agents_ready_timeout_sec"`
+	Server                A2AServerConfig `yaml:"server" mapstructure:"server"`
+	Cache                 A2ACacheConfig  `yaml:"cache" mapstructure:"cache"`
+	Task                  A2ATaskConfig   `yaml:"task" mapstructure:"task"`
+	Tools                 A2AToolsConfig  `yaml:"tools" mapstructure:"tools"`
 }
 
 // A2AToolsConfig contains A2A-specific tool configurations
@@ -804,6 +805,31 @@ type A2AToolsConfig struct {
 	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
 	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
 	SubmitTask SubmitTaskToolConfig `yaml:"submit_task" mapstructure:"submit_task"`
+}
+
+// A2AServerConfig configures the A2A server the `infer daemon` hosts: another
+// agent sends it a task, and the daemon runs it as one `infer headless`
+// subprocess. It is off by default and the daemon refuses to enable it
+// without a bearer token.
+type A2AServerConfig struct {
+	Enabled bool   `yaml:"enabled" mapstructure:"enabled"`
+	Host    string `yaml:"host" mapstructure:"host"`
+	Port    int    `yaml:"port" mapstructure:"port"`
+	Token   string `yaml:"token,omitempty" mapstructure:"token,omitempty"`
+	Mode    string `yaml:"mode" mapstructure:"mode"`
+}
+
+// DefaultA2AServerConfig returns the server defaults: off, loopback-only on
+// port 8090 (the local gateway uses 8080 and agents.yaml's local agents use
+// 8081 to 8086), serving tasks in standard mode. A token is still required
+// before the daemon starts it.
+func DefaultA2AServerConfig() A2AServerConfig {
+	return A2AServerConfig{
+		Enabled: false,
+		Host:    "127.0.0.1",
+		Port:    8090,
+		Mode:    "standard",
+	}
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -1353,6 +1379,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			LivenessProbeEnabled:  true,
 			LivenessProbeInterval: 30,
 			AgentsReadyTimeoutSec: 600,
+			Server:                DefaultA2AServerConfig(),
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,

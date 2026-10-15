@@ -18,6 +18,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	version "github.com/inference-gateway/cli/cmd/version"
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
@@ -29,6 +30,7 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
@@ -55,6 +57,10 @@ enabled in config:
   - binding:    the AG-UI WebSocket binding the opentask extension and the
     desktop app connect to (browser_use.enabled with backend: extension, on
     browser_use.extension.port). Each thread runs in its own session worker
+  - a2a server: serves this agent over the A2A protocol (a2a.server.enabled,
+    on a2a.server.host:a2a.server.port). Each task it accepts runs as one
+    infer headless run, and every caller presents the bearer token from
+    a2a.server.token
 
 Each channel message spawns a new agent invocation with a deterministic session
 ID per sender, so conversations persist across messages. Channel configuration
@@ -78,13 +84,13 @@ Examples:
 	}
 }
 
-// RunDaemonCommand starts the daemon. It hosts up to four subsystems -
-// channels, scheduler, heartbeat, and the AG-UI binding - and starts whichever
-// are enabled. At least one must be enabled or the daemon refuses to boot
+// RunDaemonCommand starts the daemon. It hosts up to five subsystems -
+// channels, scheduler, heartbeat, the AG-UI binding, and the A2A server - and
+// starts whichever are enabled. At least one must be enabled or the daemon refuses to boot
 // (otherwise it would just sleep forever).
-func RunDaemonCommand(cfg *config.Config) error {
-	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !bindingEnabled(cfg) {
-		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, heartbeat, or the AG-UI binding (browser_use with backend: extension) in .infer/")
+func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
+	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !bindingEnabled(cfg) && !cfg.A2A.Server.Enabled {
+		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, heartbeat, the AG-UI binding (browser_use with backend: extension), or the A2A server (a2a.server) in .infer/")
 	}
 
 	release, err := acquireDaemonLock()
@@ -156,6 +162,17 @@ func RunDaemonCommand(cfg *config.Config) error {
 		return fmt.Errorf("failed to start heartbeat: %w", err)
 	}
 
+	a2aSrv, err := startA2AServer(ctx, cfg)
+	if err != nil {
+		if sched != nil {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_ = sched.Stop(stopCtx)
+			stopCancel()
+		}
+		_ = cm.Stop()
+		return fmt.Errorf("failed to start the A2A server: %w", err)
+	}
+
 	poller, err := startArtifactPoller(ctx, cfg)
 	if err != nil {
 		logger.Error("failed to start github artifact poller", "error", err)
@@ -172,6 +189,14 @@ func RunDaemonCommand(cfg *config.Config) error {
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		if err := poller.Stop(stopCtx); err != nil {
 			logger.Error("failed to stop github artifact poller", "error", err)
+		}
+		stopCancel()
+	}
+
+	if a2aSrv != nil {
+		stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if a2aStopErr := a2aSrv.Stop(stopCtx); a2aStopErr != nil {
+			logger.Error("failed to stop the A2A server", "error", a2aStopErr)
 		}
 		stopCancel()
 	}
@@ -505,6 +530,77 @@ func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service
 		return nil, err
 	}
 	return svc, nil
+}
+
+// startA2AServer hosts the A2A server when a2a.server is enabled. The bearer
+// token is required: the server exposes the coding agent over HTTP, so a
+// loopback bind alone is not protection enough against a rogue web page. Start
+// blocks, so it runs in a goroutine and this function waits for the health
+// endpoint; a boot failure here fails the daemon.
+func startA2AServer(ctx context.Context, cfg *config.Config) (*a2ainfra.Server, error) {
+	srvCfg := cfg.A2A.Server
+	if !srvCfg.Enabled {
+		return nil, nil
+	}
+	if srvCfg.Token == "" {
+		return nil, errors.New("the A2A server is enabled but a2a.server.token is empty: set it in .infer/config.yaml or INFER_A2A_SERVER_TOKEN")
+	}
+	if _, ok := agentdomain.ParseAgentMode(srvCfg.Mode); srvCfg.Mode != "" && !ok {
+		return nil, fmt.Errorf("invalid a2a.server.mode %q: must be one of standard, plan, auto, auto-with-judge", srvCfg.Mode)
+	}
+
+	srv, err := a2ainfra.NewServer(a2ainfra.Settings{
+		Host:    srvCfg.Host,
+		Port:    srvCfg.Port,
+		Token:   srvCfg.Token,
+		Mode:    srvCfg.Mode,
+		Version: version.Value(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	host := srvCfg.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	addr := fmt.Sprintf("%s:%d", host, srvCfg.Port)
+	exited := make(chan error, 1)
+	go func() { exited <- srv.Start(ctx) }()
+	if err := waitReachable(ctx, addr, exited); err != nil {
+		return nil, err
+	}
+	logger.Info("A2A server listening", "address", addr, "mode", srvCfg.Mode)
+	return srv, nil
+}
+
+// a2aBootWait bounds how long startA2AServer waits for the server to bind.
+const a2aBootWait = 10 * time.Second
+
+// waitReachable polls the server's public health endpoint until it answers or
+// the server exits, so a bind conflict fails the boot instead of sleeping.
+func waitReachable(ctx context.Context, addr string, exited chan error) error {
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	deadline := time.Now().Add(a2aBootWait)
+	for {
+		if res, probeErr := client.Get(fmt.Sprintf("http://%s/health", addr)); probeErr == nil {
+			_ = res.Body.Close()
+			return nil
+		}
+		select {
+		case startErr := <-exited:
+			return fmt.Errorf("binding %s: %w", addr, startErr)
+		default:
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("the A2A server did not bind %s in time", addr)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 // buildVoiceRetention returns a retainer for inbound voice/audio files when
