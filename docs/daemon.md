@@ -2,8 +2,9 @@
 
 `infer daemon` is the long-lived hub every external system reaches the agent through. The desktop
 app and the opentask extension connect to its AG-UI WebSocket binding, Telegram drives it in
-process, `infer chat` and a standalone `infer headless` reach the user's browser through it, and
-scheduled jobs and heartbeat wake-ups run inside it. One daemon serves every project on the machine.
+process, `infer chat` and a standalone `infer headless` reach the user's browser through it,
+scheduled jobs and heartbeat wake-ups run inside it, and a peer agent can task it through its
+A2A server. One daemon serves every project on the machine.
 
 ```text
 desktop app ───────────┐
@@ -26,9 +27,10 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
 | AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | The clients' WebSocket and the `/artifacts/` route |
+| A2A server | `a2a.server.enabled` | Serves the agent on `a2a.server.host:port`, one `infer headless` per task, bearer `a2a.server.token` required |
 
-Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then the
-poller, heartbeat, scheduler and channels, each with a 30 second budget.
+Shutdown is SIGINT or SIGTERM. The daemon closes the A2A server and the binding, stops every
+session worker, then the poller, heartbeat, scheduler and channels, each with a 30 second budget.
 
 ## The binding
 

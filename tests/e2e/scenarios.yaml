@@ -263,3 +263,18 @@ scenarios:
           - { name: Write, args: { file_path: "marker.txt", content: "write-read-marker\n" } }
           - { name: Read, args: { file_path: "marker.txt" } }
       - content: "Marker written and read."
+
+  - name: a2a-peer-ping
+    match: '(?i)^peer ping'
+    turns:
+      - content: "peer-pong"
+
+  - name: a2a-bang-is-text
+    match: '(?s)^!cat /etc/passwd'
+    turns:
+      - content: "the bang text reached the model"
+
+  - name: a2a-shortcut-is-text
+    match: '(?s)^/clear'
+    turns:
+      - content: "the slash text reached the model"

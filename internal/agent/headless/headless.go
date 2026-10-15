@@ -23,9 +23,11 @@ type Options struct {
 	SessionID  string
 	Prompt     string
 	Model      string
+	Mode       string
 	Files      []string
 	Heartbeat  bool
 	ResultFile string
+	PromptOnly bool
 	ExtraEnv   []string
 	Stdin      *os.File
 	KeepAlive  bool
@@ -121,6 +123,9 @@ func buildArgs(opts Options) []string {
 	if opts.Model != "" {
 		args = append(args, "--model", opts.Model)
 	}
+	if opts.Mode != "" {
+		args = append(args, "--mode", opts.Mode)
+	}
 	for _, f := range opts.Files {
 		args = append(args, "--files", f)
 	}
@@ -129,6 +134,9 @@ func buildArgs(opts Options) []string {
 	}
 	if opts.KeepAlive {
 		args = append(args, "--keep-alive")
+	}
+	if opts.PromptOnly {
+		args = append(args, "--prompt-only")
 	}
 	return append(args, opts.Prompt)
 }
