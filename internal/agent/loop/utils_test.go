@@ -153,6 +153,32 @@ func TestIsCompleteJSON(t *testing.T) {
 	}
 }
 
+func TestDefaultEmptyArgs(t *testing.T) {
+	noParams := agentdomain.ToolManifest{Parameters: map[string]any{"type": "object", "properties": map[string]any{}}}
+	withParams := agentdomain.ToolManifest{Parameters: map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"file_path": map[string]any{"type": "string"}},
+	}}
+
+	tests := []struct {
+		name     string
+		args     string
+		manifest agentdomain.ToolManifest
+		expected string
+	}{
+		{name: "empty args for a no-param tool", args: "", manifest: noParams, expected: "{}"},
+		{name: "whitespace args for a no-param tool", args: "  ", manifest: noParams, expected: "{}"},
+		{name: "empty args for a tool that takes params", args: "", manifest: withParams, expected: ""},
+		{name: "valid args pass through", args: `{"file_path": "a.txt"}`, manifest: withParams, expected: `{"file_path": "a.txt"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, defaultEmptyArgs(tt.args, tt.manifest))
+		})
+	}
+}
+
 func TestIsGitRepository(t *testing.T) {
 	result := isGitRepository()
 	t.Logf("isGitRepository() = %v", result)

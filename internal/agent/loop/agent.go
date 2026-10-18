@@ -1037,6 +1037,8 @@ func (s *Agent) executeToolOnce(
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
+	tc.Function.Arguments = defaultEmptyArgs(tc.Function.Arguments, s.toolService.Manifest(tc.Function.Name))
+
 	if !isCompleteJSON(tc.Function.Arguments) {
 		incompleteErr := fmt.Errorf(
 			"TOOL FAILED: %s - content was truncated due to output token limits (received %d chars of incomplete JSON). %s",
