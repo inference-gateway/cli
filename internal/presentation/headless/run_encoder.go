@@ -11,6 +11,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	render "github.com/inference-gateway/cli/internal/platform/render"
@@ -291,7 +292,9 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		}
 		r.snapshotJobs()
 	case agentdomain.MessageQueuedEvent:
-		if note, ok := render.QueuedNote(ev); ok {
+		if ev.RequestID == ipc.UserMessageRequestID {
+			r.emitQueuedMessage(ev, formatting.ExtractTextFromContent(ev.Message.Content, nil))
+		} else if note, ok := render.QueuedNote(ev); ok {
 			r.emitQueuedMessage(ev, note)
 		}
 		r.snapshotJobs()
@@ -389,9 +392,7 @@ func snapshotMessages(entries []convdomain.ConversationEntry) []agui.Message {
 			continue
 		}
 		msg := agui.Message{ID: uuid.New().String(), Role: agui.Role(entry.Message.Role)}
-		if text, err := entry.Message.Content.AsMessageContent0(); err == nil && text != "" {
-			msg.Content = text
-		}
+		msg.Content = formatting.ExtractTextFromContent(entry.Message.Content, nil)
 		if toolCalls := entry.Message.ToolCalls; toolCalls != nil {
 			calls := make([]agui.ToolCall, 0, len(*toolCalls))
 			for _, tc := range *toolCalls {

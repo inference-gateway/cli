@@ -166,7 +166,7 @@ func TestExtractTextFromContent(t *testing.T) {
 		{
 			name:    "multimodal text plus image part",
 			content: multimodalContent(t, textPart(t, "hello"), imagePart(t)),
-			want:    "hello ",
+			want:    "hello [Image 1]",
 		},
 		{
 			name:    "invalid content without images",

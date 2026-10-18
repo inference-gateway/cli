@@ -209,7 +209,7 @@ tmp dir. PNG, JPEG, GIF and WebP images reach the model as image parts, and othe
 the saved path. Files over 10 MiB are skipped.
 
 Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation id, then exactly one
-`RUN_FINISHED` or `RUN_ERROR`. Only the first run of a resumed session opens with `MESSAGES_SNAPSHOT`. `select_model`
+`RUN_FINISHED` or `RUN_ERROR`. Each serve run opens with `MESSAGES_SNAPSHOT`, including the newly submitted user messages. `select_model`
 switches the model the next turns use. Without `--model` and `agent.model`, the worker falls back to the gateway's
 first model, so it can answer panel frames in an unconfigured project.
 
@@ -222,3 +222,11 @@ the same `id` on stdin, so the host relays both to the extension.
 
 Stdin EOF lets the running turn and any queued messages finish, then shuts the worker down together with the
 gateway, MCP servers and containers it started. Send `interrupt` first for a faster stop.
+
+### Image request size
+
+The agent keeps original images in stored history. For model requests, large inline images are
+compressed to JPEG at up to 1600 pixels on the longest edge. Inline images share a 2 MiB byte
+budget, newest first. Older images that do not fit are replaced with an explicit note, while
+text and tool-call history remain intact. This bounds accumulated screenshot data without
+rewriting the saved session. The model can reopen a source image when it needs older detail.

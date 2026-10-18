@@ -166,7 +166,7 @@ func withFirstChunkDeadline(parent context.Context, timeout time.Duration) (ctx 
 // tail always trails the newest messages, so it is never part of a reusable
 // token prefix.
 func (a *eventDrivenAgent) outboundConversation() []sdk.Message {
-	conversation := *a.agentCtx.Conversation
+	conversation := requestImages(*a.agentCtx.Conversation)
 	if conversationAwaitsToolResults(conversation) {
 		return conversation
 	}
