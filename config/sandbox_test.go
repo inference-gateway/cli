@@ -46,7 +46,7 @@ func TestLoadSandbox(t *testing.T) {
 		cfg, err := LoadSandbox(path)
 		require.NoError(t, err)
 		require.Equal(t, []sandboxdomain.Allowed{{Path: ".", Access: sandboxdomain.AccessWrite}, {Path: "vendor/", Access: sandboxdomain.AccessRead}}, cfg.Filesystem.Allowed)
-		require.Equal(t, []sandboxdomain.Denied{{Path: "*.env"}, {Path: "deploy/", OnViolation: sandboxdomain.ViolationApproval}}, cfg.Filesystem.Denied)
+		require.Equal(t, []sandboxdomain.Denied{{Path: "*.env"}, {Path: "deploy/", OnViolation: sandboxdomain.ViolationApproval}, {Path: "*.env.*"}}, cfg.Filesystem.Denied)
 	})
 
 	t.Run("invalid values are rejected", func(t *testing.T) {
@@ -81,4 +81,23 @@ func TestSandboxIsNotInConfigYAML(t *testing.T) {
 	out, err := yaml.Marshal(cfg)
 	require.NoError(t, err)
 	require.NotContains(t, string(out), "sandbox:", "the policy must not serialise into config.yaml")
+}
+
+func TestLoadSandboxExtendsLegacyDotenvRules(t *testing.T) {
+	for _, violation := range []sandboxdomain.Violation{sandboxdomain.ViolationBlock, sandboxdomain.ViolationApproval} {
+		t.Run(string(violation), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), SandboxFileName)
+			policy := DefaultSandboxConfig()
+			policy.Filesystem.Denied = []sandboxdomain.Denied{{Path: "*.env", OnViolation: violation}}
+			require.NoError(t, SaveSandbox(path, policy))
+			loaded, err := LoadSandbox(path)
+			require.NoError(t, err)
+			require.Len(t, loaded.Filesystem.Denied, 2)
+			require.Equal(t, sandboxdomain.Denied{Path: "*.env.*", OnViolation: loaded.Filesystem.Denied[0].OnViolation}, loaded.Filesystem.Denied[1])
+			require.NoError(t, SaveSandbox(path, loaded))
+			reloaded, err := LoadSandbox(path)
+			require.NoError(t, err)
+			require.Equal(t, loaded, reloaded)
+		})
+	}
 }

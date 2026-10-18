@@ -1014,7 +1014,7 @@ The blocks below live in a file of their own rather than in `config.yaml`. Namin
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
 - **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `.` and `/tmp`)
-  and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `.environment`,
+  and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `*.env.*`, `.environment`,
   `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
   `on_violation: block|approval` (default block). Denied wins over allowed and a blocking denied entry wins
@@ -1026,6 +1026,10 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   `~/.infer/sandbox.yaml` is read: a project `.infer/sandbox.yaml` is ignored, so a checked-out repository
   cannot widen your sandbox, and the agent's file tools can never write the file. `infer config set` does not reach these keys: edit the file. Env:
   `INFER_TOOLS_SANDBOX_DIRECTORIES` adds allowed directories.
+  Saved `*.env` deny rules also apply to `*.env.*` on load, preserving their violation behavior.
+  This includes `.env.local`, `.env.production` and dotenv templates. These are file-tool rules
+  and shell approval checks, not OS isolation. Unrestricted auto mode and approved shell commands
+  can still access files with the permissions of the CLI process.
 - **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`, `telegram`,
   `whatsapp`. See [Channels](channels.md).
 - **`heartbeat.yaml`** - `enabled`, `interval`, `initial_delay`, `model`, `prompt`. See
