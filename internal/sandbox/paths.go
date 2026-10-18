@@ -221,9 +221,6 @@ func isWithinConfigDirs(cfg *config.Config, path string) bool {
 // matched the way denied patterns always were: dir/ at any depth, *glob on the
 // base name, or an exact name or suffix.
 func matches(rulePath, path, absPath string) bool {
-	if rulePath == "*.env.*" && filepath.Base(path) == ".env.example" {
-		return false
-	}
 	if IsAnchored(rulePath) {
 		return isWithinDir(absPath, anchoredPath(rulePath))
 	}
