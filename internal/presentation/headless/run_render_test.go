@@ -661,3 +661,22 @@ func TestRender_ScreenRecordingStateCarriesTheFrame(t *testing.T) {
 		t.Errorf("the recording stop patch carried %s, want %s", stopped, want)
 	}
 }
+
+func TestRender_QueuedUserTextWithImage(t *testing.T) {
+	text, _ := sdk.NewTextContentPart("Implement this passage")
+	image, _ := sdk.NewImageContentPart("data:image/png;base64,AAAA", nil)
+	message := sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent([]sdk.ContentPart{text, image})}
+	var out strings.Builder
+	err := renderRun(stream(agentdomain.MessageQueuedEvent{RequestID: ipc.UserMessageRequestID, Message: message}), &out, nil, nil, "s1", "m", &convmocks.FakeConversationRepository{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Implement this passage") || !strings.Contains(out.String(), `"role":"user"`) {
+		t.Fatalf("missing user message: %s", out.String())
+	}
+	entries := []convdomain.ConversationEntry{{Message: message}}
+	snapshot := snapshotMessages(entries)
+	if snapshot[0].Content != "Implement this passage [Image 1]" {
+		t.Fatalf("lost multipart text: %+v", snapshot)
+	}
+}

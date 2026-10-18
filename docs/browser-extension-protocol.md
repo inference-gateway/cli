@@ -220,9 +220,9 @@ whose `messages` holds the new messages only, since the worker owns the history:
   project's tmp dir. PNG, JPEG, GIF and WebP images reach the model as image
   parts, and other files as a note naming the saved path. Files over 10 MiB are
   skipped.
-- One frame is one control line, capped at 4 MiB. Base64 inflates an attachment
-  by about a third, so an attachment over roughly 3 MiB cannot travel in a
-  single frame.
+- One frame is one control line, capped at 160 MiB to accommodate ten
+  10 MiB attachments after base64 encoding. Oversized lines are discarded
+  without closing the control channel.
 - An input with no messages and no `resume` continues the thread after a
   stopped run, which is how a paused computer-use session resumes.
 

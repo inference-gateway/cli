@@ -110,12 +110,12 @@ func ExtractTextFromContent(content sdk.MessageContent, images []agentdomain.Ima
 	var textParts []string
 	imageCount := 0
 	for _, part := range multimodalContent {
-		if textPart, err := part.AsTextContentPart(); err == nil {
+		if textPart, err := part.AsTextContentPart(); err == nil && textPart.Type == "text" {
 			textParts = append(textParts, textPart.Text)
 			continue
 		}
 
-		if _, err := part.AsImageContentPart(); err == nil {
+		if imagePart, err := part.AsImageContentPart(); err == nil && imagePart.Type == "image_url" {
 			imageCount++
 			textParts = append(textParts, fmt.Sprintf("[Image %d]", imageCount))
 		}

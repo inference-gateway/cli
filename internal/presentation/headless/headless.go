@@ -233,7 +233,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 			ApprovalBrokerAttached:     opts.RequireApproval,
 			UserQuestionBrokerAttached: true,
 			GroupKey:                   groupKey,
-		}, resumedEntries, notes)
+		}, notes)
 		return nil
 	}
 

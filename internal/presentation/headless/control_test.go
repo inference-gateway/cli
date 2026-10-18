@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -150,7 +151,7 @@ func TestHeadlessControl_RunInputResumeRoutesToTheBrokers(t *testing.T) {
 
 func TestHeadlessControl_ReadLinesSurvivesLargeLine(t *testing.T) {
 	ctl, _, _ := newTestControl()
-	large := `{"type":"approval_response","tool_call_id":"` + strings.Repeat("x", 128*1024) + `","approved":false}`
+	large := `{"type":"approval_response","tool_call_id":"` + strings.Repeat("x", 5*1024*1024) + `","approved":false}`
 	go ctl.readLines(strings.NewReader(large + "\n" + `{"type":"approval_response","tool_call_id":"tc2","approved":true}` + "\n"))
 
 	for {
@@ -346,4 +347,27 @@ func TestHeadlessControl_RunInputAttachments(t *testing.T) {
 	if err != nil || !strings.Contains(text.Text, "look at these") || !strings.Contains(text.Text, "[notes.txt saved at ") {
 		t.Fatalf("text part = %q (%v), want the content plus a note naming the saved file", text.Text, err)
 	}
+}
+
+func TestHeadlessControl_ReadLinesRecoversAfterOversizedLine(t *testing.T) {
+	ctl, _, _ := newTestControl()
+	input := io.MultiReader(io.LimitReader(repeatedByte{}, int64(maxControlLineBytes+1)), strings.NewReader("\n"+`{"type":"approval_response","tool_call_id":"after","approved":true}`+"\n"))
+	go ctl.readLines(input)
+	select {
+	case resp := <-ctl.approvals:
+		if resp.ToolCallID != "after" || !resp.Approved {
+			t.Fatalf("response after oversized frame: %+v", resp)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("reader stopped at oversized frame")
+	}
+}
+
+type repeatedByte struct{}
+
+func (repeatedByte) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'x'
+	}
+	return len(p), nil
 }

@@ -20,7 +20,7 @@ import (
 // stdin, each rendered as its own AG-UI run on stdout, until stdin closes and
 // the queue is empty. Mid-turn messages stay queued for the running turn to
 // drain, and panel frames are answered on stdout whenever they arrive.
-func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, history []convdomain.ConversationEntry, notes *startupNotes) {
+func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, notes *startupNotes) {
 	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetMessageQueue(), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
 	ctl.panel = svc.NewPanel(os.Stdout)
@@ -29,15 +29,14 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 
 	svc.GetTelemetryRecorder().SetConversationID(turn.RequestID)
 	for ctl.awaitTurn() {
-		runServeTurn(ctx, svc, ctl, notifications, turn, history, notes)
-		history = nil
+		runServeTurn(ctx, svc, ctl, notifications, turn, notes)
 	}
 }
 
 // runServeTurn moves the queued messages into the conversation and renders one
 // agent run over it as one AG-UI run. A run that fails to start still renders
 // as RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract.
-func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, history []convdomain.ConversationEntry, notes *startupNotes) {
+func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, notes *startupNotes) {
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
@@ -47,6 +46,7 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 		return
 	}
 	persistQueuedMessages(drained, repo)
+	history := repo.GetMessages()
 	req.Messages = convdomain.BuildAgentMessagesFromEntries(repo.GetMessages())
 
 	rec := svc.GetTelemetryRecorder()
