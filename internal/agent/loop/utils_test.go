@@ -1026,3 +1026,13 @@ func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
 	require.Contains(t, got, "/abs/.infer/tmp/skills/rust/SKILL.md")
 	require.Equal(t, 1, headlessFake.DiscoverCallCount())
 }
+
+func TestTaskGuidanceRemainsWithCustomBasePrompt(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Prompts.Agent.SystemPrompt = "custom agent prompt"
+	cfg.Agent.SystemPromptWithDefaults = true
+	agent := &Agent{config: cfg}
+	prompt := agent.BuildSystemPrompt()
+	require.Contains(t, prompt, "Preserve the user's selected target and prior answers across turns.")
+	require.Contains(t, prompt, "Respect explicit user constraints, plan mode, and tool approval boundaries.")
+}

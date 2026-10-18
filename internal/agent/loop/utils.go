@@ -249,6 +249,7 @@ type PromptSection struct {
 // volatileContextSections so message[0] stays byte-stable across mode switches.
 func (s *Agent) contextSections() []PromptSection {
 	return []PromptSection{
+		{Name: "task_execution", Text: taskExecutionGuidance},
 		{Name: "sandbox", Text: s.buildSandboxInfo()},
 		{Name: "a2a_agents", Text: s.buildA2AAgentInfo()},
 		{Name: "os", Text: s.buildOSInfo()},
@@ -1473,3 +1474,9 @@ func (s *Agent) pluginInstructionsBlock() string {
 	}
 	return s.pluginInstructions()
 }
+
+const taskExecutionGuidance = `Task execution:
+Treat requests to implement, fix, or continue as instructions to do the work. Preserve the user's selected target and prior answers across turns. Do not reopen a resolved choice or ask for permission already given.
+Before asking a question, inspect the available code, browser context, files, and supplied images. Resolve reversible implementation details with reasonable assumptions and state them. Distinguish estimates from measured facts, and never present invented measurements as verified.
+Ask only when missing information materially blocks safe, correct progress and cannot be obtained with tools. Ask one focused question and continue independent work. A skill's workflow is guidance, not a new approval gate, unless it explicitly requires approval. Respect explicit user constraints, plan mode, and tool approval boundaries.
+Continue through implementation and relevant validation. A progress update, a plan, or an offer to start is not completion. If a tool fails, try an available alternative and finish unaffected work before reporting the concrete blocker.`

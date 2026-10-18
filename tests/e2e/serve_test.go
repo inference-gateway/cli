@@ -136,7 +136,21 @@ func TestHeadlessServeWorker(t *testing.T) {
 		"INFER_BROWSER_USE_EXTENSION_PORT="+strconv.Itoa(extensionPort),
 	)
 
-	requireOneRun(t, w.run("say hello", nil), "success")
+	firstRun := w.run("say hello", nil)
+	requireOneRun(t, firstRun, "success")
+	var userText string
+	for _, event := range firstRun {
+		if event["type"] != "MESSAGES_SNAPSHOT" {
+			continue
+		}
+		for _, raw := range event["messages"].([]any) {
+			message := raw.(map[string]any)
+			if message["role"] == "user" {
+				userText, _ = message["content"].(string)
+			}
+		}
+	}
+	require.Equal(t, "say hello", userText, "the submitted user message must reach the sidebar")
 
 	_, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", extensionPort), time.Second)
 	require.Error(t, err, "a serve worker must not bind the extension bridge port")
