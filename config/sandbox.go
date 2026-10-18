@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
@@ -33,7 +34,6 @@ func DefaultSandboxConfig() *SandboxConfig {
 	denied = append(denied, sandboxdomain.Deny(
 		".git/",
 		"*.env",
-		"*.env.*",
 		".environment",
 		"auth.yaml",
 		"*.key",
@@ -43,6 +43,7 @@ func DefaultSandboxConfig() *SandboxConfig {
 		"id_ecdsa",
 		"id_ed25519",
 	)...)
+	denied = append(denied, sandboxdomain.Denied{Path: "*.env.*", Except: []string{".env.example"}})
 	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: sandboxdomain.Allow(".", "/tmp"), Denied: denied}}
 }
 
@@ -62,6 +63,8 @@ func (c *SandboxConfig) Validate() error {
 			return fmt.Errorf("sandbox denied entry %d has no path", i)
 		case !entry.OnViolation.Valid():
 			return fmt.Errorf("sandbox denied %q: on_violation %q must be block or approval", entry.Path, entry.OnViolation)
+		case slices.Contains(entry.Except, ""):
+			return fmt.Errorf("sandbox denied %q has an empty exception", entry.Path)
 		}
 	}
 	return nil

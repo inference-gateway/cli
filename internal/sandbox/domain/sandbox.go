@@ -56,6 +56,7 @@ type Allowed struct {
 type Denied struct {
 	Path        string    `yaml:"path"`
 	OnViolation Violation `yaml:"on_violation,omitempty"`
+	Except      []string  `yaml:"except,omitempty"`
 }
 
 // Allow opens each path for read and write.
@@ -116,7 +117,7 @@ func (d *Denied) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (d Denied) MarshalYAML() (any, error) {
-	if d.OnViolation == "" || d.OnViolation == ViolationBlock {
+	if (d.OnViolation == "" || d.OnViolation == ViolationBlock) && len(d.Except) == 0 {
 		return d.Path, nil
 	}
 	type plain Denied

@@ -1014,10 +1014,10 @@ The blocks below live in a file of their own rather than in `config.yaml`. Namin
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
 - **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `.` and `/tmp`)
-  and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `*.env.*`, `.environment`,
+  and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `*.env.*` (except `.env.example`), `.environment`,
   `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes
-  `on_violation: block|approval` (default block). Denied wins over allowed and a blocking denied entry wins
+  `on_violation: block|approval` (default block), with optional `except` path patterns. Denied wins over allowed and a blocking denied entry wins
   over one that asks. The first matching allowed entry wins, and a path outside `allowed` or a write into a
   read-only entry asks the user. The config dirs ask before every read and write, since their files can hold
   tokens, while skills, plans, plugins, memory and runtime output stay open. Paths are anchored

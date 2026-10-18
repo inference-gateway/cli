@@ -74,7 +74,9 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 		if inCarveOut && isConfigDirRule(entry.Path) {
 			continue
 		}
-		if !matches(entry.Path, path, absPath) {
+		if !matches(entry.Path, path, absPath) || slices.ContainsFunc(entry.Except, func(except string) bool {
+			return matches(except, path, absPath)
+		}) {
 			continue
 		}
 		if entry.OnViolation != sandboxdomain.ViolationApproval {
