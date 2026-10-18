@@ -370,6 +370,10 @@ func TestDotenvVariantsDenied(t *testing.T) {
 		})
 	}
 	require.NoError(t, ValidateRead(cfg, "environment.ts"))
+	require.NoError(t, ValidateRead(cfg, ".env.example"))
+	require.NoError(t, ValidateWrite(cfg, ".env.example"))
+	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Deny(".env.example")...)
+	require.ErrorContains(t, ValidateRead(cfg, ".env.example"), "excluded for security")
 	require.NoError(t, os.WriteFile(".env.local", []byte("SYNTHETIC_SECRET=test"), 0o600))
 	require.NoError(t, os.Symlink(".env.local", "innocent.txt"))
 	require.ErrorContains(t, ValidateRead(cfg, "innocent.txt"), "excluded for security")
