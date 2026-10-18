@@ -359,3 +359,29 @@ func requireAsks(t *testing.T, cfg *config.Config, path string) {
 		}
 	}
 }
+
+func TestDotenvVariantsDenied(t *testing.T) {
+	t.Chdir(t.TempDir())
+	cfg := config.DefaultConfig()
+	for _, path := range []string{".env", ".env.local", ".env.production", "nested/.env.local", "service.env.local", ".infer/skills/demo/.env.local"} {
+		t.Run(path, func(t *testing.T) {
+			require.ErrorContains(t, ValidateRead(cfg, path), "excluded for security")
+			require.ErrorContains(t, ValidateWrite(cfg, path), "excluded for security")
+		})
+	}
+	require.NoError(t, ValidateRead(cfg, "environment.ts"))
+	require.NoError(t, ValidateRead(cfg, ".env.example"))
+	require.NoError(t, ValidateWrite(cfg, ".env.example"))
+	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Deny(".env.example")...)
+	require.ErrorContains(t, ValidateRead(cfg, ".env.example"), "excluded for security")
+	require.NoError(t, os.WriteFile(".env.local", []byte("SYNTHETIC_SECRET=test"), 0o600))
+	require.NoError(t, os.Symlink(".env.local", "innocent.txt"))
+	require.ErrorContains(t, ValidateRead(cfg, "innocent.txt"), "excluded for security")
+
+	policy := filepath.Join(t.TempDir(), "sandbox.yaml")
+	require.NoError(t, os.WriteFile(policy, []byte("filesystem:\n  denied:\n    - '*.env'\n"), 0o600))
+	loaded, err := config.LoadSandbox(policy)
+	require.NoError(t, err)
+	cfg.Tools.Sandbox = *loaded
+	require.NoError(t, ValidateRead(cfg, ".env.local"))
+}
