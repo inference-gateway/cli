@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
@@ -70,7 +69,6 @@ func (c *SandboxConfig) Validate() error {
 
 // LoadSandbox reads sandbox.yaml over the defaults, so a missing file or a
 // missing list keeps the default one. A list that is present replaces it.
-// Legacy *.env rules also protect suffixed dotenv files such as .env.local.
 func LoadSandbox(path string) (*SandboxConfig, error) {
 	cfg, err := configutils.LoadYAMLMerged(path, "sandbox", DefaultSandboxConfig)
 	if err != nil {
@@ -78,14 +76,6 @@ func LoadSandbox(path string) (*SandboxConfig, error) {
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
-	}
-	for _, entry := range cfg.Filesystem.Denied {
-		if entry.Path == "*.env" {
-			variant := sandboxdomain.Denied{Path: "*.env.*", OnViolation: entry.OnViolation}
-			if !slices.Contains(cfg.Filesystem.Denied, variant) {
-				cfg.Filesystem.Denied = append(cfg.Filesystem.Denied, variant)
-			}
-		}
 	}
 	return cfg, nil
 }

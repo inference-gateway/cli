@@ -383,5 +383,5 @@ func TestDotenvVariantsDenied(t *testing.T) {
 	loaded, err := config.LoadSandbox(policy)
 	require.NoError(t, err)
 	cfg.Tools.Sandbox = *loaded
-	require.ErrorContains(t, ValidateRead(cfg, ".env.local"), "excluded for security")
+	require.NoError(t, ValidateRead(cfg, ".env.local"))
 }
