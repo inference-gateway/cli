@@ -111,7 +111,6 @@ type ServiceContainer struct {
 	a2aAgentService        a2adomain.AgentCardService
 	skillsService          agentdomain.SkillsService
 	githubIssueService     agentdomain.GitHubIssueService
-	gitHubSetupService     agentdomain.GitHubSetupService
 	messageQueue           convdomain.MessageQueue
 	// backgroundTaskRegistry is the single unified tracker for every
 	// background job: shells, subagents and A2A tasks. The narrower
@@ -690,8 +689,6 @@ func (c *ServiceContainer) initializeStateManager() {
 // initializeServices creates the new improved services
 func (c *ServiceContainer) initializeServices() {
 	c.initializeChatOrchestrationServices()
-
-	c.initializeGitHubSetupService()
 }
 
 // initializeChatOrchestrationServices wires the services extracted from the
@@ -777,7 +774,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.a2aTaskTracker))
 	}
 
-	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
 	c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut())
@@ -886,18 +882,6 @@ func (c *ServiceContainer) GetSkillsService() agentdomain.SkillsService {
 
 func (c *ServiceContainer) GetGitHubIssueService() agentdomain.GitHubIssueService {
 	return c.githubIssueService
-}
-
-func (c *ServiceContainer) initializeGitHubSetupService() {
-	if c.gitHubSetupService != nil {
-		return
-	}
-	c.gitHubSetupService = githubsetup.NewService(&githubsetup.RealRunner{})
-}
-
-func (c *ServiceContainer) GetGitHubSetupService() agentdomain.GitHubSetupService {
-	c.initializeGitHubSetupService()
-	return c.gitHubSetupService
 }
 
 func (c *ServiceContainer) GetPricingService() convdomain.PricingService {

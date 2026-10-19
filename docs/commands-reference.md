@@ -989,33 +989,6 @@ infer shortcuts list --format json
 
 See [Shortcuts Guide](shortcuts-guide.md) for the built-ins and how to write your own.
 
-### `infer workflow`
-
-Manage the OpenTask Agent GitHub workflow.
-
-**Subcommands:**
-
-- `install [owner/repo]`: Install or update `.github/workflows/tasks.yml` in a GitHub repository via an LLM agent
-
-**`install` flags:**
-
-- `-m, --model <model>`: Model for the install agent and the workflow default
-- `--github-app`: Use the GitHub App token variant of the workflow
-- `--context <text>` / `--context-file <path>`: Extra instructions for the install agent
-
-**Examples:**
-
-```bash
-infer workflow install                       # current repository
-infer workflow install owner/repo
-infer workflow install owner/repo --model anthropic/claude-fable-5
-infer workflow install owner/repo --context "the repo deploys with bun"
-```
-
-The agent clones the repository, reads the existing workflow when there is one and applies only
-infer-action-related changes, preserving repo-specific customizations. The change lands as a pull request,
-and re-running pushes onto the same branch and updates the open install PR instead of creating a new one.
-
 ### `infer gpu`
 
 Provision, inspect and destroy on-demand GPU instances running a llama.cpp server, so you pay only for the

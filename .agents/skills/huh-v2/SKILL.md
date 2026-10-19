@@ -20,7 +20,7 @@ A `Form` is a sequence of `Group`s (one visible at a time); a `Group` holds
 ## The contract: embedding a form in a Bubble Tea model
 
 The canonical in-repo example is
-`internal/presentation/tui/components/install_opentask_view.go`. Hold a `*huh.Form`,
+`internal/presentation/tui/components/question_form_view.go`. Hold a `*huh.Form`,
 delegate `Update`, type-assert the returned model, switch on `form.State`,
 and rebuild + `Init()` a fresh form per phase:
 
@@ -110,7 +110,7 @@ Options carry a display key and a typed value: `huh.NewOption("label", value)`.
   including any suffix text you baked into the label.
 - **Conditional groups**: `huh.NewGroup(...).WithHideFunc(func() bool)` -
   evaluated live, the standard trick for "show this input only when X chosen"
-  (see the private-key fallbacks in `install_opentask_view.go`).
+  (see the "Other" input fallback in `question_form_view.go`).
 - **Theming**: this repo maps the active style-provider palette via
   `huhTheme(styleProvider)` in `internal/presentation/tui/components/huh_theme.go` - use it
   on every form (`.WithTheme(huhTheme(p))`). The theme is captured at build

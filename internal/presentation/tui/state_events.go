@@ -247,13 +247,6 @@ type AgentStatusUpdateEvent struct {
 	Image     string
 }
 
-// MCP Server Status Events
-
-// GitHub App Setup Events
-
-// TriggerOpentaskSetupEvent triggers the GitHub App setup flow
-type TriggerOpentaskSetupEvent struct{}
-
 // TriggerHelpViewEvent opens the full-screen, scrollable help overlay that
 // lists every slash command and keybinding in two tables.
 type TriggerHelpViewEvent struct{}

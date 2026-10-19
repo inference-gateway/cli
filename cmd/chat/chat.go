@@ -232,7 +232,6 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 		imageService,
 		skillsService,
 		githubIssueService,
-		services.GetGitHubSetupService(),
 		mcpSupervisor,
 		messageQueue,
 		modelService,
