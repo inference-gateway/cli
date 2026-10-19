@@ -786,10 +786,10 @@ func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 }
 
 // TestChatHandler_HandleCommand_UnknownShortcutPassesThrough verifies that a
-// /-prefixed message no registered shortcut answers for - the "/opentask ..."
-// prompt the /install-opentask flow re-enters the chat with - reaches the
-// agent as an ordinary user message and starts a turn, instead of dying as
-// the dead-end Unknown shortcut status the chat TUI used to show.
+// /-prefixed message no registered shortcut answers for - e.g. "/opentask ..."
+// opening a skill-guided turn - reaches the agent as an ordinary user message
+// and starts a turn, instead of dying as the dead-end Unknown shortcut status
+// the chat TUI used to show.
 func TestChatHandler_HandleCommand_UnknownShortcutPassesThrough(t *testing.T) {
 	handler := setupTestChatHandler(t, nil, statemanager.NewStore(false))
 

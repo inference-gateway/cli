@@ -46,8 +46,8 @@ func NewChatShortcutHandler(handler *ChatHandler) *ChatShortcutHandler {
 
 // executeShortcut runs a registry shortcut, the legacy clear/cls aliases, and
 // passes anything else to the agent as a regular chat message: unknown
-// /-names are prompt text (headless passes them through unchanged), e.g. the
-// /opentask marker the /install-opentask flow re-enters the chat with.
+// /-names are prompt text (headless passes them through unchanged), e.g. a
+// /<skill-name> mention a user types as a slash command.
 func (s *ChatShortcutHandler) executeShortcut(
 	shortcut string,
 	args []string,

@@ -774,7 +774,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(persistentRepo, c.a2aTaskTracker))
 	}
 
-	c.shortcutRegistry.Register(shortcuts.NewInstallOpentaskShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
 	c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut())

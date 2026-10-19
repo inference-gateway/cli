@@ -84,11 +84,6 @@ These shortcuts are available out of the box:
 **Project setup:**
 
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
-- `/install-opentask [owner/repo] [extra context...]` - Install the OpenTask GitHub workflow via the
-  chat agent. The shortcut sends an install task to the agent as a regular chat message, so it streams
-  in the conversation like any other turn: the agent creates or updates `.github/workflows/tasks.yml`
-  on an install branch and opens (or updates) a pull request. `owner/repo` targets another repository
-  (omit it to use the current checkout's) and any extra text is passed along as workflow configuration.
 
 ### Project Initialization Shortcut
 
