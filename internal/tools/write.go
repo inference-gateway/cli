@@ -24,8 +24,8 @@ type WriteTool struct {
 	config    *config.Config
 	enabled   bool
 	formatter CustomFormatter
-	writer    filewriter.FileWriter
-	chunks    filewriter.ChunkBuffer
+	writer    *filewriter.SafeFileWriter
+	chunks    *filewriter.StreamingChunkBuffer
 	extractor *ParameterExtractor
 }
 

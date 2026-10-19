@@ -16,8 +16,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // HandleBashCommand processes bash commands starting with `!`. A trailing `&`
@@ -321,7 +321,7 @@ func (s *Service) executeBashCommandInBackground(commandText, command string) te
 
 		cmd := exec.CommandContext(ctx, "bash", "-c", command)
 
-		outputBuffer := utils.NewOutputRingBuffer(1024 * 1024)
+		outputBuffer := scheddomain.NewOutputRingBuffer(1024 * 1024)
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {

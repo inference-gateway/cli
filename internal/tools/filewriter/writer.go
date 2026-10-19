@@ -16,7 +16,7 @@ type SafeFileWriter struct {
 }
 
 // NewSafeFileWriter creates a new SafeFileWriter
-func NewSafeFileWriter(validator *DefaultPathValidator, backupManager *Backup) FileWriter {
+func NewSafeFileWriter(validator *DefaultPathValidator, backupManager *Backup) *SafeFileWriter {
 	return &SafeFileWriter{
 		validator:     validator,
 		backupManager: backupManager,

@@ -13,7 +13,7 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-func setupWriterTest(t *testing.T) (string, FileWriter, context.Context) {
+func setupWriterTest(t *testing.T) (string, *SafeFileWriter, context.Context) {
 	tempDir := t.TempDir()
 
 	cfg := config.DefaultConfig()
