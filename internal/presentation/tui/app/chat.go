@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -297,10 +298,7 @@ func NewChatApplication(
 		if app.modelService != nil {
 			current = app.modelService.GetCurrentModel()
 		}
-		if current == "" {
-			current = app.config.Agent.Model
-		}
-		return app.config.Judge.ResolveModel(current)
+		return app.config.Judge.ResolveModel(cmp.Or(current, app.config.Agent.Model))
 	})
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)

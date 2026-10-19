@@ -85,6 +85,8 @@ These shortcuts are available out of the box:
 
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
 
+A `/name` no shortcut answers for (a skill mention such as `/opentask`, or a typo) is sent to the agent as a regular message.
+
 ### Project Initialization Shortcut
 
 The `/init` shortcut populates the input field with a configurable prompt for generating an AGENTS.md
