@@ -27,10 +27,19 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
 | AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | The clients' WebSocket and the `/artifacts/` route |
-| A2A server | `a2a.server.enabled` | Serves the agent on `a2a.server.host:port`, one `infer headless` per task, bearer `a2a.server.token` required |
+| A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
-Shutdown is SIGINT or SIGTERM. The daemon closes the A2A server and the binding, stops every
-session worker, then the poller, heartbeat, scheduler and channels, each with a 30 second budget.
+Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then
+the poller, the A2A server, heartbeat, scheduler and channels, each with a 30 second budget.
+
+## The A2A server
+
+With `a2a.server.enabled: true` the daemon serves this agent to peers over A2A. Every accepted task
+runs as one `infer headless --prompt-only` subprocess in the daemon's working directory, in
+`a2a.server.mode` (`standard` by default), and is bounded by `a2a.task.agent_mode_max_wait_seconds`
+so a hung run cannot hold the one-at-a-time queue. The bearer token is required, and it is a
+credential: set it through `INFER_A2A_SERVER_TOKEN` (for example from `.env`) rather than writing it
+into `config.yaml`. Treat `mode: auto` as handing unrestricted bash to every holder of that token.
 
 ## The binding
 

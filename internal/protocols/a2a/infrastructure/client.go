@@ -1,8 +1,6 @@
 package infrastructure
 
 import (
-	"os"
-
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 
@@ -21,16 +19,16 @@ func NewClient(agentURL string) client.A2AClient {
 	return client.NewClientWithConfig(cfg)
 }
 
-// setEntryHeaders copies the agent's agents.yaml headers onto the client,
-// with $VARS expanded the way channels.yaml values are. A bearer token here is
-// only a shorthand: an auth block sets Authorization after these, so its token
-// wins when both are configured.
+// setEntryHeaders copies the agent's agents.yaml headers onto the client
+// (LoadYAML already expanded their $VARS). A bearer token here is only a
+// shorthand: an auth block sets Authorization after these, so its token wins
+// when both are configured.
 func setEntryHeaders(cfg *client.Config, agentURL string) {
 	agent, ok := configuredAgent(agentURL)
 	if !ok {
 		return
 	}
 	for name, value := range agent.Headers {
-		cfg.Headers[name] = os.ExpandEnv(value)
+		cfg.Headers[name] = value
 	}
 }

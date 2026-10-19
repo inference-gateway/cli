@@ -53,7 +53,7 @@ agents:
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
 - **headers**: Extra headers sent on every request to the agent, with `$VAR` and `${VAR}` expanded from
-  the environment when the client is created. An `auth` block also sets `Authorization`, so its
+  the environment when agents.yaml is loaded. An `auth` block also sets `Authorization`, so its
   credentials win when both are configured.
 - **auth**: Credentials the CLI sends to the agent: a bearer token from an environment variable, a file or a
   command, or an OIDC client-credentials grant. It never holds a secret. See [Authentication](#authentication).

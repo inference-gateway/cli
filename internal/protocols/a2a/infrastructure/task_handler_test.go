@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	require "github.com/stretchr/testify/require"
 
@@ -34,7 +35,7 @@ func statusText(task *adk.Task) string {
 	return strings.Join(parts, "")
 }
 
-func TestHandleTask(t *testing.T) {
+func TestHandleTask(t *testing.T) { //nolint:funlen
 	contextID := uuid.NewString()
 	tests := []struct {
 		name       string
@@ -43,6 +44,7 @@ func TestHandleTask(t *testing.T) {
 		result     agentheadless.Result
 		runErr     error
 		cancel     bool
+		timeout    time.Duration
 		wantState  adk.TaskState
 		wantPrompt string
 		wantStatus string
@@ -131,6 +133,16 @@ func TestHandleTask(t *testing.T) {
 			wantStatus: "the run produced no final assistant message",
 		},
 		{
+			name:       "a run past the timeout fails the task",
+			task:       newTask(contextID),
+			message:    newMessage(adk.CreateTextPart("go")),
+			timeout:    time.Millisecond,
+			wantRun:    true,
+			wantPrompt: "go",
+			wantState:  adk.TaskStateFailed,
+			wantStatus: "the run exceeded the 1ms task timeout",
+		},
+		{
 			name:       "a canceled run keeps the canceled state the manager recorded",
 			task:       newTask(contextID),
 			message:    newMessage(adk.CreateTextPart("go")),
@@ -146,10 +158,15 @@ func TestHandleTask(t *testing.T) {
 			var gotOpts agentheadless.Options
 			ran := false
 			handler := &HeadlessTaskHandler{
-				Mode: "plan",
-				Runner: func(_ context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
+				Mode:    "plan",
+				Timeout: tt.timeout,
+				Runner: func(runCtx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
 					ran = true
 					gotOpts = opts
+					if tt.timeout > 0 {
+						<-runCtx.Done()
+						return agentheadless.Result{}, runCtx.Err()
+					}
 					if tt.runErr != nil {
 						return tt.result, tt.runErr
 					}

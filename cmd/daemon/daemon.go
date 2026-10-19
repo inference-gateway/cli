@@ -164,6 +164,11 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 
 	a2aSrv, err := startA2AServer(ctx, cfg)
 	if err != nil {
+		if hb != nil {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_ = hb.Stop(stopCtx)
+			stopCancel()
+		}
 		if sched != nil {
 			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			_ = sched.Stop(stopCtx)
@@ -536,7 +541,8 @@ func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service
 // token is required: the server exposes the coding agent over HTTP, so a
 // loopback bind alone is not protection enough against a rogue web page. Start
 // blocks, so it runs in a goroutine and this function waits for the health
-// endpoint; a boot failure here fails the daemon.
+// endpoint; a boot failure here fails the daemon. The served tasks run in
+// the daemon's working directory, each bounded by a2a.task.agent_mode_max_wait_seconds.
 func startA2AServer(ctx context.Context, cfg *config.Config) (*a2ainfra.Server, error) {
 	srvCfg := cfg.A2A.Server
 	if !srvCfg.Enabled {
@@ -550,28 +556,34 @@ func startA2AServer(ctx context.Context, cfg *config.Config) (*a2ainfra.Server, 
 	}
 
 	srv, err := a2ainfra.NewServer(a2ainfra.Settings{
-		Host:    srvCfg.Host,
-		Port:    srvCfg.Port,
-		Token:   srvCfg.Token,
-		Mode:    srvCfg.Mode,
-		Version: version.Value(),
+		Host:        srvCfg.Host,
+		Port:        srvCfg.Port,
+		Token:       srvCfg.Token,
+		Mode:        srvCfg.Mode,
+		TaskTimeout: time.Duration(cfg.A2A.Task.AgentModeMaxWaitSeconds) * time.Second,
+		Version:     version.Value(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	host := srvCfg.Host
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	addr := fmt.Sprintf("%s:%d", host, srvCfg.Port)
+	addr := fmt.Sprintf("%s:%d", srvCfg.Host, srvCfg.Port)
 	exited := make(chan error, 1)
 	go func() { exited <- srv.Start(ctx) }()
 	if err := waitReachable(ctx, addr, exited); err != nil {
 		return nil, err
 	}
+	go logServerExit(exited)
 	logger.Info("A2A server listening", "address", addr, "mode", srvCfg.Mode)
 	return srv, nil
+}
+
+// logServerExit reports an A2A server that dies after a successful boot: Stop
+// ends it with http.ErrServerClosed, anything else is a crash worth a log line.
+func logServerExit(exited <-chan error) {
+	if err := <-exited; err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Error("the A2A server exited", "error", err)
+	}
 }
 
 // a2aBootWait bounds how long startA2AServer waits for the server to bind.

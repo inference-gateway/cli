@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-
-	zap "go.uber.org/zap"
+	"time"
 
 	adkserver "github.com/inference-gateway/adk/server"
 	serverconfig "github.com/inference-gateway/adk/server/config"
@@ -15,13 +14,15 @@ import (
 )
 
 // Settings carries what the daemon passes over: the bind address, the port,
-// the bearer token, the agent mode served tasks run in, and the card version.
+// the bearer token, the agent mode and time budget served tasks run with, and
+// the card version.
 type Settings struct {
-	Host    string
-	Port    int
-	Token   string
-	Mode    string
-	Version string
+	Host        string
+	Port        int
+	Token       string
+	Mode        string
+	TaskTimeout time.Duration
+	Version     string
 }
 
 // Server is the A2A server the daemon hosts: the agent card plus the
@@ -54,9 +55,9 @@ func NewServer(settings Settings) (*Server, error) {
 		return nil, fmt.Errorf("building the ADK server config: %w", err)
 	}
 
-	inner, err := adkserver.NewA2AServerBuilder(*adkCfg, zapLogger()).
+	inner, err := adkserver.NewA2AServerBuilder(*adkCfg, platformlogger.GetGlobalLogger()).
 		WithAgentCard(agentCard(interfaceURL(settings), settings.Version)).
-		WithBackgroundTaskHandler(NewHeadlessTaskHandler(settings.Mode)).
+		WithBackgroundTaskHandler(NewHeadlessTaskHandler(settings.Mode, settings.TaskTimeout)).
 		Build()
 	if err != nil {
 		return nil, fmt.Errorf("building the A2A server: %w", err)
@@ -74,21 +75,9 @@ func (s *Server) Stop(ctx context.Context) error {
 	return s.inner.Stop(ctx)
 }
 
-// zapLogger is the logger the ADK server logs with: the daemon's global one,
-// already configured with the daemon's level and output.
-func zapLogger() *zap.Logger {
-	return platformlogger.GetGlobalLogger()
-}
-
-// interfaceURL is the card's supportedInterface URL: the address the server
-// is about to bind, always in scheme://host:port form even when the bind is
-// all interfaces.
+// interfaceURL is the card's supportedInterface URL: the address the server binds.
 func interfaceURL(settings Settings) string {
-	host := settings.Host
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	return fmt.Sprintf("http://%s:%d/", host, settings.Port)
+	return fmt.Sprintf("http://%s:%d/", settings.Host, settings.Port)
 }
 
 // agentCard is the card infer serves: one generic task skill, text only, no
@@ -100,8 +89,8 @@ func agentCard(url, version string) adk.AgentCard {
 		Description: "The infer CLI: runs the task text as one headless coding run in this project and answers with the final assistant message",
 		Version:     version,
 		Capabilities: adk.AgentCapabilities{
-			Streaming:         boolPtr(false),
-			PushNotifications: boolPtr(false),
+			Streaming:         new(bool),
+			PushNotifications: new(bool),
 		},
 		DefaultInputModes:  []string{"text/plain"},
 		DefaultOutputModes: []string{"text/plain"},
@@ -119,9 +108,4 @@ func agentCard(url, version string) adk.AgentCard {
 		SecuritySchemes:      schemes,
 		SecurityRequirements: requirements,
 	}
-}
-
-// boolPtr keeps the card's explicit false capabilities from collapsing to omitempty-absent.
-func boolPtr(value bool) *bool {
-	return &value
 }

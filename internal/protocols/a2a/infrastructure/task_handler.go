@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	uuid "github.com/google/uuid"
 
@@ -20,15 +21,18 @@ const stderrTail = 2048
 // HeadlessTaskHandler runs every task it gets as one `infer headless
 // --prompt-only` subprocess. The task's text parts are the prompt, the run's
 // final assistant message is the completed task's status message, and a
-// tasks/cancel reaches the run as the cancellation of its context.
+// tasks/cancel reaches the run as the cancellation of its context. Timeout
+// bounds one run so a hung one cannot hold the one-at-a-time queue forever.
 type HeadlessTaskHandler struct {
-	Runner func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
-	Mode   string
+	Runner  func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
+	Mode    string
+	Timeout time.Duration
 }
 
-// NewHeadlessTaskHandler builds the handler for tasks served in the given headless agent mode.
-func NewHeadlessTaskHandler(mode string) *HeadlessTaskHandler {
-	return &HeadlessTaskHandler{Runner: agentheadless.Run, Mode: mode}
+// NewHeadlessTaskHandler builds the handler for tasks served in the given
+// headless agent mode, each run bounded by timeout (zero means unbounded).
+func NewHeadlessTaskHandler(mode string, timeout time.Duration) *HeadlessTaskHandler {
+	return &HeadlessTaskHandler{Runner: agentheadless.Run, Mode: mode, Timeout: timeout}
 }
 
 // SetAgent is the TaskHandler contract; a served task never calls the ADK's OpenAI-compatible agent.
@@ -51,7 +55,9 @@ func (h *HeadlessTaskHandler) HandleTask(ctx context.Context, task *adk.Task, me
 		return respondTask(task, adk.TaskStateFailed, err.Error()), nil
 	}
 
-	res, runErr := h.Runner(ctx, agentheadless.Options{
+	runCtx, cancel := h.boundedContext(ctx)
+	defer cancel()
+	res, runErr := h.Runner(runCtx, agentheadless.Options{
 		Prompt:     prompt,
 		Mode:       h.Mode,
 		SessionID:  sessionID,
@@ -61,6 +67,9 @@ func (h *HeadlessTaskHandler) HandleTask(ctx context.Context, task *adk.Task, me
 		task.Status.State = adk.TaskStateCanceled
 		return task, nil
 	}
+	if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+		return respondTask(task, adk.TaskStateFailed, fmt.Sprintf("the run exceeded the %s task timeout", h.Timeout)), nil
+	}
 	if runErr != nil {
 		return respondTask(task, adk.TaskStateFailed, runFailure(runErr, res.Stderr)), nil
 	}
@@ -68,6 +77,14 @@ func (h *HeadlessTaskHandler) HandleTask(ctx context.Context, task *adk.Task, me
 		return respondTask(task, adk.TaskStateFailed, "the run produced no final assistant message"), nil
 	}
 	return respondTask(task, adk.TaskStateCompleted, res.FinalAssistant), nil
+}
+
+// boundedContext derives the run context, with the handler's timeout when it has one.
+func (h *HeadlessTaskHandler) boundedContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if h.Timeout <= 0 {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, h.Timeout)
 }
 
 // taskPrompt joins the task message's text parts into the prompt. A message
