@@ -115,9 +115,7 @@ type thread struct {
 	runID      string
 	interrupts map[string]struct{}
 	active     time.Time
-	// launchErr is the failure of the last launch attempt, so the frames that
-	// follow it get the same answer instead of spawning again.
-	launchErr error
+	launchErr  error
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
