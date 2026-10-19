@@ -814,19 +814,27 @@ func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRe
 	return conversation
 }
 
-// alreadyLoadedSkill reports whether a Read targets a skill whose SKILL.md is
-// already in the conversation, so the body need not be sent a second time.
+// alreadyLoadedSkill reports whether a Skill call (by name) or a Read (by
+// path) targets a skill already in the conversation, so the body need not be
+// sent a second time.
 func (s *Agent) alreadyLoadedSkill(toolName string, args map[string]any) (agentdomain.Skill, bool) {
-	if toolName != tools.ToolRead || s.skillsService == nil || s.conversationRepo == nil {
+	if s.skillsService == nil || s.conversationRepo == nil {
 		return agentdomain.Skill{}, false
 	}
+	name, _ := args["name"].(string)
 	path, _ := args["file_path"].(string)
-	if path == "" {
+	want := skillLoadKey{}
+	switch toolName {
+	case tools.ToolSkill:
+		want.name = bareSkillName(name)
+	case tools.ToolRead:
+		want.path = path
+	default:
 		return agentdomain.Skill{}, false
 	}
 	messages := convdomain.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages())
 	for _, sk := range loadedSkills(s.skillsService, messages) {
-		if sk.Path == path {
+		if (want.name != "" && sk.Name == want.name) || (want.path != "" && sk.Path == want.path) {
 			return sk, true
 		}
 	}
@@ -846,7 +854,7 @@ func (s *Agent) alreadyLoadedSkillEntry(tc sdk.ChatCompletionMessageToolCall, sk
 			Arguments: args,
 			Success:   true,
 			Duration:  time.Since(startTime),
-			Data:      &agentdomain.FileReadToolResult{FilePath: sk.Path, Content: alreadyLoadedSkillResult(sk)},
+			Data:      &agentdomain.SkillToolResult{Name: sk.DisplayName(), Path: sk.Path, Content: alreadyLoadedSkillResult(sk)},
 		},
 	}
 }

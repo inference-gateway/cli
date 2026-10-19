@@ -33,6 +33,7 @@ const (
 	ToolRequestApproval     = "RequestApproval"
 	ToolRequestPlanApproval = "RequestPlanApproval"
 	ToolSchedule            = "Schedule"
+	ToolSkill               = "Skill"
 	ToolSendSubagentInput   = "SendSubagentInput"
 	ToolTextToMusic         = "TextToMusic"
 	ToolTextToSFX           = "TextToSFX"

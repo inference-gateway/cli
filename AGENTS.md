@@ -63,6 +63,8 @@ Repo-wide invariants:
 - Tool directives are not comments and stay where the tool needs them (lint suppressions, build
   tags, compiler pragmas, code generation markers). Here: `//nolint:...`, `//go:...` (incl. `//go:build`, `//go:generate`), `#nosec`.
 - Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`, … `.editorconfig`: two-space indent (tabs in Go), UTF-8, LF, final newline.
+- YAML uses block style: one `- item` per line for sequences and one `key: value` per line for mappings. Never
+  flow style (`[a, b]`, `{ key: value }`), in manifests, scenarios and config alike.
 
 ## Security Gotchas
 

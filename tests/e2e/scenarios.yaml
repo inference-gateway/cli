@@ -278,3 +278,51 @@ scenarios:
     match: '(?s)^/clear'
     turns:
       - content: "the slash text reached the model"
+
+  # Skill tool: the second load of an already loaded skill is answered by the
+  # agent itself with an already-loaded note, no body.
+  - name: skill-load-twice
+    match: '(?i)^load the demo skill twice'
+    turns:
+      - tool_calls:
+          - name: Skill
+            args:
+              name: demo
+      - tool_calls:
+          - name: Skill
+            args:
+              name: demo
+      - content: "Demo skill loaded."
+
+  # Compaction: a skill loaded in the summarized range is re-emitted as a Skill
+  # call after the checkpoint. Tree first so the skill is not in the kept head.
+  - name: skill-survives-compaction
+    match: '(?i)^load the demo skill then keep going'
+    turns:
+      - tool_calls:
+          - name: Tree
+            args:
+              max_depth: 1
+      - tool_calls:
+          - name: Skill
+            args:
+              name: demo
+
+  # The compaction summarizer's own request. Its turn index is the number of
+  # converted assistant messages, so every turn serves the same checkpoint.
+  - name: compaction-checkpoint
+    match: 'Write the context checkpoint'
+    turns:
+      - content: "## Objective\n- load the demo skill\n\n## Work State\n- loaded"
+      - content: "## Objective\n- load the demo skill\n\n## Work State\n- loaded"
+      - content: "## Objective\n- load the demo skill\n\n## Work State\n- loaded"
+      - content: "## Objective\n- load the demo skill\n\n## Work State\n- loaded"
+
+  # After a rollover the newest user message is the checkpoint itself, so the
+  # continuation turn matches on it.
+  - name: after-compaction
+    match: '--- Context Summary ---'
+    turns:
+      - content: "Continuing after compaction."
+      - content: "Continuing after compaction."
+      - content: "Continuing after compaction."

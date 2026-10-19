@@ -529,9 +529,10 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 Compaction writes a structured checkpoint with the sections `Objective`, `Important Details`, `Work State`,
 `Next Move` and `Relevant Files`, kept as a user message after the preserved head. An empty summary aborts the
 compaction and leaves the history untouched. Every skill whose `SKILL.md` was read in the summarized range is
-re-injected after the checkpoint as its original `Read` call and result (up to 20,000 characters per skill and
+re-injected after the checkpoint as a `Skill` call and result (up to 20,000 characters per skill and
 100,000 in total, most recently read first), so the agent keeps following it. A repeat `Read` of a skill that
-is already in the conversation returns a short already-loaded note instead of the body.
+is already in the conversation (by `Skill` or by a whole-file `Read` of its path) returns a short
+already-loaded note instead of the body.
 
 ### Telemetry Settings
 

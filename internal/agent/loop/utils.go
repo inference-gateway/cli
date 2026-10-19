@@ -458,8 +458,8 @@ func (s *Agent) buildSkillsInfo() string {
 	var b strings.Builder
 	b.WriteString("\n\nAVAILABLE SKILLS:\n")
 	b.WriteString("Skills are reusable instructions for specific tasks. ")
-	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions. ")
-	b.WriteString("To deterministically load a skill's full instructions, invoke it explicitly with /<name> or \"use the <name> skill\".\n\n")
+	b.WriteString("When a task matches a skill's description, load it with the Skill tool (by name), then follow its instructions. ")
+	b.WriteString("The user can also invoke a skill explicitly with /<name> or \"use the <name> skill\".\n\n")
 
 	var maxChars int
 	if s.config != nil {
@@ -512,8 +512,7 @@ var (
 // active regardless of mode (chat, `infer headless`, channels, heartbeat), all of
 // which funnel through addSystemPrompt. It injects only the skill's metadata
 // (description + path), not the body: the SKILL.md body stays progressive
-// disclosure, read on demand by the model via the Read tool (now reachable
-// thanks to the sandbox carve-out). Empty when no trigger matched a loaded
+// disclosure, loaded on demand by the model via the Skill tool. Empty when no trigger matched a loaded
 // skill.
 //
 // A catalog skill that has not been downloaded yet (empty Path) is installed
@@ -566,16 +565,16 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n\n%s - the user explicitly invoked the following; read each SKILL.md at the listed path with the Read tool and follow its instructions:\n", header)
+	fmt.Fprintf(&b, "\n\n%s - the user explicitly invoked the following; load each with the Skill tool and follow its instructions:\n", header)
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
 }
 
 // buildLoadedSkillsInfo names the skills whose SKILL.md is already in the
-// conversation so the model follows them without reading them again. Loaded
-// skills are derived from the Read tool calls in messages, so the section
-// survives compaction as long as the restored Read pair does.
+// conversation so the model follows them without loading them again. Loaded
+// skills are derived from the Skill and Read tool calls in messages, so the
+// section survives compaction as long as the restored Skill pair does.
 func (s *Agent) buildLoadedSkillsInfo(messages []sdk.Message) string {
 	loaded := loadedSkills(s.skillsService, messages)
 	if len(loaded) == 0 {
@@ -585,7 +584,7 @@ func (s *Agent) buildLoadedSkillsInfo(messages []sdk.Message) string {
 	for _, sk := range loaded {
 		names = append(names, sk.DisplayName())
 	}
-	return fmt.Sprintf("\n\nSKILLS LOADED THIS SESSION - their SKILL.md is already in this conversation, follow it and do not read it again: %s\n",
+	return fmt.Sprintf("\n\nSKILLS LOADED THIS SESSION - their SKILL.md is already in this conversation, follow it and do not load it again: %s\n",
 		strings.Join(names, ", "))
 }
 

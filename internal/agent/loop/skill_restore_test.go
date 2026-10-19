@@ -24,6 +24,10 @@ func readCall(id, args string) sdk.Message {
 	return toolCallMsg(id, tools.ToolRead, args)
 }
 
+func skillCall(id, name string) sdk.Message {
+	return toolCallMsg(id, tools.ToolSkill, `{"name":"`+name+`"}`)
+}
+
 func toolCallMsg(id, name, args string) sdk.Message {
 	return sdk.Message{
 		Role:    sdk.Assistant,
@@ -34,6 +38,25 @@ func toolCallMsg(id, name, args string) sdk.Message {
 			Function: sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: args},
 		}},
 	}
+}
+
+func toolResultMsg(id string) sdk.Message {
+	return sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("result"), ToolCallID: &id}
+}
+
+// answered pairs every tool call in msgs with a tool result so it counts as a
+// completed load.
+func answered(msgs ...sdk.Message) []sdk.Message {
+	var out []sdk.Message
+	for _, m := range msgs {
+		out = append(out, m)
+		if m.ToolCalls != nil {
+			for _, tc := range *m.ToolCalls {
+				out = append(out, toolResultMsg(tc.ID))
+			}
+		}
+	}
+	return out
 }
 
 func skillsFake(skills ...agentdomain.Skill) *agentdomainmocks.FakeSkillsService {
@@ -50,16 +73,26 @@ func skillsFake(skills ...agentdomain.Skill) *agentdomainmocks.FakeSkillsService
 	return fake
 }
 
-func TestReadToolPaths(t *testing.T) {
+func TestSkillLoads(t *testing.T) {
 	tests := []struct {
 		name     string
 		messages []sdk.Message
-		want     []string
+		want     []skillLoadKey
 	}{
 		{
-			name:     "whole file read counts",
+			name:     "skill call counts by name",
+			messages: []sdk.Message{skillCall("1", "go")},
+			want:     []skillLoadKey{{name: "go"}},
+		},
+		{
+			name:     "plugin-qualified skill call is reduced to the bare name",
+			messages: []sdk.Message{skillCall("1", "ponytail:ponytail")},
+			want:     []skillLoadKey{{name: "ponytail"}},
+		},
+		{
+			name:     "whole file read counts by path",
 			messages: []sdk.Message{readCall("1", `{"file_path":"/s/go/SKILL.md"}`)},
-			want:     []string{"/s/go/SKILL.md"},
+			want:     []skillLoadKey{{path: "/s/go/SKILL.md"}},
 		},
 		{
 			name:     "ranged read is partial",
@@ -79,16 +112,19 @@ func TestReadToolPaths(t *testing.T) {
 		{
 			name: "most recent first, deduplicated",
 			messages: []sdk.Message{
-				readCall("1", `{"file_path":"/a"}`),
-				readCall("2", `{"file_path":"/b"}`),
-				readCall("3", `{"file_path":"/a"}`),
+				skillCall("1", "a"),
+				skillCall("2", "b"),
+				skillCall("3", "a"),
 			},
-			want: []string{"/a", "/b"},
+			want: []skillLoadKey{{name: "a"}, {name: "b"}},
 		},
 	}
+	t.Run("an unanswered call is not a load", func(t *testing.T) {
+		assert.Nil(t, skillLoads([]sdk.Message{skillCall("1", "go")}))
+	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, readToolPaths(tt.messages))
+			assert.Equal(t, tt.want, skillLoads(answered(tt.messages...)))
 		})
 	}
 }
@@ -96,18 +132,23 @@ func TestReadToolPaths(t *testing.T) {
 func TestLoadedSkills(t *testing.T) {
 	fake := skillsFake(
 		agentdomain.Skill{Name: "go", Path: "/s/go/SKILL.md"},
+		agentdomain.Skill{Name: "ddd", Path: "/s/ddd/SKILL.md"},
 		agentdomain.Skill{Name: "catalog", Path: ""},
 	)
-	messages := []sdk.Message{
+	messages := answered(
 		userMsg("/go"),
 		readCall("1", `{"file_path":"/s/go/SKILL.md"}`),
-		readCall("2", `{"file_path":"/repo/main.go"}`),
-	}
+		skillCall("2", "ddd"),
+		skillCall("3", "catalog"),
+		skillCall("4", "go"),
+		readCall("5", `{"file_path":"/repo/main.go"}`),
+	)
 
 	got := loadedSkills(fake, messages)
 
-	require.Len(t, got, 1)
-	assert.Equal(t, "go", got[0].Name)
+	require.Len(t, got, 2, "a skill loaded by name or by path counts once, a catalog skill without a path never")
+	assert.Equal(t, "go", got[0].Name, "most recently loaded first")
+	assert.Equal(t, "ddd", got[1].Name)
 	assert.Nil(t, loadedSkills(nil, messages))
 }
 
@@ -126,23 +167,23 @@ func TestSkillRestorer(t *testing.T) {
 	missing := agentdomain.Skill{Name: "missing", Path: filepath.Join(dir, "missing", "SKILL.md")}
 	restore := SkillRestorer(skillsFake(goSkill, bigSkill, missing))
 
-	t.Run("re-emits the read pair for a loaded skill", func(t *testing.T) {
-		got := restore([]sdk.Message{readCall("1", `{"file_path":"`+goSkill.Path+`"}`)})
+	t.Run("re-emits a Skill pair for a loaded skill", func(t *testing.T) {
+		got := restore(answered(readCall("1", `{"file_path":"`+goSkill.Path+`"}`)))
 
 		require.Len(t, got, 2)
 		assert.Equal(t, sdk.Assistant, got[0].Role)
 		assert.Equal(t, "restored-skill-go", (*got[0].ToolCalls)[0].ID)
-		assert.Equal(t, tools.ToolRead, (*got[0].ToolCalls)[0].Function.Name)
+		assert.Equal(t, tools.ToolSkill, (*got[0].ToolCalls)[0].Function.Name)
 		assert.Equal(t, sdk.Tool, got[1].Role)
 		assert.Equal(t, "restored-skill-go", *got[1].ToolCallID)
 		text, _ := got[1].Content.AsMessageContent0()
-		assert.Contains(t, text, "File: "+goSkill.Path)
+		assert.Contains(t, text, "Skill: go\nPath: "+goSkill.Path)
 		assert.Contains(t, text, "be boring")
-		assert.Equal(t, []string{goSkill.Path}, readToolPaths(got), "the restored pair must itself count as loaded")
+		assert.Equal(t, []skillLoadKey{{name: "go"}}, skillLoads(got), "the restored pair must itself count as loaded")
 	})
 
 	t.Run("truncates an oversized skill", func(t *testing.T) {
-		got := restore([]sdk.Message{readCall("1", `{"file_path":"`+bigSkill.Path+`"}`)})
+		got := restore(answered(skillCall("1", "big")))
 
 		require.Len(t, got, 2)
 		text, _ := got[1].Content.AsMessageContent0()
@@ -151,10 +192,10 @@ func TestSkillRestorer(t *testing.T) {
 	})
 
 	t.Run("skips a missing file and unrelated reads", func(t *testing.T) {
-		got := restore([]sdk.Message{
-			readCall("1", `{"file_path":"`+missing.Path+`"}`),
+		got := restore(answered(
+			skillCall("1", "missing"),
 			readCall("2", `{"file_path":"/repo/main.go"}`),
-		})
+		))
 
 		assert.Empty(t, got)
 	})
@@ -163,10 +204,10 @@ func TestSkillRestorer(t *testing.T) {
 func TestBuildLoadedSkillsInfo(t *testing.T) {
 	goSkill := agentdomain.Skill{Name: "go", Description: "GO_DESC", Path: "/s/go/SKILL.md", Scope: agentdomain.SkillScopeProject}
 	svc := &Agent{skillsService: skillsFake(goSkill)}
-	messages := []sdk.Message{userMsg("/go"), readCall("1", `{"file_path":"/s/go/SKILL.md"}`)}
+	messages := answered(userMsg("/go"), skillCall("1", "go"))
 
-	assert.Contains(t, svc.buildLoadedSkillsInfo(messages), "do not read it again: go")
-	assert.Empty(t, svc.buildActiveSkillInfo(messages, true), "a loaded skill is no longer told to be read")
+	assert.Contains(t, svc.buildLoadedSkillsInfo(messages), "do not load it again: go")
+	assert.Empty(t, svc.buildActiveSkillInfo(messages, true), "a loaded skill is no longer told to be loaded")
 	assert.Contains(t, svc.buildActiveSkillInfo([]sdk.Message{userMsg("/go")}, true), "Path: /s/go/SKILL.md")
 	assert.Empty(t, svc.buildLoadedSkillsInfo([]sdk.Message{userMsg("/go")}))
 }
@@ -176,7 +217,8 @@ func TestAlreadyLoadedSkill(t *testing.T) {
 	repo := &convmocks.FakeConversationRepository{}
 	repo.GetMessagesReturns([]convdomain.ConversationEntry{
 		{Message: userMsg("/go")},
-		{Message: readCall("1", `{"file_path":"/s/go/SKILL.md"}`)},
+		{Message: skillCall("1", "go")},
+		{Message: toolResultMsg("1")},
 	})
 	svc := &Agent{skillsService: skillsFake(goSkill), conversationRepo: repo}
 
@@ -186,7 +228,9 @@ func TestAlreadyLoadedSkill(t *testing.T) {
 		args map[string]any
 		want bool
 	}{
-		{"repeat read of a loaded skill", tools.ToolRead, map[string]any{"file_path": "/s/go/SKILL.md"}, true},
+		{"repeat Skill call of a loaded skill", tools.ToolSkill, map[string]any{"name": "go"}, true},
+		{"repeat Read of a loaded skill path", tools.ToolRead, map[string]any{"file_path": "/s/go/SKILL.md"}, true},
+		{"Skill call of another skill", tools.ToolSkill, map[string]any{"name": "ddd"}, false},
 		{"read of another file", tools.ToolRead, map[string]any{"file_path": "/repo/main.go"}, false},
 		{"other tool on the same path", tools.ToolBash, map[string]any{"command": "cat /s/go/SKILL.md"}, false},
 	}
@@ -197,7 +241,7 @@ func TestAlreadyLoadedSkill(t *testing.T) {
 			if got {
 				assert.Equal(t, "go", sk.Name)
 				text, _ := svc.alreadyLoadedSkillEntry(sdk.ChatCompletionMessageToolCall{ID: "c"}, sk, tt.args, time.Now()).Message.Content.AsMessageContent0()
-				assert.Contains(t, text, `Skill "go" is already loaded`)
+				assert.Contains(t, text, "Skill go is already loaded")
 			}
 		})
 	}

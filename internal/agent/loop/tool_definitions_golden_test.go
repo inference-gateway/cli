@@ -26,7 +26,7 @@ import (
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files in testdata/")
 
-const builtinToolCount = 49
+const builtinToolCount = 50
 
 // toolDefinitionsSnapshot is what the built-in tools expose: the definitions
 // sent to the model, the tools offered per agent mode, and whether a call
@@ -161,6 +161,7 @@ func goldenRegistry(cfg *config.Config) *tools.Registry {
 		jobs,
 		nil,
 	)
+	registry.SetSkillsService(&agentdomainmocks.FakeSkillsService{})
 	registry.RegisterTools(a2a.NewTools(cfg, a2a.NewTaskTracker(nil), jobs, nil))
 	registry.RegisterTools(browser.NewTools(cfg, nil))
 	registry.RegisterFrameSource("screen", &agentdomainmocks.FakeFrameSource{})

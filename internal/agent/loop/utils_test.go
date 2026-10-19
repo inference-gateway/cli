@@ -320,7 +320,7 @@ func TestBuildSkillsInfo(t *testing.T) {
 			}(),
 			wantContains: []string{
 				"AVAILABLE SKILLS:",
-				"Read tool",
+				"Skill tool",
 				"pdf-helper",
 				"Extract text from PDFs.",
 				"/abs/path/.infer/skills/pdf-helper/SKILL.md",
@@ -567,7 +567,7 @@ func TestBuildActiveSkillInfo(t *testing.T) {
 			messages: []sdk.Message{userMsg("/foo please do the thing")},
 			wantContains: []string{
 				"ACTIVE SKILL ",
-				"Read tool",
+				"Skill tool",
 				"foo (project): FOO_DESC",
 				"Path: /abs/.infer/skills/foo/SKILL.md",
 			},

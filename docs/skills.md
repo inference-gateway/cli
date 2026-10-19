@@ -109,7 +109,7 @@ keep in sync.
 The whole catalog index is fetched and held in memory, which is cheap even at
 a few thousand entries, but the `AVAILABLE SKILLS:` block in the system prompt
 is bounded by `agent.skills.max_chars` (default 4000). Skills that have a local
-`SKILL.md` are listed first - the model can `Read` those - and whatever does not
+`SKILL.md` are listed first - the model loads those with the `Skill` tool - and whatever does not
 fit is reported as a count, not a list of names. So a large catalog costs a
 fixed number of prompt tokens no matter how big it gets; use
 `infer skills search` to find what the prompt does not name.
@@ -201,8 +201,10 @@ INFER_AGENT_SKILLS_ENABLED=false infer chat
 When enabled, the agent's system prompt gains an `AVAILABLE SKILLS:` block
 listing each skill's `name`, `description`, scope, and the **absolute path**
 to its `SKILL.md`. The body of `SKILL.md` is **not** loaded at startup - the
-model reads it on demand using the existing `Read` tool. This is "progressive
-disclosure" and matches the behaviour of other vendors.
+model loads it on demand with the `Skill` tool, by name. This is "progressive
+disclosure" and matches the behaviour of other vendors. A skill that is already
+in the conversation is not sent again, and skills loaded before a compaction are
+re-emitted after the checkpoint so they survive it.
 
 ## Discovering skills
 
