@@ -145,7 +145,7 @@ func writeSkill(t *testing.T, dir, name, body string) agentdomain.Skill {
 	t.Helper()
 	path := filepath.Join(dir, name, "SKILL.md")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("---\nname: "+name+"\ndescription: test\n---\n"+body), 0o644))
 	return agentdomain.Skill{Name: name, Path: path, Scope: agentdomain.SkillScopeProject}
 }
 
@@ -168,6 +168,7 @@ func TestSkillRestorer(t *testing.T) {
 		text, _ := got[1].Content.AsMessageContent0()
 		assert.Contains(t, text, "Skill: go\nPath: "+goSkill.Path)
 		assert.Contains(t, text, "be boring")
+		assert.NotContains(t, text, "description: test", "frontmatter is stripped from the restored body")
 		assert.Equal(t, []string{"go"}, skillLoads(got), "the restored pair must itself count as loaded")
 	})
 

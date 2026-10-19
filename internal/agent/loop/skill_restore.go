@@ -2,7 +2,6 @@ package loop
 
 import (
 	"encoding/json"
-	"os"
 	"slices"
 	"strings"
 
@@ -88,12 +87,12 @@ func SkillRestorer(skills agentdomain.SkillsService) func(summarized []sdk.Messa
 		var restored []sdk.Message
 		budget := restoredSkillsTotalChars
 		for _, sk := range loadedSkills(skills, summarized) {
-			body, err := os.ReadFile(sk.Path)
+			body, err := tools.LoadSkillBody(sk.Path)
 			if err != nil {
 				logger.Debug("skipping skill restore, file unreadable", "skill", sk.Name, "path", sk.Path, "error", err)
 				continue
 			}
-			content := truncateSkillBody(string(body), min(restoredSkillMaxChars, budget))
+			content := truncateSkillBody(body, min(restoredSkillMaxChars, budget))
 			if content == "" {
 				break
 			}

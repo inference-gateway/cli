@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
 // SkillTool loads a skill's SKILL.md by name so the model never has to guess
@@ -58,7 +59,7 @@ func (t *SkillTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 		}
 	}
 
-	body, err := os.ReadFile(sk.Path)
+	body, err := LoadSkillBody(sk.Path)
 	if err != nil {
 		return fail(fmt.Sprintf("cannot read %s: %v", sk.Path, err)), nil
 	}
@@ -68,8 +69,23 @@ func (t *SkillTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
-		Data:      &agentdomain.SkillToolResult{Name: sk.DisplayName(), Path: sk.Path, Content: string(body)},
+		Data:      &agentdomain.SkillToolResult{Name: sk.DisplayName(), Path: sk.Path, Content: body},
 	}, nil
+}
+
+// LoadSkillBody reads a SKILL.md and returns its body without the YAML
+// frontmatter: the name and description already reach the model through the
+// skills listing, and the raw frontmatter only clutters the conversation.
+func LoadSkillBody(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	_, body, err := skills.SplitFrontmatter(raw)
+	if err != nil {
+		return strings.TrimSpace(string(raw)), nil
+	}
+	return strings.TrimSpace(body), nil
 }
 
 func skillBareName(arg any) string {

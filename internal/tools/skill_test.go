@@ -60,6 +60,7 @@ func TestSkillTool_Execute(t *testing.T) {
 			if tt.wantOK {
 				assert.Contains(t, tool.FormatForLLM(res), tt.wantContain)
 				assert.Contains(t, tool.FormatForLLM(res), "Skill: ")
+				assert.NotContains(t, tool.FormatForLLM(res), "name: go", "frontmatter is stripped")
 			} else {
 				assert.Contains(t, res.Error, tt.wantContain)
 			}
