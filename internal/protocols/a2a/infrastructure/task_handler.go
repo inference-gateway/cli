@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
-
-	uuid "github.com/google/uuid"
 
 	adkserver "github.com/inference-gateway/adk/server"
 	adk "github.com/inference-gateway/adk/types"
@@ -103,12 +102,15 @@ func taskPrompt(message *adk.Message) (string, error) {
 	return strings.Join(texts, "\n\n"), nil
 }
 
+// contextIDPattern is the charset a contextId may use: it becomes a storage
+// key on the daemon side, so path and shell metacharacters are refused.
+var contextIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+
 // sessionForContextID maps the caller-chosen contextId onto the session ID the
-// headless run stores the conversation under. Only UUIDs pass: the id is a
-// storage key on the daemon side too.
+// headless run stores the conversation under.
 func sessionForContextID(contextID string) (string, error) {
-	if err := uuid.Validate(contextID); err != nil {
-		return "", errors.New("the task's contextId must be a UUID")
+	if !contextIDPattern.MatchString(contextID) {
+		return "", errors.New("the task's contextId must be 1 to 128 letters, digits, dashes or underscores")
 	}
 	return "a2a-" + contextID, nil
 }
