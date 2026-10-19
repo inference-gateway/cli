@@ -18,17 +18,19 @@ import (
 // launcher records every worker the registry launches. Each fake worker's
 // stdout is a channel the test writes lines into, and Stop closes it.
 type launcher struct {
-	mu      sync.Mutex
-	keys    []sessionsdomain.ThreadKey
-	opts    []sessionsdomain.ThreadOptions
-	workers []*sessionsmocks.FakeWorker
-	lines   []chan []byte
-	fail    error
+	mu       sync.Mutex
+	keys     []sessionsdomain.ThreadKey
+	opts     []sessionsdomain.ThreadOptions
+	workers  []*sessionsmocks.FakeWorker
+	lines    []chan []byte
+	fail     error
+	attempts int
 }
 
 func (l *launcher) launch(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.attempts++
 	if l.fail != nil {
 		return nil, l.fail
 	}
@@ -300,6 +302,14 @@ func TestRegistryLaunchFailureReachesTheClient(t *testing.T) {
 	handle(r, a, `{"type":"new_session","project_dir":"/proj"}`)
 	if got := delivered(a); len(got) != 1 || !strings.Contains(got[0], "no such binary") || !strings.Contains(got[0], "RUN_ERROR") {
 		t.Fatalf("expected a RUN_ERROR naming the launch failure, got %q", got)
+	}
+
+	handle(r, a, runInput(`{"threadId":"t1","runId":"r1","messages":[]}`))
+	if got := delivered(a); len(got) != 2 || !strings.Contains(got[1], "no such binary") {
+		t.Fatalf("expected the cached launch failure on the next frame, got %q", got)
+	}
+	if l.attempts != 1 {
+		t.Fatalf("expected one launch attempt, got %d", l.attempts)
 	}
 }
 
