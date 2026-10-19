@@ -39,7 +39,6 @@ const (
 	SideEffectSetInput
 	SideEffectGenerateSnippet
 	SideEffectCompactConversation
-	SideEffectShowInstallOpentaskSetup
 	SideEffectEmbedImages
 	SideEffectSendMessageWithModel
 	// SideEffectSendMessage submits Data (a string) as a regular chat message.

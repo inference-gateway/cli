@@ -145,5 +145,5 @@ func (h *ChatHandler) HandleCommand(commandText string) tea.Cmd {
 		}
 	}
 
-	return h.shortcutHandler.executeShortcut(mainShortcut, args)
+	return h.shortcutHandler.executeShortcut(mainShortcut, args, commandText)
 }

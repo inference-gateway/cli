@@ -44,10 +44,14 @@ func NewChatShortcutHandler(handler *ChatHandler) *ChatShortcutHandler {
 	}
 }
 
-// executeShortcut executes the specific shortcut based on the shortcut type
+// executeShortcut runs a registry shortcut, the legacy clear/cls aliases, and
+// passes anything else to the agent as a regular chat message: unknown
+// /-names are prompt text (headless passes them through unchanged), e.g. the
+// /opentask marker the /install-opentask flow re-enters the chat with.
 func (s *ChatShortcutHandler) executeShortcut(
 	shortcut string,
 	args []string,
+	commandText string,
 ) tea.Cmd {
 	return func() tea.Msg {
 		if registryResult := s.tryExecuteFromRegistry(shortcut, args); registryResult != nil {
@@ -90,11 +94,7 @@ func (s *ChatShortcutHandler) executeShortcut(
 			)()
 
 		default:
-			return tui.SetStatusEvent{
-				Message:    fmt.Sprintf("Unknown shortcut: %s", shortcut),
-				Spinner:    false,
-				StatusType: tui.StatusDefault,
-			}
+			return s.handler.messageProcessor.processChatMessage(commandText, nil)
 		}
 	}
 }
@@ -252,8 +252,6 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowConversationSelectionSideEffect()
 	case shortcuts.SideEffectStartNewConversation:
 		return s.handleStartNewConversationSideEffect(data)
-	case shortcuts.SideEffectShowInstallOpentaskSetup:
-		return s.handleShowOpentaskSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectShowDiffViewer:
@@ -393,10 +391,6 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect() tea.Ms
 		Spinner:    false,
 		StatusType: tui.StatusDefault,
 	}
-}
-
-func (s *ChatShortcutHandler) handleShowOpentaskSetupSideEffect() tea.Msg {
-	return tui.TriggerOpentaskSetupEvent{}
 }
 
 // handleStartNewConversationSideEffect refreshes the view after /new or /clear.

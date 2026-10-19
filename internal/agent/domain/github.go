@@ -49,26 +49,3 @@ type GitHubIssueService interface {
 	// a slow first shell-out when gh / repo / auth are missing.
 	IsAvailable() bool
 }
-
-// GitHubSetupService handles git/gh/CI operations for the GitHub Action CI setup
-// flow triggered from the install-opentask wizard. Every shell invocation carries
-// a context so a wedged subprocess cannot hang the UI.
-type GitHubSetupService interface {
-	GetCurrentRepo() (string, error)
-	IsOrgRepo(repo string) (bool, error)
-	CheckOrgSecretsExist(orgName string) (bool, error)
-	SetOrgSecret(orgName, name, value string) error
-	InstallWorkflow(ctx context.Context, opts InstallWorkflowOptions) (string, error)
-}
-
-// InstallWorkflowOptions parameterizes GitHubSetupService.InstallWorkflow.
-type InstallWorkflowOptions struct {
-	// Repo is "owner/name"; empty means the current repository.
-	Repo string
-	// Model runs the install agent and becomes the workflow's default model.
-	Model string
-	// Context is extra user-supplied guidance appended to the agent prompt.
-	Context string
-	// GitHubApp selects the GitHub App token variant of the workflow.
-	GitHubApp bool
-}
