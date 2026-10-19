@@ -691,6 +691,11 @@ func (t *GrepTool) getSearchPath(args map[string]any) (string, error) {
 		}
 	}
 
+	if t.config != nil {
+		if err := sandbox.ValidateRead(t.config, searchPath); err != nil {
+			return "", err
+		}
+	}
 	if t.isPathExcluded(searchPath) {
 		return "", fmt.Errorf("access to path '%s' is not allowed", searchPath)
 	}
@@ -861,7 +866,7 @@ func (t *GrepTool) addContextToMatch(match GrepMatch, _ /* contextLines */ []str
 	return match
 }
 
-// isPathExcluded checks if a file path should be excluded based on gitignore
+// isPathExcluded reports whether the sandbox or a gitignore hides path
 func (t *GrepTool) isPathExcluded(path string) bool {
 	if t.config == nil {
 		return false

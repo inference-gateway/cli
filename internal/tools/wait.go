@@ -636,6 +636,9 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 			}
 			return "condition_met"
 		}
+		if exitCode == -1 {
+			return ""
+		}
 		if len(pendingCodes) > 0 && !pendingCodes[exitCode] {
 			return "check_failed"
 		}

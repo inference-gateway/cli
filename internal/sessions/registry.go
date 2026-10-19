@@ -115,6 +115,7 @@ type thread struct {
 	runID      string
 	interrupts map[string]struct{}
 	active     time.Time
+	launchErr  error
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
@@ -318,13 +319,17 @@ func (r *Registry) workerLocked(t *thread) (sessionsdomain.Worker, error) {
 	if r.closed {
 		return nil, errors.New("the daemon is shutting down")
 	}
+	if t.launchErr != nil {
+		return nil, t.launchErr
+	}
 	w, err := r.launch(t.key, t.opts)
 	if err != nil {
 		clear(t.waiting)
+		t.launchErr = fmt.Errorf("launching the session worker in %s: %w", t.key.ProjectDir, err)
 		if len(t.clients) == 0 {
 			delete(r.threads, t.key)
 		}
-		return nil, fmt.Errorf("launching the session worker in %s: %w", t.key.ProjectDir, err)
+		return nil, t.launchErr
 	}
 	t.worker = w
 	go r.pump(t, w)
