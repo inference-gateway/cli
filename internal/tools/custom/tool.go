@@ -14,6 +14,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -94,7 +95,7 @@ func (t *Tool) run(ctx context.Context, args map[string]any) (string, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, t.command[0], t.command[1:]...)
+	cmd := process.CommandContext(ctx, t.command[0], t.command[1:]...)
 	cmd.Stdin = bytes.NewReader(input)
 	stdout := utils.NewOutputRingBuffer(maxCapturedBytes)
 	stderr := utils.NewOutputRingBuffer(maxCapturedBytes)

@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -187,7 +188,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		cmdCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
 
-	cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
+	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
 
 	cmd.Env = os.Environ()
 	if env := agentdomain.GetTraceEnv(ctx); env != nil {

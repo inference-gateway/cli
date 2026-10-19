@@ -13,6 +13,7 @@ import (
 	"time"
 
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 const (
@@ -152,7 +153,7 @@ func helperCommand(ctx context.Context) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, executable)
+	cmd := process.CommandContext(ctx, executable)
 	cmd.Env = append(os.Environ(), helperEnvironment+"=1")
 	return cmd, nil
 }

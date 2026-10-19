@@ -3,10 +3,10 @@ package container
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // InferNetworkPrefix is the prefix for session-specific Docker networks
@@ -62,7 +62,7 @@ func interpretNetworkRm(output string) (gone bool, inUse bool) {
 // refused by the runtime and silently skipped. bin is the container CLI
 // ("docker" or "podman").
 func pruneNetworks(ctx context.Context, bin, current string) {
-	out, err := exec.CommandContext(ctx, bin, "network", "ls", "--filter", "name="+InferNetworkPrefix, "--format", "{{.Name}}").Output()
+	out, err := process.CommandContext(ctx, bin, "network", "ls", "--filter", "name="+InferNetworkPrefix, "--format", "{{.Name}}").Output()
 	if err != nil {
 		logger.Debug("failed to list networks for pruning", "runtime", bin, "error", err)
 		return
@@ -75,14 +75,14 @@ func pruneNetworks(ctx context.Context, bin, current string) {
 
 	logger.Info("pruning leaked container networks", "runtime", bin, "count", len(names))
 	args := append([]string{"network", "rm"}, names...)
-	if err := exec.CommandContext(ctx, bin, args...).Run(); err != nil {
+	if err := process.CommandContext(ctx, bin, args...).Run(); err != nil {
 		logger.Debug("some leaked networks could not be removed (likely in use)", "runtime", bin, "error", err)
 	}
 }
 
 // publishedPort runs `<bin> port <container>` and returns the first host port.
 func publishedPort(ctx context.Context, bin, containerIDOrName string) (int, error) {
-	output, err := exec.CommandContext(ctx, bin, "port", containerIDOrName).Output()
+	output, err := process.CommandContext(ctx, bin, "port", containerIDOrName).Output()
 	if err != nil {
 		return 0, fmt.Errorf("%s port %s: %w", bin, containerIDOrName, err)
 	}

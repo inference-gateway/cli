@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -24,6 +23,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
@@ -588,7 +588,7 @@ func (s *AgentSupervisor) StopAgent(ctx context.Context, agentName string) error
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
+	cmd := process.CommandContext(ctx, "docker", "stop", containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("failed to stop agent container", "name", agentName, "error", err)
 	}
@@ -685,7 +685,7 @@ func (s *AgentSupervisor) startContainer(ctx context.Context, agent config.Agent
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := process.CommandContext(ctx, "docker", args...)
 	var outputBuf, errBuf strings.Builder
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = &errBuf
@@ -817,7 +817,7 @@ func (s *AgentSupervisor) isAgentRunning(agentName string) bool {
 // runningContainerID returns the id of the running container with exactly
 // that name, or "" when none is running.
 func (s *AgentSupervisor) runningContainerID(expectedName string) string {
-	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", AgentContainerPrefix), "--format", "{{.ID}}\t{{.Names}}")
+	cmd := process.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", AgentContainerPrefix), "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
@@ -853,7 +853,7 @@ func (s *AgentSupervisor) readinessDiagnosis(ctx context.Context, agentName stri
 	if containerID == "" || ctx.Err() != nil {
 		return ""
 	}
-	output, err := exec.CommandContext(ctx, "docker", "logs", "--tail", strconv.Itoa(readinessLogLines), containerID).CombinedOutput()
+	output, err := process.CommandContext(ctx, "docker", "logs", "--tail", strconv.Itoa(readinessLogLines), containerID).CombinedOutput()
 	if err != nil {
 		return "the container exited before it became ready"
 	}
@@ -898,7 +898,7 @@ func (s *AgentSupervisor) containerExists(containerID string) bool {
 	if containerID == "" {
 		return false
 	}
-	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
+	cmd := process.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
 	return cmd.Run() == nil
 }
 

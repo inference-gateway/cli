@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -683,7 +684,7 @@ func (t *WaitTool) runCheckCommand(ctx context.Context, cmdStr string) (string, 
 	checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(checkCtx, "bash", "-c", cmdStr)
+	cmd := process.CommandContext(checkCtx, "bash", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {

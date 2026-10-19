@@ -24,6 +24,7 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 
 	config "github.com/inference-gateway/cli/config"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // AuthError reports that a request to an agent could not be given credentials.
@@ -281,7 +282,7 @@ func runTokenCommand(agentName string, argv []string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), credentialTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd := process.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Stderr = nil
 	stdout, err := cmd.Output()
 	if err != nil {

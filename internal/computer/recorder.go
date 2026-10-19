@@ -23,6 +23,7 @@ import (
 	capture "github.com/inference-gateway/cli/internal/computer/infrastructure/capture"
 	display "github.com/inference-gateway/cli/internal/computer/infrastructure/display"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -206,7 +207,7 @@ func (r *ScreenRecorder) launch(ffmpeg string, args []string, rec *recording) er
 		return err
 	}
 
-	cmd := exec.Command(ffmpeg, args...)
+	cmd := process.Command(ffmpeg, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("ffmpeg stdin: %w", err)
