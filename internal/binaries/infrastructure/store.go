@@ -18,6 +18,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 	download "github.com/inference-gateway/cli/internal/platform/download"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 var _ binariesdomain.Store = (*Store)(nil)
@@ -227,7 +228,7 @@ func (s *Store) runInstaller(ctx context.Context, version string, names []binari
 		return err
 	}
 
-	cmd := exec.Command(sh, append([]string{script}, namesToStrings(names)...)...) //nolint:gosec // pinned shell running our fetched installer
+	cmd := process.Command(sh, append([]string{script}, namesToStrings(names)...)...) //nolint:gosec // pinned shell running our fetched installer
 	cmd.Env = append(os.Environ(), "INSTALL_DIR="+dir, "VERSION="+version)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

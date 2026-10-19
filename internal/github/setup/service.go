@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // CommandRunner is an injectable interface for running subprocesses. Tests
@@ -18,7 +20,7 @@ type RealRunner struct{}
 // Run returns stdout on success and stderr on failure, so callers that embed
 // the bytes in an error surface the real git/gh diagnostic.
 func (r *RealRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := process.CommandContext(ctx, name, args...)
 	out, err := cmd.Output()
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {

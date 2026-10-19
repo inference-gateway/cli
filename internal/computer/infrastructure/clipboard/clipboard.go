@@ -7,6 +7,8 @@ import (
 	"runtime"
 
 	rgclip "github.com/go-vgo/robotgo/clipboard"
+
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // Format represents a clipboard data format.
@@ -52,13 +54,13 @@ func readImage() []byte {
 set f to open for access POSIX file %q with write permission
 write pngData to f
 close access f`, path)
-			return exec.Command("osascript", "-e", script)
+			return process.Command("osascript", "-e", script)
 		})
 	case "linux":
-		if out, err := exec.Command("wl-paste", "-t", "image/png").Output(); err == nil && len(out) > 0 {
+		if out, err := process.Command("wl-paste", "-t", "image/png").Output(); err == nil && len(out) > 0 {
 			return out
 		}
-		if out, err := exec.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-o").Output(); err == nil && len(out) > 0 {
+		if out, err := process.Command("xclip", "-selection", "clipboard", "-t", "image/png", "-o").Output(); err == nil && len(out) > 0 {
 			return out
 		}
 		return nil
@@ -67,7 +69,7 @@ close access f`, path)
 			script := fmt.Sprintf(`$img = Get-Clipboard -Format Image
 if ($img -eq $null) { exit 1 }
 $img.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png)`, path)
-			return exec.Command("powershell", "-NoProfile", "-Command", script)
+			return process.Command("powershell", "-NoProfile", "-Command", script)
 		})
 	default:
 		return nil

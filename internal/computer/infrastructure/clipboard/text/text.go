@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // Writer copies text to the system clipboard via native CLI utilities.
@@ -51,7 +53,7 @@ func (w *Writer) Copy(ctx context.Context, text string) error {
 
 // runCopy pipes text to the clipboard utility's stdin.
 func runCopy(ctx context.Context, c candidate, text string) error {
-	cmd := exec.CommandContext(ctx, c.name, c.args...)
+	cmd := process.CommandContext(ctx, c.name, c.args...)
 	cmd.Stdin = strings.NewReader(text)
 
 	if out, err := cmd.CombinedOutput(); err != nil {

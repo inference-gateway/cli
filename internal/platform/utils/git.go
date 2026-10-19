@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
+
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // RunGit runs a git command in workdir (process cwd when empty) and returns
@@ -25,7 +26,7 @@ func RunGitStdin(ctx context.Context, workdir, stdin string, args ...string) ([]
 }
 
 func runGit(ctx context.Context, workdir string, stdin io.Reader, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := process.CommandContext(ctx, "git", args...)
 	cmd.Dir = workdir
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	cmd.Stdin = stdin

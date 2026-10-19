@@ -49,7 +49,7 @@ type Service struct {
 // Options bundles dependencies for NewService.
 type Options struct {
 	Config Config
-	// ExecCommand defaults to exec.CommandContext when nil.
+	// ExecCommand defaults to process.CommandContext when nil.
 	ExecCommand agentheadless.ExecFunc
 	// BinaryPath defaults to os.Args[0] when empty.
 	BinaryPath string

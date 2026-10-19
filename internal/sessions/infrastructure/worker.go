@@ -15,6 +15,7 @@ import (
 	"time"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -45,7 +46,7 @@ func LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOption
 		return nil, fmt.Errorf("resolving the infer binary: %w", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(ctx, bin, workerArgs(key, opts)...)
+	cmd := process.CommandContext(ctx, bin, workerArgs(key, opts)...)
 	cmd.Dir = key.ProjectDir
 	cmd.Env = append(os.Environ(), workerEnv(key, opts)...)
 	cmd.WaitDelay = workerStopGrace

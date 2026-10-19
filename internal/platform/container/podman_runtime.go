@@ -3,11 +3,11 @@ package container
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"sync/atomic"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // PodmanRuntime implements ContainerRuntime interface for Podman
@@ -35,7 +35,7 @@ func (pr *PodmanRuntime) GetNetworkName() string {
 // call checks again. If creation fails because the IPAM address pools are
 // exhausted (leaked networks from prior sessions), it prunes those and retries once.
 func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
-	if err := exec.CommandContext(ctx, "podman", "network", "inspect", pr.networkName).Run(); err == nil {
+	if err := process.CommandContext(ctx, "podman", "network", "inspect", pr.networkName).Run(); err == nil {
 		pr.networkCreated.Store(true)
 		return nil
 	}
@@ -60,7 +60,7 @@ func (pr *PodmanRuntime) EnsureNetwork(ctx context.Context) error {
 // (another session created it first) as success.
 func (pr *PodmanRuntime) createNetwork(ctx context.Context) error {
 	logger.Info("creating Podman network", "session", pr.sessionID, "network", pr.networkName)
-	output, err := exec.CommandContext(ctx, "podman", "network", "create", pr.networkName).CombinedOutput()
+	output, err := process.CommandContext(ctx, "podman", "network", "create", pr.networkName).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(output), "already exists") {
 			return nil
@@ -80,7 +80,7 @@ func (pr *PodmanRuntime) CleanupNetwork(ctx context.Context) error {
 		return nil
 	}
 
-	output, err := exec.CommandContext(ctx, "podman", "network", "rm", pr.networkName).CombinedOutput()
+	output, err := process.CommandContext(ctx, "podman", "network", "rm", pr.networkName).CombinedOutput()
 	if err == nil {
 		pr.networkCreated.Store(false)
 		logger.Info("podman network removed successfully", "network", pr.networkName)
@@ -103,7 +103,7 @@ func (pr *PodmanRuntime) ContainerExists(containerIDOrName string) bool {
 	if containerIDOrName == "" {
 		return false
 	}
-	cmd := exec.Command("podman", "inspect", "--format", "{{.State.Status}}", containerIDOrName)
+	cmd := process.Command("podman", "inspect", "--format", "{{.State.Status}}", containerIDOrName)
 	return cmd.Run() == nil
 }
 
@@ -181,7 +181,7 @@ func (pr *PodmanRuntime) RunContainer(ctx context.Context, opts RunContainerOpti
 
 	logger.Debug("running Podman container", "command", fmt.Sprintf("podman %s", strings.Join(args, " ")))
 
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := process.CommandContext(ctx, "podman", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("podman run failed: %w, output: %s", err, string(output))
@@ -197,7 +197,7 @@ func (pr *PodmanRuntime) StopContainer(ctx context.Context, containerIDOrName st
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "podman", "stop", containerIDOrName)
+	cmd := process.CommandContext(ctx, "podman", "stop", containerIDOrName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stop container %s: %w", containerIDOrName, err)
 	}
@@ -212,7 +212,7 @@ func (pr *PodmanRuntime) PullImage(ctx context.Context, image string, progress f
 
 // GetContainerHealth returns the health status of a container
 func (pr *PodmanRuntime) GetContainerHealth(ctx context.Context, containerIDOrName string) (HealthStatus, error) {
-	cmd := exec.CommandContext(ctx, "podman", "inspect", "--format", "{{.State.Health.Status}}", containerIDOrName)
+	cmd := process.CommandContext(ctx, "podman", "inspect", "--format", "{{.State.Health.Status}}", containerIDOrName)
 	output, err := cmd.Output()
 	if err != nil {
 		return HealthStatusNone, fmt.Errorf("failed to inspect container: %w", err)
@@ -238,7 +238,7 @@ func (pr *PodmanRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 		args = append(args, "--filter", fmt.Sprintf("name=%s", nameFilter))
 	}
 
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd := process.CommandContext(ctx, "podman", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("podman ps failed: %w, output: %s", err, string(output))

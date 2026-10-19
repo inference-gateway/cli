@@ -10,6 +10,7 @@ import (
 	"os/exec"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // ExecFunc matches exec.CommandContext. It is a type alias (not a defined type)
@@ -51,7 +52,7 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 	}
 	execFn := opts.Exec
 	if execFn == nil {
-		execFn = exec.CommandContext
+		execFn = process.CommandContext
 	}
 
 	cmd := execFn(ctx, bin, buildArgs(opts)...)

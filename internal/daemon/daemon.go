@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"time"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // bootWait bounds how long EnsureRunning waits for a daemon it just started to
@@ -53,7 +53,7 @@ var start = func() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(exe, "daemon")
+	cmd := process.Command(exe, "daemon")
 	if err := cmd.Start(); err != nil {
 		return err
 	}

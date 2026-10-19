@@ -12,6 +12,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 const (
@@ -40,7 +41,7 @@ func New() *Service {
 }
 
 func defaultRunner(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd := process.CommandContext(ctx, "gh", args...)
 	return cmd.Output()
 }
 

@@ -21,6 +21,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -541,7 +542,7 @@ func (t *AgentTool) sendTaskToPane(ctx context.Context, paneID, task string) err
 func (t *AgentTool) waitForPaneReady(ctx context.Context, paneID string) {
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
+		out, err := process.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
 		if err == nil && strings.Contains(string(out), "Type your message") {
 			return
 		}
@@ -558,7 +559,7 @@ func (t *AgentTool) waitForPaneReady(ctx context.Context, paneID string) {
 // remain-on-exit, stays open after it finishes so its output remains readable.
 func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (string, error) {
 	args := []string{"split-window", "-v", "-P", "-F", "#{pane_id}", command}
-	out, err := exec.CommandContext(ctx, "tmux", args...).Output()
+	out, err := process.CommandContext(ctx, "tmux", args...).Output()
 	if err != nil {
 		var stderr string
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
@@ -573,8 +574,8 @@ func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (
 		return "", nil
 	}
 
-	_ = exec.CommandContext(ctx, "tmux", "set-option", "-p", "-t", paneID, "remain-on-exit", "on").Run()
-	_ = exec.CommandContext(ctx, "tmux", "select-pane", "-t", paneID, "-T", title).Run()
+	_ = process.CommandContext(ctx, "tmux", "set-option", "-p", "-t", paneID, "remain-on-exit", "on").Run()
+	_ = process.CommandContext(ctx, "tmux", "select-pane", "-t", paneID, "-T", title).Run()
 	return paneID, nil
 }
 

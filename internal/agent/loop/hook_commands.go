@@ -11,6 +11,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
@@ -66,7 +67,7 @@ func runHookCommand(ctx context.Context, hook agentdomain.HookPoint, turn int, s
 	}
 
 	start := time.Now()
-	cmd := exec.CommandContext(ctx, "bash", "-c", hc.Command)
+	cmd := process.CommandContext(ctx, "bash", "-c", hc.Command)
 	cmd.Stdin = strings.NewReader(hookCommandStdin(hook, turn, sessionID))
 	out, err := cmd.CombinedOutput()
 	durMs := time.Since(start).Milliseconds()

@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 	binariesinfra "github.com/inference-gateway/cli/internal/binaries/infrastructure"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // recordGraceSeconds is how long past the requested duration a capture tool is
@@ -211,7 +212,7 @@ func parseSilenceStart(line string) (float64, bool) {
 // the full cap. ffmpeg finalizes the WAV on SIGINT, so a stop is reported as a
 // successful recording.
 func runFFmpegWithSilenceStop(ctx context.Context, name string, args []string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := process.CommandContext(ctx, name, args...)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err

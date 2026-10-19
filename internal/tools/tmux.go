@@ -2,10 +2,10 @@ package tools
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -80,7 +80,7 @@ func tmuxPaneState(ctx context.Context, paneID string) paneState {
 	if paneID == "" {
 		return paneGone
 	}
-	out, err := exec.CommandContext(ctx, "tmux", "display-message", "-p", "-t", paneID, "-F", "#{pane_dead}").Output()
+	out, err := process.CommandContext(ctx, "tmux", "display-message", "-p", "-t", paneID, "-F", "#{pane_dead}").Output()
 	if err != nil {
 		logger.Debug("tmux pane state check failed, treating pane as gone", "pane_id", paneID, "error", err)
 		return paneGone
@@ -104,7 +104,7 @@ func tmuxCapturePaneTail(ctx context.Context, paneID string, maxLines int) strin
 	if maxLines > maxPaneTailLines {
 		maxLines = maxPaneTailLines
 	}
-	out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
+	out, err := process.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
 	if err != nil {
 		return ""
 	}
@@ -120,7 +120,7 @@ func tmuxCapturePane(ctx context.Context, paneID string) string {
 	if paneID == "" {
 		return ""
 	}
-	out, err := exec.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
+	out, err := process.CommandContext(ctx, "tmux", "capture-pane", "-p", "-t", paneID).Output()
 	if err != nil {
 		return ""
 	}
@@ -137,12 +137,12 @@ func tmuxSendKeys(ctx context.Context, paneID, text string, keys []string) error
 		return nil
 	}
 	if text != "" {
-		if err := exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "-l", text).Run(); err != nil {
+		if err := process.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, "-l", text).Run(); err != nil {
 			return err
 		}
 	}
 	for _, k := range keys {
-		if err := exec.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, k).Run(); err != nil {
+		if err := process.CommandContext(ctx, "tmux", "send-keys", "-t", paneID, k).Run(); err != nil {
 			return err
 		}
 	}
@@ -154,7 +154,7 @@ func tmuxKillPane(ctx context.Context, paneID string) error {
 	if paneID == "" {
 		return nil
 	}
-	return exec.CommandContext(ctx, "tmux", "kill-pane", "-t", paneID).Run()
+	return process.CommandContext(ctx, "tmux", "kill-pane", "-t", paneID).Run()
 }
 
 // tailNonBlankLines trims leading/trailing blank lines and returns at most the

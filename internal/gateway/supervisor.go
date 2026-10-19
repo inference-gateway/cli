@@ -23,6 +23,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
@@ -404,7 +405,7 @@ func (gm *Supervisor) IsRunning() bool {
 func (gm *Supervisor) pullImage(ctx context.Context) error {
 	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
 
-	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
+	cmd := process.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 
@@ -522,7 +523,7 @@ func (gm *Supervisor) runContainer(ctx context.Context) error {
 	args = append(args, gm.config.Gateway.OCI)
 
 	logger.Info("starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := process.CommandContext(ctx, "docker", args...)
 
 	var outputBuf strings.Builder
 	cmd.Stdout = &outputBuf
@@ -539,7 +540,7 @@ func (gm *Supervisor) runContainer(ctx context.Context) error {
 // isContainerRunning checks if a gateway container is already running
 func (gm *Supervisor) isContainerRunning() bool {
 	expectedName := fmt.Sprintf("inference-gateway-%s", gm.sessionID)
-	cmd := exec.Command("docker", "ps", "--filter", "name=inference-gateway", "--format", "{{.ID}}\t{{.Names}}")
+	cmd := process.Command("docker", "ps", "--filter", "name=inference-gateway", "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false
@@ -705,7 +706,7 @@ func binaryVersion(ctx context.Context, binaryPath string) string {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(checkCtx, binaryPath, "--version").Output()
+	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
 	fields := strings.Fields(string(out))
 	if err != nil || len(fields) == 0 {
 		return ""
@@ -819,7 +820,7 @@ func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(checkCtx, binaryPath, "--version").Output()
+	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
 	fields := strings.Fields(string(out))
 	if err != nil || len(fields) == 0 {
 		return false
@@ -1035,7 +1036,7 @@ func extractGatewayZip(r io.Reader, destPath string) error {
 
 // runBinary starts the gateway binary
 func (gm *Supervisor) runBinary(binaryPath string) error {
-	cmd := exec.Command(binaryPath)
+	cmd := process.Command(binaryPath)
 	cmd.Env = gm.loadEnvironment()
 
 	if gm.config.Gateway.APIKey != "" {

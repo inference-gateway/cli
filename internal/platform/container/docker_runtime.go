@@ -3,11 +3,11 @@ package container
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"sync/atomic"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // DockerRuntime implements ContainerRuntime interface for Docker
@@ -35,7 +35,7 @@ func (dr *DockerRuntime) GetNetworkName() string {
 // call checks again. If creation fails because the IPAM address pools are
 // exhausted (leaked networks from prior sessions), it prunes those and retries once.
 func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
-	if err := exec.CommandContext(ctx, "docker", "network", "inspect", dr.networkName).Run(); err == nil {
+	if err := process.CommandContext(ctx, "docker", "network", "inspect", dr.networkName).Run(); err == nil {
 		dr.networkCreated.Store(true)
 		return nil
 	}
@@ -60,7 +60,7 @@ func (dr *DockerRuntime) EnsureNetwork(ctx context.Context) error {
 // (another session created it first) as success.
 func (dr *DockerRuntime) createNetwork(ctx context.Context) error {
 	logger.Info("creating Docker network", "session", dr.sessionID, "network", dr.networkName)
-	output, err := exec.CommandContext(ctx, "docker", "network", "create", dr.networkName).CombinedOutput()
+	output, err := process.CommandContext(ctx, "docker", "network", "create", dr.networkName).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(output), "already exists") {
 			return nil
@@ -80,7 +80,7 @@ func (dr *DockerRuntime) CleanupNetwork(ctx context.Context) error {
 		return nil
 	}
 
-	output, err := exec.CommandContext(ctx, "docker", "network", "rm", dr.networkName).CombinedOutput()
+	output, err := process.CommandContext(ctx, "docker", "network", "rm", dr.networkName).CombinedOutput()
 	if err == nil {
 		dr.networkCreated.Store(false)
 		logger.Info("docker network removed successfully", "network", dr.networkName)
@@ -103,7 +103,7 @@ func (dr *DockerRuntime) ContainerExists(containerIDOrName string) bool {
 	if containerIDOrName == "" {
 		return false
 	}
-	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerIDOrName)
+	cmd := process.Command("docker", "inspect", "--format", "{{.State.Status}}", containerIDOrName)
 	return cmd.Run() == nil
 }
 
@@ -181,7 +181,7 @@ func (dr *DockerRuntime) RunContainer(ctx context.Context, opts RunContainerOpti
 
 	logger.Debug("running Docker container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := process.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
@@ -197,7 +197,7 @@ func (dr *DockerRuntime) StopContainer(ctx context.Context, containerIDOrName st
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "stop", containerIDOrName)
+	cmd := process.CommandContext(ctx, "docker", "stop", containerIDOrName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stop container %s: %w", containerIDOrName, err)
 	}
@@ -212,7 +212,7 @@ func (dr *DockerRuntime) PullImage(ctx context.Context, image string, progress f
 
 // GetContainerHealth returns the health status of a container
 func (dr *DockerRuntime) GetContainerHealth(ctx context.Context, containerIDOrName string) (HealthStatus, error) {
-	cmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Health.Status}}", containerIDOrName)
+	cmd := process.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Health.Status}}", containerIDOrName)
 	output, err := cmd.Output()
 	if err != nil {
 		return HealthStatusNone, fmt.Errorf("failed to inspect container: %w", err)
@@ -238,7 +238,7 @@ func (dr *DockerRuntime) ListRunningContainers(ctx context.Context, nameFilter s
 		args = append(args, "--filter", fmt.Sprintf("name=%s", nameFilter))
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := process.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("docker ps failed: %w, output: %s", err, string(output))

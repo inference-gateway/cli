@@ -21,6 +21,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
@@ -389,7 +390,7 @@ func (t *GrepTool) addSearchOptions(rgArgs []string, args map[string]any) []stri
 
 // executeRipgrep runs the ripgrep command and processes the output
 func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMode, pattern string, headLimit int, start time.Time) (*GrepResult, error) {
-	cmd := exec.CommandContext(ctx, t.ripgrepPath, rgArgs...)
+	cmd := process.CommandContext(ctx, t.ripgrepPath, rgArgs...)
 	output, err := cmd.Output()
 	if err != nil {
 		exitError, isExit := errors.AsType[*exec.ExitError](err)

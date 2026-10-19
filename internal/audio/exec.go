@@ -5,8 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
+
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // commandRunner runs a command and returns its stdout, abstracting exec for tests.
@@ -23,7 +24,7 @@ type candidate struct {
 
 // execRun runs name with args and returns stdout, wrapping failures with stderr.
 func execRun(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := process.CommandContext(ctx, name, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

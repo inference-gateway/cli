@@ -5,12 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // dockerLayerRe matches docker's non-TTY per-layer output: "<layer-id>: <status>".
@@ -70,7 +70,7 @@ func (p *pullProgress) recordLayer(id string, completed bool) {
 // RunPullCommand streams `<binary> pull <image>` output, reporting layer
 // progress via the optional progress callback.
 func RunPullCommand(ctx context.Context, binary, image string, progress func(done, total int)) error {
-	cmd := exec.CommandContext(ctx, binary, "pull", image)
+	cmd := process.CommandContext(ctx, binary, "pull", image)
 
 	pipeReader, pipeWriter := io.Pipe()
 	cmd.Stdout = pipeWriter
