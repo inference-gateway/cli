@@ -132,13 +132,14 @@ func (t *SkillTool) FormatPreview(result *agentdomain.ToolExecutionResult) strin
 	return "Skill"
 }
 
-// FormatForLLM returns the skill body with its name and path.
+// FormatForLLM returns the result tree with the skill body under Result, the
+// same shape Read uses, which the TUI's expanded card relies on for theming.
 func (t *SkillTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
 	data, ok := result.Data.(*agentdomain.SkillToolResult)
 	if !ok || data == nil {
 		return t.formatter.FormatExpanded(result, "")
 	}
-	return FormatSkillForLLM(data.Name, data.Path, data.Content)
+	return t.formatter.FormatExpanded(result, FormatSkillForLLM(data.Name, data.Path, data.Content))
 }
 
 // FormatSkillForLLM is the Skill tool's result text. The compaction restorer
