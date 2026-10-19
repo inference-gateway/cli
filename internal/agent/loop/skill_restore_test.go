@@ -243,3 +243,20 @@ func TestAlreadyLoadedSkill(t *testing.T) {
 		})
 	}
 }
+
+func TestSkillRestorer_PluginAndCatalogSkills(t *testing.T) {
+	dir := t.TempDir()
+	plugin := writeSkill(t, dir, "ponytail", "# Ponytail\nbe lazy\n")
+	plugin.Scope = agentdomain.SkillScopePlugin
+	plugin.PluginName = "ponytail"
+	catalog := agentdomain.Skill{Name: "remote", Scope: agentdomain.SkillScopeCatalog}
+	svc := skillsFake(plugin, catalog)
+	restore := SkillRestorer(svc)
+
+	got := restore(answered(skillCall("1", "ponytail:ponytail"), skillCall("2", "remote")))
+
+	require.Len(t, got, 2, "the plugin skill is restored, the uninstalled catalog skill has no file to restore")
+	assert.Contains(t, (*got[0].ToolCalls)[0].Function.Arguments, `"ponytail:ponytail"`, "restored under its qualified name")
+	assert.Equal(t, []string{"ponytail"}, skillLoads(got), "and detected again by its bare name")
+	assert.Equal(t, "ponytail:ponytail", loadedSkills(svc, got)[0].DisplayName())
+}
