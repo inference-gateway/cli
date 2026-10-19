@@ -814,6 +814,43 @@ func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRe
 	return conversation
 }
 
+// alreadyLoadedSkill reports whether a Read targets a skill whose SKILL.md is
+// already in the conversation, so the body need not be sent a second time.
+func (s *Agent) alreadyLoadedSkill(toolName string, args map[string]any) (agentdomain.Skill, bool) {
+	if toolName != tools.ToolRead || s.skillsService == nil || s.conversationRepo == nil {
+		return agentdomain.Skill{}, false
+	}
+	path, _ := args["file_path"].(string)
+	if path == "" {
+		return agentdomain.Skill{}, false
+	}
+	messages := convdomain.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages())
+	for _, sk := range loadedSkills(s.skillsService, messages) {
+		if sk.Path == path {
+			return sk, true
+		}
+	}
+	return agentdomain.Skill{}, false
+}
+
+func (s *Agent) alreadyLoadedSkillEntry(tc sdk.ChatCompletionMessageToolCall, sk agentdomain.Skill, args map[string]any, startTime time.Time) convdomain.ConversationEntry {
+	return convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role:       sdk.Tool,
+			Content:    sdk.NewMessageContent(alreadyLoadedSkillResult(sk)),
+			ToolCallID: &tc.ID,
+		},
+		Time: time.Now(),
+		ToolExecution: &agentdomain.ToolExecutionResult{
+			ToolName:  tc.Function.Name,
+			Arguments: args,
+			Success:   true,
+			Duration:  time.Since(startTime),
+			Data:      &agentdomain.FileReadToolResult{FilePath: sk.Path, Content: alreadyLoadedSkillResult(sk)},
+		},
+	}
+}
+
 type indexedToolResult struct {
 	Index  int
 	Result convdomain.ConversationEntry
@@ -1107,6 +1144,10 @@ func (s *Agent) executeToolOnce(
 
 	if tc.Function.Name == tools.ToolRequestApproval && agentdomain.GetChatHandler(ctx) != nil {
 		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
+	}
+
+	if sk, ok := s.alreadyLoadedSkill(tc.Function.Name, args); ok {
+		return s.alreadyLoadedSkillEntry(tc, sk, args, startTime)
 	}
 
 	resultChan := make(chan struct {

@@ -10,6 +10,8 @@ its own rather than a field on the agent.
 - The storage backends (jsonl, SQLite, PostgreSQL, Redis, Cloudflare D1, and in-memory when storage is off) live
   in `internal/platform/storage`. The agent never learns which one is configured.
 - `internal/container/container.go` builds the service and the storage from `storage.*` config.
+- `conversation_optimizer.go` compacts history into a checkpoint. What must survive verbatim (loaded skills) is
+  decided by the agent context through the optimizer's `RestoreContext` hook, wired in the container.
 - `infer conversations`, `infer export`, `infer conversation-title` and the `/conversations` shortcut are thin adapters over this context.
 
 ## Related

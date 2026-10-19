@@ -42,7 +42,7 @@ func (f *fakeOptimizer) OptimizeMessages(messages []sdk.Message, model string, f
 	}
 	out := make([]sdk.Message, 0, f.returnCount)
 	out = append(out, sdk.Message{
-		Role:    sdk.Assistant,
+		Role:    sdk.User,
 		Content: sdk.NewMessageContent("--- Context Summary ---\n\nfake summary\n\n--- End Summary ---"),
 	})
 	for i := len(messages) - (f.returnCount - 1); i < len(messages); i++ {

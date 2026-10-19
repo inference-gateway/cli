@@ -208,8 +208,8 @@ func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 }
 
 // volatileTailMessage builds the per-request <system-reminder> user message
-// carrying the volatile context (git, tree, active skill, memory, current
-// date, live-mode tool roster and bash allow-list), appended to the outbound
+// carrying the volatile context (git, tree, active and loaded skills, memory,
+// current date, live-mode tool roster and bash allow-list), appended to the outbound
 // payload only, never persisted, so message[0] stays byte-stable for KV-cache
 // reuse. ok=false means append nothing; callers gate the append after repair.
 func (s *Agent) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
@@ -268,6 +268,7 @@ func (s *Agent) volatileContextSections(currentTurn int, messages []sdk.Message,
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
 		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages, isChat), Volatile: true},
+		{Name: "loaded_skills", Text: s.buildLoadedSkillsInfo(messages), Volatile: true},
 		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
 		{Name: "bash_allow_list", Text: s.buildBashAllowInfo(), Volatile: true},
 		{Name: "tools", Text: s.buildToolsInfo(), Volatile: true},
@@ -530,10 +531,18 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 		return ""
 	}
 
+	loaded := make(map[string]struct{})
+	for _, sk := range loadedSkills(s.skillsService, messages) {
+		loaded[sk.Name] = struct{}{}
+	}
+
 	var entries []string
 	for _, name := range names {
 		sk, ok := s.skillsService.Get(name)
 		if !ok {
+			continue
+		}
+		if _, done := loaded[sk.Name]; done {
 			continue
 		}
 		if sk.Path == "" {
@@ -561,6 +570,23 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// buildLoadedSkillsInfo names the skills whose SKILL.md is already in the
+// conversation so the model follows them without reading them again. Loaded
+// skills are derived from the Read tool calls in messages, so the section
+// survives compaction as long as the restored Read pair does.
+func (s *Agent) buildLoadedSkillsInfo(messages []sdk.Message) string {
+	loaded := loadedSkills(s.skillsService, messages)
+	if len(loaded) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(loaded))
+	for _, sk := range loaded {
+		names = append(names, sk.DisplayName())
+	}
+	return fmt.Sprintf("\n\nSKILLS LOADED THIS SESSION - their SKILL.md is already in this conversation, follow it and do not read it again: %s\n",
+		strings.Join(names, ", "))
 }
 
 // agentsMDMaxDepth bounds nested AGENTS.md discovery so a large monorepo

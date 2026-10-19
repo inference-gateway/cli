@@ -508,6 +508,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		Config:            c.config,
 		Tokenizer:         c.tokenizer,
 		Repo:              c.conversationRepo,
+		RestoreContext:    agentloop.SkillRestorer(c.skillsService),
 	})
 
 	if c.config.Compact.Enabled {
