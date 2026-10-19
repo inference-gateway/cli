@@ -6,6 +6,7 @@ import (
 	"time"
 
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
@@ -782,4 +783,24 @@ func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 			_ = tt
 		})
 	}
+}
+
+// TestChatHandler_HandleCommand_UnknownShortcutPassesThrough verifies that a
+// /-prefixed message no registered shortcut answers for - e.g. "/opentask ..."
+// opening a skill-guided turn - reaches the agent as an ordinary user message
+// and starts a turn, instead of dying as the dead-end Unknown shortcut status
+// the chat TUI used to show.
+func TestChatHandler_HandleCommand_UnknownShortcutPassesThrough(t *testing.T) {
+	handler := setupTestChatHandler(t, nil, statemanager.NewStore(false))
+
+	input := "/opentask\n\nInstall the OpenTask workflow"
+	cmd := handler.HandleCommand(input)
+	msg := cmd()
+	require.NotNil(t, msg)
+
+	messages := handler.conversationRepo.GetMessages()
+	require.Len(t, messages, 1)
+	assert.Equal(t, sdk.User, messages[0].Message.Role)
+	assert.Equal(t, sdk.NewMessageContent(input), messages[0].Message.Content)
+	assert.Equal(t, 1, handler.completionRunner.(*tuimocks.FakeChatCompletionRunner).StartCallCount())
 }

@@ -35,7 +35,6 @@ func TestChatApplication_NextStepSuggestionLifecycle(t *testing.T) {
 		c.GetImageService(),
 		c.GetSkillsService(),
 		c.GetGitHubIssueService(),
-		c.GetGitHubSetupService(),
 		c.GetMCPSupervisor(),
 		c.GetMessageQueue(),
 		c.GetModelService(),

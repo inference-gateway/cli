@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -57,7 +58,6 @@ type ChatApplication struct {
 	imageService           agentdomain.ImageService
 	skillsService          agentdomain.SkillsService
 	githubIssueService     agentdomain.GitHubIssueService
-	githubSetupService     agentdomain.GitHubSetupService
 	pricingService         convdomain.PricingService
 	shortcutRegistry       *shortcuts.Registry
 	themeService           tui.ThemeService
@@ -97,7 +97,6 @@ type ChatApplication struct {
 	conversationSelector *components.ConversationSelector
 	taskManager          *components.TaskView
 	toolCallRenderer     *components.ToolCallRenderer
-	installOpentaskView  *components.InstallOpentaskView
 	diffViewer           *components.DiffViewer
 	fileExplorer         *components.FileExplorer
 	helpView             *components.HelpView
@@ -171,7 +170,6 @@ func NewChatApplication(
 	imageService agentdomain.ImageService,
 	skillsService agentdomain.SkillsService,
 	githubIssueService agentdomain.GitHubIssueService,
-	githubSetupService agentdomain.GitHubSetupService,
 	mcpSupervisor mcpdomain.Supervisor,
 	messageQueue convdomain.MessageQueue,
 	modelService convdomain.ModelService,
@@ -209,7 +207,6 @@ func NewChatApplication(
 		imageService:             imageService,
 		skillsService:            skillsService,
 		githubIssueService:       githubIssueService,
-		githubSetupService:       githubSetupService,
 		pricingService:           pricingService,
 		shortcutRegistry:         shortcutRegistry,
 		themeService:             themeService,
@@ -297,7 +294,11 @@ func NewChatApplication(
 	app.modeIndicator = components.NewModeIndicator(styleProvider)
 	app.modeIndicator.SetStateManager(app.stateManager)
 	app.modeIndicator.SetJudgeModelFn(func() string {
-		return app.config.Judge.ResolveModel(app.installModel())
+		current := ""
+		if app.modelService != nil {
+			current = app.modelService.GetCurrentModel()
+		}
+		return app.config.Judge.ResolveModel(cmp.Or(current, app.config.Agent.Model))
 	})
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.helpView = components.NewHelpView(app.themeService, styleProvider)
@@ -331,24 +332,6 @@ func NewChatApplication(
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
 	app.agentsView = components.NewAgentsView(app.stateManager, app.toolService, styleProvider)
-	app.installOpentaskView = components.NewInstallOpentaskView(styleProvider)
-
-	app.installOpentaskView.SetSecretsExistChecker(func(appID string) bool {
-		repo, err := app.githubSetupService.GetCurrentRepo()
-		if err != nil {
-			return false
-		}
-
-		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
-		if err != nil || !isOrg {
-			return false
-		}
-
-		orgName := strings.Split(repo, "/")[0]
-		secretsExist, err := app.githubSetupService.CheckOrgSecretsExist(orgName)
-		return err == nil && secretsExist
-	})
-
 	if persistentRepo, ok := app.conversationRepo.(convdomain.PersistentConversationRepository); ok {
 		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
@@ -597,12 +580,6 @@ func (app *ChatApplication) forwardToOverlayForms(msg tea.Msg) []tea.Cmd {
 // handleAppEvents handles application-level events (not component-specific)
 func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
-	case tui.TriggerOpentaskSetupEvent:
-		return tea.Batch(app.handleOpentaskSetupTrigger()...)
-
-	case githubSetupCheckedMsg:
-		return tea.Batch(app.handleGithubSetupChecked(m)...)
-
 	case tui.NextStepSuggestionEvent:
 		return app.applyNextStepSuggestion(m)
 
@@ -710,8 +687,6 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleThemeSelectionView(msg)
 	case tui.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case tui.ViewStateOpentaskSetup:
-		return app.handleInstallOpentaskView(msg)
 	case tui.ViewStateDiffViewer:
 		return app.handleDiffViewerView(msg)
 	case tui.ViewStateExplorer:
@@ -1047,8 +1022,6 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderThemeSelection()
 	case tui.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case tui.ViewStateOpentaskSetup:
-		return app.renderOpentaskSetup()
 	case tui.ViewStateDiffViewer:
 		return app.renderDiffViewer()
 	case tui.ViewStateExplorer:
@@ -1062,344 +1035,6 @@ func (app *ChatApplication) viewContent() string {
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
-}
-
-func (app *ChatApplication) handleInstallOpentaskView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	model, cmd := app.installOpentaskView.Update(msg)
-	app.installOpentaskView = model.(*components.InstallOpentaskView)
-
-	if cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	if app.installOpentaskView.IsDone() {
-		if app.installOpentaskView.IsCancelled() {
-			return app.handleInstallOpentaskCancelled(cmds)
-		}
-		return app.handleInstallOpentaskCompleted(cmds)
-	}
-
-	return cmds
-}
-
-func (app *ChatApplication) handleInstallOpentaskCompleted(cmds []tea.Cmd) []tea.Cmd {
-	appID, privateKeyPath, err := app.installOpentaskView.GetResult()
-
-	if err != nil {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Init Github Action setup failed: %v", err),
-				Sticky: false,
-			}
-		})
-	} else {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "Setting up Init Github Action...",
-				Spinner:    true,
-				StatusType: tui.StatusDefault,
-			}
-		})
-
-		cmds = append(cmds, app.performOpentaskSetup(appID, privateKeyPath))
-	}
-
-	app.installOpentaskView.Reset()
-	if cmd := app.installOpentaskView.Init(); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
-				Sticky: false,
-			}
-		})
-	}
-
-	app.focusedComponent = app.inputView
-	return cmds
-}
-
-func (app *ChatApplication) handleInstallOpentaskCancelled(cmds []tea.Cmd) []tea.Cmd {
-	cmds = append(cmds, func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message:    "Init Github Action setup cancelled",
-			Spinner:    false,
-			StatusType: tui.StatusDefault,
-		}
-	})
-
-	app.installOpentaskView.Reset()
-	if cmd := app.installOpentaskView.Init(); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
-				Sticky: false,
-			}
-		})
-	}
-
-	app.focusedComponent = app.inputView
-	return cmds
-}
-
-// githubSetupCheckedMsg carries the result of the repository checks that
-// precede the GitHub Action setup flow.
-type githubSetupCheckedMsg struct {
-	repo         string
-	isOrg        bool
-	secretsExist bool
-	err          error
-}
-
-func (app *ChatApplication) handleOpentaskSetupTrigger() []tea.Cmd {
-	return []tea.Cmd{
-		func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "Checking repository...",
-				Spinner:    true,
-				StatusType: tui.StatusDefault,
-			}
-		},
-		app.checkGithubSetupPreconditions(),
-	}
-}
-
-// checkGithubSetupPreconditions runs the gh CLI checks off the Update loop;
-// each check shells out and can take seconds.
-func (app *ChatApplication) checkGithubSetupPreconditions() tea.Cmd {
-	return func() tea.Msg {
-		repo, err := app.githubSetupService.GetCurrentRepo()
-		if err != nil {
-			return githubSetupCheckedMsg{err: fmt.Errorf("failed to get repository info: %w", err)}
-		}
-
-		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
-		if err != nil {
-			return githubSetupCheckedMsg{err: fmt.Errorf("failed to check repository type: %w", err)}
-		}
-
-		msg := githubSetupCheckedMsg{repo: repo, isOrg: isOrg}
-		if isOrg {
-			owner := strings.Split(repo, "/")[0]
-			if msg.secretsExist, err = app.githubSetupService.CheckOrgSecretsExist(owner); err != nil {
-				return githubSetupCheckedMsg{err: fmt.Errorf("failed to check org secrets: %w", err)}
-			}
-		}
-		return msg
-	}
-}
-
-func (app *ChatApplication) handleGithubSetupChecked(msg githubSetupCheckedMsg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if msg.err != nil {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("GitHub Action setup failed: %v", msg.err),
-				Sticky: true,
-			}
-		})
-		return cmds
-	}
-
-	if msg.isOrg && msg.secretsExist {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "Org secrets found, creating workflow...",
-				Spinner:    true,
-				StatusType: tui.StatusDefault,
-			}
-		})
-
-		cmds = append(cmds, app.performOpentaskSetup("", ""))
-
-		return cmds
-	}
-
-	owner := strings.Split(msg.repo, "/")[0]
-	app.installOpentaskView.SetRepositoryInfo(owner, msg.isOrg)
-	app.installOpentaskView.Reset()
-	if cmd := app.installOpentaskView.Init(); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	if err := app.stateManager.TransitionToView(tui.ViewStateOpentaskSetup); err != nil {
-		cmds = append(cmds, func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to show Init Github Action setup: %v", err),
-				Sticky: false,
-			}
-		})
-		return cmds
-	}
-
-	cmds = append(cmds, func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message:    "Setting up Init GitHub Action...",
-			Spinner:    false,
-			StatusType: tui.StatusDefault,
-		}
-	})
-
-	return cmds
-}
-
-func (app *ChatApplication) performOpentaskSetup(appID, privateKeyPath string) tea.Cmd {
-	return func() tea.Msg {
-		repo, err := app.githubSetupService.GetCurrentRepo()
-		if err != nil {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
-				Sticky: true,
-			}
-		}
-
-		isOrg, err := app.githubSetupService.IsOrgRepo(repo)
-		if err != nil {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
-				Sticky: true,
-			}
-		}
-
-		if !isOrg {
-			return app.setupStandardWorkflow(repo)
-		}
-
-		return app.setupOrgWorkflow(repo, appID, privateKeyPath)
-	}
-}
-
-// installModel is the model the workflow-install agent runs with: the
-// session's currently selected model, falling back to the configured default.
-func (app *ChatApplication) installModel() string {
-	if app.modelService != nil {
-		if m := app.modelService.GetCurrentModel(); m != "" {
-			return m
-		}
-	}
-	return app.config.Agent.Model
-}
-
-func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
-	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
-		Repo:  repo,
-		Model: app.installModel(),
-	})
-	if err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to install workflow: %v", err),
-			Sticky: true,
-		}
-	}
-
-	return app.createSuccessMessage(repo, prURL, "GitHub workflow configured with github-actions[bot]!")
-}
-
-func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string) tea.Msg {
-	orgName := strings.Split(repo, "/")[0]
-
-	secretsExist, err := app.githubSetupService.CheckOrgSecretsExist(orgName)
-	if err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
-			Sticky: true,
-		}
-	}
-
-	if !secretsExist && privateKeyPath != "" {
-		if err := app.setupOrgSecrets(orgName, appID, privateKeyPath); err != nil {
-			return err
-		}
-	}
-
-	prURL, err := app.githubSetupService.InstallWorkflow(context.Background(), agentdomain.InstallWorkflowOptions{
-		Repo:      repo,
-		Model:     app.installModel(),
-		GitHubApp: true,
-	})
-	if err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to install workflow: %v", err),
-			Sticky: true,
-		}
-	}
-
-	return app.createSuccessMessage(repo, prURL, "GitHub App configured with org-level secrets!")
-}
-
-func (app *ChatApplication) setupOrgSecrets(orgName, appID, privateKeyPath string) tea.Msg {
-	privateKey, err := app.fileService.ReadFile(privateKeyPath)
-	if err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to read private key: %v", err),
-			Sticky: true,
-		}
-	}
-
-	if err := app.githubSetupService.SetOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
-			Sticky: true,
-		}
-	}
-
-	if err := app.githubSetupService.SetOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
-		return tui.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
-			Sticky: true,
-		}
-	}
-
-	return nil
-}
-
-func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string) tea.Msg {
-	parts := strings.Split(repo, "/")
-	repoOwner := ""
-	repoName := ""
-	if len(parts) == 2 {
-		repoOwner = parts[0]
-		repoName = parts[1]
-	}
-	installURL := app.installOpentaskView.GetInstallationURL(repoOwner, repoName)
-
-	messageText := fmt.Sprintf("%s\n\n"+
-		"Next steps:\n"+
-		"1. Install the GitHub App on your repository:\n   %s\n\n"+
-		"2. Create your pull request here:\n   %s", successMsg, installURL, prURL)
-	message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
-	entry := convdomain.ConversationEntry{
-		Message: message,
-		Time:    time.Now(),
-	}
-	if err := app.conversationRepo.AddMessage(entry); err != nil {
-		logger.Error("failed to add pull request creation message to conversation", "error", err)
-	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			return tui.UpdateHistoryEvent{
-				History: app.conversationRepo.GetMessages(),
-			}
-		},
-		func() tea.Msg {
-			return tui.SetStatusEvent{
-				Message:    "",
-				Spinner:    false,
-				StatusType: tui.StatusDefault,
-			}
-		},
-	)()
 }
 
 func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.Cmd {
@@ -1743,13 +1378,6 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	app.taskManager.SetWidth(width)
 	app.taskManager.SetHeight(height)
 	return app.taskManager.View().Content
-}
-
-func (app *ChatApplication) renderOpentaskSetup() string {
-	width, height := app.stateManager.GetDimensions()
-	app.installOpentaskView.SetWidth(width)
-	app.installOpentaskView.SetHeight(height)
-	return app.installOpentaskView.View().Content
 }
 
 // handleHelpViewTrigger fills the help overlay with the current commands and

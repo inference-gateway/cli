@@ -72,7 +72,6 @@ const (
 	ViewStateThemeSelection
 	ViewStateA2ATaskManagement
 	ViewStatePlanApproval
-	ViewStateOpentaskSetup
 	ViewStateDiffViewer
 	ViewStateExplorer
 	ViewStateHelp
@@ -94,8 +93,6 @@ func (v ViewState) String() string {
 		return "A2ATaskManagement"
 	case ViewStatePlanApproval:
 		return "PlanApproval"
-	case ViewStateOpentaskSetup:
-		return "OpentaskSetup"
 	case ViewStateDiffViewer:
 		return "DiffViewer"
 	case ViewStateExplorer:
@@ -202,7 +199,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateThemeSelection,
 			ViewStateA2ATaskManagement,
 			ViewStatePlanApproval,
-			ViewStateOpentaskSetup,
 			ViewStateDiffViewer,
 			ViewStateExplorer,
 			ViewStateHelp,
@@ -213,7 +209,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
 		ViewStatePlanApproval:          {ViewStateChat},
-		ViewStateOpentaskSetup:         {ViewStateChat},
 		ViewStateDiffViewer:            {ViewStateChat},
 		ViewStateExplorer:              {ViewStateChat},
 		ViewStateHelp:                  {ViewStateChat},

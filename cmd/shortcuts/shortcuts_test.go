@@ -29,7 +29,7 @@ func TestListJSON(t *testing.T) {
 	for _, e := range parsed.Shortcuts {
 		names[e.Name] = e
 	}
-	for _, want := range []string{"init", "install-opentask", "help"} {
+	for _, want := range []string{"init", "help"} {
 		e, ok := names[want]
 		require.True(t, ok, "expected %q in %v", want, parsed.Shortcuts)
 		require.NotEmpty(t, e.Description)
