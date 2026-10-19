@@ -1427,15 +1427,14 @@ func isCompleteJSON(s string) bool {
 	return json.Unmarshal([]byte(s), &js) == nil
 }
 
-// defaultEmptyArgs turns empty tool arguments into "{}" when the tool takes no
-// parameters, so a no-param call is not mistaken for a truncated one.
+// defaultEmptyArgs turns empty tool arguments into "{}" when the tool has no
+// required parameters, so a no-param call is not mistaken for a truncated one.
 func defaultEmptyArgs(args string, m agentdomain.ToolManifest) string {
 	if strings.TrimSpace(args) != "" {
 		return args
 	}
 
-	properties, _ := m.Parameters["properties"].(map[string]any)
-	if len(properties) == 0 {
+	if len(agentdomain.RequiredProperties(m.Parameters)) == 0 {
 		return "{}"
 	}
 

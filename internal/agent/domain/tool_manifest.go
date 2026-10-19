@@ -75,7 +75,7 @@ func ValidateArguments(schema map[string]any, args map[string]any) error {
 	if args == nil {
 		return fmt.Errorf("arguments cannot be nil")
 	}
-	for _, name := range requiredProperties(schema) {
+	for _, name := range RequiredProperties(schema) {
 		if _, exists := args[name]; !exists {
 			return fmt.Errorf("required field %q is missing", name)
 		}
@@ -94,7 +94,7 @@ func ValidateArguments(schema map[string]any, args map[string]any) error {
 	return nil
 }
 
-func requiredProperties(schema map[string]any) []string {
+func RequiredProperties(schema map[string]any) []string {
 	switch required := schema["required"].(type) {
 	case []string:
 		return required

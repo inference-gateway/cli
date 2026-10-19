@@ -158,6 +158,11 @@ func TestDefaultEmptyArgs(t *testing.T) {
 	withParams := agentdomain.ToolManifest{Parameters: map[string]any{
 		"type":       "object",
 		"properties": map[string]any{"file_path": map[string]any{"type": "string"}},
+		"required":   []string{"file_path"},
+	}}
+	optionalOnly := agentdomain.ToolManifest{Parameters: map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"selector": map[string]any{"type": "string"}},
 	}}
 
 	tests := []struct {
@@ -169,6 +174,7 @@ func TestDefaultEmptyArgs(t *testing.T) {
 		{name: "empty args for a no-param tool", args: "", manifest: noParams, expected: "{}"},
 		{name: "whitespace args for a no-param tool", args: "  ", manifest: noParams, expected: "{}"},
 		{name: "empty args for a tool that takes params", args: "", manifest: withParams, expected: ""},
+		{name: "empty args for a tool with only optional params", args: "", manifest: optionalOnly, expected: "{}"},
 		{name: "valid args pass through", args: `{"file_path": "a.txt"}`, manifest: withParams, expected: `{"file_path": "a.txt"}`},
 	}
 

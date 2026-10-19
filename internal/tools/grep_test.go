@@ -1138,3 +1138,30 @@ func TestGrepTool_RipgrepErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestGrepTool_SearchPathDenialKeepsTheSandboxError(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := &GrepTool{
+		config: &config.Config{
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(wd)}},
+			},
+		},
+		enabled: true,
+	}
+
+	result, err := tool.Execute(context.Background(), map[string]any{"pattern": "root", "path": "/etc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Success {
+		t.Fatal("expected the sandbox to deny /etc")
+	}
+	if _, ok := sandboxdomain.ParseDenial(result.Error); !ok {
+		t.Fatalf("the denial must keep the sandbox wording so the agent can ask for access, got %q", result.Error)
+	}
+}
