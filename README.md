@@ -95,7 +95,7 @@ One line per feature, each linking to its full guide:
 - **Remote messaging channels** - drive the agent from Telegram - [Channels](docs/channels.md)
 - **Scheduled tasks** - cron prompts that deliver back through the channel - [Scheduling](docs/scheduling.md)
 - **Heartbeat** - periodic wake-up to check pending work - [Heartbeat](docs/heartbeat.md)
-- **A2A agents** - delegate to Agent-to-Agent servers - [A2A Agents Configuration](docs/agents-configuration.md) · [A2A Connections](docs/a2a-connections.md)
+- **A2A agents and server** - delegate to Agent-to-Agent servers - [A2A Agents Configuration](docs/agents-configuration.md) · [A2A Connections](docs/a2a-connections.md)
 - **Task management** - the A2A task interface - [Tasks Management](docs/tasks-management.md)
 - **Daemon** - the hub the desktop app, the extension and Telegram reach the agent through - [infer daemon](docs/daemon.md)
 - **Daemon binding** - the WebSocket wire contract, including browser use through the extension - [Daemon Binding Protocol](docs/browser-extension-protocol.md)

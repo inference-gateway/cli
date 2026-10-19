@@ -55,6 +55,7 @@ Exit Codes:
 			opts.Mode, _ = cmd.Flags().GetString("mode")
 			opts.Serve, _ = cmd.Flags().GetBool("serve")
 			opts.KeepAlive, _ = cmd.Flags().GetBool("keep-alive")
+			opts.PromptOnly, _ = cmd.Flags().GetBool("prompt-only")
 			if opts.Serve && !cmd.Flags().Changed("format") {
 				opts.Format = "ag-ui"
 			}
@@ -76,5 +77,6 @@ Exit Codes:
 	command.Flags().String("mode", "", "Agent mode: standard, plan, auto, auto-with-judge (env: INFER_AGENT_MODE)")
 	command.Flags().Bool("serve", false, "Run as a long-lived worker: one AG-UI run per run_agent_input frame on stdin")
 	command.Flags().Bool("keep-alive", false, "After the task, run each run_agent_input frame on stdin as a further turn until stdin closes")
+	command.Flags().Bool("prompt-only", false, "Run the task as a plain prompt: skip !, !! and / handling (set by the A2A server for served tasks)")
 	return command
 }

@@ -27,6 +27,7 @@ type AgentEntry struct {
 	Run          bool              `yaml:"run" mapstructure:"run"`
 	Model        string            `yaml:"model,omitempty" mapstructure:"model,omitempty"`
 	Environment  map[string]string `yaml:"environment,omitempty" mapstructure:"environment,omitempty"`
+	Headers      map[string]string `yaml:"headers,omitempty" mapstructure:"headers,omitempty"`
 	Auth         *AgentAuth        `yaml:"auth,omitempty" mapstructure:"auth,omitempty"`
 }
 
