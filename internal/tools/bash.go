@@ -258,12 +258,12 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	hasDetachChan := detachChan != nil
 
 	var outputBuilder strings.Builder
-	var outputBuffer scheddomain.OutputRingBuffer
+	var outputBuffer *scheddomain.OutputRingBuffer
 	var wg sync.WaitGroup
 	var outputMux sync.Mutex
 
 	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
-		outputBuffer = utils.NewOutputRingBuffer(1024 * 1024)
+		outputBuffer = scheddomain.NewOutputRingBuffer(1024 * 1024)
 	}
 
 	detached := false
@@ -332,7 +332,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 func (t *BashTool) readPipeWithBatching(
 	pipe io.ReadCloser,
 	callback agentdomain.BashOutputCallback,
-	outputBuffer scheddomain.OutputRingBuffer,
+	outputBuffer *scheddomain.OutputRingBuffer,
 	outputBuilder *strings.Builder,
 	outputMux *sync.Mutex,
 	detached *bool,

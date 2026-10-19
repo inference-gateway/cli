@@ -15,7 +15,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	process "github.com/inference-gateway/cli/internal/platform/process"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
@@ -97,8 +97,8 @@ func (t *Tool) run(ctx context.Context, args map[string]any) (string, error) {
 	defer cancel()
 	cmd := process.CommandContext(ctx, t.command[0], t.command[1:]...)
 	cmd.Stdin = bytes.NewReader(input)
-	stdout := utils.NewOutputRingBuffer(maxCapturedBytes)
-	stderr := utils.NewOutputRingBuffer(maxCapturedBytes)
+	stdout := scheddomain.NewOutputRingBuffer(maxCapturedBytes)
+	stderr := scheddomain.NewOutputRingBuffer(maxCapturedBytes)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	cmd.WaitDelay = pipeGrace
 	killProcessTreeOnCancel(cmd)

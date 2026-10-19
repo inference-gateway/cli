@@ -87,16 +87,12 @@ func TestWindSignalString(t *testing.T) {
 	}
 }
 
-// stubRingBuffer is the minimal OutputRingBuffer NewShellInfo needs.
-type stubRingBuffer struct{ total int64 }
-
-func (s *stubRingBuffer) Write(p []byte) (int, error)    { return len(p), nil }
-func (s *stubRingBuffer) ReadFrom(int64) (string, int64) { return "", s.total }
-func (s *stubRingBuffer) Recent(int) string              { return "" }
-func (s *stubRingBuffer) TotalWritten() int64            { return s.total }
-func (s *stubRingBuffer) Size() int                      { return int(s.total) }
-func (s *stubRingBuffer) String() string                 { return "" }
-func (s *stubRingBuffer) Clear()                         {}
+// shellBuffer returns an OutputRingBuffer with total bytes already written.
+func shellBuffer(total int) *OutputRingBuffer {
+	rb := NewOutputRingBuffer(total)
+	_, _ = rb.Write(make([]byte, total))
+	return rb
+}
 
 func TestNewShellInfo(t *testing.T) {
 	started := time.Now().Add(-10 * time.Minute)
@@ -115,7 +111,7 @@ func TestNewShellInfo(t *testing.T) {
 				Command:      "sleep 600",
 				StartedAt:    started,
 				State:        ShellStateRunning,
-				OutputBuffer: &stubRingBuffer{total: 42},
+				OutputBuffer: shellBuffer(42),
 			},
 			wantElapsed: func(d time.Duration) bool { return d >= 10*time.Minute && d < 11*time.Minute },
 		},
@@ -128,7 +124,7 @@ func TestNewShellInfo(t *testing.T) {
 				CompletedAt:  &completed,
 				State:        ShellStateCompleted,
 				ExitCode:     &exitCode,
-				OutputBuffer: &stubRingBuffer{total: 1024},
+				OutputBuffer: shellBuffer(1024),
 			},
 			wantElapsed: func(d time.Duration) bool { return d == 2*time.Minute },
 		},

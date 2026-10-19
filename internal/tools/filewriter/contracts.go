@@ -1,9 +1,5 @@
 package filewriter
 
-import (
-	"context"
-)
-
 // WriteRequest represents a file write operation request
 type WriteRequest struct {
 	Path      string
@@ -26,20 +22,6 @@ type ChunkWriteRequest struct {
 	ChunkIndex int
 	Data       []byte
 	IsLast     bool
-}
-
-// FileWriter defines the interface for file writing operations
-type FileWriter interface {
-	Write(ctx context.Context, req WriteRequest) (*WriteResult, error)
-	ValidatePath(path string) error
-}
-
-// ChunkBuffer defines the interface for handling chunked file writes
-type ChunkBuffer interface {
-	WriteChunk(ctx context.Context, req ChunkWriteRequest) error
-	FinalizeChunks(ctx context.Context, sessionID string, targetPath string) (*WriteResult, error)
-	CleanupSession(sessionID string) error
-	GetSessionInfo(sessionID string) (*ChunkSessionInfo, error)
 }
 
 // ChunkSessionInfo provides information about an active chunk session
