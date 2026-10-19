@@ -116,8 +116,6 @@ jobs:
     - name: Build project (pure Go via -tags purego)
       run: go build -tags purego -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version=${{ github.ref_name }}" -o infer ./cmd/infer
 
-    # The console suppression only compiles and runs on windows, so the spawn
-    # contract is checked natively here while the full suite stays on linux.
     - name: Run windows spawn tests
       if: runner.os == 'Windows'
       run: go test -tags purego -v ./internal/platform/process/...
