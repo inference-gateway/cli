@@ -19,16 +19,16 @@ type ChunkSession struct {
 	tempPath       string
 }
 
-// StreamingChunkBuffer implements ChunkBuffer with safe streaming
+// StreamingChunkBuffer implements safe streaming chunked writes
 type StreamingChunkBuffer struct {
 	sessions map[string]*ChunkSession
 	mutex    sync.RWMutex
 	tempDir  string
-	writer   FileWriter
+	writer   *SafeFileWriter
 }
 
 // NewStreamingChunkBuffer creates a new StreamingChunkBuffer
-func NewStreamingChunkBuffer(tempDir string, writer FileWriter) ChunkBuffer {
+func NewStreamingChunkBuffer(tempDir string, writer *SafeFileWriter) *StreamingChunkBuffer {
 	return &StreamingChunkBuffer{
 		sessions: make(map[string]*ChunkSession),
 		tempDir:  tempDir,
