@@ -573,8 +573,8 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 
 // buildLoadedSkillsInfo names the skills whose SKILL.md is already in the
 // conversation so the model follows them without loading them again. Loaded
-// skills are derived from the Skill and Read tool calls in messages, so the
-// section survives compaction as long as the restored Skill pair does.
+// skills are derived from the Skill tool calls in messages, so the section
+// survives compaction as long as the restored Skill pair does.
 func (s *Agent) buildLoadedSkillsInfo(messages []sdk.Message) string {
 	loaded := loadedSkills(s.skillsService, messages)
 	if len(loaded) == 0 {

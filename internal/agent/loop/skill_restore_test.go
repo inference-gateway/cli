@@ -77,36 +77,26 @@ func TestSkillLoads(t *testing.T) {
 	tests := []struct {
 		name     string
 		messages []sdk.Message
-		want     []skillLoadKey
+		want     []string
 	}{
 		{
 			name:     "skill call counts by name",
 			messages: []sdk.Message{skillCall("1", "go")},
-			want:     []skillLoadKey{{name: "go"}},
+			want:     []string{"go"},
 		},
 		{
 			name:     "plugin-qualified skill call is reduced to the bare name",
 			messages: []sdk.Message{skillCall("1", "ponytail:ponytail")},
-			want:     []skillLoadKey{{name: "ponytail"}},
+			want:     []string{"ponytail"},
 		},
 		{
-			name:     "whole file read counts by path",
+			name:     "a Read of the SKILL.md path is not a load",
 			messages: []sdk.Message{readCall("1", `{"file_path":"/s/go/SKILL.md"}`)},
-			want:     []skillLoadKey{{path: "/s/go/SKILL.md"}},
-		},
-		{
-			name:     "ranged read is partial",
-			messages: []sdk.Message{readCall("1", `{"file_path":"/s/go/SKILL.md","offset":10,"limit":20}`)},
-			want:     nil,
-		},
-		{
-			name:     "other tools are ignored",
-			messages: []sdk.Message{toolCallMsg("1", tools.ToolBash, `{"command":"cat /s/go/SKILL.md"}`)},
 			want:     nil,
 		},
 		{
 			name:     "malformed arguments are ignored",
-			messages: []sdk.Message{readCall("1", `{"file_path":`)},
+			messages: []sdk.Message{toolCallMsg("1", tools.ToolSkill, `{"name":`)},
 			want:     nil,
 		},
 		{
@@ -116,17 +106,17 @@ func TestSkillLoads(t *testing.T) {
 				skillCall("2", "b"),
 				skillCall("3", "a"),
 			},
-			want: []skillLoadKey{{name: "a"}, {name: "b"}},
+			want: []string{"a", "b"},
 		},
 	}
-	t.Run("an unanswered call is not a load", func(t *testing.T) {
-		assert.Nil(t, skillLoads([]sdk.Message{skillCall("1", "go")}))
-	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, skillLoads(answered(tt.messages...)))
 		})
 	}
+	t.Run("an unanswered call is not a load", func(t *testing.T) {
+		assert.Nil(t, skillLoads([]sdk.Message{skillCall("1", "go")}))
+	})
 }
 
 func TestLoadedSkills(t *testing.T) {
@@ -137,16 +127,15 @@ func TestLoadedSkills(t *testing.T) {
 	)
 	messages := answered(
 		userMsg("/go"),
-		readCall("1", `{"file_path":"/s/go/SKILL.md"}`),
+		skillCall("1", "go"),
 		skillCall("2", "ddd"),
 		skillCall("3", "catalog"),
 		skillCall("4", "go"),
-		readCall("5", `{"file_path":"/repo/main.go"}`),
 	)
 
 	got := loadedSkills(fake, messages)
 
-	require.Len(t, got, 2, "a skill loaded by name or by path counts once, a catalog skill without a path never")
+	require.Len(t, got, 2, "a skill counts once however often it was loaded, a catalog skill without a path never")
 	assert.Equal(t, "go", got[0].Name, "most recently loaded first")
 	assert.Equal(t, "ddd", got[1].Name)
 	assert.Nil(t, loadedSkills(nil, messages))
@@ -168,7 +157,7 @@ func TestSkillRestorer(t *testing.T) {
 	restore := SkillRestorer(skillsFake(goSkill, bigSkill, missing))
 
 	t.Run("re-emits a Skill pair for a loaded skill", func(t *testing.T) {
-		got := restore(answered(readCall("1", `{"file_path":"`+goSkill.Path+`"}`)))
+		got := restore(answered(skillCall("1", "go")))
 
 		require.Len(t, got, 2)
 		assert.Equal(t, sdk.Assistant, got[0].Role)
@@ -179,7 +168,7 @@ func TestSkillRestorer(t *testing.T) {
 		text, _ := got[1].Content.AsMessageContent0()
 		assert.Contains(t, text, "Skill: go\nPath: "+goSkill.Path)
 		assert.Contains(t, text, "be boring")
-		assert.Equal(t, []skillLoadKey{{name: "go"}}, skillLoads(got), "the restored pair must itself count as loaded")
+		assert.Equal(t, []string{"go"}, skillLoads(got), "the restored pair must itself count as loaded")
 	})
 
 	t.Run("truncates an oversized skill", func(t *testing.T) {
@@ -192,10 +181,7 @@ func TestSkillRestorer(t *testing.T) {
 	})
 
 	t.Run("skips a missing file and unrelated reads", func(t *testing.T) {
-		got := restore(answered(
-			skillCall("1", "missing"),
-			readCall("2", `{"file_path":"/repo/main.go"}`),
-		))
+		got := restore(answered(skillCall("1", "missing")))
 
 		assert.Empty(t, got)
 	})
@@ -210,6 +196,18 @@ func TestBuildLoadedSkillsInfo(t *testing.T) {
 	assert.Empty(t, svc.buildActiveSkillInfo(messages, true), "a loaded skill is no longer told to be loaded")
 	assert.Contains(t, svc.buildActiveSkillInfo([]sdk.Message{userMsg("/go")}, true), "Path: /s/go/SKILL.md")
 	assert.Empty(t, svc.buildLoadedSkillsInfo([]sdk.Message{userMsg("/go")}))
+}
+
+func TestSkillDefinitionRead(t *testing.T) {
+	goSkill := agentdomain.Skill{Name: "go", Path: "/s/go/SKILL.md"}
+	svc := &Agent{skillsService: skillsFake(goSkill)}
+
+	_, blocked := svc.skillDefinitionRead(tools.ToolRead, map[string]any{"file_path": "/s/go/SKILL.md"})
+	assert.True(t, blocked, "a Read of the SKILL.md itself is redirected to the Skill tool")
+	_, blocked = svc.skillDefinitionRead(tools.ToolRead, map[string]any{"file_path": "/s/go/references/api.md"})
+	assert.False(t, blocked, "a skill's resource files stay readable")
+	_, blocked = svc.skillDefinitionRead(tools.ToolSkill, map[string]any{"name": "go"})
+	assert.False(t, blocked)
 }
 
 func TestAlreadyLoadedSkill(t *testing.T) {
@@ -229,10 +227,9 @@ func TestAlreadyLoadedSkill(t *testing.T) {
 		want bool
 	}{
 		{"repeat Skill call of a loaded skill", tools.ToolSkill, map[string]any{"name": "go"}, true},
-		{"repeat Read of a loaded skill path", tools.ToolRead, map[string]any{"file_path": "/s/go/SKILL.md"}, true},
+		{"plugin-qualified repeat call", tools.ToolSkill, map[string]any{"name": "plugin:go"}, true},
 		{"Skill call of another skill", tools.ToolSkill, map[string]any{"name": "ddd"}, false},
-		{"read of another file", tools.ToolRead, map[string]any{"file_path": "/repo/main.go"}, false},
-		{"other tool on the same path", tools.ToolBash, map[string]any{"command": "cat /s/go/SKILL.md"}, false},
+		{"Read of the SKILL.md path is not a skill load", tools.ToolRead, map[string]any{"file_path": "/s/go/SKILL.md"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

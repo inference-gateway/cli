@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"slices"
+	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -15,69 +16,50 @@ import (
 const (
 	restoredSkillMaxChars    = 20_000
 	restoredSkillsTotalChars = 100_000
-	restoredSkillTruncated   = "\n[truncated - Read the file with a line range for the rest]"
+	restoredSkillTruncated   = "\n[truncated]"
 )
 
-// skillLoadKey identifies one way a skill got into the conversation: a Skill
-// tool call by name, or a whole-file Read of its SKILL.md path.
-type skillLoadKey struct {
-	name string
-	path string
-}
-
-// skillLoads returns the completed Skill calls and whole-file SKILL.md reads
-// in messages, most recent first and deduplicated. A call counts only once its
-// tool result is present, so the call being executed right now never counts
-// as already loaded. A ranged Read is partial and never counts.
-func skillLoads(messages []sdk.Message) []skillLoadKey {
+// skillLoads returns the names of the completed Skill calls in messages, most
+// recent first and deduplicated. A call counts only once its tool result is
+// present, so the call being executed right now never counts as already loaded.
+func skillLoads(messages []sdk.Message) []string {
 	answered := make(map[string]struct{})
 	for _, msg := range messages {
 		if msg.Role == sdk.Tool && msg.ToolCallID != nil {
 			answered[*msg.ToolCallID] = struct{}{}
 		}
 	}
-	var loads []skillLoadKey
+	var names []string
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
 		if msg.Role != sdk.Assistant || msg.ToolCalls == nil {
 			continue
 		}
 		for _, tc := range *msg.ToolCalls {
-			if _, done := answered[tc.ID]; !done {
+			if _, done := answered[tc.ID]; !done || tc.Function.Name != tools.ToolSkill {
 				continue
 			}
-			if key, ok := skillLoadOf(tc); ok && !slices.Contains(loads, key) {
-				loads = append(loads, key)
+			if name := skillCallName(tc.Function.Arguments); name != "" && !slices.Contains(names, name) {
+				names = append(names, name)
 			}
 		}
 	}
-	return loads
+	return names
 }
 
-func skillLoadOf(tc sdk.ChatCompletionMessageToolCall) (skillLoadKey, bool) {
+func skillCallName(arguments string) string {
 	var args struct {
-		Name     string `json:"name"`
-		FilePath string `json:"file_path"`
-		Offset   *int   `json:"offset"`
-		Limit    *int   `json:"limit"`
+		Name string `json:"name"`
 	}
-	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		return skillLoadKey{}, false
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return ""
 	}
-	switch tc.Function.Name {
-	case tools.ToolSkill:
-		return skillLoadKey{name: bareSkillName(args.Name)}, args.Name != ""
-	case tools.ToolRead:
-		return skillLoadKey{path: args.FilePath}, args.FilePath != "" && args.Offset == nil && args.Limit == nil
-	}
-	return skillLoadKey{}, false
+	return bareSkillName(args.Name)
 }
 
 func bareSkillName(name string) string {
-	for i := len(name) - 1; i >= 0; i-- {
-		if name[i] == ':' {
-			return name[i+1:]
-		}
+	if i := strings.LastIndexByte(name, ':'); i >= 0 {
+		return name[i+1:]
 	}
 	return name
 }
@@ -89,16 +71,10 @@ func loadedSkills(skills agentdomain.SkillsService, messages []sdk.Message) []ag
 	if skills == nil {
 		return nil
 	}
-	all := skills.List()
 	var loaded []agentdomain.Skill
-	for _, load := range skillLoads(messages) {
-		for _, sk := range all {
-			if sk.Path == "" || slices.ContainsFunc(loaded, func(l agentdomain.Skill) bool { return l.Path == sk.Path }) {
-				continue
-			}
-			if sk.Name == load.name || sk.Path == load.path {
-				loaded = append(loaded, sk)
-			}
+	for _, name := range skillLoads(messages) {
+		if sk, ok := skills.Get(name); ok && sk.Path != "" {
+			loaded = append(loaded, sk)
 		}
 	}
 	return loaded
@@ -163,5 +139,5 @@ func restoredSkillPair(sk agentdomain.Skill, content string) []sdk.Message {
 // loads a skill whose SKILL.md is already in the conversation.
 func alreadyLoadedSkillResult(sk agentdomain.Skill) string {
 	return "Skill " + sk.DisplayName() + " is already loaded in this conversation. Follow its instructions above - " +
-		"they were not repeated here to save context. Read its SKILL.md with an explicit offset and limit if you need to see it again."
+		"they were not repeated here to save context."
 }

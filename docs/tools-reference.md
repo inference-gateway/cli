@@ -229,7 +229,8 @@ tools:
 ### Skill Tool
 
 Loads a skill's full instructions (its `SKILL.md`) into the conversation by name, so the model never has to
-guess a path. Available in every agent mode and never asks for approval. A skill that is already loaded in
+guess a path. A `SKILL.md` is only ever loaded through this tool - a `Read` of it is refused and redirected here,
+while the skill's other resource files stay readable. Available in every agent mode and never asks for approval. A skill that is already loaded in
 the conversation is answered with a short already-loaded note instead of the body, and a skill loaded before
 a compaction is re-emitted as a `Skill` call after the checkpoint. A catalog skill that is not installed yet
 is downloaded on the spot in headless runs and refused in chat, where the user installs it with `/<name>`.
