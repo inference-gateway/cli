@@ -785,3 +785,27 @@ func TestWaitTool_Execute_CommandPendingIncludeZero(t *testing.T) {
 		t.Error("Execute() returned too quickly - should have polled until timeout")
 	}
 }
+
+func TestWaitTool_Execute_KilledCheckKeepsPolling(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
+	result, err := tool.Execute(ctx, map[string]any{
+		"condition":          "command",
+		"timeout_seconds":    float64(1),
+		"command":            "sleep 5",
+		"pending_exit_codes": []any{float64(1)},
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if reason, _ := data["reason"].(string); reason != "timeout" {
+		t.Errorf("Execute() reason = %q, want %q: a killed check is not a failed check", reason, "timeout")
+	}
+}
