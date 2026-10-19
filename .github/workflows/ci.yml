@@ -92,7 +92,14 @@ jobs:
     needs:
       - lint
       - vet
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-2025
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
       CGO_ENABLED: "0"
@@ -106,34 +113,14 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    - name: Build project
-      run: |
-        go build -tags purego \
-          -ldflags "\
-            -w -s \
-            -X github.com/inference-gateway/cli/cmd/version.version=${{ github.ref_name }}" \
-          -o infer ./cmd/infer
+    - name: Build project (pure Go via -tags purego)
+      run: go build -tags purego -ldflags "-w -s -X github.com/inference-gateway/cli/cmd/version.version=${{ github.ref_name }}" -o infer ./cmd/infer
 
-  build-macos:
-    needs:
-      - lint
-      - vet
-    runs-on: macos-latest
-    timeout-minutes: 30
-    env:
-      CGO_ENABLED: "0"
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v7.0.1
-
-    - name: Setup Go
-      uses: actions/setup-go@v7.0.0
-      with:
-        go-version-file: 'go.mod'
-        cache: true
-
-    - name: Build project (darwin, cgo-free via -tags purego)
-      run: go build -tags purego -o infer ./cmd/infer
+    # The console suppression only compiles and runs on windows, so the spawn
+    # contract is checked natively here while the full suite stays on linux.
+    - name: Run windows spawn tests
+      if: runner.os == 'Windows'
+      run: go test -tags purego -v ./internal/platform/process/...
 
   test:
     needs:

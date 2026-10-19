@@ -5,6 +5,7 @@ package process
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
 
 	windows "golang.org/x/sys/windows"
@@ -24,5 +25,17 @@ func TestCommandsSuppressTheConsoleWindow(t *testing.T) {
 				t.Fatal("CREATE_NO_WINDOW not set")
 			}
 		})
+	}
+}
+
+const consoleProbe = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class ConsoleProbe{[DllImport("kernel32.dll")]public static extern IntPtr GetConsoleWindow();}'; [ConsoleProbe]::GetConsoleWindow().Equals([IntPtr]::Zero)`
+
+func TestSpawnedChildReportsNoConsoleWindow(t *testing.T) {
+	out, err := Command("powershell", "-NoProfile", "-NonInteractive", "-Command", consoleProbe).Output()
+	if err != nil {
+		t.Fatalf("powershell probe: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "True" {
+		t.Fatalf("child reported a console window: %q", got)
 	}
 }
