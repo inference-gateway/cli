@@ -259,3 +259,20 @@ func TestNormalizeLogMasksNoise(t *testing.T) {
 		})
 	}
 }
+
+func TestCollectLogsKeepsStructuredFields(t *testing.T) {
+	dir := t.TempDir()
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	ts := float64(base.UnixNano()) / float64(time.Second)
+	writeLog(t, dir, "app-2026-10-19.log",
+		fmt.Sprintf(`{"level":"warn","ts":%f,"caller":"app/chat.go:550","msg":"slow update","event":"tea.KeyPressMsg","ms":412}`, ts)+"\n"+
+			fmt.Sprintf(`{"level":"warn","ts":%f,"caller":"app/chat.go:550","msg":"slow update","event":"tea.KeyPressMsg","ms":980}`, ts)+"\n")
+
+	digest := collectLogs(dir, time.Time{}, "warn")
+	if len(digest.Groups) != 1 || digest.Groups[0].Count != 2 {
+		t.Fatalf("same event with different durations must fold into one group, got %+v", digest.Groups)
+	}
+	if s := digest.Groups[0].Sample; !strings.Contains(s, "event=tea.KeyPressMsg") || !strings.Contains(s, "ms=412") {
+		t.Errorf("sample must carry the structured fields, got %q", s)
+	}
+}

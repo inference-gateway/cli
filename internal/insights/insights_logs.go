@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,12 +60,38 @@ type logDigest struct {
 // "tool execution failed" alone says nothing. Tool and TraceID are the
 // semconv / OTel log-correlation fields the logger's *Ctx helpers attach.
 type logRecord struct {
-	Level   string  `json:"level"`
-	TS      float64 `json:"ts"`
-	Msg     string  `json:"msg"`
-	Error   string  `json:"error"`
-	Tool    string  `json:"gen_ai.tool.name"`
-	TraceID string  `json:"trace_id"`
+	Level   string         `json:"level"`
+	TS      float64        `json:"ts"`
+	Msg     string         `json:"msg"`
+	Error   string         `json:"error"`
+	Tool    string         `json:"gen_ai.tool.name"`
+	TraceID string         `json:"trace_id"`
+	Fields  map[string]any `json:"-"`
+}
+
+// decodeLogRecord reads the known fields and keeps every other key as a
+// field, so "slow update" says which update and how slow.
+func decodeLogRecord(line []byte, rec *logRecord) error {
+	if err := json.Unmarshal(line, rec); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(line, &rec.Fields); err != nil {
+		return err
+	}
+	for _, k := range []string{"level", "ts", "msg", "error", "caller", "stacktrace", "gen_ai.tool.name", "trace_id", "span_id"} {
+		delete(rec.Fields, k)
+	}
+	return nil
+}
+
+// fieldText renders the leftover fields as sorted k=v pairs.
+func fieldText(fields map[string]any) string {
+	keys := slices.Sorted(maps.Keys(fields))
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, fields[k]))
+	}
+	return strings.Join(parts, " ")
 }
 
 // collectLogs folds the structured logs under dir into a bounded digest of
@@ -139,7 +167,7 @@ func foldLogFile(path string, since time.Time, minRank int, groups map[string]*l
 	scanner.Buffer(make([]byte, 0, 64*1024), logScanBuffer)
 	for scanner.Scan() {
 		var rec logRecord
-		if json.Unmarshal(scanner.Bytes(), &rec) != nil {
+		if decodeLogRecord(scanner.Bytes(), &rec) != nil {
 			continue
 		}
 		if rec.Msg == "" || slices.Index(logLevels, rec.Level) < minRank {
@@ -162,7 +190,7 @@ func foldLogFile(path string, since time.Time, minRank int, groups map[string]*l
 // increment, so a pathological log cannot grow the map without bound. Swap in an
 // LRU if the dropped tail ever turns out to matter.
 func addLogRecord(groups map[string]*logGroup, rec logRecord, when time.Time) {
-	raw := strings.TrimSpace(rec.Msg + " " + rec.Error)
+	raw := strings.TrimSpace(rec.Msg + " " + rec.Error + " " + fieldText(rec.Fields))
 	key := normalizeLog(raw)
 	if rec.Tool != "" {
 		key = rec.Tool + ": " + key
