@@ -21,13 +21,13 @@ type FakeBackgroundShellService struct {
 	cancelShellReturnsOnCall map[int]struct {
 		result1 error
 	}
-	DetachToBackgroundStub        func(context.Context, *exec.Cmd, string, domain.OutputRingBuffer, <-chan struct{}) (string, error)
+	DetachToBackgroundStub        func(context.Context, *exec.Cmd, string, *domain.OutputRingBuffer, <-chan struct{}) (string, error)
 	detachToBackgroundMutex       sync.RWMutex
 	detachToBackgroundArgsForCall []struct {
 		arg1 context.Context
 		arg2 *exec.Cmd
 		arg3 string
-		arg4 domain.OutputRingBuffer
+		arg4 *domain.OutputRingBuffer
 		arg5 <-chan struct{}
 	}
 	detachToBackgroundReturns struct {
@@ -172,14 +172,14 @@ func (fake *FakeBackgroundShellService) CancelShellReturnsOnCall(i int, result1 
 	}{result1}
 }
 
-func (fake *FakeBackgroundShellService) DetachToBackground(arg1 context.Context, arg2 *exec.Cmd, arg3 string, arg4 domain.OutputRingBuffer, arg5 <-chan struct{}) (string, error) {
+func (fake *FakeBackgroundShellService) DetachToBackground(arg1 context.Context, arg2 *exec.Cmd, arg3 string, arg4 *domain.OutputRingBuffer, arg5 <-chan struct{}) (string, error) {
 	fake.detachToBackgroundMutex.Lock()
 	ret, specificReturn := fake.detachToBackgroundReturnsOnCall[len(fake.detachToBackgroundArgsForCall)]
 	fake.detachToBackgroundArgsForCall = append(fake.detachToBackgroundArgsForCall, struct {
 		arg1 context.Context
 		arg2 *exec.Cmd
 		arg3 string
-		arg4 domain.OutputRingBuffer
+		arg4 *domain.OutputRingBuffer
 		arg5 <-chan struct{}
 	}{arg1, arg2, arg3, arg4, arg5})
 	stub := fake.DetachToBackgroundStub
@@ -201,13 +201,13 @@ func (fake *FakeBackgroundShellService) DetachToBackgroundCallCount() int {
 	return len(fake.detachToBackgroundArgsForCall)
 }
 
-func (fake *FakeBackgroundShellService) DetachToBackgroundCalls(stub func(context.Context, *exec.Cmd, string, domain.OutputRingBuffer, <-chan struct{}) (string, error)) {
+func (fake *FakeBackgroundShellService) DetachToBackgroundCalls(stub func(context.Context, *exec.Cmd, string, *domain.OutputRingBuffer, <-chan struct{}) (string, error)) {
 	fake.detachToBackgroundMutex.Lock()
 	defer fake.detachToBackgroundMutex.Unlock()
 	fake.DetachToBackgroundStub = stub
 }
 
-func (fake *FakeBackgroundShellService) DetachToBackgroundArgsForCall(i int) (context.Context, *exec.Cmd, string, domain.OutputRingBuffer, <-chan struct{}) {
+func (fake *FakeBackgroundShellService) DetachToBackgroundArgsForCall(i int) (context.Context, *exec.Cmd, string, *domain.OutputRingBuffer, <-chan struct{}) {
 	fake.detachToBackgroundMutex.RLock()
 	defer fake.detachToBackgroundMutex.RUnlock()
 	argsForCall := fake.detachToBackgroundArgsForCall[i]

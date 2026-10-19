@@ -51,7 +51,7 @@ func (s *BackgroundShellService) DetachToBackground(
 	ctx context.Context,
 	cmd *exec.Cmd,
 	command string,
-	outputBuffer scheddomain.OutputRingBuffer,
+	outputBuffer *scheddomain.OutputRingBuffer,
 	readersDone <-chan struct{},
 ) (string, error) {
 	if !s.config.Tools.Bash.BackgroundShells.Enabled {

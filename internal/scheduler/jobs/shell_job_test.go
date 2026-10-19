@@ -7,7 +7,6 @@ import (
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
@@ -24,7 +23,7 @@ func startShell(t *testing.T, id, name string, args ...string) *scheddomain.Back
 		Cmd:          cmd,
 		StartedAt:    time.Now(),
 		State:        scheddomain.ShellStateRunning,
-		OutputBuffer: utils.NewOutputRingBuffer(1024),
+		OutputBuffer: scheddomain.NewOutputRingBuffer(1024),
 	}
 }
 
