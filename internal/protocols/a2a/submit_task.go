@@ -51,22 +51,8 @@ type SubmitTaskResult struct {
 	Task       *adk.Task `json:"task,omitempty"`
 }
 
-// NewSubmitTaskTool creates a new A2A task tool
-func NewSubmitTaskTool(cfg *config.Config, taskTracker a2adomain.TaskTracker, submitter scheddomain.JobSubmitter, retention a2adomain.TaskRetentionService) *SubmitTaskTool {
-	return &SubmitTaskTool{
-		config:      cfg,
-		taskTracker: taskTracker,
-		submitter:   submitter,
-		retention:   retention,
-		client:      nil,
-		formatter: tools.NewCustomFormatter(ToolSubmitTask, func(key string) bool {
-			return key == "metadata"
-		}),
-	}
-}
-
-// NewSubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewSubmitTaskToolWithClient(cfg *config.Config, taskTracker a2adomain.TaskTracker, submitter scheddomain.JobSubmitter, retention a2adomain.TaskRetentionService, client client.A2AClient) *SubmitTaskTool {
+// NewSubmitTaskTool creates a new A2A task tool with an optional injected client
+func NewSubmitTaskTool(cfg *config.Config, taskTracker a2adomain.TaskTracker, submitter scheddomain.JobSubmitter, retention a2adomain.TaskRetentionService, client client.A2AClient) *SubmitTaskTool {
 	return &SubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,

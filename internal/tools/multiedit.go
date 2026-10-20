@@ -22,19 +22,8 @@ type MultiEditTool struct {
 	formatter CustomFormatter
 }
 
-// NewMultiEditTool creates a new multi-edit tool
-func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
-	return &MultiEditTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: NewCustomFormatter(ToolMultiEdit, func(key string) bool {
-			return key == "edits"
-		}),
-	}
-}
-
-// NewMultiEditToolWithRegistry creates a new multi-edit tool with a registry for read tracking
-func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *MultiEditTool {
+// NewMultiEditTool creates a new multi-edit tool with an optional read-tracking registry
+func NewMultiEditTool(cfg *config.Config, registry ReadToolTracker) *MultiEditTool {
 	return &MultiEditTool{
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,

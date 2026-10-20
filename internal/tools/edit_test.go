@@ -57,7 +57,7 @@ func TestEditTool_Definition(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	tool := NewEditTool(cfg)
+	tool := NewEditTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Name != "Edit" {
@@ -118,7 +118,7 @@ func TestEditTool_IsEnabled(t *testing.T) {
 				},
 			}
 
-			tool := NewEditTool(cfg)
+			tool := NewEditTool(cfg, nil)
 			if tool.IsEnabled() != tt.expectedState {
 				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
 			}
@@ -133,7 +133,7 @@ func TestEditTool_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockTracker := &MockReadToolTracker{readToolUsed: tt.readUsed}
-			tool := NewEditToolWithRegistry(cfg, mockTracker)
+			tool := NewEditTool(cfg, mockTracker)
 
 			err := tool.Validate(tt.args)
 			checkValidationResult(t, err, tt.wantError, tt.errorMessage)
@@ -424,7 +424,7 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: false}
-	tool := NewEditToolWithRegistry(cfg, mockTracker)
+	tool := NewEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path":  "test.txt",
@@ -512,7 +512,7 @@ func TestEditTool_Execute_Success(t *testing.T) {
 			}
 
 			mockTracker := &MockReadToolTracker{readToolUsed: true}
-			tool := NewEditToolWithRegistry(cfg, mockTracker)
+			tool := NewEditTool(cfg, mockTracker)
 
 			result, err := tool.Execute(context.Background(), tt.args)
 
@@ -578,7 +578,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewEditToolWithRegistry(cfg, mockTracker)
+	tool := NewEditTool(cfg, mockTracker)
 
 	tests := []struct {
 		name                   string
@@ -672,7 +672,7 @@ func TestEditTool_Execute_DisabledTool(t *testing.T) {
 		},
 	}
 
-	tool := NewEditTool(cfg)
+	tool := NewEditTool(cfg, nil)
 
 	args := map[string]any{
 		"file_path":  "test.txt",
@@ -702,7 +702,7 @@ func TestEditTool_ShouldCollapseArg(t *testing.T) {
 		},
 	}
 
-	tool := NewEditTool(cfg)
+	tool := NewEditTool(cfg, nil)
 
 	tests := []struct {
 		arg      string
@@ -956,7 +956,7 @@ func runEditExecuteTest(t *testing.T, tt editExecuteTestCase, tempDir string, cf
 	tt.args["file_path"] = testFile
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewEditToolWithRegistry(cfg, mockTracker)
+	tool := NewEditTool(cfg, mockTracker)
 
 	result, err := tool.Execute(context.Background(), tt.args)
 	if err != nil {
@@ -1022,7 +1022,7 @@ func TestEditTool_FormatResult_TableDriven(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	tool := NewEditTool(cfg)
+	tool := NewEditTool(cfg, nil)
 
 	tests := []struct {
 		name       string
@@ -1286,7 +1286,7 @@ func TestEditTool_Execute_EdgeCases(t *testing.T) {
 		},
 	}
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewEditToolWithRegistry(cfg, mockTracker)
+	tool := NewEditTool(cfg, mockTracker)
 
 	t.Run("empty file editing", func(t *testing.T) { testEditEdgeCaseEmptyFile(t, tempDir, tool) })
 	t.Run("very long replacement", func(t *testing.T) { testEditEdgeCaseLongReplacement(t, tempDir, tool) })
@@ -1641,7 +1641,7 @@ func TestEditTool_Execute_StaleRead(t *testing.T) {
 		tracker := &MockReadToolTracker{readToolUsed: true}
 		tracker.RecordFileRead(testFile, time.Now().Add(-time.Hour), int64(len("hello world")))
 
-		tool := NewEditToolWithRegistry(cfg, tracker)
+		tool := NewEditTool(cfg, tracker)
 		result, err := tool.Execute(context.Background(), map[string]any{
 			"file_path":  testFile,
 			"old_string": "hello",
@@ -1673,7 +1673,7 @@ func TestEditTool_Execute_StaleRead(t *testing.T) {
 		tracker := &MockReadToolTracker{readToolUsed: true}
 		tracker.RecordFileRead(testFile, info.ModTime(), info.Size())
 
-		tool := NewEditToolWithRegistry(cfg, tracker)
+		tool := NewEditTool(cfg, tracker)
 		result, err := tool.Execute(context.Background(), map[string]any{
 			"file_path":  testFile,
 			"old_string": "hello",
@@ -1714,7 +1714,7 @@ func createEditToolForWhitespaceTest(tempDir string) *EditTool {
 		},
 	}
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	return NewEditToolWithRegistry(cfg, mockTracker)
+	return NewEditTool(cfg, mockTracker)
 }
 
 // runEditWhitespaceTests executes a set of whitespace handling tests

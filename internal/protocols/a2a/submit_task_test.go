@@ -33,7 +33,7 @@ func TestSubmitTaskTool_Definition(t *testing.T) {
 		},
 		Prompts: *config.DefaultPromptsConfig(),
 	}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	def := tool.Definition()
 
@@ -54,7 +54,7 @@ func TestSubmitTaskTool_Execute_MissingAgentURL(t *testing.T) {
 			},
 		},
 	}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	args := map[string]any{
 		"task_description": "Test task",
@@ -78,7 +78,7 @@ func TestSubmitTaskTool_Execute_MissingTaskDescription(t *testing.T) {
 			},
 		},
 	}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	args := map[string]any{
 		"agent_url": "http://test-agent.example.com",
@@ -115,7 +115,7 @@ func TestSubmitTaskTool_Execute_RequestsImmediateReturn(t *testing.T) {
 	mockClient := &adkmocks.FakeA2AClient{}
 	mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &submittedTask}}, nil)
 
-	tool := NewSubmitTaskToolWithClient(cfg, nil, nil, nil, mockClient)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, mockClient)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"agent_url":        "http://test-agent",
@@ -151,7 +151,7 @@ func TestSubmitTaskTool_Execute_DirectMessageReplyIsTheAnswer(t *testing.T) {
 	mockClient := &adkmocks.FakeA2AClient{}
 	mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Message: &reply}}, nil)
 
-	tool := NewSubmitTaskToolWithClient(cfg, nil, nil, nil, mockClient)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, mockClient)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"agent_url":        "http://test-agent",
@@ -204,7 +204,7 @@ func TestSubmitTaskTool_Execute_Tenant(t *testing.T) {
 				Status:    adk.TaskStatus{State: adk.TaskStateWorking},
 			}}}, nil)
 
-			tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+			tool := NewSubmitTaskTool(cfg, tracker, nil, nil, mockClient)
 			args := map[string]any{"agent_url": gatewayURL, "task_description": "echo hello"}
 			if tt.tenant != "" {
 				args["tenant"] = tt.tenant
@@ -223,7 +223,7 @@ func TestSubmitTaskTool_Execute_Tenant(t *testing.T) {
 
 func TestSubmitTaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	tests := []struct {
 		name    string
@@ -301,7 +301,7 @@ func TestSubmitTaskTool_IsEnabled(t *testing.T) {
 					},
 				},
 			}
-			tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+			tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -310,7 +310,7 @@ func TestSubmitTaskTool_IsEnabled(t *testing.T) {
 
 func TestSubmitTaskTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	taskResult := SubmitTaskResult{
 		TaskID:    "task-123",
@@ -361,7 +361,7 @@ func TestSubmitTaskTool_FormatResult(t *testing.T) {
 
 func TestSubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	metadata := adk.Struct{
 		adk.UsageMetadataKey: map[string]any{
@@ -405,7 +405,7 @@ func TestSubmitTaskTool_FormatResult_IncludesUsageMetadata(t *testing.T) {
 
 func TestSubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	result := &agentdomain.ToolExecutionResult{
 		ToolName: "A2A_SubmitTask",
@@ -426,7 +426,7 @@ func TestSubmitTaskTool_FormatResult_NoMetadataOmitsLines(t *testing.T) {
 
 func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	errorText := "The `reasoning_content` in the thinking mode must be passed back to the API."
 	v101Data := adk.Value(map[string]any{
@@ -521,7 +521,7 @@ func TestSubmitTaskTool_FormatResult_FailedSurfacesError(t *testing.T) {
 
 func TestSubmitTaskTool_FormatResult_FailedExtractsFromHistory(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	errorText := "DeepSeek returned 400: invalid_api_key"
 
@@ -574,7 +574,7 @@ func TestV101WireShapeFlattenedParts(t *testing.T) {
 
 func TestSubmitTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	taskResult := SubmitTaskResult{
 		State:   string(adk.TaskStateSubmitted),
@@ -594,7 +594,7 @@ func TestSubmitTaskTool_FormatPreview(t *testing.T) {
 
 func TestSubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
@@ -603,7 +603,7 @@ func TestSubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 
 func TestSubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
 }
@@ -650,7 +650,7 @@ func TestArtifactDownloadURL_FallsBackToFilePartURL(t *testing.T) {
 
 func TestSubmitTaskTool_FormatResult_ArtifactSavedTo(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 	name := "shot.png"
 
 	result := &agentdomain.ToolExecutionResult{
@@ -689,7 +689,7 @@ func TestSubmitTaskTool_DownloadArtifacts(t *testing.T) {
 
 	cfg := &config.Config{A2A: config.A2AConfig{Enabled: true, Agents: []string{server.URL}}}
 	cfg.SetConfigDir(t.TempDir())
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	trustedURL := server.URL + "/artifacts/shot.png"
 	task := &adk.Task{
@@ -719,7 +719,7 @@ func TestSubmitTaskTool_HandleTaskState_NoDownloadByDefault(t *testing.T) {
 
 	cfg := &config.Config{A2A: config.A2AConfig{Enabled: true, Agents: []string{server.URL}}}
 	cfg.SetConfigDir(t.TempDir())
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	task := adk.Task{
 		ID:     "task-1",

@@ -35,19 +35,8 @@ type ReadToolTracker interface {
 	LastReadInfo(path string) (modTime time.Time, size int64, known bool)
 }
 
-// NewEditTool creates a new edit tool
-func NewEditTool(cfg *config.Config) *EditTool {
-	return &EditTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: NewCustomFormatter(ToolEdit, func(key string) bool {
-			return key == "old_string" || key == "new_string"
-		}),
-	}
-}
-
-// NewEditToolWithRegistry creates a new edit tool with a registry for read tracking
-func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *EditTool {
+// NewEditTool creates a new edit tool with an optional read-tracking registry
+func NewEditTool(cfg *config.Config, registry ReadToolTracker) *EditTool {
 	return &EditTool{
 		config:   cfg,
 		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,

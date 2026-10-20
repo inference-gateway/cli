@@ -17,6 +17,6 @@ func NewTools(cfg *config.Config, tracker a2adomain.TaskTracker, jobs scheddomai
 	return map[string]agentdomain.Tool{
 		ToolQueryAgent: NewQueryAgentTool(cfg),
 		ToolQueryTask:  NewQueryTaskTool(cfg, jobs),
-		ToolSubmitTask: NewSubmitTaskTool(cfg, tracker, jobs, retention),
+		ToolSubmitTask: NewSubmitTaskTool(cfg, tracker, jobs, retention, nil),
 	}
 }

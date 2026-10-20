@@ -30,7 +30,7 @@ func TestSubmitTaskTool_TaskIDTracking(t *testing.T) {
 		tracker.RegisterContext(agentURL, contextID)
 		tracker.AddTask(contextID, "existing-task-123")
 
-		tool := NewSubmitTaskTool(cfg, tracker, nil, nil)
+		tool := NewSubmitTaskTool(cfg, tracker, nil, nil, nil)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -47,7 +47,7 @@ func TestSubmitTaskTool_TaskIDTracking(t *testing.T) {
 		tracker := NewTaskTracker(nil)
 		agentURL := "http://test.agent"
 
-		tool := NewSubmitTaskTool(cfg, tracker, nil, nil)
+		tool := NewSubmitTaskTool(cfg, tracker, nil, nil, nil)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -61,7 +61,7 @@ func TestSubmitTaskTool_TaskIDTracking(t *testing.T) {
 	})
 
 	t.Run("handles nil tracker gracefully", func(t *testing.T) {
-		tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+		tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 		args := map[string]any{
 			"agent_url":        "http://test.agent",
