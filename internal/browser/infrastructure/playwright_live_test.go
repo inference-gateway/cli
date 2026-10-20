@@ -67,7 +67,7 @@ func TestBrowserSessionLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Screenshot: %v", err)
 	}
-	if shot.Data == "" || shot.MimeType != "image/png" || shot.Width == 0 || shot.Height == 0 {
+	if shot.Data == "" || shot.MimeType != "image/jpeg" || shot.Width == 0 || shot.Height == 0 {
 		t.Errorf("bad screenshot: mime=%q w=%d h=%d datalen=%d", shot.MimeType, shot.Width, shot.Height, len(shot.Data))
 	}
 

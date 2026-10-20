@@ -335,3 +335,18 @@ func TestToolContent_NoLegacyEnvelope(t *testing.T) {
 		t.Fatalf("failure content = %q, want bare error detail", failed)
 	}
 }
+
+func TestToolContent_OmitsImageBytes(t *testing.T) {
+	shot := &agentdomain.ToolExecutionResult{
+		ToolName: "BrowserScreenshot",
+		Success:  true,
+		Images:   []agentdomain.ImageAttachment{{Data: "AAAA", MimeType: "image/jpeg", DisplayName: "browser-screenshot"}},
+	}
+	got := toolContent(shot)
+	if strings.Contains(got, "AAAA") || !strings.Contains(got, `"mime_type":"image/jpeg"`) {
+		t.Fatalf("content = %q, want the attachment without its bytes", got)
+	}
+	if shot.Images[0].Data != "AAAA" {
+		t.Fatal("toolContent must not blank the caller's attachment")
+	}
+}

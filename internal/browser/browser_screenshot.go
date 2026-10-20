@@ -60,7 +60,7 @@ func (t *BrowserScreenshotTool) Execute(ctx context.Context, args map[string]any
 
 	var path string
 	if raw, derr := base64.StdEncoding.DecodeString(res.Data); derr == nil {
-		path, _ = t.persistScreenshot(raw)
+		path, _ = t.persistScreenshot(raw, res.MimeType)
 	}
 
 	attachment := agentdomain.ImageAttachment{
@@ -84,10 +84,10 @@ func (t *BrowserScreenshotTool) Validate(map[string]any) error {
 	return nil
 }
 
-// persistScreenshot writes the PNG to MediaDir("screenshots"), the same
+// persistScreenshot writes the image to MediaDir("screenshots"), the same
 // retention-managed scratch dir the computer-use screenshot server uses and
 // which is carved out of the tool sandbox so ImageDecode can read it back.
-func (t *BrowserScreenshotTool) persistScreenshot(data []byte) (string, error) {
+func (t *BrowserScreenshotTool) persistScreenshot(data []byte, mimeType string) (string, error) {
 	dir, err := config.MediaDir("screenshots")
 	if err != nil {
 		return "", err
@@ -95,7 +95,11 @@ func (t *BrowserScreenshotTool) persistScreenshot(data []byte) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	f, err := os.CreateTemp(dir, "browser-*.png")
+	ext := ".png"
+	if mimeType == "image/jpeg" {
+		ext = ".jpg"
+	}
+	f, err := os.CreateTemp(dir, "browser-*"+ext)
 	if err != nil {
 		return "", err
 	}

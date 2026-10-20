@@ -24,6 +24,9 @@ const maxBrowserEvents = 50
 // so one read cannot flood the conversation context.
 const maxBrowserReadChars = 50000
 
+// screenshotJPEGQuality trades a little detail for a tenth of the PNG bytes.
+const screenshotJPEGQuality = 80
+
 // browserSession is the single shared browser the browser use tools drive via
 // Playwright (CDP under the hood for Chromium). It launches lazily on first
 // use - either the user's installed browser (config channel, e.g. "chrome"),
@@ -357,13 +360,18 @@ func (s *browserSession) ClickAt(_ context.Context, x, y float64) (browserdomain
 	return browserdomain.BrowserToolResult{Action: "click", URL: page.URL(), Title: title}, nil
 }
 
-// Screenshot implements browserdomain.BrowserDriver: captures the active page as PNG.
+// Screenshot implements browserdomain.BrowserDriver: captures the active page
+// as JPEG at CSS pixel scale. A lossless PNG of a photo or canvas page runs to
+// megabytes, and CSS scale keeps the pixels aligned with ClickAt coordinates.
 func (s *browserSession) Screenshot(_ context.Context) (browserdomain.BrowserScreenshotResult, error) {
 	page, err := s.Page()
 	if err != nil {
 		return browserdomain.BrowserScreenshotResult{}, err
 	}
 	buf, err := page.Screenshot(playwright.PageScreenshotOptions{
+		Type:    playwright.ScreenshotTypeJpeg,
+		Quality: playwright.Int(screenshotJPEGQuality),
+		Scale:   playwright.ScreenshotScaleCss,
 		Timeout: playwright.Float(s.timeoutMs()),
 	})
 	if err != nil {
@@ -372,7 +380,7 @@ func (s *browserSession) Screenshot(_ context.Context) (browserdomain.BrowserScr
 	title, _ := page.Title()
 	res := browserdomain.BrowserScreenshotResult{
 		Data:     base64.StdEncoding.EncodeToString(buf),
-		MimeType: "image/png",
+		MimeType: "image/jpeg",
 		URL:      page.URL(),
 		Title:    title,
 	}
