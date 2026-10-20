@@ -17,13 +17,11 @@ func newCoordinatorForTest() (*Coordinator, *conversation.InMemoryConversationRe
 	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 	state := statemanager.NewStore(false)
 	direct := &tuimocks.FakeDirectExecutionService{}
-	listener := &tuimocks.FakeChatEventListener{}
 
 	c := NewCoordinator(Options{
 		ConversationRepo: repo,
 		StateStore:       state,
 		DirectExec:       direct,
-		Listener:         listener,
 	})
 	return c, repo, state, direct
 }

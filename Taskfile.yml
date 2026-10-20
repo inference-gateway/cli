@@ -309,7 +309,6 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/container internal/platform/container ContainerRuntime
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels Channel
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/channels internal/channels HistoryCleaner
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ChatEventListener
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ChatCompletionRunner
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui DirectExecutionService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ToolExecutionCoordinator

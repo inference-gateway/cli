@@ -61,7 +61,7 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 // that arrived on the chat channel are re-armed by ChatHandler.Handle.
 func (s *Service) HandleBashOutputChunk(_ agentdomain.BashOutputChunkEvent) tea.Cmd {
 	if bashEventChan := s.PendingBashChannel(); bashEventChan != nil {
-		return s.listener.ListenForEvents(bashEventChan)
+		return tui.ListenForEvents(bashEventChan)
 	}
 	return nil
 }
@@ -284,7 +284,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		}
 	}()
 
-	return s.listener.ListenForEvents(eventChan)
+	return tui.ListenForEvents(eventChan)
 }
 
 // addHiddenBashOutputEntry persists the output of a user-typed `!command` as a

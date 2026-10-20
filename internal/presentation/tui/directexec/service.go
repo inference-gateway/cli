@@ -26,7 +26,6 @@ type Service struct {
 	toolService            agentdomain.ToolService
 	stateManager           stateStore
 	backgroundShellService scheddomain.BackgroundShellService
-	listener               tui.ChatEventListener
 
 	bashDetachChan     chan<- struct{}
 	bashDetachChanMu   sync.RWMutex
@@ -42,7 +41,6 @@ type Options struct {
 	ToolService            agentdomain.ToolService
 	StateStore             stateStore
 	BackgroundShellService scheddomain.BackgroundShellService
-	Listener               tui.ChatEventListener
 }
 
 // NewService creates a new DirectExecutionService.
@@ -52,7 +50,6 @@ func NewService(opts Options) *Service {
 		toolService:            opts.ToolService,
 		stateManager:           opts.StateStore,
 		backgroundShellService: opts.BackgroundShellService,
-		listener:               opts.Listener,
 	}
 }
 

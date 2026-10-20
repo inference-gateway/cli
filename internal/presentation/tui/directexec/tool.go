@@ -291,5 +291,5 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 		}
 	}()
 
-	return s.listener.ListenForEvents(eventChan)
+	return tui.ListenForEvents(eventChan)
 }
