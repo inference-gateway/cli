@@ -373,21 +373,9 @@ func TestChatMessageProcessor_expandIssueReferences_NilService(t *testing.T) {
 	assert.Equal(t, "look at #1", out)
 }
 
-// fakeRolloverOptimizer is a minimal ConversationOptimizer used to exercise
-// the async-rollover path in chat mode. It returns a single summary message
-// regardless of input so PerformRollover always has something to write into
-// the new conversation.
-type fakeRolloverOptimizer struct{}
-
-func (fakeRolloverOptimizer) OptimizeMessages(_ []sdk.Message, _ string, _ bool) []sdk.Message {
-	return []sdk.Message{
-		{Role: sdk.Assistant, Content: sdk.NewMessageContent("--- summary ---")},
-	}
-}
-
 // newChatRolloverFixture stands up a real SessionRollover backed by
 // in-memory SQLite and an in-memory SessionGroupStorage. Used by the
-// async-rollover handler tests; cheaper than refactoring SessionRollover
+// async-rollover handler tests. Cheaper than refactoring SessionRollover
 // to an interface just for mocking.
 func newChatRolloverFixture(t *testing.T) (convdomain.SessionRollover, *conversation.PersistentConversationRepository, func()) {
 	t.Helper()
@@ -402,9 +390,16 @@ func newChatRolloverFixture(t *testing.T) (convdomain.SessionRollover, *conversa
 	cfg.Compact.RolloverOnIdleMinutes = 0
 	cfg.Compact.KeepFirstMessages = 2
 
+	opt := &convmocks.FakeConversationOptimizer{}
+	opt.OptimizeMessagesStub = func([]sdk.Message, string, bool) []sdk.Message {
+		return []sdk.Message{
+			{Role: sdk.Assistant, Content: sdk.NewMessageContent("--- summary ---")},
+		}
+	}
+
 	mgr := conversation.NewSessionRollover(
 		cfg,
-		fakeRolloverOptimizer{},
+		opt,
 		repo,
 		conversation.NewTokenizerService(conversation.DefaultTokenizerConfig()),
 		storage.NewMemorySessionGroupStorage(),

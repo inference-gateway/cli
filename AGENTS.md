@@ -46,7 +46,7 @@ Repo-wide invariants:
 
 ## Testing
 
-- Stdlib `testing`, colocated `_test.go`, prefer table-driven. Mocks are **counterfeiter** output committed to `tests/mocks/` — never hand-edit. A new interface in a `domain/` package needs a line in Taskfile's `mocks:generate`.
+- Stdlib `testing`, colocated `_test.go`, prefer table-driven. Never hand-write fake or mock structs in `_test.go`, not even for a single method. Every test double is **counterfeiter** output committed to `tests/mocks/`, never hand-edited. For an interface without a fake, add a line to Taskfile's `mocks:generate`, run `task mocks:generate`, and configure the fake's `Stub`/`Returns` fields from the test.
 - Manual runs: never hand-start gateway containers — `flox activate -- go run ./cmd/infer chat` (or `headless <prompt>`) auto-starts the local gateway and tears it down. `INFER_GATEWAY_MOCK=true` exercises the TUI/e2e without a real LLM. The mock matches prompts against scenarios (`INFER_GATEWAY_MOCK_SCENARIOS` overrides).
 
 ## Style & Commits

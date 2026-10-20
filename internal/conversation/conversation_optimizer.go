@@ -170,6 +170,9 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	return result
 }
 
+// contextSummaryMarker opens the checkpoint message a compaction produces.
+const contextSummaryMarker = "--- Context Summary ---"
+
 // smartOptimize keeps the first N messages (default 2) when they open with a
 // user turn, summarizes the rest into one user-role checkpoint, and appends
 // whatever the restore hook wants carried over verbatim.
@@ -228,7 +231,7 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 	logger.Info("lLM summary generated successfully", "summary_length", len(summary))
 
 	wrappedSummary := formatting.WrapText(summary, 80)
-	formattedSummary := fmt.Sprintf("--- Context Summary ---\n\n%s\n\n--- End Summary ---", wrappedSummary)
+	formattedSummary := fmt.Sprintf("%s\n\n%s\n\n--- End Summary ---", contextSummaryMarker, wrappedSummary)
 	result = append(result, sdk.Message{
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(formattedSummary),

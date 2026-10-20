@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
 	uuid "github.com/google/uuid"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -25,36 +27,31 @@ func seedContextWindow(t *testing.T, model string, tokens int) {
 	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
 }
 
-// fakeOptimizer is a minimal in-test stand-in for ConversationOptimizer that
-// reports a configurable summary count and records every call.
-type fakeOptimizer struct {
-	mu          sync.Mutex
-	calls       int
-	returnCount int // how many messages to return; 0 → return input unchanged
-}
-
-func (f *fakeOptimizer) OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message {
-	f.mu.Lock()
-	f.calls++
-	f.mu.Unlock()
-	if f.returnCount <= 0 || f.returnCount >= len(messages) {
-		return messages
-	}
-	out := make([]sdk.Message, 0, f.returnCount)
-	out = append(out, sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent("--- Context Summary ---\n\nfake summary\n\n--- End Summary ---"),
-	})
-	for i := len(messages) - (f.returnCount - 1); i < len(messages); i++ {
-		if i < 0 {
-			continue
+// optimizeTailStub is an OptimizeMessages stub standing in for the real
+// optimizer: it replaces the conversation head with a summary message and
+// keeps the last tail entries, or echoes the input unchanged when tail is 0
+// (the failed-summary path).
+func optimizeTailStub(tail int) func([]sdk.Message, string, bool) []sdk.Message {
+	return func(messages []sdk.Message, _ string, _ bool) []sdk.Message {
+		if tail <= 0 || tail >= len(messages) {
+			return messages
 		}
-		out = append(out, messages[i])
+		out := make([]sdk.Message, 0, tail+1)
+		out = append(out, sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent("--- Context Summary ---\n\nfake summary\n\n--- End Summary ---"),
+		})
+		for i := len(messages) - tail; i < len(messages); i++ {
+			if i < 0 {
+				continue
+			}
+			out = append(out, messages[i])
+		}
+		return out
 	}
-	return out
 }
 
-func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRollover, *PersistentConversationRepository, *fakeOptimizer, storage.SessionGroupStorage, func()) {
+func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRollover, *PersistentConversationRepository, *convmocks.FakeConversationOptimizer, storage.SessionGroupStorage, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
@@ -69,7 +66,8 @@ func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionR
 	cfg.Compact.RolloverOnIdleMinutes = idleMin
 	cfg.Compact.KeepFirstMessages = 2
 
-	opt := &fakeOptimizer{returnCount: 2}
+	opt := &convmocks.FakeConversationOptimizer{}
+	opt.OptimizeMessagesStub = optimizeTailStub(1)
 
 	groupStore := storage.NewMemorySessionGroupStorage()
 	mgr := NewSessionRollover(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()), groupStore)
@@ -250,6 +248,22 @@ func TestShouldRollover(t *testing.T) {
 			model: "moonshot/moonshot-v1-8k", want: true,
 		},
 		{
+			name: "token trigger ignores hidden entries the rollover would drop", autoAt: 80, idleMin: 0,
+			seed: func(t *testing.T, repo *PersistentConversationRepository) {
+				for range 10 {
+					hidden := convdomain.ConversationEntry{
+						Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(strings.Repeat("token ", 2000))},
+						Time:    time.Now(),
+						Hidden:  true,
+					}
+					if err := repo.AddMessage(hidden); err != nil {
+						t.Fatalf("AddMessage: %v", err)
+					}
+				}
+			},
+			model: "moonshot/moonshot-v1-8k", want: false,
+		},
+		{
 			name: "token trigger skipped for model with unknown context window", autoAt: 80, idleMin: 0,
 			seed: func(t *testing.T, repo *PersistentConversationRepository) {
 				addBigMessages(t, repo, 10)
@@ -307,8 +321,8 @@ func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
 	if newID == "" || newID == originalID {
 		t.Errorf("new session id should differ from original; got %q (original %q)", newID, originalID)
 	}
-	if opt.calls != 1 {
-		t.Errorf("optimizer should have been called once, got %d", opt.calls)
+	if got := opt.OptimizeMessagesCallCount(); got != 1 {
+		t.Errorf("optimizer should have been called once, got %d", got)
 	}
 
 	if got := repo.GetCurrentConversationID(); got != newID {
@@ -424,8 +438,8 @@ func TestMaybeRollover_GateClosedReturnsFalse(t *testing.T) {
 	if newID != "" {
 		t.Errorf("MaybeRollover with closed gate must return empty newID, got %q", newID)
 	}
-	if opt.calls != 0 {
-		t.Errorf("optimizer must not be called when gate is closed; got %d", opt.calls)
+	if got := opt.OptimizeMessagesCallCount(); got != 0 {
+		t.Errorf("optimizer must not be called when gate is closed; got %d", got)
 	}
 }
 
@@ -442,7 +456,9 @@ func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
 	}
 	originalID := repo.GetCurrentConversationID()
 
-	addUserMessage(t, repo, "hi", time.Now())
+	for _, content := range []string{"hi", "there", "again"} {
+		addUserMessage(t, repo, content, time.Now())
+	}
 	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100, 0, 0); err != nil {
 		t.Fatalf("AddTokenUsage: %v", err)
 	}
@@ -451,11 +467,14 @@ func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
 	if !fired {
 		t.Fatal("MaybeRollover should have fired with LastInputTokens above threshold")
 	}
+	if _, _, force := opt.OptimizeMessagesArgsForCall(0); force {
+		t.Error("a token-triggered rollover must let the optimizer apply its own threshold and backoff (force=false)")
+	}
 	if newID == "" || newID == originalID {
 		t.Errorf("MaybeRollover must return a new session id; got %q (original %q)", newID, originalID)
 	}
-	if opt.calls != 1 {
-		t.Errorf("optimizer should have been called once via PerformRollover, got %d", opt.calls)
+	if got := opt.OptimizeMessagesCallCount(); got != 1 {
+		t.Errorf("optimizer should have been called once via PerformRollover, got %d", got)
 	}
 	if got := repo.GetCurrentConversationID(); got != newID {
 		t.Errorf("repo should point at new session: got %q want %q", got, newID)
@@ -503,5 +522,65 @@ func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
 	}
 	if got := repo.GetCurrentConversationID(); got != originalID {
 		t.Errorf("repo must not be rolled over on PerformRollover error; got %q want %q", got, originalID)
+	}
+}
+
+// TestMaybeRollover_NoCheckpointKeepsSession pins the failed-summary path: when
+// the optimizer returns the conversation without a checkpoint (failure, backoff,
+// below its own threshold), a token-triggered rollover must not start a new
+// session or touch the group index.
+func TestMaybeRollover_NoCheckpointKeepsSession(t *testing.T) {
+	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
+	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 0)
+	defer cleanup()
+	opt.OptimizeMessagesStub = optimizeTailStub(0)
+
+	if _, _, err := mgr.ResolveSessionID("channel-test-group"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	originalID := repo.GetCurrentConversationID()
+	addBigMessages(t, repo, 10)
+
+	for range 3 {
+		if _, fired := mgr.MaybeRollover(context.Background(), "moonshot/moonshot-v1-8k", "channel-test-group"); fired {
+			t.Fatal("MaybeRollover must not fire when the optimizer produced no checkpoint")
+		}
+	}
+	if got := repo.GetCurrentConversationID(); got != originalID {
+		t.Errorf("session must stay %q without a summary, got %q", originalID, got)
+	}
+	if n := len(repo.GetMessages()); n != 10 {
+		t.Errorf("conversation must be left as-is, got %d messages", n)
+	}
+	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-test-group")
+	if err != nil || !ok {
+		t.Fatalf("GetSessionGroup: ok=%v err=%v", ok, err)
+	}
+	if len(entry.History) != 0 {
+		t.Errorf("group history must not record a rollover, got %v", entry.History)
+	}
+}
+
+// TestMaybeRollover_IdleTriggerForces pins that the idle trigger still compacts
+// with force, since it fires regardless of the optimizer's token threshold.
+func TestMaybeRollover_IdleTriggerForces(t *testing.T) {
+	mgr, repo, opt, _, cleanup := newRolloverManagerForTest(t, 80, 30)
+	defer cleanup()
+
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	for _, content := range []string{"old", "older", "oldest"} {
+		addUserMessage(t, repo, content, time.Now().Add(-31*time.Minute))
+	}
+
+	if _, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", ""); !fired {
+		t.Fatal("idle trigger should have rolled over")
+	}
+	if _, _, force := opt.OptimizeMessagesArgsForCall(0); !force {
+		t.Error("an idle-triggered rollover must compact with force=true")
 	}
 }

@@ -296,6 +296,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ThemeService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PricingService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ConversationOptimizer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sdk/fake_client.go github.com/inference-gateway/sdk.Client
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain BackgroundTaskRegistry

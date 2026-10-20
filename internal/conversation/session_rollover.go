@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,7 +123,11 @@ func (m *SessionRollover) MaybeRollover(ctx context.Context, model, groupKey str
 	if m == nil || !m.ShouldRollover(model) {
 		return "", false
 	}
-	newID, err := m.PerformRollover(ctx, model, groupKey)
+	newID, err := m.performRollover(ctx, model, groupKey, m.idleTriggerFires(m.repo.GetMessages()))
+	if errors.Is(err, errNoCheckpoint) {
+		logger.Debug("auto-rollover skipped", "error", err)
+		return "", false
+	}
 	if err != nil {
 		logger.Warn("auto-rollover failed, continuing with current session", "error", err)
 		return "", false
@@ -204,12 +209,41 @@ func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEnt
 	}
 	threshold := (contextWindow * autoAt) / 100
 
-	msgs := make([]sdk.Message, 0, len(entries))
-	for _, e := range entries {
-		msgs = append(msgs, e.Message)
-	}
 	lastInput := m.repo.GetSessionTokens().LastInputTokens
-	return m.tokenizer.EffectiveContextTokens(lastInput, msgs) >= threshold
+	return m.tokenizer.EffectiveContextTokens(lastInput, visibleMessages(entries)) >= threshold
+}
+
+// visibleMessages is the message set a rollover compacts: hidden entries are
+// dropped so the gate and the compaction estimate the same conversation.
+func visibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
+	messages := make([]sdk.Message, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Hidden {
+			continue
+		}
+		messages = append(messages, entry.Message)
+	}
+	return messages
+}
+
+// errNoCheckpoint reports a gated rollover whose optimizer produced no
+// checkpoint: below its threshold, in backoff, a failed summary, or nothing
+// to summarise.
+var errNoCheckpoint = errors.New("optimizer produced no checkpoint")
+
+// hasCheckpoint reports whether a compaction produced its summary message.
+// Message count cannot tell: the restore hook re-emits loaded skills after
+// the checkpoint, so a compacted conversation can hold more messages.
+func hasCheckpoint(messages []sdk.Message) bool {
+	for _, msg := range messages {
+		if msg.Role != sdk.User {
+			continue
+		}
+		if content, err := msg.Content.AsMessageContent0(); err == nil && strings.HasPrefix(content, contextSummaryMarker) {
+			return true
+		}
+	}
+	return false
 }
 
 // PerformRollover runs the optimizer with force=true to produce a summary,
@@ -222,6 +256,14 @@ func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEnt
 //
 // Returns the new session UUID on success.
 func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey string) (string, error) {
+	return m.performRollover(ctx, model, groupKey, true)
+}
+
+// performRollover compacts with force when the caller asked for the rollover
+// (manual /compact, the idle trigger). A gated token-trigger rollover passes
+// force=false so the optimizer applies its own threshold and failure backoff,
+// and it keeps the session when no checkpoint came back.
+func (m *SessionRollover) performRollover(ctx context.Context, model, groupKey string, force bool) (string, error) {
 	if m.optimizer == nil {
 		return "", errors.New("conversation optimizer is not enabled")
 	}
@@ -237,13 +279,7 @@ func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey s
 	originalTitle := m.repo.GetCurrentConversationTitle()
 	originalID := m.repo.GetCurrentConversationID()
 
-	messages := make([]sdk.Message, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Hidden {
-			continue
-		}
-		messages = append(messages, entry.Message)
-	}
+	messages := visibleMessages(entries)
 	if len(messages) == 0 {
 		return "", errors.New("no visible messages to rollover")
 	}
@@ -254,7 +290,10 @@ func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey s
 		"message_count", len(messages),
 		"model", model)
 
-	optimized := m.optimizer.OptimizeMessages(messages, model, true)
+	optimized := m.optimizer.OptimizeMessages(messages, model, force)
+	if !force && !hasCheckpoint(optimized) {
+		return "", errNoCheckpoint
+	}
 	if len(optimized) >= len(messages) {
 		logger.Debug("optimizer returned no reduction, copying messages as-is")
 	}
