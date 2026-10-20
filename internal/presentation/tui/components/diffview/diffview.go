@@ -2,6 +2,7 @@ package diffview
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 
@@ -9,7 +10,6 @@ import (
 	chroma "github.com/alecthomas/chroma/v2"
 	chromalexers "github.com/alecthomas/chroma/v2/lexers"
 	udiff "github.com/aymanbagabas/go-udiff"
-	xxh3 "github.com/zeebo/xxh3"
 )
 
 // Layout controls whether the diff is rendered as a single column (Unified) or
@@ -536,11 +536,9 @@ func (dv *DiffView) highlightCode(source, bgHex string) string {
 }
 
 func (dv *DiffView) syntaxCacheKey(source, bg string) string {
-	h := xxh3.New()
-	_, _ = h.WriteString(source)
-	_, _ = h.WriteString("|")
-	_, _ = h.WriteString(bg)
-	return strconv.FormatUint(h.Sum64(), 16)
+	fnvh := fnv.New64a()
+	_, _ = fnvh.Write([]byte(source + "|" + bg))
+	return strconv.FormatUint(fnvh.Sum64(), 16)
 }
 
 func (dv *DiffView) lexer() chroma.Lexer {
