@@ -15,6 +15,7 @@ is enabled in the Inference Gateway CLI.
 - [File System Tools](#file-system-tools)
   - [Tree Tool](#tree-tool)
   - [Read Tool](#read-tool)
+  - [Skill Tool](#skill-tool)
   - [Write Tool](#write-tool)
   - [Edit Tool](#edit-tool)
   - [MultiEdit Tool](#multiedit-tool)
@@ -56,6 +57,7 @@ always-available set is registered for every session. There is **no built-in Git
 | **Delete** | Delete files and directories | Yes |
 | **Grep** | Search files with regex (ripgrep/Go) | No |
 | **Tree** | Display directory structure | No |
+| **Skill** | Load a skill's SKILL.md into the conversation by name | No |
 
 **Shell** (Bash is always available; the background-shell trio needs `tools.bash.background_shells.enabled`):
 
@@ -223,6 +225,27 @@ tools:
 ```
 
 ---
+
+### Skill Tool
+
+Loads a skill's full instructions (its `SKILL.md`) into the conversation by name, so the model never has to
+guess a path. A `SKILL.md` is only ever loaded through this tool - a `Read` of it is refused and redirected here,
+while the skill's other resource files stay readable. Available in every agent mode and never asks for approval. A skill that is already loaded in
+the conversation is answered with a short already-loaded note instead of the body, and a skill loaded before
+a compaction is re-emitted as a `Skill` call after the checkpoint. A catalog skill that is not installed yet
+is downloaded on the spot in headless runs and refused in chat, where the user installs it with `/<name>`.
+
+**Parameters:**
+
+- `name` (required): The skill name as listed in `AVAILABLE SKILLS` (for a plugin skill, `plugin:skill` or the bare name)
+
+**Examples:**
+
+```json
+{
+  "name": "go"
+}
+```
 
 ### Write Tool
 

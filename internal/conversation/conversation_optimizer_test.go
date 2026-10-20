@@ -12,6 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 )
 
@@ -707,5 +708,108 @@ func verifyAllToolCallsHaveResponses(t *testing.T, toolCalls []sdk.ChatCompletio
 				"Tool call %s from assistant at index %d has no response in the immediate following messages",
 				tc.ID, assistantIdx)
 		}
+	}
+}
+
+func newForcedOptimizer(t *testing.T, client *sdkmocks.FakeClient, restore func([]sdk.Message) []sdk.Message) convdomain.ConversationOptimizer {
+	t.Helper()
+	return conversation.NewConversationOptimizer(conversation.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		KeepFirstMessages: 2,
+		Client:            client,
+		Config:            &config.Config{},
+		Repo:              conversation.NewInMemoryConversationRepository(nil, nil),
+		RestoreContext:    restore,
+	})
+}
+
+func TestOptimizeMessages_SummaryIsUserCheckpoint(t *testing.T) {
+	optimizer := newForcedOptimizer(t, createMockSDKClient(t, "## Objective\n- ship"), nil)
+	messages := []sdk.Message{
+		{Role: "user", Content: sdk.NewMessageContent("hi")},
+		{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+		{Role: "user", Content: sdk.NewMessageContent("again")},
+		{Role: "assistant", Content: sdk.NewMessageContent("ack")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	require.Len(t, result, 3)
+	assert.Equal(t, sdk.User, result[2].Role)
+	text, _ := result[2].Content.AsMessageContent0()
+	assert.Contains(t, text, "--- Context Summary ---")
+	assert.Contains(t, text, "## Objective")
+}
+
+func TestOptimizeMessages_EmptySummaryKeepsOriginal(t *testing.T) {
+	optimizer := newForcedOptimizer(t, createMockSDKClient(t, "  \n"), nil)
+	messages := []sdk.Message{
+		{Role: "user", Content: sdk.NewMessageContent("hi")},
+		{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+		{Role: "user", Content: sdk.NewMessageContent("again")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	assert.Equal(t, messages, result, "an empty summary must never drop history")
+}
+
+func TestOptimizeMessages_HeadWithoutUserTurnIsNotKept(t *testing.T) {
+	optimizer := newForcedOptimizer(t, createMockSDKClient(t, "summary"), nil)
+	messages := []sdk.Message{
+		{Role: "assistant", Content: sdk.NewMessageContent("reading"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
+			{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+		}},
+		{Role: "tool", Content: sdk.NewMessageContent("content"), ToolCallID: stringPtr("call_1")},
+		{Role: "assistant", Content: sdk.NewMessageContent("done")},
+		{Role: "user", Content: sdk.NewMessageContent("next")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	require.Len(t, result, 1)
+	assert.Equal(t, sdk.User, result[0].Role, "a compacted conversation must open with the checkpoint, never a tool call")
+}
+
+func TestOptimizeMessages_RestoreHookAppendsAfterSummary(t *testing.T) {
+	var seen []sdk.Message
+	restore := func(summarized []sdk.Message) []sdk.Message {
+		seen = summarized
+		return []sdk.Message{{Role: "assistant", Content: sdk.NewMessageContent("restored")}}
+	}
+	optimizer := newForcedOptimizer(t, createMockSDKClient(t, "summary"), restore)
+	messages := []sdk.Message{
+		{Role: "user", Content: sdk.NewMessageContent("hi")},
+		{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+		{Role: "user", Content: sdk.NewMessageContent("again")},
+		{Role: "assistant", Content: sdk.NewMessageContent("ack")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	require.Len(t, result, 4)
+	assert.Equal(t, sdk.User, result[2].Role)
+	text, _ := result[3].Content.AsMessageContent0()
+	assert.Equal(t, "restored", text)
+	assert.Equal(t, messages[2:], seen, "the hook sees only the summarized range")
+}
+
+func TestGenerateLLMSummary_UsesCheckpointTemplate(t *testing.T) {
+	client := createMockSDKClient(t, "summary")
+	optimizer := newForcedOptimizer(t, client, nil)
+	messages := []sdk.Message{
+		{Role: "user", Content: sdk.NewMessageContent("hi")},
+		{Role: "assistant", Content: sdk.NewMessageContent("hello")},
+		{Role: "user", Content: sdk.NewMessageContent("again")},
+	}
+
+	optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	require.Equal(t, 1, client.GenerateContentCallCount())
+	_, _, _, sent := client.GenerateContentArgsForCall(0)
+	system, _ := sent[0].Content.AsMessageContent0()
+	for _, heading := range []string{"## Objective", "## Important Details", "## Work State", "## Next Move", "## Relevant Files"} {
+		assert.Contains(t, system, heading)
 	}
 }

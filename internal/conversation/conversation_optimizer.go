@@ -26,6 +26,7 @@ type ConversationOptimizer struct {
 	config            *config.Config
 	tokenizer         *TokenizerService
 	repo              convdomain.ConversationRepository
+	restore           func(summarized []sdk.Message) []sdk.Message
 }
 
 var _ convdomain.ConversationOptimizer = (*ConversationOptimizer)(nil)
@@ -45,6 +46,10 @@ type OptimizerConfig struct {
 	// tool definitions, matching what `/context` displays). When nil, the
 	// gate falls back to the entries-only estimate.
 	Repo convdomain.ConversationRepository
+	// RestoreContext is optional. It receives the messages that were folded
+	// into the summary and returns messages to append after it, so context
+	// the agent must keep verbatim (loaded skills) survives compaction.
+	RestoreContext func(summarized []sdk.Message) []sdk.Message
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
@@ -74,6 +79,7 @@ func NewConversationOptimizer(config OptimizerConfig) convdomain.ConversationOpt
 		config:            config.Config,
 		tokenizer:         tokenizer,
 		repo:              config.Repo,
+		restore:           config.RestoreContext,
 	}
 }
 
@@ -157,30 +163,32 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	return result
 }
 
-// smartOptimize implements the smart optimization strategy
-// It keeps the first N messages (default 2) and summarizes the rest
+// smartOptimize keeps the first N messages (default 2) when they open with a
+// user turn, summarizes the rest into one user-role checkpoint, and appends
+// whatever the restore hook wants carried over verbatim.
 func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model string) ([]sdk.Message, error) {
-	minMessages := co.keepFirstMessages + 1
+	keep := co.headToKeep(messages)
+	minMessages := keep + 1
 	if len(messages) < minMessages {
 		return messages, nil
 	}
 
-	result := make([]sdk.Message, co.keepFirstMessages)
-	copy(result, messages[:co.keepFirstMessages])
+	result := make([]sdk.Message, keep)
+	copy(result, messages[:keep])
 
-	summaryStartIndex := co.keepFirstMessages
+	summaryStartIndex := keep
 
 	summaryStartIndex = co.adjustBoundaryForToolCallsAtStart(messages, summaryStartIndex)
 
-	if summaryStartIndex < co.keepFirstMessages {
+	if summaryStartIndex < keep {
 		logger.Info("adjusting kept messages due to boundary moved back",
-			"original_keep", co.keepFirstMessages,
+			"original_keep", keep,
 			"adjusted_keep", summaryStartIndex)
 		result = make([]sdk.Message, summaryStartIndex)
 		copy(result, messages[:summaryStartIndex])
-	} else if summaryStartIndex > co.keepFirstMessages {
+	} else if summaryStartIndex > keep {
 		logger.Info("adjusting kept messages due to boundary moved forward to include tool responses",
-			"original_keep", co.keepFirstMessages,
+			"original_keep", keep,
 			"adjusted_keep", summaryStartIndex)
 		result = make([]sdk.Message, summaryStartIndex)
 		copy(result, messages[:summaryStartIndex])
@@ -212,17 +220,29 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 
 	logger.Info("lLM summary generated successfully", "summary_length", len(summary))
 
-	if summary != "" {
-		wrappedSummary := formatting.WrapText(summary, 80)
-		formattedSummary := fmt.Sprintf("--- Context Summary ---\n\n%s\n\n--- End Summary ---", wrappedSummary)
-		summaryMsg := sdk.Message{
-			Role:    "assistant",
-			Content: sdk.NewMessageContent(formattedSummary),
-		}
-		result = append(result, summaryMsg)
+	wrappedSummary := formatting.WrapText(summary, 80)
+	formattedSummary := fmt.Sprintf("--- Context Summary ---\n\n%s\n\n--- End Summary ---", wrappedSummary)
+	result = append(result, sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent(formattedSummary),
+	})
+
+	if co.restore != nil {
+		result = append(result, co.restore(messagesToSummarize)...)
 	}
 
 	return result, nil
+}
+
+// headToKeep returns how many leading messages to keep verbatim. A head that
+// does not open with a user turn (the first entries were hidden) would be a
+// run of orphaned tool calls, so nothing is kept and the checkpoint opens the
+// conversation instead.
+func (co *ConversationOptimizer) headToKeep(messages []sdk.Message) int {
+	if len(messages) == 0 || messages[0].Role != sdk.User {
+		return 0
+	}
+	return co.keepFirstMessages
 }
 
 // adjustBoundaryForToolCallsAtStart ensures tool call/response pairs aren't split
@@ -284,9 +304,36 @@ func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sd
 	return adjustedBoundary
 }
 
-// GenerateLLMSummary creates a concise summary of conversation messages using an LLM.
-// It uses the SDK client to generate an intelligent summary focused on key tasks,
-// decisions, critical context, and next steps. The summary is limited to 2-3 sentences.
+// summarySystemPrompt is the fixed checkpoint template the summarizer fills.
+// Section headings and the preservation rules follow what long-session agents
+// converge on: terse bullets, exact identifiers, only still-open requests.
+const summarySystemPrompt = `You are writing a context checkpoint for an agent that will continue this conversation with only your summary as history. Fill in every section below using exactly these Markdown headings.
+
+## Objective
+What the user is trying to accomplish.
+
+## Important Details
+Constraints, decisions, assumptions and context needed to continue.
+
+## Work State
+Completed work, active work and blockers.
+
+## Next Move
+The next concrete action to take.
+
+## Relevant Files
+File paths that are easy to lose.
+
+Rules:
+- Keep each section concise. Use terse, single-line bullets, not prose paragraphs or nested lists.
+- Preserve exact file paths, symbols, commands, error strings, URLs and identifiers.
+- Carry forward only user questions or requests that remain unanswered or require further action, in their exact wording.
+- Preserve workflow state such as whether changes are uncommitted, committed, pushed, under review or merged.
+- Do not mention the summary process or that context was compacted.`
+
+// GenerateLLMSummary asks the model for a structured checkpoint of messages.
+// An empty reply is an error so the caller keeps the original messages rather
+// than dropping history without a summary.
 func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, model string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -294,16 +341,8 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 	summaryMessages := make([]sdk.Message, 0, len(messages)+2)
 
 	summaryMessages = append(summaryMessages, sdk.Message{
-		Role: sdk.System,
-		Content: sdk.NewMessageContent(`You are a conversation summarizer. Create a concise summary that preserves the essential context and progress made in the conversation.
-
-Focus on:
-- Key tasks completed or in progress
-- Important decisions or findings
-- Critical context needed to continue the conversation
-- Any unresolved issues or next steps
-
-Keep the summary brief but informative (2-3 sentences max).`),
+		Role:    sdk.System,
+		Content: sdk.NewMessageContent(summarySystemPrompt),
 	})
 
 	for _, msg := range messages {
@@ -338,19 +377,17 @@ Keep the summary brief but informative (2-3 sentences max).`),
 
 	summaryMessages = append(summaryMessages, sdk.Message{
 		Role:    sdk.User,
-		Content: sdk.NewMessageContent("Provide a concise summary of the conversation above, focusing on key progress and context needed to continue."),
+		Content: sdk.NewMessageContent("Write the context checkpoint for the conversation above using the required section headings."),
 	})
 
 	if model == "" {
 		return "", fmt.Errorf("no model configured for summarization")
 	}
 
-	slashIndex := strings.Index(model, "/")
-	if slashIndex == -1 {
+	provider, modelName, ok := strings.Cut(model, "/")
+	if !ok {
 		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
-	provider := model[:slashIndex]
-	modelName := model[slashIndex+1:]
 
 	maxTokens := 1024
 	if co.config != nil && co.config.Compact.SummaryMaxTokens > 0 {
@@ -386,5 +423,10 @@ Keep the summary brief but informative (2-3 sentences max).`),
 			"summary_length", len(contentStr))
 	}
 
-	return strings.TrimSpace(contentStr), nil
+	summary := strings.TrimSpace(contentStr)
+	if summary == "" {
+		return "", fmt.Errorf("summary generation returned no text")
+	}
+
+	return summary, nil
 }

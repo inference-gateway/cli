@@ -1366,6 +1366,26 @@
     },
     {
       "function": {
+        "description": "Loads a skill's full instructions (its SKILL.md) into the conversation by name. Use it when the task matches a skill's description in AVAILABLE SKILLS, or when the user invokes a skill explicitly. A SKILL.md is only ever loaded with this tool, never with Read - Read is for the skill's other resource files.\nA skill that is already loaded in this conversation is not sent again - the result says so, and the earlier instructions stay in effect.",
+        "name": "Skill",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "description": "The skill name as listed in AVAILABLE SKILLS (for a plugin skill, either \"plugin:skill\" or the bare skill name)",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
         "description": "Compose a music clip from a text prompt and save it as an MP3 file. Returns the saved file path.\n\nDescribe the music in prompt: genre, mood, instruments, tempo. Optionally pass seconds (clip length in seconds; omitted lets the provider pick a length that fits the prompt) and instrumental (true to guarantee no vocals). Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP3 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. To place the clip elsewhere, compose first and then copy the returned file.\n\nGeneration can take a while (music models are slow); if it fails with a temporarily-unavailable error, wait a few seconds and retry once. Do not claim the clip was played aloud - it is written to disk for the user to open, at the returned path.",
         "name": "TextToMusic",
         "parameters": {
@@ -1770,6 +1790,7 @@
       "ReadSubagentScreen",
       "RequestPlanApproval",
       "SendSubagentInput",
+      "Skill",
       "TodoWrite",
       "Tree",
       "Wait"
@@ -1777,6 +1798,7 @@
     "readonly": [
       "Grep",
       "Read",
+      "Skill",
       "Tree",
       "WebFetch",
       "WebSearch"
@@ -1820,6 +1842,7 @@
       "RequestApproval",
       "Schedule",
       "SendSubagentInput",
+      "Skill",
       "TextToMusic",
       "TextToSFX",
       "TextToSpeech",
@@ -1873,6 +1896,7 @@
       "RequestPlanApproval": false,
       "Schedule": false,
       "SendSubagentInput": false,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -1924,6 +1948,7 @@
       "RequestPlanApproval": false,
       "Schedule": false,
       "SendSubagentInput": true,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -1975,6 +2000,7 @@
       "RequestPlanApproval": false,
       "Schedule": true,
       "SendSubagentInput": false,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -2026,6 +2052,7 @@
       "RequestPlanApproval": false,
       "Schedule": true,
       "SendSubagentInput": true,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -2077,6 +2104,7 @@
       "RequestPlanApproval": false,
       "Schedule": false,
       "SendSubagentInput": false,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -2128,6 +2156,7 @@
       "RequestPlanApproval": false,
       "Schedule": false,
       "SendSubagentInput": true,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -2179,6 +2208,7 @@
       "RequestPlanApproval": false,
       "Schedule": false,
       "SendSubagentInput": false,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,
@@ -2230,6 +2260,7 @@
       "RequestPlanApproval": false,
       "Schedule": true,
       "SendSubagentInput": true,
+      "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
       "TextToSpeech": false,

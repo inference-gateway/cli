@@ -150,7 +150,7 @@ chat:
       subagents: true
 compact:
   enabled: true # Enable automatic conversation compaction
-  auto_at: 80 # Compact when context reaches this percentage (20-100)
+  auto_at: 80 # Compact when context reaches this percentage (1-80)
 telemetry:
   enabled: true # Record OTel metrics locally; written as OTLP/semconv JSON under ~/.infer/telemetry
   retention_days: 7 # Archive telemetry files older than this many days (0 disables archiving)
@@ -518,13 +518,20 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
   compaction on plan approval - approving a plan in [Plan Mode](plan-mode.md) always
   summarizes the exploration-heavy planning conversation and continues execution in a
   fresh, smaller session, regardless of this setting.
-- **compact.auto_at**: Percentage of context window (20-100) at which to automatically trigger compaction (default: 80)
+- **compact.auto_at**: Percentage of context window (1-80) at which to automatically trigger compaction (default: 80)
 - **compact.keep_first_messages**: Number of leading messages the compactor always preserves (default: `2`).
   A value at or below zero falls back to `2`. Env: `INFER_COMPACT_KEEP_FIRST_MESSAGES`.
 - **compact.rollover_on_idle_minutes**: Minutes a session may sit idle before a rollover starts a fresh one
   (default: `30`). Env: `INFER_COMPACT_ROLLOVER_ON_IDLE_MINUTES`.
 - **compact.summary_max_tokens**: Token budget for the compaction summary (default: `1024`).
   Env: `INFER_COMPACT_SUMMARY_MAX_TOKENS`.
+
+Compaction writes a structured checkpoint with the sections `Objective`, `Important Details`, `Work State`,
+`Next Move` and `Relevant Files`, kept as a user message after the preserved head. An empty summary aborts the
+compaction and leaves the history untouched. Every skill whose `SKILL.md` was read in the summarized range is
+re-injected after the checkpoint as a `Skill` call and result (up to 20,000 characters per skill and
+100,000 in total, most recently read first), so the agent keeps following it. A repeat `Read` of a skill that
+is already in the conversation returns a short already-loaded note instead of the body.
 
 ### Telemetry Settings
 
@@ -1459,7 +1466,7 @@ http://browser-agent:8080
 ### Compact Configuration
 
 - `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `true`)
-- `INFER_COMPACT_AUTO_AT`: Percentage of the context window (20-100) at which to auto-compact (default: `80`)
+- `INFER_COMPACT_AUTO_AT`: Percentage of the context window (1-80) at which to auto-compact (default: `80`)
 
 ### Keybinding Environment Variables
 

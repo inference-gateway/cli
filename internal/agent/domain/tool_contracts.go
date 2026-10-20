@@ -98,6 +98,13 @@ type FileReadToolResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// SkillToolResult is the loaded SKILL.md returned by the Skill tool
+type SkillToolResult struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
 // FileWriteToolResult represents the result of a file write operation
 type FileWriteToolResult struct {
 	FilePath     string `json:"file_path"`

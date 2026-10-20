@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -814,6 +815,60 @@ func (s *Agent) optimizeConversation(_ context.Context, req *agentdomain.AgentRe
 	return conversation
 }
 
+// alreadyLoadedSkill reports whether a Skill call targets a skill already in
+// the conversation, so the body need not be sent a second time.
+func (s *Agent) alreadyLoadedSkill(toolName string, args map[string]any) (agentdomain.Skill, bool) {
+	if toolName != tools.ToolSkill || s.skillsService == nil || s.conversationRepo == nil {
+		return agentdomain.Skill{}, false
+	}
+	name, _ := args["name"].(string)
+	want := bareSkillName(name)
+	messages := convdomain.BuildAgentMessagesFromEntries(s.conversationRepo.GetMessages())
+	for _, sk := range loadedSkills(s.skillsService, messages) {
+		if sk.Name == want {
+			return sk, true
+		}
+	}
+	return agentdomain.Skill{}, false
+}
+
+// skillDefinitionRead reports whether a Read targets a SKILL.md, which is
+// loaded through the Skill tool so the load is visible by name. The skill's
+// other resource files stay readable.
+func (s *Agent) skillDefinitionRead(toolName string, args map[string]any) (agentdomain.Skill, bool) {
+	if toolName != tools.ToolRead || s.skillsService == nil {
+		return agentdomain.Skill{}, false
+	}
+	path, _ := args["file_path"].(string)
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	for _, sk := range s.skillsService.List() {
+		if sk.Path != "" && sk.Path == path {
+			return sk, true
+		}
+	}
+	return agentdomain.Skill{}, false
+}
+
+func (s *Agent) alreadyLoadedSkillEntry(tc sdk.ChatCompletionMessageToolCall, sk agentdomain.Skill, args map[string]any, startTime time.Time) convdomain.ConversationEntry {
+	return convdomain.ConversationEntry{
+		Message: sdk.Message{
+			Role:       sdk.Tool,
+			Content:    sdk.NewMessageContent(alreadyLoadedSkillResult(sk)),
+			ToolCallID: &tc.ID,
+		},
+		Time: time.Now(),
+		ToolExecution: &agentdomain.ToolExecutionResult{
+			ToolName:  tc.Function.Name,
+			Arguments: args,
+			Success:   true,
+			Duration:  time.Since(startTime),
+			Data:      &agentdomain.SkillToolResult{Name: sk.DisplayName(), Path: sk.Path, Content: alreadyLoadedSkillResult(sk)},
+		},
+	}
+}
+
 type indexedToolResult struct {
 	Index  int
 	Result convdomain.ConversationEntry
@@ -1107,6 +1162,13 @@ func (s *Agent) executeToolOnce(
 
 	if tc.Function.Name == tools.ToolRequestApproval && agentdomain.GetChatHandler(ctx) != nil {
 		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
+	}
+
+	if sk, ok := s.alreadyLoadedSkill(tc.Function.Name, args); ok {
+		return s.alreadyLoadedSkillEntry(tc, sk, args, startTime)
+	}
+	if sk, ok := s.skillDefinitionRead(tc.Function.Name, args); ok {
+		return s.createErrorEntry(tc, fmt.Errorf("%s is a skill definition - load it with the Skill tool (name %q), not Read. Read is for the skill's other resource files", sk.Path, sk.DisplayName()), startTime)
 	}
 
 	resultChan := make(chan struct {

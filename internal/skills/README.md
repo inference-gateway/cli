@@ -10,7 +10,8 @@ install path rather than a hardcoded prompt.
 - Scanning order, highest precedence first: `.infer/skills/`, then `.agents/skills/`, then `~/.infer/skills/`,
   then the enabled plugins' skills.
 - `infer skills list` still discovers skills when the feature is disabled.
-- The agent's prompt builder reads skills through the skills port in `internal/agent/domain`.
+- The agent's prompt builder reads skills through the skills port in `internal/agent/domain`, and the `Skill`
+  tool in `internal/tools` loads a SKILL.md body by name over the same port.
 
 ## Related
 

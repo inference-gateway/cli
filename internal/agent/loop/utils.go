@@ -208,8 +208,8 @@ func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 }
 
 // volatileTailMessage builds the per-request <system-reminder> user message
-// carrying the volatile context (git, tree, active skill, memory, current
-// date, live-mode tool roster and bash allow-list), appended to the outbound
+// carrying the volatile context (git, tree, active and loaded skills, memory,
+// current date, live-mode tool roster and bash allow-list), appended to the outbound
 // payload only, never persisted, so message[0] stays byte-stable for KV-cache
 // reuse. ok=false means append nothing; callers gate the append after repair.
 func (s *Agent) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
@@ -268,6 +268,7 @@ func (s *Agent) volatileContextSections(currentTurn int, messages []sdk.Message,
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
 		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages, isChat), Volatile: true},
+		{Name: "loaded_skills", Text: s.buildLoadedSkillsInfo(messages), Volatile: true},
 		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
 		{Name: "bash_allow_list", Text: s.buildBashAllowInfo(), Volatile: true},
 		{Name: "tools", Text: s.buildToolsInfo(), Volatile: true},
@@ -457,8 +458,8 @@ func (s *Agent) buildSkillsInfo() string {
 	var b strings.Builder
 	b.WriteString("\n\nAVAILABLE SKILLS:\n")
 	b.WriteString("Skills are reusable instructions for specific tasks. ")
-	b.WriteString("When a task matches a skill's description, read the SKILL.md file at the listed path using the Read tool, then follow its instructions. ")
-	b.WriteString("To deterministically load a skill's full instructions, invoke it explicitly with /<name> or \"use the <name> skill\".\n\n")
+	b.WriteString("When a task matches a skill's description, load it with the Skill tool (by name), then follow its instructions. ")
+	b.WriteString("The user can also invoke a skill explicitly with /<name> or \"use the <name> skill\".\n\n")
 
 	var maxChars int
 	if s.config != nil {
@@ -511,8 +512,7 @@ var (
 // active regardless of mode (chat, `infer headless`, channels, heartbeat), all of
 // which funnel through addSystemPrompt. It injects only the skill's metadata
 // (description + path), not the body: the SKILL.md body stays progressive
-// disclosure, read on demand by the model via the Read tool (now reachable
-// thanks to the sandbox carve-out). Empty when no trigger matched a loaded
+// disclosure, loaded on demand by the model via the Skill tool. Empty when no trigger matched a loaded
 // skill.
 //
 // A catalog skill that has not been downloaded yet (empty Path) is installed
@@ -530,10 +530,18 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 		return ""
 	}
 
+	loaded := make(map[string]struct{})
+	for _, sk := range loadedSkills(s.skillsService, messages) {
+		loaded[sk.Name] = struct{}{}
+	}
+
 	var entries []string
 	for _, name := range names {
 		sk, ok := s.skillsService.Get(name)
 		if !ok {
+			continue
+		}
+		if _, done := loaded[sk.Name]; done {
 			continue
 		}
 		if sk.Path == "" {
@@ -557,10 +565,27 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n\n%s - the user explicitly invoked the following; read each SKILL.md at the listed path with the Read tool and follow its instructions:\n", header)
+	fmt.Fprintf(&b, "\n\n%s - the user explicitly invoked the following; load each with the Skill tool and follow its instructions:\n", header)
 	b.WriteString(strings.Join(entries, "\n"))
 	b.WriteString("\n")
 	return b.String()
+}
+
+// buildLoadedSkillsInfo names the skills whose SKILL.md is already in the
+// conversation so the model follows them without loading them again. Loaded
+// skills are derived from the Skill tool calls in messages, so the section
+// survives compaction as long as the restored Skill pair does.
+func (s *Agent) buildLoadedSkillsInfo(messages []sdk.Message) string {
+	loaded := loadedSkills(s.skillsService, messages)
+	if len(loaded) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(loaded))
+	for _, sk := range loaded {
+		names = append(names, sk.DisplayName())
+	}
+	return fmt.Sprintf("\n\nSKILLS LOADED THIS SESSION - their SKILL.md is already in this conversation, follow it and do not load it again: %s\n",
+		strings.Join(names, ", "))
 }
 
 // agentsMDMaxDepth bounds nested AGENTS.md discovery so a large monorepo

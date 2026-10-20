@@ -1,0 +1,20 @@
+name: Skill
+description: |-
+  Loads a skill's full instructions (its SKILL.md) into the conversation by name. Use it when the task matches a skill's description in AVAILABLE SKILLS, or when the user invokes a skill explicitly. A SKILL.md is only ever loaded with this tool, never with Read - Read is for the skill's other resource files.
+  A skill that is already loaded in this conversation is not sent again - the result says so, and the earlier instructions stay in effect.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    name:
+      type: string
+      description: The skill name as listed in AVAILABLE SKILLS (for a plugin skill, either "plugin:skill" or the bare skill name)
+  required:
+    - name
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
+  - readonly
+require_approval: false

@@ -466,6 +466,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		logger.Warn("failed to load skills", "error", err)
 	}
 	c.skillsService = skillsSvc
+	c.toolRegistry.SetSkillsService(skillsSvc)
 
 	modelClient := c.createRawSDKClient()
 	c.modelService = conversation.NewHTTPModelService(modelClient)
@@ -508,6 +509,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		Config:            c.config,
 		Tokenizer:         c.tokenizer,
 		Repo:              c.conversationRepo,
+		RestoreContext:    agentloop.SkillRestorer(c.skillsService),
 	})
 
 	if c.config.Compact.Enabled {

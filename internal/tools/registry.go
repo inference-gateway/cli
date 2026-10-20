@@ -315,6 +315,14 @@ func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {
 	}
 }
 
+// SetSkillsService registers the Skill tool over the skills port. The
+// container calls it once skills are loaded, after the registry is built.
+func (r *Registry) SetSkillsService(skills agentdomain.SkillsService) {
+	r.toolsMu.Lock()
+	defer r.toolsMu.Unlock()
+	r.register(NewSkillTool(r.config, skills))
+}
+
 // GetTool retrieves a tool by name
 func (r *Registry) GetTool(name string) (agentdomain.Tool, error) {
 	r.toolsMu.RLock()
