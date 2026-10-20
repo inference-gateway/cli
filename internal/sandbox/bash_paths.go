@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // shellWord is one word of a command after quote and variable expansion, with
@@ -29,18 +30,23 @@ var creatingCommands = []string{"mkdir", "ln"}
 
 // bashPathOutsideSandbox reports the first path an allow-listed command would
 // read or create outside the sandbox or on a protected path. A path the check
-// cannot predict counts as outside. Writes are checked without an agent mode:
-// the shell is allow-list policy plus approval, and only the file tools carry
-// the plan-mode scratchpad gate.
-func bashPathOutsideSandbox(cfg *config.Config, seg string) (string, bool) {
+// cannot predict counts as outside. Writes carry the agent mode so the
+// plan-mode scratchpad gate applies, with relative paths anchored where the
+// Bash tool runs plan-mode commands.
+func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.AgentMode) (string, bool) {
 	words := splitShellWords(seg)
 	if len(words) < 2 || slices.Contains(printOnlyCommands, words[0].text) {
 		return "", false
 	}
 
-	validate := func(path string) error { return ValidateRead(cfg, path) }
+	resolve := func(path string) string { return path }
+	if mode == agentdomain.AgentModePlan {
+		resolve = func(path string) string { return anchorRelative(path, config.ProjectScratchpadDir()) }
+	}
+	validate := func(path string) error { return ValidateRead(cfg, resolve(path)) }
 	if slices.Contains(creatingCommands, words[0].text) {
-		validate = func(path string) error { return ValidateWrite(context.Background(), cfg, path) }
+		ctx := agentdomain.WithAgentMode(context.Background(), mode)
+		validate = func(path string) error { return ValidateWrite(ctx, cfg, resolve(path)) }
 	}
 	args := words[1:]
 	if words[0].text == "ln" {
@@ -55,6 +61,13 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func anchorRelative(path, dir string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(dir, path)
 }
 
 // pathCandidates returns the parts of an argument that may name a file: the

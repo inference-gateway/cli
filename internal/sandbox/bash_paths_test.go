@@ -101,3 +101,34 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		})
 	}
 }
+
+// TestIsBashCommandAllowed_PlanModeCreatesOnlyInScratchpad: allow-listed
+// creating commands follow the plan-mode scratchpad gate, with relative paths
+// anchored to the scratchpad where the Bash tool runs them.
+func TestIsBashCommandAllowed_PlanModeCreatesOnlyInScratchpad(t *testing.T) {
+	project := t.TempDir()
+	t.Chdir(project)
+	t.Setenv("HOME", t.TempDir())
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
+	scratchpad := config.ProjectScratchpadDir()
+
+	tests := []struct {
+		command string
+		allowed bool
+	}{
+		{command: "mkdir -p build/out", allowed: true},
+		{command: "mkdir " + filepath.Join(scratchpad, "out"), allowed: true},
+		{command: "ls " + filepath.Join(project, "src"), allowed: true},
+		{command: "mkdir " + filepath.Join(project, "out")},
+		{command: "ln -s main.go " + filepath.Join(project, "link")},
+		{command: "mkdir ../escape"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			if got := IsBashCommandAllowed(cfg, tt.command, agentdomain.AgentModePlan); got != tt.allowed {
+				t.Errorf("IsBashCommandAllowed(%q, plan) = %v, want %v", tt.command, got, tt.allowed)
+			}
+		})
+	}
+}

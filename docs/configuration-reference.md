@@ -294,7 +294,7 @@ tools:
           - 'gh api repos/[^ ]+/contents/[^ ]+( -H [''"]?Accept: application/vnd\.github\.raw[''"]?)?'
           - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
           - infer binaries status( .*)?
-      plan: # read-only planning mode adds nothing
+      plan: # plan mode adds nothing - its commands run pinned to the scratchpad
         allow: []
       standard: # interactive default: baseline only (same as plan)
         allow: []
