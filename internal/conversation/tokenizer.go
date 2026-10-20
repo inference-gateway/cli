@@ -81,7 +81,10 @@ func (t *TokenizerService) EstimateTokenCount(text string) int {
 	return int(tokens + 0.5)
 }
 
-// EstimateMessageTokens estimates the total tokens for a single message
+// EstimateMessageTokens estimates the prompt tokens one message costs when sent
+// back to the provider. Reasoning is left out: it is not resent, so a model that
+// reasons at length on every turn would otherwise inflate the estimate far past
+// the gateway-reported prompt_tokens and trip compaction early.
 func (t *TokenizerService) EstimateMessageTokens(msg sdk.Message) int {
 	tokens := t.messageOverhead
 
@@ -102,13 +105,6 @@ func (t *TokenizerService) EstimateMessageTokens(msg sdk.Message) int {
 
 	if msg.ToolCallID != nil {
 		tokens += t.EstimateTokenCount(*msg.ToolCallID)
-	}
-
-	if msg.Reasoning != nil {
-		tokens += t.EstimateTokenCount(*msg.Reasoning)
-	}
-	if msg.ReasoningContent != nil {
-		tokens += t.EstimateTokenCount(*msg.ReasoningContent)
 	}
 
 	return tokens

@@ -3,6 +3,7 @@ package conversation_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -95,6 +96,47 @@ func TestOptimizeMessages_EmitsStartedAndCompletedEvents_OnForce(t *testing.T) {
 	assert.EqualValues(t, len(messages), completed["messages_before"])
 	assert.NotZero(t, completed["messages_after"])
 	assert.NotEmpty(t, completed["timestamp"])
+}
+
+func TestOptimizeMessages_FailedSummaryEmitsFailedAndBacksOff(t *testing.T) {
+	model := "deepseek/deepseek-v4-pro"
+	models.SetGatewayContextWindows(map[string]int{model: 1000})
+	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
+	require.NoError(t, repo.AddTokenUsage(model, 900, 10, 910, 0, 0))
+	mockClient := createMockSDKClient(t, "unused")
+	mockClient.GenerateContentReturns(nil, errors.New("provider unavailable"))
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		BufferSize:        2,
+		KeepFirstMessages: 2,
+		Client:            mockClient,
+		Config:            &config.Config{},
+		Repo:              repo,
+	})
+
+	buf := withDebugStreamWriter(t)
+	messages := fourMessages()
+
+	assert.Equal(t, messages, optimizer.OptimizeMessages(messages, model, false), "a failed summary keeps the history")
+	events := decodeStreamEvents(t, buf)
+	require.Len(t, events, 2, "expected one started + one failed event")
+	assert.Equal(t, "compaction_started", events[0]["type"])
+	assert.Equal(t, "compaction_failed", events[1]["type"])
+	assert.Contains(t, events[1]["error"], "provider unavailable")
+
+	buf.Reset()
+	optimizer.OptimizeMessages(messages, model, false)
+	optimizer.OptimizeMessages(messages, model, false)
+	assert.Equal(t, 1, mockClient.GenerateContentCallCount(), "the next bufferSize turns must not retry the summary")
+	assert.Empty(t, buf.String(), "a skipped turn emits nothing")
+
+	optimizer.OptimizeMessages(messages, model, false)
+	assert.Equal(t, 2, mockClient.GenerateContentCallCount(), "after the backoff the summary is tried again")
+
+	optimizer.OptimizeMessages(messages, model, true)
+	assert.Equal(t, 3, mockClient.GenerateContentCallCount(), "a forced compaction ignores the backoff")
 }
 
 func TestOptimizeMessages_NoEventsWhenBelowThreshold(t *testing.T) {

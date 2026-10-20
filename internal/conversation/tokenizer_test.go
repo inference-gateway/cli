@@ -159,6 +159,22 @@ func TestEstimateMessageTokens(t *testing.T) {
 	})
 }
 
+func TestEstimateMessageTokens_IgnoresReasoning(t *testing.T) {
+	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
+	reasoning := strings.Repeat("thinking about it ", 500)
+	plain := sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")}
+	reasoned := sdk.Message{
+		Role:             sdk.Assistant,
+		Content:          sdk.NewMessageContent("done"),
+		Reasoning:        &reasoning,
+		ReasoningContent: &reasoning,
+	}
+
+	if got, want := tokenizer.EstimateMessageTokens(reasoned), tokenizer.EstimateMessageTokens(plain); got != want {
+		t.Errorf("reasoning is not resent to the provider and must not count: got %d, want %d", got, want)
+	}
+}
+
 func TestEstimateMessagesTokens(t *testing.T) {
 	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
 
