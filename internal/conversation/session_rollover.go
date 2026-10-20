@@ -122,7 +122,11 @@ func (m *SessionRollover) MaybeRollover(ctx context.Context, model, groupKey str
 	if m == nil || !m.ShouldRollover(model) {
 		return "", false
 	}
-	newID, err := m.PerformRollover(ctx, model, groupKey)
+	newID, err := m.performRollover(ctx, model, groupKey, m.idleTriggerFires(m.repo.GetMessages()))
+	if errors.Is(err, errNoReduction) {
+		logger.Debug("auto-rollover skipped, optimizer returned no reduction", "error", err)
+		return "", false
+	}
 	if err != nil {
 		logger.Warn("auto-rollover failed, continuing with current session", "error", err)
 		return "", false
@@ -204,13 +208,26 @@ func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEnt
 	}
 	threshold := (contextWindow * autoAt) / 100
 
-	msgs := make([]sdk.Message, 0, len(entries))
-	for _, e := range entries {
-		msgs = append(msgs, e.Message)
-	}
 	lastInput := m.repo.GetSessionTokens().LastInputTokens
-	return m.tokenizer.EffectiveContextTokens(lastInput, msgs) >= threshold
+	return m.tokenizer.EffectiveContextTokens(lastInput, visibleMessages(entries)) >= threshold
 }
+
+// visibleMessages is the message set a rollover compacts: hidden entries are
+// dropped so the gate and the compaction estimate the same conversation.
+func visibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
+	messages := make([]sdk.Message, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Hidden {
+			continue
+		}
+		messages = append(messages, entry.Message)
+	}
+	return messages
+}
+
+// errNoReduction reports a gated rollover whose optimizer returned the
+// conversation unchanged: below threshold, in backoff, or a failed summary.
+var errNoReduction = errors.New("optimizer returned no reduction")
 
 // PerformRollover runs the optimizer with force=true to produce a summary,
 // calls StartNewConversation on the repo to begin a fresh conversation file,
@@ -222,6 +239,14 @@ func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEnt
 //
 // Returns the new session UUID on success.
 func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey string) (string, error) {
+	return m.performRollover(ctx, model, groupKey, true)
+}
+
+// performRollover compacts with force when the caller asked for the rollover
+// (manual /compact, the idle trigger). A gated token-trigger rollover passes
+// force=false so the optimizer applies its own threshold and failure backoff,
+// and it does not start a new session when nothing was summarised.
+func (m *SessionRollover) performRollover(ctx context.Context, model, groupKey string, force bool) (string, error) {
 	if m.optimizer == nil {
 		return "", errors.New("conversation optimizer is not enabled")
 	}
@@ -237,13 +262,7 @@ func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey s
 	originalTitle := m.repo.GetCurrentConversationTitle()
 	originalID := m.repo.GetCurrentConversationID()
 
-	messages := make([]sdk.Message, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Hidden {
-			continue
-		}
-		messages = append(messages, entry.Message)
-	}
+	messages := visibleMessages(entries)
 	if len(messages) == 0 {
 		return "", errors.New("no visible messages to rollover")
 	}
@@ -254,8 +273,11 @@ func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey s
 		"message_count", len(messages),
 		"model", model)
 
-	optimized := m.optimizer.OptimizeMessages(messages, model, true)
+	optimized := m.optimizer.OptimizeMessages(messages, model, force)
 	if len(optimized) >= len(messages) {
+		if !force {
+			return "", errNoReduction
+		}
 		logger.Debug("optimizer returned no reduction, copying messages as-is")
 	}
 
