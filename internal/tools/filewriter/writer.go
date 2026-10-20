@@ -25,7 +25,7 @@ func NewSafeFileWriter(validator *DefaultPathValidator, backupManager *Backup) *
 
 // Write performs an atomic file write operation
 func (w *SafeFileWriter) Write(ctx context.Context, req WriteRequest) (*WriteResult, error) {
-	if err := w.ValidatePath(req.Path); err != nil {
+	if err := w.ValidatePath(ctx, req.Path); err != nil {
 		return nil, err
 	}
 
@@ -74,8 +74,8 @@ func (w *SafeFileWriter) Write(ctx context.Context, req WriteRequest) (*WriteRes
 }
 
 // ValidatePath validates if a path is safe for writing
-func (w *SafeFileWriter) ValidatePath(path string) error {
-	return w.validator.Validate(path)
+func (w *SafeFileWriter) ValidatePath(ctx context.Context, path string) error {
+	return w.validator.Validate(ctx, path)
 }
 
 // writeAtomically writes content to a file atomically using temp file + rename

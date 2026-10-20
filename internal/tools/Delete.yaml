@@ -23,3 +23,4 @@ parameters:
       default: false
   required:
     - path
+modes: [standard, auto, auto-with-judge, plan]

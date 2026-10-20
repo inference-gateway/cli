@@ -19,3 +19,4 @@ parameters:
       default: text
   required:
     - command
+modes: [standard, auto, auto-with-judge, plan]

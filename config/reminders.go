@@ -147,16 +147,18 @@ The agent mode has changed mid-session from {prev_mode} to {new_mode}. {guidance
 // one place: the guidance map in reminders.yaml. prompts.yaml's
 // agent.mode_adjustment_plan/_auto act as overrides on top (resolveModeChangeText).
 var defaultModeChangeGuidance = map[string]string{
-	"plan": "You are now in Plan Mode: a read-only mode. Analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them. " +
-		"TOOL SET: only Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, Agent (read-only exploration subagents only) with its companion subagent tools (ListSubagents, GetSubagentResult, ReadSubagentScreen, SendSubagentInput, CloseSubagent, ApproveSubagent), and Wait remain executable - " +
-		"Write, Edit, MultiEdit, Delete, Bash, and the web/other tools stay listed in the tool-use API but are DISABLED in plan mode and any call to them returns an error; do NOT attempt to make changes to files or the system, and do NOT attempt to implement the plan. " +
+	"plan": "You are now in Plan Mode: analyze the user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them - the working tree stays read-only so the real files are never touched until the plan is approved. " +
+		"SCRATCHPAD: {scratchpad} is the ONLY location that is writable in this mode. Write, Edit, MultiEdit, Delete and Bash may be called, but every write outside this directory is rejected; copy the files you need into the scratchpad instead of editing the originals, and run builds, tests or scripts there (Bash pins its working directory to it and honors the plan allow-list, which is empty by default). " +
+		"Verify the risky claims of the plan inside the scratchpad when reading alone cannot prove them, then record what you verified in the plan's ## Verification section. " +
+		"TOOL SET: fully executable are Read, Grep, Tree, TodoWrite, AskUserQuestion, RequestPlanApproval, A2A_QueryAgent, Agent (read-only exploration subagents only) with its companion subagent tools (ListSubagents, GetSubagentResult, ReadSubagentScreen, SendSubagentInput, CloseSubagent, ApproveSubagent), and Wait - " +
+		"the web, media and system tools stay listed in the tool-use API but are DISABLED in plan mode and any call to them returns an error; do NOT attempt to implement the plan outside the scratchpad. " +
 		"WORKFLOW: investigate with the read-only tools until you understand the codebase - for exploration that spans several areas, fan out read-only Agent subagents (one per area) instead of reading serially; identify ALL requirements; " +
 		"if a decision hinges on a discrete choice (approach, scope, format, naming, trade-off), call AskUserQuestion (1-4 multiple-choice questions, 2-4 options each) instead of guessing, and ask open-ended questions in a regular assistant turn; " +
 		"iterate until the plan is complete, then call RequestPlanApproval with a short title AND the Markdown plan body. Plans that are not actionable are NOT plans - if accepted, YOU will execute it step-by-step. " +
 		"PLAN FORMAT: the 'plan' argument MUST be a Markdown document using these H2 sections, in this order, omitting the ones that do not apply and never inventing extra top-level sections: " +
-		"## Context (why the change is being made); ## Files to Modify (exact paths, one-line note each); ## Current Code (short snippets with file:line refs - skip for brand-new files); " +
+		"## Context (why the change is being made); ## Files to Modify (exact paths, one-line note each - leave the scratchpad out, it is verification space, never part of the change); ## Current Code (short snippets with file:line refs - skip for brand-new files); " +
 		"## Changes (the concrete edits, per file or concern); ## Performance Impact (expected runtime, memory, I/O, or token-usage impact - write Negligible. if there is none); " +
-		"## Critical Files (backward-compat-sensitive code); ## Edge Cases; ## Verification (concrete end-to-end steps). " +
+		"## Critical Files (backward-compat-sensitive code); ## Edge Cases; ## Verification (concrete end-to-end steps - state what you already verified through the scratchpad). " +
 		"The 'title' argument must be a short human-readable phrase (60 chars max, no slashes) that names the plan file. If you need clarification, ASK - do not guess and do not request approval yet.",
 	"auto": "You are now in Auto-Accept mode: tool approvals are bypassed. You may execute tools freely without waiting for per-call approval; with that autonomy comes a duty of care around destructive or irreversible actions. " +
 		"DESTRUCTIVE-ACTION POLICY: treat as high-risk deleting or overwriting files or data, force operations (git push --force, git reset --hard), dropping or altering databases and cloud resources, mass or recursive removals (rm -rf), publishing externally (releases, comments, channel messages), and anything you cannot easily undo. " +
@@ -407,7 +409,8 @@ func resolveModeChangeText(rc ReminderConfig, q agentdomain.ReminderQuery) strin
 	}
 	text := strings.ReplaceAll(rc.Text, "{prev_mode}", q.PrevMode.DisplayName())
 	text = strings.ReplaceAll(text, "{new_mode}", q.Mode.DisplayName())
-	return strings.ReplaceAll(text, "{guidance}", guidance)
+	text = strings.ReplaceAll(text, "{guidance}", guidance)
+	return strings.ReplaceAll(text, "{scratchpad}", ProjectScratchpadDir())
 }
 
 // resolveRepeatedFailureText substitutes the {tool_name}/{count} placeholders

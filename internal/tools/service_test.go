@@ -81,7 +81,8 @@ func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 
 // TestExecuteTool_ModeGuard verifies execution-time mode enforcement: a mode
 // rejects the tools it does not make available, and a context without a mode
-// fails open.
+// fails open. Plan mode now admits the file tools and Bash; the sandbox
+// scratchpad gate, not the mode guard, constrains what they may touch.
 func TestExecuteTool_ModeGuard(t *testing.T) {
 	cfg := config.DefaultConfig()
 	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
@@ -94,9 +95,9 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 		tool    string
 		wantErr string
 	}{
-		{"plan rejects Write", agentdomain.AgentModePlan, true, ToolWrite, "disabled in plan mode"},
-		{"plan rejects Bash", agentdomain.AgentModePlan, true, ToolBash, "disabled in plan mode"},
-		{"plan error lists the plan tools", agentdomain.AgentModePlan, true, ToolWrite, "use one of " + ToolAskUserQuestion + ", " + ToolGrep + ", " + ToolRead},
+		{"plan allows Write", agentdomain.AgentModePlan, true, ToolWrite, ""},
+		{"plan allows Bash", agentdomain.AgentModePlan, true, ToolBash, ""},
+		{"plan rejects the web tools", agentdomain.AgentModePlan, true, ToolWebFetch, "disabled in plan mode"},
 		{"plan allows ListSubagents", agentdomain.AgentModePlan, true, ToolListSubagents, ""},
 		{"plan allows CloseSubagent", agentdomain.AgentModePlan, true, ToolCloseSubagent, ""},
 		{"readonly rejects ListSubagents", agentdomain.AgentModeReadOnly, true, ToolListSubagents, "not available in readonly mode"},

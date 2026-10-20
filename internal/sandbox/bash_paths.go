@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,7 +29,9 @@ var creatingCommands = []string{"mkdir", "ln"}
 
 // bashPathOutsideSandbox reports the first path an allow-listed command would
 // read or create outside the sandbox or on a protected path. A path the check
-// cannot predict counts as outside.
+// cannot predict counts as outside. Writes are checked without an agent mode:
+// the shell is allow-list policy plus approval, and only the file tools carry
+// the plan-mode scratchpad gate.
 func bashPathOutsideSandbox(cfg *config.Config, seg string) (string, bool) {
 	words := splitShellWords(seg)
 	if len(words) < 2 || slices.Contains(printOnlyCommands, words[0].text) {
@@ -37,7 +40,7 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string) (string, bool) {
 
 	validate := func(path string) error { return ValidateRead(cfg, path) }
 	if slices.Contains(creatingCommands, words[0].text) {
-		validate = func(path string) error { return ValidateWrite(cfg, path) }
+		validate = func(path string) error { return ValidateWrite(context.Background(), cfg, path) }
 	}
 	args := words[1:]
 	if words[0].text == "ln" {

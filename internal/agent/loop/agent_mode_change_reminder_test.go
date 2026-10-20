@@ -171,7 +171,7 @@ func TestModeChangeReminder_AutoToPlanInjectsAndEmits(t *testing.T) {
 	content, _ := conv[0].Content.AsMessageContent0()
 	assert.Contains(t, content, "Auto-Accept")
 	assert.Contains(t, content, "Plan Mode")
-	assert.Contains(t, content, "do NOT attempt to make changes")
+	assert.Contains(t, content, "do NOT attempt to implement the plan outside the scratchpad")
 	assert.NotContains(t, content, "{prev_mode}")
 	assert.NotContains(t, content, "{guidance}")
 

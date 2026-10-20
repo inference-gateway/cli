@@ -71,3 +71,4 @@ parameters:
   required:
     - file_path
     - edits
+modes: [standard, auto, auto-with-judge, plan]

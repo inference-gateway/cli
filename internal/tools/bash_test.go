@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -216,6 +217,36 @@ func TestBashTool_Execute(t *testing.T) {
 
 	if result.ToolName != "Bash" {
 		t.Errorf("Expected tool name 'Bash', got %s", result.ToolName)
+	}
+}
+
+// TestBashTool_Execute_PlanModeWorkDir: plan-mode commands run in the project
+// scratchpad, which the first command creates, while other modes keep the
+// process working directory.
+func TestBashTool_Execute_PlanModeWorkDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Chdir(t.TempDir())
+
+	tool := NewBashTool(config.DefaultConfig(), nil)
+	scratchpad := config.ProjectScratchpadDir()
+	if _, err := os.Stat(scratchpad); err == nil {
+		t.Fatal("the scratchpad should not exist before the first plan-mode command")
+	}
+
+	result, err := tool.Execute(agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan), map[string]any{"command": "pwd -P"})
+	if err != nil {
+		t.Fatalf("Execute() failed: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("pwd failed: %s", result.Error)
+	}
+	bashData, ok := result.Data.(*agentdomain.BashToolResult)
+	if !ok {
+		t.Fatalf("expected bash data, got %T", result.Data)
+	}
+	if got := strings.TrimSpace(bashData.Output); got != config.RealPath(scratchpad) {
+		t.Fatalf("plan-mode command ran in %q, want the scratchpad", got)
 	}
 }
 

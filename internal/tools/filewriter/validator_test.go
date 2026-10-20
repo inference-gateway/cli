@@ -1,6 +1,7 @@
 package filewriter
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,7 +92,7 @@ func TestPathValidator_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.Validate(tt.path)
+			err := validator.Validate(context.Background(), tt.path)
 			validateTestResult(t, err, tt.wantError, tt.errorMsg)
 		})
 	}

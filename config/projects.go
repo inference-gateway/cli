@@ -72,6 +72,16 @@ func ProjectTmpDir() string {
 	return filepath.Join(ProjectRuntimeDir(), "tmp")
 }
 
+// ScratchpadDirName is the fixed scratchpad subdir of the per-project tmp.
+const ScratchpadDirName = "scratchpad"
+
+// ProjectScratchpadDir is the per-project scratchpad: the one directory plan
+// mode allows the file tools and Bash to write, so plans can be verified
+// without touching the working tree.
+func ProjectScratchpadDir() string {
+	return filepath.Join(ProjectTmpDir(), ScratchpadDirName)
+}
+
 // MediaDir returns the default directory for one kind of generated or retained
 // media (sfx, video, recordings, ...). It is <project tmp>/media/<kind> while a
 // project is open, else ~/.infer/tmp/media/<kind>.
