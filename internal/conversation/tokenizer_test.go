@@ -607,3 +607,24 @@ func TestEffectiveContextTokens(t *testing.T) {
 		t.Errorf("larger lastInput should win: got %d, want %d", got, est+5000)
 	}
 }
+
+// TestEstimateMessageTokensCountsReasoningOnce pins that a message carrying the
+// same reasoning in Reasoning and ReasoningContent, as the agent stores it, is
+// estimated once, not twice.
+func TestEstimateMessageTokensCountsReasoningOnce(t *testing.T) {
+	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
+	reasoning := strings.Repeat("think ", 400)
+	base := sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("done")}
+	single := base
+	single.ReasoningContent = &reasoning
+	both := base
+	both.Reasoning = &reasoning
+	both.ReasoningContent = &reasoning
+
+	if got, want := tokenizer.EstimateMessageTokens(both), tokenizer.EstimateMessageTokens(single); got != want {
+		t.Fatalf("both fields set estimated %d tokens, one field %d", got, want)
+	}
+	if got := tokenizer.EstimateMessageTokens(both); got < 600 || got > 700 {
+		t.Fatalf("expected roughly 600 tokens for 2400 chars of reasoning, got %d", got)
+	}
+}
