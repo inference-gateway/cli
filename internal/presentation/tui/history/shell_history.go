@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
@@ -22,12 +21,6 @@ type ShellHistoryProvider interface {
 // ShellHistory implements project-specific history backed by a plain file.
 type ShellHistory struct {
 	historyFile string
-}
-
-// NewShellHistory creates a new shell history provider rooted at the
-// per-project runtime dir (~/.infer/projects/<project-slug>/history).
-func NewShellHistory() (*ShellHistory, error) {
-	return NewShellHistoryWithName(config.ProjectRuntimeDir(), "")
 }
 
 // NewShellHistoryWithName creates a new shell history provider rooted at baseDir
