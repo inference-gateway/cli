@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.234.0](https://github.com/inference-gateway/cli/compare/v0.233.2...v0.234.0) (2026-10-20)
+
+### 🚀 Features
+
+* **judge:** batch judge approvals per turn ([#1597](https://github.com/inference-gateway/cli/issues/1597)) ([4002b4d](https://github.com/inference-gateway/cli/commit/4002b4d91f7cc9033ebbf05c5405577ab25721a8))
+
+### 🐛 Bug Fixes
+
+* **conversation:** count a message's reasoning once in the token estimate ([#1594](https://github.com/inference-gateway/cli/issues/1594)) ([adff866](https://github.com/inference-gateway/cli/commit/adff866ce391f78c6c260edebf17a7600210ec1f)), closes [#1591](https://github.com/inference-gateway/cli/issues/1591), references [#1586](https://github.com/inference-gateway/cli/issues/1586)
+* **conversation:** gate a token-triggered rollover through the optimizer ([#1595](https://github.com/inference-gateway/cli/issues/1595)) ([50edc7f](https://github.com/inference-gateway/cli/commit/50edc7fd60e08e9592ec1ff539e1283c4d4c0cb8)), closes [#1592](https://github.com/inference-gateway/cli/issues/1592), references [#1586](https://github.com/inference-gateway/cli/issues/1586) [#1584](https://github.com/inference-gateway/cli/issues/1584)
+* **tools:** stop right-padding tool result lines sent to the model ([#1593](https://github.com/inference-gateway/cli/issues/1593)) ([15a7470](https://github.com/inference-gateway/cli/commit/15a7470dc284ba377454985917f2460e2768c88d)), closes [#1590](https://github.com/inference-gateway/cli/issues/1590), references [#1586](https://github.com/inference-gateway/cli/issues/1586)
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.234.0 --help
+npx @inference-gateway/cli@0.234.0 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.234.0
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.234.0
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.234.0
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.234.0"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.234.0
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.233.2](https://github.com/inference-gateway/cli/compare/v0.233.1...v0.233.2) (2026-10-20)
 
 ### 🐛 Bug Fixes
