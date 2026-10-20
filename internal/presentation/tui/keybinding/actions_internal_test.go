@@ -497,8 +497,7 @@ func TestHandleCancelDrainsQueuedMessages(t *testing.T) {
 }
 
 // TestHandleCancelWithoutSessionSkipsCancelRequest verifies esc on an idle
-// session still tears down safely and drains nothing when the queue gate has
-// no session to cancel.
+// session skips the cancel request and still returns the status + drain batch.
 func TestHandleCancelWithoutSessionSkipsCancelRequest(t *testing.T) {
 	state := statemanager.NewStore(false)
 	if err := state.TransitionToView(tui.ViewStateChat); err != nil {
@@ -513,7 +512,8 @@ func TestHandleCancelWithoutSessionSkipsCancelRequest(t *testing.T) {
 	if agent.CancelRequestCallCount() != 0 {
 		t.Fatalf("expected no CancelRequest without a session, got %d", agent.CancelRequestCallCount())
 	}
-	if cmd == nil {
-		t.Fatal("expected the interrupted status + drain batch even without a session")
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok || len(batch) != 2 {
+		t.Fatalf("expected the status + drain batch even without a session, got %T", cmd())
 	}
 }

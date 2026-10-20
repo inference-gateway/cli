@@ -173,9 +173,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager.EndToolExecution()
 	_ = stateManager.TransitionToView(tui.ViewStateChat)
 
-	// The agent loop's ChatCompleteEvent{Cancelled: true} lands on a channel
-	// the ended session no longer owns, so it would be dropped and leave the
-	// queue stranded. The drain gate handles idle/busy/ordering itself.
 	return tea.Batch(
 		func() tea.Msg {
 			return tui.SetStatusEvent{
@@ -183,15 +180,8 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 				Spinner: false,
 			}
 		},
-		drainQueueCmd(),
+		func() tea.Msg { return agentdomain.DrainQueueEvent{} },
 	)
-}
-
-// drainQueueCmd asks the chat handler's drain gate to run queued work; the
-// gate itself checks the queue, the busy state and the view, and arms a
-// bounded retry when the agent is still winding down.
-func drainQueueCmd() tea.Cmd {
-	return func() tea.Msg { return agentdomain.DrainQueueEvent{} }
 }
 
 func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
