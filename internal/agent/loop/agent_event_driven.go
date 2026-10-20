@@ -175,7 +175,7 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 			a.eventPublisher.publishChatComplete(reasoning, toolCalls, metrics)
 		},
 		PublishChatCancelled: func(metrics *agentdomain.ChatMetrics) {
-			a.eventPublisher.publishChatCancelled(metrics)
+			a.eventPublisher.publishChatCancelled(a.agentCtx.Ctx, metrics)
 		},
 		PublishToolResults: func(results []convdomain.ConversationEntry) {
 			a.eventPublisher.publishToolExecutionCompleted(results)
@@ -275,7 +275,7 @@ func (a *eventDrivenAgent) processEvents() {
 		if err := a.stateMachine.Transition(a.agentCtx, states.StateCancelled); err != nil {
 			logger.Error("failed to transition to Cancelled state", "error", err)
 		}
-		a.eventPublisher.publishChatCancelled(a.service.GetMetrics(a.req.RequestID))
+		a.eventPublisher.publishChatCancelled(a.agentCtx.Ctx, a.service.GetMetrics(a.req.RequestID))
 	}
 
 	for {

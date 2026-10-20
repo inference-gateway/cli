@@ -101,7 +101,7 @@ func (t *Tool) run(ctx context.Context, args map[string]any) (string, error) {
 	stderr := scheddomain.NewOutputRingBuffer(maxCapturedBytes)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	cmd.WaitDelay = pipeGrace
-	killProcessTreeOnCancel(cmd)
+	process.KillTreeOnCancel(cmd)
 
 	err = cmd.Run()
 	var exitErr *exec.ExitError

@@ -120,7 +120,7 @@ agent:
   model: "" # Default model for agent operations
   # System prompts and custom instructions live in prompts.yaml (prompts.agent.*), not in config.yaml
   max_turns: 50 # Maximum number of turns for agent sessions
-  max_duration_minutes: 0 # Wall-clock budget per run, ends it after the current tool call (0 = none)
+  max_duration_minutes: 0 # Wall-clock budget per run, cancels a tool call or stream in flight at the deadline (0 = none)
   max_tokens: 8192 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
@@ -565,8 +565,8 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
 - **prompts.agent.mode_adjustment_auto** (prompts.yaml): Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
-- **agent.max_duration_minutes**: Wall-clock budget for one run in minutes (default: 0, no budget). Once spent, the run ends after
-  the current tool call with its own outcome: `infer headless` exits 3, as it exits 2 for `max_turns`, so a harness tells
+- **agent.max_duration_minutes**: Wall-clock budget for one run in minutes (default: 0, no budget). Once spent, the run ends, cancelling a
+  tool call or a stream still in flight, with its own outcome: `infer headless` exits 3, as it exits 2 for `max_turns`, so a harness tells
   out of time from out of turns
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
