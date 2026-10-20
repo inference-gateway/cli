@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
 	uuid "github.com/google/uuid"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -25,38 +27,31 @@ func seedContextWindow(t *testing.T, model string, tokens int) {
 	t.Cleanup(func() { models.SetGatewayContextWindows(nil) })
 }
 
-// fakeOptimizer is a minimal in-test stand-in for ConversationOptimizer that
-// reports a configurable summary count and records every call.
-type fakeOptimizer struct {
-	mu          sync.Mutex
-	calls       int
-	lastForce   bool
-	returnCount int // how many messages to return; 0 → return input unchanged
-}
-
-func (f *fakeOptimizer) OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message {
-	f.mu.Lock()
-	f.calls++
-	f.lastForce = force
-	f.mu.Unlock()
-	if f.returnCount <= 0 || f.returnCount >= len(messages) {
-		return messages
-	}
-	out := make([]sdk.Message, 0, f.returnCount)
-	out = append(out, sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent("--- Context Summary ---\n\nfake summary\n\n--- End Summary ---"),
-	})
-	for i := len(messages) - (f.returnCount - 1); i < len(messages); i++ {
-		if i < 0 {
-			continue
+// optimizeTailStub is an OptimizeMessages stub standing in for the real
+// optimizer: it replaces the conversation head with a summary message and
+// keeps the last tail entries, or echoes the input unchanged when tail is 0
+// (the failed-summary path).
+func optimizeTailStub(tail int) func([]sdk.Message, string, bool) []sdk.Message {
+	return func(messages []sdk.Message, _ string, _ bool) []sdk.Message {
+		if tail <= 0 || tail >= len(messages) {
+			return messages
 		}
-		out = append(out, messages[i])
+		out := make([]sdk.Message, 0, tail+1)
+		out = append(out, sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent("--- Context Summary ---\n\nfake summary\n\n--- End Summary ---"),
+		})
+		for i := len(messages) - tail; i < len(messages); i++ {
+			if i < 0 {
+				continue
+			}
+			out = append(out, messages[i])
+		}
+		return out
 	}
-	return out
 }
 
-func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRollover, *PersistentConversationRepository, *fakeOptimizer, storage.SessionGroupStorage, func()) {
+func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionRollover, *PersistentConversationRepository, *convmocks.FakeConversationOptimizer, storage.SessionGroupStorage, func()) {
 	t.Helper()
 
 	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
@@ -71,7 +66,8 @@ func newRolloverManagerForTest(t *testing.T, autoAt int, idleMin int) (*SessionR
 	cfg.Compact.RolloverOnIdleMinutes = idleMin
 	cfg.Compact.KeepFirstMessages = 2
 
-	opt := &fakeOptimizer{returnCount: 2}
+	opt := &convmocks.FakeConversationOptimizer{}
+	opt.OptimizeMessagesStub = optimizeTailStub(1)
 
 	groupStore := storage.NewMemorySessionGroupStorage()
 	mgr := NewSessionRollover(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()), groupStore)
@@ -325,8 +321,8 @@ func TestPerformRollover_CreatesNewSessionAndUpdatesIndex(t *testing.T) {
 	if newID == "" || newID == originalID {
 		t.Errorf("new session id should differ from original; got %q (original %q)", newID, originalID)
 	}
-	if opt.calls != 1 {
-		t.Errorf("optimizer should have been called once, got %d", opt.calls)
+	if got := opt.OptimizeMessagesCallCount(); got != 1 {
+		t.Errorf("optimizer should have been called once, got %d", got)
 	}
 
 	if got := repo.GetCurrentConversationID(); got != newID {
@@ -442,8 +438,8 @@ func TestMaybeRollover_GateClosedReturnsFalse(t *testing.T) {
 	if newID != "" {
 		t.Errorf("MaybeRollover with closed gate must return empty newID, got %q", newID)
 	}
-	if opt.calls != 0 {
-		t.Errorf("optimizer must not be called when gate is closed; got %d", opt.calls)
+	if got := opt.OptimizeMessagesCallCount(); got != 0 {
+		t.Errorf("optimizer must not be called when gate is closed; got %d", got)
 	}
 }
 
@@ -471,14 +467,14 @@ func TestMaybeRollover_FiresAndReturnsNewID(t *testing.T) {
 	if !fired {
 		t.Fatal("MaybeRollover should have fired with LastInputTokens above threshold")
 	}
-	if opt.lastForce {
+	if _, _, force := opt.OptimizeMessagesArgsForCall(0); force {
 		t.Error("a token-triggered rollover must let the optimizer apply its own threshold and backoff (force=false)")
 	}
 	if newID == "" || newID == originalID {
 		t.Errorf("MaybeRollover must return a new session id; got %q (original %q)", newID, originalID)
 	}
-	if opt.calls != 1 {
-		t.Errorf("optimizer should have been called once via PerformRollover, got %d", opt.calls)
+	if got := opt.OptimizeMessagesCallCount(); got != 1 {
+		t.Errorf("optimizer should have been called once via PerformRollover, got %d", got)
 	}
 	if got := repo.GetCurrentConversationID(); got != newID {
 		t.Errorf("repo should point at new session: got %q want %q", got, newID)
@@ -537,7 +533,7 @@ func TestMaybeRollover_NoReductionKeepsSession(t *testing.T) {
 	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
 	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
-	opt.returnCount = 0
+	opt.OptimizeMessagesStub = optimizeTailStub(0)
 
 	if _, _, err := mgr.ResolveSessionID("channel-test-group"); err != nil {
 		t.Fatalf("resolve: %v", err)
@@ -584,7 +580,7 @@ func TestMaybeRollover_IdleTriggerForces(t *testing.T) {
 	if _, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", ""); !fired {
 		t.Fatal("idle trigger should have rolled over")
 	}
-	if !opt.lastForce {
+	if _, _, force := opt.OptimizeMessagesArgsForCall(0); !force {
 		t.Error("an idle-triggered rollover must compact with force=true")
 	}
 }
