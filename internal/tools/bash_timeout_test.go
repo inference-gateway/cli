@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"os/exec"
 	"strings"
 	"testing"
@@ -18,7 +17,7 @@ func TestBashTool_TimeoutEndsCallWhenChildKeepsPipesOpen(t *testing.T) {
 	cfg := &config.Config{Tools: config.ToolsConfig{Enabled: true}, Prompts: *config.DefaultPromptsConfig()}
 	cfg.Tools.Bash.Timeout = 1
 	tool := NewBashTool(cfg, nil)
-	ctx := agentdomain.WithToolApproved(context.Background())
+	ctx := agentdomain.WithToolApproved(t.Context())
 	marker := "infer-bash-timeout-test-" + t.Name()
 
 	start := time.Now()
