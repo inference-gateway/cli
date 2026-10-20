@@ -29,7 +29,7 @@ func TestSubmitTaskTool_isTaskNotFoundError(t *testing.T) {
 			},
 		},
 	}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil)
+	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -115,7 +115,7 @@ func TestSubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: inputRequired}, nil)
 		mockClient.SendTaskReturns(nil, errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"))
 
-		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+		tool := NewSubmitTaskTool(cfg, tracker, nil, nil, mockClient)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -152,7 +152,7 @@ func TestSubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		mockClient := &adkmocks.FakeA2AClient{}
 		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &completedTask}}, nil)
 
-		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+		tool := NewSubmitTaskTool(cfg, tracker, nil, nil, mockClient)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -250,7 +250,7 @@ func TestSubmitTaskTool_ContextReuse(t *testing.T) {
 			mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: existingTask}, tt.getTaskError)
 			mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &newTask}}, nil)
 
-			tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+			tool := NewSubmitTaskTool(cfg, tracker, nil, nil, mockClient)
 
 			args := map[string]any{
 				"agent_url":        agentURL,
@@ -331,7 +331,7 @@ func TestSubmitTaskTool_MultipleAgents(t *testing.T) {
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: workingTaskAgent1}, nil)
 		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &newTaskAgent2}}, nil)
 
-		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+		tool := NewSubmitTaskTool(cfg, tracker, nil, nil, mockClient)
 
 		args1 := map[string]any{
 			"agent_url":        agentURL1,
@@ -391,7 +391,7 @@ func TestSubmitTaskTool_NoExistingTask(t *testing.T) {
 		mockClient.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &newTask}}, nil)
 		mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: newTask}, nil)
 
-		tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, mockClient)
+		tool := NewSubmitTaskTool(cfg, tracker, nil, nil, mockClient)
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -423,7 +423,7 @@ func TestSubmitTaskTool_RejectedSubmissionIsAnAuthFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	client := &adkmocks.FakeA2AClient{}
 	client.SendTaskReturns(nil, &adk.HTTPStatusError{StatusCode: http.StatusUnauthorized, Body: `{"error":"invalid token"}`})
-	tool := NewSubmitTaskToolWithClient(authTestConfig(), nil, nil, nil, client)
+	tool := NewSubmitTaskTool(authTestConfig(), nil, nil, nil, client)
 
 	result, err := tool.Execute(t.Context(), map[string]any{
 		"agent_url":        "https://research.example.com",
@@ -443,7 +443,7 @@ func TestSubmitTaskTool_PollingStopsOnAuthFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	client := &adkmocks.FakeA2AClient{}
 	client.GetTaskReturns(nil, &adk.HTTPStatusError{StatusCode: http.StatusForbidden, Body: "forbidden"})
-	tool := NewSubmitTaskToolWithClient(authTestConfig(), nil, nil, nil, client)
+	tool := NewSubmitTaskTool(authTestConfig(), nil, nil, nil, client)
 	state := &a2adomain.TaskPollingState{TaskID: "t1", ContextID: "ctx1", AgentURL: "https://research.example.com"}
 
 	result := tool.runA2APolling(t.Context(), state.AgentURL, "t1", state, func(scheddomain.JobSignal) {}, func(adk.Task) {})

@@ -45,7 +45,7 @@ func TestA2AJob_PollsRemoteTaskToCompletion(t *testing.T) {
 	mockClient.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: completed}, nil)
 
 	retention := NewTaskRetentionService(10)
-	tool := NewSubmitTaskToolWithClient(cfg, tracker, sup, retention, mockClient)
+	tool := NewSubmitTaskTool(cfg, tracker, sup, retention, mockClient)
 	state := &a2adomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
 	tracker.StartPolling("t1", state)
 	sup.Submit(&a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: state})
@@ -93,7 +93,7 @@ func TestA2AJob_PollsUnderSubmitSpan(t *testing.T) {
 	member, _ := baggage.NewMember("session.id", "s1")
 	bag, _ := baggage.New(member)
 
-	tool := NewSubmitTaskToolWithClient(cfg, tracker, sup, nil, mockClient)
+	tool := NewSubmitTaskTool(cfg, tracker, sup, nil, mockClient)
 	state := &a2adomain.TaskPollingState{TaskID: "t1", AgentURL: "http://agent", StartedAt: time.Now()}
 	tracker.StartPolling("t1", state)
 	sup.Submit(&a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: state, spanCtx: spanCtx, bag: bag})
@@ -349,7 +349,7 @@ func TestA2AJob_WindWrapUp(t *testing.T) {
 			client.GetTaskReturns(&adk.JSONRPCSuccessResponse{Result: task}, nil)
 			client.SendTaskReturns(&adk.JSONRPCSuccessResponse{Result: adk.SendMessageResponse{Task: &task}}, nil)
 
-			tool := NewSubmitTaskToolWithClient(cfg, tracker, nil, nil, client)
+			tool := NewSubmitTaskTool(cfg, tracker, nil, nil, client)
 			j := &a2aJob{tool: tool, agentURL: "http://agent", taskID: "t1", state: &a2adomain.TaskPollingState{ContextID: "ctx1"}}
 			j.recordState(string(tt.state))
 
