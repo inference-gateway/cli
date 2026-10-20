@@ -105,6 +105,7 @@ type StateContext struct {
 	GetMetrics            func(requestID string) *agentdomain.ChatMetrics
 	ShouldRequireApproval func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool
 	ApprovalDelivery      func(toolCall *sdk.ChatCompletionMessageToolCall) string
+	BlockedToolHint       func(toolCall *sdk.ChatCompletionMessageToolCall) string
 	AddMessage            func(entry convdomain.ConversationEntry) error
 	BatchDrainQueue       func() int
 	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error)

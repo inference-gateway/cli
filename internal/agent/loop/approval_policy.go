@@ -19,11 +19,10 @@ import (
 //     2.5. ReadOnly mode (Explore-like subagent) bypasses approval; its toolset is
 //     read-only by construction so nothing it can call mutates. Neither needs
 //     a call the mode does not make available: execution rejects it
-//  3. Non-chat (headless agent) mode bypasses approval; there the Bash tool's own
-//     per-mode gate (executeBash) decides what runs
+//  3. The decision is the same in chat and headless. Where nobody can approve
+//     (headless with no broker) a gated call is blocked, see BlockingToolsState
 //  4. Bash commands are governed by the per-mode allow-list (sandbox.IsBashCommandAllowed):
-//     reached only in chat, non-auto mode, so allowed commands bypass approval and
-//     anything off-list prompts the user
+//     allowed commands bypass approval and anything off-list needs it
 //  5. Other tools follow their own require_approval setting, then their
 //     manifest's default, then the global require_approval setting
 type StandardApprovalPolicy struct {
