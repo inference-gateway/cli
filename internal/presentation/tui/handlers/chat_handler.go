@@ -14,7 +14,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	eventlistener "github.com/inference-gateway/cli/internal/presentation/tui/eventlistener"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -280,11 +279,10 @@ func (h *ChatHandler) handleChatStreamOpened(msg tui.ChatStreamOpenedEvent) tea.
 	return h.ListenForChatEvents(h.stateManager.GetChatSession().EventChannel)
 }
 
-// ListenForChatEvents creates a tea.Cmd that listens for the next event from
-// the channel. Delegates to the shared eventlistener service so the
-// tui.ChatChannelEvent wrapping lives in one place.
+// ListenForChatEvents satisfies tui.ChatHandler: the tui.ChatChannelEvent
+// wrapping and the re-arm contract live in the package function.
 func (h *ChatHandler) ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd {
-	return eventlistener.NewService().ListenForChatEvents(eventChan)
+	return tui.ListenForChatEvents(eventChan)
 }
 
 func (h *ChatHandler) HandleUserInputEvent(
@@ -699,15 +697,9 @@ func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
 	return h.directExec.ParseArguments(argsStr)
 }
 
-// ListenForEvents reads one event off a generic tea.Msg channel as a tea.Cmd.
-// Kept on the orchestrator because tui.ChatHandler still exposes it and
-// the runner-internal handlers (tool execution progress) call it directly.
+// ListenForEvents satisfies tui.ChatHandler - one read off a generic tea.Msg
+// channel as a tea.Cmd. The sub-handlers (tool execution progress) call it
+// to keep their channels pumping.
 func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
-	return func() tea.Msg {
-		msg, ok := <-eventChan
-		if !ok {
-			return nil
-		}
-		return msg
-	}
+	return tui.ListenForEvents(eventChan)
 }

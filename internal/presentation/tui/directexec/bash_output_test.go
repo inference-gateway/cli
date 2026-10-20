@@ -7,7 +7,6 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -33,7 +32,6 @@ func TestHandleBashCommand_OutputVisibleToLLM(t *testing.T) {
 		ToolService:      toolSvc,
 		StateStore:       sm,
 		ConversationRepo: repo,
-		Listener:         &tuimocks.FakeChatEventListener{},
 	})
 
 	if cmd := svc.HandleBashCommand(`!echo "hello world"`); cmd == nil {

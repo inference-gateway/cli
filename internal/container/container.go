@@ -51,7 +51,6 @@ import (
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
 	chatcompletion "github.com/inference-gateway/cli/internal/presentation/tui/chatcompletion"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
-	eventlistener "github.com/inference-gateway/cli/internal/presentation/tui/eventlistener"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolcoordinator "github.com/inference-gateway/cli/internal/presentation/tui/toolcoordinator"
@@ -157,7 +156,6 @@ type ServiceContainer struct {
 	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
 	// Constructed unconditionally. A2A-specific deps inside the
 	// services are nil-safe when A2A is disabled.
-	chatEventListener        tui.ChatEventListener
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
 	directExecutionService   tui.DirectExecutionService
@@ -697,8 +695,6 @@ func (c *ServiceContainer) initializeServices() {
 // monolithic ChatHandler. All deps from earlier init phases must
 // be in place by the time this runs.
 func (c *ServiceContainer) initializeChatOrchestrationServices() {
-	c.chatEventListener = eventlistener.NewService()
-
 	c.approvalCoordinator = approvalcoord.NewService(approvalcoord.Options{
 		AgentService:     c.agent,
 		ConversationRepo: c.conversationRepo,
@@ -717,14 +713,12 @@ func (c *ServiceContainer) initializeChatOrchestrationServices() {
 		ToolService:            c.toolService,
 		StateStore:             c.stateManager,
 		BackgroundShellService: c.BackgroundShellService(),
-		Listener:               c.chatEventListener,
 	})
 
 	c.toolExecutionCoordinator = toolcoordinator.NewCoordinator(toolcoordinator.Options{
 		ConversationRepo: c.conversationRepo,
 		StateStore:       c.stateManager,
 		DirectExec:       c.directExecutionService,
-		Listener:         c.chatEventListener,
 	})
 }
 

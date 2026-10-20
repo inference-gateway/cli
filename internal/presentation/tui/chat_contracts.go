@@ -44,15 +44,6 @@ type ChatHandler interface {
 	ClearBashDetachChan()
 }
 
-// ChatEventListener wraps the small "read one message off a channel as a
-// tea.Cmd" pattern used throughout the handlers. Extracted so services can
-// chain channel reads back into the Bubble Tea event loop without each one
-// re-implementing the same closure.
-type ChatEventListener interface {
-	ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd
-	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
-}
-
 // NextStepSuggestionRunner produces the one-line follow-up suggestion offered
 // as ghost text after a completed turn. Implementations are cheap, silent on
 // failure and return "" when nothing is available.
@@ -74,6 +65,30 @@ type SuggestionGate interface {
 type ChatChannelEvent struct {
 	Event  agentdomain.ChatEvent
 	Source <-chan agentdomain.ChatEvent
+}
+
+// ListenForChatEvents returns a tea.Cmd that reads one chat event off the
+// channel and surfaces it as a ChatChannelEvent for the chat handler to
+// unwrap and re-arm. A closed channel ends the chain (the cmd returns nil).
+func ListenForChatEvents(eventChan <-chan agentdomain.ChatEvent) tea.Cmd {
+	return func() tea.Msg {
+		if event, ok := <-eventChan; ok {
+			return ChatChannelEvent{Event: event, Source: eventChan}
+		}
+		return nil
+	}
+}
+
+// ListenForEvents is the generic tea.Msg variant, used for non-chat channels
+// (bash output, tool progress).
+func ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-eventChan
+		if !ok {
+			return nil
+		}
+		return msg
+	}
 }
 
 // ChatCompletionRequestedEvent resumes chat after asynchronous preparation.

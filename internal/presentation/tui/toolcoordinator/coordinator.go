@@ -39,7 +39,6 @@ type Coordinator struct {
 	conversationRepo convdomain.ConversationRepository
 	stateManager     stateStore
 	directExec       tui.DirectExecutionService
-	listener         tui.ChatEventListener
 
 	activeToolCallID   string
 	activeToolCallIDMu sync.RWMutex
@@ -50,7 +49,6 @@ type Options struct {
 	ConversationRepo convdomain.ConversationRepository
 	StateStore       stateStore
 	DirectExec       tui.DirectExecutionService
-	Listener         tui.ChatEventListener
 }
 
 // NewCoordinator creates a new tool execution coordinator.
@@ -59,7 +57,6 @@ func NewCoordinator(opts Options) *Coordinator {
 		conversationRepo: opts.ConversationRepo,
 		stateManager:     opts.StateStore,
 		directExec:       opts.DirectExec,
-		listener:         opts.Listener,
 	}
 }
 
@@ -221,12 +218,12 @@ func (c *Coordinator) HandleToolExecutionProgress(msg agentdomain.ToolExecutionP
 	cmds := c.progressStatusCmds(msg)
 
 	if toolEventChan := c.directExec.PendingToolChannel(); toolEventChan != nil {
-		cmds = append(cmds, c.listener.ListenForEvents(toolEventChan))
+		cmds = append(cmds, tui.ListenForEvents(toolEventChan))
 		return tea.Sequence(cmds...)
 	}
 
 	if bashEventChan := c.directExec.PendingBashChannel(); bashEventChan != nil {
-		cmds = append(cmds, c.listener.ListenForEvents(bashEventChan))
+		cmds = append(cmds, tui.ListenForEvents(bashEventChan))
 		return tea.Sequence(cmds...)
 	}
 

@@ -7,7 +7,6 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -37,7 +36,6 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 		ToolService:      toolSvc,
 		StateStore:       sm,
 		ConversationRepo: &convmocks.FakeConversationRepository{},
-		Listener:         &tuimocks.FakeChatEventListener{},
 	})
 
 	if cmd := svc.HandleToolCommand(`CloseSubagent({"subagent_id":""})`); cmd == nil {
