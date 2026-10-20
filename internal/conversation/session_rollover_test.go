@@ -525,11 +525,11 @@ func TestMaybeRollover_PerformRolloverErrorReturnsFalse(t *testing.T) {
 	}
 }
 
-// TestMaybeRollover_NoReductionKeepsSession pins the failed-summary path: when
-// the optimizer returns the conversation unchanged (failure, backoff, below its
-// own threshold), a token-triggered rollover must not start a new session or
-// touch the group index.
-func TestMaybeRollover_NoReductionKeepsSession(t *testing.T) {
+// TestMaybeRollover_NoCheckpointKeepsSession pins the failed-summary path: when
+// the optimizer returns the conversation without a checkpoint (failure, backoff,
+// below its own threshold), a token-triggered rollover must not start a new
+// session or touch the group index.
+func TestMaybeRollover_NoCheckpointKeepsSession(t *testing.T) {
 	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
 	mgr, repo, opt, groupStore, cleanup := newRolloverManagerForTest(t, 80, 0)
 	defer cleanup()
@@ -546,7 +546,7 @@ func TestMaybeRollover_NoReductionKeepsSession(t *testing.T) {
 
 	for range 3 {
 		if _, fired := mgr.MaybeRollover(context.Background(), "moonshot/moonshot-v1-8k", "channel-test-group"); fired {
-			t.Fatal("MaybeRollover must not fire when the optimizer returned no reduction")
+			t.Fatal("MaybeRollover must not fire when the optimizer produced no checkpoint")
 		}
 	}
 	if got := repo.GetCurrentConversationID(); got != originalID {

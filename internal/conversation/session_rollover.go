@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -123,8 +124,8 @@ func (m *SessionRollover) MaybeRollover(ctx context.Context, model, groupKey str
 		return "", false
 	}
 	newID, err := m.performRollover(ctx, model, groupKey, m.idleTriggerFires(m.repo.GetMessages()))
-	if errors.Is(err, errNoReduction) {
-		logger.Debug("auto-rollover skipped, optimizer returned no reduction", "error", err)
+	if errors.Is(err, errNoCheckpoint) {
+		logger.Debug("auto-rollover skipped", "error", err)
 		return "", false
 	}
 	if err != nil {
@@ -225,9 +226,25 @@ func visibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
 	return messages
 }
 
-// errNoReduction reports a gated rollover whose optimizer returned the
-// conversation unchanged: below threshold, in backoff, or a failed summary.
-var errNoReduction = errors.New("optimizer returned no reduction")
+// errNoCheckpoint reports a gated rollover whose optimizer produced no
+// checkpoint: below its threshold, in backoff, a failed summary, or nothing
+// to summarise.
+var errNoCheckpoint = errors.New("optimizer produced no checkpoint")
+
+// hasCheckpoint reports whether a compaction produced its summary message.
+// Message count cannot tell: the restore hook re-emits loaded skills after
+// the checkpoint, so a compacted conversation can hold more messages.
+func hasCheckpoint(messages []sdk.Message) bool {
+	for _, msg := range messages {
+		if msg.Role != sdk.User {
+			continue
+		}
+		if content, err := msg.Content.AsMessageContent0(); err == nil && strings.HasPrefix(content, contextSummaryMarker) {
+			return true
+		}
+	}
+	return false
+}
 
 // PerformRollover runs the optimizer with force=true to produce a summary,
 // calls StartNewConversation on the repo to begin a fresh conversation file,
@@ -245,7 +262,7 @@ func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey s
 // performRollover compacts with force when the caller asked for the rollover
 // (manual /compact, the idle trigger). A gated token-trigger rollover passes
 // force=false so the optimizer applies its own threshold and failure backoff,
-// and it does not start a new session when nothing was summarised.
+// and it keeps the session when no checkpoint came back.
 func (m *SessionRollover) performRollover(ctx context.Context, model, groupKey string, force bool) (string, error) {
 	if m.optimizer == nil {
 		return "", errors.New("conversation optimizer is not enabled")
@@ -274,10 +291,10 @@ func (m *SessionRollover) performRollover(ctx context.Context, model, groupKey s
 		"model", model)
 
 	optimized := m.optimizer.OptimizeMessages(messages, model, force)
+	if !force && !hasCheckpoint(optimized) {
+		return "", errNoCheckpoint
+	}
 	if len(optimized) >= len(messages) {
-		if !force {
-			return "", errNoReduction
-		}
 		logger.Debug("optimizer returned no reduction, copying messages as-is")
 	}
 
