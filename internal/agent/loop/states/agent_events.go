@@ -66,6 +66,13 @@ type StateHandler interface {
 	Name() AgentExecutionState
 }
 
+// ApprovalDecision is a pre-fetched approval verdict for one tool call. Reason
+// is non-empty only for judge rejections, matching RequestToolApproval.
+type ApprovalDecision struct {
+	Approved bool
+	Reason   string
+}
+
 // StateContext provides access to agent dependencies for state handlers
 type StateContext struct {
 	// Core dependencies
@@ -109,6 +116,9 @@ type StateContext struct {
 	AddMessage            func(entry convdomain.ConversationEntry) error
 	BatchDrainQueue       func() int
 	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error)
+	// RequestJudgeApprovals decides every judge-routed call of the round in one
+	// judge request, keyed by tool call id. Calls a human decides are absent.
+	RequestJudgeApprovals func(calls []sdk.ChatCompletionMessageToolCall) map[string]ApprovalDecision
 	ExecuteToolInternal   func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) convdomain.ConversationEntry
 	GetAgentMode          func() agentdomain.AgentMode
 	PublishChatEvent      func(event agentdomain.ChatEvent)

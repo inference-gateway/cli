@@ -5,7 +5,8 @@
 Judge mode (displayed as **Auto+Judge**) is an autonomous operating mode: there is no
 human in the loop, but tool calls that would normally prompt you are decided by an
 **LLM judge** instead of bypassing approval the way Auto-Accept does. One judge call
-answers one pending tool call; everything else about the agent loop is unchanged.
+answers every gated tool call of a turn; everything else about the agent loop is
+unchanged.
 
 It exists for unattended runs where a human approval prompt would deadlock (CI,
 headless agents, heartbeat jobs) but you still want a gate on mutating or dangerous
@@ -50,9 +51,14 @@ changes only *who answers the gate*:
 - Bash commands on the active allow-list pass for free (judge mode uses the `standard`
   list, same as Standard mode). They never reach the judge.
 - Anything else that would prompt a human - off-list commands, Write/Edit/Delete,
-  per-tool `require_approval` - gets exactly one judge call.
-- The judge prompt carries the latest non-hidden user message (the intent) and the
-  pending tool call (name + arguments).
+  per-tool `require_approval` - is decided by the judge. All judge-routed calls of a
+  turn go to the judge in **one request** (chunks of 20 calls when a turn has more),
+  so parallel tool calls wait for one judge round trip instead of one per call.
+  Calls a human decides in the same turn still prompt one at a time, in tool-call
+  order, after the judge has answered.
+- The judge prompt carries the first and the latest non-hidden user messages (the
+  intents) and every pending tool call, each as its own `<tool_call id="...">` block
+  (name + arguments, capped per call).
 - An approved call executes; a rejection becomes a failed tool result
   (`rejected by judge: <reason>`) and the turn continues, so the model reads the
   reason and adjusts (the mode guidance tells it to change approach rather than
@@ -85,15 +91,23 @@ having no approver to reach, and outside a judge rejection it does nothing.
 
 ## The verdict contract
 
-The judge must answer with exactly one JSON object:
+The judge must answer with a JSON array holding one object per `<tool_call>` block,
+named by its `id`:
 
 ```json
-{"decision": "approved", "reason": "installing the dependency the user asked for"}
+[
+  {"id": "call_1", "decision": "approved", "reason": "installing the dependency the user asked for"},
+  {"id": "call_2", "decision": "rejected", "reason": "the user did not ask for a push"}
+]
 ```
 
-The parser strips code fences and surrounding prose, requires `decision` to be
-`approved` or `rejected`, and treats anything else as a failed judge call (see
-`on_error` below).
+The parser strips code fences and surrounding prose and requires `decision` to be
+`approved` or `rejected`. A single `{"decision": ..., "reason": ...}` object without
+an `id` is still accepted when the request carried exactly one call, so a custom
+`judge.yaml` prompt written for the old one-object contract keeps working for
+single calls. A call the judge omits, mislabels or gives an invalid decision gets
+the `on_error` verdict (see below) while the rest of the batch keeps its verdicts;
+unparseable output applies `on_error` to every call in the request.
 
 ## Configuring the judge (judge.yaml)
 
@@ -119,10 +133,13 @@ prompt: |- # user message template; {root_intent}, {intent} and {action} are fil
   {intent}
   </latest_request>
 
-  <tool_call>
   {action}
-  </tool_call>
 ```
+
+`{action}` expands to one `<tool_call id="...">` block per pending call, so the
+template needs no tag of its own around it. A `judge.yaml` written by an older
+`infer init` still carries the one-object prompts, which cannot name several calls:
+run `infer init --overwrite` to refresh it (or edit the two prompts by hand).
 
 Environment overrides (env wins over the file):
 
@@ -153,19 +170,20 @@ auto-with-judge mode forces the judge regardless of `approval_behaviour`.
 
 ## Observability
 
-- `--format json` emits a `judge_verdict` event per decision (tool, decision, reason,
-  turn).
+- `--format json` emits a `judge_verdict` event per tool call (tool, decision, reason,
+  turn), one per call even when the batch was decided in a single request.
 - `--format ag-ui` mirrors it as an `ACTIVITY_SNAPSHOT` of type `judge_verdict` keyed
   `judge:<tool>:<turn>`.
 - `--format text` prints a line for rejections.
 - TUI users see the status line flash `Action rejected by judge policy (<model>): <reason>`,
   the judge model next to the `AUTO+JUDGE` mode indicator, and the model in each
   rejected tool card.
-- With debug logging on, every judge call is also emitted on the hidden debug
-  channel: `judge_request` (model, system prompt, rendered user prompt) and
-  `judge_verdict`.
-- Judge token usage is added to the session totals and telemetry, so the status
-  bar and cost reports include it.
+- With debug logging on, every judge request is also emitted on the hidden debug
+  channel: `judge_request` (model, system prompt, rendered user prompt, number of
+  calls) once per request and `judge_verdict` once per call.
+- Judge token usage is added to the session totals and telemetry once per request,
+  so the status bar and cost reports include it without multiplying it by the
+  number of calls in the batch.
 
 ## Related
 

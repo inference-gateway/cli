@@ -158,3 +158,88 @@ func TestApprovingToolsState_UngatedToolRunsWithoutPrompt(t *testing.T) {
 		[]string{(*ctx.ToolResults)[0].ToolExecution.ToolName, (*ctx.ToolResults)[1].ToolExecution.ToolName},
 		"results keep tool-call order")
 }
+
+// Judge-decided calls are decided up front in one request and never reach
+// RequestToolApproval; human-decided calls in the same round still prompt one
+// at a time, and a judge rejection yields the judge rejection entry.
+func TestApprovingToolsState_JudgeVerdictsPrefetchedOncePerRound(t *testing.T) {
+	var mu sync.Mutex
+	var approvalPrompts []string
+	var judgeBatches [][]string
+
+	call := func(id, name string) sdk.ChatCompletionMessageToolCall {
+		return sdk.ChatCompletionMessageToolCall{ID: id, Function: sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: `{}`}}
+	}
+	write, edit, bash := call("call-0", "Write"), call("call-1", "Edit"), call("call-2", "Bash")
+	calls := []*sdk.ChatCompletionMessageToolCall{&write, &edit, &bash}
+	needing := []sdk.ChatCompletionMessageToolCall{}
+	results := []convdomain.ConversationEntry{}
+	conversation := []sdk.Message{}
+	index := 0
+	var wg sync.WaitGroup
+	var mtx sync.Mutex
+	events := make(chan AgentEvent, 4)
+
+	ctx := &StateContext{
+		Request:               &agentdomain.AgentRequest{RequestID: "req-1", IsChatMode: true},
+		AgentCtx:              &AgentContext{Ctx: context.Background(), Conversation: &conversation},
+		Events:                events,
+		WaitGroup:             &wg,
+		Mutex:                 &mtx,
+		CurrentToolCalls:      &calls,
+		ToolsNeedingApproval:  &needing,
+		CurrentToolIndex:      &index,
+		ToolResults:           &results,
+		MaxConcurrentTools:    2,
+		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return true },
+		RequestJudgeApprovals: func(calls []sdk.ChatCompletionMessageToolCall) map[string]ApprovalDecision {
+			mu.Lock()
+			defer mu.Unlock()
+			ids := make([]string, len(calls))
+			for i, tc := range calls {
+				ids[i] = tc.ID
+			}
+			judgeBatches = append(judgeBatches, ids)
+			return map[string]ApprovalDecision{
+				"call-0": {Approved: true},
+				"call-1": {Reason: "judge: not requested"},
+			}
+		},
+		RequestToolApproval: func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			approvalPrompts = append(approvalPrompts, tc.Function.Name)
+			return true, "", nil
+		},
+		ExecuteToolInternal: func(tc sdk.ChatCompletionMessageToolCall, isApproved bool) convdomain.ConversationEntry {
+			return convdomain.ConversationEntry{
+				Message:       sdk.Message{Role: sdk.Tool, ToolCallID: &tc.ID},
+				ToolExecution: &agentdomain.ToolExecutionResult{ToolName: tc.Function.Name, Success: true},
+			}
+		},
+		AddMessage:         func(convdomain.ConversationEntry) error { return nil },
+		PublishChatEvent:   func(agentdomain.ChatEvent) {},
+		PublishToolResults: func([]convdomain.ConversationEntry) {},
+		GetAgentMode:       func() agentdomain.AgentMode { return agentdomain.AgentModeStandard },
+	}
+	s := &ApprovingToolsState{ctx: ctx}
+
+	require.NoError(t, s.Handle(MessageReceivedEvent{}))
+
+	select {
+	case <-events:
+	case <-time.After(2 * time.Second):
+		t.Fatal("approval round did not finish")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, [][]string{{"call-0", "call-1", "call-2"}}, judgeBatches, "every gated call goes to the judge in one request")
+	assert.Equal(t, []string{"Bash"}, approvalPrompts, "only the human-decided call prompts")
+
+	require.Len(t, *ctx.ToolResults, 3)
+	assert.True(t, (*ctx.ToolResults)[0].ToolExecution.Success, "judge-approved Write executed")
+	assert.Equal(t, "rejected by judge: judge: not requested", (*ctx.ToolResults)[1].ToolExecution.Error)
+	assert.False(t, (*ctx.ToolResults)[1].ToolExecution.Rejected, "a judge rejection must not end the turn")
+	assert.True(t, (*ctx.ToolResults)[2].ToolExecution.Success, "human-approved Bash executed")
+}

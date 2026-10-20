@@ -14,7 +14,8 @@ import (
 )
 
 // toolRound holds the per-round state for approving and executing a batch of
-// tool calls. Approval prompts are handled one at a time, but each approved
+// tool calls. Judge-decided calls are decided up front in one judge request;
+// human approval prompts are handled one at a time, but each approved
 // tool's execution is spawned immediately so executions overlap while the
 // remaining tools are still being approved. Results are recorded into
 // index-keyed slots and flushed to the conversation in tool-call order as each
@@ -27,6 +28,7 @@ type toolRound struct {
 	wg      sync.WaitGroup                 // tracks spawned executions
 	sem     chan struct{}                  // bounds concurrent executions
 	order   CallOrder                      // keeps side effects in tool-call order
+	decided map[string]ApprovalDecision    // judge verdicts by tool call id
 }
 
 // ApprovingToolsState handles events in the ApprovingTools state.
@@ -75,7 +77,7 @@ func (s *ApprovingToolsState) Handle(event AgentEvent) error {
 		logger.Debug("starting tool approval", "total_tools", len(*s.ctx.ToolsNeedingApproval))
 
 		s.ctx.WaitGroup.Add(1)
-		go s.processNextTool(round)
+		go s.startRound(round)
 
 	case AllToolsProcessedEvent:
 		logger.Debug("all tools processed", "results", len(*s.ctx.ToolResults))
@@ -94,8 +96,35 @@ func (s *ApprovingToolsState) Handle(event AgentEvent) error {
 	return nil
 }
 
+// startRound asks the judge once for every gated call it decides, then enters
+// the sequential approval loop, which consumes the stored verdicts instead of
+// requesting them one by one.
+func (s *ApprovingToolsState) startRound(round *toolRound) {
+	round.decided = s.prefetchJudgeDecisions()
+	s.processNextTool(round)
+}
+
+// prefetchJudgeDecisions collects the gated calls of the round and hands them
+// to the judge in one request. Calls a human decides come back absent.
+func (s *ApprovingToolsState) prefetchJudgeDecisions() map[string]ApprovalDecision {
+	if s.ctx.RequestJudgeApprovals == nil {
+		return nil
+	}
+	var gated []sdk.ChatCompletionMessageToolCall
+	for _, tc := range *s.ctx.ToolsNeedingApproval {
+		if s.ctx.ShouldRequireApproval(&tc, s.ctx.Request.IsChatMode) {
+			gated = append(gated, tc)
+		}
+	}
+	if len(gated) == 0 {
+		return nil
+	}
+	return s.ctx.RequestJudgeApprovals(gated)
+}
+
 // processNextTool handles ONE tool: ungated calls execute directly (no
-// prompt, no judge call); gated ones request approval and - if approved -
+// prompt, no judge call); gated ones take the pre-fetched judge verdict or
+// request human approval and - if approved -
 // spawn their execution in the background, immediately moving on to the
 // next approval prompt so executions overlap. Fast-exits if the session
 // context was cancelled, mirroring the drain-then-stop contract in
@@ -123,9 +152,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 		return
 	}
 
-	logger.Debug("requesting approval for tool", "tool", tc.Function.Name)
-
-	approved, reason, err := s.ctx.RequestToolApproval(*tc)
+	approved, reason, err := s.approvalFor(round, *tc)
 	if err != nil {
 		logger.Error("approval request failed", "tool", tc.Function.Name, "error", err)
 		s.ctx.Events <- ApprovalFailedEvent{Error: err}
@@ -148,6 +175,17 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 
 	s.spawnExecution(round, idx, *tc, true)
 	s.continueToNextTool(round)
+}
+
+// approvalFor returns the judge's pre-fetched decision for tc, or asks the
+// approver when the judge did not decide it.
+func (s *ApprovingToolsState) approvalFor(round *toolRound, tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+	if decision, ok := round.decided[tc.ID]; ok {
+		logger.Debug("using judge verdict for tool", "tool", tc.Function.Name, "approved", decision.Approved)
+		return decision.Approved, decision.Reason, nil
+	}
+	logger.Debug("requesting approval for tool", "tool", tc.Function.Name)
+	return s.ctx.RequestToolApproval(tc)
 }
 
 // continueToNextTool advances the sequential approval loop to the next tool.

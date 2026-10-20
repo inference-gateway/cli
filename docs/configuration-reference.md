@@ -691,8 +691,9 @@ correctly against the merged list.
 
 Tool calls that need approval can be decided by an LLM judge instead of a human -
 selected by the `auto-with-judge` agent mode or by `tools.safety.approval_behaviour:
-judge`. The judge call is a one-shot side call through the configured gateway; see
-[Judge Mode](judge-mode.md) for the behaviour and the verdict contract.
+judge`. The judge call is a one-shot side call through the configured gateway that decides
+every judge-routed call of a turn at once; see [Judge Mode](judge-mode.md) for the
+behaviour and the verdict contract.
 The judge is configured in its own file, **`judge.yaml`** (project
 `./.infer/judge.yaml` overrides userspace `~/.infer/judge.yaml`; when the file is
 absent the built-in defaults are used).
@@ -705,7 +706,7 @@ max_tokens: 2048 # response budget; reasoning models spend their thinking agains
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
       You are the approver for an autonomous coding agent. ...
-prompt: |- # user message template with {root_intent} (first user message), {intent} (latest) and {action} (tool call)
+prompt: |- # user message template with {root_intent} (first user message), {intent} (latest) and {action} (pending tool calls)
       <root_request>
       {root_intent}
       </root_request>
@@ -714,9 +715,7 @@ prompt: |- # user message template with {root_intent} (first user message), {int
       {intent}
       </latest_request>
 
-      <tool_call>
       {action}
-      </tool_call>
 ```
 
 - **judge.model**: `provider/model` reference for judge calls; empty falls back to
@@ -730,7 +729,9 @@ prompt: |- # user message template with {root_intent} (first user message), {int
       the user text and tool arguments stay data rather than instructions
 - **judge.prompt**: user-message template; `{root_intent}` is the first non-hidden
       user message of the session, `{intent}` the latest one (a bare "continue" is
-      judged next to the root it continues) and `{action}` the pending tool call
+      judged next to the root it continues) and `{action}` every pending tool call of
+      the turn, one `<tool_call id="...">` block each (at most 20 per request). The
+      judge answers with a JSON array of `{"id", "decision", "reason"}` objects
 
 Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDGE_GATEWAY_URL`,
 `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,

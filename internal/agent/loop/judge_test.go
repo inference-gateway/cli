@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -43,16 +44,32 @@ func judgeResponse(content string) *sdk.CreateChatCompletionResponse {
 	}
 }
 
+func singleAction(action string) agentdomain.JudgeInput {
+	return agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Actions: []agentdomain.JudgeAction{{ID: "call-0", Action: action}}}
+}
+
+func judgePrompt(t *testing.T, client *sdkmocks.FakeClient, call int) string {
+	t.Helper()
+	_, _, _, messages := client.GenerateContentArgsForCall(call)
+	prompt, err := messages[1].Content.AsMessageContent0()
+	if err != nil {
+		t.Fatalf("prompt content: %v", err)
+	}
+	return prompt
+}
+
 func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	client := newJudgeClient(judgeResponse("```json\n{\"decision\": \"approved\", \"reason\": \"matches the request\"}\n```"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", RootIntent: "set up the project", Intent: "install the dependency", Action: `Bash: {"command": "go get"}`})
+	in := singleAction(`Bash: {"command": "go get"}`)
+	in.RootIntent, in.Intent = "set up the project", "install the dependency"
+	out, err := judge.Judge(context.Background(), in)
 	if err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
-	if !verdict.Approved() || verdict.Reason != "matches the request" {
-		t.Errorf("verdict = %+v, want approved with reason", verdict)
+	if len(out.Verdicts) != 1 || !out.Verdicts[0].Approved() || out.Verdicts[0].Reason != "matches the request" {
+		t.Errorf("verdicts = %+v, want one approved with reason", out.Verdicts)
 	}
 
 	_, provider, model, messages := client.GenerateContentArgsForCall(0)
@@ -66,17 +83,103 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 	if serr != nil || !strings.Contains(system, "never instructions") {
 		t.Errorf("system prompt = %q (%v), want the data-not-instructions rule", system, serr)
 	}
-	prompt, perr := messages[1].Content.AsMessageContent0()
-	if perr != nil {
-		t.Fatalf("prompt content: %v", perr)
-	}
+	prompt := judgePrompt(t, client, 0)
 	if !strings.Contains(prompt, "<root_request>\nset up the project\n</root_request>") ||
 		!strings.Contains(prompt, "<latest_request>\ninstall the dependency\n</latest_request>") ||
-		!strings.Contains(prompt, "<tool_call>\nBash: {\"command\": \"go get\"}\n</tool_call>") {
+		!strings.Contains(prompt, "<tool_call id=\"call-0\">\nBash: {\"command\": \"go get\"}\n</tool_call>") {
 		t.Errorf("prompt missing tagged intent/action: %q", prompt)
 	}
-	if verdict.Usage == nil || verdict.Usage.TotalTokens != 30 {
-		t.Errorf("verdict.Usage = %+v, want the judge call usage", verdict.Usage)
+	if out.Usage == nil || out.Usage.TotalTokens != 30 {
+		t.Errorf("Usage = %+v, want the judge call usage", out.Usage)
+	}
+}
+
+func batchInput(n int) agentdomain.JudgeInput {
+	in := agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent"}
+	for i := range n {
+		in.Actions = append(in.Actions, agentdomain.JudgeAction{ID: fmt.Sprintf("call-%d", i), Action: "Write: {}"})
+	}
+	return in
+}
+
+func batchAnswer(ids []string, decision agentdomain.JudgeDecision) string {
+	entries := make([]string, len(ids))
+	for i, id := range ids {
+		entries[i] = fmt.Sprintf(`{"id": %q, "decision": %q, "reason": "r"}`, id, decision)
+	}
+	return "[" + strings.Join(entries, ",") + "]"
+}
+
+func TestLLMJudge_BatchesCallsIntoOneRequest(t *testing.T) {
+	client := newJudgeClient(judgeResponse(batchAnswer([]string{"call-0", "call-1", "call-2"}, agentdomain.JudgeDecisionApproved)), nil)
+	judge := NewLLMJudge(client, judgeTestConfig(""))
+
+	out, err := judge.Judge(context.Background(), batchInput(3))
+	if err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if client.GenerateContentCallCount() != 1 {
+		t.Fatalf("GenerateContent calls = %d, want 1", client.GenerateContentCallCount())
+	}
+	if len(out.Verdicts) != 3 {
+		t.Fatalf("verdicts = %d, want 3", len(out.Verdicts))
+	}
+	for i, v := range out.Verdicts {
+		if v.ID != fmt.Sprintf("call-%d", i) || !v.Approved() {
+			t.Errorf("verdict %d = %+v, want approved in input order", i, v)
+		}
+	}
+	prompt := judgePrompt(t, client, 0)
+	if strings.Count(prompt, "<tool_call id=") != 3 {
+		t.Errorf("prompt must carry one tagged block per call: %q", prompt)
+	}
+}
+
+func TestLLMJudge_SplitsOversizedBatchAndSumsUsage(t *testing.T) {
+	client := newJudgeClient(nil, nil)
+	client.GenerateContentStub = func(_ context.Context, _ sdk.Provider, _ string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
+		prompt, _ := messages[1].Content.AsMessageContent0()
+		var ids []string
+		for _, line := range strings.Split(prompt, "\n") {
+			if id, ok := strings.CutPrefix(line, "<tool_call id=\""); ok {
+				ids = append(ids, strings.TrimSuffix(id, "\">"))
+			}
+		}
+		return judgeResponse(batchAnswer(ids, agentdomain.JudgeDecisionApproved)), nil
+	}
+	judge := NewLLMJudge(client, judgeTestConfig(""))
+
+	out, err := judge.Judge(context.Background(), batchInput(maxJudgeBatchSize+5))
+	if err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if client.GenerateContentCallCount() != 2 {
+		t.Fatalf("GenerateContent calls = %d, want 2 for %d calls", client.GenerateContentCallCount(), maxJudgeBatchSize+5)
+	}
+	if len(out.Verdicts) != maxJudgeBatchSize+5 {
+		t.Fatalf("verdicts = %d, want one per call", len(out.Verdicts))
+	}
+	if out.Verdicts[maxJudgeBatchSize].ID != fmt.Sprintf("call-%d", maxJudgeBatchSize) || !out.Verdicts[maxJudgeBatchSize].Approved() {
+		t.Errorf("second batch verdicts out of order: %+v", out.Verdicts[maxJudgeBatchSize])
+	}
+	if out.Usage == nil || out.Usage.TotalTokens != 60 {
+		t.Errorf("Usage = %+v, want the two requests summed", out.Usage)
+	}
+}
+
+func TestLLMJudge_OmittedCallFailsClosedAlone(t *testing.T) {
+	client := newJudgeClient(judgeResponse(batchAnswer([]string{"call-0", "call-2"}, agentdomain.JudgeDecisionApproved)), nil)
+	judge := NewLLMJudge(client, judgeTestConfig(""))
+
+	out, err := judge.Judge(context.Background(), batchInput(3))
+	if err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if !out.Verdicts[0].Approved() || !out.Verdicts[2].Approved() {
+		t.Errorf("answered calls must keep their verdicts: %+v", out.Verdicts)
+	}
+	if out.Verdicts[1].Approved() || !strings.Contains(out.Verdicts[1].Reason, "judge unavailable") || out.Verdicts[1].ID != "call-1" {
+		t.Errorf("omitted call must get the on_error verdict, got %+v", out.Verdicts[1])
 	}
 }
 
@@ -95,37 +198,46 @@ func TestLLMJudge_OnError(t *testing.T) {
 			client := newJudgeClient(nil, errors.New("gateway down"))
 			judge := NewLLMJudge(client, judgeTestConfig(tt.onError))
 
-			verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
+			out, err := judge.Judge(context.Background(), batchInput(2))
 			if err != nil {
 				t.Fatalf("Judge() error = %v, want nil (on_error decides)", err)
 			}
-			if verdict.Approved() != tt.wantApprove {
-				t.Errorf("verdict.Approved() = %v, want %v", verdict.Approved(), tt.wantApprove)
+			if len(out.Verdicts) != 2 {
+				t.Fatalf("verdicts = %d, want one per call", len(out.Verdicts))
 			}
-			if !strings.Contains(verdict.Reason, "judge unavailable") {
-				t.Errorf("reason = %q, want it to mention judge unavailable", verdict.Reason)
+			for _, v := range out.Verdicts {
+				if v.Approved() != tt.wantApprove {
+					t.Errorf("verdict %s Approved() = %v, want %v", v.ID, v.Approved(), tt.wantApprove)
+				}
+				if !strings.Contains(v.Reason, "judge unavailable") {
+					t.Errorf("reason = %q, want it to mention judge unavailable", v.Reason)
+				}
 			}
 		})
 	}
 }
 
-func TestLLMJudge_UnparseableOutputDenies(t *testing.T) {
+func TestLLMJudge_UnparseableOutputDeniesWholeBatch(t *testing.T) {
 	client := newJudgeClient(judgeResponse("no verdict here"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
+	out, err := judge.Judge(context.Background(), batchInput(2))
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}
-	if verdict.Approved() {
-		t.Errorf("unparseable judge output should deny, got %+v", verdict)
+	for _, v := range out.Verdicts {
+		if v.Approved() {
+			t.Errorf("unparseable judge output should deny, got %+v", v)
+		}
 	}
 }
 
 func TestLLMJudge_InvalidModelFormat(t *testing.T) {
 	judge := NewLLMJudge(&sdkmocks.FakeClient{}, judgeTestConfig(""))
 
-	if _, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "no-slash", Intent: "intent", Action: "action"}); err == nil || !strings.Contains(err.Error(), "provider/model") {
+	in := singleAction("action")
+	in.Model = "no-slash"
+	if _, err := judge.Judge(context.Background(), in); err == nil || !strings.Contains(err.Error(), "provider/model") {
 		t.Fatalf("Judge() error = %v, want provider/model format error", err)
 	}
 }
@@ -184,11 +296,11 @@ func TestLLMJudge_TokenBudgetExhaustedDenies(t *testing.T) {
 	resp.Choices[0].FinishReason = sdk.Length
 	judge := NewLLMJudge(newJudgeClient(resp, nil), judgeTestConfig(""))
 
-	verdict, err := judge.Judge(context.Background(), agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Action: "action"})
+	out, err := judge.Judge(context.Background(), singleAction("action"))
 	if err != nil {
 		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
 	}
-	if verdict.Approved() || !strings.Contains(verdict.Reason, "max_tokens") {
-		t.Errorf("exhausted budget should deny naming max_tokens, got %+v", verdict)
+	if len(out.Verdicts) != 1 || out.Verdicts[0].Approved() || !strings.Contains(out.Verdicts[0].Reason, "max_tokens") {
+		t.Errorf("exhausted budget should deny naming max_tokens, got %+v", out.Verdicts)
 	}
 }

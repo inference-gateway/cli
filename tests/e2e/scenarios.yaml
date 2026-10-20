@@ -114,7 +114,7 @@ scenarios:
       - content: "The echo command ran."
 
   - name: judge-reject-curl
-    match: '(?s)<tool_call>\s*Bash: .*curl'
+    match: '(?s)<tool_call id="[^"]*">\s*Bash: .*curl'
     turns:
       - content: '{"decision": "rejected", "reason": "curl was not requested"}'
 
