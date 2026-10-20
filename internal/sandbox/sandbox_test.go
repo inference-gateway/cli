@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -62,7 +63,7 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 	if err := ValidateRead(cfg, target); !errors.As(err, &denied) || denied.Rule != "" {
 		t.Fatalf("outside allowed must ask, got %v", err)
 	}
-	if err := ValidateWrite(cfg, filepath.Join(readOnly, "lib.go")); !errors.As(err, &denied) || denied.Access != sandboxdomain.AccessWrite {
+	if err := ValidateWrite(context.Background(), cfg, filepath.Join(readOnly, "lib.go")); !errors.As(err, &denied) || denied.Access != sandboxdomain.AccessWrite {
 		t.Fatalf("a write into a read-only entry must ask, got %v", err)
 	}
 	if err := ValidateRead(cfg, filepath.Join(readOnly, "lib.go")); err != nil {
@@ -80,13 +81,13 @@ func TestGrantsUnlockOnlyWhatApprovalCould(t *testing.T) {
 
 	Granted.Add(sandboxdomain.Allowed{Path: outside, Access: sandboxdomain.AccessWrite})
 	Granted.Add(sandboxdomain.Allowed{Path: deploy, Access: sandboxdomain.AccessRead})
-	if err := ValidateWrite(cfg, target); err != nil {
+	if err := ValidateWrite(context.Background(), cfg, target); err != nil {
 		t.Fatalf("expected access after grant, got %v", err)
 	}
 	if err := ValidateRead(cfg, filepath.Join(deploy, "run.sh")); err != nil {
 		t.Fatalf("expected the approval entry unlocked by its grant, got %v", err)
 	}
-	if err := ValidateWrite(cfg, filepath.Join(deploy, "run.sh")); err == nil {
+	if err := ValidateWrite(context.Background(), cfg, filepath.Join(deploy, "run.sh")); err == nil {
 		t.Fatal("a read grant must not unlock a write")
 	}
 	if err := ValidateRead(cfg, secret); err == nil {
@@ -183,7 +184,7 @@ func TestValidateWrite_Symlinks(t *testing.T) {
 				}
 				return
 			}
-			err := ValidateWrite(cfg, tt.path)
+			err := ValidateWrite(context.Background(), cfg, tt.path)
 			var denied *sandboxdomain.DeniedError
 			switch {
 			case tt.protected:
@@ -195,7 +196,7 @@ func TestValidateWrite_Symlinks(t *testing.T) {
 					t.Fatalf("expected denial of %s, got %v", tt.wantDenied, err)
 				}
 				Granted.Add(sandboxdomain.Allowed{Path: filepath.Dir(denied.Path), Access: sandboxdomain.AccessWrite})
-				if err := ValidateWrite(cfg, tt.path); err != nil {
+				if err := ValidateWrite(context.Background(), cfg, tt.path); err != nil {
 					t.Fatalf("expected %s allowed once its target dir is granted, got %v", tt.path, err)
 				}
 			case err != nil:
@@ -250,7 +251,7 @@ func TestValidateWrite_CustomToolsDirs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateWrite(cfg, tt.path)
+			err := ValidateWrite(context.Background(), cfg, tt.path)
 			if blocked := err != nil && strings.Contains(err.Error(), "custom tools directory"); blocked != tt.blocked {
 				t.Errorf("ValidateWrite(%s) = %v, want blocked %v", tt.path, err, tt.blocked)
 			}

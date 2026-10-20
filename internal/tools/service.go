@@ -118,7 +118,7 @@ func (s *Service) ListMarkdownSubagents() []agentdomain.SubagentInfo {
 // the current mode, naming the tools that do so it picks one instead of retrying.
 func toolUnavailableError(name string, mode agentdomain.AgentMode, available []string) error {
 	if mode == agentdomain.AgentModePlan {
-		return fmt.Errorf("tool not allowed: %s is disabled in plan mode (read-only) - use one of %s instead; do not retry this tool until the plan is approved",
+		return fmt.Errorf("tool not allowed: %s is disabled in plan mode - use one of %s instead; do not retry this tool until the plan is approved",
 			name, strings.Join(available, ", "))
 	}
 	return fmt.Errorf("tool not allowed: %s is not available in %s mode", name, mode.ModeKey())

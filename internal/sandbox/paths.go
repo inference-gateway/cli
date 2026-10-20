@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
@@ -22,7 +24,9 @@ func ValidateRead(cfg *config.Config, path string) error {
 
 // ValidateWrite is ValidateRead for writes. The userspace policy files and
 // the custom-tool directories are never writable, whatever the rules say.
-func ValidateWrite(cfg *config.Config, path string) error {
+// In plan mode only the project scratchpad may be written: the gate runs before
+// grants and the configured allowed list, since no grant can widen plan mode.
+func ValidateWrite(ctx context.Context, cfg *config.Config, path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
@@ -33,7 +37,28 @@ func ValidateWrite(cfg *config.Config, path string) error {
 	if isWithinCustomToolsDir(cfg, absPath) {
 		return fmt.Errorf("path '%s' is in a custom tools directory, which infer's file tools never edit", path)
 	}
+	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok && mode == agentdomain.AgentModePlan {
+		return validatePlanScratchpadWrite(cfg, path, absPath)
+	}
 	return validate(cfg, path, sandboxdomain.AccessWrite)
+}
+
+// validatePlanScratchpadWrite rejects a write anywhere outside the scratchpad
+// with a plain error instead of a DeniedError on purpose: no approval can
+// unlock plan mode, so the denial must not offer a grant. A path that resolves
+// elsewhere through symlinks is rejected like anything else outside it.
+func validatePlanScratchpadWrite(cfg *config.Config, path, absPath string) error {
+	scratchpad := config.ProjectScratchpadDir()
+	if !isWithinDir(absPath, scratchpad) {
+		return fmt.Errorf("plan mode allows writes only inside the scratchpad '%s' - copy the files there to verify changes", scratchpad)
+	}
+	if err := validate(cfg, path, sandboxdomain.AccessWrite); err != nil {
+		return err
+	}
+	if target := config.RealPath(absPath); target != absPath && !isWithinDir(target, scratchpad) {
+		return fmt.Errorf("plan mode allows writes only inside the scratchpad '%s' - '%s' resolves outside it", scratchpad, path)
+	}
+	return nil
 }
 
 // AllowedDirectories are the anchored allowed paths, in order, for callers

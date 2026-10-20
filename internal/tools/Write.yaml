@@ -19,3 +19,8 @@ parameters:
   required:
     - file_path
     - content
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan

@@ -84,7 +84,7 @@ func IsBashCommandAllowed(cfg *config.Config, command string, mode agentdomain.A
 		return false
 	}
 
-	_, outside := bashPathOutsideSandbox(cfg, seg)
+	_, outside := bashPathOutsideSandbox(cfg, seg, mode)
 	return !outside
 }
 
@@ -133,7 +133,7 @@ func BashCommandRejectionHint(cfg *config.Config, command string) string {
 	if cfg == nil {
 		return ""
 	}
-	if path, outside := bashPathOutsideSandbox(cfg, seg); outside {
+	if path, outside := bashPathOutsideSandbox(cfg, seg, agentdomain.AgentModeStandard); outside {
 		return fmt.Sprintf("'%s' is outside the sandbox, protected, or depends on the environment, "+
 			"so the command needs approval; use paths inside the sandbox, or tell the user what you need", path)
 	}

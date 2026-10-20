@@ -13,7 +13,7 @@ type AgentMode int
 const (
 	// AgentModeStandard is the default mode with all configured tools and approval checks
 	AgentModeStandard AgentMode = iota
-	// AgentModePlan is a read-only mode for planning without execution
+	// AgentModePlan plans without executing: writes are confined to the scratchpad
 	AgentModePlan
 	// AgentModeAutoAccept bypasses all approval checks (YOLO mode)
 	AgentModeAutoAccept

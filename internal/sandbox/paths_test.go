@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
@@ -58,7 +60,7 @@ func TestValidateRead_SkillsCarveOut(t *testing.T) {
 
 		t.Run("lookalike sibling dir is not a carve-out", func(t *testing.T) {
 			sibling := filepath.Join(home, config.ConfigDirName, "skills-evil", "SKILL.md")
-			if err := ValidateWrite(cfg, sibling); err == nil {
+			if err := ValidateWrite(context.Background(), cfg, sibling); err == nil {
 				t.Fatalf("expected sibling %s not writable (prefix must be a path boundary)", sibling)
 			}
 		})
@@ -76,7 +78,7 @@ func TestValidateRead_SkillsCarveOut(t *testing.T) {
 		cfg.Agent.Skills.Enabled = false
 
 		for _, p := range []string{userSkill, projectSkill, relSkill} {
-			if err := ValidateWrite(cfg, p); err == nil {
+			if err := ValidateWrite(context.Background(), cfg, p); err == nil {
 				t.Fatalf("expected %s not writable while skills are disabled", p)
 			}
 		}
@@ -194,7 +196,7 @@ func TestValidateWrite_GoLibCarveOut(t *testing.T) {
 	})
 
 	t.Run("write inside modcache rejected (absolute)", func(t *testing.T) {
-		if err := ValidateWrite(cfg, target); err == nil {
+		if err := ValidateWrite(context.Background(), cfg, target); err == nil {
 			t.Fatalf("expected write to %s rejected", target)
 		}
 	})
@@ -211,16 +213,110 @@ func TestValidateWrite_GoLibCarveOut(t *testing.T) {
 		if err := ValidateRead(cfg, rel); err != nil {
 			t.Fatalf("expected relative %s readable, got %v", rel, err)
 		}
-		if err := ValidateWrite(cfg, rel); err == nil {
+		if err := ValidateWrite(context.Background(), cfg, rel); err == nil {
 			t.Fatalf("expected write to relative %s rejected", rel)
 		}
 	})
 
 	t.Run("write in sandbox still allowed", func(t *testing.T) {
-		if err := ValidateWrite(cfg, "somefile.txt"); err != nil {
+		if err := ValidateWrite(context.Background(), cfg, "somefile.txt"); err != nil {
 			t.Fatalf("expected sandbox write allowed, got %v", err)
 		}
 	})
+}
+
+// TestValidateWrite_PlanScratchpad locks in the plan-mode gate: only the
+// project scratchpad is writable, whatever is allowed or granted elsewhere,
+// with traversal and symlink escapes out of it rejected like anything else.
+func TestValidateWrite_PlanScratchpad(t *testing.T) {
+	t.Cleanup(func() {
+		Granted = Grants{}
+	})
+
+	project := t.TempDir()
+	home := t.TempDir()
+	t.Chdir(project)
+	t.Setenv("HOME", home)
+
+	scratchpad := config.ProjectScratchpadDir()
+	require.NoError(t, os.MkdirAll(scratchpad, 0o755))
+	target := filepath.Join(project, "outside.txt")
+	mustWrite(t, target)
+	mustSymlink(t, target, filepath.Join(scratchpad, "escape.txt"))
+	mustWrite(t, filepath.Join(scratchpad, "scratch.md"))
+	mustSymlink(t, filepath.Join(scratchpad, "scratch.md"), filepath.Join(scratchpad, "link-in.txt"))
+
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
+	Granted.Add(sandboxdomain.Allowed{Path: project, Access: sandboxdomain.AccessWrite})
+
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		path    string
+		wantErr string
+	}{
+		{
+			name: "a file in the scratchpad",
+			ctx:  agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path: filepath.Join(scratchpad, "note.md"),
+		},
+		{
+			name: "a nested file in a not-yet-created scratchpad subdir",
+			ctx:  agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path: filepath.Join(scratchpad, "nested", "new.md"),
+		},
+		{
+			name: "a symlink resolving inside the scratchpad",
+			ctx:  agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path: filepath.Join(scratchpad, "link-in.txt"),
+		},
+		{
+			name:    "the project working tree",
+			ctx:     agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path:    filepath.Join(project, "main.go"),
+			wantErr: "plan mode allows writes only inside the scratchpad",
+		},
+		{
+			name:    "traversal out of the scratchpad",
+			ctx:     agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path:    filepath.Join(scratchpad, "..", "scratch.md"),
+			wantErr: "plan mode allows writes only inside the scratchpad",
+		},
+		{
+			name:    "a symlink inside the scratchpad pointing out",
+			ctx:     agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path:    filepath.Join(scratchpad, "escape.txt"),
+			wantErr: "plan mode allows writes only inside the scratchpad",
+		},
+		{
+			name:    "a grant on the project directory does not widen plan mode",
+			ctx:     agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan),
+			path:    filepath.Join(project, "granted.txt"),
+			wantErr: "plan mode allows writes only inside the scratchpad",
+		},
+		{
+			name: "standard mode keeps its policy",
+			ctx:  agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeStandard),
+			path: filepath.Join(project, "granted.txt"),
+		},
+		{
+			name: "readonly mode behaves like standard",
+			ctx:  agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeReadOnly),
+			path: filepath.Join(project, "granted.txt"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateWrite(tt.ctx, cfg, tt.path)
+			if tt.wantErr == "" {
+				require.NoError(t, err, "writing %s", tt.path)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr, "writing %s", tt.path)
+			require.ErrorContains(t, err, scratchpad, "the plan-mode denial must name the scratchpad path")
+		})
+	}
 }
 
 // TestValidateRead_ConfigDirUserspace locks in that the tmp/plans
@@ -265,7 +361,7 @@ func TestValidateRead_ConfigDirUserspace(t *testing.T) {
 
 	t.Run("projects.yaml is writable", func(t *testing.T) {
 		p := filepath.Join(userspaceConfigDir, "projects.yaml")
-		if err := ValidateWrite(cfg, p); err != nil {
+		if err := ValidateWrite(context.Background(), cfg, p); err != nil {
 			t.Fatalf("expected %s writable, got %v", p, err)
 		}
 	})
@@ -285,7 +381,7 @@ func TestValidateRead_PluginsCarveOut(t *testing.T) {
 	require.Error(t, ValidateRead(cfg, envPath), "file-level protections must still apply inside the plugins dir")
 
 	cfg.Plugins.Enabled = false
-	require.Error(t, ValidateWrite(cfg, skillPath), "carve-out must be gated on plugins.enabled")
+	require.Error(t, ValidateWrite(context.Background(), cfg, skillPath), "carve-out must be gated on plugins.enabled")
 }
 
 func TestValidateRead_CarveOutUnderAnyConfigDirSpelling(t *testing.T) {
@@ -322,9 +418,9 @@ func TestValidateWrite_SandboxPolicyFile(t *testing.T) {
 	file, err := config.UserSandboxPath()
 	require.NoError(t, err)
 	require.NoError(t, ValidateRead(cfg, file), "reading %s", file)
-	require.ErrorContains(t, ValidateWrite(cfg, file), "sandbox policy", "writing %s", file)
-	require.NoError(t, ValidateWrite(cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
-	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, config.SandboxFileName)), "a project sandbox.yaml is ignored, not policy")
+	require.ErrorContains(t, ValidateWrite(context.Background(), cfg, file), "sandbox policy", "writing %s", file)
+	require.NoError(t, ValidateWrite(context.Background(), cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
+	require.NoError(t, ValidateWrite(context.Background(), cfg, filepath.Join(project, config.ConfigDirName, config.SandboxFileName)), "a project sandbox.yaml is ignored, not policy")
 }
 
 // TestValidateWrite_ToolsPolicyFile locks in that the agent can never edit
@@ -343,16 +439,16 @@ func TestValidateWrite_ToolsPolicyFile(t *testing.T) {
 	file, err := config.UserToolsPath()
 	require.NoError(t, err)
 	require.NoError(t, ValidateRead(cfg, file), "reading %s", file)
-	require.ErrorContains(t, ValidateWrite(cfg, file), "tools policy", "writing %s", file)
-	require.NoError(t, ValidateWrite(cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
-	require.NoError(t, ValidateWrite(cfg, filepath.Join(project, config.ConfigDirName, config.ToolsFileName)), "a project tools.yaml is ignored, not policy")
+	require.ErrorContains(t, ValidateWrite(context.Background(), cfg, file), "tools policy", "writing %s", file)
+	require.NoError(t, ValidateWrite(context.Background(), cfg, filepath.Join(home, config.ConfigDirName, "other.yaml")), "only the policy file is pinned")
+	require.NoError(t, ValidateWrite(context.Background(), cfg, filepath.Join(project, config.ConfigDirName, config.ToolsFileName)), "a project tools.yaml is ignored, not policy")
 }
 
 // requireAsks fails unless reading and writing path both ask the user under
 // the default config-dir rule instead of passing or failing outright.
 func requireAsks(t *testing.T, cfg *config.Config, path string) {
 	t.Helper()
-	for _, err := range []error{ValidateRead(cfg, path), ValidateWrite(cfg, path)} {
+	for _, err := range []error{ValidateRead(cfg, path), ValidateWrite(context.Background(), cfg, path)} {
 		var denied *sandboxdomain.DeniedError
 		if !errors.As(err, &denied) || denied.Rule != config.ConfigDirName+"/" {
 			t.Fatalf("expected %s to ask under the config-dir rule, got %v", path, err)
@@ -366,12 +462,12 @@ func TestDotenvVariantsDenied(t *testing.T) {
 	for _, path := range []string{".env", ".env.local", ".env.production", "nested/.env.local", "service.env.local", ".infer/skills/demo/.env.local"} {
 		t.Run(path, func(t *testing.T) {
 			require.ErrorContains(t, ValidateRead(cfg, path), "excluded for security")
-			require.ErrorContains(t, ValidateWrite(cfg, path), "excluded for security")
+			require.ErrorContains(t, ValidateWrite(context.Background(), cfg, path), "excluded for security")
 		})
 	}
 	require.NoError(t, ValidateRead(cfg, "environment.ts"))
 	require.NoError(t, ValidateRead(cfg, ".env.example"))
-	require.NoError(t, ValidateWrite(cfg, ".env.example"))
+	require.NoError(t, ValidateWrite(context.Background(), cfg, ".env.example"))
 	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Deny(".env.example")...)
 	require.ErrorContains(t, ValidateRead(cfg, ".env.example"), "excluded for security")
 	require.NoError(t, os.WriteFile(".env.local", []byte("SYNTHETIC_SECRET=test"), 0o600))

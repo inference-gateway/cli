@@ -29,3 +29,8 @@ parameters:
     - file_path
     - old_string
     - new_string
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan

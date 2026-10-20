@@ -462,9 +462,11 @@ The chat interface supports four operational modes that can be toggled with **sh
   The agent has access to all tools defined in your configuration and will request approval for
   sensitive operations (Write, Edit, Delete, Bash, etc.).
 
-- **Plan Mode**: Read-only mode designed for planning and analysis. In this mode, the agent:
-  - Can only use Read, Grep, Tree, A2A_QueryAgent, Agent (read-only exploration
-    subagents only), TodoWrite, AskUserQuestion, Wait, and RequestPlanApproval tools
+- **Plan Mode**: Planning and analysis mode in which the working tree stays read-only. In this mode, the agent:
+  - Investigates with Read, Grep, Tree, A2A_QueryAgent, Agent (read-only exploration
+    subagents only), TodoWrite, AskUserQuestion, Wait, and RequestPlanApproval
+  - May use Write, Edit, MultiEdit, Delete and Bash only inside the plan-mode scratchpad
+    (see the [Plan Mode Guide](plan-mode.md))
   - Is instructed to analyze tasks and create detailed plans without executing changes
   - Provides step-by-step breakdowns of what would be done in Standard mode
   - **Plan Approval**: When the agent completes planning, you'll be prompted to:

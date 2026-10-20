@@ -145,7 +145,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 		}
 	}
 
-	editResult, err := t.executeEdit(filePath, oldString, newString, replaceAll)
+	editResult, err := t.executeEdit(ctx, filePath, oldString, newString, replaceAll)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  ToolEdit,
@@ -192,7 +192,7 @@ func (t *EditTool) Validate(args map[string]any) error {
 		return fmt.Errorf("file_path cannot be empty")
 	}
 
-	if err := t.validatePathSecurity(filePath); err != nil {
+	if err := t.validatePathSecurity(context.Background(), filePath); err != nil {
 		return err
 	}
 
@@ -251,8 +251,8 @@ func staleReadError(registry ReadToolTracker, filePath string) string {
 }
 
 // executeEdit performs the actual edit operation
-func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll bool) (*agentdomain.EditToolResult, error) {
-	if err := t.validateFile(filePath); err != nil {
+func (t *EditTool) executeEdit(ctx context.Context, filePath, oldString, newString string, replaceAll bool) (*agentdomain.EditToolResult, error) {
+	if err := t.validateFile(ctx, filePath); err != nil {
 		return nil, err
 	}
 
@@ -493,13 +493,13 @@ func appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine st
 }
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
-func (t *EditTool) validatePathSecurity(path string) error {
-	return sandbox.ValidateWrite(t.config, path)
+func (t *EditTool) validatePathSecurity(ctx context.Context, path string) error {
+	return sandbox.ValidateWrite(ctx, t.config, path)
 }
 
 // validateFile checks if a file path is valid and exists (only works with existing files)
-func (t *EditTool) validateFile(path string) error {
-	if err := t.validatePathSecurity(path); err != nil {
+func (t *EditTool) validateFile(ctx context.Context, path string) error {
+	if err := t.validatePathSecurity(ctx, path); err != nil {
 		return err
 	}
 

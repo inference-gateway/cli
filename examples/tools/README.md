@@ -78,7 +78,7 @@ pass it in, for example `task word-count INFER=../../infer`.
 `task save-note:plan`:
 
 ```text
-{"content":"tool not allowed: SaveNote is disabled in plan mode (read-only) ...", ...}
+{"content":"tool not allowed: SaveNote is disabled in plan mode ...", ...}
 ```
 
 ## Without Task

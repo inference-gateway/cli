@@ -1,6 +1,7 @@
 package filewriter
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func NewPathValidator(cfg *config.Config) *DefaultPathValidator {
 }
 
 // Validate checks if a path is valid and secure for file operations
-func (v *DefaultPathValidator) Validate(path string) error {
+func (v *DefaultPathValidator) Validate(ctx context.Context, path string) error {
 	if path == "" {
 		return fmt.Errorf("path cannot be empty")
 	}
@@ -42,7 +43,7 @@ func (v *DefaultPathValidator) Validate(path string) error {
 		return fmt.Errorf("path contains null bytes: %s", path)
 	}
 
-	if err := sandbox.ValidateWrite(v.config, absPath); err != nil {
+	if err := sandbox.ValidateWrite(ctx, v.config, absPath); err != nil {
 		return err
 	}
 
@@ -51,7 +52,7 @@ func (v *DefaultPathValidator) Validate(path string) error {
 
 // IsWritable checks if a path can be written to
 func (v *DefaultPathValidator) IsWritable(path string) bool {
-	if err := v.Validate(path); err != nil {
+	if err := v.Validate(context.Background(), path); err != nil {
 		return false
 	}
 

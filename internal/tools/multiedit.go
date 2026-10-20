@@ -136,7 +136,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*agen
 		}, nil
 	}
 
-	multiEditResult, err := t.executeMultiEdit(filePath, edits)
+	multiEditResult, err := t.executeMultiEdit(ctx, filePath, edits)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  ToolMultiEdit,
@@ -231,7 +231,7 @@ func (t *MultiEditTool) Validate(args map[string]any) error {
 		return fmt.Errorf("file_path cannot be empty")
 	}
 
-	if err := t.validatePathSecurity(filePath); err != nil {
+	if err := t.validatePathSecurity(context.Background(), filePath); err != nil {
 		return err
 	}
 
@@ -263,8 +263,8 @@ func (t *MultiEditTool) IsEnabled() bool {
 }
 
 // executeMultiEdit performs the actual multi-edit operation atomically
-func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation) (*agentdomain.MultiEditToolResult, error) {
-	if err := t.validateFile(filePath); err != nil {
+func (t *MultiEditTool) executeMultiEdit(ctx context.Context, filePath string, edits []EditOperation) (*agentdomain.MultiEditToolResult, error) {
+	if err := t.validateFile(ctx, filePath); err != nil {
 		return nil, err
 	}
 
@@ -373,13 +373,13 @@ func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOp
 }
 
 // validatePathSecurity checks if a path is allowed for editing within the sandbox
-func (t *MultiEditTool) validatePathSecurity(path string) error {
-	return sandbox.ValidateWrite(t.config, path)
+func (t *MultiEditTool) validatePathSecurity(ctx context.Context, path string) error {
+	return sandbox.ValidateWrite(ctx, t.config, path)
 }
 
 // validateFile checks if a file path is valid - supports both existing files and new file creation
-func (t *MultiEditTool) validateFile(path string) error {
-	if err := t.validatePathSecurity(path); err != nil {
+func (t *MultiEditTool) validateFile(ctx context.Context, path string) error {
+	if err := t.validatePathSecurity(ctx, path); err != nil {
 		return err
 	}
 

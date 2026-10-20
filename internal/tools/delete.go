@@ -73,7 +73,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*agentdo
 		}
 	}
 
-	deleteResult, err := t.executeDelete(path, recursive, force)
+	deleteResult, err := t.executeDelete(ctx, path, recursive, force)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (t *DeleteTool) Validate(args map[string]any) error {
 		return fmt.Errorf("path cannot be empty")
 	}
 
-	if err := t.validatePathSecurity(path); err != nil {
+	if err := t.validatePathSecurity(context.Background(), path); err != nil {
 		return err
 	}
 
@@ -161,7 +161,7 @@ type DeleteResult struct {
 }
 
 // executeDelete performs the actual deletion operation
-func (t *DeleteTool) executeDelete(path string, recursive, force bool) (*DeleteResult, error) {
+func (t *DeleteTool) executeDelete(ctx context.Context, path string, recursive, force bool) (*DeleteResult, error) {
 	result := &DeleteResult{
 		Path:         path,
 		DeletedFiles: []string{},
@@ -171,10 +171,10 @@ func (t *DeleteTool) executeDelete(path string, recursive, force bool) (*DeleteR
 
 	if t.containsWildcards(path) {
 		result.WildcardExpanded = true
-		return t.executeWildcardDelete(path, recursive, force, result)
+		return t.executeWildcardDelete(ctx, path, recursive, force, result)
 	}
 
-	return t.executeSingleDelete(path, recursive, force, result)
+	return t.executeSingleDelete(ctx, path, recursive, force, result)
 }
 
 // containsWildcards checks if a path contains wildcard characters
@@ -183,7 +183,7 @@ func (t *DeleteTool) containsWildcards(path string) bool {
 }
 
 // executeWildcardDelete handles deletion with wildcard patterns
-func (t *DeleteTool) executeWildcardDelete(pattern string, recursive, force bool, result *DeleteResult) (*DeleteResult, error) {
+func (t *DeleteTool) executeWildcardDelete(ctx context.Context, pattern string, recursive, force bool, result *DeleteResult) (*DeleteResult, error) {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("invalid wildcard pattern: %w", err)
@@ -197,7 +197,7 @@ func (t *DeleteTool) executeWildcardDelete(pattern string, recursive, force bool
 	}
 
 	for _, match := range matches {
-		if err := t.validatePathSecurity(match); err != nil {
+		if err := t.validatePathSecurity(ctx, match); err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("Path %s: %v", match, err))
 			continue
 		}
@@ -214,8 +214,8 @@ func (t *DeleteTool) executeWildcardDelete(pattern string, recursive, force bool
 }
 
 // executeSingleDelete handles deletion of a single file or directory
-func (t *DeleteTool) executeSingleDelete(path string, recursive, force bool, result *DeleteResult) (*DeleteResult, error) {
-	if err := t.validatePathSecurity(path); err != nil {
+func (t *DeleteTool) executeSingleDelete(ctx context.Context, path string, recursive, force bool, result *DeleteResult) (*DeleteResult, error) {
+	if err := t.validatePathSecurity(ctx, path); err != nil {
 		return nil, err
 	}
 
@@ -282,8 +282,8 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 }
 
 // validatePathSecurity checks if a path is allowed for deletion within the sandbox
-func (t *DeleteTool) validatePathSecurity(path string) error {
-	return sandbox.ValidateWrite(t.config, path)
+func (t *DeleteTool) validatePathSecurity(ctx context.Context, path string) error {
+	return sandbox.ValidateWrite(ctx, t.config, path)
 }
 
 // FormatResult formats tool execution results for different contexts

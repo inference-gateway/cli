@@ -43,10 +43,11 @@ func TestModeChangeTrigger_FiresOnlyOnChange(t *testing.T) {
 	require.Len(t, texts, 1)
 	assert.Contains(t, texts[0], "Auto-Accept")
 	assert.Contains(t, texts[0], "Plan Mode")
-	assert.Contains(t, texts[0], "do NOT attempt to make changes")
+	assert.Contains(t, texts[0], "do NOT attempt to implement the plan outside the scratchpad")
 	assert.NotContains(t, texts[0], "{prev_mode}")
 	assert.NotContains(t, texts[0], "{new_mode}")
 	assert.NotContains(t, texts[0], "{guidance}")
+	assert.NotContains(t, texts[0], "{scratchpad}")
 }
 
 // Per-mode guidance substitution: each target mode picks its own guidance text,
@@ -57,7 +58,7 @@ func TestModeChangeTrigger_GuidancePerMode(t *testing.T) {
 		mode   agentdomain.AgentMode
 		wantIn string
 	}{
-		{agentdomain.AgentModePlan, "read-only mode"},
+		{agentdomain.AgentModePlan, "SCRATCHPAD:"},
 		{agentdomain.AgentModeAutoAccept, "tool approvals are bypassed"},
 		{agentdomain.AgentModeStandard, "per-call tool approvals"},
 		{agentdomain.AgentModeReadOnly, "You are now in Read-Only mode."},
