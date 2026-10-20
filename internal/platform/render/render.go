@@ -84,9 +84,11 @@ func toolMessage(r *agentdomain.ToolExecutionResult) map[string]any {
 }
 
 // toolContent is the marshaled result on success, the error detail on failure.
+// Image bytes stay out of it: a screenshot is megabytes of base64 that no reader
+// of this line decodes, and the file on disk is what the artifacts step collects.
 func toolContent(r *agentdomain.ToolExecutionResult) string {
 	if r.Success {
-		if b, err := json.Marshal(r); err == nil {
+		if b, err := json.Marshal(withoutImageData(r)); err == nil {
 			return string(b)
 		}
 		return fmt.Sprintf("%v", r.Data)
@@ -98,6 +100,20 @@ func toolContent(r *agentdomain.ToolExecutionResult) string {
 		}
 	}
 	return detail
+}
+
+// withoutImageData copies the result with every attachment's bytes blanked.
+func withoutImageData(r *agentdomain.ToolExecutionResult) *agentdomain.ToolExecutionResult {
+	if len(r.Images) == 0 {
+		return r
+	}
+	out := *r
+	out.Images = make([]agentdomain.ImageAttachment, len(r.Images))
+	for i, img := range r.Images {
+		img.Data = ""
+		out.Images[i] = img
+	}
+	return &out
 }
 
 // QueuedNote returns the text of a drained queue message worth rendering: a

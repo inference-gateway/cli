@@ -183,27 +183,24 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	detachChan := agentdomain.GetBashDetachChannel(ctx)
 	hasDetachChan := agentdomain.HasBashDetachChannel(ctx)
 
+	timeout := t.commandTimeout()
 	var cmdCtx context.Context
-	var cancel context.CancelFunc
+	var cancel context.CancelCauseFunc
 
 	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
-		cmdCtx, cancel = context.WithCancel(context.Background())
+		cmdCtx, cancel = context.WithCancelCause(context.Background())
 		cmdCtx = agentdomain.WithBashDetachChannel(cmdCtx, detachChan)
 		cmdCtx = agentdomain.WithBashOutputCallback(cmdCtx, outputCallback)
 	} else {
-		timeout := time.Duration(t.config.Tools.Bash.Timeout) * time.Second
-		if timeout <= 0 {
-			timeout = 120 * time.Second
-		}
-		cmdCtx, cancel = context.WithTimeout(ctx, timeout)
+		timeoutCtx, stop := context.WithTimeout(ctx, timeout)
+		defer stop()
+		cmdCtx, cancel = context.WithCancelCause(timeoutCtx)
 	}
 
 	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
 	cmd.Dir = workDir
-	if !hasDetachChan {
-		cmd.WaitDelay = bashPipeGrace
-		process.KillTreeOnCancel(cmd)
-	}
+	cmd.WaitDelay = bashPipeGrace
+	process.KillTreeOnCancel(cmd)
 
 	cmd.Env = os.Environ()
 	if env := agentdomain.GetTraceEnv(ctx); env != nil {
@@ -212,10 +209,10 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	cmd.Env = append(cmd.Env, "NO_COLOR=1")
 
 	if hasCallback && outputCallback != nil {
-		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, cancel, start)
+		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, cancel, timeout, start)
 	}
 
-	defer cancel()
+	defer cancel(nil)
 
 	output, err := cmd.CombinedOutput()
 	result.Duration = time.Since(start).String()
@@ -239,8 +236,8 @@ func waitOutcome(cmdCtx context.Context, err error) (int, string) {
 		exitCode = exitErr.ExitCode()
 	}
 	switch {
-	case errors.Is(cmdCtx.Err(), context.DeadlineExceeded):
-		return exitCode, "command timed out and was killed"
+	case errors.Is(context.Cause(cmdCtx), context.DeadlineExceeded):
+		return exitCode, "command timed out and was killed: run a long command in the background (detached: true) and poll BashOutput"
 	case cmdCtx.Err() != nil:
 		return exitCode, "command was cancelled and killed: " + context.Cause(cmdCtx).Error()
 	default:
@@ -248,8 +245,20 @@ func waitOutcome(cmdCtx context.Context, err error) (int, string) {
 	}
 }
 
-// executeBashWithStreaming executes a bash command and streams output through the callback
-func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelFunc, start time.Time) (*BashResult, error) {
+// commandTimeout is how long a foreground command may run before its process
+// tree is killed. A command detached to the background outlives it.
+func (t *BashTool) commandTimeout() time.Duration {
+	timeout := time.Duration(t.config.Tools.Bash.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	return timeout
+}
+
+// executeBashWithStreaming executes a bash command and streams output through
+// the callback. A detachable command has no deadline on its context, so the
+// timeout is enforced here while the command is still in the foreground.
+func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
 	result := &BashResult{
 		Command: cmd.Args[len(cmd.Args)-1],
 	}
@@ -257,7 +266,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	shouldCancel := true
 	defer func() {
 		if shouldCancel {
-			cancel()
+			cancel(nil)
 		}
 	}()
 
@@ -311,6 +320,9 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		}()
 
 		select {
+		case <-time.After(timeout):
+			cancel(context.DeadlineExceeded)
+			<-done
 		case <-detachChan:
 			detachedMux.Lock()
 			detached = true

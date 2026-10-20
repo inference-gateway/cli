@@ -1,6 +1,8 @@
 # browser
 
 **What** - the browser bounded context: navigating, reading, clicking, typing, taking screenshots and listing tabs in a real browser.
+Screenshots are JPEG (quality 80) at CSS pixel scale, so a photo or canvas page costs a few hundred kilobytes instead of a
+megabyte-scale PNG.
 **Why** - browser automation pulls in a heavy engine and a foreign event loop, so it sits behind an anti-corruption
 layer instead of leaking into the agent.
 **How** - `domain/` defines the browser port, and `infrastructure/` implements it with Playwright or with a thin

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -97,5 +98,45 @@ func TestBashTool_DetachedParam(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("Execute did not return after detached=true")
+	}
+}
+
+// A detachable command had no timeout at all: the agent loop attaches a detach
+// channel to every Bash call, and that path ran a hung command until the
+// session's own budget ended it.
+func TestBashTool_DetachableCommandTimesOut(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Tools.Bash.Timeout = 1
+	fake := &schedmocks.FakeBackgroundShellService{}
+	tool := NewBashTool(cfg, fake)
+
+	ctx := agentdomain.WithToolApproved(context.Background())
+	ctx = agentdomain.WithBashOutputCallback(ctx, func(string) {})
+	ctx = agentdomain.WithBashDetachChannel(ctx, make(chan struct{}, 1))
+	marker := "infer-bash-detach-timeout-" + t.Name()
+
+	startedAt := time.Now()
+	r, err := tool.Execute(ctx, map[string]any{"command": ": " + marker + "; (sleep 30) & echo started; wait"})
+	if err != nil {
+		t.Fatalf("Execute returned an error: %v", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > 5*time.Second {
+		t.Fatalf("Execute took %s for a 1 s timeout", elapsed)
+	}
+	if r.Success {
+		t.Fatal("a timed-out command must not be reported as success")
+	}
+	data, ok := r.Data.(*agentdomain.BashToolResult)
+	if !ok {
+		t.Fatalf("result Data is %T, want *agentdomain.BashToolResult", r.Data)
+	}
+	if !strings.Contains(data.Error, "timed out") || !strings.Contains(data.Error, "detached: true") {
+		t.Fatalf("error %q does not say the command timed out and how to run it in the background", data.Error)
+	}
+	if got := fake.DetachToBackgroundCallCount(); got != 0 {
+		t.Fatalf("DetachToBackground called %d times, want 0", got)
+	}
+	if out, _ := exec.Command("pgrep", "-f", marker).Output(); len(out) > 0 {
+		t.Fatalf("the command's child survived the timeout: pids %s", strings.TrimSpace(string(out)))
 	}
 }
