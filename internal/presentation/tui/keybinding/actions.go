@@ -163,11 +163,9 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
-		agentService := app.GetAgentService()
-		if agentService != nil {
-			_ = agentService.CancelRequest(chatSession.RequestID)
-		}
+	agentService := app.GetAgentService()
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && agentService != nil {
+		_ = agentService.CancelRequest(chatSession.RequestID)
 	}
 
 	stateManager.ClearUserQuestionUIState()
@@ -175,12 +173,25 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager.EndToolExecution()
 	_ = stateManager.TransitionToView(tui.ViewStateChat)
 
-	return func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message: "User interrupted",
-			Spinner: false,
-		}
-	}
+	// The agent loop's ChatCompleteEvent{Cancelled: true} lands on a channel
+	// the ended session no longer owns, so it would be dropped and leave the
+	// queue stranded. The drain gate handles idle/busy/ordering itself.
+	return tea.Batch(
+		func() tea.Msg {
+			return tui.SetStatusEvent{
+				Message: "User interrupted",
+				Spinner: false,
+			}
+		},
+		drainQueueCmd(),
+	)
+}
+
+// drainQueueCmd asks the chat handler's drain gate to run queued work; the
+// gate itself checks the queue, the busy state and the view, and arms a
+// bounded retry when the agent is still winding down.
+func drainQueueCmd() tea.Cmd {
+	return func() tea.Msg { return agentdomain.DrainQueueEvent{} }
 }
 
 func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
