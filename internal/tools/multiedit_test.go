@@ -26,7 +26,7 @@ func TestMultiEditTool_Definition(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Name != "MultiEdit" {
@@ -55,7 +55,7 @@ func TestMultiEditTool_Execute_RequiresReadTool(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: false}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": "/tmp/test.txt",
@@ -110,7 +110,7 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -213,7 +213,7 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -270,7 +270,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		tool := NewMultiEditToolWithRegistry(newCfg(dir), &MockReadToolTracker{readToolUsed: true})
+		tool := NewMultiEditTool(newCfg(dir), &MockReadToolTracker{readToolUsed: true})
 		args := map[string]any{
 			"file_path": testFile,
 			"edits": []any{
@@ -319,7 +319,7 @@ func TestMultiEditTool_Execute_FlexibleWhitespaceMatch(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		tool := NewMultiEditToolWithRegistry(newCfg(dir), &MockReadToolTracker{readToolUsed: true})
+		tool := NewMultiEditTool(newCfg(dir), &MockReadToolTracker{readToolUsed: true})
 		args := map[string]any{
 			"file_path": testFile,
 			"edits": []any{
@@ -378,7 +378,7 @@ func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -446,7 +446,7 @@ func TestMultiEditTool_Execute_NonUniqueString(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -511,7 +511,7 @@ func TestMultiEditTool_Execute_ReplaceAll(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -577,7 +577,7 @@ func TestMultiEditTool_Execute_NewFileCreation(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -625,7 +625,7 @@ func TestMultiEditTool_Validate_InvalidArgs(t *testing.T) {
 		},
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 
 	testCases := []struct {
 		name string
@@ -713,7 +713,7 @@ func TestMultiEditTool_Execute_ToolDisabled(t *testing.T) {
 		},
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 
 	args := map[string]any{
 		"file_path": "/tmp/test.txt",
@@ -747,20 +747,20 @@ func TestMultiEditTool_IsEnabled(t *testing.T) {
 		},
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 	if !tool.IsEnabled() {
 		t.Error("Tool should be enabled")
 	}
 
 	cfg.Tools.Enabled = false
-	tool = NewMultiEditTool(cfg)
+	tool = NewMultiEditTool(cfg, nil)
 	if tool.IsEnabled() {
 		t.Error("Tool should be disabled when tools are globally disabled")
 	}
 
 	cfg.Tools.Enabled = true
 	cfg.Tools.Edit.Enabled = false
-	tool = NewMultiEditTool(cfg)
+	tool = NewMultiEditTool(cfg, nil)
 	if tool.IsEnabled() {
 		t.Error("Tool should be disabled when edit tool is disabled")
 	}
@@ -815,7 +815,7 @@ func main() {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -886,7 +886,7 @@ func main() {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -966,7 +966,7 @@ func main() {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	args := map[string]any{
 		"file_path": testFile,
@@ -1013,7 +1013,7 @@ func TestMultiEditTool_FormatForUI(t *testing.T) {
 		},
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 
 	t.Run("Successful multi-edit with collapsed view", func(t *testing.T) {
 		result := &agentdomain.ToolExecutionResult{
@@ -1137,7 +1137,7 @@ func TestMultiEditTool_EdgeCases(t *testing.T) {
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	t.Run("Sequential edits with dependencies fail gracefully", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "deps.go")
@@ -1295,7 +1295,7 @@ func TestMultiEditTool_Validate_TableDriven(t *testing.T) {
 			Edit:    config.EditToolConfig{Enabled: true},
 		},
 	}
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 
 	for _, tt := range getMultiEditValidateTestCases() {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1339,7 +1339,7 @@ func runMultiEditExecuteTest(t *testing.T, tt multiEditExecuteTestCase, tmpDir s
 	}
 
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 	args := map[string]any{"file_path": testFile, "edits": tt.edits}
 
 	result, err := tool.Execute(context.Background(), args)
@@ -1404,7 +1404,7 @@ func TestMultiEditTool_FormatResult_TableDriven(t *testing.T) {
 		},
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 
 	tests := []struct {
 		name       string
@@ -1634,7 +1634,7 @@ func TestMultiEditTool_AdditionalEdgeCases(t *testing.T) {
 		},
 	}
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
-	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+	tool := NewMultiEditTool(cfg, mockTracker)
 
 	t.Run("large number of edits", func(t *testing.T) { testMultiEditEdgeCaseLargeEdits(t, tmpDir, tool) })
 	t.Run("cancel edits", func(t *testing.T) { testMultiEditEdgeCaseCancelEdits(t, tmpDir, tool) })
@@ -1653,7 +1653,7 @@ func TestMultiEditTool_ShouldCollapseArg(t *testing.T) {
 		},
 	}
 
-	tool := NewMultiEditTool(cfg)
+	tool := NewMultiEditTool(cfg, nil)
 
 	tests := []struct {
 		arg      string
