@@ -120,6 +120,7 @@ agent:
   model: "" # Default model for agent operations
   # System prompts and custom instructions live in prompts.yaml (prompts.agent.*), not in config.yaml
   max_turns: 50 # Maximum number of turns for agent sessions
+  max_duration_minutes: 0 # Wall-clock budget per run, ends it after the current tool call (0 = none)
   max_tokens: 8192 # The maximum number of tokens that can be generated per request
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
@@ -564,6 +565,9 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
 - **prompts.agent.mode_adjustment_auto** (prompts.yaml): Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
+- **agent.max_duration_minutes**: Wall-clock budget for one run in minutes (default: 0, no budget). Once spent, the run ends after
+  the current tool call with its own outcome: `infer headless` exits 3, as it exits 2 for `max_turns`, so a harness tells
+  out of time from out of turns
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
 - **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
 - **agent.system_prompt_with_defaults**: Prepend the built-in system prompt to the `prompts.agent.system_prompt`
@@ -605,7 +609,7 @@ reminders:
     hook: pre_stream # where in the loop it fires (default: pre_stream)
     trigger: interval # when it fires at that hook (default: always)
     interval: 10 # trigger: interval - fire every Nth session turn
-    threshold: 3 # trigger: turns_before_max - fire once within N turns of max_turns
+    threshold: 3 # trigger: turns_before_max - fire once within N turns of max_turns, or elapsed_minutes - once after N minutes
 ```
 
 **Hook points** (`hook`): `pre_session`, `post_session`, `pre_stream`, `post_stream`,
@@ -618,6 +622,7 @@ reminders:
 | `always` | Every time the hook point fires (default). |
 | `interval` | Every Nth session turn (`interval`, default 10). |
 | `turns_before_max` | Within `threshold` turns of `max_turns` (requires `threshold > 0`). |
+| `elapsed_minutes` | Once, when the run has been going `threshold` minutes (requires `threshold > 0`). The wall-clock twin of `turns_before_max`. |
 | `once` | The first firing of its hook point this run. |
 | `on_failure` | **`post_tool` only** - fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
 | `once_after` | Once, after `threshold` session turns have elapsed (requires `threshold > 0`). |

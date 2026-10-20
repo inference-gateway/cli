@@ -3,6 +3,7 @@ package loop
 import (
 	"context"
 	"testing"
+	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
@@ -469,6 +470,35 @@ func TestGuardFunctions_MaxTurnsReached(t *testing.T) {
 			result := smImpl.maxTurnsReached(ctx)
 			if result != tt.expected {
 				t.Errorf("expected maxTurnsReached to return %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestGuardFunctions_MaxDurationReached covers the wall-clock twin of the turn
+// limit: a zero budget never ends a run, a spent one does.
+func TestGuardFunctions_MaxDurationReached(t *testing.T) {
+	tests := []struct {
+		name        string
+		startedAgo  time.Duration
+		maxDuration time.Duration
+		expected    bool
+	}{
+		{"no budget", 2 * time.Hour, 0, false},
+		{"within budget", 10 * time.Minute, 50 * time.Minute, false},
+		{"budget spent", 51 * time.Minute, 50 * time.Minute, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			smImpl := newAgentStateMachine().(*stateMachine)
+			ctx := &states.AgentContext{
+				StartedAt:   time.Now().Add(-tt.startedAgo),
+				MaxDuration: tt.maxDuration,
+				Ctx:         context.Background(),
+			}
+			if got := smImpl.maxDurationReached(ctx); got != tt.expected {
+				t.Errorf("maxDurationReached = %v, want %v", got, tt.expected)
 			}
 		})
 	}

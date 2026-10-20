@@ -84,6 +84,8 @@ func newEventDrivenAgent(
 		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         cfg.MaxTurns,
+		StartedAt:        time.Now(),
+		MaxDuration:      time.Duration(cfg.MaxDurationMinutes) * time.Minute,
 		HasToolResults:   false,
 		ApprovalPolicy:   service.approvalPolicy,
 		Ctx:              ctx,

@@ -36,7 +36,8 @@ stdin closes. The Agent tool spawns its headless subagents this way.
 Exit Codes:
   0  task completed
   1  task failed
-  2  max turns exhausted`,
+  2  max turns exhausted
+  3  time budget exhausted (agent.max_duration_minutes)`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var opts presentation.Options

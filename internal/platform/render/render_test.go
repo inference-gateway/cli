@@ -49,6 +49,14 @@ func TestRenderText_MaxTurns(t *testing.T) {
 	}
 }
 
+func TestRenderText_MaxDuration(t *testing.T) {
+	var out strings.Builder
+	err := RenderText(stream(agentdomain.ChatCompleteEvent{MaxDurationReached: true}), &out)
+	if !errors.Is(err, agentdomain.ErrMaxDurationReached) {
+		t.Fatalf("RenderText() err = %v, want ErrMaxDurationReached", err)
+	}
+}
+
 // queuedNoteTurns is a headless run that waited on a background job: the first
 // turn ends without a ChatCompleteEvent, then the job's note is drained.
 func queuedNoteTurns(note string) <-chan agentdomain.ChatEvent {

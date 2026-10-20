@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -175,6 +176,30 @@ func TestRemindersDue_Triggers(t *testing.T) {
 			got := r.RemindersDue(query(agentdomain.HookPreStream, tt.turn, tt.maxTurns, tt.fired))
 			if (len(got) > 0) != tt.want {
 				t.Fatalf("RemindersDue fired=%v, want %v (got %v)", len(got) > 0, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestRemindersDue_ElapsedMinutes(t *testing.T) {
+	reminder := config.ReminderConfig{Name: "wrap-up", Text: "t", Trigger: config.ReminderTriggerElapsedMinutes, Threshold: 40}
+	tests := []struct {
+		name    string
+		elapsed time.Duration
+		fired   map[string]bool
+		want    bool
+	}{
+		{"before the threshold", 39 * time.Minute, nil, false},
+		{"at the threshold", 40 * time.Minute, nil, true},
+		{"past the threshold", 55 * time.Minute, nil, true},
+		{"already fired", 55 * time.Minute, map[string]bool{"wrap-up": true}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := remindersCfg(true, reminder)
+			q := agentdomain.ReminderQuery{Hook: agentdomain.HookPreStream, Elapsed: tt.elapsed, Fired: tt.fired}
+			if got := r.RemindersDue(q); (len(got) > 0) != tt.want {
+				t.Fatalf("RemindersDue fired=%v, want %v", len(got) > 0, tt.want)
 			}
 		})
 	}
@@ -469,6 +494,8 @@ func TestReminders_Validate(t *testing.T) {
 		{"unknown hook", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPoint("not_a_hook")}, true},
 		{"unknown trigger", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTrigger("nope")}, true},
 		{"turns_before_max needs threshold", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerTurnsBeforeMax}, true},
+		{"elapsed_minutes needs threshold", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerElapsedMinutes}, true},
+		{"elapsed_minutes with threshold ok", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerElapsedMinutes, Threshold: 40}, false},
 		{"negative interval", config.ReminderConfig{Name: "a", Text: "t", Trigger: config.ReminderTriggerInterval, Interval: -1}, true},
 		{"on_failure with post_tool ok", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPostTool, Trigger: config.ReminderTriggerOnFailure}, false},
 		{"on_failure rejects other hook", config.ReminderConfig{Name: "a", Text: "t", Hook: agentdomain.HookPreStream, Trigger: config.ReminderTriggerOnFailure}, true},

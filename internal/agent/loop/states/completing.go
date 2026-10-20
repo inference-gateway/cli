@@ -73,6 +73,13 @@ func (s *CompletingState) complete() error {
 			Metrics:         s.ctx.GetMetrics(s.ctx.Request.RequestID),
 			MaxTurnsReached: true,
 		})
+	case s.ctx.AgentCtx.MaxDurationExceeded:
+		s.ctx.PublishChatEvent(agentdomain.ChatCompleteEvent{
+			RequestID:          s.ctx.Request.RequestID,
+			Timestamp:          time.Now(),
+			Metrics:            s.ctx.GetMetrics(s.ctx.Request.RequestID),
+			MaxDurationReached: true,
+		})
 	default:
 		if s.ctx.DispatchHooks != nil {
 			s.ctx.DispatchHooks(agentdomain.HookPostSession)

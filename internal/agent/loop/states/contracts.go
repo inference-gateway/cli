@@ -5,6 +5,7 @@ package states
 
 import (
 	"context"
+	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -21,6 +22,8 @@ type AgentContext struct {
 	ToolCalls        []*sdk.ChatCompletionMessageToolCall
 	Turns            int
 	MaxTurns         int
+	StartedAt        time.Time
+	MaxDuration      time.Duration
 	HasToolResults   bool
 	LastToolFailed   bool
 	ApprovalPolicy   agentdomain.ApprovalPolicy
@@ -29,6 +32,9 @@ type AgentContext struct {
 	// MaxTurnsExceeded is set by the state machine when the run is forced into
 	// Completing because the turn limit was hit before the task could complete.
 	MaxTurnsExceeded bool
+	// MaxDurationExceeded is its wall-clock twin: the run's time budget ran out
+	// before the task could complete.
+	MaxDurationExceeded bool
 }
 
 // AnyToolFailed reports whether any entry in a completed tool batch failed

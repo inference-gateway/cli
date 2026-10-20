@@ -107,6 +107,10 @@ func (c *ServiceContainer) hotConfigKeys(fresh *config.Config) map[string]func()
 			c.config.Agent.MaxTurns = fresh.Agent.MaxTurns
 			return nil
 		},
+		"agent.max_duration_minutes": func() error {
+			c.config.Agent.MaxDurationMinutes = fresh.Agent.MaxDurationMinutes
+			return nil
+		},
 		"agent.max_tokens": func() error {
 			c.config.Agent.MaxTokens = fresh.Agent.MaxTokens
 			return nil

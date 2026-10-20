@@ -1306,6 +1306,7 @@ func (s *Agent) injectDueReminders(agentCtx *states.AgentContext, hook agentdoma
 		Turn:        agentCtx.Turns,
 		SessionTurn: int(s.sessionTurns.Load()),
 		MaxTurns:    agentCtx.MaxTurns,
+		Elapsed:     time.Since(agentCtx.StartedAt),
 		Fired:       s.firedReminders,
 		ToolFailed:  agentCtx.LastToolFailed,
 	}

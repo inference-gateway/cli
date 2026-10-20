@@ -11,6 +11,10 @@ import (
 // without completing the task. Callers should use errors.Is to check for it.
 var ErrMaxTurnsReached = errors.New("max_turns_reached")
 
+// ErrMaxDurationReached is returned when the agent's run spends its time budget
+// (agent.max_duration_minutes) before completing the task.
+var ErrMaxDurationReached = errors.New("max_duration_reached")
+
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
 	RequestID                  string        `json:"request_id"`
