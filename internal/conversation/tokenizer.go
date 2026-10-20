@@ -104,14 +104,21 @@ func (t *TokenizerService) EstimateMessageTokens(msg sdk.Message) int {
 		tokens += t.EstimateTokenCount(*msg.ToolCallID)
 	}
 
-	if msg.Reasoning != nil {
-		tokens += t.EstimateTokenCount(*msg.Reasoning)
-	}
-	if msg.ReasoningContent != nil {
-		tokens += t.EstimateTokenCount(*msg.ReasoningContent)
-	}
+	tokens += t.EstimateTokenCount(reasoningOf(msg))
 
 	return tokens
+}
+
+// reasoningOf returns the message's reasoning once: the agent stores the same
+// text in both Reasoning and ReasoningContent, so counting both doubles it.
+func reasoningOf(msg sdk.Message) string {
+	if msg.Reasoning != nil && *msg.Reasoning != "" {
+		return *msg.Reasoning
+	}
+	if msg.ReasoningContent != nil {
+		return *msg.ReasoningContent
+	}
+	return ""
 }
 
 // EstimateMessagesTokens estimates the total tokens for a slice of messages.
