@@ -7,14 +7,15 @@ Plan Mode is a read-only operating mode for the agent. The model can use
 subagents only) with its companion subagent tools (`ListSubagents`,
 `GetSubagentResult`, `ReadSubagentScreen`, `SendSubagentInput`,
 `CloseSubagent`, `ApproveSubagent`), `TodoWrite`, `AskUserQuestion`, `Wait`,
-and `RequestPlanApproval` to investigate the codebase, but it
-cannot write, edit, delete, or run shell commands - those tools stay
-advertised in the tool-use API (so the request's tool definitions, and with
-them the provider's prompt cache, survive a mode switch) but are disabled at
-execution time and return an error if called. Instead, it produces a
-**plan** for the proposed change, persists that plan through the configured
-storage backend (on jsonl as a Markdown file under `~/.infer/plans/`), and
-surfaces it to you for approval before any real work happens.
+and `RequestPlanApproval` to investigate the codebase. `Write`, `Edit`,
+`MultiEdit`, `Delete` and `Bash` stay advertised in the tool-use API (so the
+request's tool definitions, and with them the provider's prompt cache,
+survive a mode switch) and do execute, but only inside the plan-mode
+scratchpad - every other path stays read-only. Instead of making real
+changes, it produces a **plan** for the proposed change, persists that plan
+through the configured storage backend (on jsonl as a Markdown file under
+`~/.infer/plans/`), and surfaces it to you for approval before any real
+work happens.
 
 ## Why use it
 
@@ -56,12 +57,53 @@ hits. They instruct the model to:
 
 1. Use `Read`, `Grep`, `Tree` to investigate - `Agent` subagents (always
    read-only here) fan out when the investigation spans several areas.
-2. Ask clarifying questions in regular assistant turns first - **not**
+2. Verify risky claims inside the scratchpad when reading is not enough,
+   and report what was verified in the plan's `## Verification` section.
+3. Ask clarifying questions in regular assistant turns first - **not**
    call `RequestPlanApproval` while gaps remain.
-3. Only call `RequestPlanApproval` when the plan is complete.
-4. Pass two arguments to that tool:
+4. Only call `RequestPlanApproval` when the plan is complete.
+5. Pass two arguments to that tool:
    - `title`: a short phrase (≤ 60 chars, no slashes or `..`).
    - `plan`: the plan body as Markdown using the standard sections below.
+
+## The scratchpad
+
+Plans that reading alone cannot verify used to be guesswork: does this
+refactor compile, does this regex match, does this migration script parse.
+Plan mode therefore includes one writable directory, the **scratchpad**:
+
+```text
+~/.infer/projects/<project-slug>/tmp/scratchpad
+```
+
+It is the only location `Write`, `Edit`, `MultiEdit`, `Delete` and `Bash`
+may touch in plan mode; everything else stays read-only, whatever the
+configured sandbox allows or what the user has granted in another mode.
+The model is told to copy the files it needs into the scratchpad instead of
+editing the originals, build and test there, and treat the scratchpad as
+verification space: what it proves there goes into the plan's
+`## Verification` section, and the scratchpad never appears under
+`## Files to Modify` - it is never part of the change.
+
+How it behaves:
+
+- Created lazily on the first write or the first plan-mode command.
+- Sits outside the git working tree, so nothing leaks into commits, and is
+  wiped by `/reset` together with the other runtime dirs. It survives into
+  the fresh session that starts when a plan is approved, so the executing
+  agent can still read what was verified.
+- `tools.bash.mode.plan.allow` stays empty by default, so plan-mode Bash
+  runs only the shared baseline allow-list; opt into unattended verification
+  with entries like `go build.*` or `go test.*`. Known limit, same as every
+  other mode: an allow-listed command can still reach paths outside the
+  scratchpad through absolute arguments - the file tools are the hard
+  boundary, the shell is policy plus approval.
+- `../` traversal out of the scratchpad and a symlink inside it that points
+  outside are both rejected, resolved the same way the rest of the sandbox
+  resolves paths.
+- A write anywhere outside the scratchpad fails with an error naming it.
+  Since no grant can unlock plan mode, the rejection is a plain error and
+  does not offer the usual sandbox-grant approval prompt.
 
 ## Plan structure
 

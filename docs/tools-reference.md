@@ -46,6 +46,10 @@ Tools are grouped by category. Many are gated behind a config flag (noted per gr
 always-available set is registered for every session. There is **no built-in GitHub tool** - use the
 `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub operations.
 
+In plan mode, `Write`, `Edit`, `MultiEdit`, `Delete` and `Bash` execute only inside the plan-mode
+scratchpad (`~/.infer/projects/<project-slug>/tmp/scratchpad`) - every other path stays read-only.
+See the [Plan Mode Guide](plan-mode.md) for the scratchpad's behavior.
+
 **Core file & search** (always available):
 
 | Tool | Purpose | Approval |
@@ -537,7 +541,7 @@ tools:
           - 'gh api repos/[^ ]+/contents/[^ ]+( -H [''"]?Accept: application/vnd\.github\.raw[''"]?)?'
           - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
           - infer binaries status( .*)?
-      plan:       # read-only planning mode adds nothing
+      plan:       # plan mode adds nothing - its commands run pinned to the scratchpad
         allow: []
       standard:   # interactive default: baseline only (same as plan)
         allow: []
@@ -583,6 +587,13 @@ mode's list, or append them with `INFER_TOOLS_BASH_ALLOW_APPEND`, where the repo
 **Benign redirections** that only discard or merge streams (`2>&1`, `>/dev/null`, `2>/dev/null`) are
 stripped before matching and remain allowed. A rejected command returns explanatory feedback naming
 the reason, and (in chat) still goes through the normal approval prompt.
+
+**Plan mode:** Bash stays available while planning and runs with its working directory pinned to the
+scratchpad (`~/.infer/projects/<project-slug>/tmp/scratchpad`, created on the first command), so
+verification touches only scratch copies. The `plan` allow-list stays empty by default, so only the
+baseline approves commands there - add entries like `go build.*` or `go test.*` to opt into
+unattended verification. The file tools are the hard boundary: an allow-listed command can still
+reach paths outside the scratchpad through absolute arguments.
 
 ---
 
