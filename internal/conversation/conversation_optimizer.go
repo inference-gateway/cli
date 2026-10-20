@@ -27,6 +27,7 @@ type ConversationOptimizer struct {
 	tokenizer         *TokenizerService
 	repo              convdomain.ConversationRepository
 	restore           func(summarized []sdk.Message) []sdk.Message
+	skipAutoChecks    int
 }
 
 var _ convdomain.ConversationOptimizer = (*ConversationOptimizer)(nil)
@@ -118,7 +119,7 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	threshold := (contextWindow * co.autoAt) / 100
 	currentTokens := co.estimateTriggerTokens(messages)
 
-	if !force && currentTokens < threshold {
+	if !force && (currentTokens < threshold || co.inBackoff()) {
 		return messages
 	}
 
@@ -153,8 +154,14 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	optimized, err := co.smartOptimize(conversationMessages, model)
 	if err != nil {
 		logger.Error("optimization failed", "error", err)
+		co.skipAutoChecks = co.bufferSize
+		streamevent.EmitDebugEvent("compaction_failed", map[string]any{
+			"error":           err.Error(),
+			"messages_before": len(messages),
+		})
 		return messages
 	}
+	co.skipAutoChecks = 0
 	result := append(systemMessages, optimized...)
 	streamevent.EmitDebugEvent("compaction_completed", map[string]any{
 		"messages_before": len(messages),
@@ -429,4 +436,15 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 	}
 
 	return summary, nil
+}
+
+// inBackoff reports whether auto-compaction should wait after a failed summary:
+// retrying on the very next turn with the same context would fail the same way
+// and cost a summarisation request each time, so it skips bufferSize turns.
+func (co *ConversationOptimizer) inBackoff() bool {
+	if co.skipAutoChecks == 0 {
+		return false
+	}
+	co.skipAutoChecks--
+	return true
 }
