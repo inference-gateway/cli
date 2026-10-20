@@ -3,6 +3,7 @@ package tools
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -33,6 +34,7 @@ import (
 const (
 	bashStreamFlushInterval = 50 * time.Millisecond
 	bashStreamFlushBytes    = 64 * 1024
+	bashPipeGrace           = time.Second
 )
 
 // BashTool handles bash command execution with security validation
@@ -198,6 +200,10 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 
 	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
 	cmd.Dir = workDir
+	if !hasDetachChan {
+		cmd.WaitDelay = bashPipeGrace
+		process.KillTreeOnCancel(cmd)
+	}
 
 	cmd.Env = os.Environ()
 	if env := agentdomain.GetTraceEnv(ctx); env != nil {
@@ -214,17 +220,32 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	output, err := cmd.CombinedOutput()
 	result.Duration = time.Since(start).String()
 	result.Output = utils.StripANSI(string(output))
-
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitError.ExitCode()
-		} else {
-			result.ExitCode = -1
-		}
-		result.Error = err.Error()
-	}
+	result.ExitCode, result.Error = waitOutcome(cmdCtx, err)
 
 	return result, nil
+}
+
+// waitOutcome turns cmd.Wait's error into the exit code and message the model
+// reads. A command the context ended is reported as such, whatever exec says,
+// since after a kill it may say the exit status, or that a child kept the
+// output open past the grace.
+func waitOutcome(cmdCtx context.Context, err error) (int, string) {
+	if err == nil {
+		return 0, ""
+	}
+	var exitErr *exec.ExitError
+	exitCode := -1
+	if errors.As(err, &exitErr) {
+		exitCode = exitErr.ExitCode()
+	}
+	switch {
+	case errors.Is(cmdCtx.Err(), context.DeadlineExceeded):
+		return exitCode, "command timed out and was killed"
+	case cmdCtx.Err() != nil:
+		return exitCode, "command was cancelled and killed: " + context.Cause(cmdCtx).Error()
+	default:
+		return exitCode, err.Error()
+	}
 }
 
 // executeBashWithStreaming executes a bash command and streams output through the callback
@@ -324,15 +345,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	} else {
 		result.Output = outputBuilder.String()
 	}
-
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			result.ExitCode = exitError.ExitCode()
-		} else {
-			result.ExitCode = -1
-		}
-		result.Error = err.Error()
-	}
+	result.ExitCode, result.Error = waitOutcome(ctx, err)
 
 	return result, nil
 }

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime/debug"
@@ -188,17 +189,35 @@ func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.C
 	}
 }
 
-// publishChatCancelled publishes a ChatCompleteEvent flagged as cancelled so
-// the UI shows "User interrupted" instead of "Response complete". The event
-// reuses ChatCompleteEvent (rather than a new type) so existing listeners
-// keep handling lifecycle bookkeeping uniformly.
-func (p *eventPublisher) publishChatCancelled(metrics *agentdomain.ChatMetrics) {
+// publishChatCancelled publishes a ChatCompleteEvent for a run that ended
+// before its task: flagged cancelled so the UI shows "User interrupted", or as
+// a time-budget completion when ctx was ended by the budget, so headless exits
+// with the budget's code instead of reporting a cancellation.
+func (p *eventPublisher) publishChatCancelled(ctx context.Context, metrics *agentdomain.ChatMetrics) {
+	budgetSpent := errors.Is(context.Cause(ctx), agentdomain.ErrMaxDurationReached)
 	p.chatEvents <- agentdomain.ChatCompleteEvent{
-		RequestID: p.requestID,
-		Timestamp: time.Now(),
-		Metrics:   metrics,
-		Cancelled: true,
+		RequestID:          p.requestID,
+		Timestamp:          time.Now(),
+		Metrics:            metrics,
+		Cancelled:          !budgetSpent,
+		MaxDurationReached: budgetSpent,
 	}
+}
+
+// withTimeBudget ends ctx when agent.max_duration_minutes is spent, with
+// ErrMaxDurationReached as the cause, so a tool call or a stream in flight at
+// the deadline is cancelled instead of running on until the host kills the
+// process. The state machine's between-turn check stays for a run that is
+// idle at the deadline.
+func (s *Agent) withTimeBudget(ctx context.Context) context.Context {
+	minutes := s.config.GetAgentConfig().MaxDurationMinutes
+	if minutes <= 0 {
+		return ctx
+	}
+	deadline := time.Now().Add(time.Duration(minutes) * time.Minute)
+	ctx, cancel := context.WithDeadlineCause(ctx, deadline, agentdomain.ErrMaxDurationReached)
+	context.AfterFunc(ctx, cancel)
+	return ctx
 }
 
 // publishChatChunk publishes a ChatChunkEvent
@@ -614,6 +633,7 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
 	sessionCtx, cancelCtx := context.WithCancel(ctx)
+	sessionCtx = s.withTimeBudget(sessionCtx)
 	sessionCtx = agentdomain.WithModel(sessionCtx, req.Model)
 	sessionCtx = s.recorder.SpanContext(sessionCtx)
 	if s.conversationRepo != nil {

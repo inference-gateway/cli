@@ -688,6 +688,49 @@ func TestProcessEvents_PublishesCancelledFlag(t *testing.T) {
 	}
 }
 
+// A session context ended by the time budget completes the run as a budget
+// stop, not as a user cancellation, so headless exits with the budget's code.
+func TestProcessEvents_PublishesMaxDurationWhenBudgetEndsContext(t *testing.T) {
+	mocks := setupTestMocks()
+	agentCtx := createTestContext(mocks)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(agentdomain.ErrMaxDurationReached)
+	agentCtx.Ctx = ctx
+	agent := createTestAgent(mocks, agentCtx)
+	agent.req = &agentdomain.AgentRequest{RequestID: "test-123", Model: "test-model"}
+
+	chatEvents := make(chan agentdomain.ChatEvent, 10)
+	agent.eventPublisher = &eventPublisher{chatEvents: chatEvents}
+
+	cancelChan := make(chan struct{})
+	agent.cancelChan = cancelChan
+	close(cancelChan)
+	mocks.stateMachine.TransitionReturns(nil)
+
+	agent.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		agent.processEvents()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("processEvents did not exit within 2s")
+	}
+
+	select {
+	case ev := <-chatEvents:
+		complete, ok := ev.(agentdomain.ChatCompleteEvent)
+		assert.True(t, ok, "expected a ChatCompleteEvent on the budget path")
+		assert.True(t, complete.MaxDurationReached, "the budget's cause must complete the run as a budget stop")
+		assert.False(t, complete.Cancelled, "a budget stop is not a user cancellation")
+	default:
+		t.Fatal("expected a ChatCompleteEvent on the events channel")
+	}
+}
+
 // TestProcessEvents_RecoversPanicToChatError verifies that a panic inside a
 // state handler is recovered and surfaced as a ChatErrorEvent instead of
 // crashing the process, so headless consumers get an agent_error line.
