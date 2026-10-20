@@ -48,3 +48,22 @@ func TestFormatExpandedNativeTree(t *testing.T) {
 		t.Errorf("LLM expanded output must be ANSI-free (no color escapes):\n%q", out)
 	}
 }
+
+// TestFormatExpandedKeepsLineLengths pins that a result body is not right-padded
+// to its widest line: lipgloss pads multi-line nodes, and every padded space
+// went to the model as prompt content.
+func TestFormatExpandedKeepsLineLengths(t *testing.T) {
+	f := NewBaseFormatter("Bash")
+	result := &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Duration: time.Millisecond}
+
+	out := f.FormatExpanded(result, "short\n"+strings.Repeat("x", 120)+"\nalso short")
+
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasSuffix(line, " ") {
+			t.Fatalf("line keeps trailing padding: %q", line)
+		}
+	}
+	if !strings.Contains(out, "\n    short\n") {
+		t.Fatalf("expected the short line at its own length in:\n%s", out)
+	}
+}
