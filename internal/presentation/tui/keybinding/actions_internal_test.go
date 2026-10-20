@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
@@ -412,4 +413,107 @@ func assertAutocompleteEventText(t *testing.T, cmd tea.Cmd, want string) {
 		}
 	}
 	t.Fatal("expected an AutocompleteUpdateEvent in the batch")
+}
+
+// cancelTestCtx is a minimal KeyHandlerContext for exercising handleCancel: a
+// real state store holding an active chat session plus a recorded agent
+// service. The other Esc branches (edit state, autocomplete, approvals,
+// next-step suggestion) stay out of the way.
+type cancelTestCtx struct {
+	KeyHandlerContext
+	state *statemanager.Store
+	agent *agentdomainmocks.FakeAgentService
+	input tui.InputComponent
+}
+
+func (c *cancelTestCtx) GetStateStore() StateStore                  { return c.state }
+func (c *cancelTestCtx) GetAgentService() agentdomain.AgentService  { return c.agent }
+func (c *cancelTestCtx) GetInputView() tui.InputComponent           { return c.input }
+func (c *cancelTestCtx) GetAutocomplete() tui.AutocompleteComponent { return nil }
+
+func newCancelTestCtx(t *testing.T, requestID string) (*cancelTestCtx, *agentdomainmocks.FakeAgentService) {
+	t.Helper()
+
+	state := statemanager.NewStore(false)
+	if err := state.TransitionToView(tui.ViewStateChat); err != nil {
+		t.Fatalf("transitioning to the chat view: %v", err)
+	}
+	state.SetChatPending()
+	events := make(chan agentdomain.ChatEvent, 1)
+	if err := state.StartChatSession(requestID, "test-model", events); err != nil {
+		t.Fatalf("starting the chat session: %v", err)
+	}
+	if err := state.UpdateChatStatus(tui.ChatStatusGenerating); err != nil {
+		t.Fatalf("marking the turn busy: %v", err)
+	}
+
+	agent := &agentdomainmocks.FakeAgentService{}
+	ctx := &cancelTestCtx{state: state, agent: agent, input: &tuimocks.FakeInputComponent{}}
+	return ctx, agent
+}
+
+// TestHandleCancelDrainsQueuedMessages is the regression test for the Esc
+// path leaving queued messages stranded: handleCancel ends the session
+// synchronously, so the agent loop's ChatCompleteEvent{Cancelled:true} - the
+// only other drain trigger - lands on the now-orphaned channel and the chat
+// handler drops it. The cancel action must therefore hand the queue to the
+// drain gate itself: the returned batch carries the "User interrupted"
+// status and a DrainQueueEvent, whose gate starts the queued turn once the
+// agent is idle and arms the bounded retry while it is still winding down.
+func TestHandleCancelDrainsQueuedMessages(t *testing.T) {
+	ctx, agent := newCancelTestCtx(t, "req-1")
+
+	cmd := handleCancel(ctx, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if agent.CancelRequestCallCount() != 1 {
+		t.Fatalf("expected one CancelRequest, got %d", agent.CancelRequestCallCount())
+	}
+	if reqID := agent.CancelRequestArgsForCall(0); reqID != "req-1" {
+		t.Fatalf("CancelRequest called with %q, want %q", reqID, "req-1")
+	}
+	if ctx.state.GetChatSession() != nil {
+		t.Fatal("expected the chat session to end synchronously")
+	}
+
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("expected a tea.BatchMsg, got %T", cmd())
+	}
+	if len(batch) != 2 {
+		t.Fatalf("expected 2 batched commands (status, drain), got %d", len(batch))
+	}
+
+	status, ok := batch[0]().(tui.SetStatusEvent)
+	if !ok {
+		t.Fatalf("expected the first command to be a SetStatusEvent, got %T", batch[0]())
+	}
+	if status.Message != "User interrupted" || status.Spinner {
+		t.Fatalf("expected the %q flat status, got %+v", "User interrupted", status)
+	}
+
+	if _, ok := batch[1]().(agentdomain.DrainQueueEvent); !ok {
+		t.Fatalf("expected the second command to emit a DrainQueueEvent, got %T", batch[1]())
+	}
+}
+
+// TestHandleCancelWithoutSessionSkipsCancelRequest verifies esc on an idle
+// session skips the cancel request and still returns the status + drain batch.
+func TestHandleCancelWithoutSessionSkipsCancelRequest(t *testing.T) {
+	state := statemanager.NewStore(false)
+	if err := state.TransitionToView(tui.ViewStateChat); err != nil {
+		t.Fatalf("transitioning to the chat view: %v", err)
+	}
+
+	agent := &agentdomainmocks.FakeAgentService{}
+	ctx := &cancelTestCtx{state: state, agent: agent, input: &tuimocks.FakeInputComponent{}}
+
+	cmd := handleCancel(ctx, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if agent.CancelRequestCallCount() != 0 {
+		t.Fatalf("expected no CancelRequest without a session, got %d", agent.CancelRequestCallCount())
+	}
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok || len(batch) != 2 {
+		t.Fatalf("expected the status + drain batch even without a session, got %T", cmd())
+	}
 }

@@ -163,11 +163,9 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
-		agentService := app.GetAgentService()
-		if agentService != nil {
-			_ = agentService.CancelRequest(chatSession.RequestID)
-		}
+	agentService := app.GetAgentService()
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && agentService != nil {
+		_ = agentService.CancelRequest(chatSession.RequestID)
 	}
 
 	stateManager.ClearUserQuestionUIState()
@@ -175,12 +173,15 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	stateManager.EndToolExecution()
 	_ = stateManager.TransitionToView(tui.ViewStateChat)
 
-	return func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message: "User interrupted",
-			Spinner: false,
-		}
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			return tui.SetStatusEvent{
+				Message: "User interrupted",
+				Spinner: false,
+			}
+		},
+		func() tea.Msg { return agentdomain.DrainQueueEvent{} },
+	)
 }
 
 func handleNewSession(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
