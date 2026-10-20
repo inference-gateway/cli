@@ -230,7 +230,18 @@ func renderExpandedTree(toolCall string, result *agentdomain.ToolExecutionResult
 		t.Child(meta)
 	}
 
-	return t.String()
+	return trimLinePadding(t.String())
+}
+
+// trimLinePadding drops the trailing spaces lipgloss adds to pad every line of
+// a multi-line node to its widest line, so a tool result keeps its own line
+// lengths instead of sending a block of whitespace to the model.
+func trimLinePadding(rendered string) string {
+	lines := strings.Split(rendered, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // GetFileName extracts filename from a path
