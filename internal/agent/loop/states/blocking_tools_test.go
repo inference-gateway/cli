@@ -47,6 +47,33 @@ func TestBlockingToolsState_GatedToolsAreRejected(t *testing.T) {
 	assert.True(t, f.ctx.AgentCtx.HasToolResults)
 }
 
+// The refusal is worded for a run nobody can approve in: it tells the model the
+// tool is unavailable for the run and not to ask the user, and carries the
+// Bash hint when one is wired.
+func TestBlockingToolsState_ReasonFitsAnUnattendedRun(t *testing.T) {
+	f := newStateFixture()
+	*f.ctx.CurrentToolCalls = makeTools(1)
+	f.ctx.ShouldRequireApproval = requireAllApproval
+	f.ctx.BlockedToolHint = func(tc *sdk.ChatCompletionMessageToolCall) string {
+		return "only a single command is auto-approved"
+	}
+	s := states.NewBlockingToolsState(f.ctx)
+
+	require.NoError(t, s.Handle(states.MessageReceivedEvent{}))
+	waitForAllToolsProcessed(t, f.events)
+	f.ctx.WaitGroup.Wait()
+
+	results := *f.ctx.ToolResults
+	require.Len(t, results, 1)
+	content, _ := results[0].Message.Content.AsMessageContent0()
+	assert.Contains(t, content, "nobody can approve in this session")
+	assert.Contains(t, content, "stays unavailable for the whole run")
+	assert.Contains(t, content, "do not ask the user")
+	assert.NotContains(t, content, "tell the user")
+	assert.Contains(t, content, "only a single command is auto-approved")
+	assert.Equal(t, content, results[0].ToolExecution.Error, "the result's error carries the same reason")
+}
+
 // TestBlockingToolsState_MixedBatchRunsNonGatedTools verifies tools that do
 // not require approval still execute in a blocked batch, preserving tool-call
 // order.

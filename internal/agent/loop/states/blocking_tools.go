@@ -107,17 +107,32 @@ func (s *BlockingToolsState) resolveEntry(tc *sdk.ChatCompletionMessageToolCall)
 	return s.buildBlockedEntry(*tc)
 }
 
+// blockedReason words the refusal for a session nobody can approve in: the
+// tool stays unavailable for the whole run, so the model is told to work
+// without it and to report what it could not do, not to ask a user who is not
+// there. A Bash call carries the sandbox's hint on what would be allowed.
+func (s *BlockingToolsState) blockedReason(tc sdk.ChatCompletionMessageToolCall) string {
+	reason := fmt.Sprintf(
+		"Blocked: %s requires approval and nobody can approve in this session (tools.safety.approval_behaviour). "+
+			"The action was NOT executed and this tool stays unavailable for the whole run: do not call it again "+
+			"and do not ask the user. Do the work with tools and commands that need no approval, and say in your "+
+			"final message what you could not do and why.",
+		tc.Function.Name,
+	)
+	if s.ctx.BlockedToolHint != nil {
+		if hint := s.ctx.BlockedToolHint(&tc); hint != "" {
+			reason += " " + hint
+		}
+	}
+	return reason
+}
+
 // buildBlockedEntry constructs the Tool-role result for a tool that requires
 // approval no approver can deliver. It also publishes a terminal tool-execution
 // progress event so the live streaming overlay (which left the call at "ready" ->
 // rendered as "queued") is cleared instead of lingering forever.
 func (s *BlockingToolsState) buildBlockedEntry(tc sdk.ChatCompletionMessageToolCall) convdomain.ConversationEntry {
-	reason := fmt.Sprintf(
-		"Blocked: %s requires approval, but approvals are not available in this session (tools.safety.approval_behaviour). "+
-			"The action was NOT executed. Do not retry the same call - tell the user what you need and why, "+
-			"or use a tool or command that does not require approval.",
-		tc.Function.Name,
-	)
+	reason := s.blockedReason(tc)
 	content := reason
 
 	logger.Info("tool blocked (approval required, no approver reachable)", "tool", tc.Function.Name)

@@ -13,6 +13,8 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // eventDrivenAgent manages agent execution using event-driven state machine
@@ -150,6 +152,13 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 			}
 			behaviour := a.service.config.ApprovalBehaviourFor(toolCall.Function.Name)
 			return config.ResolveApprovalDelivery(behaviour, a.req.ApprovalBrokerAttached, a.req.IsChatMode)
+		},
+		BlockedToolHint: func(toolCall *sdk.ChatCompletionMessageToolCall) string {
+			if toolCall.Function.Name != tools.ToolBash || a.service.config == nil {
+				return ""
+			}
+			command, _ := callArguments(toolCall)["command"].(string)
+			return sandbox.BashCommandRejectionHint(a.service.config, command)
 		},
 		AddMessage: a.service.conversationRepo.AddMessage,
 		BatchDrainQueue: func() int {

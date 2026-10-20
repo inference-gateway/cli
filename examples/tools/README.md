@@ -65,7 +65,7 @@ pass it in, for example `task word-count INFER=../../infer`.
 `task save-note`, blocked and no note written:
 
 ```text
-{"content":"Blocked: SaveNote requires approval, but approvals are not available in this session ...", ...}
+{"content":"Blocked: SaveNote requires approval and nobody can approve in this session ...", ...}
 ```
 
 `task save-note:auto`, then the saved note:
