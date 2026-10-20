@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	ansi "github.com/charmbracelet/x/ansi"
-	wordwrap "github.com/muesli/reflow/wordwrap"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -23,7 +22,7 @@ func WrapText(text string, width int) string {
 	if width <= 0 {
 		return text
 	}
-	return wordwrap.String(text, width)
+	return ansi.Wordwrap(text, width, "")
 }
 
 // GetResponsiveWidth returns the content width for a terminal: the full width
