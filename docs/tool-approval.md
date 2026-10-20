@@ -36,7 +36,8 @@ The approval box is an inline select: **left / right** moves between
 
 `tools.safety.approval_behaviour` decides how a gated call is resolved (`prompt`, `ipc`, `judge` or `block`),
 independently of whether it is gated. It is global: there is no per-tool behaviour. Headless runs block when no
-approver is reachable. See the [configuration reference](configuration-reference.md#tool-settings) for the values
+approver is reachable. With `judge`, all gated calls of a turn are decided in one judge request, while human
+prompts stay one call at a time. See the [configuration reference](configuration-reference.md#tool-settings) for the values
 and the per-tool `require_approval` overrides.
 
 ## Related

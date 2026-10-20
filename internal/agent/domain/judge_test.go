@@ -4,39 +4,48 @@ import (
 	"testing"
 )
 
-func TestParseJudgeVerdict(t *testing.T) {
+func TestParseJudgeVerdicts(t *testing.T) {
 	tests := []struct {
-		name         string
-		raw          string
-		wantDecision JudgeDecision
-		wantReason   string
-		wantErr      bool
+		name    string
+		raw     string
+		ids     []string
+		want    map[string]JudgeDecision
+		wantErr bool
 	}{
-		{"plain approved", `{"decision": "approved", "reason": "serves the request"}`, JudgeDecisionApproved, "serves the request", false},
-		{"plain rejected", `{"decision": "rejected", "reason": "too risky"}`, JudgeDecisionRejected, "too risky", false},
-		{"fenced json", "```json\n{\"decision\": \"approved\", \"reason\": \"ok\"}\n```", JudgeDecisionApproved, "ok", false},
-		{"bare fence", "```\n{\"decision\": \"rejected\", \"reason\": \"no\"}\n```", JudgeDecisionRejected, "no", false},
-		{"prose around json", "Verdict:\n{\"decision\": \"approved\", \"reason\": \"fine\"}\nDone.", JudgeDecisionApproved, "fine", false},
-		{"empty reason ok", `{"decision": "approved"}`, JudgeDecisionApproved, "", false},
-		{"no json object", "no verdict here", "", "", true},
-		{"invalid decision", `{"decision": "maybe", "reason": "x"}`, "", "", true},
-		{"invalid json", `{"decision":`, "", "", true},
-		{"empty output", "", "", "", true},
+		{"array one per id", `[{"id":"a","decision":"approved","reason":"ok"},{"id":"b","decision":"rejected","reason":"no"}]`, []string{"a", "b"}, map[string]JudgeDecision{"a": JudgeDecisionApproved, "b": JudgeDecisionRejected}, false},
+		{"fenced array", "```json\n[{\"id\":\"a\",\"decision\":\"approved\"}]\n```", []string{"a"}, map[string]JudgeDecision{"a": JudgeDecisionApproved}, false},
+		{"prose around array", "Verdicts:\n[{\"id\":\"a\",\"decision\":\"rejected\",\"reason\":\"x\"}]\nDone.", []string{"a"}, map[string]JudgeDecision{"a": JudgeDecisionRejected}, false},
+		{"legacy object single call", `{"decision": "approved", "reason": "serves the request"}`, []string{"a"}, map[string]JudgeDecision{"a": JudgeDecisionApproved}, false},
+		{"legacy object with id", `{"id":"b","decision":"rejected"}`, []string{"a", "b"}, map[string]JudgeDecision{"b": JudgeDecisionRejected}, false},
+		{"legacy object ambiguous for two calls", `{"decision": "approved"}`, []string{"a", "b"}, map[string]JudgeDecision{}, false},
+		{"omitted id", `[{"id":"a","decision":"approved"}]`, []string{"a", "b"}, map[string]JudgeDecision{"a": JudgeDecisionApproved}, false},
+		{"unknown id dropped", `[{"id":"zzz","decision":"approved"},{"id":"a","decision":"approved"}]`, []string{"a"}, map[string]JudgeDecision{"a": JudgeDecisionApproved}, false},
+		{"invalid decision dropped", `[{"id":"a","decision":"maybe"},{"id":"b","decision":"rejected"}]`, []string{"a", "b"}, map[string]JudgeDecision{"b": JudgeDecisionRejected}, false},
+		{"duplicate keeps first", `[{"id":"a","decision":"approved"},{"id":"a","decision":"rejected"}]`, []string{"a"}, map[string]JudgeDecision{"a": JudgeDecisionApproved}, false},
+		{"no json", "no verdict here", []string{"a"}, nil, true},
+		{"invalid json", `[{"decision":`, []string{"a"}, nil, true},
+		{"empty output", "", []string{"a"}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseJudgeVerdict(tt.raw)
+			got, err := ParseJudgeVerdicts(tt.raw, tt.ids)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("ParseJudgeVerdict(%q) err = %v, wantErr %v", tt.raw, err, tt.wantErr)
+				t.Fatalf("ParseJudgeVerdicts(%q) err = %v, wantErr %v", tt.raw, err, tt.wantErr)
 			}
 			if err != nil {
 				return
 			}
-			if got.Decision != tt.wantDecision || got.Reason != tt.wantReason {
-				t.Errorf("ParseJudgeVerdict(%q) = %+v, want decision %q reason %q", tt.raw, got, tt.wantDecision, tt.wantReason)
+			if len(got) != len(tt.want) {
+				t.Fatalf("ParseJudgeVerdicts(%q) = %+v, want %v", tt.raw, got, tt.want)
 			}
-			if got.Approved() != (got.Decision == JudgeDecisionApproved) {
-				t.Errorf("Approved() inconsistent with decision %q", got.Decision)
+			for id, decision := range tt.want {
+				v, ok := got[id]
+				if !ok || v.Decision != decision || v.ID != id {
+					t.Errorf("verdict for %q = %+v, want decision %q", id, v, decision)
+				}
+				if v.Approved() != (decision == JudgeDecisionApproved) {
+					t.Errorf("Approved() inconsistent with decision %q", decision)
+				}
 			}
 		})
 	}

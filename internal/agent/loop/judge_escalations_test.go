@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	conversationmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -14,13 +15,17 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// stubJudgeApprover answers every judge call with a canned verdict.
-type stubJudgeApprover struct {
-	verdict agentdomain.JudgeVerdict
-}
-
-func (s stubJudgeApprover) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentdomain.JudgeVerdict, error) {
-	return s.verdict, nil
+// rejectingJudge returns a fake judge that rejects every call with reason.
+func rejectingJudge(reason string) *agentdomainmocks.FakeJudgeApprover {
+	judge := &agentdomainmocks.FakeJudgeApprover{}
+	judge.JudgeStub = func(_ context.Context, in agentdomain.JudgeInput) (agentdomain.JudgeVerdicts, error) {
+		out := agentdomain.JudgeVerdicts{}
+		for _, action := range in.Actions {
+			out.Verdicts = append(out.Verdicts, agentdomain.JudgeVerdict{ID: action.ID, Decision: agentdomain.JudgeDecisionRejected, Reason: reason})
+		}
+		return out, nil
+	}
+	return judge
 }
 
 // escalationToolCall returns the Bash call the escalation tests track.
@@ -260,7 +265,7 @@ func TestRequestJudgeApprovalRecordsRejectionAndHints(t *testing.T) {
 	svc := &Agent{
 		config:           cfg,
 		conversationRepo: &conversationmocks.FakeConversationRepository{},
-		judge:            stubJudgeApprover{verdict: agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "curl was not requested"}},
+		judge:            rejectingJudge("curl was not requested"),
 		escalations:      newJudgeEscalations(),
 	}
 	events := make(chan agentdomain.ChatEvent, 8)
@@ -309,5 +314,46 @@ func TestRequestJudgeApprovalHonoursUserApprovalBypass(t *testing.T) {
 	}
 	if svc.escalations.takeBypass("Bash", `{"command":"git push"}`) {
 		t.Fatal("the bypass must be consumed by the approved invocation")
+	}
+}
+
+func TestDecideWithJudgeBatchesCallsAndSkipsBypassed(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Agent.Model = "test/model"
+	judge := rejectingJudge("not requested")
+	svc := &Agent{
+		config:           cfg,
+		conversationRepo: &conversationmocks.FakeConversationRepository{},
+		judge:            judge,
+		escalations:      newJudgeEscalations(),
+	}
+	svc.escalations.record("Bash", `{"command":"git push"}`, "needs context")
+	svc.escalations.approve("Bash", `{"command":"git push"}`)
+	events := make(chan agentdomain.ChatEvent, 8)
+	pub := &eventPublisher{requestID: "req-1", chatEvents: events}
+
+	bypassed := escalationToolCall("tc-1")
+	curl := sdk.ChatCompletionMessageToolCall{ID: "tc-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"curl x"}`}}
+	write := sdk.ChatCompletionMessageToolCall{ID: "tc-3", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: `{"path":"a"}`}}
+
+	decisions := svc.decideWithJudge(context.Background(), []sdk.ChatCompletionMessageToolCall{bypassed, curl, write}, pub)
+
+	if judge.JudgeCallCount() != 1 {
+		t.Fatalf("judge calls = %d, want one batched request", judge.JudgeCallCount())
+	}
+	_, in := judge.JudgeArgsForCall(0)
+	if len(in.Actions) != 2 || in.Actions[0].ID != "tc-2" || in.Actions[1].ID != "tc-3" {
+		t.Fatalf("judge actions = %+v, want only the two non-bypassed calls", in.Actions)
+	}
+	if d := decisions["tc-1"]; !d.Approved || d.Reason != "" {
+		t.Fatalf("bypassed call = %+v, want approved without a reason", d)
+	}
+	for _, id := range []string{"tc-2", "tc-3"} {
+		if d := decisions[id]; d.Approved || !strings.HasPrefix(d.Reason, "test/model: not requested") {
+			t.Fatalf("decision for %s = %+v, want judge rejection", id, d)
+		}
+	}
+	if len(events) != 2 {
+		t.Fatalf("published %d verdict events, want one per judged call", len(events))
 	}
 }

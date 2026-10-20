@@ -47,7 +47,7 @@ type Agent struct {
 	optimizer          convdomain.ConversationOptimizer
 	tokenizer          usageEstimator
 	approvalPolicy     agentdomain.ApprovalPolicy
-	judge              JudgeApprover
+	judge              agentdomain.JudgeApprover
 	currentModel       func() string
 	escalations        *judgeEscalations
 	bgRegistry         scheddomain.BackgroundTaskRegistry
@@ -1565,30 +1565,89 @@ func (s *Agent) judgeModel() string {
 	return s.config.Judge.ResolveModel(cmp.Or(current, s.config.Agent.Model))
 }
 
-// requestJudgeApproval asks the judge to decide one pending tool call against
-// the user's latest request, publishes the verdict as a chat event (mirrored
-// on the hidden debug channel), and maps a rejection onto the standard
-// refusal path so the driver sees the judge's reason and adjusts.
+// requestJudgeApproval decides one pending tool call through the batch path
+// so single and batched approvals share one code path.
 func (s *Agent) requestJudgeApproval(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, string, error) {
-	if s.consumeJudgeBypass(tc) {
-		return true, "", nil
+	decision := s.decideWithJudge(ctx, []sdk.ChatCompletionMessageToolCall{tc}, eventPublisher)[tc.ID]
+	return decision.Approved, decision.Reason, nil
+}
+
+// requestJudgeApprovals decides every judge-decided call in calls with one
+// judge request. Calls a human decides are absent from the result.
+func (s *Agent) requestJudgeApprovals(
+	ctx context.Context,
+	calls []sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) map[string]states.ApprovalDecision {
+	judged := make([]sdk.ChatCompletionMessageToolCall, 0, len(calls))
+	for _, tc := range calls {
+		if s.judgeDecides(tc) {
+			judged = append(judged, tc)
+		}
+	}
+	return s.decideWithJudge(ctx, judged, eventPublisher)
+}
+
+// decideWithJudge asks the judge once for calls, publishes one verdict event
+// per call, and maps rejections onto the standard refusal path so the driver
+// sees the judge's reason and adjusts. Calls with a user-approved escalation
+// bypass are approved without being sent to the judge.
+func (s *Agent) decideWithJudge(
+	ctx context.Context,
+	calls []sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) map[string]states.ApprovalDecision {
+	decisions := make(map[string]states.ApprovalDecision, len(calls))
+	var pending []sdk.ChatCompletionMessageToolCall
+	for _, tc := range calls {
+		if s.consumeJudgeBypass(tc) {
+			decisions[tc.ID] = states.ApprovalDecision{Approved: true}
+			continue
+		}
+		pending = append(pending, tc)
+	}
+	if len(pending) == 0 {
+		return decisions
 	}
 
 	model := s.judgeModel()
 	root, latest := userIntents(s.conversationRepo)
-	verdict, err := s.judge.Judge(ctx, agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Action: judgeActionInput(tc)})
-	if err != nil {
-		verdict = agentdomain.JudgeVerdict{Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: " + err.Error()}
+	input := agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Actions: make([]agentdomain.JudgeAction, 0, len(pending))}
+	for _, tc := range pending {
+		input.Actions = append(input.Actions, judgeAction(tc))
 	}
+	verdicts, err := s.judge.Judge(ctx, input)
+	s.recordJudgeUsage(verdicts.Usage)
+
+	for i, tc := range pending {
+		verdict := agentdomain.JudgeVerdict{ID: tc.ID, Decision: agentdomain.JudgeDecisionRejected, Reason: "judge unavailable: judge returned no verdict"}
+		if err != nil {
+			verdict.Reason = "judge unavailable: " + err.Error()
+		} else if i < len(verdicts.Verdicts) {
+			verdict = verdicts.Verdicts[i]
+		}
+		decisions[tc.ID] = s.applyJudgeVerdict(tc, model, verdict, eventPublisher)
+	}
+	return decisions
+}
+
+// applyJudgeVerdict records a rejection for escalation, publishes the verdict
+// as a chat event (mirrored on the hidden debug channel) and turns it into
+// the approval decision the state consumes.
+func (s *Agent) applyJudgeVerdict(
+	tc sdk.ChatCompletionMessageToolCall,
+	model string,
+	verdict agentdomain.JudgeVerdict,
+	eventPublisher *eventPublisher,
+) states.ApprovalDecision {
 	if !verdict.Approved() {
 		s.conversationRepo.RemovePendingToolCallByID(tc.ID)
 		s.escalations.record(tc.Function.Name, tc.Function.Arguments, verdict.Reason)
 	}
-	s.recordJudgeUsage(verdict.Usage)
 
 	eventPublisher.chatEvents <- agentdomain.JudgeVerdictChatEvent{
 		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: eventPublisher.requestID, Timestamp: time.Now()},
@@ -1599,16 +1658,14 @@ func (s *Agent) requestJudgeApproval(
 		Turn:          int(s.sessionTurns.Load()),
 	}
 	streamevent.EmitDebugEvent("judge_verdict", map[string]any{
-		"tool": tc.Function.Name, "model": model, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
+		"tool": tc.Function.Name, "call": tc.ID, "model": model, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
 	})
-	if !verdict.Approved() {
-		logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "model", model, "reason", verdict.Reason)
-	}
 
 	if verdict.Approved() {
-		return true, "", nil
+		return states.ApprovalDecision{Approved: true}
 	}
-	return false, model + ": " + verdict.Reason + judgeEscalationHint, nil
+	logger.Warn("judge rejected tool call", "tool", tc.Function.Name, "model", model, "reason", verdict.Reason)
+	return states.ApprovalDecision{Reason: model + ": " + verdict.Reason + judgeEscalationHint}
 }
 
 // recordJudgeUsage adds the judge call's tokens to the session totals and the

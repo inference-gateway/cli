@@ -167,6 +167,9 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 		RequestToolApproval: func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error) {
 			return a.service.requestToolApproval(a.agentCtx.Ctx, toolCall, a.eventPublisher)
 		},
+		RequestJudgeApprovals: func(calls []sdk.ChatCompletionMessageToolCall) map[string]states.ApprovalDecision {
+			return a.service.requestJudgeApprovals(a.agentCtx.Ctx, calls, a.eventPublisher)
+		},
 		ExecuteToolInternal: func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) (entry convdomain.ConversationEntry) {
 			defer a.recoverPanic()
 			return a.service.executeToolInternal(a.agentCtx.Ctx, toolCall, a.eventPublisher, isApproved, time.Now())
