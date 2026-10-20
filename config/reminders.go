@@ -27,6 +27,7 @@ const (
 	ReminderTriggerInterval          ReminderTrigger = "interval"
 	ReminderTriggerOnceAfter         ReminderTrigger = "once_after"
 	ReminderTriggerTurnsBeforeMax    ReminderTrigger = "turns_before_max"
+	ReminderTriggerElapsedMinutes    ReminderTrigger = "elapsed_minutes"
 	ReminderTriggerOnce              ReminderTrigger = "once"
 	ReminderTriggerOnFailure         ReminderTrigger = "on_failure"
 	ReminderTriggerOnModeChange      ReminderTrigger = "on_mode_change"
@@ -42,6 +43,7 @@ var ReminderTriggers = []ReminderTrigger{
 	ReminderTriggerInterval,
 	ReminderTriggerOnceAfter,
 	ReminderTriggerTurnsBeforeMax,
+	ReminderTriggerElapsedMinutes,
 	ReminderTriggerOnce,
 	ReminderTriggerOnFailure,
 	ReminderTriggerOnModeChange,
@@ -448,6 +450,8 @@ func reminderTriggerFires(rc ReminderConfig, q agentdomain.ReminderQuery) bool {
 		return !q.Fired[rc.Name] && q.SessionTurn >= rc.Threshold
 	case ReminderTriggerTurnsBeforeMax:
 		return !q.Fired[rc.Name] && q.MaxTurns > 0 && rc.Threshold > 0 && (q.MaxTurns-q.Turn) <= rc.Threshold
+	case ReminderTriggerElapsedMinutes:
+		return !q.Fired[rc.Name] && rc.Threshold > 0 && q.Elapsed.Minutes() >= float64(rc.Threshold)
 	case ReminderTriggerOnce:
 		return !q.Fired[rc.Name]
 	case ReminderTriggerOnFailure:
@@ -495,6 +499,8 @@ func (r RemindersConfig) Validate() error {
 			return fmt.Errorf("reminders[%d] (%s): trigger turns_before_max requires threshold > 0", i, rc.Name)
 		case rc.Trigger == ReminderTriggerOnceAfter && rc.Threshold <= 0:
 			return fmt.Errorf("reminders[%d] (%s): trigger once_after requires threshold > 0", i, rc.Name)
+		case rc.Trigger == ReminderTriggerElapsedMinutes && rc.Threshold <= 0:
+			return fmt.Errorf("reminders[%d] (%s): trigger elapsed_minutes requires threshold > 0", i, rc.Name)
 		case rc.Trigger == ReminderTriggerOnModeChange && rc.Hook != "" && rc.Hook != agentdomain.HookPreStream:
 			return fmt.Errorf("reminders[%d] (%s): trigger on_mode_change requires hook %s", i, rc.Name, agentdomain.HookPreStream)
 		case rc.Trigger == ReminderTriggerOnRepeatedFailure && rc.Hook != "" && rc.Hook != agentdomain.HookPostTool:

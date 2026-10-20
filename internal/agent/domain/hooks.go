@@ -98,6 +98,7 @@ type ReminderQuery struct {
 	Turn             int
 	SessionTurn      int
 	MaxTurns         int
+	Elapsed          time.Duration
 	Fired            map[string]bool
 	ToolFailed       bool
 	RepeatedFailures int

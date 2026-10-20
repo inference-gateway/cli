@@ -108,13 +108,17 @@ func QueuedNote(e agentdomain.MessageQueuedEvent) (string, bool) {
 }
 
 // CompletionErr maps a terminal event to the error the command should return:
-// ErrMaxTurnsReached for a turn-limit completion (exit code 2), nil otherwise.
+// ErrMaxTurnsReached for a turn-limit completion (exit code 2),
+// ErrMaxDurationReached for a time-budget completion (exit code 3), nil otherwise.
 func CompletionErr(e agentdomain.ChatCompleteEvent) error {
 	if e.Cancelled {
 		return context.Canceled
 	}
 	if e.MaxTurnsReached {
 		return agentdomain.ErrMaxTurnsReached
+	}
+	if e.MaxDurationReached {
+		return agentdomain.ErrMaxDurationReached
 	}
 	return nil
 }

@@ -48,6 +48,9 @@ import (
 // ExitCodeMaxTurns distinguishes agent turn exhaustion from generic failure.
 const ExitCodeMaxTurns = 2
 
+// ExitCodeMaxDuration distinguishes a spent time budget from generic failure.
+const ExitCodeMaxDuration = 3
+
 func NewCommand() *cobra.Command {
 	state := runtime.NewState()
 	renderer := output.NewRenderer()
@@ -122,6 +125,9 @@ func Execute() {
 	if err := fang.Execute(context.Background(), NewCommand(), fang.WithVersion(version.Value()), fang.WithErrorHandler(printError)); err != nil {
 		if errors.Is(err, agentdomain.ErrMaxTurnsReached) {
 			os.Exit(ExitCodeMaxTurns)
+		}
+		if errors.Is(err, agentdomain.ErrMaxDurationReached) {
+			os.Exit(ExitCodeMaxDuration)
 		}
 		os.Exit(1)
 	}

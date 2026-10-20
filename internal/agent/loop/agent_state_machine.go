@@ -3,6 +3,7 @@ package loop
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -157,16 +158,17 @@ func (sm *stateMachine) registerTransitions() {
 
 	sm.addTransition(states.StatePostToolExecution, states.StateCompleting,
 		func(ctx *states.AgentContext) bool {
-			return sm.maxTurnsReached(ctx) || sm.canComplete(ctx)
+			return sm.budgetReached(ctx) || sm.canComplete(ctx)
 		},
 		func(ctx *states.AgentContext) error {
 			ctx.MaxTurnsExceeded = sm.maxTurnsReached(ctx) && !sm.canComplete(ctx)
+			ctx.MaxDurationExceeded = sm.maxDurationReached(ctx) && !sm.canComplete(ctx)
 			return nil
 		})
 
 	sm.addTransition(states.StatePostToolExecution, states.StateStreamingLLM,
 		func(ctx *states.AgentContext) bool {
-			return !sm.maxTurnsReached(ctx) && !sm.canComplete(ctx) && ctx.MessageQueue.IsEmpty()
+			return !sm.budgetReached(ctx) && !sm.canComplete(ctx) && ctx.MessageQueue.IsEmpty()
 		},
 		nil)
 
@@ -342,6 +344,18 @@ func (sm *stateMachine) needsApproval(ctx *states.AgentContext) bool {
 // Returns true if the current turn count has reached or exceeded the maximum.
 func (sm *stateMachine) maxTurnsReached(ctx *states.AgentContext) bool {
 	return ctx.Turns >= ctx.MaxTurns
+}
+
+// maxDurationReached reports whether the run has spent its time budget. A zero
+// MaxDuration means no budget.
+func (sm *stateMachine) maxDurationReached(ctx *states.AgentContext) bool {
+	return ctx.MaxDuration > 0 && time.Since(ctx.StartedAt) >= ctx.MaxDuration
+}
+
+// budgetReached reports whether either limit, turns or wall clock, ends the run
+// after the current tool call.
+func (sm *stateMachine) budgetReached(ctx *states.AgentContext) bool {
+	return sm.maxTurnsReached(ctx) || sm.maxDurationReached(ctx)
 }
 
 // CanTransition checks if a transition from current state to target state is valid

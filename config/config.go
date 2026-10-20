@@ -771,6 +771,7 @@ type AgentConfig struct {
 	Skills                   AgentSkillsConfig  `yaml:"skills" mapstructure:"skills"`
 	AgentsMD                 AgentsMDConfig     `yaml:"agents_md" mapstructure:"agents_md"`
 	MaxTurns                 int                `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxDurationMinutes       int                `yaml:"max_duration_minutes,omitempty" mapstructure:"max_duration_minutes"`
 	MaxTokens                int                `yaml:"max_tokens" mapstructure:"max_tokens"`
 	ReasoningEffort          string             `yaml:"reasoning_effort,omitempty" mapstructure:"reasoning_effort"`
 	MaxConcurrentTools       int                `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`

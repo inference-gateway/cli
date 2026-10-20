@@ -49,6 +49,9 @@ type ChatCompleteEvent struct {
 	// MaxTurnsReached marks a completion forced by the turn limit rather than
 	// the task finishing; headless renderers map it to ErrMaxTurnsReached.
 	MaxTurnsReached bool
+	// MaxDurationReached marks a completion forced by the run's time budget
+	// (agent.max_duration_minutes); headless renderers map it to ErrMaxDurationReached.
+	MaxDurationReached bool
 }
 
 func (e ChatCompleteEvent) GetRequestID() string    { return e.RequestID }

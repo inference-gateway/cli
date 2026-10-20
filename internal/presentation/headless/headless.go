@@ -638,7 +638,8 @@ func sessionOutcome(err error) string {
 		return telemetry.RunSuccess
 	case errors.Is(err, context.Canceled),
 		errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, agentdomain.ErrMaxTurnsReached):
+		errors.Is(err, agentdomain.ErrMaxTurnsReached),
+		errors.Is(err, agentdomain.ErrMaxDurationReached):
 		return telemetry.RunStoppedEarly
 	default:
 		return telemetry.RunFailed
