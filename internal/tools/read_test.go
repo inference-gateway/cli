@@ -1,15 +1,23 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
@@ -25,7 +33,7 @@ func TestReadTool_Definition(t *testing.T) {
 		Prompts: *config.DefaultPromptsConfig(),
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Name != "Read" {
@@ -86,7 +94,7 @@ func TestReadTool_IsEnabled(t *testing.T) {
 				},
 			}
 
-			tool := NewReadTool(cfg)
+			tool := NewReadTool(cfg, nil)
 			if tool.IsEnabled() != tt.expectedState {
 				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
 			}
@@ -115,7 +123,7 @@ func TestReadTool_Validate(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 
 	t.Run("basic validation tests", func(t *testing.T) {
 		testBasicValidation(t, tool)
@@ -328,7 +336,7 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	t.Run("read entire file with cat -n formatting", func(t *testing.T) {
@@ -416,7 +424,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	t.Run("read with offset and limit", func(t *testing.T) {
@@ -515,7 +523,7 @@ func TestReadTool_Execute_EndLineAccuracy(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -626,7 +634,7 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	t.Run("truncate long lines", func(t *testing.T) {
@@ -684,7 +692,7 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	t.Run("empty file returns reminder", func(t *testing.T) {
@@ -730,7 +738,7 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -791,7 +799,7 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	t.Run("binary file detection", func(t *testing.T) {
@@ -829,7 +837,7 @@ func TestReadTool_Execute_Disabled(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -858,7 +866,7 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 		},
 	}
 
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 	ctx := context.Background()
 
 	t.Run("defaults applied when not specified", func(t *testing.T) {
@@ -919,7 +927,7 @@ func TestReadTool_Execute_NotFoundSuggestions(t *testing.T) {
 			Read:    config.ReadToolConfig{Enabled: true},
 		},
 	}
-	tool := NewReadTool(cfg)
+	tool := NewReadTool(cfg, nil)
 
 	mustWrite := func(rel string) string {
 		t.Helper()
@@ -963,6 +971,74 @@ func TestReadTool_Execute_NotFoundSuggestions(t *testing.T) {
 			lines := strings.Split(result.Error, "\n")
 			if len(lines) < 4 || lines[3] != "  "+tt.wantHint {
 				t.Fatalf("expected %q as the first suggestion, got %q", tt.wantHint, result.Error)
+			}
+		})
+	}
+}
+
+func TestReadTool_Execute_ImageFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
+			Read:    config.ReadToolConfig{Enabled: true},
+		},
+	}
+
+	var pngBytes bytes.Buffer
+	if err := png.Encode(&pngBytes, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatalf("encoding png: %v", err)
+	}
+	withExt := filepath.Join(tmpDir, "shot.png")
+	withoutExt := filepath.Join(tmpDir, "shot")
+	for _, path := range []string{withExt, withoutExt} {
+		if err := os.WriteFile(path, pngBytes.Bytes(), 0644); err != nil {
+			t.Fatalf("writing %s: %v", path, err)
+		}
+	}
+
+	models.SetGatewayModalities(map[string]sdk.ModelModalities{
+		"openai/sees": {Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage}, Output: []sdk.Modality{sdk.ModalityText}},
+		"openai/text": {Input: []sdk.Modality{sdk.ModalityText}, Output: []sdk.Modality{sdk.ModalityText}},
+	})
+	defer models.SetGatewayModalities(nil)
+
+	images := &agentdomainmocks.FakeImageService{}
+	images.ReadImageFromFileReturns(&agentdomain.ImageAttachment{MimeType: "image/png", Data: "cGl4ZWxz"}, nil)
+
+	tests := []struct {
+		name       string
+		model      string
+		path       string
+		images     agentdomain.ImageService
+		wantImages int
+	}{
+		{"vision model gets the image", "openai/sees", withExt, images, 1},
+		{"sniffed image without extension", "openai/sees", withoutExt, images, 1},
+		{"text model is sent to ImageDecode", "openai/text", withExt, images, 0},
+		{"no image service is sent to ImageDecode", "openai/sees", withExt, nil, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := NewReadTool(cfg, tt.images)
+			ctx := agentdomain.WithModel(t.Context(), tt.model)
+
+			result, err := tool.Execute(ctx, map[string]any{"file_path": tt.path})
+			if err != nil {
+				t.Fatalf("Execute() failed: %v", err)
+			}
+			if got := len(result.Images); got != tt.wantImages {
+				t.Fatalf("images = %d, want %d (error %q)", got, tt.wantImages, result.Error)
+			}
+			if tt.wantImages == 0 {
+				if result.Success || !strings.Contains(result.Error, ToolImageDecode) {
+					t.Fatalf("want a failure naming %s, got success=%v error=%q", ToolImageDecode, result.Success, result.Error)
+				}
+				return
+			}
+			if !result.Success || result.Images[0].SourcePath != tt.path {
+				t.Fatalf("want success with source %s, got success=%v source=%q", tt.path, result.Success, result.Images[0].SourcePath)
 			}
 		})
 	}
