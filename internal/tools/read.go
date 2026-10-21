@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 )
 
@@ -40,14 +42,17 @@ type ReadTool struct {
 	config    *config.Config
 	enabled   bool
 	formatter BaseFormatter
+	images    agentdomain.ImageService
 }
 
-// NewReadTool creates a new read tool
-func NewReadTool(cfg *config.Config) *ReadTool {
+// NewReadTool creates a new read tool. images reads an image file as an
+// attachment for a model that can see; nil sends every image to ImageDecode.
+func NewReadTool(cfg *config.Config, images agentdomain.ImageService) *ReadTool {
 	return &ReadTool{
 		config:    cfg,
 		enabled:   cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
 		formatter: NewBaseFormatter(ToolRead),
+		images:    images,
 	}
 }
 
@@ -90,13 +95,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 	}
 
 	if t.isImageFile(filePath) {
-		return &agentdomain.ToolExecutionResult{
-			ToolName:  ToolRead,
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "Cannot read image files. Pass the file path directly to image tools instead (e.g. ImageEdit or ImageVariation take a local image path); there is no need to read the bytes first.",
-		}, nil
+		return t.readImage(ctx, args, filePath, start)
 	}
 
 	readResult, err := t.executeRead(filePath, offset, limit)
@@ -461,7 +460,50 @@ func (t *ReadTool) isTextFile(file *os.File) bool {
 	return utf8.Valid(buffer[:n])
 }
 
-// isImageFile checks if a file has an image extension
+// readImage hands an image file to a model that takes images as an attachment
+// the agent loop sends with the next message. A text-only model gets an error
+// pointing at ImageDecode, which describes the image in words instead.
+func (t *ReadTool) readImage(ctx context.Context, args map[string]any, filePath string, start time.Time) (*agentdomain.ToolExecutionResult, error) {
+	fail := func(msg string) (*agentdomain.ToolExecutionResult, error) {
+		return &agentdomain.ToolExecutionResult{
+			ToolName:  ToolRead,
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     msg,
+		}, nil
+	}
+
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fail(fmt.Sprintf("failed to resolve absolute path for %s: %v", filePath, err))
+	}
+	if err := t.validatePathSecurity(absPath); err != nil {
+		return fail(err.Error())
+	}
+	if t.images == nil || !models.SupportsVision(agentdomain.GetModel(ctx)) {
+		return fail(fmt.Sprintf("This is an image and the model cannot see images. Use %s on the path to get a description of it.", ToolImageDecode))
+	}
+
+	attachment, err := t.images.ReadImageFromFile(absPath)
+	if err != nil {
+		return fail(err.Error())
+	}
+	attachment.SourcePath = absPath
+	width, height := imageDimensions(attachment.Data)
+
+	return &agentdomain.ToolExecutionResult{
+		ToolName:  ToolRead,
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(start),
+		Data:      agentdomain.FrameToolResult{Source: absPath, Width: width, Height: height},
+		Images:    []agentdomain.ImageAttachment{*attachment},
+	}, nil
+}
+
+// isImageFile reports whether a file is an image, by its extension or, for a
+// file without one, by sniffing its first bytes.
 func (t *ReadTool) isImageFile(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	supportedExts := map[string]bool{
@@ -471,7 +513,25 @@ func (t *ReadTool) isImageFile(filePath string) bool {
 		".gif":  true,
 		".webp": true,
 	}
-	return supportedExts[ext]
+	if supportedExts[ext] {
+		return true
+	}
+	if ext != "" {
+		return false
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	head := make([]byte, 512)
+	n, err := file.Read(head)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(http.DetectContentType(head[:n]), "image/")
 }
 
 // validateParameters validates offset and limit parameters
@@ -527,6 +587,10 @@ func (t *ReadTool) FormatResult(result *agentdomain.ToolExecutionResult, formatT
 func (t *ReadTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
+	}
+
+	if frame, ok := result.Data.(agentdomain.FrameToolResult); ok {
+		return fmt.Sprintf("Read image %dx%d %s", frame.Width, frame.Height, t.formatter.GetFileName(frame.Source))
 	}
 
 	readResult, ok := result.Data.(*agentdomain.FileReadToolResult)

@@ -157,7 +157,7 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewListShellsTool(cfg, r.shellService))
 	}
 
-	r.register(NewReadTool(cfg))
+	r.register(NewReadTool(cfg, r.imageService))
 	r.register(NewWriteTool(cfg))
 	r.register(NewEditTool(cfg, r))
 	r.register(NewMultiEditTool(cfg, r))

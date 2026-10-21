@@ -10,7 +10,7 @@ description: |-
   - Any lines longer than 2000 characters will be truncated
   - Results are returned using cat -n format, with line numbers starting at 1
   - This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.
-  - This tool cannot read image files. If the user wants to share an image, they should use the @ file reference syntax to attach it directly to their message.
+  - An image file (png, jpg, gif, webp, or a file without an extension that holds an image) is attached to your next message when you can see images. If you cannot, this tool says so: use ImageDecode on the path to get a description of it.
   - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
   - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.
 parameters:
