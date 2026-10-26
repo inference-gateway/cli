@@ -48,8 +48,12 @@ func Call(ctx context.Context, client sdk.Client, model, prompt string, maxToken
 
 // Stream is Call with a live status line on progress: the request streams so
 // a reasoning model's first bytes arrive before the gateway's header timeout,
-// and the bytes seen so far are reported as they come.
+// and the bytes seen so far are reported as they come. The SDK's reader
+// goroutine exits with the context, so Stream owns a cancel for it.
 func Stream(ctx context.Context, client sdk.Client, model, prompt string, maxTokens int, progress io.Writer) (string, *sdk.CompletionUsage, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if client == nil {
 		return "", nil, fmt.Errorf("SDK client not available")
 	}
