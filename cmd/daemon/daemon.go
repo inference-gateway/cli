@@ -284,6 +284,7 @@ func (h bindingHandler) Attach(conn *agui.Conn) {
 	if h.relay != nil {
 		h.relay.Attach(conn)
 	}
+	h.registry.Attach(conn)
 }
 
 func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {

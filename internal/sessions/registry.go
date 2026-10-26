@@ -27,6 +27,7 @@ const (
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
+	frameThreadActivity     = "thread_activity"
 
 	outboundBrowserCommand = "browser_command"
 )
@@ -85,7 +86,8 @@ type workerInterrupt struct {
 // wins each: the resume of a suspended run's interrupts (an incomplete resume
 // is refused with RUN_ERROR) and the approval_response of a panel tool_request.
 // A run a crashed worker left open ends with RUN_ERROR, and worker
-// browser_command frames route to the connected browser extension.
+// browser_command frames route to the connected browser extension. Run
+// state changes broadcast a thread_activity frame to every attached client.
 type Registry struct {
 	launch sessionsdomain.LaunchWorker
 	idle   time.Duration
@@ -99,6 +101,9 @@ type Registry struct {
 	threads   map[sessionsdomain.ThreadKey]*thread
 	subs      map[sessionsdomain.Client]*thread
 	approvals map[string]*thread
+	// all is every client attached to the binding, following or not: the
+	// thread_activity frames reach them all.
+	all map[sessionsdomain.Client]struct{}
 }
 
 // thread is one project dir plus conversation id and the worker running it.
@@ -127,6 +132,7 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 		threads:   make(map[sessionsdomain.ThreadKey]*thread),
 		subs:      make(map[sessionsdomain.Client]*thread),
 		approvals: make(map[string]*thread),
+		all:       make(map[sessionsdomain.Client]struct{}),
 	}
 }
 
@@ -135,6 +141,18 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 // lets pump read the field without the registry lock.
 func (r *Registry) RouteBrowser(relay sessionsdomain.BrowserRelay) {
 	r.browser = relay
+}
+
+// Attach registers a connected client so thread_activity frames reach it even
+// before it follows any thread, and answers with what streams right now - a
+// client that attaches mid-run learns nothing else until the next run state
+// change. Detach drops it again.
+func (r *Registry) Attach(c sessionsdomain.Client) {
+	r.mu.Lock()
+	r.all[c] = struct{}{}
+	frame := r.activityFrame()
+	r.mu.Unlock()
+	c.Deliver(frame)
 }
 
 // Handle routes one client frame. new_session and resume_conversation make
@@ -190,6 +208,7 @@ func (r *Registry) Detach(c sessionsdomain.Client) {
 		t.active = time.Now()
 	}
 	delete(r.subs, c)
+	delete(r.all, c)
 }
 
 // Run stops idle workers until ctx ends, then stops every worker and waits
@@ -427,8 +446,9 @@ func openInterrupts(l workerLine) map[string]struct{} {
 	return ids
 }
 
-// pump delivers each worker line to its targets until the worker exits.
-// browser_command lines do not reach clients: they route through the browser
+// pump delivers each worker line to its targets until the worker exits. A run
+// state change also broadcasts a thread_activity frame to every attached
+// client. browser_command lines do not reach clients: they route through the
 // relay to the extension connection, which answers with a browser_result the
 // worker's Browser tools resolve.
 func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
@@ -437,11 +457,55 @@ func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 			go r.relayBrowserCommand(t, w, line)
 			continue
 		}
-		for _, c := range r.targets(t, line) {
+		targets, activity := r.targets(t, line)
+		for _, c := range targets {
 			c.Deliver(line)
 		}
+		r.deliver(activity)
 	}
 	r.exited(t, w)
+}
+
+// deliver sends one frame to every attached client, followers included. A nil
+// frame is skipped, and Deliver never blocks, so the lock is never held while
+// delivering.
+func (r *Registry) deliver(line []byte) {
+	if line == nil {
+		return
+	}
+	r.mu.Lock()
+	clients := slices.Collect(maps.Keys(r.all))
+	r.mu.Unlock()
+	for _, c := range clients {
+		c.Deliver(line)
+	}
+}
+
+// activityFrame names the threads with an open run, sorted, so clients that
+// follow nothing can still see what streams elsewhere. Called with the lock
+// held.
+func (r *Registry) activityFrame() []byte {
+	threads := make([]threadRun, 0, len(r.threads))
+	for key, t := range r.threads {
+		if t.runID == "" {
+			continue
+		}
+		threads = append(threads, threadRun{ProjectDir: key.ProjectDir, ConversationID: key.ConversationID})
+	}
+	slices.SortFunc(threads, func(a, b threadRun) int {
+		if c := strings.Compare(a.ProjectDir, b.ProjectDir); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ConversationID, b.ConversationID)
+	})
+	data, _ := json.Marshal(map[string]any{"type": frameThreadActivity, "threads": threads})
+	return data
+}
+
+// threadRun names one streaming thread on the wire.
+type threadRun struct {
+	ProjectDir     string `json:"project_dir"`
+	ConversationID string `json:"conversation_id"`
 }
 
 // relayBrowserCommand sends one worker browser_command to the extension and
@@ -490,33 +554,39 @@ func isBrowserCommand(line []byte) bool {
 }
 
 // targets tracks the run and the pending approvals a worker line reveals and
-// returns who gets it. A reply goes to the oldest client waiting for it, a
-// failure before any run to everyone concerned, and the rest to all clients.
-func (r *Registry) targets(t *thread, line []byte) []sessionsdomain.Client {
+// returns who gets it, plus a thread_activity frame to broadcast when the
+// open-run state changed. A reply goes to the oldest client waiting for it, a
+// failure before any run to everyone concerned, and the rest to all clients of
+// the thread.
+func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []byte) {
 	var l workerLine
 	if err := json.Unmarshal(line, &l); err != nil {
 		logger.Debug("sessions dropped an undecodable worker line", "error", err)
-		return nil
+		return nil, nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	t.active = time.Now()
 	key := l.Type
+	var activity []byte
 	switch l.Type {
 	case "RUN_STARTED":
 		t.runID = l.RunID
 		t.interrupts = nil
+		activity = r.activityFrame()
 	case "RUN_FINISHED":
 		t.runID = ""
 		t.interrupts = openInterrupts(l)
+		activity = r.activityFrame()
 	case "RUN_ERROR":
 		t.interrupts = nil
 		if t.runID == "" {
 			concerned := t.takeWaiters()
 			maps.Copy(concerned, t.clients)
-			return slices.Collect(maps.Keys(concerned))
+			return slices.Collect(maps.Keys(concerned)), nil
 		}
 		t.runID = ""
+		activity = r.activityFrame()
 	case frameToolResult:
 		delete(r.approvals, l.ID)
 		key = replyKey(frameToolResult, l.ID)
@@ -525,14 +595,14 @@ func (r *Registry) targets(t *thread, line []byte) []sessionsdomain.Client {
 			id := approvalToolCallID(l.Value)
 			r.approvals[id] = t
 			if requester := t.peek(replyKey(frameToolResult, id)); requester != nil {
-				return []sessionsdomain.Client{requester}
+				return []sessionsdomain.Client{requester}, nil
 			}
 		}
 	}
 	if requester := t.pop(key); requester != nil {
-		return []sessionsdomain.Client{requester}
+		return []sessionsdomain.Client{requester}, activity
 	}
-	return slices.Collect(maps.Keys(t.clients))
+	return slices.Collect(maps.Keys(t.clients)), activity
 }
 
 // exited forgets a worker that is gone. A run it left open ends with
@@ -552,9 +622,11 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 	}
 	concerned := t.takeWaiters()
 	message := "the session worker exited before it answered"
+	var activity []byte
 	if t.runID != "" {
 		maps.Copy(concerned, t.clients)
 		message = "the session worker exited mid-run"
+		activity = r.activityFrame()
 	}
 	line := runError(t.runID, message)
 	t.runID = ""
@@ -566,6 +638,7 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 	for c := range concerned {
 		c.Deliver(line)
 	}
+	r.deliver(activity)
 }
 
 // reap stops the workers of threads nobody follows that have no open run, no
