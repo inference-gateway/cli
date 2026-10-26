@@ -294,8 +294,8 @@ func (c *headlessControl) awaitTurn() bool {
 }
 
 // uiBridge is the headless UINotifier: it forwards the UI notifications a
-// headless client renders (screen recording status, computer-use actions) into
-// the rendered event stream. Notify never blocks the producer; a full buffer
+// headless client renders (screen recording status, computer-use actions,
+// background job changes) into the rendered event stream. Notify never blocks the producer; a full buffer
 // drops the event.
 type uiBridge chan agentdomain.ChatEvent
 
@@ -306,6 +306,9 @@ func (b uiBridge) Notify(event any) {
 		n.Timestamp = time.Now()
 		ev = n
 	case agentdomain.ComputerUseActionEvent:
+		n.Timestamp = time.Now()
+		ev = n
+	case agentdomain.BackgroundTasksChangedEvent:
 		n.Timestamp = time.Now()
 		ev = n
 	default:

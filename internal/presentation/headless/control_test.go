@@ -183,6 +183,11 @@ func TestUIBridge_ForwardsRecordingStatusIntoStream(t *testing.T) {
 		t.Fatalf("first merged event = %#v, want stamped ScreenRecordingStatusEvent{Active: true}", ev)
 	}
 
+	bridge.Notify(agentdomain.BackgroundTasksChangedEvent{})
+	if tasks, ok := recvEvent(t, merged).(agentdomain.BackgroundTasksChangedEvent); !ok || tasks.Timestamp.IsZero() {
+		t.Fatalf("merged event = %#v, want stamped BackgroundTasksChangedEvent", tasks)
+	}
+
 	events <- agentdomain.ChatChunkEvent{Content: "hi"}
 	if _, ok := recvEvent(t, merged).(agentdomain.ChatChunkEvent); !ok {
 		t.Fatal("stream event not forwarded, or the full-buffer notification was not dropped")
