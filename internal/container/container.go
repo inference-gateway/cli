@@ -762,7 +762,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
 	if c.stores != nil {
-		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}, c.clientTimeout()), c.config, c.stores.Conversations, c.modelService)
+		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}, 0), c.config, c.stores.Conversations, c.modelService)
 	}
 
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {

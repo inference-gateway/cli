@@ -96,6 +96,16 @@ type reportMeta struct {
 	Usage      *sdk.CompletionUsage
 }
 
+// Tally is the one-line account of what the report drew on and cost.
+func (m reportMeta) Tally() string {
+	var tokens int64
+	if m.Usage != nil {
+		tokens = m.Usage.TotalTokens
+	}
+	return fmt.Sprintf("(%d tokens · %d tool calls · %d sessions · %d log groups · %d memory facts)",
+		tokens, m.Calls, m.Sessions, m.LogGroups, m.Memory)
+}
+
 // Generate reads the sessions, asks the model to interpret them, and writes the
 // report to ~/.infer/insights. Each step is announced on progress as it starts,
 // because the model call alone can run for minutes.
@@ -129,7 +139,7 @@ func (g *Generator) Generate(ctx context.Context, since time.Time, progress io.W
 
 	_, _ = fmt.Fprintf(progress, "Read %d sessions and %d log groups\n", len(sessions), len(logs.Groups))
 	_, _ = fmt.Fprintf(progress, "Analyzing with %s, can take minutes...\n", model)
-	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
+	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs), progress)
 	if err != nil {
 		return "", "", err
 	}
@@ -149,6 +159,7 @@ func (g *Generator) Generate(ctx context.Context, since time.Time, progress io.W
 		meta.Calls += t.Calls
 		meta.Failures += t.Failures
 	}
+	_, _ = fmt.Fprintln(progress, "\r"+meta.Tally())
 
 	markdown = renderReport(meta, failures, tools, logs, analysis)
 	path, err = writeReport(markdown)
@@ -445,7 +456,7 @@ DATA
 // analyze asks the model to interpret the digest. A reasoning model spends
 // max_tokens thinking before it answers, so the budget has a floor that
 // agent.max_tokens can raise but not lower, and the answer is capped separately.
-func (g *Generator) analyze(ctx context.Context, model, digest string) (string, *sdk.CompletionUsage, error) {
+func (g *Generator) analyze(ctx context.Context, model, digest string, progress io.Writer) (string, *sdk.CompletionUsage, error) {
 	ctx, cancel := context.WithTimeout(ctx, insightsTimeout)
 	defer cancel()
 
@@ -454,7 +465,7 @@ func (g *Generator) analyze(ctx context.Context, model, digest string) (string, 
 		maxTokens = max(g.cfg.Agent.MaxTokens, insightsMinTokens)
 	}
 
-	analysis, usage, err := llm.Call(ctx, g.client, model, insightsPrompt+digest, maxTokens)
+	analysis, usage, err := llm.Stream(ctx, g.client, model, insightsPrompt+digest, maxTokens, progress)
 	if err != nil {
 		if errors.Is(err, llm.ErrTokenBudgetExhausted) {
 			return "", usage, fmt.Errorf("%w; raise agent.max_tokens", err)
