@@ -89,34 +89,26 @@ type workerInterrupt struct {
 // browser_command frames route to the connected browser extension. Run
 // state changes broadcast a thread_activity frame to every attached client.
 type Registry struct {
-	launch sessionsdomain.LaunchWorker
-	idle   time.Duration
-	// browser, wired by the daemon, relays worker browser_command frames to the
-	// extension connection on the AG-UI binding. It is nil until wired.
-	browser sessionsdomain.BrowserRelay
-
-	// ponytail: one lock for the whole registry, per-thread locks if contention shows
+	launch    sessionsdomain.LaunchWorker
+	idle      time.Duration
+	browser   sessionsdomain.BrowserRelay
 	mu        sync.Mutex
 	closed    bool
 	threads   map[sessionsdomain.ThreadKey]*thread
 	subs      map[sessionsdomain.Client]*thread
 	approvals map[string]*thread
-	// all is every client attached to the binding, following or not: the
-	// thread_activity frames reach them all.
-	all map[sessionsdomain.Client]struct{}
+	all       map[sessionsdomain.Client]struct{}
 }
 
 // thread is one project dir plus conversation id and the worker running it.
 // A client follows at most one thread, because bare AG-UI events carry no
 // thread id. The worker is nil until launched and after it exits.
 type thread struct {
-	key     sessionsdomain.ThreadKey
-	opts    sessionsdomain.ThreadOptions
-	worker  sessionsdomain.Worker
-	clients map[sessionsdomain.Client]struct{}
-	waiting map[string][]sessionsdomain.Client
-	// runID is the thread's open run, empty once it ended, and interrupts are
-	// the ones a suspended run waits on.
+	key        sessionsdomain.ThreadKey
+	opts       sessionsdomain.ThreadOptions
+	worker     sessionsdomain.Worker
+	clients    map[sessionsdomain.Client]struct{}
+	waiting    map[string][]sessionsdomain.Client
 	runID      string
 	interrupts map[string]struct{}
 	active     time.Time
