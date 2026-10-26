@@ -13,9 +13,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
@@ -225,6 +228,25 @@ func TestInputView_AddImageAttachmentTokenHasNoIssueRef(t *testing.T) {
 	}
 	if got := len(iv.GetImageAttachments()); got != 2 {
 		t.Errorf("expected 2 tracked attachments, got %d", got)
+	}
+}
+
+func TestInputView_AddImageAttachmentRendersOnce(t *testing.T) {
+	iv := NewInputView(createMockModelService())
+	iv.AddImageAttachment(agentdomain.ImageAttachment{Data: "a", MimeType: "image/png"})
+
+	textPart, err := sdk.NewTextContentPart(iv.GetInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	imagePart, err := sdk.NewImageContentPart("data:image/png;base64,a", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := sdk.NewMessageContent([]sdk.ContentPart{textPart, imagePart})
+
+	if got := formatting.ExtractTextFromContent(content, iv.GetImageAttachments()); got != "[Image 1]" {
+		t.Errorf("expected one pasted image to render one token, got %q", got)
 	}
 }
 

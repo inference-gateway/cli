@@ -87,7 +87,9 @@ func PadText(text string, width int) string {
 	return text + strings.Repeat(" ", max(0, width-ansi.StringWidth(text)))
 }
 
-// ExtractTextFromContent extracts text from potentially multimodal message content
+// ExtractTextFromContent extracts text from potentially multimodal message content.
+// The chat paste inserts a literal "[Image N]" into the user's text before sending, so
+// a generated placeholder is skipped when the text already carries that token.
 func ExtractTextFromContent(content sdk.MessageContent, images []agentdomain.ImageAttachment) string {
 	simpleStr, err := content.AsMessageContent0()
 	if err == nil {
@@ -116,7 +118,10 @@ func ExtractTextFromContent(content sdk.MessageContent, images []agentdomain.Ima
 
 		if imagePart, err := part.AsImageContentPart(); err == nil && imagePart.Type == "image_url" {
 			imageCount++
-			textParts = append(textParts, fmt.Sprintf("[Image %d]", imageCount))
+			imageToken := fmt.Sprintf("[Image %d]", imageCount)
+			if !strings.Contains(strings.Join(textParts, " "), imageToken) {
+				textParts = append(textParts, imageToken)
+			}
 		}
 	}
 
