@@ -238,6 +238,22 @@ with a `RUN_ERROR` that has no `runId`. When a thread's worker exits mid-turn,
 every client of the thread gets a `RUN_ERROR` carrying the open run's `runId`.
 The next `run_agent_input` starts a new worker for the thread.
 
+## Active threads
+
+CLI → client, to every connected client whenever a thread opens or ends a run,
+so a client that follows no thread can still see what streams elsewhere - the
+desktop app runs its threads on its own connections:
+
+```json
+{"type": "thread_activity", "threads": [{"project_dir": "/abs/path/to/project", "conversation_id": "<uuid>"}]}
+```
+
+- `threads` names every thread with an open run, sorted, empty when none. The
+  frame carries no AG-UI events and is advisory: a client that follows a thread
+  ignores it, and one that follows nothing may offer a listed thread to the
+  user and follow it with `resume_conversation` to mirror its stream.
+- Clients that know nothing of this frame ignore it, per the unknown-type rule.
+
 ## Interrupts
 
 A tool call that needs approval or an `AskUserQuestion` form suspends the run:

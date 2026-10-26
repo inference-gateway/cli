@@ -400,3 +400,50 @@ func TestRegistryRoutesWorkerBrowserCommands(t *testing.T) {
 		t.Fatalf("worker A's clients received the browser frames: %q", got)
 	}
 }
+
+// TestRegistryBroadcastsThreadActivity mirrors streaming to a client that
+// follows nothing: the attach answers with what streams right now, every
+// attached client gets a thread_activity frame naming the threads with an open
+// run, and a detached one stops receiving it.
+func TestRegistryBroadcastsThreadActivity(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	a, watcher := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	r.Attach(watcher)
+	if got := delivered(watcher); len(got) != 1 || got[0] != `{"threads":[],"type":"thread_activity"}` {
+		t.Fatalf("watcher got %q on attach, want an empty activity snapshot", got)
+	}
+
+	handle(r, a, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	_, lines := l.worker(0)
+
+	started := `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`
+	lines <- []byte(started)
+	eventually(t, "the watcher to learn of the open run", func() bool {
+		return watcher.DeliverCallCount() >= 2
+	})
+	time.Sleep(20 * time.Millisecond)
+	got := delivered(watcher)
+	if len(got) != 2 || !strings.Contains(got[1], `"type":"thread_activity"`) || !strings.Contains(got[1], `"conversation_id":"conv-1"`) {
+		t.Fatalf("watcher got %q, want a thread_activity naming conv-1", got)
+	}
+
+	lines <- []byte(`{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1","outcome":{"type":"success"}}`)
+	eventually(t, "the watcher to learn the run ended", func() bool {
+		return watcher.DeliverCallCount() >= 3
+	})
+	time.Sleep(20 * time.Millisecond)
+	if got := delivered(watcher); len(got) != 3 || got[2] != `{"threads":[],"type":"thread_activity"}` {
+		t.Fatalf("watcher got %q, want the run end with an empty thread list", got)
+	}
+
+	r.Detach(watcher)
+	lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-2"}`)
+	time.Sleep(20 * time.Millisecond)
+	if n := watcher.DeliverCallCount(); n != 3 {
+		t.Fatalf("a detached watcher got %d frames, want 3", n)
+	}
+	if joined := strings.Join(delivered(a), "\n"); !strings.Contains(joined, started) {
+		t.Fatalf("the follower got %q, want its own run events untouched", joined)
+	}
+}
