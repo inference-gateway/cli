@@ -31,9 +31,7 @@ type JsonlStorage struct {
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
 	groupIndexMu    sync.Mutex
-	// listedIn remembers the directory each conversation a listing surfaced
-	// lives in, so a sibling project's conversation resolves without probing.
-	listedIn sync.Map
+	listedIn        sync.Map
 }
 
 // sessionGroupsFileName is the on-disk index that maps a "group key" to the
