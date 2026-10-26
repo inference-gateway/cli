@@ -169,6 +169,21 @@ func TestExtractTextFromContent(t *testing.T) {
 			want:    "hello [Image 1]",
 		},
 		{
+			name:    "text already carrying the pasted token renders it once",
+			content: multimodalContent(t, textPart(t, "[Image 1]"), imagePart(t)),
+			want:    "[Image 1]",
+		},
+		{
+			name:    "pasted token beside prose stays as typed",
+			content: multimodalContent(t, textPart(t, "[Image 1] look"), imagePart(t)),
+			want:    "[Image 1] look",
+		},
+		{
+			name:    "pasted token suppresses only its own image",
+			content: multimodalContent(t, textPart(t, "[Image 1]"), imagePart(t), imagePart(t)),
+			want:    "[Image 1] [Image 2]",
+		},
+		{
 			name:    "invalid content without images",
 			content: sdk.MessageContent{},
 			want:    "[error extracting content]",
