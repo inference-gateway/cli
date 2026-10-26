@@ -899,7 +899,7 @@ func TestJsonlStorage_ListConversationsAcrossProjects(t *testing.T) {
 	assert.Equal(t, "conv-a", scoped[0].ID)
 
 	entries, meta, err := storeA.LoadConversation(ctx, "conv-b")
-	require.NoError(t, err, "a listed sibling conversation loads from its own store")
+	require.NoError(t, err, "a listed sibling conversation loads from the store the listing found it in")
 	assert.Equal(t, "conv-b", meta.ID)
 	assert.Len(t, entries, len(createTestEntries()))
 

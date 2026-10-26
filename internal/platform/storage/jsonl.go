@@ -31,6 +31,9 @@ type JsonlStorage struct {
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
 	groupIndexMu    sync.Mutex
+	// listedIn remembers the directory each conversation a listing surfaced
+	// lives in, so a sibling project's conversation resolves without probing.
+	listedIn sync.Map
 }
 
 // sessionGroupsFileName is the on-disk index that maps a "group key" to the
@@ -89,16 +92,12 @@ func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 	return s.conversationFilePathIn(s.basePath, conversationID)
 }
 
-// existingConversationFile returns the file of a stored conversation, looked
-// up across the same directories ListConversations walks, so a conversation a
-// listing surfaced from a sibling project store can be read. A conversation
-// found nowhere resolves under the base directory, where it would be created.
+// existingConversationFile returns the file of a stored conversation: the
+// directory a listing surfaced it in, or the base directory where it would be
+// created. No filesystem probe, so an unlisted conversation costs nothing extra.
 func (s *JsonlStorage) existingConversationFile(conversationID string) string {
-	for _, dir := range s.conversationDirs("") {
-		path := s.conversationFilePathIn(dir, conversationID)
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
+	if dir, ok := s.listedIn.Load(conversationID); ok {
+		return s.conversationFilePathIn(dir.(string), conversationID)
 	}
 	return s.conversationFilePath(conversationID)
 }
@@ -336,6 +335,7 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, project string, li
 			if err != nil {
 				continue
 			}
+			s.listedIn.Store(conversationID, dir)
 
 			summaries = append(summaries, convdomain.ConversationSummary{
 				ID:                  metadata.ID,
