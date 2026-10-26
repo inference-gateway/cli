@@ -41,8 +41,14 @@ type ToolApprovalResponseEvent struct {
 // BackgroundTasksChangedEvent signals that a background job's status changed
 // (submitted, signalled, completed, or failed). The supervisor pushes it so the
 // /tasks view and the inline conversation rows refresh on real change instead of
-// polling at render time.
-type BackgroundTasksChangedEvent struct{}
+// polling at render time. It is also a ChatEvent so headless can bridge it into
+// the rendered stream as a backgroundTasks state patch.
+type BackgroundTasksChangedEvent struct {
+	Timestamp time.Time
+}
+
+func (e BackgroundTasksChangedEvent) GetRequestID() string    { return "" }
+func (e BackgroundTasksChangedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // DrainQueueEvent asks the orchestrator to start a fresh agent turn when the
 // agent is idle on the chat view and the shared message queue has content

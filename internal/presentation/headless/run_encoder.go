@@ -195,7 +195,8 @@ func (r *RunEncoder) emitBackgroundTasks(jobs []scheddomain.TrackedJob) {
 }
 
 // snapshotJobs patches the backgroundTasks state so a client's task view stays
-// current after a tool result or a drained queue note.
+// current when a job is submitted or finishes, after a tool result and after a
+// drained queue note.
 func (r *RunEncoder) snapshotJobs() {
 	if r.jobs != nil {
 		r.emitBackgroundTasks(r.jobs())
@@ -297,6 +298,8 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		} else if note, ok := render.QueuedNote(ev); ok {
 			r.emitQueuedMessage(ev, note)
 		}
+		r.snapshotJobs()
+	case agentdomain.BackgroundTasksChangedEvent:
 		r.snapshotJobs()
 	case agentdomain.TodoUpdateChatEvent:
 		r.run.PatchState(agui.StateTodos, ev.Todos)

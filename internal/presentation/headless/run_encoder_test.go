@@ -16,6 +16,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // writeRecordingWriter records every Write call, so tests can assert the
@@ -189,6 +190,30 @@ func TestRunEncoder_EmitsOneWritePerEvent(t *testing.T) {
 	want := []string{"RUN_STARTED", "STATE_SNAPSHOT", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "RUN_FINISHED"}
 	if !slices.Equal(got, want) {
 		t.Errorf("writes = %v, want %v", got, want)
+	}
+}
+
+func TestRunEncoder_SubmittedJobPatchesBackgroundTasks(t *testing.T) {
+	w := &writeRecordingWriter{}
+	jobs := func() []scheddomain.TrackedJob {
+		return []scheddomain.TrackedJob{{
+			Meta:   scheddomain.JobMeta{ID: "j1", Kind: scheddomain.JobKindSubagent, Label: "write docs"},
+			Status: scheddomain.JobRunning,
+		}}
+	}
+	r := NewRunEncoder(w, RunEncoderDeps{Model: "m", Jobs: jobs})
+	r.Start("s1", "run-1")
+	r.Handle(agentdomain.BackgroundTasksChangedEvent{})
+	last := decodeEvents(t, w.writes[len(w.writes)-1])[0]
+	if last.Type != "STATE_DELTA" {
+		t.Fatalf("last event = %s, want a STATE_DELTA patching /backgroundTasks", last.Type)
+	}
+	patch := patches(t, last)
+	if len(patch) != 1 || patch[0].Path != "/backgroundTasks" {
+		t.Fatalf("patches = %#v, want one on /backgroundTasks", patch)
+	}
+	if tasks, _ := patch[0].Value.(map[string]any); tasks["running"] != float64(1) {
+		t.Errorf("running = %v, want 1", patch[0].Value)
 	}
 }
 
