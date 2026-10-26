@@ -89,6 +89,20 @@ func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 	return s.conversationFilePathIn(s.basePath, conversationID)
 }
 
+// existingConversationFile returns the file of a stored conversation, looked
+// up across the same directories ListConversations walks, so a conversation a
+// listing surfaced from a sibling project store can be read. A conversation
+// found nowhere resolves under the base directory, where it would be created.
+func (s *JsonlStorage) existingConversationFile(conversationID string) string {
+	for _, dir := range s.conversationDirs("") {
+		path := s.conversationFilePathIn(dir, conversationID)
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return s.conversationFilePath(conversationID)
+}
+
 // conversationFilePathIn returns the path to a conversation's JSONL file under
 // dir. The ID is reduced to its base name and the result verified to stay
 // under dir, so a crafted ID (e.g. "../../x") can never escape the target
@@ -160,7 +174,7 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	filePath := s.conversationFilePath(conversationID)
+	filePath := s.existingConversationFile(conversationID)
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -415,7 +429,7 @@ func (s *JsonlStorage) DeleteConversation(ctx context.Context, conversationID st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	filePath := s.conversationFilePath(conversationID)
+	filePath := s.existingConversationFile(conversationID)
 	if err := os.Remove(filePath); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
@@ -435,7 +449,7 @@ func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversat
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	filePath := s.conversationFilePath(conversationID)
+	filePath := s.existingConversationFile(conversationID)
 
 	file, err := os.Open(filePath)
 	if err != nil {
