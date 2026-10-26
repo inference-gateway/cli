@@ -31,6 +31,7 @@ type JsonlStorage struct {
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
 	groupIndexMu    sync.Mutex
+	listedIn        sync.Map
 }
 
 // sessionGroupsFileName is the on-disk index that maps a "group key" to the
@@ -87,6 +88,16 @@ func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 // the storage's base directory.
 func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 	return s.conversationFilePathIn(s.basePath, conversationID)
+}
+
+// existingConversationFile returns the file of a stored conversation: the
+// directory a listing surfaced it in, or the base directory where it would be
+// created. No filesystem probe, so an unlisted conversation costs nothing extra.
+func (s *JsonlStorage) existingConversationFile(conversationID string) string {
+	if dir, ok := s.listedIn.Load(conversationID); ok {
+		return s.conversationFilePathIn(dir.(string), conversationID)
+	}
+	return s.conversationFilePath(conversationID)
 }
 
 // conversationFilePathIn returns the path to a conversation's JSONL file under
@@ -160,7 +171,7 @@ func (s *JsonlStorage) LoadConversation(ctx context.Context, conversationID stri
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	filePath := s.conversationFilePath(conversationID)
+	filePath := s.existingConversationFile(conversationID)
 	file, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -322,6 +333,7 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, project string, li
 			if err != nil {
 				continue
 			}
+			s.listedIn.Store(conversationID, dir)
 
 			summaries = append(summaries, convdomain.ConversationSummary{
 				ID:                  metadata.ID,
@@ -415,7 +427,7 @@ func (s *JsonlStorage) DeleteConversation(ctx context.Context, conversationID st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	filePath := s.conversationFilePath(conversationID)
+	filePath := s.existingConversationFile(conversationID)
 	if err := os.Remove(filePath); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("%w: %s", convdomain.ErrConversationNotFound, conversationID)
@@ -435,7 +447,7 @@ func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversat
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	filePath := s.conversationFilePath(conversationID)
+	filePath := s.existingConversationFile(conversationID)
 
 	file, err := os.Open(filePath)
 	if err != nil {

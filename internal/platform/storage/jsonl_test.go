@@ -897,6 +897,14 @@ func TestJsonlStorage_ListConversationsAcrossProjects(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, scoped, 1, "non-empty scope lists only this store's directory")
 	assert.Equal(t, "conv-a", scoped[0].ID)
+
+	entries, meta, err := storeA.LoadConversation(ctx, "conv-b")
+	require.NoError(t, err, "a listed sibling conversation loads from the store the listing found it in")
+	assert.Equal(t, "conv-b", meta.ID)
+	assert.Len(t, entries, len(createTestEntries()))
+
+	_, _, err = storeA.LoadConversation(ctx, "conv-missing")
+	assert.ErrorIs(t, err, convdomain.ErrConversationNotFound)
 }
 
 // newConformanceJsonlStorage returns a jsonl backend rooted in an isolated
