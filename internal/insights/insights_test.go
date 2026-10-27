@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+	llmmocks "github.com/inference-gateway/cli/tests/mocks/llm"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -304,18 +305,20 @@ func TestMemoryIndexAbsentIsHarmless(t *testing.T) {
 	}
 }
 
-// fakeAnalyzer returns a FakeClient serving one canned analysis.
-func fakeAnalyzer(content string, finish sdk.FinishReason) *sdkmocks.FakeClient {
-	client := &sdkmocks.FakeClient{}
-	client.WithOptionsReturns(client)
-	client.WithMiddlewareOptionsReturns(client)
-	client.GenerateContentReturns(&sdk.CreateChatCompletionResponse{
-		Choices: []sdk.ChatCompletionChoice{{
-			FinishReason: finish,
-			Message:      sdk.Message{Content: sdk.NewMessageContent(content)},
-		}},
-	}, nil)
-	return client
+// fakeAnalyzer returns a FakeCompleter answering one canned analysis, or the
+// error a spent budget or an empty answer produces.
+func fakeAnalyzer(content string, finish sdk.FinishReason) *llmmocks.FakeCompleter {
+	completer := &llmmocks.FakeCompleter{}
+	resp := llm.Response{Content: content}
+	switch {
+	case strings.TrimSpace(content) != "":
+		completer.CompleteReturns(resp, nil)
+	case finish == sdk.Length:
+		completer.CompleteReturns(resp, fmt.Errorf("spent: %w", llm.ErrTokenBudgetExhausted))
+	default:
+		completer.CompleteReturns(resp, llm.ErrEmptyResponse)
+	}
+	return completer
 }
 
 // TestAnalyzeUsesAgentMaxTokens pins the floor: agent.max_tokens can raise the
@@ -334,19 +337,16 @@ func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := fakeAnalyzer("done", sdk.Stop)
-			g := &Generator{client: client, cfg: tt.cfg}
+			completer := fakeAnalyzer("done", sdk.Stop)
+			g := &Generator{llm: completer, cfg: tt.cfg}
 
-			if _, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST"); err != nil {
+			if _, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard); err != nil {
 				t.Fatal(err)
 			}
 
-			opts := client.WithOptionsArgsForCall(0)
-			if opts == nil || opts.MaxTokens == nil {
-				t.Fatalf("no max_tokens sent")
-			}
-			if *opts.MaxTokens != tt.wantToken {
-				t.Errorf("max_tokens = %d, want %d", *opts.MaxTokens, tt.wantToken)
+			_, req := completer.CompleteArgsForCall(0)
+			if req.MaxTokens != tt.wantToken {
+				t.Errorf("max_tokens = %d, want %d", req.MaxTokens, tt.wantToken)
 			}
 		})
 	}
@@ -354,9 +354,9 @@ func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
 
 // TestBudgetErrorNamesTheKnob keeps the failure actionable.
 func TestBudgetErrorNamesTheKnob(t *testing.T) {
-	g := &Generator{client: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
+	g := &Generator{llm: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
 
-	_, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
+	_, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard)
 	if err == nil {
 		t.Fatal("expected a budget error")
 	}
@@ -367,8 +367,8 @@ func TestBudgetErrorNamesTheKnob(t *testing.T) {
 		t.Errorf("error must name the knob to raise, got: %v", err)
 	}
 
-	empty := &Generator{client: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
-	_, _, err = empty.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
+	empty := &Generator{llm: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
+	_, _, err = empty.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard)
 	if err == nil || errors.Is(err, llm.ErrTokenBudgetExhausted) {
 		t.Errorf("an unrelated empty response must not carry the budget remedy, got: %v", err)
 	}
@@ -381,9 +381,9 @@ func TestAnalysisIsCapped(t *testing.T) {
 	for i := range 500 {
 		fmt.Fprintf(&long, "line %d\n", i)
 	}
-	g := &Generator{client: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
+	g := &Generator{llm: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
 
-	analysis, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST")
+	analysis, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,5 +505,14 @@ func TestReportRecordsWhatItCost(t *testing.T) {
 	flat := renderReport(reportMeta{Generated: time.Now(), Usage: &sdk.CompletionUsage{TotalTokens: 10}}, nil, nil, logDigest{}, "x")
 	if strings.Contains(flat, "analysis_reasoning_tokens") {
 		t.Errorf("a zero reasoning breakdown must be omitted, not printed as 0:\n%s", flat)
+	}
+}
+
+// TestTallyIsOneLine pins the account printed on progress after the analysis.
+func TestTallyIsOneLine(t *testing.T) {
+	meta := reportMeta{Sessions: 8, Calls: 485, LogGroups: 25, Memory: 3, Usage: &sdk.CompletionUsage{TotalTokens: 3210}}
+	want := "(3210 tokens · 485 tool calls · 8 sessions · 25 log groups · 3 memory facts)"
+	if got := meta.Tally(); got != want {
+		t.Errorf("Tally() = %q, want %q", got, want)
 	}
 }

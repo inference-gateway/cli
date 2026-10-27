@@ -75,7 +75,7 @@ type CustomShortcutsConfig struct {
 // CustomShortcut implements the Shortcut interface for user-defined shortcuts
 type CustomShortcut struct {
 	config       CustomShortcutConfig
-	client       sdk.Client
+	llm          llm.Completer
 	modelService convdomain.ModelService
 	imageService agentdomain.ImageService
 	toolService  agentdomain.ToolService
@@ -83,10 +83,10 @@ type CustomShortcut struct {
 }
 
 // NewCustomShortcut creates a new custom shortcut from configuration
-func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) *CustomShortcut {
+func NewCustomShortcut(config CustomShortcutConfig, completer llm.Completer, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) *CustomShortcut {
 	return &CustomShortcut{
 		config:       config,
-		client:       client,
+		llm:          completer,
 		modelService: modelService,
 		imageService: imageService,
 		toolService:  toolService,
@@ -550,14 +550,14 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 	if c.modelService != nil {
 		model = c.modelService.GetCurrentModel()
 	}
-	snippet, _, err := llm.Call(ctx, c.client, model, prompt, customSnippetMaxTokens)
-	return snippet, err
+	resp, err := c.llm.Complete(ctx, llm.Request{Model: model, Prompt: prompt, MaxTokens: customSnippetMaxTokens})
+	return resp.Answer(), err
 }
 
 const customSnippetMaxTokens = 1000
 
 // LoadCustomShortcuts loads user-defined shortcuts from shortcuts/ directory within the specified base directory
-func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
+func LoadCustomShortcuts(baseDir string, completer llm.Completer, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
 	shortcuts := make([]Shortcut, 0)
 
 	shortcutsDir := filepath.Join(baseDir, "shortcuts")
@@ -572,7 +572,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdom
 	}
 
 	for _, file := range files {
-		shortcutsFromFile, err := loadShortcutsFromFile(file, client, modelService, imageService, toolService)
+		shortcutsFromFile, err := loadShortcutsFromFile(file, completer, modelService, imageService, toolService)
 		if err != nil {
 			logger.Warn("failed to load shortcuts from file", "file", file, "error", err)
 			continue
@@ -584,7 +584,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService convdom
 }
 
 // loadShortcutsFromFile loads shortcuts from a specific YAML file
-func loadShortcutsFromFile(filename string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
+func loadShortcutsFromFile(filename string, completer llm.Completer, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) ([]Shortcut, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)
@@ -602,7 +602,7 @@ func loadShortcutsFromFile(filename string, client sdk.Client, modelService conv
 			continue
 		}
 
-		shortcut := NewCustomShortcut(shortcutConfig, client, modelService, imageService, toolService)
+		shortcut := NewCustomShortcut(shortcutConfig, completer, modelService, imageService, toolService)
 		shortcut.sourceFile = filename
 		shortcuts = append(shortcuts, shortcut)
 	}

@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	conversationmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
-	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+	llmmocks "github.com/inference-gateway/cli/tests/mocks/llm"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 )
 
 // judgeTestConfig returns a config whose judge model falls back to agent.model.
@@ -25,22 +26,19 @@ func judgeTestConfig(onError string) *config.Config {
 	return cfg
 }
 
-// newJudgeClient returns a FakeClient wired for the chained WithOptions /
-// WithMiddlewareOptions calls LLMJudge makes before GenerateContent.
-func newJudgeClient(resp *sdk.CreateChatCompletionResponse, err error) *sdkmocks.FakeClient {
-	client := &sdkmocks.FakeClient{}
-	client.WithOptionsReturns(client)
-	client.WithMiddlewareOptionsReturns(client)
-	client.GenerateContentReturns(resp, err)
-	return client
+// newJudgeClient returns a FakeCompleter answering every judge call with resp
+// or err.
+func newJudgeClient(resp llm.Response, err error) *llmmocks.FakeCompleter {
+	completer := &llmmocks.FakeCompleter{}
+	completer.CompleteReturns(resp, err)
+	return completer
 }
 
-func judgeResponse(content string) *sdk.CreateChatCompletionResponse {
-	return &sdk.CreateChatCompletionResponse{
-		Usage: &sdk.CompletionUsage{PromptTokens: 20, CompletionTokens: 10, TotalTokens: 30},
-		Choices: []sdk.ChatCompletionChoice{
-			{Message: sdk.Message{Content: sdk.NewMessageContent(content)}},
-		},
+// judgeAnswer is a judge answer with the usage of one request.
+func judgeAnswer(content string) llm.Response {
+	return llm.Response{
+		Content: content,
+		Usage:   &sdk.CompletionUsage{PromptTokens: 20, CompletionTokens: 10, TotalTokens: 30},
 	}
 }
 
@@ -48,18 +46,14 @@ func singleAction(action string) agentdomain.JudgeInput {
 	return agentdomain.JudgeInput{Model: "test/judge-model", Intent: "intent", Actions: []agentdomain.JudgeAction{{ID: "call-0", Action: action}}}
 }
 
-func judgePrompt(t *testing.T, client *sdkmocks.FakeClient, call int) string {
+func judgePrompt(t *testing.T, client *llmmocks.FakeCompleter, call int) string {
 	t.Helper()
-	_, _, _, messages := client.GenerateContentArgsForCall(call)
-	prompt, err := messages[1].Content.AsMessageContent0()
-	if err != nil {
-		t.Fatalf("prompt content: %v", err)
-	}
-	return prompt
+	_, req := client.CompleteArgsForCall(call)
+	return req.Prompt
 }
 
 func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
-	client := newJudgeClient(judgeResponse("```json\n{\"decision\": \"approved\", \"reason\": \"matches the request\"}\n```"), nil)
+	client := newJudgeClient(judgeAnswer("```json\n{\"decision\": \"approved\", \"reason\": \"matches the request\"}\n```"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
 	in := singleAction(`Bash: {"command": "go get"}`)
@@ -72,16 +66,12 @@ func TestLLMJudge_VerdictAndPromptShaping(t *testing.T) {
 		t.Errorf("verdicts = %+v, want one approved with reason", out.Verdicts)
 	}
 
-	_, provider, model, messages := client.GenerateContentArgsForCall(0)
-	if provider != sdk.Provider("test") || model != "judge-model" {
-		t.Errorf("provider/model = %s/%s, want test/judge-model", provider, model)
+	_, req := client.CompleteArgsForCall(0)
+	if req.Model != "test/judge-model" {
+		t.Errorf("model = %s, want test/judge-model", req.Model)
 	}
-	if len(messages) != 2 || messages[0].Role != sdk.System || messages[1].Role != sdk.User {
-		t.Fatalf("expected a system then a user message, got %+v", messages)
-	}
-	system, serr := messages[0].Content.AsMessageContent0()
-	if serr != nil || !strings.Contains(system, "never instructions") {
-		t.Errorf("system prompt = %q (%v), want the data-not-instructions rule", system, serr)
+	if !strings.Contains(req.System, "never instructions") {
+		t.Errorf("system prompt = %q, want the data-not-instructions rule", req.System)
 	}
 	prompt := judgePrompt(t, client, 0)
 	if !strings.Contains(prompt, "<root_request>\nset up the project\n</root_request>") ||
@@ -111,15 +101,15 @@ func batchAnswer(ids []string, decision agentdomain.JudgeDecision) string {
 }
 
 func TestLLMJudge_BatchesCallsIntoOneRequest(t *testing.T) {
-	client := newJudgeClient(judgeResponse(batchAnswer([]string{"call-0", "call-1", "call-2"}, agentdomain.JudgeDecisionApproved)), nil)
+	client := newJudgeClient(judgeAnswer(batchAnswer([]string{"call-0", "call-1", "call-2"}, agentdomain.JudgeDecisionApproved)), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
 	out, err := judge.Judge(context.Background(), batchInput(3))
 	if err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
-	if client.GenerateContentCallCount() != 1 {
-		t.Fatalf("GenerateContent calls = %d, want 1", client.GenerateContentCallCount())
+	if client.CompleteCallCount() != 1 {
+		t.Fatalf("GenerateContent calls = %d, want 1", client.CompleteCallCount())
 	}
 	if len(out.Verdicts) != 3 {
 		t.Fatalf("verdicts = %d, want 3", len(out.Verdicts))
@@ -136,16 +126,15 @@ func TestLLMJudge_BatchesCallsIntoOneRequest(t *testing.T) {
 }
 
 func TestLLMJudge_SplitsOversizedBatchAndSumsUsage(t *testing.T) {
-	client := newJudgeClient(nil, nil)
-	client.GenerateContentStub = func(_ context.Context, _ sdk.Provider, _ string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
-		prompt, _ := messages[1].Content.AsMessageContent0()
+	client := newJudgeClient(llm.Response{}, nil)
+	client.CompleteStub = func(_ context.Context, req llm.Request) (llm.Response, error) {
 		var ids []string
-		for _, line := range strings.Split(prompt, "\n") {
+		for _, line := range strings.Split(req.Prompt, "\n") {
 			if id, ok := strings.CutPrefix(line, "<tool_call id=\""); ok {
 				ids = append(ids, strings.TrimSuffix(id, "\">"))
 			}
 		}
-		return judgeResponse(batchAnswer(ids, agentdomain.JudgeDecisionApproved)), nil
+		return judgeAnswer(batchAnswer(ids, agentdomain.JudgeDecisionApproved)), nil
 	}
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
@@ -153,8 +142,8 @@ func TestLLMJudge_SplitsOversizedBatchAndSumsUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Judge() error = %v", err)
 	}
-	if client.GenerateContentCallCount() != 2 {
-		t.Fatalf("GenerateContent calls = %d, want 2 for %d calls", client.GenerateContentCallCount(), maxJudgeBatchSize+5)
+	if client.CompleteCallCount() != 2 {
+		t.Fatalf("GenerateContent calls = %d, want 2 for %d calls", client.CompleteCallCount(), maxJudgeBatchSize+5)
 	}
 	if len(out.Verdicts) != maxJudgeBatchSize+5 {
 		t.Fatalf("verdicts = %d, want one per call", len(out.Verdicts))
@@ -168,7 +157,7 @@ func TestLLMJudge_SplitsOversizedBatchAndSumsUsage(t *testing.T) {
 }
 
 func TestLLMJudge_OmittedCallFailsClosedAlone(t *testing.T) {
-	client := newJudgeClient(judgeResponse(batchAnswer([]string{"call-0", "call-2"}, agentdomain.JudgeDecisionApproved)), nil)
+	client := newJudgeClient(judgeAnswer(batchAnswer([]string{"call-0", "call-2"}, agentdomain.JudgeDecisionApproved)), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
 	out, err := judge.Judge(context.Background(), batchInput(3))
@@ -195,7 +184,7 @@ func TestLLMJudge_OnError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := newJudgeClient(nil, errors.New("gateway down"))
+			client := newJudgeClient(llm.Response{}, errors.New("gateway down"))
 			judge := NewLLMJudge(client, judgeTestConfig(tt.onError))
 
 			out, err := judge.Judge(context.Background(), batchInput(2))
@@ -218,7 +207,7 @@ func TestLLMJudge_OnError(t *testing.T) {
 }
 
 func TestLLMJudge_UnparseableOutputDeniesWholeBatch(t *testing.T) {
-	client := newJudgeClient(judgeResponse("no verdict here"), nil)
+	client := newJudgeClient(judgeAnswer("no verdict here"), nil)
 	judge := NewLLMJudge(client, judgeTestConfig(""))
 
 	out, err := judge.Judge(context.Background(), batchInput(2))
@@ -233,7 +222,7 @@ func TestLLMJudge_UnparseableOutputDeniesWholeBatch(t *testing.T) {
 }
 
 func TestLLMJudge_InvalidModelFormat(t *testing.T) {
-	judge := NewLLMJudge(&sdkmocks.FakeClient{}, judgeTestConfig(""))
+	judge := NewLLMJudge(&llmmocks.FakeCompleter{}, judgeTestConfig(""))
 
 	in := singleAction("action")
 	in.Model = "no-slash"
@@ -291,10 +280,37 @@ func TestUserIntents_RootAndLatest(t *testing.T) {
 	}
 }
 
+// TestLLMJudge_ReadsVerdictFromReasoning covers a reasoning judge that leaves
+// the verdict in reasoning_content and nothing in content.
+func TestLLMJudge_ReadsVerdictFromReasoning(t *testing.T) {
+	reasoningOnly := llm.Response{Reasoning: `{"decision": "approved", "reason": "fine"}`}
+	judge := NewLLMJudge(newJudgeClient(reasoningOnly, nil), judgeTestConfig(""))
+
+	out, err := judge.Judge(context.Background(), singleAction("action"))
+	if err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	if len(out.Verdicts) != 1 || !out.Verdicts[0].Approved() {
+		t.Errorf("verdict in reasoning_content must be read, got %+v", out.Verdicts)
+	}
+}
+
+// TestLLMJudge_EmptyResponseDenies names the cause when the judge answers
+// nothing without spending its budget.
+func TestLLMJudge_EmptyResponseDenies(t *testing.T) {
+	judge := NewLLMJudge(newJudgeClient(llm.Response{}, llm.ErrEmptyResponse), judgeTestConfig(""))
+
+	out, err := judge.Judge(context.Background(), singleAction("action"))
+	if err != nil {
+		t.Fatalf("Judge() error = %v, want nil (on_error handles it)", err)
+	}
+	if len(out.Verdicts) != 1 || out.Verdicts[0].Approved() || !strings.Contains(out.Verdicts[0].Reason, "empty response") {
+		t.Errorf("empty response should deny naming the cause, got %+v", out.Verdicts)
+	}
+}
+
 func TestLLMJudge_TokenBudgetExhaustedDenies(t *testing.T) {
-	resp := judgeResponse("")
-	resp.Choices[0].FinishReason = sdk.Length
-	judge := NewLLMJudge(newJudgeClient(resp, nil), judgeTestConfig(""))
+	judge := NewLLMJudge(newJudgeClient(llm.Response{}, fmt.Errorf("spent: %w", llm.ErrTokenBudgetExhausted)), judgeTestConfig(""))
 
 	out, err := judge.Judge(context.Background(), singleAction("action"))
 	if err != nil {

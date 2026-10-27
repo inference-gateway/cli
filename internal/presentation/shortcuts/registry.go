@@ -8,10 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	sdk "github.com/inference-gateway/sdk"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -40,12 +39,12 @@ func NewRegistry() *Registry {
 // built-in one (registered first), which keeps an init-seeded file like
 // ~/.infer/shortcuts/a2a.yaml from hiding /agents. The shadow warning fires
 // once per process per name, not once per registry.
-func (r *Registry) LoadCustomShortcuts(baseDirs []string, client sdk.Client, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
+func (r *Registry) LoadCustomShortcuts(baseDirs []string, completer llm.Completer, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
 	for _, baseDir := range baseDirs {
-		customShortcuts, err := LoadCustomShortcuts(baseDir, client, modelService, imageService, toolService)
+		customShortcuts, err := LoadCustomShortcuts(baseDir, completer, modelService, imageService, toolService)
 		if err != nil {
 			return fmt.Errorf("failed to load custom shortcuts from %s: %w", baseDir, err)
 		}

@@ -50,20 +50,20 @@ var digitRun = regexp.MustCompile(`\d+`)
 // interprets them, because a model asked to both count and interpret will
 // confidently invent the counts.
 type Generator struct {
-	client sdk.Client
+	llm    llm.Completer
 	cfg    *config.Config
 	store  storage.ConversationStorage
 	models convdomain.ModelService
 }
 
-func New(client sdk.Client, cfg *config.Config, store storage.ConversationStorage, models convdomain.ModelService) *Generator {
-	return &Generator{client: client, cfg: cfg, store: store, models: models}
+func New(completer llm.Completer, cfg *config.Config, store storage.ConversationStorage, models convdomain.ModelService) *Generator {
+	return &Generator{llm: completer, cfg: cfg, store: store, models: models}
 }
 
 // Available reports whether the generator has everything it needs. The metadata
 // registry builds shortcuts with nil dependencies and storage can be disabled.
 func (g *Generator) Available() bool {
-	return g != nil && g.store != nil && g.client != nil
+	return g != nil && g.store != nil && g.llm != nil
 }
 
 type sessionDigest struct {
@@ -94,6 +94,16 @@ type reportMeta struct {
 	LogRecords int
 	LogGroups  int
 	Usage      *sdk.CompletionUsage
+}
+
+// Tally is the one-line account of what the report drew on and cost.
+func (m reportMeta) Tally() string {
+	var tokens int64
+	if m.Usage != nil {
+		tokens = m.Usage.TotalTokens
+	}
+	return fmt.Sprintf("(%d tokens · %d tool calls · %d sessions · %d log groups · %d memory facts)",
+		tokens, m.Calls, m.Sessions, m.LogGroups, m.Memory)
 }
 
 // Generate reads the sessions, asks the model to interpret them, and writes the
@@ -129,7 +139,7 @@ func (g *Generator) Generate(ctx context.Context, since time.Time, progress io.W
 
 	_, _ = fmt.Fprintf(progress, "Read %d sessions and %d log groups\n", len(sessions), len(logs.Groups))
 	_, _ = fmt.Fprintf(progress, "Analyzing with %s, can take minutes...\n", model)
-	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs))
+	analysis, usage, err := g.analyze(ctx, model, buildDigest(sessions, failures, tools, memory, logs), progress)
 	if err != nil {
 		return "", "", err
 	}
@@ -149,6 +159,7 @@ func (g *Generator) Generate(ctx context.Context, since time.Time, progress io.W
 		meta.Calls += t.Calls
 		meta.Failures += t.Failures
 	}
+	_, _ = fmt.Fprintln(progress, "\r"+meta.Tally())
 
 	markdown = renderReport(meta, failures, tools, logs, analysis)
 	path, err = writeReport(markdown)
@@ -445,7 +456,7 @@ DATA
 // analyze asks the model to interpret the digest. A reasoning model spends
 // max_tokens thinking before it answers, so the budget has a floor that
 // agent.max_tokens can raise but not lower, and the answer is capped separately.
-func (g *Generator) analyze(ctx context.Context, model, digest string) (string, *sdk.CompletionUsage, error) {
+func (g *Generator) analyze(ctx context.Context, model, digest string, progress io.Writer) (string, *sdk.CompletionUsage, error) {
 	ctx, cancel := context.WithTimeout(ctx, insightsTimeout)
 	defer cancel()
 
@@ -454,19 +465,24 @@ func (g *Generator) analyze(ctx context.Context, model, digest string) (string, 
 		maxTokens = max(g.cfg.Agent.MaxTokens, insightsMinTokens)
 	}
 
-	analysis, usage, err := llm.Call(ctx, g.client, model, insightsPrompt+digest, maxTokens)
+	resp, err := g.llm.Complete(ctx, llm.Request{
+		Model:     model,
+		Prompt:    insightsPrompt + digest,
+		MaxTokens: maxTokens,
+		Progress:  progress,
+	})
+	if errors.Is(err, llm.ErrTokenBudgetExhausted) {
+		return "", resp.Usage, fmt.Errorf("%w; raise agent.max_tokens", err)
+	}
 	if err != nil {
-		if errors.Is(err, llm.ErrTokenBudgetExhausted) {
-			return "", usage, fmt.Errorf("%w; raise agent.max_tokens", err)
-		}
-		return "", usage, err
+		return "", resp.Usage, err
 	}
 
-	analysis, marker := formatting.CapInstructions(analysis, insightsMaxAnalysisLines, insightsMaxAnalysisChars)
+	analysis, marker := formatting.CapInstructions(resp.Answer(), insightsMaxAnalysisLines, insightsMaxAnalysisChars)
 	if marker != "" {
 		analysis += "\n\n" + marker
 	}
-	return analysis, usage, nil
+	return analysis, resp.Usage, nil
 }
 
 func renderReport(meta reportMeta, failures []toolFailure, tools []telemetry.ToolStat, logs logDigest, analysis string) string {
