@@ -7,10 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/exec"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -117,17 +115,14 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	if opts.MaxTurns > 0 {
 		env = append(env, "INFER_AGENT_MAX_TURNS="+strconv.Itoa(opts.MaxTurns))
 	}
-	for _, key := range slices.Sorted(maps.Keys(opts.Env)) {
-		if strings.HasPrefix(key, inferEnvPrefix) {
-			env = append(env, key+"="+opts.Env[key])
+	if sub := opts.Subagent; sub != nil {
+		env = append(env, "INFER_PARENT_SESSION_ID="+sub.Parent, "INFER_INVOKED_BY=agent", "INFER_SUBAGENT_DEPTH="+strconv.Itoa(sub.Depth))
+		if len(sub.Tools) > 0 {
+			env = append(env, "INFER_SUBAGENT_TOOLS="+strings.Join(sub.Tools, ","))
 		}
 	}
 	return env
 }
-
-// inferEnvPrefix is the only prefix a client's env override may carry, so a
-// frame never reaches PATH or the like.
-const inferEnvPrefix = "INFER_"
 
 // read forwards stdout lines until the worker exits. Lines are unbounded on
 // purpose: a long conversation's MESSAGES_SNAPSHOT is one line, and a capped

@@ -373,17 +373,21 @@ func (t *AgentTool) openThread(ctx context.Context, spec AgentTaskSpec, sessionI
 	return openSubagentThread(ctx, dial, projectDir, sessionID, t.threadOptions(ctx, spec), onTurn, onFrame)
 }
 
-// threadOptions are the subagent's thread options: the subprocess env as
-// INFER_ overrides, with the agent mode on its own field.
+// threadOptions are the subagent's thread options: the task's model, mode and
+// system prompt, and who spawned it with what tools. The daemon's worker
+// inherits the rest, the gateway mock switch included, from the daemon itself.
 func (t *AgentTool) threadOptions(ctx context.Context, spec AgentTaskSpec) sessionsdomain.ThreadOptions {
-	opts := sessionsdomain.ThreadOptions{Model: spec.Model, Env: make(map[string]string)}
+	opts := sessionsdomain.ThreadOptions{
+		Model:        spec.Model,
+		SystemPrompt: spec.SystemPrompt,
+		Subagent: &sessionsdomain.Subagent{
+			Parent: agentdomain.GetSessionID(ctx),
+			Depth:  currentSubagentDepth() + 1,
+			Tools:  spec.Tools,
+		},
+	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		opts.Mode = spec.Mode.ModeKey()
-	}
-	for _, kv := range t.subagentExtraEnv(ctx, spec) {
-		if key, value, ok := strings.Cut(kv, "="); ok && key != scheddomain.EnvSubagentAgentMode {
-			opts.Env[key] = value
-		}
 	}
 	return opts
 }

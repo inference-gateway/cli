@@ -182,9 +182,9 @@ func TestHeadlessSubagentJob_ThreadKeepAliveTurns(t *testing.T) {
 	if len(opens) != 1 || opens[0]["id"] != "subagent-p-c" || opens[0]["project_dir"] == "" {
 		t.Fatalf("the thread must be opened once by its id in the project dir, got %v", opens)
 	}
-	env, _ := opens[0]["env"].(map[string]any)
-	if env["INFER_SUBAGENT_DEPTH"] != "1" || env["INFER_INVOKED_BY"] != "agent" {
-		t.Fatalf("the thread must carry the subagent env, got %v", env)
+	sub, _ := opens[0]["subagent"].(map[string]any)
+	if sub["depth"] != float64(1) || sub["parent"] == nil {
+		t.Fatalf("the thread must say whose subagent it is and how deep, got %v", sub)
 	}
 }
 

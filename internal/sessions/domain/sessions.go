@@ -21,9 +21,18 @@ type ThreadOptions struct {
 	CustomInstructions string   `json:"custom_instructions,omitempty"`
 	SandboxDirectories []string `json:"sandbox_directories,omitempty"`
 	MaxTurns           int      `json:"max_turns,omitempty"`
-	// Env holds INFER_ overrides the worker launches with, for the options
-	// that have no field of their own. Keys without the prefix are dropped.
-	Env map[string]string `json:"env,omitempty"`
+	// Subagent marks a thread another thread's Agent tool spawned.
+	Subagent *Subagent `json:"subagent,omitempty"`
+}
+
+// Subagent is what a spawned thread knows about its spawn: the parent it
+// reports to, its depth under the top-level session for the depth guard, and
+// the tool allowlist a Markdown agent preset gave it (nil inherits the
+// project's tools).
+type Subagent struct {
+	Parent string   `json:"parent"`
+	Depth  int      `json:"depth"`
+	Tools  []string `json:"tools,omitempty"`
 }
 
 // Worker is one running session worker. Send writes one frame line to its
