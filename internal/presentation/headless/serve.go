@@ -3,6 +3,7 @@ package headless
 import (
 	"cmp"
 	"context"
+	"io"
 	"os"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	computer "github.com/inference-gateway/cli/internal/computer"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // serve runs the headless --serve worker: one agent run per run input read on
@@ -37,13 +40,19 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 // agent run over it as one AG-UI run. A run that fails to start still renders
 // as RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract.
 func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, notes *startupNotes) {
+	runErr := serveTurn(ctx, svc, ctl, notifications, req, notes)
+	reportSubagentTurn(os.Stdout, svc.GetConversationRepository(), svc.GetMessageQueue(), req.RequestID, runErr)
+}
+
+// serveTurn renders the turn as one run, a direct call or an agent run, and
+// returns the error it ended with.
+func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, notes *startupNotes) error {
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
 	drained := drainQueue(ctx, svc.GetMessageQueue())
 	if fn, direct, err := queuedDirectCall(drained); direct {
-		runServeDirect(ctx, svc, ctl, req, fn, err)
-		return
+		return runServeDirect(ctx, svc, ctl, req, fn, err)
 	}
 	persistQueuedMessages(drained, repo)
 	history := repo.GetMessages()
@@ -68,9 +77,23 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 		}
 	}
 
-	outcome := sessionOutcome(encoder.Finish())
+	runErr := encoder.Finish()
+	outcome := sessionOutcome(runErr)
 	endSpan(outcome)
 	rec.RecordSession("headless", outcome, time.Since(started))
+	return runErr
+}
+
+// reportSubagentTurn tells the parent Agent tool following this thread that a
+// turn ended, as the CUSTOM subagent_turn event carrying what the keep-alive
+// turn line carries. A worker no parent spawned reports nothing.
+func reportSubagentTurn(w io.Writer, repo convdomain.ConversationRepository, queue convdomain.MessageQueue, sessionID string, runErr error) {
+	if os.Getenv(scheddomain.EnvSubagentParentSession) == "" {
+		return
+	}
+	line := scheddomain.SubagentTurnLine{Type: scheddomain.SubagentTurnLineType, SubagentResultFile: turnResult(repo, sessionID, runErr)}
+	line.Done = queue.IsEmpty()
+	agui.WriteCustom(w, scheddomain.SubagentTurnLineType, line)
 }
 
 // queuedDirectCall reports whether the drained turn is one `!cmd` or
@@ -88,19 +111,21 @@ func queuedDirectCall(drained []convdomain.QueuedMessage) (fn sdk.ChatCompletion
 }
 
 // runServeDirect renders a direct task as one run of its own: the tool call
-// and its result, or the parse error the task failed on.
-func runServeDirect(ctx context.Context, svc Services, ctl *headlessControl, req agentdomain.AgentRequest, fn sdk.ChatCompletionMessageToolCallFunction, err error) {
+// and its result, or the parse error the task failed on. It returns the error
+// the turn ended with.
+func runServeDirect(ctx context.Context, svc Services, ctl *headlessControl, req agentdomain.AgentRequest, fn sdk.ChatCompletionMessageToolCallFunction, err error) error {
 	repo := svc.GetConversationRepository()
 	if err != nil {
 		encoder := NewRunEncoder(os.Stdout, RunEncoderDeps{Model: req.Model, Repo: repo, Interrupt: ctl})
 		encoder.Start(req.RequestID, uuid.New().String())
 		encoder.Handle(agentdomain.ChatErrorEvent{RequestID: req.RequestID, Timestamp: time.Now(), Error: err})
-		_ = encoder.Finish()
-		return
+		return encoder.Finish()
 	}
 	if err := runDirectCall(ctx, "ag-ui", svc.GetToolService(), repo, req.RequestID, req.Model, nil, fn); err != nil {
 		logger.Warn("direct task failed", "error", err, "session_id", req.RequestID)
+		return err
 	}
+	return nil
 }
 
 // moveQueuedMessages persists every queued message into the conversation, the way

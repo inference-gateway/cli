@@ -20,10 +20,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// headlessSubagentJob adapts a headless subagent (an `infer headless` subprocess) to
-// a BackgroundJob: Run executes it and reports the outcome. Structurally it is a
-// subprocess like a shell - the supervisor owns the goroutine and the completion
-// notification, replacing the SubagentPoller's headless path.
+// headlessSubagentJob adapts a headless subagent to a BackgroundJob: Run drives
+// it and reports the outcome. The subagent is a thread on the daemon the job
+// follows as a client, so every client of the daemon sees the same turns, or
+// an `infer headless` subprocess when no binding is configured.
 type headlessSubagentJob struct {
 	tool      *AgentTool
 	spec      AgentTaskSpec
@@ -47,6 +47,7 @@ type headlessSubagentJob struct {
 	output     string
 	outcome    AgentSubResult
 	live       scheddomain.SubagentRunStats
+	thread     *subagentThread
 	stdinWrite *os.File
 	idle       *time.Timer
 	idleSince  time.Time
@@ -62,12 +63,15 @@ const idleKillGrace = 10 * time.Second
 // subagent is Silent to the supervisor. Without a pipe it is a one-shot job.
 func newKeepAliveSubagentJob(tool *AgentTool, spec AgentTaskSpec, state *scheddomain.SubagentState, runCtx context.Context, cancel context.CancelFunc) *headlessSubagentJob {
 	job := &headlessSubagentJob{tool: tool, spec: spec, state: state, runCtx: runCtx, cancelRun: cancel}
-	r, w, err := os.Pipe()
-	if err != nil {
-		logger.Warn("subagent stdin pipe failed, running one turn only", "subagent_id", state.ID, "error", err)
-		return job
+	if !tool.threadRouted() {
+		r, w, err := os.Pipe()
+		if err != nil {
+			logger.Warn("subagent stdin pipe failed, running one turn only", "subagent_id", state.ID, "error", err)
+			return job
+		}
+		job.stdinRead, job.stdinWrite = r, w
 	}
-	job.keepAlive, job.stdinRead, job.stdinWrite = true, r, w
+	job.keepAlive = true
 	job.wrapUp = tool.config.Tools.Agent.WrapUpMessage
 	if secs := tool.config.Tools.Agent.IdleTimeout; secs > 0 {
 		job.idleTimeout = time.Duration(secs) * time.Second
@@ -105,6 +109,9 @@ func (j *headlessSubagentJob) Meta() scheddomain.JobMeta {
 // supervisor's context to it, so Wind/Stop/shutdown also cancel the subprocess
 // (via exec.CommandContext). Run returns promptly on either cancellation.
 func (j *headlessSubagentJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	if j.tool.threadRouted() {
+		return j.runThread(ctx, emit)
+	}
 	if j.keepAlive {
 		return j.runKeepAlive(ctx, emit)
 	}
@@ -126,7 +133,13 @@ func (j *headlessSubagentJob) Run(ctx context.Context, emit func(scheddomain.Job
 	j.output = answer
 	j.outcome = sub
 	j.mu.Unlock()
+	return j.finishOnce()
+}
 
+// finishOnce closes out a blocking subagent from its recorded outcome: the
+// tracker status and the result the fan-in collects.
+func (j *headlessSubagentJob) finishOnce() agentdomain.ToolExecutionResult {
+	sub := j.result()
 	status := scheddomain.SubagentCompleted
 	if !sub.Success {
 		status = scheddomain.SubagentFailed
@@ -144,6 +157,73 @@ func (j *headlessSubagentJob) Run(ctx context.Context, emit func(scheddomain.Job
 		Duration:  time.Since(j.state.StartedAt),
 		Data:      sub,
 	}
+}
+
+// runThread runs the subagent as a thread on the daemon: the task is its first
+// turn, each reported turn lands in completeTurn, and the job ends when the
+// thread is left - after the first done turn for a blocking subagent, on
+// hang-up, idle close or cancel for a keep-alive one.
+func (j *headlessSubagentJob) runThread(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+	j.emit = emit
+	defer context.AfterFunc(ctx, func() { j.cancelRun(); j.hangUp() })()
+	if !j.keepAlive {
+		defer j.signalDone()
+	}
+	logger.Debug("subagent thread starting", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "keep_alive", j.keepAlive)
+
+	thread, err := j.tool.openThread(j.runCtx, j.spec, j.state.SessionID, j.threadTurn, j.tallyFrame)
+	if err != nil {
+		return j.threadExit(fmt.Errorf("opening the subagent's thread: %w", err))
+	}
+	j.mu.Lock()
+	j.thread = thread
+	j.mu.Unlock()
+	if err := thread.run(j.spec.Description); err != nil {
+		thread.stop()
+		return j.threadExit(err)
+	}
+	select {
+	case <-thread.done():
+	case <-j.runCtx.Done():
+		thread.stop()
+		<-thread.done()
+	}
+	return j.threadExit(thread.closeErr())
+}
+
+// threadTurn records one turn the worker reported. A keep-alive subagent
+// announces it, a blocking one leaves the thread once its first turn is done.
+func (j *headlessSubagentJob) threadTurn(turn scheddomain.SubagentResultFile) {
+	if j.keepAlive {
+		j.completeTurn(turn)
+		return
+	}
+	var err error
+	if turn.Error != "" {
+		err = fmt.Errorf("%s", turn.Error)
+	}
+	j.mu.Lock()
+	j.output = turn.FinalAssistant
+	j.outcome = toSubResult(j.spec, j.state.SessionID, turn.FinalAssistant, err)
+	j.outcome.Stats = turn.Stats
+	thread := j.thread
+	j.mu.Unlock()
+	if turn.Done && thread != nil {
+		thread.stop()
+	}
+}
+
+// threadExit turns the end of the thread into the job's outcome.
+func (j *headlessSubagentJob) threadExit(err error) agentdomain.ToolExecutionResult {
+	if j.keepAlive {
+		return j.exitResult(j.Output(), nil, err)
+	}
+	if err != nil {
+		j.mu.Lock()
+		j.outcome = toSubResult(j.spec, j.state.SessionID, j.output, err)
+		j.mu.Unlock()
+	}
+	return j.finishOnce()
 }
 
 // runKeepAlive runs the child with its stdin held open. Each turn line the
@@ -221,7 +301,7 @@ func (j *headlessSubagentJob) closeIdle() {
 func (j *headlessSubagentJob) hangUpIdleLocked() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	if j.closing || j.stdinWrite == nil {
+	if j.closing || !j.openLocked() {
 		return ""
 	}
 	j.closing = true
@@ -247,18 +327,10 @@ func (j *headlessSubagentJob) send(text string) error {
 func (j *headlessSubagentJob) writeFollowUp(text string) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	if j.closing || j.stdinWrite == nil {
+	if j.closing || !j.openLocked() {
 		return fmt.Errorf("subagent %s has exited and accepts no more messages", j.label())
 	}
-	frame := runInputFrame{Type: ipc.RunAgentInputFrameType, Input: agui.RunAgentInput{
-		ThreadID: j.state.SessionID, RunID: uuid.NewString(),
-		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: text}},
-	}}
-	data, err := json.Marshal(frame)
-	if err != nil {
-		return err
-	}
-	if _, err := j.stdinWrite.Write(append(data, '\n')); err != nil {
+	if err := j.writeTurnLocked(text); err != nil {
 		return fmt.Errorf("write to subagent %s: %w", j.label(), err)
 	}
 	if j.idle != nil {
@@ -268,7 +340,34 @@ func (j *headlessSubagentJob) writeFollowUp(text string) error {
 	return nil
 }
 
-// runInputFrame is the stdin frame that runs a message as the child's next turn.
+// writeTurnLocked hands the child its next turn: a run on its thread, or the
+// run_agent_input line on its stdin.
+func (j *headlessSubagentJob) writeTurnLocked(text string) error {
+	if j.thread != nil {
+		return j.thread.run(text)
+	}
+	frame := runInputFrame{Type: ipc.RunAgentInputFrameType, Input: agui.RunAgentInput{
+		ThreadID: j.state.SessionID, RunID: uuid.NewString(),
+		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: text}},
+	}}
+	data, err := json.Marshal(frame)
+	if err != nil {
+		return err
+	}
+	_, err = j.stdinWrite.Write(append(data, '\n'))
+	return err
+}
+
+// openLocked reports whether the child still takes turns: its thread is
+// followed or its stdin is open.
+func (j *headlessSubagentJob) openLocked() bool {
+	if j.thread != nil {
+		return j.thread.alive()
+	}
+	return j.stdinWrite != nil
+}
+
+// runInputFrame is the frame that runs a message as the child's next turn.
 type runInputFrame struct {
 	Type  string             `json:"type"`
 	Input agui.RunAgentInput `json:"input"`
@@ -333,7 +432,8 @@ func (j *headlessSubagentJob) IdleSince() time.Time {
 	return j.idleSince
 }
 
-// hangUp closes the child's stdin once so it exits after its current turn.
+// hangUp leaves the child's thread, or closes its stdin so it exits after its
+// current turn. Safe to call more than once.
 func (j *headlessSubagentJob) hangUp() {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -341,6 +441,9 @@ func (j *headlessSubagentJob) hangUp() {
 }
 
 func (j *headlessSubagentJob) hangUpLocked() {
+	if j.thread != nil {
+		j.thread.stop()
+	}
 	if j.stdinWrite != nil {
 		_ = j.stdinWrite.Close()
 		j.stdinWrite = nil
@@ -405,6 +508,43 @@ func (j *headlessSubagentJob) tally(line []byte) {
 	}
 }
 
+// threadStatsFrame is what the live tally reads from one frame of the thread:
+// a tool result, or a terminal event's session usage.
+type threadStatsFrame struct {
+	Type  string            `json:"type"`
+	Usage []agui.TokenUsage `json:"usage"`
+}
+
+// tallyFrame adds one frame of the running subagent's thread to its live
+// stats. The terminal event's usage is the session total, so it replaces.
+// ponytail: a tool result frame does not say whether the call failed, so every
+// one counts as succeeded until the turn's own stats arrive.
+func (j *headlessSubagentJob) tallyFrame(frame []byte) {
+	var f threadStatsFrame
+	if err := json.Unmarshal(frame, &f); err != nil {
+		return
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	switch f.Type {
+	case "TOOL_CALL_RESULT":
+		j.live.ToolsSucceeded++
+	case "RUN_FINISHED", "RUN_ERROR":
+		for _, u := range f.Usage {
+			j.live.InputTokens = tokenCount(u.InputTokens)
+			j.live.OutputTokens = tokenCount(u.OutputTokens)
+			j.live.CachedTokens = tokenCount(u.CachedInputTokens)
+		}
+	}
+}
+
+func tokenCount(n *int64) int {
+	if n == nil {
+		return 0
+	}
+	return int(*n)
+}
+
 // cachedTokens is the prompt-cache hit count of one step, zero when the
 // provider reported none.
 func cachedTokens(usage *sdk.CompletionUsage) int {
@@ -447,7 +587,7 @@ func (j *headlessSubagentJob) Wind(_ context.Context, sig scheddomain.WindSignal
 func (j *headlessSubagentJob) acceptsInput() bool {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	return j.keepAlive && !j.closing && j.stdinWrite != nil
+	return j.keepAlive && !j.closing && j.openLocked()
 }
 
 // Close removes the subagent from the tracker on reap.

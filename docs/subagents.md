@@ -116,10 +116,19 @@ file sets none, the normal resolution order applies (per-task model,
 
 ## Headless Subagents
 
-With `tools.agent.mode: headless` (the default) a delegated subagent runs as an
-`infer headless --keep-alive` subprocess whose stdin the parent holds open. The
-task is its first turn, and the subagent stays alive idle after it so the parent
-can talk to it without respawning and losing its context:
+With `tools.agent.mode: headless` (the default) a delegated subagent runs as a
+thread on `infer daemon`: the parent opens the session
+`subagent-<parent id>-<child id>` over the daemon's AG-UI binding, the daemon
+runs it in its own `infer headless --serve` worker, and the parent sends each
+message as a turn. Because the daemon owns the worker, any client of the daemon
+can follow the subagent live - the desktop app opens it from the Agents list
+and sees every turn as it streams. This needs the binding configured
+(`daemon.binding` in `daemon.yaml`, or the `browser_use` extension backend).
+Without it the parent falls back to spawning `infer headless --keep-alive`
+itself, with the same behaviour but no live transcript elsewhere.
+
+The task is the subagent's first turn, and the subagent stays alive idle after
+it so the parent can talk to it without respawning and losing its context:
 
 - The parent receives one `[Subagent Completed: <label>]` note per finished turn,
   carrying that turn's final message and the run stats. A turn that ended in an
@@ -137,7 +146,12 @@ can talk to it without respawning and losing its context:
   `INFER_TOOLS_AGENT_IDLE_TIMEOUT` overrides it. There is no `[Subagent Idle]`
   warning for a headless subagent: every turn reports done, so the completion
   note is the cue that it awaits a follow-up.
-- `CloseSubagent` stops an idle or running headless subagent at once.
+- A tool call that needs approval is declined: a headless subagent has no
+  approver, so the parent cancels the interrupt and the subagent carries on
+  without that call.
+- `CloseSubagent` stops an idle or running headless subagent at once. On the
+  daemon the parent leaves the thread, and the daemon stops the idle worker
+  after its own idle timeout.
 - An idle subagent does not keep a headless parent alive: a one-shot
   `infer headless` run that delegated work exits once its own turn is done.
 - `tools.agent.wait: true` (blocking fan-in) is unchanged: a blocking subagent

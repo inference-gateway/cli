@@ -21,6 +21,7 @@ import (
 	computer "github.com/inference-gateway/cli/internal/computer"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
@@ -84,7 +85,7 @@ func TestToolDefinitionsGolden(t *testing.T) {
 func isolateToolEnvironment(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv(tools.SubagentToolsEnv, "")
+	t.Setenv(scheddomain.EnvSubagentTools, "")
 	t.Setenv("INFER_SUBAGENT_DEPTH", "")
 	t.Chdir(t.TempDir())
 }

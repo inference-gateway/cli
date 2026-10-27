@@ -12,6 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Service implements agentdomain.ToolService over the registry.
@@ -30,9 +31,9 @@ func NewService(cfg *config.Config, registry *Registry) *Service {
 		config:   cfg,
 	}
 	// A named Markdown subagent receives its tool allowlist through the
-	// SubagentToolsEnv channel; when set, only those tools are advertised to
+	// EnvSubagentTools channel; when set, only those tools are advertised to
 	// the model and accepted for execution.
-	if raw := os.Getenv(SubagentToolsEnv); raw != "" {
+	if raw := os.Getenv(scheddomain.EnvSubagentTools); raw != "" {
 		s.allowlist = make(map[string]bool)
 		for _, name := range strings.Split(raw, ",") {
 			if name = strings.TrimSpace(name); name != "" {

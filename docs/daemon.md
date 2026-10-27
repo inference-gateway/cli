@@ -72,6 +72,11 @@ Workers speak the binding's vocabulary on stdio, so the daemon relays frames wit
 them. A worker nobody follows stops after 10 idle minutes. A worker that exits mid-turn ends its run
 with `RUN_ERROR` for every client of the thread, and the next `run_agent_input` starts a new one.
 
+A worker's headless subagents are threads too: the worker opens
+`subagent-<parent id>-<child id>` over the binding as a client, so the daemon runs the subagent in
+a worker of its own and the desktop can follow it live. Without a configured binding the worker
+spawns the subagent itself instead.
+
 Scheduled jobs and heartbeat wake-ups do not use workers. Each runs as a one-shot `infer headless`
 inside the daemon, one process per run, and no client follows it.
 

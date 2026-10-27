@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
@@ -30,6 +32,42 @@ type BindingConfig struct {
 	// Token is the shared secret clients must present in their hello.
 	// Empty falls back to browser_use.extension.token.
 	Token string `yaml:"token" mapstructure:"token"`
+}
+
+// Binding is the AG-UI binding as the config resolves it: daemon.yaml's own
+// values, with browser_use.extension's port and token as the fallback, and
+// on when the daemon switch or the extension backend needs it.
+type Binding struct {
+	Enabled bool
+	Port    int
+	Token   string
+}
+
+// Addr is the loopback address a client dials.
+func (b Binding) Addr() string {
+	return fmt.Sprintf("127.0.0.1:%d", b.Port)
+}
+
+// Dialable reports whether a client can reach the binding: it is on and has
+// a token to present.
+func (b Binding) Dialable() bool {
+	return b.Enabled && b.Token != ""
+}
+
+// Binding resolves the AG-UI binding from daemon.yaml and browser_use.yaml.
+func (c *Config) Binding() Binding {
+	b := Binding{
+		Enabled: c.Daemon.Binding.Enabled || c.BrowserUse.Enabled && c.BrowserUse.Backend == BrowserBackendExtension,
+		Port:    c.Daemon.Binding.Port,
+		Token:   c.Daemon.Binding.Token,
+	}
+	if b.Port <= 0 {
+		b.Port = c.BrowserUse.Extension.EffectivePort()
+	}
+	if b.Token == "" {
+		b.Token = c.BrowserUse.Extension.Token
+	}
+	return b
 }
 
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml

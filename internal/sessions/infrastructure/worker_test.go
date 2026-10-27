@@ -30,6 +30,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				CustomInstructions: "use tabs",
 				SandboxDirectories: []string{"/work/proj", "/tmp/with space"},
 				MaxTurns:           7,
+				Subagent:           &sessionsdomain.Subagent{Parent: "parent-1", Depth: 1, Tools: []string{"Read", "Grep"}},
 			},
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1", "--model", "openai/gpt-4o", "--mode", "plan"},
 			wantEnv: []string{
@@ -39,6 +40,10 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS=use tabs",
 				"INFER_TOOLS_SANDBOX_DIRECTORIES=/work/proj\n/tmp/with space",
 				"INFER_AGENT_MAX_TURNS=7",
+				"INFER_PARENT_SESSION_ID=parent-1",
+				"INFER_INVOKED_BY=agent",
+				"INFER_SUBAGENT_DEPTH=1",
+				"INFER_SUBAGENT_TOOLS=Read,Grep",
 			},
 		},
 	}

@@ -16,6 +16,7 @@ import (
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -114,6 +115,16 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	}
 	if opts.MaxTurns > 0 {
 		env = append(env, "INFER_AGENT_MAX_TURNS="+strconv.Itoa(opts.MaxTurns))
+	}
+	if sub := opts.Subagent; sub != nil {
+		env = append(env,
+			scheddomain.EnvSubagentParentSession+"="+sub.Parent,
+			scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent,
+			scheddomain.EnvSubagentDepth+"="+strconv.Itoa(sub.Depth),
+		)
+		if len(sub.Tools) > 0 {
+			env = append(env, scheddomain.EnvSubagentTools+"="+strings.Join(sub.Tools, ","))
+		}
 	}
 	return env
 }
