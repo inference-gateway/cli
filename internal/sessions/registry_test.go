@@ -349,6 +349,41 @@ func TestRegistryReapsIdleWorkers(t *testing.T) {
 	}
 }
 
+// TestRegistryKeepsWorkersWithBackgroundJobs leaves a thread whose worker
+// reported a running background job: the reaper waits until the worker's
+// backgroundTasks state says the job is done.
+func TestRegistryKeepsWorkersWithBackgroundJobs(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, 20*time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		r.Run(ctx)
+		close(done)
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
+
+	left := &sessionsmocks.FakeClient{}
+	handle(r, left, `{"type":"new_session","project_dir":"/a"}`)
+	worker, lines := l.worker(0)
+	lines <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
+	eventually(t, "the snapshot reply", func() bool { return left.DeliverCallCount() == 1 })
+	lines <- []byte(`{"type":"STATE_DELTA","delta":[{"op":"add","path":"/backgroundTasks","value":{"running":1,"jobs":[]}}]}`)
+	eventually(t, "the state delta", func() bool { return left.DeliverCallCount() == 2 })
+	r.Detach(left)
+
+	time.Sleep(60 * time.Millisecond)
+	if worker.StopCallCount() != 0 {
+		t.Fatal("a worker with a running background job was reaped")
+	}
+
+	lines <- []byte(`{"type":"STATE_DELTA","delta":[{"op":"add","path":"/backgroundTasks","value":{"running":0,"jobs":[]}}]}`)
+	eventually(t, "the idle worker to stop", func() bool { return worker.StopCallCount() == 1 })
+}
+
 // TestRegistryRoutesWorkerBrowserCommands sends browser_command lines from two
 // workers: each routes through the relay and the browser_result carrying the
 // command's id goes back to the worker that asked, while the thread's clients

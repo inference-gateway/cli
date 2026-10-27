@@ -69,7 +69,8 @@ project's `.infer/` config, storage, skills and sandbox apply. Thread options a 
 directories, max turns) become the worker's flags and `INFER_` env.
 
 Workers speak the binding's vocabulary on stdio, so the daemon relays frames without translating
-them. A worker nobody follows stops after 10 idle minutes. A worker that exits mid-turn ends its run
+them. A worker nobody follows stops 30 seconds after the turn comes back to the user with no run
+open, no reply pending and no background job still running. A worker that exits mid-turn ends its run
 with `RUN_ERROR` for every client of the thread, and the next `run_agent_input` starts a new one.
 
 A worker's headless subagents are threads too: the worker opens

@@ -137,7 +137,7 @@ func TestThreadChat_ArmIdleDetach(t *testing.T) {
 	chat := newRenderChat(t, cm, &channelmocks.FakeChannel{}, nil)
 
 	chat.mu.Lock()
-	chat.active = time.Now().Add(-2 * sessionsdomain.IdleTimeout) // backdate under the lock
+	chat.active = time.Now().Add(-2 * sessionsdomain.ChannelFollowTimeout)
 	chat.mu.Unlock()
 
 	chat.detachIdle() // the grace expired while the chat sat silent
