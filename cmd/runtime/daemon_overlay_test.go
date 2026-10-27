@@ -109,39 +109,3 @@ channels:
 	require.False(t, Cfg.Channels.Telegram.Enabled)
 	require.Empty(t, Cfg.Channels.Telegram.BotToken)
 }
-
-func TestGetEffectiveChannelsConfigPath_PrefersProject(t *testing.T) {
-	withHermeticEnv(t)
-
-	require.NoError(t, os.MkdirAll(config.ConfigDirName, 0755))
-	projectPath := config.DefaultChannelsPath
-	require.NoError(t, os.WriteFile(projectPath, []byte("---\nenabled: true\n"), 0644))
-
-	got := sidecarPath(config.ChannelsFileName)
-	require.Equal(t, projectPath, got)
-}
-
-func TestGetEffectiveChannelsConfigPath_FallsBackToUserspace(t *testing.T) {
-	withHermeticEnv(t)
-
-	projectDir := t.TempDir()
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(projectDir))
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-
-	homeDir := os.Getenv("HOME")
-	userPath := filepath.Join(homeDir, config.ConfigDirName, config.ChannelsFileName)
-	require.NoError(t, os.MkdirAll(filepath.Dir(userPath), 0755))
-	require.NoError(t, os.WriteFile(userPath, []byte("---\nenabled: true\n"), 0644))
-
-	got := sidecarPath(config.ChannelsFileName)
-	require.Equal(t, userPath, got)
-}
-
-func TestGetEffectiveChannelsConfigPath_NeitherExists(t *testing.T) {
-	withHermeticEnv(t)
-
-	got := sidecarPath(config.ChannelsFileName)
-	require.Equal(t, config.DefaultChannelsPath, got)
-}

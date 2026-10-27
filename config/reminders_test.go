@@ -8,6 +8,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -22,7 +23,7 @@ func TestSaveLoadReminders_RoundTrip(t *testing.T) {
 	if err := config.SaveReminders(path, original); err != nil {
 		t.Fatalf("SaveReminders: %v", err)
 	}
-	loaded, err := config.LoadReminders(path)
+	loaded, err := configutils.LoadYAML(path, "reminders", config.DefaultRemindersConfig)
 	if err != nil {
 		t.Fatalf("LoadReminders: %v", err)
 	}
@@ -33,7 +34,7 @@ func TestSaveLoadReminders_RoundTrip(t *testing.T) {
 }
 
 func TestLoadReminders_MissingFileReturnsDefaults(t *testing.T) {
-	loaded, err := config.LoadReminders(filepath.Join(t.TempDir(), "nope.yaml"))
+	loaded, err := configutils.LoadYAML(filepath.Join(t.TempDir(), "nope.yaml"), "reminders", config.DefaultRemindersConfig)
 	if err != nil {
 		t.Fatalf("LoadReminders on missing file: %v", err)
 	}
@@ -310,42 +311,6 @@ func TestRemindersDue_OnFailure(t *testing.T) {
 	}
 }
 
-// ParseReminders lets embedded consumers (INFER_REMINDERS_CONFIG) supply the
-// reminders config inline instead of writing reminders.yaml; it expands env
-// references in the body like the file loader.
-func TestParseReminders(t *testing.T) {
-	cfg, err := config.ParseReminders([]byte(`enabled: true
-reminders:
-  - name: fail-nudge
-    hook: post_tool
-    trigger: on_failure
-    text: boom
-`))
-	if err != nil {
-		t.Fatalf("ParseReminders(valid): %v", err)
-	}
-	if !cfg.Enabled || len(cfg.Reminders) != 1 ||
-		cfg.Reminders[0].Trigger != config.ReminderTriggerOnFailure || cfg.Reminders[0].Hook != agentdomain.HookPostTool {
-		t.Fatalf("unexpected parse result: %+v", cfg)
-	}
-	if err := cfg.Validate(); err != nil {
-		t.Errorf("parsed config should validate: %v", err)
-	}
-
-	if _, err := config.ParseReminders([]byte("enabled: true\nreminders: [unterminated")); err == nil {
-		t.Error("malformed YAML should error")
-	}
-
-	t.Setenv("REMINDER_TEXT_FIXTURE", "expanded-text")
-	exp, err := config.ParseReminders([]byte("enabled: true\nreminders:\n  - name: n\n    text: ${REMINDER_TEXT_FIXTURE}\n"))
-	if err != nil {
-		t.Fatalf("ParseReminders(env): %v", err)
-	}
-	if len(exp.Reminders) != 1 || exp.Reminders[0].Text != "expanded-text" {
-		t.Fatalf("env expansion failed: %+v", exp.Reminders)
-	}
-}
-
 func TestMergeWithDefaults_AppendsNew(t *testing.T) {
 	cfg := config.RemindersConfig{
 		Enabled: true,
@@ -461,23 +426,6 @@ func TestMergeWithDefaults_PreservesEnabled(t *testing.T) {
 	merged := cfg.MergeWithDefaults()
 	if merged.Enabled {
 		t.Error("merged config should keep Enabled=false from the receiver")
-	}
-}
-
-func TestParseReminders_ReplaceIsDefault(t *testing.T) {
-	cfg, err := config.ParseReminders([]byte(`enabled: true
-reminders:
-  - name: only-this
-    text: only this reminder
-`))
-	if err != nil {
-		t.Fatalf("ParseReminders: %v", err)
-	}
-	if cfg.Merge {
-		t.Error("merge should default to false when not specified")
-	}
-	if len(cfg.Reminders) != 1 || cfg.Reminders[0].Name != "only-this" {
-		t.Fatalf("expected only the supplied reminder, got %+v", cfg.Reminders)
 	}
 }
 

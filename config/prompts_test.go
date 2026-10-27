@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 // Guards against accidental deletions of default prompts. Every prompt
@@ -71,8 +72,6 @@ func checkPromptsValidYAML(t *testing.T, cfg *config.PromptsConfig) {
 }
 
 func TestLoadPrompts(t *testing.T) {
-	defaults := config.DefaultPromptsConfig()
-
 	tests := []struct {
 		name  string
 		yaml  string
@@ -103,24 +102,6 @@ init:
 `,
 			check: checkPromptsValidYAML,
 		},
-		{
-			name: "partial yaml backfills unset prompts",
-			yaml: `---
-agent:
-  system_prompt: only this field is set
-`,
-			check: func(t *testing.T, cfg *config.PromptsConfig) {
-				if cfg.Agent.SystemPrompt != "only this field is set" {
-					t.Errorf("Expected user override to be preserved, got %q", cfg.Agent.SystemPrompt)
-				}
-				if cfg.Agent.ModeAdjustmentPlan != "" {
-					t.Errorf("unset mode adjustments must not be backfilled (built-ins live in the reminder guidance), got %q", cfg.Agent.ModeAdjustmentPlan)
-				}
-				if cfg.Git.CommitMessage.SystemPrompt != defaults.Git.CommitMessage.SystemPrompt {
-					t.Errorf("Expected unset commit prompt to be backfilled with default, got %q", cfg.Git.CommitMessage.SystemPrompt)
-				}
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -132,12 +113,12 @@ agent:
 				}
 			}
 
-			cfg, err := config.LoadPrompts(configPath)
+			cfg, err := configutils.LoadYAML(configPath, "prompts", config.DefaultPromptsConfig)
 			if err != nil {
-				t.Fatalf("LoadPrompts() failed: %v", err)
+				t.Fatalf("LoadYAML() failed: %v", err)
 			}
 			if cfg == nil {
-				t.Fatal("LoadPrompts() returned nil config")
+				t.Fatal("LoadYAML() returned nil config")
 			}
 			tt.check(t, cfg)
 		})
@@ -167,9 +148,9 @@ func TestSavePrompts(t *testing.T) {
 			path: []string{"prompts.yaml"},
 			cfg:  roundTrip,
 			check: func(t *testing.T, path string) {
-				loaded, err := config.LoadPrompts(path)
+				loaded, err := configutils.LoadYAML(path, "prompts", config.DefaultPromptsConfig)
 				if err != nil {
-					t.Fatalf("LoadPrompts() after save failed: %v", err)
+					t.Fatalf("LoadYAML() after save failed: %v", err)
 				}
 				if loaded.Agent.SystemPrompt != roundTrip.Agent.SystemPrompt {
 					t.Errorf("agent.system_prompt not preserved, got %q", loaded.Agent.SystemPrompt)

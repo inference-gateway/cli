@@ -87,12 +87,6 @@ func DefaultJudgeConfig() *JudgeConfig {
 	}
 }
 
-// LoadJudge reads judge.yaml from disk. When the file is missing it returns
-// the in-code defaults so callers can treat absence as "use defaults".
-func LoadJudge(path string) (*JudgeConfig, error) {
-	return configutils.LoadYAML(path, "judge", DefaultJudgeConfig)
-}
-
 // SaveJudge writes the judge configuration to disk, creating any missing
 // parent directories.
 func SaveJudge(path string, cfg *JudgeConfig) error {

@@ -141,11 +141,11 @@ func testChatDefaults(t *testing.T, cfg *Config) {
 	if cfg.Agent.Model != "" {
 		t.Errorf("Expected default model to be empty, got %q", cfg.Agent.Model)
 	}
-	if cfg.Prompts.Agent.SystemPrompt != "" {
-		t.Errorf("Expected DefaultConfig to leave cfg.Prompts empty, got %q", cfg.Prompts.Agent.SystemPrompt)
+	if cfg.Prompts.Agent.SystemPrompt != DefaultPromptsConfig().Agent.SystemPrompt {
+		t.Errorf("Expected DefaultConfig to carry the default prompts, got %q", cfg.Prompts.Agent.SystemPrompt)
 	}
 	if cfg.Prompts.Agent.CustomInstructions != "" {
-		t.Errorf("Expected DefaultConfig to leave cfg.Prompts empty, got %q", cfg.Prompts.Agent.CustomInstructions)
+		t.Errorf("Expected DefaultConfig to leave custom instructions empty, got %q", cfg.Prompts.Agent.CustomInstructions)
 	}
 }
 
@@ -325,12 +325,6 @@ func validateCompleteConfig(t *testing.T, cfg *Config) {
 	if !cfg.Logging.Debug {
 		t.Error("Expected debug to be true in complete config")
 	}
-	if cfg.Tools.WebSearch.Enabled {
-		t.Error("Expected the legacy tools: block in config.yaml to be ignored")
-	}
-	if cfg.Tools.WebSearch.MaxResults != 0 {
-		t.Errorf("Expected the tools section to load empty from config.yaml (it lives in tools.yaml), got %v", cfg.Tools.WebSearch)
-	}
 	if cfg.Agent.Model != "openai/gpt-5" {
 		t.Errorf("Expected default model to be 'openai/gpt-5', got %q", cfg.Agent.Model)
 	}
@@ -355,26 +349,6 @@ func TestSaveConfig(t *testing.T) {
 		validator func(t *testing.T, cfg *Config)
 	}{
 		{
-			name: "tools settings are not written into config.yaml",
-			setupFunc: func(cfg *Config) {
-				cfg.Tools.WebSearch.Enabled = false
-				cfg.Tools.WebSearch.MaxResults = 25
-				cfg.Tools.WebSearch.Engines = []string{"duckduckgo"}
-			},
-			validator: func(t *testing.T, cfg *Config) {
-				if !cfg.Tools.WebSearch.Enabled {
-					t.Error("Expected WebSearch to keep its default (true); the tools section lives in tools.yaml, not config.yaml")
-				}
-				if cfg.Tools.WebSearch.MaxResults != 10 {
-					t.Errorf("Expected max results to keep the default 10, got %d", cfg.Tools.WebSearch.MaxResults)
-				}
-				expectedEngines := []string{"duckduckgo", "google"}
-				if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
-					t.Errorf("Expected engines to keep the default %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
-				}
-			},
-		},
-		{
 			name: "save chat config",
 			setupFunc: func(cfg *Config) {
 				cfg.Agent.Model = "anthropic/claude-sonnet-4-6"
@@ -385,8 +359,8 @@ func TestSaveConfig(t *testing.T) {
 				if cfg.Agent.Model != "anthropic/claude-sonnet-4-6" {
 					t.Errorf("Expected default model to be 'anthropic/claude-sonnet-4-6', got %q", cfg.Agent.Model)
 				}
-				if cfg.Prompts.Agent.SystemPrompt != "" {
-					t.Errorf("Expected system prompt to be empty after round-trip (it lives in prompts.yaml), got %q", cfg.Prompts.Agent.SystemPrompt)
+				if cfg.Prompts.Agent.SystemPrompt != DefaultPromptsConfig().Agent.SystemPrompt {
+					t.Errorf("Expected the system prompt to keep its default after round-trip (it lives in prompts.yaml), got %q", cfg.Prompts.Agent.SystemPrompt)
 				}
 				if cfg.Gateway.APIKey != "secret-key" {
 					t.Errorf("Expected API key to be 'secret-key', got %q", cfg.Gateway.APIKey)
@@ -422,12 +396,6 @@ func runSaveConfigTest(t *testing.T, setupFunc func(*Config), validator func(t *
 	v.Set("gateway.timeout", cfg.Gateway.Timeout)
 	v.Set("client.timeout", cfg.Client.Timeout)
 	v.Set("logging.debug", cfg.Logging.Debug)
-	v.Set("tools.enabled", cfg.Tools.Enabled)
-	v.Set("tools.web_search.enabled", cfg.Tools.WebSearch.Enabled)
-	v.Set("tools.web_search.default_engine", cfg.Tools.WebSearch.DefaultEngine)
-	v.Set("tools.web_search.max_results", cfg.Tools.WebSearch.MaxResults)
-	v.Set("tools.web_search.timeout", cfg.Tools.WebSearch.Timeout)
-	v.Set("tools.web_search.engines", cfg.Tools.WebSearch.Engines)
 	v.Set("agent.model", cfg.Agent.Model)
 
 	if err := writeViperConfigForTest(v, 2); err != nil {

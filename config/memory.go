@@ -106,12 +106,6 @@ func DefaultMemoryConfig() *MemoryConfig {
 	}
 }
 
-// LoadMemory reads memory.yaml from disk. When the file is missing it returns
-// the in-code defaults so callers can treat absence as "use defaults".
-func LoadMemory(path string) (*MemoryConfig, error) {
-	return configutils.LoadYAML(path, "memory", DefaultMemoryConfig)
-}
-
 // SaveMemory writes the memory configuration to disk, creating any missing
 // parent directories.
 func SaveMemory(path string, cfg *MemoryConfig) error {

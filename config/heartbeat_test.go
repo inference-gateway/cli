@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 func TestHeartbeatConstants(t *testing.T) {
@@ -118,7 +119,7 @@ model: "${TEST_HEARTBEAT_MODEL}"
 				}
 			}
 
-			cfg, err := config.LoadHeartbeat(path)
+			cfg, err := configutils.LoadYAML(path, "heartbeat", config.DefaultHeartbeatConfig)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("Expected error from invalid YAML, got nil")
@@ -126,10 +127,10 @@ model: "${TEST_HEARTBEAT_MODEL}"
 				return
 			}
 			if err != nil {
-				t.Fatalf("LoadHeartbeat() failed: %v", err)
+				t.Fatalf("LoadYAML() failed: %v", err)
 			}
 			if cfg == nil {
-				t.Fatal("LoadHeartbeat() returned nil")
+				t.Fatal("LoadYAML() returned nil")
 			}
 			tt.check(t, cfg)
 		})
@@ -156,9 +157,9 @@ func TestSaveHeartbeat(t *testing.T) {
 			path: []string{"subdir", "heartbeat.yaml"},
 			cfg:  roundTrip,
 			check: func(t *testing.T, path string) {
-				loaded, err := config.LoadHeartbeat(path)
+				loaded, err := configutils.LoadYAML(path, "heartbeat", config.DefaultHeartbeatConfig)
 				if err != nil {
-					t.Fatalf("LoadHeartbeat() failed: %v", err)
+					t.Fatalf("LoadYAML() failed: %v", err)
 				}
 				if loaded.Enabled != roundTrip.Enabled || loaded.Interval != roundTrip.Interval ||
 					loaded.InitialDelay != roundTrip.InitialDelay || loaded.Model != roundTrip.Model ||

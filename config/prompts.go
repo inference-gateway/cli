@@ -9,54 +9,6 @@ const (
 	DefaultPromptsPath = ConfigDirName + "/" + PromptsFileName
 )
 
-// LoadPrompts reads prompts.yaml from disk. When the file is missing it
-// returns the in-code defaults so callers can treat absence as "use
-// defaults" without special-casing. The file body is run through
-// os.ExpandEnv - any literal `${…}` token in a customised prompt must be
-// escaped as `$$…`.
-//
-// Any prompt left empty in a partial prompts.yaml is backfilled from
-// DefaultPromptsConfig(). CustomInstructions is intentionally excluded from
-// backfill - empty is a meaningful user choice there.
-func LoadPrompts(path string) (*PromptsConfig, error) {
-	cfg, err := configutils.LoadYAML(path, "prompts", DefaultPromptsConfig)
-	if err != nil {
-		return nil, err
-	}
-	mergePromptDefaults(cfg, DefaultPromptsConfig())
-	return cfg, nil
-}
-
-func mergePromptDefaults(loaded, defaults *PromptsConfig) {
-	if loaded.Agent.SystemPrompt == "" {
-		loaded.Agent.SystemPrompt = defaults.Agent.SystemPrompt
-	}
-	if loaded.Agent.SystemPromptRemote == "" {
-		loaded.Agent.SystemPromptRemote = defaults.Agent.SystemPromptRemote
-	}
-	if loaded.Agent.SystemPromptHeartbeat == "" {
-		loaded.Agent.SystemPromptHeartbeat = defaults.Agent.SystemPromptHeartbeat
-	}
-	if loaded.Git.CommitMessage.SystemPrompt == "" {
-		loaded.Git.CommitMessage.SystemPrompt = defaults.Git.CommitMessage.SystemPrompt
-	}
-	if loaded.Conversation.TitleGeneration.SystemPrompt == "" {
-		loaded.Conversation.TitleGeneration.SystemPrompt = defaults.Conversation.TitleGeneration.SystemPrompt
-	}
-	if loaded.Chat.Suggestions.SystemPrompt == "" {
-		loaded.Chat.Suggestions.SystemPrompt = defaults.Chat.Suggestions.SystemPrompt
-	}
-	if loaded.Init.Prompt == "" {
-		loaded.Init.Prompt = defaults.Init.Prompt
-	}
-	if loaded.Vision.Annotator.ScreenSystemPrompt == "" {
-		loaded.Vision.Annotator.ScreenSystemPrompt = defaults.Vision.Annotator.ScreenSystemPrompt
-	}
-	if loaded.Vision.Annotator.SceneSystemPrompt == "" {
-		loaded.Vision.Annotator.SceneSystemPrompt = defaults.Vision.Annotator.SceneSystemPrompt
-	}
-}
-
 // SavePrompts writes the prompts configuration to disk, creating any
 // missing parent directories.
 func SavePrompts(path string, cfg *PromptsConfig) error {

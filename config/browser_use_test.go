@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const browserUseValidYAML = `---
@@ -59,9 +60,9 @@ func TestBrowserUseDefaults(t *testing.T) {
 
 func TestLoadBrowserUse(t *testing.T) {
 	t.Run("missing file returns defaults", func(t *testing.T) {
-		cfg, err := config.LoadBrowserUse(filepath.Join(t.TempDir(), "nope.yaml"))
+		cfg, err := configutils.LoadYAML(filepath.Join(t.TempDir(), "nope.yaml"), "browser_use", config.DefaultBrowserUseConfig)
 		if err != nil {
-			t.Fatalf("LoadBrowserUse() err = %v", err)
+			t.Fatalf("LoadYAML() err = %v", err)
 		}
 		if cfg.Enabled || cfg.Browser.Channel != "chrome" {
 			t.Errorf("Expected defaults, got %+v", cfg)
@@ -73,9 +74,9 @@ func TestLoadBrowserUse(t *testing.T) {
 		if err := os.WriteFile(path, []byte(browserUseValidYAML), 0644); err != nil {
 			t.Fatal(err)
 		}
-		cfg, err := config.LoadBrowserUse(path)
+		cfg, err := configutils.LoadYAML(path, "browser_use", config.DefaultBrowserUseConfig)
 		if err != nil {
-			t.Fatalf("LoadBrowserUse() err = %v", err)
+			t.Fatalf("LoadYAML() err = %v", err)
 		}
 		if !cfg.Enabled || cfg.Browser.Channel != "msedge" || !cfg.Browser.Headless ||
 			cfg.Browser.CDPEndpoint != "http://localhost:9222" || cfg.Browser.TimeoutSeconds != 10 {
@@ -99,9 +100,9 @@ func TestSaveBrowserUseRoundTrip(t *testing.T) {
 	if err := config.SaveBrowserUse(path, original); err != nil {
 		t.Fatalf("SaveBrowserUse() err = %v", err)
 	}
-	loaded, err := config.LoadBrowserUse(path)
+	loaded, err := configutils.LoadYAML(path, "browser_use", config.DefaultBrowserUseConfig)
 	if err != nil {
-		t.Fatalf("LoadBrowserUse() err = %v", err)
+		t.Fatalf("LoadYAML() err = %v", err)
 	}
 	if !loaded.Enabled || !loaded.Browser.Headless || loaded.Browser.Channel != "chrome" {
 		t.Errorf("Round trip mismatch: %+v", loaded)

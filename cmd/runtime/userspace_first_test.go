@@ -88,28 +88,28 @@ func TestInitConfigInheritsHomeWhenProjectAbsent(t *testing.T) {
 	require.Equal(t, "home-model", Cfg.Agent.Model)
 }
 
-// TestLoadLayeredConfigProjectOverridesHome pins the precedence the override
+// TestMergeConfigLayersProjectOverridesHome pins the precedence the override
 // layer is built on: a project ./.infer/config.yaml wins key-by-key over the
-// userspace baseline, and viper's MergeInConfig replaces list-valued keys
-// wholesale, so a project allowlist substitutes (not extends) the home one.
-func TestLoadLayeredConfigProjectOverridesHome(t *testing.T) {
+// userspace baseline, and viper's merge replaces list-valued keys wholesale,
+// so a project list substitutes (not extends) the home one.
+func TestMergeConfigLayersProjectOverridesHome(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)
 
 	homeCfg := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(homeCfg), 0o755))
-	require.NoError(t, os.WriteFile(homeCfg, []byte("---\nagent:\n  model: home-model\n  max_turns: 7\ntools:\n  sandbox:\n    directories:\n      - /home\n      - /tmp\n"), 0o644))
+	require.NoError(t, os.WriteFile(homeCfg, []byte("---\nagent:\n  model: home-model\n  max_turns: 7\na2a:\n  agents:\n    - http://home-a\n    - http://home-b\n"), 0o644))
 
 	projCfg := filepath.Join(projectDir, config.DefaultConfigPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(projCfg), 0o755))
-	require.NoError(t, os.WriteFile(projCfg, []byte("---\nagent:\n  model: project-model\ntools:\n  sandbox:\n    directories:\n      - /data\n"), 0o644))
+	require.NoError(t, os.WriteFile(projCfg, []byte("---\nagent:\n  model: project-model\na2a:\n  agents:\n    - http://project\n"), 0o644))
 
 	v := viper.New()
 	registerConfigDefaults(v, config.DefaultConfig())
-	require.NoError(t, loadLayeredConfig(v))
+	require.NoError(t, mergeConfigLayers(v))
 
 	require.Equal(t, "project-model", v.GetString("agent.model"), "project config.yaml must override the home key")
 	require.Equal(t, 7, v.GetInt("agent.max_turns"), "keys absent from the project layer are inherited from home")
-	require.Equal(t, []string{"/data"}, v.GetStringSlice("tools.sandbox.directories"), "list keys are replaced wholesale, not extended")
+	require.Equal(t, []string{"http://project"}, v.GetStringSlice("a2a.agents"), "list keys are replaced wholesale, not extended")
 }
 
 // TestInitConfigSandboxSidecar pins that the sandbox policy comes from the
@@ -147,6 +147,6 @@ func TestInitConfigSandboxSidecar(t *testing.T) {
 	require.Equal(t, sandboxdomain.Allow("/policy", "/extra"), Cfg.Tools.Sandbox.Filesystem.Allowed, "env directories are allowed too")
 
 	require.NoError(t, os.WriteFile(sandboxFile, []byte("---\nfilesystem:\n  allowed:\n    - path: /x\n      access: none\n"), 0o644))
-	_, err := loadSandboxConfig()
-	require.ErrorContains(t, err, sandboxFile, "a broken policy fails the load instead of falling back to the defaults")
+	_, _, err := loadConfig(rootCmd)
+	require.ErrorContains(t, err, "sandbox", "a broken policy fails the load instead of falling back to the defaults")
 }

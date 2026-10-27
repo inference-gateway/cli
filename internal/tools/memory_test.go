@@ -196,8 +196,9 @@ func TestMemoryTool_Write_CurrentRepoShortNameIsCanonical(t *testing.T) {
 
 func TestMemoryTool_IsEnabled(t *testing.T) {
 	cfg := config.DefaultConfig()
+	cfg.Memory.Enabled = false
 	if NewMemoryTool(cfg, nil, testProjectIdentity()).IsEnabled() {
-		t.Error("Memory tool should be disabled by default")
+		t.Error("Memory tool should be disabled when memory.enabled is false")
 	}
 
 	cfg.Memory.Enabled = true

@@ -62,26 +62,43 @@ func (s *State) LoadConfig() (*config.Config, error) {
 	return cfg, err
 }
 
+// loadConfig builds the one Viper every setting flows through: defaults for
+// every leaf, config.yaml home then project, each sidecar under its key,
+// INFER_* env and the persistent flags, then a single Unmarshal.
+//
+// Precedence, lowest to highest: defaults, ~/.infer/<file>, ./.infer/<file>,
+// INFER_* env, flags. Lists replace wholesale between layers.
 func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 	v := viper.New()
 	registerConfigDefaults(v, config.DefaultConfig())
-	v.SetConfigType("yaml")
 	v.SetEnvPrefix("INFER")
-	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	if err := v.BindPFlag("verbose", root.PersistentFlags().Lookup("verbose")); err != nil {
-		return nil, nil, fmt.Errorf("binding verbose flag: %w", err)
+	v.AutomaticEnv()
+	v.AllowEmptyEnv(true)
+	if err := v.BindPFlags(root.PersistentFlags()); err != nil {
+		return nil, nil, fmt.Errorf("binding flags: %w", err)
 	}
-	if err := loadLayeredConfig(v); err != nil {
+	if err := mergeConfigLayers(v); err != nil {
 		return nil, nil, err
 	}
-	cfg, err := loadConfigFromViper(v, root)
-	if err != nil {
+	for _, sc := range sidecars {
+		var err error
+		if sc.key == "reminders" {
+			err = mergeReminders(v, root, sc)
+		} else {
+			err = mergeSidecar(v, sc, sc.paths())
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	cfg := &config.Config{}
+	if err := v.Unmarshal(cfg, viper.DecodeHook(decodeHook())); err != nil {
 		return nil, nil, fmt.Errorf("loading config: %w", err)
 	}
-	if prompt := os.Getenv("INFER_SUBAGENT_SYSTEM_PROMPT"); prompt != "" {
-		cfg.Prompts.Agent.SystemPrompt = prompt
+	postProcess(cfg, v, root)
+	if err := cfg.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("loading config: %w", err)
 	}
 	return v, cfg, nil
 }
@@ -111,64 +128,6 @@ func parseDelimitedList(value string) []string {
 		}
 	}
 	return out
-}
-
-func resolveFlagEnvOverride(root *cobra.Command, flagName, envName string) string {
-	if env := os.Getenv(envName); env != "" {
-		return env
-	}
-	value, err := root.PersistentFlags().GetString(flagName)
-	if err == nil {
-		return value
-	}
-	return ""
-}
-
-// loadLayeredConfig seeds defaults, then reads the userspace baseline
-// (~/.infer/config.yaml) with an optional project override (./.infer/config.yaml)
-// merged on top. The project layer is READ-ONLY override material: nothing
-// writes to a project .infer/ by default - the only exception is a config
-// write explicitly requested via --project (ConfigWriteTarget(toProject)).
-//
-// Precedence: defaults < ~/.infer/config.yaml < ./.infer/config.yaml.
-//
-// Viper's MergeInConfig deep-merges maps but replaces slices wholesale, so a
-// list-valued key (e.g. an allowlist) in a project override REPLACES the
-// userspace value rather than extending it.
-func loadLayeredConfig(v *viper.Viper) error {
-	homeConfigPath := ""
-	if homeDir, err := os.UserHomeDir(); err == nil {
-		homeConfigPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
-	}
-
-	readLayer := func(path string, merge bool) error {
-		v.SetConfigFile(path)
-		if merge {
-			if err := v.MergeInConfig(); err != nil {
-				return fmt.Errorf("reading config %s: %w", path, err)
-			}
-			return nil
-		}
-		if err := v.ReadInConfig(); err != nil {
-			return fmt.Errorf("reading config %s: %w", path, err)
-		}
-		return nil
-	}
-
-	loaded := false
-	if homeConfigPath != "" && FileExists(homeConfigPath) {
-		if err := readLayer(homeConfigPath, false); err != nil {
-			return err
-		}
-		loaded = true
-	}
-	projectPath := resolveProjectConfigPath()
-	if projectPath != "" && !sameConfigFile(projectPath, homeConfigPath) {
-		if err := readLayer(projectPath, loaded); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func resolveProjectConfigPath() string {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -21,7 +22,7 @@ func TestSaveLoadHooks_RoundTrip(t *testing.T) {
 	if err := config.SaveHooks(path, original); err != nil {
 		t.Fatalf("SaveHooks: %v", err)
 	}
-	loaded, err := config.LoadHooks(path)
+	loaded, err := configutils.LoadYAML(path, "hooks", config.DefaultHooksConfig)
 	if err != nil {
 		t.Fatalf("LoadHooks: %v", err)
 	}
@@ -33,7 +34,7 @@ func TestSaveLoadHooks_RoundTrip(t *testing.T) {
 }
 
 func TestLoadHooks_MissingFileReturnsDefaults(t *testing.T) {
-	loaded, err := config.LoadHooks(filepath.Join(t.TempDir(), "nope.yaml"))
+	loaded, err := configutils.LoadYAML(filepath.Join(t.TempDir(), "nope.yaml"), "hooks", config.DefaultHooksConfig)
 	if err != nil {
 		t.Fatalf("LoadHooks on missing file: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestDefaultHooksYAML_LoadsClean(t *testing.T) {
 	if err := os.WriteFile(path, []byte(config.DefaultHooksYAML), 0o644); err != nil {
 		t.Fatalf("write template: %v", err)
 	}
-	loaded, err := config.LoadHooks(path)
+	loaded, err := configutils.LoadYAML(path, "hooks", config.DefaultHooksConfig)
 	if err != nil {
 		t.Fatalf("LoadHooks on default template: %v", err)
 	}

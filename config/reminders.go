@@ -4,11 +4,8 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
-	"os"
 	"slices"
 	"strings"
-
-	yaml "gopkg.in/yaml.v3"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -264,26 +261,6 @@ func DefaultRemindersConfig() *RemindersConfig {
 		Enabled:   true,
 		Reminders: reminders,
 	}
-}
-
-// LoadReminders reads reminders.yaml from disk. When the file is missing it
-// returns the in-code defaults so callers can treat absence as "use defaults".
-func LoadReminders(path string) (*RemindersConfig, error) {
-	return configutils.LoadYAML(path, "reminders", DefaultRemindersConfig)
-}
-
-// ParseReminders parses inline reminders YAML (e.g. the INFER_REMINDERS_CONFIG
-// env var) into a RemindersConfig, so embedded consumers can supply reminders
-// without writing reminders.yaml to disk. Environment references in the body are
-// expanded, mirroring the file loader (LoadYAML); the result is validated by the
-// caller through Config.Validate.
-func ParseReminders(data []byte) (*RemindersConfig, error) {
-	expanded := os.ExpandEnv(string(data))
-	cfg := new(RemindersConfig)
-	if err := yaml.Unmarshal([]byte(expanded), cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse reminders config: %w", err)
-	}
-	return cfg, nil
 }
 
 // MergeWithDefaults returns a new RemindersConfig with the receiver's entries

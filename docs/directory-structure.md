@@ -34,9 +34,10 @@ The CLI keeps everything in two locations:
 
 Run `infer init` to seed the userspace baseline. Project values override
 userspace values: defaults < `~/.infer/<file>` < `./.infer/<file>` (project
-always wins). Note that list-valued keys (e.g. allowlists) in a project
-override *replace* the userspace value wholesale - viper's `MergeInConfig`
-deep-merges maps but substitutes slices. See
+always wins), for `config.yaml` and the split files alike. `tools.yaml`,
+`sandbox.yaml` and `plugins.yaml` are read from `~/.infer/` only. Note that
+list-valued keys (e.g. allowlists) in a project override *replace* the
+userspace value wholesale - viper deep-merges maps but substitutes slices. See
 [Configuration Layers](configuration-reference.md#configuration-layers)
 for the full precedence rules.
 

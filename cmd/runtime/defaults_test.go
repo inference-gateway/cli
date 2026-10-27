@@ -11,15 +11,15 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	viper "github.com/spf13/viper"
+
 	config "github.com/inference-gateway/cli/config"
 )
 
-// TestViperDefaultsCoverNonZeroConfigDefaults walks config.DefaultConfig() and
-// asserts that every leaf with a non-zero default value has a corresponding
-// entry in viper's AllKeys() after initConfig(). Catches drift between the
-// canonical defaults in config/config.go and the SetDefault block in
-// initConfig() in cmd/root.go.
-func TestViperDefaultsCoverNonZeroConfigDefaults(t *testing.T) {
+// TestViperDefaultsCoverConfigLeaves walks config.DefaultConfig() and asserts
+// that every leaf, zero values included, is a key viper knows after
+// initConfig(), so an INFER_* override for it reaches Unmarshal.
+func TestViperDefaultsCoverConfigLeaves(t *testing.T) {
 	withHermeticEnv(t)
 
 	initConfig()
@@ -33,9 +33,6 @@ func TestViperDefaultsCoverNonZeroConfigDefaults(t *testing.T) {
 
 	var missing []string
 	for _, l := range leaves {
-		if isLeafZeroValue(l.value) {
-			continue
-		}
 		if _, ok := allKeys[strings.ToLower(l.path)]; !ok {
 			missing = append(missing, l.path)
 		}
@@ -58,7 +55,7 @@ func TestViperUnmarshalReproducesDefaultConfig(t *testing.T) {
 	initConfig()
 
 	actual := &config.Config{}
-	require.NoError(t, V.Unmarshal(actual))
+	require.NoError(t, V.Unmarshal(actual, viper.DecodeHook(decodeHook())))
 
 	expected := config.DefaultConfig()
 
@@ -112,7 +109,15 @@ func isZeroishAny(v any) bool {
 	if v == nil {
 		return true
 	}
-	return isLeafZeroValue(reflect.ValueOf(v))
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		return rv.IsNil()
+	case reflect.Slice, reflect.Map:
+		return rv.Len() == 0
+	default:
+		return rv.IsZero()
+	}
 }
 
 // withHermeticEnv unsets all INFER_* environment variables, points HOME at a

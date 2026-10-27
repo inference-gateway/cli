@@ -197,8 +197,8 @@ func TestListAllActions(t *testing.T) {
 }
 
 // TestKeybindingsExcludedFromMainConfigYAML verifies that the Keybindings
-// field is hidden from the main config.yaml via the yaml/mapstructure "-" tags:
-// keybindings live in their own file.
+// field is hidden from the main config.yaml via the yaml "-" tag: keybindings
+// live in their own file, which the runtime merges under chat.keybindings.
 func TestKeybindingsExcludedFromMainConfigYAML(t *testing.T) {
 	cfgType := reflect.TypeFor[config.ChatConfig]()
 	field, ok := cfgType.FieldByName("Keybindings")
@@ -208,7 +208,7 @@ func TestKeybindingsExcludedFromMainConfigYAML(t *testing.T) {
 	if got := field.Tag.Get("yaml"); got != "-" {
 		t.Errorf("Expected yaml tag '-', got %q (Keybindings would leak into config.yaml)", got)
 	}
-	if got := field.Tag.Get("mapstructure"); got != "-" {
-		t.Errorf("Expected mapstructure tag '-', got %q (viper would unmarshal into the field)", got)
+	if got := field.Tag.Get("mapstructure"); got != "keybindings" {
+		t.Errorf("Expected mapstructure tag 'keybindings' so keybindings.yaml decodes into the field, got %q", got)
 	}
 }

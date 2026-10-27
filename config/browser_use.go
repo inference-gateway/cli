@@ -109,13 +109,6 @@ func DefaultBrowserUseConfig() *BrowserUseConfig {
 	}
 }
 
-// LoadBrowserUse reads browser_use.yaml from disk. When the file is missing
-// it returns the in-code defaults so callers can treat absence as "use
-// defaults" without special-casing.
-func LoadBrowserUse(path string) (*BrowserUseConfig, error) {
-	return configutils.LoadYAML(path, "browser_use", DefaultBrowserUseConfig)
-}
-
 // SaveBrowserUse writes the browser_use configuration to disk, creating any
 // missing parent directories.
 func SaveBrowserUse(path string, cfg *BrowserUseConfig) error {

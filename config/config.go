@@ -46,7 +46,7 @@ type Config struct {
 	TextToVideo      TextToVideoConfig      `yaml:"text_to_video" mapstructure:"text_to_video"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
-	Tools            ToolsConfig            `yaml:"-" mapstructure:"-"`
+	Tools            ToolsConfig            `yaml:"-" mapstructure:"tools"`
 	Image            ImageConfig            `yaml:"image" mapstructure:"image"`
 	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
 	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
@@ -64,17 +64,17 @@ type Config struct {
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	Vision           VisionConfig           `yaml:"vision" mapstructure:"vision"`
 	Provisioner      ProvisionerConfig      `yaml:"provisioner,omitempty" mapstructure:"provisioner"`
-	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"-"`
-	BrowserUse       BrowserUseConfig       `yaml:"-" mapstructure:"-"`
-	Channels         ChannelsConfig         `yaml:"-" mapstructure:"-"`
-	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"-"`
-	Daemon           DaemonConfig           `yaml:"-" mapstructure:"-"`
-	Prompts          PromptsConfig          `yaml:"-" mapstructure:"-"`
-	Reminders        RemindersConfig        `yaml:"-" mapstructure:"-"`
-	Memory           MemoryConfig           `yaml:"-" mapstructure:"-"`
-	Hooks            HooksConfig            `yaml:"-" mapstructure:"-"`
-	Judge            JudgeConfig            `yaml:"-" mapstructure:"-"`
-	Plugins          PluginsConfig          `yaml:"-" mapstructure:"-"`
+	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"computer_use"`
+	BrowserUse       BrowserUseConfig       `yaml:"-" mapstructure:"browser_use"`
+	Channels         ChannelsConfig         `yaml:"-" mapstructure:"channels"`
+	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"heartbeat"`
+	Daemon           DaemonConfig           `yaml:"-" mapstructure:"daemon"`
+	Prompts          PromptsConfig          `yaml:"-" mapstructure:"prompts"`
+	Reminders        RemindersConfig        `yaml:"-" mapstructure:"reminders"`
+	Memory           MemoryConfig           `yaml:"-" mapstructure:"memory"`
+	Hooks            HooksConfig            `yaml:"-" mapstructure:"hooks"`
+	Judge            JudgeConfig            `yaml:"-" mapstructure:"judge"`
+	Plugins          PluginsConfig          `yaml:"-" mapstructure:"plugins"`
 	configDir        string
 }
 
@@ -382,7 +382,7 @@ type ClipboardImageOptimizeConfig struct {
 // repository cannot lower the approval bar of whoever opens it.
 type ToolsConfig struct {
 	Enabled         bool                      `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox         SandboxConfig             `yaml:"-" mapstructure:"-"`
+	Sandbox         SandboxConfig             `yaml:"-" mapstructure:"sandbox"`
 	Bash            BashToolConfig            `yaml:"bash" mapstructure:"bash"`
 	Read            ReadToolConfig            `yaml:"read" mapstructure:"read"`
 	Write           WriteToolConfig           `yaml:"write" mapstructure:"write"`
@@ -851,7 +851,7 @@ type ConversationTitleConfig struct {
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
 	Theme         string                `yaml:"theme" mapstructure:"theme"`
-	Keybindings   KeybindingsConfig     `yaml:"-" mapstructure:"-"`
+	Keybindings   KeybindingsConfig     `yaml:"-" mapstructure:"keybindings"`
 	StatusBar     StatusBarConfig       `yaml:"status_bar" mapstructure:"status_bar"`
 	InputMaxLines int                   `yaml:"input_max_lines" mapstructure:"input_max_lines"`
 	Suggestions   ChatSuggestionsConfig `yaml:"suggestions" mapstructure:"suggestions"`
@@ -1410,8 +1410,19 @@ func DefaultConfig() *Config { //nolint:funlen
 				},
 			},
 		},
-		MCP:     *DefaultMCPConfig(),
-		Pricing: GetDefaultPricingConfig(),
+		MCP:         *DefaultMCPConfig(),
+		Pricing:     GetDefaultPricingConfig(),
+		ComputerUse: *DefaultComputerUseConfig(),
+		BrowserUse:  *DefaultBrowserUseConfig(),
+		Channels:    *DefaultChannelsConfig(),
+		Heartbeat:   *DefaultHeartbeatConfig(),
+		Daemon:      *DefaultDaemonConfig(),
+		Prompts:     *DefaultPromptsConfig(),
+		Reminders:   *DefaultRemindersConfig(),
+		Memory:      *DefaultMemoryConfig(),
+		Hooks:       *DefaultHooksConfig(),
+		Judge:       *DefaultJudgeConfig(),
+		Plugins:     *DefaultPluginsConfig(),
 		Compact: CompactConfig{
 			Enabled:               true,
 			AutoAt:                80,
@@ -1477,6 +1488,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 
 	if err := c.Judge.Validate(); err != nil {
 		return fmt.Errorf("invalid judge: %w", err)
+	}
+
+	if err := c.Tools.Sandbox.Validate(); err != nil {
+		return fmt.Errorf("invalid sandbox policy: %w", err)
 	}
 
 	if c.JudgeRequired() && c.Judge.ResolveModel(c.Agent.Model) == "" {

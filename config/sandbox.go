@@ -1,10 +1,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+
+	yaml "gopkg.in/yaml.v3"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
@@ -16,14 +20,14 @@ const SandboxFileName = "sandbox.yaml"
 // reach. It lives in the userspace sandbox.yaml alone, with no project copy,
 // so a checked-out repository can never widen the sandbox of whoever opens it.
 type SandboxConfig struct {
-	Filesystem FilesystemPolicy `yaml:"filesystem"`
+	Filesystem FilesystemPolicy `yaml:"filesystem" mapstructure:"filesystem"`
 }
 
 // FilesystemPolicy is the paths tools may use and the paths they never may.
 // Outside allowed the user is asked.
 type FilesystemPolicy struct {
-	Allowed []sandboxdomain.Allowed `yaml:"allowed"`
-	Denied  []sandboxdomain.Denied  `yaml:"denied"`
+	Allowed []sandboxdomain.Allowed `yaml:"allowed" mapstructure:"allowed"`
+	Denied  []sandboxdomain.Denied  `yaml:"denied" mapstructure:"denied"`
 }
 
 // DefaultSandboxConfig allows the working directory and /tmp, asks before
@@ -73,9 +77,16 @@ func (c *SandboxConfig) Validate() error {
 // LoadSandbox reads sandbox.yaml over the defaults, so a missing file or a
 // missing list keeps the default one. A list that is present replaces it.
 func LoadSandbox(path string) (*SandboxConfig, error) {
-	cfg, err := configutils.LoadYAMLMerged(path, "sandbox", DefaultSandboxConfig)
+	cfg := DefaultSandboxConfig()
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return cfg, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read sandbox config: %w", err)
+	}
+	if err := yaml.Unmarshal([]byte(os.ExpandEnv(string(data))), cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse sandbox config: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err

@@ -34,9 +34,9 @@ func TestToolsYAMLLayout(t *testing.T) {
 	if err := os.WriteFile(path, []byte(edited), 0o644); err != nil {
 		t.Fatalf("writing %s: %v", path, err)
 	}
-	cfg, err := LoadTools(path)
-	if err != nil {
-		t.Fatalf("LoadTools: %v", err)
+	cfg := DefaultToolsConfig()
+	if err := yaml.Unmarshal([]byte(edited), cfg); err != nil {
+		t.Fatalf("decoding tools.yaml: %v", err)
 	}
 	if cfg.Enabled {
 		t.Error("enabled is a top-level key, an enabled inside tools: must not override it")
