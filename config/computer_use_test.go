@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 // floating_window was removed in favor of the desktop app; it stays in the
@@ -184,7 +185,7 @@ screenshot:
 				}
 			}
 
-			cfg, err := config.LoadComputerUse(path)
+			cfg, err := configutils.LoadYAML(path, "computer_use", config.DefaultComputerUseConfig)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("Expected error from invalid YAML, got nil")
@@ -192,10 +193,10 @@ screenshot:
 				return
 			}
 			if err != nil {
-				t.Fatalf("LoadComputerUse() failed: %v", err)
+				t.Fatalf("LoadYAML() failed: %v", err)
 			}
 			if cfg == nil {
-				t.Fatal("LoadComputerUse() returned nil")
+				t.Fatal("LoadYAML() returned nil")
 			}
 			tt.check(t, cfg)
 		})
@@ -258,9 +259,9 @@ func TestSaveComputerUse(t *testing.T) {
 			path: []string{"subdir", "computer_use.yaml"},
 			cfg:  roundTrip,
 			check: func(t *testing.T, path string) {
-				loaded, err := config.LoadComputerUse(path)
+				loaded, err := configutils.LoadYAML(path, "computer_use", config.DefaultComputerUseConfig)
 				if err != nil {
-					t.Fatalf("LoadComputerUse() failed: %v", err)
+					t.Fatalf("LoadYAML() failed: %v", err)
 				}
 				if loaded.Enabled != roundTrip.Enabled ||
 					loaded.Screenshot.TargetWidth != roundTrip.Screenshot.TargetWidth ||

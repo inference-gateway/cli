@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 func TestChannelsConstants(t *testing.T) {
@@ -185,7 +186,7 @@ whatsapp:
 				}
 			}
 
-			cfg, err := config.LoadChannels(path)
+			cfg, err := configutils.LoadYAML(path, "channels", config.DefaultChannelsConfig)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("Expected error from invalid YAML, got nil")
@@ -193,10 +194,10 @@ whatsapp:
 				return
 			}
 			if err != nil {
-				t.Fatalf("LoadChannels() failed: %v", err)
+				t.Fatalf("LoadYAML() failed: %v", err)
 			}
 			if cfg == nil {
-				t.Fatal("LoadChannels() returned nil")
+				t.Fatal("LoadYAML() returned nil")
 			}
 			tt.check(t, cfg)
 		})
@@ -236,9 +237,9 @@ func TestSaveChannels(t *testing.T) {
 			path: []string{"subdir", "channels.yaml"},
 			cfg:  roundTrip,
 			check: func(t *testing.T, path string) {
-				loaded, err := config.LoadChannels(path)
+				loaded, err := configutils.LoadYAML(path, "channels", config.DefaultChannelsConfig)
 				if err != nil {
-					t.Fatalf("LoadChannels() failed: %v", err)
+					t.Fatalf("LoadYAML() failed: %v", err)
 				}
 				if loaded.Enabled != roundTrip.Enabled || loaded.MaxWorkers != roundTrip.MaxWorkers ||
 					loaded.RequireApproval != roundTrip.RequireApproval || loaded.ImageRetention != roundTrip.ImageRetention {

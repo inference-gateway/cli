@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	cobra "github.com/spf13/cobra"
-	viper "github.com/spf13/viper"
 
 	migrate "github.com/inference-gateway/cli/cmd/migrate"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
@@ -169,11 +168,12 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create reminders config file: %w", err)
 	}
 
-	migrated, err := createChannelsConfigFile(state.Viper(), channelsPath)
+	channelsCreated, err := createFileIfAbsent(channelsPath, overwrite, func(p string) error {
+		return config.SaveChannels(p, config.DefaultChannelsConfig())
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create channels config file: %w", err)
 	}
-	channelsCreated := !fileExists(channelsPath) || migrated
 
 	sandboxCreated, err := createFileIfAbsent(sandboxPath, overwrite, func(p string) error {
 		return config.SaveSandbox(p, config.DefaultSandboxConfig())
@@ -210,11 +210,12 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create browser_use config file: %w", err)
 	}
 
-	cuMigrated, err := createComputerUseConfigFile(state.Viper(), computerUsePath)
+	computerUseCreated, err := createFileIfAbsent(computerUsePath, overwrite, func(p string) error {
+		return config.SaveComputerUse(p, config.DefaultComputerUseConfig())
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create computer_use config file: %w", err)
 	}
-	computerUseCreated := !fileExists(computerUsePath) || cuMigrated
 
 	memoryCreated, err := createMemoryConfigFile(memoryConfigPath)
 	if err != nil {
@@ -263,14 +264,6 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
 	if memoryCreated {
 		fmt.Printf("   Created: %s\n", memoryConfigPath)
-	}
-	if migrated {
-		fmt.Printf("\n%s Migrated legacy `channels:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), channelsPath)
-		fmt.Printf("   You can now remove the `channels:` block from %s.\n", configPath)
-	}
-	if cuMigrated {
-		fmt.Printf("\n%s Migrated legacy `computer_use:` block from config.yaml into %s.\n", icons.CheckMarkStyle.Render(icons.CheckMark), computerUsePath)
-		fmt.Printf("   You can now remove the `computer_use:` block from %s.\n", configPath)
 	}
 	fmt.Println("")
 	fmt.Println("This userspace configuration is the shared baseline for all your projects.")
@@ -503,32 +496,6 @@ func createHooksConfigFile(path string) error {
 	return os.WriteFile(path, []byte(config.DefaultHooksYAML), 0o644)
 }
 
-// createChannelsConfigFile writes a fresh channels.yaml. Returns true when
-// the file was seeded from a legacy `channels:` block found in viper (i.e.
-// migrated from config.yaml) rather than from in-code defaults. Migration
-// only runs when no channels.yaml exists yet, so it is safe to re-run init.
-func createChannelsConfigFile(v *viper.Viper, path string) (bool, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return false, fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	channelsCfg := config.DefaultChannelsConfig()
-	migrated := false
-
-	if _, err := os.Stat(path); os.IsNotExist(err) && v != nil && v.IsSet("channels") {
-		legacy := config.DefaultChannelsConfig()
-		if err := v.UnmarshalKey("channels", legacy); err == nil {
-			channelsCfg = legacy
-			migrated = true
-		}
-	}
-
-	if err := config.SaveChannels(path, channelsCfg); err != nil {
-		return false, err
-	}
-	return migrated, nil
-}
-
 // createHeartbeatConfigFile writes a fresh heartbeat.yaml seeded from
 // the in-code defaults (disabled, hourly interval). Heartbeat is a new
 // feature with no legacy config block to migrate, so this is the
@@ -564,33 +531,6 @@ func createBrowserUseConfigFile(path string) error {
 		cfg.Extension.Token = hex.EncodeToString(tokenBytes)
 	}
 	return config.SaveBrowserUse(path, cfg)
-}
-
-// createComputerUseConfigFile writes a fresh computer_use.yaml. Returns
-// true when the file was seeded from a legacy `computer_use:` block found
-// in viper (i.e. migrated from config.yaml) rather than from in-code
-// defaults. Migration only runs when no computer_use.yaml exists yet, so
-// it is safe to re-run init.
-func createComputerUseConfigFile(v *viper.Viper, path string) (bool, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return false, fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	cuCfg := config.DefaultComputerUseConfig()
-	migrated := false
-
-	if _, err := os.Stat(path); os.IsNotExist(err) && v != nil && v.IsSet("computer_use") {
-		legacy := config.DefaultComputerUseConfig()
-		if err := v.UnmarshalKey("computer_use", legacy); err == nil {
-			cuCfg = legacy
-			migrated = true
-		}
-	}
-
-	if err := config.SaveComputerUse(path, cuCfg); err != nil {
-		return false, err
-	}
-	return migrated, nil
 }
 
 // createAgentsConfigFile writes a fresh agents.yaml seeded from the in-code

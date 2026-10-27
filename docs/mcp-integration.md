@@ -490,15 +490,15 @@ servers:
 
 ```yaml
 # .infer/mcp.yaml
-enabled: ${MCP_ENABLED:-false}
-connection_timeout: ${MCP_TIMEOUT:-30}
+enabled: ${MCP_ENABLED}
+connection_timeout: ${MCP_TIMEOUT}
 
 servers:
   - name: "production-db"
     scheme: "https"
     host: "${PROD_DB_MCP_HOST}"
     path: "/mcp"
-    enabled: ${PROD_DB_ENABLED:-false}
+    enabled: ${PROD_DB_ENABLED}
 ```
 
 ```bash

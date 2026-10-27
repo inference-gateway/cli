@@ -98,15 +98,6 @@ func DefaultChannelsConfig() *ChannelsConfig {
 	}
 }
 
-// LoadChannels reads channels.yaml from disk. When the file is missing it
-// returns the in-code defaults so callers can treat absence as "use
-// defaults" without special-casing. The file body is run through
-// os.ExpandEnv so `${BOT_TOKEN}`-style references resolve from the
-// environment.
-func LoadChannels(path string) (*ChannelsConfig, error) {
-	return configutils.LoadYAML(path, "channels", DefaultChannelsConfig)
-}
-
 // SaveChannels writes the channels configuration to disk, creating any
 // missing parent directories. The file holds bot tokens / access tokens,
 // so callers should ensure it is also listed in

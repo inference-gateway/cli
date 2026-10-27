@@ -47,13 +47,17 @@ supporting multiple configuration sources with proper precedence handling.
 
 ## Configuration Precedence
 
-Configuration values are resolved in the following order (highest to lowest priority):
+Every file, `config.yaml` and the split files alike (`channels.yaml`, `mcp.yaml`,
+`prompts.yaml`, ...), is resolved in the same order (highest to lowest priority):
 
 1. **Command Line Flags** - **Highest Priority**
 2. **Environment Variables** (`INFER_*` prefix)
-3. **Project Config** (`.infer/config.yaml`)
-4. **Userspace Config** (`~/.infer/config.yaml`)
+3. **Project Config** (`.infer/<file>`)
+4. **Userspace Config** (`~/.infer/<file>`)
 5. **Built-in Defaults** - **Lowest Priority**
+
+`tools.yaml`, `sandbox.yaml` and `plugins.yaml` have no project layer: they decide what
+needs approval, so a checked-out repository can never widen them.
 
 **Example**: If your userspace config sets `agent.model: "anthropic/claude-4"` and your project config
 sets `agent.model: "deepseek/deepseek-v4-pro"`, the project config wins. However, if you also set
@@ -64,11 +68,15 @@ though a command-line flag (e.g. `infer headless --model`) still wins over all o
 `INFER_TOOLS_BASH_ALLOW_APPEND` (over `--tools-bash-allow-append`) and
 `INFER_REMINDERS_CONFIG` (over `--reminders-file`).
 
-> **List-valued keys replace, they do not merge.** Viper's `MergeInConfig`
-> deep-merges maps but substitutes slices wholesale, so a list in the project
-> layer (e.g. `gateway.include_models`, `gateway.exclude_models`) *replaces* the
-> userspace value rather than extending it. Keep project overrides sparse for
-> this reason.
+**Environment values are typed.** A variable that is set but empty (`INFER_X=`) sets the
+key to its zero value (`""`, `0`, `false`). A value that does not parse for the key's type
+(`INFER_CHANNELS_MAX_WORKERS=soon`) fails startup with a decoding error instead of being
+ignored.
+
+> **List-valued keys replace, they do not merge.** Viper deep-merges maps but
+> substitutes slices wholesale, so a list in the project layer (e.g.
+> `gateway.include_models`, `gateway.exclude_models`) *replaces* the userspace
+> value rather than extending it. Keep project overrides sparse for this reason.
 
 ### Usage Examples
 
@@ -1512,8 +1520,9 @@ example `INFER_STORAGE_POSTGRES_PASSWORD` for `storage.postgres.password`); envi
 take precedence over file values.
 
 Only the split sidecar YAML files (`channels.yaml`, `heartbeat.yaml`, `computer_use.yaml`,
-`browser_use.yaml`, ...) support environment substitution, using `${VAR}` syntax
-(see `config/utils/yamlfile.go`).
+`browser_use.yaml`, ...) support environment substitution, using `$VAR` or `${VAR}` syntax.
+Shell-style defaults such as `${VAR:-fallback}` are not supported: an unset variable
+expands to an empty string.
 
 ---
 

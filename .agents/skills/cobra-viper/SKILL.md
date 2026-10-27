@@ -150,20 +150,18 @@ func initConfig(v *viper.Viper, cmd *cobra.Command) error {
 to it unless the key is registered - `SetDefault` or `BindEnv` every key in the
 config struct.
 
-> **In this repo:** config is assembled in `runtime.State.Initialize`
-> (`cmd/runtime/state.go`) and `loadConfigFromViper` (`cmd/runtime/config.go`),
-> layered **defaults -> `~/.infer/config.yaml` -> `./.infer/config.yaml` -> flags
-> -> `INFER_*` env (env wins)**, and **split across files by concern**
-> (`config.yaml`, `prompts.yaml`, `channels.yaml`, `mcp.yaml`, ...). The prefix is
-> `INFER`, the replacer is `strings.NewReplacer(".", "_")`. The gotcha above is
-> handled twice: `registerConfigDefaults` (`cmd/runtime/defaults.go`) registers
-> every non-zero leaf of `config.DefaultConfig()`, and
-> `resolveViperEnvironmentVariables` (`cmd/runtime/config.go`) walks the struct
-> after `Unmarshal` to apply `INFER_*` overrides to the rest. Two list vars
-> (`INFER_A2A_AGENTS`, `INFER_TOOLS_BASH_ALLOW_APPEND`) are parsed with
-> `parseDelimitedList`. The typed target is the `Config` struct in
-> `config/config.go` - extend that (and `DefaultConfig()`); don't sprinkle
-> `viper.Get*` through services.
+> **In this repo:** config is assembled by `loadConfig` (`cmd/runtime/state.go`)
+> in one `viper.New()`: **defaults -> `~/.infer/<file>` -> `./.infer/<file>` ->
+> `INFER_*` env -> flags**, for `config.yaml` and every **split file**
+> (`prompts.yaml`, `channels.yaml`, `mcp.yaml`, ...), each merged under its key
+> by the `sidecars` table in `cmd/runtime/config.go`, then a single `Unmarshal`.
+> The prefix is `INFER`, the replacer is `strings.NewReplacer(".", "_")`. The
+> gotcha above is handled once: `registerConfigDefaults`
+> (`cmd/runtime/defaults.go`) registers every leaf of `config.DefaultConfig()`,
+> zero values included. List values from env split on commas or newlines via
+> `parseDelimitedList` in the decode hook. The typed target is the `Config`
+> struct in `config/config.go` - extend that (and `DefaultConfig()`); don't
+> sprinkle `viper.Get*` through services.
 
 ## Test commands in memory
 

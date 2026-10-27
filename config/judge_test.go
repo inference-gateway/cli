@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 func TestDefaultJudgeConfig(t *testing.T) {
@@ -30,12 +32,12 @@ func TestDefaultJudgeConfig(t *testing.T) {
 
 func TestLoadJudge(t *testing.T) {
 	t.Run("missing file returns defaults", func(t *testing.T) {
-		cfg, err := LoadJudge(filepath.Join(t.TempDir(), "absent.yaml"))
+		cfg, err := configutils.LoadYAML(filepath.Join(t.TempDir(), "absent.yaml"), "judge", DefaultJudgeConfig)
 		if err != nil {
-			t.Fatalf("LoadJudge() error = %v, want nil", err)
+			t.Fatalf("LoadYAML() error = %v, want nil", err)
 		}
 		if *cfg != *DefaultJudgeConfig() {
-			t.Errorf("LoadJudge(missing) = %+v, want defaults %+v", *cfg, *DefaultJudgeConfig())
+			t.Errorf("LoadYAML(missing) = %+v, want defaults %+v", *cfg, *DefaultJudgeConfig())
 		}
 	})
 
@@ -45,12 +47,12 @@ func TestLoadJudge(t *testing.T) {
 		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 			t.Fatalf("writing judge.yaml: %v", err)
 		}
-		cfg, err := LoadJudge(path)
+		cfg, err := configutils.LoadYAML(path, "judge", DefaultJudgeConfig)
 		if err != nil {
-			t.Fatalf("LoadJudge() error = %v, want nil", err)
+			t.Fatalf("LoadYAML() error = %v, want nil", err)
 		}
 		if cfg.Model != "openai/gpt-5" || cfg.Timeout != 5 || cfg.MaxTokens != 64 || cfg.OnError != JudgeOnErrorAllow {
-			t.Errorf("LoadJudge() = %+v, want parsed values", cfg)
+			t.Errorf("LoadYAML() = %+v, want parsed values", cfg)
 		}
 	})
 
@@ -59,8 +61,8 @@ func TestLoadJudge(t *testing.T) {
 		if err := os.WriteFile(path, []byte("model: [unclosed"), 0o600); err != nil {
 			t.Fatalf("writing judge.yaml: %v", err)
 		}
-		if _, err := LoadJudge(path); err == nil {
-			t.Error("LoadJudge(invalid yaml) should return an error")
+		if _, err := configutils.LoadYAML(path, "judge", DefaultJudgeConfig); err == nil {
+			t.Error("LoadYAML(invalid yaml) should return an error")
 		}
 	})
 
@@ -69,9 +71,9 @@ func TestLoadJudge(t *testing.T) {
 		if err := os.WriteFile(path, []byte("model: openai/gpt-5\n"), 0o600); err != nil {
 			t.Fatalf("writing judge.yaml: %v", err)
 		}
-		cfg, err := LoadJudge(path)
+		cfg, err := configutils.LoadYAML(path, "judge", DefaultJudgeConfig)
 		if err != nil {
-			t.Fatalf("LoadJudge() error = %v, want nil", err)
+			t.Fatalf("LoadYAML() error = %v, want nil", err)
 		}
 		eff := cfg.Effective()
 		if eff.Model != "openai/gpt-5" {
@@ -148,7 +150,7 @@ func TestSaveJudgeRoundTrip(t *testing.T) {
 	if err := SaveJudge(path, want); err != nil {
 		t.Fatalf("SaveJudge: %v", err)
 	}
-	got, err := LoadJudge(path)
+	got, err := configutils.LoadYAML(path, "judge", DefaultJudgeConfig)
 	if err != nil {
 		t.Fatalf("LoadJudge: %v", err)
 	}

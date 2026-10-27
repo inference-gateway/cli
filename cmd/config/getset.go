@@ -170,8 +170,8 @@ func setConfigValue(cmd *cobra.Command, args []string, load func() (*config.Conf
 	key := args[0]
 	rawValue := args[1]
 
-	if isToolsConfigKey(key) {
-		return fmt.Errorf("config key %q lives in %s, not config.yaml; edit that file to change it", key, config.ToolsFileName)
+	if file, ok := runtime.SidecarFile(key); ok {
+		return fmt.Errorf("config key %q lives in %s, not config.yaml; edit that file to change it", key, file)
 	}
 
 	kind, ok := resolveConfigKeyKind(key)
@@ -226,16 +226,13 @@ func restoreConfigFile(path string, previous []byte, existed bool) error {
 	return os.WriteFile(path, previous, 0o600)
 }
 
-// isToolsConfigKey reports whether key targets the tools policy, which lives
-// in tools.yaml rather than config.yaml.
-func isToolsConfigKey(key string) bool {
-	return key == "tools" || strings.HasPrefix(key, "tools.")
-}
-
 // resolveConfigKeyKind walks the Config struct by mapstructure tag to find the
 // kind of the field a dotted key points at. Returns false for unknown keys and
-// for keys whose section is excluded from config.yaml (mapstructure:"-").
+// for keys whose section lives in a split file rather than config.yaml.
 func resolveConfigKeyKind(key string) (reflect.Kind, bool) {
+	if _, sidecar := runtime.SidecarFile(key); sidecar {
+		return reflect.Invalid, false
+	}
 	parts := strings.Split(key, ".")
 	t := reflect.TypeOf(config.Config{})
 
@@ -265,8 +262,7 @@ func resolveConfigKeyKind(key string) (reflect.Kind, bool) {
 }
 
 // fieldByConfigTag finds the struct field whose mapstructure tag matches name.
-// Falls back to the lowercased field name when no tag is present, and skips
-// fields tagged "-" (split-file configs that do not live in config.yaml).
+// Falls back to the lowercased field name when no tag is present.
 func fieldByConfigTag(t reflect.Type, name string) (reflect.StructField, bool) {
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)

@@ -2,6 +2,9 @@ package runtime
 
 import (
 	"fmt"
+	"testing"
+
+	require "github.com/stretchr/testify/require"
 
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
@@ -40,4 +43,12 @@ func disableStdoutLogging() {
 	testState.loggerCfg = loggerCfg
 	testState.DisableStdoutLogging()
 	loggerCfg = testState.loggerCfg
+}
+
+// loadTestConfig runs the real startup load against the current env and files.
+func loadTestConfig(t *testing.T) *config.Config {
+	t.Helper()
+	_, cfg, err := loadConfig(rootCmd)
+	require.NoError(t, err)
+	return cfg
 }

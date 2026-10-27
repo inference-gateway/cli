@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-
-	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
 const (
@@ -74,11 +72,4 @@ func (c *Config) Binding() Binding {
 // exists: the binding is off until the user or the desktop app enables it.
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{}
-}
-
-// LoadDaemon reads daemon.yaml from disk. When the file is missing it
-// returns the in-code defaults so callers can treat absence as "use
-// defaults" without special-casing.
-func LoadDaemon(path string) (*DaemonConfig, error) {
-	return configutils.LoadYAML(path, "daemon", DefaultDaemonConfig)
 }

@@ -7,26 +7,19 @@ import (
 	viper "github.com/spf13/viper"
 )
 
-// registerConfigDefaults walks cfg via mapstructure tags and calls
-// v.SetDefault for every leaf field with a non-zero value. cfg must be a
-// struct or pointer to struct annotated with `mapstructure` tags.
-//
-// This replaces the hand-maintained list of v.SetDefault calls and keeps
-// viper's default registry automatically in sync with config.DefaultConfig().
+// registerConfigDefaults walks cfg via mapstructure tags and calls v.SetDefault
+// for every leaf, zero values included, so each key is known to Viper and an
+// INFER_* override for it reaches Unmarshal.
 func registerConfigDefaults(v *viper.Viper, cfg any) {
 	walkConfigLeaves(reflect.ValueOf(cfg), "", func(path string, val reflect.Value) {
-		if isLeafZeroValue(val) {
-			return
-		}
 		v.SetDefault(path, val.Interface())
 	})
 }
 
-// walkConfigLeaves traverses a struct (or pointer to struct) using
-// mapstructure tags and invokes visit for every leaf field. Structs and
-// non-nil pointers to structs are recursed into; everything else (scalars,
-// slices, maps, pointers to scalars, nil pointers to structs) is treated as
-// a leaf.
+// walkConfigLeaves traverses a struct (or pointer to struct) using mapstructure
+// tags and invokes visit for every leaf field. Structs, non-nil pointers to
+// structs and string-keyed maps of structs are recursed into. Everything else
+// is a leaf.
 func walkConfigLeaves(v reflect.Value, prefix string, visit func(path string, val reflect.Value)) {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
@@ -38,7 +31,7 @@ func walkConfigLeaves(v reflect.Value, prefix string, visit func(path string, va
 		return
 	}
 	t := v.Type()
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		f := t.Field(i)
 		if !f.IsExported() {
 			continue
@@ -65,32 +58,16 @@ func walkConfigLeaves(v reflect.Value, prefix string, visit func(path string, va
 			} else {
 				walkConfigLeaves(fv.Elem(), full, visit)
 			}
+		case isStructMap(fv.Type()) && fv.Len() > 0:
+			for _, key := range fv.MapKeys() {
+				walkConfigLeaves(fv.MapIndex(key), full+"."+key.String(), visit)
+			}
 		default:
 			visit(full, fv)
 		}
 	}
 }
 
-// isLeafZeroValue reports whether v carries no useful default. Zero-valued
-// leaves don't need to be registered with viper since GetXxx already returns
-// the zero value of the requested type.
-func isLeafZeroValue(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Pointer, reflect.Interface:
-		return v.IsNil()
-	case reflect.Slice, reflect.Map:
-		return v.Len() == 0
-	case reflect.String:
-		return v.String() == ""
-	case reflect.Bool:
-		return !v.Bool()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return v.Int() == 0
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return v.Uint() == 0
-	case reflect.Float32, reflect.Float64:
-		return v.Float() == 0
-	default:
-		return v.IsZero()
-	}
+func isStructMap(t reflect.Type) bool {
+	return t.Kind() == reflect.Map && t.Key().Kind() == reflect.String && t.Elem().Kind() == reflect.Struct
 }

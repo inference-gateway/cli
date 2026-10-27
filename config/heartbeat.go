@@ -38,15 +38,6 @@ func DefaultHeartbeatConfig() *HeartbeatConfig {
 	}
 }
 
-// LoadHeartbeat reads heartbeat.yaml from disk. When the file is
-// missing it returns the in-code defaults so callers can treat absence
-// as "use defaults" without special-casing. The file body is run
-// through os.ExpandEnv so `${VAR}`-style references resolve from the
-// environment.
-func LoadHeartbeat(path string) (*HeartbeatConfig, error) {
-	return configutils.LoadYAML(path, "heartbeat", DefaultHeartbeatConfig)
-}
-
 // SaveHeartbeat writes the heartbeat configuration to disk, creating
 // any missing parent directories.
 func SaveHeartbeat(path string, cfg *HeartbeatConfig) error {

@@ -124,17 +124,6 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 	}
 }
 
-// LoadComputerUse reads computer_use.yaml from disk. When the file is
-// missing it returns the in-code defaults so callers can treat absence as
-// "use defaults" without special-casing. The file is decoded over the
-// defaults, so tool sections added after a user's file was seeded keep
-// their default enablement instead of loading as disabled. The file body is
-// run through os.ExpandEnv so `${VAR}`-style references resolve from the
-// environment.
-func LoadComputerUse(path string) (*ComputerUseConfig, error) {
-	return configutils.LoadYAMLMerged(path, "computer_use", DefaultComputerUseConfig)
-}
-
 // SaveComputerUse writes the computer_use configuration to disk, creating
 // any missing parent directories.
 func SaveComputerUse(path string, cfg *ComputerUseConfig) error {

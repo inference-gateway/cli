@@ -157,9 +157,11 @@ func DefaultToolsConfig() *ToolsConfig {
 // at the top of the file, above the tools: block holding each tool's section.
 var toolsPolicyKeys = []string{"enabled", "custom_dir", "max_result_bytes", "safety"}
 
-func isToolsPolicyKey(key string) bool { return slices.Contains(toolsPolicyKeys, key) }
+// IsToolsPolicyKey reports whether key is a tools.yaml policy key rather than
+// a tool section.
+func IsToolsPolicyKey(key string) bool { return slices.Contains(toolsPolicyKeys, key) }
 
-func isToolSectionKey(key string) bool { return !isToolsPolicyKey(key) }
+func isToolSectionKey(key string) bool { return !IsToolsPolicyKey(key) }
 
 // MarshalYAML writes the tools.yaml layout: the policy keys first, then every
 // tool's section nested under tools:.
@@ -170,7 +172,7 @@ func (c ToolsConfig) MarshalYAML() (any, error) {
 		return nil, err
 	}
 	sections := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(&flat, isToolSectionKey)}
-	root := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(&flat, isToolsPolicyKey)}
+	root := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(&flat, IsToolsPolicyKey)}
 	root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "tools"}, sections)
 	return root, nil
 }
@@ -179,7 +181,7 @@ func (c ToolsConfig) MarshalYAML() (any, error) {
 // keeps its current value, so LoadTools still layers the file over the defaults.
 func (c *ToolsConfig) UnmarshalYAML(node *yaml.Node) error {
 	type plain ToolsConfig
-	file := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(node, isToolsPolicyKey)}
+	file := &yaml.Node{Kind: yaml.MappingNode, Content: mappingPairs(node, IsToolsPolicyKey)}
 	for i := 1; i < len(node.Content); i += 2 {
 		if node.Content[i-1].Value == "tools" {
 			file.Content = append(file.Content, mappingPairs(node.Content[i], isToolSectionKey)...)
@@ -200,12 +202,6 @@ func mappingPairs(node *yaml.Node, keep func(key string) bool) []*yaml.Node {
 		}
 	}
 	return pairs
-}
-
-// LoadTools reads tools.yaml over the defaults, so a missing file or a missing
-// key keeps the default value.
-func LoadTools(path string) (*ToolsConfig, error) {
-	return configutils.LoadYAMLMerged(path, "tools", DefaultToolsConfig)
 }
 
 // SaveTools writes the tools config to disk, creating parent directories.

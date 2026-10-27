@@ -72,12 +72,6 @@ func DefaultHooksConfig() *HooksConfig {
 	return &HooksConfig{Enabled: false}
 }
 
-// LoadHooks reads hooks.yaml from disk. When the file is missing it returns the
-// in-code defaults so callers can treat absence as "use defaults".
-func LoadHooks(path string) (*HooksConfig, error) {
-	return configutils.LoadYAML(path, "hooks", DefaultHooksConfig)
-}
-
 // SaveHooks writes the hooks configuration to disk, creating any missing parent
 // directories.
 func SaveHooks(path string, cfg *HooksConfig) error {
