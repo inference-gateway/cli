@@ -287,7 +287,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 	for _, spec := range specs {
 		sessionID := newSubagentSessionID(parentSession)
 
-		runCtx, cancel := context.WithCancel(context.Background())
+		runCtx, cancel := context.WithCancel(agentdomain.WithSessionID(context.Background(), parentSession))
 		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,

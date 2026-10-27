@@ -288,3 +288,30 @@ func TestAgentTool_ThreadBlockingFanOut(t *testing.T) {
 		t.Fatalf("each subagent opens its own thread, got %v", opens)
 	}
 }
+
+// An async subagent's thread names the session that spawned it, so the
+// daemon's worker reports its turns back to that parent.
+func TestAgentTool_ThreadAsyncCarriesParentSession(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	turns := make(chan string, 8)
+	dial, handler := startDaemonBinding(t, echoTurn(turns))
+	cfg := threadConfig()
+	cfg.Tools.Agent.Wait = false
+	tool, _ := newSupervisedAgentTool(t, cfg)
+	tool.dialDaemon = func(context.Context) (agui.DialConfig, error) { return dial, nil }
+
+	ctx := agentdomain.WithSessionID(t.Context(), "parent-session")
+	res, err := tool.Execute(ctx, map[string]any{"tasks": []any{map[string]any{"description": "task A", "label": "A"}}})
+	if err != nil || res == nil || !res.Success {
+		t.Fatalf("Execute: res=%+v err=%v", res, err)
+	}
+	waitTurn(t, turns, "task A")
+	opens := clientFrames(handler, "resume_conversation")
+	if len(opens) != 1 {
+		t.Fatalf("the subagent opens one thread, got %v", opens)
+	}
+	sub, _ := opens[0]["subagent"].(map[string]any)
+	if sub["parent"] != "parent-session" {
+		t.Fatalf("the thread must name the parent session, got %v", sub)
+	}
+}
