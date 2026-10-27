@@ -3,6 +3,7 @@ package loop
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
@@ -29,33 +31,38 @@ const (
 	maxJudgeBatchSize    = 20
 )
 
-// LLMJudge implements agentdomain.JudgeApprover with one no-tools
-// GenerateContent call per batch (same shape as GenerateLLMSummary: direct
-// client call, SkipMCP, its own timeout, bounded max_tokens). The judge.yaml
+// LLMJudge implements agentdomain.JudgeApprover with one llm.Complete side
+// call per batch, under its own timeout and token budget. The judge.yaml
 // on_error policy decides what a failed call means: deny (default) fails
 // closed with a distinguishable reason - the same default as the no-approver
 // block path - allow approves.
 type LLMJudge struct {
-	client sdk.Client
+	llm    llm.Completer
 	config *config.Config
 }
 
 // NewLLMJudge creates the judge approver. Config validation fails fast at
 // startup when no model is resolvable, so an empty model here is a hard error.
-// judge.gateway_url gives the judge its own client (same API key and timeout
-// as the agent's) so it can answer from a different gateway than the driver.
-func NewLLMJudge(client sdk.Client, cfg *config.Config) *LLMJudge {
-	if url := cfg.Judge.GatewayURL; url != "" {
-		if !strings.HasSuffix(url, "/v1") {
-			url = strings.TrimSuffix(url, "/") + "/v1"
-		}
-		client = sdk.NewClient(&sdk.ClientOptions{
-			BaseURL: url,
-			APIKey:  cfg.Gateway.APIKey,
-			Timeout: time.Duration(cmp.Or(cfg.Client.Timeout, 200)) * time.Second,
-		})
+func NewLLMJudge(completer llm.Completer, cfg *config.Config) *LLMJudge {
+	return &LLMJudge{llm: completer, config: cfg}
+}
+
+// judgeCompleter answers judge calls from judge.gateway_url when set (same
+// API key and timeout as the agent's client) so the judge can live on a
+// different gateway than the driver, and from the agent's client otherwise.
+func judgeCompleter(client sdk.Client, cfg *config.Config) llm.Completer {
+	url := cfg.Judge.GatewayURL
+	if url == "" {
+		return llm.New(client)
 	}
-	return &LLMJudge{client: client, config: cfg}
+	if !strings.HasSuffix(url, "/v1") {
+		url = strings.TrimSuffix(url, "/") + "/v1"
+	}
+	return llm.New(sdk.NewClient(&sdk.ClientOptions{
+		BaseURL: url,
+		APIKey:  cfg.Gateway.APIKey,
+		Timeout: time.Duration(cmp.Or(cfg.Client.Timeout, 200)) * time.Second,
+	}))
 }
 
 // Judge decides the pending tool calls: does each serve the user's intent and
@@ -68,14 +75,13 @@ func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentd
 		return agentdomain.JudgeVerdicts{}, fmt.Errorf("no judge model configured: set judge.model in %s or agent.model", config.DefaultJudgePath)
 	}
 
-	provider, modelName := config.ParseModel(model)
-	if provider == "" {
+	if provider, _ := config.ParseModel(model); provider == "" {
 		return agentdomain.JudgeVerdicts{}, fmt.Errorf("invalid judge model format %q, expected 'provider/model'", model)
 	}
 
 	out := agentdomain.JudgeVerdicts{Verdicts: make([]agentdomain.JudgeVerdict, 0, len(in.Actions))}
 	for batch := range slices.Chunk(in.Actions, maxJudgeBatchSize) {
-		verdicts, usage := j.judgeBatch(ctx, sdk.Provider(provider), modelName, in, batch)
+		verdicts, usage := j.judgeBatch(ctx, in, batch)
 		out.Verdicts = append(out.Verdicts, verdicts...)
 		out.Usage = addUsage(out.Usage, usage)
 	}
@@ -86,9 +92,9 @@ func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentd
 // verdict per action in order. A failed request or unparseable answer applies
 // on_error to the whole batch; an answer that omits a call applies on_error
 // to that call only.
-func (j *LLMJudge) judgeBatch(ctx context.Context, provider sdk.Provider, modelName string, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction) ([]agentdomain.JudgeVerdict, *sdk.CompletionUsage) {
+func (j *LLMJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction) ([]agentdomain.JudgeVerdict, *sdk.CompletionUsage) {
 	jcfg := j.config.Judge.Effective()
-	byID, usage, err := j.askJudge(ctx, provider, modelName, in, batch, jcfg)
+	byID, usage, err := j.askJudge(ctx, in, batch, jcfg)
 	verdicts := make([]agentdomain.JudgeVerdict, len(batch))
 	for i, id := range actionIDs(batch) {
 		if err != nil {
@@ -104,18 +110,15 @@ func (j *LLMJudge) judgeBatch(ctx context.Context, provider sdk.Provider, modelN
 	return verdicts, usage
 }
 
-// askJudge renders the prompt for batch, makes the GenerateContent call and
-// parses the verdicts keyed by id.
-func (j *LLMJudge) askJudge(ctx context.Context, provider sdk.Provider, modelName string, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction, jcfg config.JudgeConfig) (map[string]agentdomain.JudgeVerdict, *sdk.CompletionUsage, error) {
+// askJudge renders the prompt for batch, makes one side call and parses the
+// verdicts keyed by id. A reasoning judge that leaves its verdict in reasoning
+// is read through Answer; one that spends the budget names judge.max_tokens.
+func (j *LLMJudge) askJudge(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction, jcfg config.JudgeConfig) (map[string]agentdomain.JudgeVerdict, *sdk.CompletionUsage, error) {
 	prompt := strings.NewReplacer(
 		"{root_intent}", truncateForJudge(in.RootIntent, maxJudgeIntentLength),
 		"{intent}", truncateForJudge(in.Intent, maxJudgeIntentLength),
 		"{action}", renderJudgeActions(batch),
 	).Replace(jcfg.Prompt)
-	messages := []sdk.Message{
-		{Role: sdk.System, Content: sdk.NewMessageContent(jcfg.SystemPrompt)},
-		{Role: sdk.User, Content: sdk.NewMessageContent(prompt)},
-	}
 	streamevent.EmitDebugEvent("judge_request", map[string]any{
 		"model": in.Model, "system": jcfg.SystemPrompt, "prompt": prompt, "calls": len(batch),
 	})
@@ -123,26 +126,21 @@ func (j *LLMJudge) askJudge(ctx context.Context, provider sdk.Provider, modelNam
 	jctx, cancel := context.WithTimeout(ctx, time.Duration(jcfg.Timeout)*time.Second)
 	defer cancel()
 
-	response, err := j.client.
-		WithOptions(&sdk.CreateChatCompletionRequest{MaxTokens: &jcfg.MaxTokens}).
-		WithMiddlewareOptions(&sdk.MiddlewareOptions{SkipMCP: true}).
-		GenerateContent(jctx, provider, modelName, messages)
+	resp, err := j.llm.Complete(jctx, llm.Request{
+		Model:     in.Model,
+		System:    jcfg.SystemPrompt,
+		Prompt:    prompt,
+		MaxTokens: jcfg.MaxTokens,
+	})
+	if errors.Is(err, llm.ErrTokenBudgetExhausted) {
+		return nil, resp.Usage, fmt.Errorf("%w; raise judge.max_tokens", err)
+	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("judge call failed: %w", err)
-	}
-	if len(response.Choices) == 0 {
-		return nil, response.Usage, fmt.Errorf("judge returned no choices")
-	}
-	raw, err := response.Choices[0].Message.Content.AsMessageContent0()
-	if err != nil {
-		return nil, response.Usage, fmt.Errorf("extracting judge content: %w", err)
-	}
-	if response.Choices[0].FinishReason == sdk.Length && strings.TrimSpace(raw) == "" {
-		return nil, response.Usage, fmt.Errorf("judge spent all %d max_tokens before answering (reasoning models think against this budget); raise judge.max_tokens", jcfg.MaxTokens)
+		return nil, resp.Usage, fmt.Errorf("judge call failed: %w", err)
 	}
 
-	byID, err := agentdomain.ParseJudgeVerdicts(raw, actionIDs(batch))
-	return byID, response.Usage, err
+	byID, err := agentdomain.ParseJudgeVerdicts(resp.Answer(), actionIDs(batch))
+	return byID, resp.Usage, err
 }
 
 func actionIDs(batch []agentdomain.JudgeAction) []string {

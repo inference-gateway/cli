@@ -40,6 +40,7 @@ import (
 	insights "github.com/inference-gateway/cli/internal/insights"
 	adapters "github.com/inference-gateway/cli/internal/platform/adapters"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -762,7 +763,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
 
 	if c.stores != nil {
-		c.insights = insights.New(c.newSDKClient(&sdk.RetryConfig{}, 0), c.config, c.stores.Conversations, c.modelService)
+		c.insights = insights.New(llm.New(c.newSDKClient(&sdk.RetryConfig{}, 0)), c.config, c.stores.Conversations, c.modelService)
 	}
 
 	if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
@@ -787,8 +788,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 
 	configDirs := config.ConfigLookupDirs()
-	customShortcutClient := c.createRawSDKClient()
-	if err := c.shortcutRegistry.LoadCustomShortcuts(configDirs, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDirs, llm.New(c.createRawSDKClient()), c.modelService, c.imageService, c.toolService); err != nil {
 		logger.Error("failed to load custom shortcuts", "error", err, "config_dirs", configDirs)
 	}
 }

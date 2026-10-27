@@ -2,7 +2,6 @@ package insights
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
+	llmmocks "github.com/inference-gateway/cli/tests/mocks/llm"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -306,32 +305,20 @@ func TestMemoryIndexAbsentIsHarmless(t *testing.T) {
 	}
 }
 
-// fakeAnalyzer returns a FakeClient streaming one canned analysis.
-func fakeAnalyzer(content string, finish sdk.FinishReason) *sdkmocks.FakeClient {
-	client := &sdkmocks.FakeClient{}
-	client.WithOptionsReturns(client)
-	client.WithMiddlewareOptionsReturns(client)
-	client.GenerateContentStreamReturns(streamOf(sdk.CreateChatCompletionStreamResponse{
-		Choices: []sdk.ChatCompletionStreamChoice{{
-			FinishReason: finish,
-			Delta:        sdk.ChatCompletionStreamResponseDelta{Content: content},
-		}},
-	}), nil)
-	return client
-}
-
-// streamOf serialises chunks the way the SDK's SSE reader hands them out.
-func streamOf(chunks ...sdk.CreateChatCompletionStreamResponse) <-chan sdk.SSEvent {
-	events := make(chan sdk.SSEvent, len(chunks)+1)
-	for _, chunk := range chunks {
-		data, _ := json.Marshal(chunk)
-		delta := sdk.ContentDelta
-		events <- sdk.SSEvent{Event: &delta, Data: &data}
+// fakeAnalyzer returns a FakeCompleter answering one canned analysis, or the
+// error a spent budget or an empty answer produces.
+func fakeAnalyzer(content string, finish sdk.FinishReason) *llmmocks.FakeCompleter {
+	completer := &llmmocks.FakeCompleter{}
+	resp := llm.Response{Content: content}
+	switch {
+	case strings.TrimSpace(content) != "":
+		completer.CompleteReturns(resp, nil)
+	case finish == sdk.Length:
+		completer.CompleteReturns(resp, fmt.Errorf("spent: %w", llm.ErrTokenBudgetExhausted))
+	default:
+		completer.CompleteReturns(resp, llm.ErrEmptyResponse)
 	}
-	end := sdk.StreamEnd
-	events <- sdk.SSEvent{Event: &end}
-	close(events)
-	return events
+	return completer
 }
 
 // TestAnalyzeUsesAgentMaxTokens pins the floor: agent.max_tokens can raise the
@@ -350,19 +337,16 @@ func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := fakeAnalyzer("done", sdk.Stop)
-			g := &Generator{client: client, cfg: tt.cfg}
+			completer := fakeAnalyzer("done", sdk.Stop)
+			g := &Generator{llm: completer, cfg: tt.cfg}
 
 			if _, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard); err != nil {
 				t.Fatal(err)
 			}
 
-			opts := client.WithOptionsArgsForCall(0)
-			if opts == nil || opts.MaxTokens == nil {
-				t.Fatalf("no max_tokens sent")
-			}
-			if *opts.MaxTokens != tt.wantToken {
-				t.Errorf("max_tokens = %d, want %d", *opts.MaxTokens, tt.wantToken)
+			_, req := completer.CompleteArgsForCall(0)
+			if req.MaxTokens != tt.wantToken {
+				t.Errorf("max_tokens = %d, want %d", req.MaxTokens, tt.wantToken)
 			}
 		})
 	}
@@ -370,7 +354,7 @@ func TestAnalyzeUsesAgentMaxTokens(t *testing.T) {
 
 // TestBudgetErrorNamesTheKnob keeps the failure actionable.
 func TestBudgetErrorNamesTheKnob(t *testing.T) {
-	g := &Generator{client: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
+	g := &Generator{llm: fakeAnalyzer("", sdk.Length), cfg: &config.Config{}}
 
 	_, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard)
 	if err == nil {
@@ -383,7 +367,7 @@ func TestBudgetErrorNamesTheKnob(t *testing.T) {
 		t.Errorf("error must name the knob to raise, got: %v", err)
 	}
 
-	empty := &Generator{client: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
+	empty := &Generator{llm: fakeAnalyzer("  ", sdk.Stop), cfg: &config.Config{}}
 	_, _, err = empty.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard)
 	if err == nil || errors.Is(err, llm.ErrTokenBudgetExhausted) {
 		t.Errorf("an unrelated empty response must not carry the budget remedy, got: %v", err)
@@ -397,7 +381,7 @@ func TestAnalysisIsCapped(t *testing.T) {
 	for i := range 500 {
 		fmt.Fprintf(&long, "line %d\n", i)
 	}
-	g := &Generator{client: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
+	g := &Generator{llm: fakeAnalyzer(long.String(), sdk.Stop), cfg: &config.Config{}}
 
 	analysis, _, err := g.analyze(context.Background(), "openai/gpt-4o", "DIGEST", io.Discard)
 	if err != nil {
