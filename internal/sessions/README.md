@@ -34,7 +34,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   `approval_response` for a `tool_call_id` goes to the worker, and any other client of the thread that saw it
   gets CUSTOM `approval_resolved`.
 - **Crashes and idling** - a worker that exits mid-turn ends its open run with a synthesized `RUN_ERROR`. A
-  worker nobody follows is stopped after the idle timeout, and daemon shutdown stops every worker.
+  worker nobody follows is stopped once it sat on the user's turn for the idle timeout with no open run,
+  no pending reply and no background job (tracked from its `backgroundTasks` state), and daemon shutdown
+  stops every worker.
 
 ## How it plugs in
 

@@ -73,6 +73,34 @@ type workerLine struct {
 		Type       string            `json:"type"`
 		Interrupts []workerInterrupt `json:"interrupts"`
 	} `json:"outcome"`
+	Snapshot struct {
+		BackgroundTasks backgroundTasks `json:"backgroundTasks"`
+	} `json:"snapshot"`
+	Delta json.RawMessage `json:"delta"`
+}
+
+// backgroundTasks is the worker's backgroundTasks state key: how many jobs it
+// still runs, which keeps the worker alive after the user's turn.
+type backgroundTasks struct {
+	Running int `json:"running"`
+}
+
+// runningJobs reads the job count a STATE_DELTA patches into backgroundTasks,
+// or nil when the delta touches another key.
+func runningJobs(delta json.RawMessage) *int {
+	var ops []struct {
+		Path  string          `json:"path"`
+		Value backgroundTasks `json:"value"`
+	}
+	if json.Unmarshal(delta, &ops) != nil {
+		return nil
+	}
+	for _, op := range ops {
+		if op.Path == "/backgroundTasks" {
+			return &op.Value.Running
+		}
+	}
+	return nil
 }
 
 // workerInterrupt is one interrupt a suspended run's terminal line waits on.
@@ -111,6 +139,7 @@ type thread struct {
 	waiting    map[string][]sessionsdomain.Client
 	runID      string
 	interrupts map[string]struct{}
+	jobs       int
 	active     time.Time
 	launchErr  error
 }
@@ -570,6 +599,12 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 		t.runID = ""
 		t.interrupts = openInterrupts(l)
 		activity = r.activityFrame()
+	case "STATE_SNAPSHOT":
+		t.jobs = l.Snapshot.BackgroundTasks.Running
+	case "STATE_DELTA":
+		if jobs := runningJobs(l.Delta); jobs != nil {
+			t.jobs = *jobs
+		}
 	case "RUN_ERROR":
 		t.interrupts = nil
 		if t.runID == "" {
@@ -633,13 +668,14 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 	r.deliver(activity)
 }
 
-// reap stops the workers of threads nobody follows that have no open run, no
-// pending reply, and sat idle for the registry's idle timeout.
+// reap stops the workers of threads nobody follows that are on the user's
+// turn, with no open run, no pending reply and no background job, and sat
+// idle for the registry's idle timeout.
 func (r *Registry) reap(now time.Time) {
 	r.mu.Lock()
 	var idle []sessionsdomain.Worker
 	for key, t := range r.threads {
-		if len(t.clients) > 0 || t.runID != "" || len(t.waiting) > 0 || now.Sub(t.active) < r.idle {
+		if len(t.clients) > 0 || t.runID != "" || len(t.waiting) > 0 || t.jobs > 0 || now.Sub(t.active) < r.idle {
 			continue
 		}
 		if t.worker != nil {

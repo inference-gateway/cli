@@ -52,12 +52,17 @@ type Client interface {
 	Deliver(frame []byte)
 }
 
-// IdleTimeout is how long a thread nobody follows may sit idle before
-// the registry stops its worker, and how long a channel chat keeps
-// following its thread after its last frame before it detaches so the
-// reap can fire.
+// IdleTimeout is how long a thread nobody follows may sit on the user's
+// turn, with no run, no reply pending and no background job, before the
+// registry stops its worker. Long enough to absorb a quick switch back,
+// short enough that a left chat does not keep its worker around.
 // ponytail: a const, a config key when someone needs to tune it.
-const IdleTimeout = 10 * time.Minute
+const IdleTimeout = 30 * time.Second
+
+// ChannelFollowTimeout is how long a channel chat keeps following its
+// thread after its last frame before it detaches, so a reply minutes
+// later still lands on a warm worker.
+const ChannelFollowTimeout = 10 * time.Minute
 
 // ThreadRouter is the surface a driving adapter calls per client frame
 // and on disconnect. The daemon's thread registry implements it.

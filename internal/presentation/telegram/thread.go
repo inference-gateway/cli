@@ -194,9 +194,9 @@ func (t *threadChat) markActive() {
 	defer t.mu.Unlock()
 	t.active = time.Now()
 	if t.detach == nil {
-		t.detach = time.AfterFunc(sessionsdomain.IdleTimeout, t.detachIdle)
+		t.detach = time.AfterFunc(sessionsdomain.ChannelFollowTimeout, t.detachIdle)
 	} else {
-		t.detach.Reset(sessionsdomain.IdleTimeout)
+		t.detach.Reset(sessionsdomain.ChannelFollowTimeout)
 	}
 }
 
@@ -206,8 +206,8 @@ func (t *threadChat) markActive() {
 func (t *threadChat) detachIdle() {
 	t.mu.Lock()
 	idle := time.Since(t.active)
-	if idle < sessionsdomain.IdleTimeout {
-		t.detach.Reset(sessionsdomain.IdleTimeout - idle)
+	if idle < sessionsdomain.ChannelFollowTimeout {
+		t.detach.Reset(sessionsdomain.ChannelFollowTimeout - idle)
 		t.mu.Unlock()
 		return
 	}
