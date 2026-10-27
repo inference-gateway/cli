@@ -23,6 +23,7 @@ const (
 	frameNewSession         = "new_session"
 	frameResumeConversation = "resume_conversation"
 	frameApprovalResponse   = "approval_response"
+	frameStopThread         = "stop_thread"
 	frameRunAgentInput      = "run_agent_input"
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
@@ -187,6 +188,10 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 	}
 	if f.Type == frameApprovalResponse {
 		r.answer(c, f.ToolCallID, frame)
+		return
+	}
+	if f.Type == frameStopThread {
+		r.stopThread(f)
 		return
 	}
 	t, w, err := r.route(c, f, frame)
@@ -686,6 +691,27 @@ func (r *Registry) reap(now time.Time) {
 	}
 	r.mu.Unlock()
 	for _, w := range idle {
+		go w.Stop()
+	}
+}
+
+// stopThread stops the worker of the thread a stop_thread frame names, the way
+// a client drops a deleted conversation. The worker's exit does the bookkeeping:
+// an open run ends with RUN_ERROR for its followers and an unfollowed thread is
+// forgotten. A thread with no worker is left alone.
+func (r *Registry) stopThread(f clientFrame) {
+	dir, err := projectDir(f.ProjectDir)
+	if err != nil || f.ID == "" {
+		return
+	}
+	r.mu.Lock()
+	t := r.threads[sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: f.ID}]
+	var w sessionsdomain.Worker
+	if t != nil {
+		w = t.worker
+	}
+	r.mu.Unlock()
+	if w != nil {
 		go w.Stop()
 	}
 }

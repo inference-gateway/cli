@@ -240,6 +240,17 @@ with a `RUN_ERROR` that has no `runId`. When a thread's worker exits mid-turn,
 every client of the thread gets a `RUN_ERROR` carrying the open run's `runId`.
 The next `run_agent_input` starts a new worker for the thread.
 
+Client → CLI, stop a thread's worker at once, which is what a client sends
+when it deletes the conversation instead of leaving the worker to idle out:
+
+```json
+{"type": "stop_thread", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
+```
+
+- The CLI answers nothing. Followers of the thread with a run open get a
+  `RUN_ERROR` for it, exactly as when a worker exits mid-turn, and a thread
+  with no running worker is left alone.
+
 ## Active threads
 
 CLI → client, to every connected client whenever a thread opens or ends a run,

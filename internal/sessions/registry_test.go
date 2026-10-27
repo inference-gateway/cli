@@ -349,6 +349,30 @@ func TestRegistryReapsIdleWorkers(t *testing.T) {
 	}
 }
 
+// TestRegistryStopsAThreadOnRequest deletes a conversation the way the desktop
+// does: the client stops following and sends stop_thread, and the worker stops
+// at once instead of waiting out the idle timeout.
+func TestRegistryStopsAThreadOnRequest(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	c := &sessionsmocks.FakeClient{}
+	handle(r, c, `{"type":"resume_conversation","project_dir":"/a","id":"conv-1"}`)
+	worker, lines := l.worker(0)
+	lines <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
+	eventually(t, "the snapshot reply", func() bool { return c.DeliverCallCount() == 1 })
+	r.Detach(c)
+
+	handle(r, c, `{"type":"stop_thread","project_dir":"/other","id":"conv-1"}`)
+	handle(r, c, `{"type":"stop_thread","project_dir":"relative","id":"conv-1"}`)
+	time.Sleep(20 * time.Millisecond)
+	if worker.StopCallCount() != 0 {
+		t.Fatal("a stop_thread for another key must not stop the worker")
+	}
+
+	handle(r, c, `{"type":"stop_thread","project_dir":"/a","id":"conv-1"}`)
+	eventually(t, "the worker to stop", func() bool { return worker.StopCallCount() == 1 })
+}
+
 // TestRegistryKeepsWorkersWithBackgroundJobs leaves a thread whose worker
 // reported a running background job: the reaper waits until the worker's
 // backgroundTasks state says the job is done.
