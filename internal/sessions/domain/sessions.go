@@ -56,7 +56,6 @@ type Client interface {
 // turn, with no run, no reply pending and no background job, before the
 // registry stops its worker. Long enough to absorb a quick switch back,
 // short enough that a left chat does not keep its worker around.
-// ponytail: a const, a config key when someone needs to tune it.
 const IdleTimeout = 30 * time.Second
 
 // ChannelFollowTimeout is how long a channel chat keeps following its
