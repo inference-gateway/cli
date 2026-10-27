@@ -341,19 +341,19 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 // threadRouted reports whether headless subagents run as threads on the
 // daemon, which needs the binding to dial. Without it they run as subprocesses.
 func (t *AgentTool) threadRouted() bool {
-	return t.config.BindingConfigured()
+	return t.config.Binding().Dialable()
 }
 
 // dialDaemonBinding resolves the binding to dial, starting the daemon when
 // none listens, the way the browser tools reach it.
 func (t *AgentTool) dialDaemonBinding(ctx context.Context) (agui.DialConfig, error) {
-	port, token := t.config.BindingAddress()
-	if err := daemon.EnsureRunning(ctx, port); err != nil {
+	binding := t.config.Binding()
+	if err := daemon.EnsureRunning(ctx, binding.Port); err != nil {
 		return agui.DialConfig{}, err
 	}
 	return agui.DialConfig{
-		Addr:      fmt.Sprintf("127.0.0.1:%d", port),
-		Token:     token,
+		Addr:      binding.Addr(),
+		Token:     binding.Token,
 		Kind:      subagentClientKind,
 		Handshake: browserinfra.BindingHandshake,
 	}, nil

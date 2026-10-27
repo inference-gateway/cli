@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
@@ -32,35 +34,40 @@ type BindingConfig struct {
 	Token string `yaml:"token" mapstructure:"token"`
 }
 
-// BindingAddress returns the port and token the binding serves on. The
-// daemon.yaml values win, and browser_use.extension's port and token stay
-// the fallback.
-func (c *Config) BindingAddress() (port int, token string) {
-	port = c.Daemon.Binding.Port
-	if port <= 0 {
-		port = c.BrowserUse.Extension.EffectivePort()
-	}
-	token = c.Daemon.Binding.Token
-	if token == "" {
-		token = c.BrowserUse.Extension.Token
-	}
-	return port, token
+// Binding is the AG-UI binding as the config resolves it: daemon.yaml's own
+// values, with browser_use.extension's port and token as the fallback, and
+// on when the daemon switch or the extension backend needs it.
+type Binding struct {
+	Enabled bool
+	Port    int
+	Token   string
 }
 
-// BindingEnabled reports whether the daemon hosts the AG-UI binding: on its
-// own switch, or because the browser extension backend needs it.
-func (c *Config) BindingEnabled() bool {
-	if c.Daemon.Binding.Enabled {
-		return true
-	}
-	return c.BrowserUse.Enabled && c.BrowserUse.Backend == BrowserBackendExtension
+// Addr is the loopback address a client dials.
+func (b Binding) Addr() string {
+	return fmt.Sprintf("127.0.0.1:%d", b.Port)
 }
 
-// BindingConfigured reports whether a client of the daemon's threads can dial
-// the binding: it is enabled and has a token to present.
-func (c *Config) BindingConfigured() bool {
-	_, token := c.BindingAddress()
-	return c.BindingEnabled() && token != ""
+// Dialable reports whether a client can reach the binding: it is on and has
+// a token to present.
+func (b Binding) Dialable() bool {
+	return b.Enabled && b.Token != ""
+}
+
+// Binding resolves the AG-UI binding from daemon.yaml and browser_use.yaml.
+func (c *Config) Binding() Binding {
+	b := Binding{
+		Enabled: c.Daemon.Binding.Enabled || c.BrowserUse.Enabled && c.BrowserUse.Backend == BrowserBackendExtension,
+		Port:    c.Daemon.Binding.Port,
+		Token:   c.Daemon.Binding.Token,
+	}
+	if b.Port <= 0 {
+		b.Port = c.BrowserUse.Extension.EffectivePort()
+	}
+	if b.Token == "" {
+		b.Token = c.BrowserUse.Extension.Token
+	}
+	return b
 }
 
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml

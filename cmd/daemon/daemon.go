@@ -89,7 +89,7 @@ Examples:
 // starts whichever are enabled. At least one must be enabled or the daemon refuses to boot
 // (otherwise it would just sleep forever).
 func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
-	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !cfg.BindingEnabled() && !cfg.A2A.Server.Enabled {
+	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !cfg.Binding().Enabled && !cfg.A2A.Server.Enabled {
 		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, heartbeat, the AG-UI binding (browser_use with backend: extension), or the A2A server (a2a.server) in .infer/")
 	}
 
@@ -245,7 +245,7 @@ const workerIdleTimeout = sessionsdomain.IdleTimeout
 // binding, whose clients follow threads, or the channels, whose chats drive
 // threads of their own.
 func threadsEnabled(cfg *config.Config) bool {
-	return cfg.BindingEnabled() || cfg.Channels.Enabled
+	return cfg.Binding().Enabled || cfg.Channels.Enabled
 }
 
 // bindingHandler puts the binding's two consumers behind its one handler. The
@@ -309,14 +309,13 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 	}
 
 	var binding *agui.Binding
-	if cfg.BindingEnabled() {
-		port, token := cfg.BindingAddress()
-		if token == "" {
+	if b := cfg.Binding(); b.Enabled {
+		if b.Token == "" {
 			return nil, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml")
 		}
 		binding = agui.NewBinding(agui.BindingConfig{
-			Port:        port,
-			Token:       token,
+			Port:        b.Port,
+			Token:       b.Token,
 			Handshake:   browserinfra.BindingHandshake,
 			AllowOrigin: browserinfra.AllowExtensionOrigin,
 			Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
