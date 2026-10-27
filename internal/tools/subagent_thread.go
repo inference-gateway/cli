@@ -158,10 +158,8 @@ type threadFrame struct {
 
 // Handle reads one frame of the thread: the snapshot that opens it, the run
 // boundaries, the turns the worker reports and the failures. An interrupted
-// run is resumed with every interrupt cancelled, since a headless subagent
-// has no approver.
-// ponytail: leave the interrupt open instead when a desktop follower should
-// approve the subagent's tool calls.
+// run resumes with every interrupt cancelled, as a headless subagent has no
+// approver. ponytail: leave it open once a desktop follower may approve.
 func (t *subagentThread) Handle(_ *agui.Conn, frame []byte) {
 	if t.onFrame != nil {
 		t.onFrame(frame)

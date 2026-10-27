@@ -30,19 +30,9 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// subagentDepthEnv guards against subagent fork-bombs: each spawned subagent
-// inherits INFER_SUBAGENT_DEPTH=<parent+1>, and the tool disables itself once
-// the depth reaches the configured max (a subagent is itself an `infer headless`).
-const subagentDepthEnv = "INFER_SUBAGENT_DEPTH"
-
 // subagentSystemPromptEnv carries a per-subagent system prompt to the spawned
 // subagent (read in initConfig), so each subagent can run with its own role.
 const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
-
-// SubagentToolsEnv carries a named subagent's tool allowlist to the spawned
-// subagent, which enforces it in Service.isToolEnabled - that single
-// check gates both what is advertised to the model and what ExecuteTool accepts.
-const SubagentToolsEnv = "INFER_SUBAGENT_TOOLS"
 
 // AgentTaskSpec is one delegated unit of work within an Agent tool call.
 type AgentTaskSpec struct {
@@ -55,7 +45,7 @@ type AgentTaskSpec struct {
 	// system prompt, model and tool allowlist replace the per-task overrides.
 	Agent string
 	// Tools is the resolved allowlist passed to the subagent via
-	// SubagentToolsEnv; nil means inherit the parent's tools.
+	// EnvSubagentTools; nil means inherit the parent's tools.
 	Tools []string
 	// Mode is the subagent's capability, resolved from the `type` argument:
 	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
@@ -360,7 +350,7 @@ func (t *AgentTool) dialDaemonBinding(ctx context.Context) (agui.DialConfig, err
 }
 
 // openThread opens the subagent's thread on the daemon in the parent's project
-// dir, with the task's model, mode and the env a subprocess would get.
+// dir, the same dir a subprocess would run in.
 func (t *AgentTool) openThread(ctx context.Context, spec AgentTaskSpec, sessionID string, onTurn func(scheddomain.SubagentResultFile), onFrame func([]byte)) (*subagentThread, error) {
 	dial, err := t.dialDaemon(ctx)
 	if err != nil {
@@ -529,16 +519,16 @@ func labelOrSession(label, sessionID string) string {
 // dropdown appears) plus the depth guard and invocation metadata. The chat runs
 // under the subagent's session ID, so the parent can read its conversation.
 func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sessionID string) string {
-	parts := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
+	parts := []string{fmt.Sprintf("%s=%d", scheddomain.EnvSubagentDepth, currentSubagentDepth()+1)}
 	if parentSession != "" {
-		parts = append(parts, "INFER_PARENT_SESSION_ID="+shellQuote(parentSession))
+		parts = append(parts, scheddomain.EnvSubagentParentSession+"="+shellQuote(parentSession))
 	}
-	parts = append(parts, "INFER_INVOKED_BY=agent")
+	parts = append(parts, scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent)
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
 	if len(spec.Tools) > 0 {
-		parts = append(parts, SubagentToolsEnv+"="+shellQuote(strings.Join(spec.Tools, ",")))
+		parts = append(parts, scheddomain.EnvSubagentTools+"="+shellQuote(strings.Join(spec.Tools, ",")))
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		parts = append(parts, scheddomain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.ModeKey()))
@@ -566,17 +556,17 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 // depth guard plus an optional per-subagent system prompt and trace context,
 // and invocation metadata (parent session, invoked_by).
 func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []string {
-	env := []string{fmt.Sprintf("%s=%d", subagentDepthEnv, currentSubagentDepth()+1)}
+	env := []string{fmt.Sprintf("%s=%d", scheddomain.EnvSubagentDepth, currentSubagentDepth()+1)}
 	env = append(env, agentdomain.GetTraceEnv(ctx)...)
 	if parentSession := agentdomain.GetSessionID(ctx); parentSession != "" {
-		env = append(env, "INFER_PARENT_SESSION_ID="+parentSession)
+		env = append(env, scheddomain.EnvSubagentParentSession+"="+parentSession)
 	}
-	env = append(env, "INFER_INVOKED_BY=agent")
+	env = append(env, scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent)
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}
 	if len(spec.Tools) > 0 {
-		env = append(env, SubagentToolsEnv+"="+strings.Join(spec.Tools, ","))
+		env = append(env, scheddomain.EnvSubagentTools+"="+strings.Join(spec.Tools, ","))
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		env = append(env, scheddomain.EnvSubagentAgentMode+"="+spec.Mode.ModeKey())
@@ -1054,7 +1044,7 @@ func shortSession(id string) string {
 // currentSubagentDepth reads the recursion depth from the environment (0 at the
 // top level).
 func currentSubagentDepth() int {
-	if v := os.Getenv(subagentDepthEnv); v != "" {
+	if v := os.Getenv(scheddomain.EnvSubagentDepth); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
 		}

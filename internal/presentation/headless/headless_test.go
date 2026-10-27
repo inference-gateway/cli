@@ -93,13 +93,13 @@ func TestReportSubagentTurn(t *testing.T) {
 	queue.IsEmptyReturns(true)
 
 	var out bytes.Buffer
-	t.Setenv(parentSessionEnv, "")
+	t.Setenv(scheddomain.EnvSubagentParentSession, "")
 	reportSubagentTurn(&out, repo, queue, "sess", nil)
 	if out.Len() != 0 {
 		t.Fatalf("a worker without a parent reported %q", out.String())
 	}
 
-	t.Setenv(parentSessionEnv, "parent")
+	t.Setenv(scheddomain.EnvSubagentParentSession, "parent")
 	reportSubagentTurn(&out, repo, queue, "sess", errors.New("boom"))
 	var frame struct {
 		Type  string                       `json:"type"`

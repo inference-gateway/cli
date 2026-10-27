@@ -27,6 +27,26 @@ const (
 	SubagentModeInteractive SubagentMode = "interactive"
 )
 
+// EnvSubagentDepth carries a subagent's depth under the top-level session, so
+// the Agent tool disables itself past the configured max_depth.
+const EnvSubagentDepth = "INFER_SUBAGENT_DEPTH"
+
+// EnvSubagentTools carries a named subagent's tool allowlist, which the tool
+// service enforces for what it advertises and what it executes.
+const EnvSubagentTools = "INFER_SUBAGENT_TOOLS"
+
+// EnvSubagentParentSession names the session whose Agent tool spawned this
+// one, recorded in the conversation's metadata and reported each turn to.
+const EnvSubagentParentSession = "INFER_PARENT_SESSION_ID"
+
+// EnvSubagentInvokedBy records who started the session: SubagentInvokedByAgent
+// for a subagent, absent for a human's chat.
+const EnvSubagentInvokedBy = "INFER_INVOKED_BY"
+
+// SubagentInvokedByAgent is the EnvSubagentInvokedBy value of a session an
+// Agent tool started.
+const SubagentInvokedByAgent = "agent"
+
 // EnvSubagentAgentMode names the environment variable the Agent tool sets to
 // carry the parent chat's coding mode (the AgentMode.ModeKey form -
 // "standard"/"plan"/"auto"/"auto-with-judge") to a spawned subagent, so it starts in the same

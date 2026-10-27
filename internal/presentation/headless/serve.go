@@ -40,13 +40,19 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 // agent run over it as one AG-UI run. A run that fails to start still renders
 // as RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract.
 func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, notes *startupNotes) {
+	runErr := serveTurn(ctx, svc, ctl, notifications, req, notes)
+	reportSubagentTurn(os.Stdout, svc.GetConversationRepository(), svc.GetMessageQueue(), req.RequestID, runErr)
+}
+
+// serveTurn renders the turn as one run, a direct call or an agent run, and
+// returns the error it ended with.
+func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, notes *startupNotes) error {
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
 	drained := drainQueue(ctx, svc.GetMessageQueue())
 	if fn, direct, err := queuedDirectCall(drained); direct {
-		reportSubagentTurn(os.Stdout, svc.GetConversationRepository(), svc.GetMessageQueue(), req.RequestID, runServeDirect(ctx, svc, ctl, req, fn, err))
-		return
+		return runServeDirect(ctx, svc, ctl, req, fn, err)
 	}
 	persistQueuedMessages(drained, repo)
 	history := repo.GetMessages()
@@ -75,23 +81,20 @@ func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notif
 	outcome := sessionOutcome(runErr)
 	endSpan(outcome)
 	rec.RecordSession("headless", outcome, time.Since(started))
-	reportSubagentTurn(os.Stdout, svc.GetConversationRepository(), svc.GetMessageQueue(), req.RequestID, runErr)
+	return runErr
 }
 
 // reportSubagentTurn tells the parent Agent tool following this thread that a
 // turn ended, as the CUSTOM subagent_turn event carrying what the keep-alive
 // turn line carries. A worker no parent spawned reports nothing.
 func reportSubagentTurn(w io.Writer, repo convdomain.ConversationRepository, queue convdomain.MessageQueue, sessionID string, runErr error) {
-	if os.Getenv(parentSessionEnv) == "" {
+	if os.Getenv(scheddomain.EnvSubagentParentSession) == "" {
 		return
 	}
 	line := scheddomain.SubagentTurnLine{Type: scheddomain.SubagentTurnLineType, SubagentResultFile: turnResult(repo, sessionID, runErr)}
 	line.Done = queue.IsEmpty()
 	agui.WriteCustom(w, scheddomain.SubagentTurnLineType, line)
 }
-
-// parentSessionEnv names the session that spawned this worker as a subagent.
-const parentSessionEnv = "INFER_PARENT_SESSION_ID"
 
 // queuedDirectCall reports whether the drained turn is one `!cmd` or
 // `!!Tool(...)` message, which runs through the tool service without a model

@@ -17,6 +17,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	projects "github.com/inference-gateway/cli/internal/projects"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository
@@ -463,10 +464,10 @@ func (r *PersistentConversationRepository) GetCurrentConversationTitle() string 
 // environment variables and applies them to the metadata. This is how the
 // Agent tool tells a spawned subagent process who its parent is.
 func subagentMetadataFromEnv(m convdomain.ConversationMetadata) convdomain.ConversationMetadata {
-	if parentID := os.Getenv("INFER_PARENT_SESSION_ID"); parentID != "" {
+	if parentID := os.Getenv(scheddomain.EnvSubagentParentSession); parentID != "" {
 		m.ParentSessionID = parentID
 	}
-	if invokedBy := os.Getenv("INFER_INVOKED_BY"); invokedBy != "" {
+	if invokedBy := os.Getenv(scheddomain.EnvSubagentInvokedBy); invokedBy != "" {
 		m.InvokedBy = invokedBy
 	} else if m.InvokedBy == "" {
 		m.InvokedBy = "human"
