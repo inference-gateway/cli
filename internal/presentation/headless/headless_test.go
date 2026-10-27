@@ -1,11 +1,15 @@
 package headless
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -76,5 +80,40 @@ func TestSubagentRunStatsCarriesCachedTokens(t *testing.T) {
 	want := &scheddomain.SubagentRunStats{InputTokens: 1200, OutputTokens: 80, CachedTokens: 1000}
 	if got := subagentRunStats(repo); got == nil || *got != *want {
 		t.Fatalf("subagentRunStats = %+v, want %+v", got, want)
+	}
+}
+
+// A worker spawned as a subagent reports each finished turn to its parent as
+// one CUSTOM subagent_turn event. Any other worker reports nothing.
+func TestReportSubagentTurn(t *testing.T) {
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetMessagesReturns([]convdomain.ConversationEntry{{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("the poem")}}})
+	repo.GetSessionTokensReturns(convdomain.SessionTokenStats{TotalInputTokens: 10, TotalOutputTokens: 5})
+	queue := &convmocks.FakeMessageQueue{}
+	queue.IsEmptyReturns(true)
+
+	var out bytes.Buffer
+	t.Setenv(parentSessionEnv, "")
+	reportSubagentTurn(&out, repo, queue, "sess", nil)
+	if out.Len() != 0 {
+		t.Fatalf("a worker without a parent reported %q", out.String())
+	}
+
+	t.Setenv(parentSessionEnv, "parent")
+	reportSubagentTurn(&out, repo, queue, "sess", errors.New("boom"))
+	var frame struct {
+		Type  string                       `json:"type"`
+		Name  string                       `json:"name"`
+		Value scheddomain.SubagentTurnLine `json:"value"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &frame); err != nil {
+		t.Fatalf("decoding %q: %v", out.String(), err)
+	}
+	if frame.Type != "CUSTOM" || frame.Name != scheddomain.SubagentTurnLineType {
+		t.Fatalf("frame = %+v, want a CUSTOM subagent_turn", frame)
+	}
+	turn := frame.Value.SubagentResultFile
+	if turn.FinalAssistant != "the poem" || turn.Success || turn.Error != "boom" || !turn.Done || turn.SessionID != "sess" || turn.Stats.InputTokens != 10 {
+		t.Fatalf("turn = %+v", turn)
 	}
 }

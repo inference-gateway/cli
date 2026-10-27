@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,8 +117,17 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	if opts.MaxTurns > 0 {
 		env = append(env, "INFER_AGENT_MAX_TURNS="+strconv.Itoa(opts.MaxTurns))
 	}
+	for _, key := range slices.Sorted(maps.Keys(opts.Env)) {
+		if strings.HasPrefix(key, inferEnvPrefix) {
+			env = append(env, key+"="+opts.Env[key])
+		}
+	}
 	return env
 }
+
+// inferEnvPrefix is the only prefix a client's env override may carry, so a
+// frame never reaches PATH or the like.
+const inferEnvPrefix = "INFER_"
 
 // read forwards stdout lines until the worker exits. Lines are unbounded on
 // purpose: a long conversation's MESSAGES_SNAPSHOT is one line, and a capped

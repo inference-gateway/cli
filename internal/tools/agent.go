@@ -20,10 +20,14 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
+	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
+	daemon "github.com/inference-gateway/cli/internal/daemon"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
 	projects "github.com/inference-gateway/cli/internal/projects"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 // subagentDepthEnv guards against subagent fork-bombs: each spawned subagent
@@ -96,6 +100,7 @@ type AgentTool struct {
 	toolManifests agentdomain.ToolManifestLookup
 
 	// Injection points for tests; default to real implementations.
+	dialDaemon           func(ctx context.Context) (agui.DialConfig, error)
 	runHeadless          func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 	interactiveAvailable func() bool
 	launchPane           func(ctx context.Context, title, command string) (string, error)
@@ -113,6 +118,7 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 		formatter: NewBaseFormatter(ToolAgent),
 		binary:    os.Args[0],
 	}
+	t.dialDaemon = t.dialDaemonBinding
 	t.runHeadless = agentheadless.Run
 	t.interactiveAvailable = tmuxAvailable
 	t.launchPane = t.launchTmuxPane
@@ -330,6 +336,56 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 			Message:    msg,
 		},
 	}
+}
+
+// threadRouted reports whether headless subagents run as threads on the
+// daemon, which needs the binding to dial. Without it they run as subprocesses.
+func (t *AgentTool) threadRouted() bool {
+	return t.config.BindingConfigured()
+}
+
+// dialDaemonBinding resolves the binding to dial, starting the daemon when
+// none listens, the way the browser tools reach it.
+func (t *AgentTool) dialDaemonBinding(ctx context.Context) (agui.DialConfig, error) {
+	port, token := t.config.BindingAddress()
+	if err := daemon.EnsureRunning(ctx, port); err != nil {
+		return agui.DialConfig{}, err
+	}
+	return agui.DialConfig{
+		Addr:      fmt.Sprintf("127.0.0.1:%d", port),
+		Token:     token,
+		Kind:      subagentClientKind,
+		Handshake: browserinfra.BindingHandshake,
+	}, nil
+}
+
+// openThread opens the subagent's thread on the daemon in the parent's project
+// dir, with the task's model, mode and the env a subprocess would get.
+func (t *AgentTool) openThread(ctx context.Context, spec AgentTaskSpec, sessionID string, onTurn func(scheddomain.SubagentResultFile), onFrame func([]byte)) (*subagentThread, error) {
+	dial, err := t.dialDaemon(ctx)
+	if err != nil {
+		return nil, err
+	}
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("resolving the project dir: %w", err)
+	}
+	return openSubagentThread(ctx, dial, projectDir, sessionID, t.threadOptions(ctx, spec), onTurn, onFrame)
+}
+
+// threadOptions are the subagent's thread options: the subprocess env as
+// INFER_ overrides, with the agent mode on its own field.
+func (t *AgentTool) threadOptions(ctx context.Context, spec AgentTaskSpec) sessionsdomain.ThreadOptions {
+	opts := sessionsdomain.ThreadOptions{Model: spec.Model, Env: make(map[string]string)}
+	if spec.Mode != agentdomain.AgentModeStandard {
+		opts.Mode = spec.Mode.ModeKey()
+	}
+	for _, kv := range t.subagentExtraEnv(ctx, spec) {
+		if key, value, ok := strings.Cut(kv, "="); ok && key != scheddomain.EnvSubagentAgentMode {
+			opts.Env[key] = value
+		}
+	}
+	return opts
 }
 
 // executeOne runs a single headless subagent and returns its final assistant

@@ -13,8 +13,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 - **Following a thread** - `new_session` (a fresh conversation id) and `resume_conversation` (the given `id`)
   make a client follow that thread, and the worker answers with `MESSAGES_SNAPSHOT`. A client follows one
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
-  (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`) apply when
-  the worker launches.
+  (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`, `env`) apply
+  when the worker launches. `env` holds `INFER_` overrides for the options that have no field of their own,
+  and keys without that prefix are dropped.
 - **Forwarded frames** - `run_agent_input`, `interrupt` and `user_question_response` go to the client's
   thread unchanged. A `run_agent_input` relaunches a thread whose worker exited.
 - **Resumes** - a run that ends with the `interrupt` outcome leaves its interrupts open on the thread. The
@@ -44,6 +45,11 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   connection is a `Client`.
 - The Telegram channel becomes a driving adapter too, with one `Client` per chat speaking the same ipc
   frames.
+- A worker's `Agent` tool is a client too: a headless subagent is a thread the parent worker opens over the
+  binding as `subagent-<parent id>-<child id>`, runs with `run_agent_input` and leaves when it is done, so the
+  daemon owns the subagent's worker and the desktop follows the same thread live. The subagent worker reports
+  each finished turn to its parent as a CUSTOM `subagent_turn` event. Without a configured binding the tool
+  falls back to spawning `infer headless --keep-alive` itself.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
   env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so

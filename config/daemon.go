@@ -32,6 +32,37 @@ type BindingConfig struct {
 	Token string `yaml:"token" mapstructure:"token"`
 }
 
+// BindingAddress returns the port and token the binding serves on. The
+// daemon.yaml values win, and browser_use.extension's port and token stay
+// the fallback.
+func (c *Config) BindingAddress() (port int, token string) {
+	port = c.Daemon.Binding.Port
+	if port <= 0 {
+		port = c.BrowserUse.Extension.EffectivePort()
+	}
+	token = c.Daemon.Binding.Token
+	if token == "" {
+		token = c.BrowserUse.Extension.Token
+	}
+	return port, token
+}
+
+// BindingEnabled reports whether the daemon hosts the AG-UI binding: on its
+// own switch, or because the browser extension backend needs it.
+func (c *Config) BindingEnabled() bool {
+	if c.Daemon.Binding.Enabled {
+		return true
+	}
+	return c.BrowserUse.Enabled && c.BrowserUse.Backend == BrowserBackendExtension
+}
+
+// BindingConfigured reports whether a client of the daemon's threads can dial
+// the binding: it is enabled and has a token to present.
+func (c *Config) BindingConfigured() bool {
+	_, token := c.BindingAddress()
+	return c.BindingEnabled() && token != ""
+}
+
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml
 // exists: the binding is off until the user or the desktop app enables it.
 func DefaultDaemonConfig() *DaemonConfig {
