@@ -30,7 +30,7 @@ type Workspace struct {
 }
 
 // Checkpoint is everything a session needs to continue elsewhere: its
-// conversation unless both executors share a store, the interrupts its last
+// conversation unless both environments share a store, the interrupts its last
 // run was suspended on, the workspace, and the credentials sealed to the
 // target. SchemaVersion and Digest let the target validate before it claims.
 type Checkpoint struct {
@@ -45,7 +45,7 @@ type Checkpoint struct {
 }
 
 // TransferRequest is what a client asks for: move the session to the named
-// executor, carrying the listed extra files. TransferID makes retries
+// environment, carrying the listed extra files. TransferID makes retries
 // idempotent.
 type TransferRequest struct {
 	TransferID string   `json:"transfer_id"`
@@ -65,7 +65,7 @@ type TransferProgress struct {
 // interrupts the move cancelled, so they resume there.
 type SessionMoved struct {
 	Session             Session         `json:"session"`
-	Executor            string          `json:"executor"`
+	Environment         string          `json:"environment"`
 	Addr                string          `json:"addr,omitempty"`
 	Workspace           string          `json:"workspace"`
 	CancelledInterrupts json.RawMessage `json:"cancelled_interrupts,omitempty"`

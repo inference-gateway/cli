@@ -173,3 +173,81 @@ func TestIdleTracksThreadsAndClients(t *testing.T) {
 		t.Fatalf("after reaping the registry is idle since just now: %v %v", since, idle)
 	}
 }
+
+func TestAgentsDoneOnlyWhenEveryLastRunFinishedWithoutWaiting(t *testing.T) {
+	started := `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`
+	finished := `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1"}`
+	suspended := `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1","outcome":{"type":"interrupt","interrupts":[{"id":"call-1","reason":"tool_call"}]}}`
+	failed := `{"type":"RUN_ERROR","threadId":"conv-1","runId":"run-1","message":"boom"}`
+	resumed := `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-2"}`
+	resumedDone := `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-2"}`
+	tests := []struct {
+		name      string
+		lines     []string
+		exit      bool
+		wantDone  bool
+		wantKnown bool
+	}{
+		{"no run", nil, false, false, false},
+		{"run still open", []string{started}, false, false, true},
+		{"run finished", []string{started, finished}, false, true, true},
+		{"run waits on an approval", []string{started, suspended}, false, false, true},
+		{"run ended by an error", []string{started, failed}, false, false, true},
+		{"worker exited mid-run", []string{started}, true, false, true},
+		{"approval answered and finished", []string{started, suspended, resumed, resumedDone}, false, true, true},
+		{"finished run outlives its worker", []string{started, finished}, true, true, true},
+		{"approval outlives its worker", []string{started, suspended}, true, false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &launcher{}
+			r := NewRegistry(l.launch, time.Hour)
+			c := &sessionsmocks.FakeClient{}
+			handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+			_, lines := l.worker(0)
+			for _, line := range tt.lines {
+				lines <- []byte(line)
+			}
+			eventually(t, "the worker lines", func() bool { return c.DeliverCallCount() >= len(tt.lines) })
+			if tt.exit {
+				close(lines)
+				eventually(t, "the worker to exit", func() bool {
+					r.mu.Lock()
+					defer r.mu.Unlock()
+					thread := r.threads[hooksKey]
+					return thread == nil || thread.worker == nil
+				})
+			}
+			done, known := r.AgentsDone()
+			if done != tt.wantDone || known != tt.wantKnown {
+				t.Fatalf("AgentsDone() = %v, %v, want %v, %v", done, known, tt.wantDone, tt.wantKnown)
+			}
+		})
+	}
+}
+
+func TestAgentsDoneIgnoresTheRunAReapedWorkerDrains(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	c := &sessionsmocks.FakeClient{}
+	handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	worker, lines := l.worker(0)
+	lines <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
+	lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
+	lines <- []byte(`{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1","outcome":{"type":"interrupt","interrupts":[{"id":"call-1","reason":"tool_call"}]}}`)
+	eventually(t, "the suspended run", func() bool { return c.DeliverCallCount() == 3 })
+	worker.StopCalls(func() {
+		lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"drain"}`)
+		lines <- []byte(`{"type":"RUN_FINISHED","threadId":"conv-1","runId":"drain"}`)
+		close(lines)
+	})
+
+	r.Detach(c)
+	r.reap(time.Now().Add(2 * time.Hour))
+	eventually(t, "the reaped worker to drain", func() bool { return worker.StopCallCount() == 1 && len(lines) == 0 })
+	time.Sleep(20 * time.Millisecond)
+
+	if done, known := r.AgentsDone(); done || !known {
+		t.Fatalf("AgentsDone() = %v, %v after a reaped worker drained its approval, want false, true", done, known)
+	}
+}

@@ -8,7 +8,7 @@ import (
 	"github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-type FakeExecutor struct {
+type FakeEnvironment struct {
 	DeleteStub        func(context.Context, domain.Session) error
 	deleteMutex       sync.RWMutex
 	deleteArgsForCall []struct {
@@ -35,15 +35,15 @@ type FakeExecutor struct {
 		result1 domain.Endpoint
 		result2 error
 	}
-	KindStub        func() domain.ExecutorKind
+	KindStub        func() domain.EnvironmentKind
 	kindMutex       sync.RWMutex
 	kindArgsForCall []struct {
 	}
 	kindReturns struct {
-		result1 domain.ExecutorKind
+		result1 domain.EnvironmentKind
 	}
 	kindReturnsOnCall map[int]struct {
-		result1 domain.ExecutorKind
+		result1 domain.EnvironmentKind
 	}
 	NameStub        func() string
 	nameMutex       sync.RWMutex
@@ -55,16 +55,30 @@ type FakeExecutor struct {
 	nameReturnsOnCall map[int]struct {
 		result1 string
 	}
-	ProbeStub        func(context.Context) domain.ExecutorStatus
+	ProbeStub        func(context.Context) domain.EnvironmentStatus
 	probeMutex       sync.RWMutex
 	probeArgsForCall []struct {
 		arg1 context.Context
 	}
 	probeReturns struct {
-		result1 domain.ExecutorStatus
+		result1 domain.EnvironmentStatus
 	}
 	probeReturnsOnCall map[int]struct {
-		result1 domain.ExecutorStatus
+		result1 domain.EnvironmentStatus
+	}
+	ReachStub        func(context.Context, domain.Session) (domain.Endpoint, error)
+	reachMutex       sync.RWMutex
+	reachArgsForCall []struct {
+		arg1 context.Context
+		arg2 domain.Session
+	}
+	reachReturns struct {
+		result1 domain.Endpoint
+		result2 error
+	}
+	reachReturnsOnCall map[int]struct {
+		result1 domain.Endpoint
+		result2 error
 	}
 	SuspendStub        func(context.Context, domain.Session) error
 	suspendMutex       sync.RWMutex
@@ -82,7 +96,7 @@ type FakeExecutor struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeExecutor) Delete(arg1 context.Context, arg2 domain.Session) error {
+func (fake *FakeEnvironment) Delete(arg1 context.Context, arg2 domain.Session) error {
 	fake.deleteMutex.Lock()
 	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
 	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
@@ -102,26 +116,26 @@ func (fake *FakeExecutor) Delete(arg1 context.Context, arg2 domain.Session) erro
 	return fakeReturns.result1
 }
 
-func (fake *FakeExecutor) DeleteCallCount() int {
+func (fake *FakeEnvironment) DeleteCallCount() int {
 	fake.deleteMutex.RLock()
 	defer fake.deleteMutex.RUnlock()
 	return len(fake.deleteArgsForCall)
 }
 
-func (fake *FakeExecutor) DeleteCalls(stub func(context.Context, domain.Session) error) {
+func (fake *FakeEnvironment) DeleteCalls(stub func(context.Context, domain.Session) error) {
 	fake.deleteMutex.Lock()
 	defer fake.deleteMutex.Unlock()
 	fake.DeleteStub = stub
 }
 
-func (fake *FakeExecutor) DeleteArgsForCall(i int) (context.Context, domain.Session) {
+func (fake *FakeEnvironment) DeleteArgsForCall(i int) (context.Context, domain.Session) {
 	fake.deleteMutex.RLock()
 	defer fake.deleteMutex.RUnlock()
 	argsForCall := fake.deleteArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeExecutor) DeleteReturns(result1 error) {
+func (fake *FakeEnvironment) DeleteReturns(result1 error) {
 	fake.deleteMutex.Lock()
 	defer fake.deleteMutex.Unlock()
 	fake.DeleteStub = nil
@@ -130,7 +144,7 @@ func (fake *FakeExecutor) DeleteReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeExecutor) DeleteReturnsOnCall(i int, result1 error) {
+func (fake *FakeEnvironment) DeleteReturnsOnCall(i int, result1 error) {
 	fake.deleteMutex.Lock()
 	defer fake.deleteMutex.Unlock()
 	fake.DeleteStub = nil
@@ -144,7 +158,7 @@ func (fake *FakeExecutor) DeleteReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeExecutor) Ensure(arg1 context.Context, arg2 domain.Session) (domain.Endpoint, error) {
+func (fake *FakeEnvironment) Ensure(arg1 context.Context, arg2 domain.Session) (domain.Endpoint, error) {
 	fake.ensureMutex.Lock()
 	ret, specificReturn := fake.ensureReturnsOnCall[len(fake.ensureArgsForCall)]
 	fake.ensureArgsForCall = append(fake.ensureArgsForCall, struct {
@@ -164,26 +178,26 @@ func (fake *FakeExecutor) Ensure(arg1 context.Context, arg2 domain.Session) (dom
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeExecutor) EnsureCallCount() int {
+func (fake *FakeEnvironment) EnsureCallCount() int {
 	fake.ensureMutex.RLock()
 	defer fake.ensureMutex.RUnlock()
 	return len(fake.ensureArgsForCall)
 }
 
-func (fake *FakeExecutor) EnsureCalls(stub func(context.Context, domain.Session) (domain.Endpoint, error)) {
+func (fake *FakeEnvironment) EnsureCalls(stub func(context.Context, domain.Session) (domain.Endpoint, error)) {
 	fake.ensureMutex.Lock()
 	defer fake.ensureMutex.Unlock()
 	fake.EnsureStub = stub
 }
 
-func (fake *FakeExecutor) EnsureArgsForCall(i int) (context.Context, domain.Session) {
+func (fake *FakeEnvironment) EnsureArgsForCall(i int) (context.Context, domain.Session) {
 	fake.ensureMutex.RLock()
 	defer fake.ensureMutex.RUnlock()
 	argsForCall := fake.ensureArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeExecutor) EnsureReturns(result1 domain.Endpoint, result2 error) {
+func (fake *FakeEnvironment) EnsureReturns(result1 domain.Endpoint, result2 error) {
 	fake.ensureMutex.Lock()
 	defer fake.ensureMutex.Unlock()
 	fake.EnsureStub = nil
@@ -193,7 +207,7 @@ func (fake *FakeExecutor) EnsureReturns(result1 domain.Endpoint, result2 error) 
 	}{result1, result2}
 }
 
-func (fake *FakeExecutor) EnsureReturnsOnCall(i int, result1 domain.Endpoint, result2 error) {
+func (fake *FakeEnvironment) EnsureReturnsOnCall(i int, result1 domain.Endpoint, result2 error) {
 	fake.ensureMutex.Lock()
 	defer fake.ensureMutex.Unlock()
 	fake.EnsureStub = nil
@@ -209,7 +223,7 @@ func (fake *FakeExecutor) EnsureReturnsOnCall(i int, result1 domain.Endpoint, re
 	}{result1, result2}
 }
 
-func (fake *FakeExecutor) Kind() domain.ExecutorKind {
+func (fake *FakeEnvironment) Kind() domain.EnvironmentKind {
 	fake.kindMutex.Lock()
 	ret, specificReturn := fake.kindReturnsOnCall[len(fake.kindArgsForCall)]
 	fake.kindArgsForCall = append(fake.kindArgsForCall, struct {
@@ -227,42 +241,42 @@ func (fake *FakeExecutor) Kind() domain.ExecutorKind {
 	return fakeReturns.result1
 }
 
-func (fake *FakeExecutor) KindCallCount() int {
+func (fake *FakeEnvironment) KindCallCount() int {
 	fake.kindMutex.RLock()
 	defer fake.kindMutex.RUnlock()
 	return len(fake.kindArgsForCall)
 }
 
-func (fake *FakeExecutor) KindCalls(stub func() domain.ExecutorKind) {
+func (fake *FakeEnvironment) KindCalls(stub func() domain.EnvironmentKind) {
 	fake.kindMutex.Lock()
 	defer fake.kindMutex.Unlock()
 	fake.KindStub = stub
 }
 
-func (fake *FakeExecutor) KindReturns(result1 domain.ExecutorKind) {
+func (fake *FakeEnvironment) KindReturns(result1 domain.EnvironmentKind) {
 	fake.kindMutex.Lock()
 	defer fake.kindMutex.Unlock()
 	fake.KindStub = nil
 	fake.kindReturns = struct {
-		result1 domain.ExecutorKind
+		result1 domain.EnvironmentKind
 	}{result1}
 }
 
-func (fake *FakeExecutor) KindReturnsOnCall(i int, result1 domain.ExecutorKind) {
+func (fake *FakeEnvironment) KindReturnsOnCall(i int, result1 domain.EnvironmentKind) {
 	fake.kindMutex.Lock()
 	defer fake.kindMutex.Unlock()
 	fake.KindStub = nil
 	if fake.kindReturnsOnCall == nil {
 		fake.kindReturnsOnCall = make(map[int]struct {
-			result1 domain.ExecutorKind
+			result1 domain.EnvironmentKind
 		})
 	}
 	fake.kindReturnsOnCall[i] = struct {
-		result1 domain.ExecutorKind
+		result1 domain.EnvironmentKind
 	}{result1}
 }
 
-func (fake *FakeExecutor) Name() string {
+func (fake *FakeEnvironment) Name() string {
 	fake.nameMutex.Lock()
 	ret, specificReturn := fake.nameReturnsOnCall[len(fake.nameArgsForCall)]
 	fake.nameArgsForCall = append(fake.nameArgsForCall, struct {
@@ -280,19 +294,19 @@ func (fake *FakeExecutor) Name() string {
 	return fakeReturns.result1
 }
 
-func (fake *FakeExecutor) NameCallCount() int {
+func (fake *FakeEnvironment) NameCallCount() int {
 	fake.nameMutex.RLock()
 	defer fake.nameMutex.RUnlock()
 	return len(fake.nameArgsForCall)
 }
 
-func (fake *FakeExecutor) NameCalls(stub func() string) {
+func (fake *FakeEnvironment) NameCalls(stub func() string) {
 	fake.nameMutex.Lock()
 	defer fake.nameMutex.Unlock()
 	fake.NameStub = stub
 }
 
-func (fake *FakeExecutor) NameReturns(result1 string) {
+func (fake *FakeEnvironment) NameReturns(result1 string) {
 	fake.nameMutex.Lock()
 	defer fake.nameMutex.Unlock()
 	fake.NameStub = nil
@@ -301,7 +315,7 @@ func (fake *FakeExecutor) NameReturns(result1 string) {
 	}{result1}
 }
 
-func (fake *FakeExecutor) NameReturnsOnCall(i int, result1 string) {
+func (fake *FakeEnvironment) NameReturnsOnCall(i int, result1 string) {
 	fake.nameMutex.Lock()
 	defer fake.nameMutex.Unlock()
 	fake.NameStub = nil
@@ -315,7 +329,7 @@ func (fake *FakeExecutor) NameReturnsOnCall(i int, result1 string) {
 	}{result1}
 }
 
-func (fake *FakeExecutor) Probe(arg1 context.Context) domain.ExecutorStatus {
+func (fake *FakeEnvironment) Probe(arg1 context.Context) domain.EnvironmentStatus {
 	fake.probeMutex.Lock()
 	ret, specificReturn := fake.probeReturnsOnCall[len(fake.probeArgsForCall)]
 	fake.probeArgsForCall = append(fake.probeArgsForCall, struct {
@@ -334,49 +348,114 @@ func (fake *FakeExecutor) Probe(arg1 context.Context) domain.ExecutorStatus {
 	return fakeReturns.result1
 }
 
-func (fake *FakeExecutor) ProbeCallCount() int {
+func (fake *FakeEnvironment) ProbeCallCount() int {
 	fake.probeMutex.RLock()
 	defer fake.probeMutex.RUnlock()
 	return len(fake.probeArgsForCall)
 }
 
-func (fake *FakeExecutor) ProbeCalls(stub func(context.Context) domain.ExecutorStatus) {
+func (fake *FakeEnvironment) ProbeCalls(stub func(context.Context) domain.EnvironmentStatus) {
 	fake.probeMutex.Lock()
 	defer fake.probeMutex.Unlock()
 	fake.ProbeStub = stub
 }
 
-func (fake *FakeExecutor) ProbeArgsForCall(i int) context.Context {
+func (fake *FakeEnvironment) ProbeArgsForCall(i int) context.Context {
 	fake.probeMutex.RLock()
 	defer fake.probeMutex.RUnlock()
 	argsForCall := fake.probeArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeExecutor) ProbeReturns(result1 domain.ExecutorStatus) {
+func (fake *FakeEnvironment) ProbeReturns(result1 domain.EnvironmentStatus) {
 	fake.probeMutex.Lock()
 	defer fake.probeMutex.Unlock()
 	fake.ProbeStub = nil
 	fake.probeReturns = struct {
-		result1 domain.ExecutorStatus
+		result1 domain.EnvironmentStatus
 	}{result1}
 }
 
-func (fake *FakeExecutor) ProbeReturnsOnCall(i int, result1 domain.ExecutorStatus) {
+func (fake *FakeEnvironment) ProbeReturnsOnCall(i int, result1 domain.EnvironmentStatus) {
 	fake.probeMutex.Lock()
 	defer fake.probeMutex.Unlock()
 	fake.ProbeStub = nil
 	if fake.probeReturnsOnCall == nil {
 		fake.probeReturnsOnCall = make(map[int]struct {
-			result1 domain.ExecutorStatus
+			result1 domain.EnvironmentStatus
 		})
 	}
 	fake.probeReturnsOnCall[i] = struct {
-		result1 domain.ExecutorStatus
+		result1 domain.EnvironmentStatus
 	}{result1}
 }
 
-func (fake *FakeExecutor) Suspend(arg1 context.Context, arg2 domain.Session) error {
+func (fake *FakeEnvironment) Reach(arg1 context.Context, arg2 domain.Session) (domain.Endpoint, error) {
+	fake.reachMutex.Lock()
+	ret, specificReturn := fake.reachReturnsOnCall[len(fake.reachArgsForCall)]
+	fake.reachArgsForCall = append(fake.reachArgsForCall, struct {
+		arg1 context.Context
+		arg2 domain.Session
+	}{arg1, arg2})
+	stub := fake.ReachStub
+	fakeReturns := fake.reachReturns
+	fake.recordInvocation("Reach", []interface{}{arg1, arg2})
+	fake.reachMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeEnvironment) ReachCallCount() int {
+	fake.reachMutex.RLock()
+	defer fake.reachMutex.RUnlock()
+	return len(fake.reachArgsForCall)
+}
+
+func (fake *FakeEnvironment) ReachCalls(stub func(context.Context, domain.Session) (domain.Endpoint, error)) {
+	fake.reachMutex.Lock()
+	defer fake.reachMutex.Unlock()
+	fake.ReachStub = stub
+}
+
+func (fake *FakeEnvironment) ReachArgsForCall(i int) (context.Context, domain.Session) {
+	fake.reachMutex.RLock()
+	defer fake.reachMutex.RUnlock()
+	argsForCall := fake.reachArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeEnvironment) ReachReturns(result1 domain.Endpoint, result2 error) {
+	fake.reachMutex.Lock()
+	defer fake.reachMutex.Unlock()
+	fake.ReachStub = nil
+	fake.reachReturns = struct {
+		result1 domain.Endpoint
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeEnvironment) ReachReturnsOnCall(i int, result1 domain.Endpoint, result2 error) {
+	fake.reachMutex.Lock()
+	defer fake.reachMutex.Unlock()
+	fake.ReachStub = nil
+	if fake.reachReturnsOnCall == nil {
+		fake.reachReturnsOnCall = make(map[int]struct {
+			result1 domain.Endpoint
+			result2 error
+		})
+	}
+	fake.reachReturnsOnCall[i] = struct {
+		result1 domain.Endpoint
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeEnvironment) Suspend(arg1 context.Context, arg2 domain.Session) error {
 	fake.suspendMutex.Lock()
 	ret, specificReturn := fake.suspendReturnsOnCall[len(fake.suspendArgsForCall)]
 	fake.suspendArgsForCall = append(fake.suspendArgsForCall, struct {
@@ -396,26 +475,26 @@ func (fake *FakeExecutor) Suspend(arg1 context.Context, arg2 domain.Session) err
 	return fakeReturns.result1
 }
 
-func (fake *FakeExecutor) SuspendCallCount() int {
+func (fake *FakeEnvironment) SuspendCallCount() int {
 	fake.suspendMutex.RLock()
 	defer fake.suspendMutex.RUnlock()
 	return len(fake.suspendArgsForCall)
 }
 
-func (fake *FakeExecutor) SuspendCalls(stub func(context.Context, domain.Session) error) {
+func (fake *FakeEnvironment) SuspendCalls(stub func(context.Context, domain.Session) error) {
 	fake.suspendMutex.Lock()
 	defer fake.suspendMutex.Unlock()
 	fake.SuspendStub = stub
 }
 
-func (fake *FakeExecutor) SuspendArgsForCall(i int) (context.Context, domain.Session) {
+func (fake *FakeEnvironment) SuspendArgsForCall(i int) (context.Context, domain.Session) {
 	fake.suspendMutex.RLock()
 	defer fake.suspendMutex.RUnlock()
 	argsForCall := fake.suspendArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeExecutor) SuspendReturns(result1 error) {
+func (fake *FakeEnvironment) SuspendReturns(result1 error) {
 	fake.suspendMutex.Lock()
 	defer fake.suspendMutex.Unlock()
 	fake.SuspendStub = nil
@@ -424,7 +503,7 @@ func (fake *FakeExecutor) SuspendReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeExecutor) SuspendReturnsOnCall(i int, result1 error) {
+func (fake *FakeEnvironment) SuspendReturnsOnCall(i int, result1 error) {
 	fake.suspendMutex.Lock()
 	defer fake.suspendMutex.Unlock()
 	fake.SuspendStub = nil
@@ -438,7 +517,7 @@ func (fake *FakeExecutor) SuspendReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeExecutor) Invocations() map[string][][]interface{} {
+func (fake *FakeEnvironment) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -448,7 +527,7 @@ func (fake *FakeExecutor) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeExecutor) recordInvocation(key string, args []interface{}) {
+func (fake *FakeEnvironment) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -460,4 +539,4 @@ func (fake *FakeExecutor) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ domain.Executor = new(FakeExecutor)
+var _ domain.Environment = new(FakeEnvironment)

@@ -1102,6 +1102,15 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 	return c.stores.ShellHistory
 }
 
+// GetLeaseStore returns the session lease store, or nil when storage failed
+// to initialize.
+func (c *ServiceContainer) GetLeaseStore() agentdomain.LeaseStore {
+	if c.stores == nil {
+		return nil
+	}
+	return c.stores.Leases
+}
+
 // GetGatewaySupervisor returns the gateway manager
 func (c *ServiceContainer) GetGatewaySupervisor() *gateway.Supervisor {
 	return c.gatewayManager

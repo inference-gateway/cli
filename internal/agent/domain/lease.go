@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-// ErrLeaseLost reports a renewal or release by an executor that no longer
+// ErrLeaseLost reports a renewal or release by an environment that no longer
 // holds the lease.
-var ErrLeaseLost = errors.New("the session lease belongs to another executor")
+var ErrLeaseLost = errors.New("the session lease belongs to another environment")
 
-// Lease records which executor owns a conversation's session: the executor
+// Lease records which environment owns a conversation's session: the environment
 // that may run its worker, the workspace it runs in there, the transfer that
 // handed it over, and when the claim lapses unless renewed.
 type Lease struct {
 	ConversationID string    `json:"conversation_id"`
-	Executor       string    `json:"executor"`
+	Environment    string    `json:"environment"`
 	Workspace      string    `json:"workspace,omitempty"`
 	TransferID     string    `json:"transfer_id,omitempty"`
 	Until          time.Time `json:"until"`
@@ -29,7 +29,7 @@ func (l Lease) Live(now time.Time) bool {
 // Yields reports whether claim may replace this lease: the holder re-asserts
 // its own row, a retry carries the same transfer id, or the lease lapsed.
 func (l Lease) Yields(claim Lease, now time.Time) bool {
-	if l.Executor == claim.Executor {
+	if l.Environment == claim.Environment {
 		return true
 	}
 	if claim.TransferID != "" && l.TransferID == claim.TransferID {
@@ -46,9 +46,9 @@ type LeaseStore interface {
 	// ClaimLease writes lease when no row exists or the current row yields to
 	// it, and otherwise returns the current holder and false.
 	ClaimLease(ctx context.Context, lease Lease) (Lease, bool, error)
-	// RenewLease moves the lapse forward while executor still holds the row,
+	// RenewLease moves the lapse forward while environment still holds the row,
 	// and reports ErrLeaseLost otherwise.
-	RenewLease(ctx context.Context, conversationID, executor string, until time.Time) error
-	// ReleaseLease drops the row while executor still holds it.
-	ReleaseLease(ctx context.Context, conversationID, executor string) error
+	RenewLease(ctx context.Context, conversationID, environment string, until time.Time) error
+	// ReleaseLease drops the row while environment still holds it.
+	ReleaseLease(ctx context.Context, conversationID, environment string) error
 }

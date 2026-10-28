@@ -99,16 +99,16 @@ linters:
           deny:
             - pkg: github.com/mxschmitt/playwright-go
               desc: "Playwright is confined to the browser capability"
-        kubernetes-only-in-the-kubernetes-executor:
+        kubernetes-only-in-the-kubernetes-environment:
           list-mode: lax
           files:
             - "**"
             - "!**/internal/agent/infrastructure/kubernetes/**"
           deny:
             - pkg: k8s.io
-              desc: "client-go is confined to the agent context's kubernetes executor"
+              desc: "client-go is confined to the agent context's kubernetes environment"
             - pkg: sigs.k8s.io
-              desc: "client-go is confined to the agent context's kubernetes executor"
+              desc: "client-go is confined to the agent context's kubernetes environment"
         spiffe-only-in-agent-infrastructure:
           list-mode: lax
           files:

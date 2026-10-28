@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 )
 
-// ExecutorKind names where an agent runs: this daemon, a standalone daemon
+// EnvironmentKind names where an agent runs: this daemon, a standalone daemon
 // reachable over TLS, or a Kubernetes Sandbox per session.
-type ExecutorKind string
+type EnvironmentKind string
 
 const (
-	ExecutorKindLocal      ExecutorKind = "local"
-	ExecutorKindDaemon     ExecutorKind = "daemon"
-	ExecutorKindKubernetes ExecutorKind = "kubernetes"
+	EnvironmentKindLocal      EnvironmentKind = "local"
+	EnvironmentKindDaemon     EnvironmentKind = "daemon"
+	EnvironmentKindKubernetes EnvironmentKind = "kubernetes"
 )
 
 // Session names one conversation and the project it belongs to. Slug is the
-// project's stable name, which a receiving executor restores it under.
+// project's stable name, which a receiving environment restores it under.
 type Session struct {
 	ProjectDir     string `json:"project_dir"`
 	ConversationID string `json:"conversation_id"`
@@ -26,7 +26,7 @@ type Session struct {
 }
 
 // Validate checks the slug and the conversation id are each one plain path
-// element, because a receiving executor restores the session under
+// element, because a receiving environment restores the session under
 // <workspace_root>/<slug>/<conversation id> and clears that directory first.
 func (s Session) Validate() error {
 	for _, element := range []string{s.Slug, s.ConversationID} {
@@ -37,7 +37,7 @@ func (s Session) Validate() error {
 	return nil
 }
 
-// Endpoint is a reachable daemon binding on an executor. Close releases what
+// Endpoint is a reachable daemon binding on an environment. Close releases what
 // made it reachable, such as a port-forward, and may be nil.
 type Endpoint struct {
 	Addr  string
@@ -53,24 +53,25 @@ func (e Endpoint) Release() {
 	}
 }
 
-// ExecutorStatus is what list_executors reports per executor.
-type ExecutorStatus struct {
+// EnvironmentStatus is what list_environments reports per environment.
+type EnvironmentStatus struct {
 	Name         string            `json:"name"`
-	Kind         ExecutorKind      `json:"kind"`
+	Kind         EnvironmentKind   `json:"kind"`
 	Reachable    bool              `json:"reachable"`
 	Error        string            `json:"error,omitempty"`
 	Capabilities map[string]string `json:"capabilities,omitempty"`
 }
 
-// Executor is a place sessions run. Ensure makes the executor's daemon for a
-// session reachable, creating or resuming what runs it. Probe reports whether
-// the executor can be reached at all. Suspend parks a session's runtime and
-// Delete removes it.
-type Executor interface {
+// Environment is a place sessions run. Ensure makes the environment's daemon for a
+// session reachable, creating or resuming what runs it, and Reach only resumes
+// what already runs it. Probe reports whether the environment can be reached
+// at all. Suspend parks a session's runtime and Delete removes it.
+type Environment interface {
 	Name() string
-	Kind() ExecutorKind
+	Kind() EnvironmentKind
 	Ensure(ctx context.Context, session Session) (Endpoint, error)
-	Probe(ctx context.Context) ExecutorStatus
+	Reach(ctx context.Context, session Session) (Endpoint, error)
+	Probe(ctx context.Context) EnvironmentStatus
 	Suspend(ctx context.Context, session Session) error
 	Delete(ctx context.Context, session Session) error
 }

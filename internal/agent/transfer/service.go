@@ -22,7 +22,7 @@ import (
 
 // The lease cadence: an owned row is renewed every heartbeat and lapses
 // ownedLeaseTTL after the last one, unless the daemon is a long-lived
-// executor whose idle exit says how long its sessions stay its own.
+// environment whose idle exit says how long its sessions stay its own.
 const (
 	leaseHeartbeat = 30 * time.Second
 	ownedLeaseTTL  = 90 * time.Second
@@ -38,7 +38,7 @@ type Config struct {
 	Version       string
 	StorageID     string
 	Handshake     agui.Handshake
-	Entries       []config.ExecutorEntry
+	Entries       []config.EnvironmentEntry
 	// Denies reports whether the sandbox policy keeps a project file out of a
 	// checkpoint.
 	Denies func(projectDir, absPath string) bool
@@ -46,25 +46,29 @@ type Config struct {
 
 // Deps are the collaborators the service orchestrates.
 type Deps struct {
-	Leases    agentdomain.LeaseStore
-	Executors []agentdomain.Executor
-	Keyring   *agentinfra.Keyring
-	Launch    sessionsdomain.LaunchWorker
+	Leases       agentdomain.LeaseStore
+	Environments []agentdomain.Environment
+	Keyring      *agentinfra.Keyring
+	Launch       sessionsdomain.LaunchWorker
+	// SelfSuspend parks the runtime this daemon runs in, told whether every
+	// agent it ran is done and whether it ran any. Nil on bare metal.
+	SelfSuspend func(ctx context.Context, done, known bool) error
 }
 
-// Service runs agents on executors: it decides where a thread's worker runs
-// (the launch seam the registry calls), moves sessions between executors, and
+// Service runs agents on environments: it decides where a thread's worker runs
+// (the launch seam the registry calls), moves sessions between environments, and
 // receives the sessions other daemons move here.
 type Service struct {
-	cfg       Config
-	me        string
-	leases    agentdomain.LeaseStore
-	executors map[string]agentdomain.Executor
-	entries   map[string]config.ExecutorEntry
-	keyring   *agentinfra.Keyring
-	launch    sessionsdomain.LaunchWorker
-	dial      agentinfra.PeerDialer
-	registry  *sessions.Registry
+	cfg          Config
+	me           string
+	leases       agentdomain.LeaseStore
+	environments map[string]agentdomain.Environment
+	entries      map[string]config.EnvironmentEntry
+	keyring      *agentinfra.Keyring
+	launch       sessionsdomain.LaunchWorker
+	dial         agentinfra.PeerDialer
+	registry     *sessions.Registry
+	selfSuspend  func(ctx context.Context, done, known bool) error
 
 	mu          sync.Mutex
 	transfers   map[string]context.CancelFunc
@@ -77,21 +81,22 @@ type Service struct {
 // since the registry itself is built over LaunchWorker.
 func New(cfg Config, deps Deps) *Service {
 	s := &Service{
-		cfg:         cfg,
-		me:          cfg.Identity,
-		leases:      deps.Leases,
-		executors:   make(map[string]agentdomain.Executor, len(deps.Executors)),
-		entries:     make(map[string]config.ExecutorEntry, len(cfg.Entries)),
-		keyring:     deps.Keyring,
-		launch:      deps.Launch,
-		dial:        agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
-		transfers:   make(map[string]context.CancelFunc),
-		imports:     make(map[string]*pendingImport),
-		installed:   make(map[string]agentdomain.Lease),
-		credentials: make(map[string][]string),
+		cfg:          cfg,
+		me:           cfg.Identity,
+		leases:       deps.Leases,
+		environments: make(map[string]agentdomain.Environment, len(deps.Environments)),
+		entries:      make(map[string]config.EnvironmentEntry, len(cfg.Entries)),
+		keyring:      deps.Keyring,
+		launch:       deps.Launch,
+		selfSuspend:  deps.SelfSuspend,
+		dial:         agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
+		transfers:    make(map[string]context.CancelFunc),
+		imports:      make(map[string]*pendingImport),
+		installed:    make(map[string]agentdomain.Lease),
+		credentials:  make(map[string][]string),
 	}
-	for _, executor := range deps.Executors {
-		s.executors[executor.Name()] = executor
+	for _, environment := range deps.Environments {
+		s.environments[environment.Name()] = environment
 	}
 	for _, entry := range cfg.Entries {
 		s.entries[entry.Name] = entry
@@ -108,13 +113,13 @@ func (s *Service) AttachRegistry(registry *sessions.Registry) {
 // AckAttrs are the facts the binding's ack declares about this daemon.
 func (s *Service) AckAttrs() map[string]any {
 	return map[string]any{
-		agentinfra.AttrExecutor:  s.me,
-		agentinfra.AttrVersion:   s.cfg.Version,
-		agentinfra.AttrStorageID: s.cfg.StorageID,
+		agentinfra.AttrEnvironment: s.me,
+		agentinfra.AttrVersion:     s.cfg.Version,
+		agentinfra.AttrStorageID:   s.cfg.StorageID,
 	}
 }
 
-// Handle claims the executors and transfers frames: the client requests, and
+// Handle claims the environments and transfers frames: the client requests, and
 // the peer frames when the connection is another daemon's.
 func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 	var f clientFrame
@@ -122,8 +127,8 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 		return false
 	}
 	switch f.Type {
-	case frameListExecutors:
-		go s.listExecutors(conn)
+	case frameListEnvironments:
+		go s.listEnvironments(conn)
 	case frameTransferSession:
 		go s.startTransfer(conn, f)
 	case frameTransferCancel:
@@ -140,22 +145,22 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 	return true
 }
 
-// listExecutors answers list_executors with every executor's reachability,
+// listEnvironments answers list_environments with every environment's reachability,
 // this daemon first, probing the others in parallel.
-func (s *Service) listExecutors(conn *agui.Conn) {
+func (s *Service) listEnvironments(conn *agui.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout+time.Second)
 	defer cancel()
-	names := slices.Sorted(maps.Keys(s.executors))
-	statuses := make([]agentdomain.ExecutorStatus, len(names))
+	names := slices.Sorted(maps.Keys(s.environments))
+	statuses := make([]agentdomain.EnvironmentStatus, len(names))
 	var wg sync.WaitGroup
 	for i, name := range names {
-		wg.Go(func() { statuses[i] = s.executors[name].Probe(ctx) })
+		wg.Go(func() { statuses[i] = s.environments[name].Probe(ctx) })
 	}
 	wg.Wait()
-	slices.SortStableFunc(statuses, func(a, b agentdomain.ExecutorStatus) int {
-		return boolRank(b.Kind == agentdomain.ExecutorKindLocal) - boolRank(a.Kind == agentdomain.ExecutorKindLocal)
+	slices.SortStableFunc(statuses, func(a, b agentdomain.EnvironmentStatus) int {
+		return boolRank(b.Kind == agentdomain.EnvironmentKindLocal) - boolRank(a.Kind == agentdomain.EnvironmentKindLocal)
 	})
-	conn.Deliver(encode(executorsFrame{Type: frameExecutors, Executors: statuses}))
+	conn.Deliver(encode(environmentsFrame{Type: frameEnvironments, Environments: statuses}))
 }
 
 func boolRank(b bool) int {
@@ -165,33 +170,55 @@ func boolRank(b bool) int {
 	return 0
 }
 
-// StopSession handles a client dropping a session: when a remote executor owns
-// it, the executor's runtime is deleted and the lease released.
-func (s *Service) StopSession(ctx context.Context, key sessionsdomain.ThreadKey) {
-	lease, found, err := s.leases.GetLease(ctx, key.ConversationID)
-	if err != nil || !found || lease.Executor == s.me {
-		return
+// StopSession handles a client dropping a session: when a remote environment owns
+// it, the session's runtime there is deleted and the lease released, so the
+// session starts here next time. The client gets thread_stopped, naming the
+// environment whose runtime went or the error that kept it.
+func (s *Service) StopSession(ctx context.Context, to requester, key sessionsdomain.ThreadKey) {
+	stopped := threadStoppedFrame{Type: frameThreadStopped, ProjectDir: key.ProjectDir, ID: key.ConversationID}
+	environment, err := s.deleteRemote(ctx, key)
+	stopped.Environment = environment
+	if err != nil {
+		logger.Warn("transfer could not delete the session's runtime on its environment", "conversation_id", key.ConversationID, "error", err)
+		stopped.Error = err.Error()
 	}
-	executor, ok := s.executors[lease.Executor]
-	if !ok {
-		return
-	}
-	if err := executor.Delete(ctx, s.session(key)); err != nil {
-		logger.Warn("transfer could not delete the session's runtime on its executor", "executor", lease.Executor, "conversation_id", key.ConversationID, "error", err)
-		return
-	}
-	_ = s.leases.ReleaseLease(ctx, key.ConversationID, lease.Executor)
+	to.Deliver(encode(stopped))
 }
 
-// Suspend parks this daemon's own runtime on its executor when the daemon
-// idles out, the way a pod daemon suspends its Sandbox before exiting.
+// deleteRemote deletes the session's runtime on the remote environment that
+// owns it and releases the lease, returning that environment, or "" when the
+// session is this daemon's or nobody's.
+func (s *Service) deleteRemote(ctx context.Context, key sessionsdomain.ThreadKey) (string, error) {
+	lease, found, err := s.leases.GetLease(ctx, key.ConversationID)
+	if err != nil {
+		return "", describe(err, "reading the session's lease")
+	}
+	if !found || lease.Environment == s.me {
+		return "", nil
+	}
+	environment, ok := s.environments[lease.Environment]
+	if !ok {
+		return "", fmt.Errorf("environment %s is not registered in daemon.yaml", lease.Environment)
+	}
+	if err := environment.Delete(ctx, s.session(key)); err != nil {
+		return "", describe(err, "deleting the session's runtime on %s", lease.Environment)
+	}
+	if err := s.leases.ReleaseLease(ctx, key.ConversationID, lease.Environment); err != nil {
+		return "", describe(err, "releasing the session's lease")
+	}
+	return lease.Environment, nil
+}
+
+// Suspend parks the runtime this daemon runs in when it idles out, the way a
+// pod daemon suspends its Sandbox before exiting, and says whether every
+// agent it ran is done.
 func (s *Service) Suspend(ctx context.Context) {
-	for _, executor := range s.executors {
-		if executor.Kind() == agentdomain.ExecutorKindLocal {
-			if err := executor.Suspend(ctx, agentdomain.Session{}); err != nil {
-				logger.Warn("transfer could not suspend this daemon's runtime", "error", err)
-			}
-		}
+	if s.selfSuspend == nil {
+		return
+	}
+	done, known := s.registry.AgentsDone()
+	if err := s.selfSuspend(ctx, done, known); err != nil {
+		logger.Warn("transfer could not suspend this daemon's runtime", "error", err)
 	}
 }
 

@@ -132,6 +132,10 @@ type Registry struct {
 	// lastActive is when the registry last had a thread or a client, read by
 	// Idle. Written with mu held.
 	lastActive time.Time
+	// finished holds, per thread that ran, whether its last run finished
+	// without waiting on the user. It outlives the thread, one entry per
+	// conversation for the daemon's lifetime. Read by AgentsDone.
+	finished map[sessionsdomain.ThreadKey]bool
 }
 
 // thread is one project dir plus conversation id and the worker running it.
@@ -164,6 +168,7 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 		approvals:  make(map[string]*thread),
 		all:        make(map[sessionsdomain.Client]struct{}),
 		lastActive: time.Now(),
+		finished:   make(map[sessionsdomain.ThreadKey]bool),
 	}
 }
 
@@ -613,6 +618,7 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 	case "RUN_STARTED":
 		t.runID = l.RunID
 		t.interrupts, t.interruptsRaw = nil, nil
+		r.recordRun(t, false)
 		activity = r.activityFrame()
 	case "RUN_FINISHED":
 		t.runID = ""
@@ -620,6 +626,7 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 		if t.interrupts != nil {
 			t.interruptsRaw = l.Outcome.Interrupts
 		}
+		r.recordRun(t, t.interrupts == nil)
 		activity = r.activityFrame()
 	case "STATE_SNAPSHOT":
 		t.jobs = l.Snapshot.BackgroundTasks.Running
@@ -652,6 +659,15 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 		return []sessionsdomain.Client{requester}, activity
 	}
 	return slices.Collect(maps.Keys(t.clients)), activity
+}
+
+// recordRun notes for AgentsDone how the run of a thread stands. A worker the
+// registry already let go drains a pending approval into one more run on its
+// way out, which says nothing about the agent, so only an attached worker counts.
+func (r *Registry) recordRun(t *thread, finished bool) {
+	if t.worker != nil && r.threads[t.key] == t {
+		r.finished[t.key] = finished
+	}
 }
 
 // exited forgets a worker that is gone. A run it left open ends with

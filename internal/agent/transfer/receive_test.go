@@ -48,7 +48,7 @@ func (r *receiver) send(t *testing.T, frame any) {
 	}
 }
 
-func (r *receiver) importCheckpoint(t *testing.T, checkpoint agentdomain.Checkpoint, executor string, tamper func(payload []byte) []byte) importedFrame {
+func (r *receiver) importCheckpoint(t *testing.T, checkpoint agentdomain.Checkpoint, environment string, tamper func(payload []byte) []byte) importedFrame {
 	t.Helper()
 	payload := encode(checkpoint)
 	sum := sha256.Sum256(payload)
@@ -57,7 +57,7 @@ func (r *receiver) importCheckpoint(t *testing.T, checkpoint agentdomain.Checkpo
 	}
 	r.send(t, chunkFrame{Type: frameTransferChunk, TransferID: "t-1", Seq: 0, Data: payload[:len(payload)/2]})
 	r.send(t, chunkFrame{Type: frameTransferChunk, TransferID: "t-1", Seq: 1, Data: payload[len(payload)/2:]})
-	r.send(t, importFrame{Type: frameTransferImport, TransferID: "t-1", Executor: executor, Chunks: 2, SHA256: hex.EncodeToString(sum[:])})
+	r.send(t, importFrame{Type: frameTransferImport, TransferID: "t-1", Environment: environment, Chunks: 2, SHA256: hex.EncodeToString(sum[:])})
 	ctx, cancel := contextWithTimeout(t, 5*time.Second)
 	defer cancel()
 	reply, err := r.frames.await(ctx, frameTransferImported)
@@ -72,14 +72,14 @@ func (r *receiver) importCheckpoint(t *testing.T, checkpoint agentdomain.Checkpo
 func TestReceiveValidatesTheCheckpointBeforeRestoring(t *testing.T) {
 	checkpoint := agentdomain.Checkpoint{SchemaVersion: agentdomain.CheckpointSchemaVersion, Session: agentdomain.Session{ConversationID: "conv-1", Slug: "proj"}}
 	tests := []struct {
-		name       string
-		checkpoint agentdomain.Checkpoint
-		executor   string
-		tamper     func([]byte) []byte
-		wantErr    string
+		name        string
+		checkpoint  agentdomain.Checkpoint
+		environment string
+		tamper      func([]byte) []byte
+		wantErr     string
 	}{
 		{"wrong digest", checkpoint, "laptop", func(p []byte) []byte { return append(p, ' ') }, "digest"},
-		{"wrong executor", checkpoint, "someone-else", nil, "not \"someone-else\""},
+		{"wrong environment", checkpoint, "someone-else", nil, "not \"someone-else\""},
 		{"wrong schema", agentdomain.Checkpoint{SchemaVersion: 99, Session: checkpoint.Session}, "laptop", nil, "schema 99"},
 		{"empty bundle", checkpoint, "laptop", nil, "restoring the workspace"},
 		{"slug leaves the workspace root", agentdomain.Checkpoint{SchemaVersion: checkpoint.SchemaVersion, Session: agentdomain.Session{ConversationID: "conv-1", Slug: ".."}}, "laptop", nil, "not a plain name"},
@@ -88,7 +88,7 @@ func TestReceiveValidatesTheCheckpointBeforeRestoring(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := startReceiver(t, agentinfra.PeerClientKind)
-			imported := r.importCheckpoint(t, tt.checkpoint, tt.executor, tt.tamper)
+			imported := r.importCheckpoint(t, tt.checkpoint, tt.environment, tt.tamper)
 			if imported.OK || !strings.Contains(imported.Error, tt.wantErr) {
 				t.Fatalf("imported = %+v, want an error containing %q", imported, tt.wantErr)
 			}
@@ -98,7 +98,7 @@ func TestReceiveValidatesTheCheckpointBeforeRestoring(t *testing.T) {
 
 func TestReceiveIgnoresPeerFramesFromClients(t *testing.T) {
 	r := startReceiver(t, "desktop")
-	r.send(t, importFrame{Type: frameTransferImport, TransferID: "t-1", Executor: "laptop", Chunks: 0})
+	r.send(t, importFrame{Type: frameTransferImport, TransferID: "t-1", Environment: "laptop", Chunks: 0})
 	ctx, cancel := contextWithTimeout(t, 300*time.Millisecond)
 	defer cancel()
 	if _, err := r.frames.await(ctx, frameTransferImported); err == nil {
@@ -124,25 +124,25 @@ func TestTransferSessionNeedsARemoteTarget(t *testing.T) {
 	}
 }
 
-func TestListExecutorsReportsTheLocalExecutorFirst(t *testing.T) {
+func TestListEnvironmentsReportsTheLocalEnvironmentFirst(t *testing.T) {
 	r := startReceiver(t, "desktop")
-	r.service.executors["local"] = agentinfra.NewLocalExecutor("laptop", map[string]string{"version": "test"}, nil)
-	unreachable := fakeExecutor("k8s", agentdomain.ExecutorKindKubernetes)
-	unreachable.ProbeReturns(agentdomain.ExecutorStatus{Name: "k8s", Kind: agentdomain.ExecutorKindKubernetes, Error: "no cluster"})
-	r.service.executors["k8s"] = unreachable
-	r.send(t, map[string]string{"type": frameListExecutors})
+	r.service.environments["local"] = agentinfra.NewLocalEnvironment("laptop", map[string]string{"version": "test"})
+	unreachable := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
+	unreachable.ProbeReturns(agentdomain.EnvironmentStatus{Name: "k8s", Kind: agentdomain.EnvironmentKindKubernetes, Error: "no cluster"})
+	r.service.environments["k8s"] = unreachable
+	r.send(t, map[string]string{"type": frameListEnvironments})
 	ctx, cancel := contextWithTimeout(t, 5*time.Second)
 	defer cancel()
-	reply, err := r.frames.await(ctx, frameExecutors)
+	reply, err := r.frames.await(ctx, frameEnvironments)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var listed executorsFrame
+	var listed environmentsFrame
 	_ = json.Unmarshal(reply, &listed)
-	if len(listed.Executors) != 2 || listed.Executors[0].Name != "laptop" || !listed.Executors[0].Reachable {
-		t.Fatalf("executors = %+v", listed.Executors)
+	if len(listed.Environments) != 2 || listed.Environments[0].Name != "laptop" || !listed.Environments[0].Reachable {
+		t.Fatalf("environments = %+v", listed.Environments)
 	}
-	if listed.Executors[1].Reachable || listed.Executors[1].Error != "no cluster" {
-		t.Fatalf("an unreachable executor must be reported with its error: %+v", listed.Executors[1])
+	if listed.Environments[1].Reachable || listed.Environments[1].Error != "no cluster" {
+		t.Fatalf("an unreachable environment must be reported with its error: %+v", listed.Environments[1])
 	}
 }

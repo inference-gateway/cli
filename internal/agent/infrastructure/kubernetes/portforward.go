@@ -20,7 +20,7 @@ func intstrPort(port int) k8sintstr.IntOrString {
 
 // portForward opens a tunnel from a free loopback port to the pod's binding
 // port and returns the local address with the function that closes it.
-func (e *Executor) portForward(ctx context.Context, pod string) (string, func(), error) {
+func (e *Environment) portForward(ctx context.Context, pod string) (string, func(), error) {
 	transport, upgrader, err := k8sspdy.RoundTripperFor(e.rest)
 	if err != nil {
 		return "", nil, fmt.Errorf("preparing the port-forward: %w", err)

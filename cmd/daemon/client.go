@@ -137,10 +137,10 @@ func projectDirFlag(cmd *cobra.Command) (string, error) {
 	return abs, nil
 }
 
-func newExecutorsCommand(state *runtime.State) *cobra.Command {
+func newEnvironmentsCommand(state *runtime.State) *cobra.Command {
 	return &cobra.Command{
-		Use:          "executors",
-		Short:        "List the executors sessions can be transferred to and whether each is reachable",
+		Use:          "environments",
+		Short:        "List the environments sessions can be transferred to and whether each is reachable",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), clientTimeout)
@@ -150,36 +150,36 @@ func newExecutorsCommand(state *runtime.State) *cobra.Command {
 				return err
 			}
 			defer client.close()
-			if err := client.send(map[string]string{"type": "list_executors"}); err != nil {
+			if err := client.send(map[string]string{"type": "list_environments"}); err != nil {
 				return err
 			}
-			frame, err := client.next(ctx, "executors")
+			frame, err := client.next(ctx, "environments")
 			if err != nil {
 				return err
 			}
-			return printExecutors(cmd.OutOrStdout(), frame)
+			return printEnvironments(cmd.OutOrStdout(), frame)
 		},
 	}
 }
 
-func printExecutors(out io.Writer, frame map[string]any) error {
-	raw, _ := json.Marshal(frame["executors"])
-	var executors []agentdomain.ExecutorStatus
-	if err := json.Unmarshal(raw, &executors); err != nil {
+func printEnvironments(out io.Writer, frame map[string]any) error {
+	raw, _ := json.Marshal(frame["environments"])
+	var environments []agentdomain.EnvironmentStatus
+	if err := json.Unmarshal(raw, &environments); err != nil {
 		return err
 	}
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	say(w, "NAME\tKIND\tREACHABLE\tDETAILS\n")
-	for _, executor := range executors {
-		details := executor.Error
-		if executor.Reachable {
-			parts := make([]string, 0, len(executor.Capabilities))
-			for _, key := range slices.Sorted(maps.Keys(executor.Capabilities)) {
-				parts = append(parts, key+"="+executor.Capabilities[key])
+	for _, environment := range environments {
+		details := environment.Error
+		if environment.Reachable {
+			parts := make([]string, 0, len(environment.Capabilities))
+			for _, key := range slices.Sorted(maps.Keys(environment.Capabilities)) {
+				parts = append(parts, key+"="+environment.Capabilities[key])
 			}
 			details = strings.Join(parts, " ")
 		}
-		say(w, "%s\t%s\t%t\t%s\n", executor.Name, executor.Kind, executor.Reachable, details)
+		say(w, "%s\t%s\t%t\t%s\n", environment.Name, environment.Kind, environment.Reachable, details)
 	}
 	return w.Flush()
 }
@@ -187,13 +187,13 @@ func printExecutors(out io.Writer, frame map[string]any) error {
 func newTransferCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
 		Use:          "transfer <conversation-id>",
-		Short:        "Move a session to another executor and follow the transfer",
+		Short:        "Move a session to another environment and follow the transfer",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, _ := cmd.Flags().GetString("to")
 			if target == "" {
-				return errors.New("--to names the executor to move the session to")
+				return errors.New("--to names the environment to move the session to")
 			}
 			projectDir, err := projectDirFlag(cmd)
 			if err != nil {
@@ -218,7 +218,7 @@ func newTransferCommand(state *runtime.State) *cobra.Command {
 			return followTransfer(ctx, cmd.OutOrStdout(), client)
 		},
 	}
-	command.Flags().String("to", "", "The executor to move the session to (a name from daemon.yaml)")
+	command.Flags().String("to", "", "The environment to move the session to (a name from daemon.yaml)")
 	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
 	command.Flags().String("transfer-id", "", "Reuse a transfer id to retry the same transfer idempotently")
 	command.Flags().StringSlice("file", nil, "Extra files to carry along, relative to the project (repeatable)")
@@ -233,7 +233,7 @@ func followTransfer(ctx context.Context, out io.Writer, client *daemonClient) er
 			return err
 		}
 		if frame["type"] == "session_moved" {
-			say(out, "session now lives on %v in %v\n", frame["executor"], frame["workspace"])
+			say(out, "session now lives on %v in %v\n", frame["environment"], frame["workspace"])
 			return nil
 		}
 		stage, _ := frame["stage"].(string)
@@ -316,4 +316,49 @@ func runTurn(ctx context.Context, out io.Writer, client *daemonClient, conversat
 		}
 		return nil
 	}
+}
+
+func newStopCommand(state *runtime.State) *cobra.Command {
+	command := &cobra.Command{
+		Use:          "stop <conversation-id>",
+		Short:        "Stop a session's agent and delete its runtime and volumes on the remote environment that owns it",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectDir, err := projectDirFlag(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), clientTimeout)
+			defer cancel()
+			client, err := dialLocal(ctx, state.Config())
+			if err != nil {
+				return err
+			}
+			defer client.close()
+			if err := client.send(map[string]string{"type": "stop_thread", "project_dir": projectDir, "id": args[0]}); err != nil {
+				return err
+			}
+			frame, err := client.next(ctx, "thread_stopped")
+			if err != nil {
+				return err
+			}
+			return printStopped(cmd.OutOrStdout(), frame)
+		},
+	}
+	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
+	return command
+}
+
+// printStopped reports where the session's runtime was deleted, or why not.
+func printStopped(out io.Writer, frame map[string]any) error {
+	if message, _ := frame["error"].(string); message != "" {
+		return errors.New(message)
+	}
+	if environment, _ := frame["environment"].(string); environment != "" {
+		say(out, "deleted the session's runtime on %s and released its lease, it continues here next time\n", environment)
+		return nil
+	}
+	say(out, "stopped the session's worker on this daemon\n")
+	return nil
 }

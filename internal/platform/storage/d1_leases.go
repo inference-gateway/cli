@@ -19,7 +19,7 @@ func (s *D1Storage) GetLease(ctx context.Context, conversationID string) (agentd
 	row := rows[0]
 	return agentdomain.Lease{
 		ConversationID: conversationID,
-		Executor:       asString(row["executor"]),
+		Environment:    asString(row["environment"]),
 		Workspace:      asString(row["workspace"]),
 		TransferID:     asString(row["transfer_id"]),
 		Until:          time.Unix(int64(asInt(row["until_unix"])), 0).UTC(),
@@ -28,7 +28,7 @@ func (s *D1Storage) GetLease(ctx context.Context, conversationID string) (agentd
 
 func (s *D1Storage) ClaimLease(ctx context.Context, lease agentdomain.Lease) (agentdomain.Lease, bool, error) {
 	changes, err := s.exec(ctx, claimLeaseSQL,
-		lease.ConversationID, lease.Executor, lease.Workspace, lease.TransferID, lease.Until.Unix(), time.Now().Unix())
+		lease.ConversationID, lease.Environment, lease.Workspace, lease.TransferID, lease.Until.Unix(), time.Now().Unix())
 	if err != nil {
 		return agentdomain.Lease{}, false, fmt.Errorf("claiming the session lease: %w", err)
 	}
@@ -39,8 +39,8 @@ func (s *D1Storage) ClaimLease(ctx context.Context, lease agentdomain.Lease) (ag
 	return current, false, err
 }
 
-func (s *D1Storage) RenewLease(ctx context.Context, conversationID, executor string, until time.Time) error {
-	changes, err := s.exec(ctx, renewLeaseSQL, until.Unix(), conversationID, executor)
+func (s *D1Storage) RenewLease(ctx context.Context, conversationID, environment string, until time.Time) error {
+	changes, err := s.exec(ctx, renewLeaseSQL, until.Unix(), conversationID, environment)
 	if err != nil {
 		return fmt.Errorf("renewing the session lease: %w", err)
 	}
@@ -50,8 +50,8 @@ func (s *D1Storage) RenewLease(ctx context.Context, conversationID, executor str
 	return nil
 }
 
-func (s *D1Storage) ReleaseLease(ctx context.Context, conversationID, executor string) error {
-	if _, err := s.exec(ctx, releaseLeaseSQL, conversationID, executor); err != nil {
+func (s *D1Storage) ReleaseLease(ctx context.Context, conversationID, environment string) error {
+	if _, err := s.exec(ctx, releaseLeaseSQL, conversationID, environment); err != nil {
 		return fmt.Errorf("releasing the session lease: %w", err)
 	}
 	return nil

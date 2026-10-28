@@ -38,40 +38,40 @@ const (
 	TLSModeSPIFFE TLSMode = "spiffe"
 )
 
-// ExecutorKind names where an agent runs: this daemon, a standalone daemon
+// EnvironmentKind names where an agent runs: this daemon, a standalone daemon
 // reachable over TLS, or a Kubernetes Sandbox per session.
-type ExecutorKind string
+type EnvironmentKind string
 
 const (
-	ExecutorKindLocal      ExecutorKind = "local"
-	ExecutorKindDaemon     ExecutorKind = "daemon"
-	ExecutorKindKubernetes ExecutorKind = "kubernetes"
+	EnvironmentKindLocal      EnvironmentKind = "local"
+	EnvironmentKindDaemon     EnvironmentKind = "daemon"
+	EnvironmentKindKubernetes EnvironmentKind = "kubernetes"
 )
 
-// ExecutorAuth is how a Kubernetes executor's pod daemon authenticates: a
+// EnvironmentAuth is how a Kubernetes environment's pod daemon authenticates: a
 // certificate the daemon-managed CA issues, or a SPIFFE SVID.
-type ExecutorAuth string
+type EnvironmentAuth string
 
 const (
-	ExecutorAuthCA     ExecutorAuth = "ca"
-	ExecutorAuthSPIFFE ExecutorAuth = "spiffe"
+	EnvironmentAuthCA     EnvironmentAuth = "ca"
+	EnvironmentAuthSPIFFE EnvironmentAuth = "spiffe"
 )
 
 // DaemonConfig contains settings for the `infer daemon` command itself, the
 // long-running host of the channels, scheduler, heartbeat and the AG-UI
-// binding, and the executors sessions can be transferred to. Stored in its own
+// binding, and the environments sessions can be transferred to. Stored in its own
 // daemon.yaml sidecar.
 type DaemonConfig struct {
-	// Executor is this daemon's identity in session leases. Empty takes the
-	// name of the local executor entry, else the hostname.
-	Executor string `yaml:"executor,omitempty" mapstructure:"executor"`
+	// Environment is this daemon's identity in session leases. Empty takes the
+	// name of the local environment entry, else the hostname.
+	Environment string `yaml:"environment,omitempty" mapstructure:"environment"`
 	// WorkspaceRoot is where a receiving daemon restores transferred projects.
 	WorkspaceRoot string `yaml:"workspace_root,omitempty" mapstructure:"workspace_root"`
 	// IdleExit stops the daemon after this long with no threads and no clients.
 	// Zero keeps it running.
-	IdleExit  time.Duration   `yaml:"idle_exit,omitempty" mapstructure:"idle_exit"`
-	Binding   BindingConfig   `yaml:"binding" mapstructure:"binding"`
-	Executors []ExecutorEntry `yaml:"executors" mapstructure:"executors"`
+	IdleExit     time.Duration      `yaml:"idle_exit,omitempty" mapstructure:"idle_exit"`
+	Binding      BindingConfig      `yaml:"binding" mapstructure:"binding"`
+	Environments []EnvironmentEntry `yaml:"environments" mapstructure:"environments"`
 }
 
 // BindingConfig configures the AG-UI WebSocket binding the daemon hosts for
@@ -117,7 +117,7 @@ type SPIFFEConfig struct {
 	AllowedIDs []string `yaml:"allowed_ids,omitempty" mapstructure:"allowed_ids"`
 }
 
-// PeerTLSConfig is how this daemon reaches a daemon-kind executor over TLS:
+// PeerTLSConfig is how this daemon reaches a daemon-kind environment over TLS:
 // the CA that signed its certificate, and a client certificate when the
 // peer requires one.
 type PeerTLSConfig struct {
@@ -126,45 +126,49 @@ type PeerTLSConfig struct {
 	KeyFile  string `yaml:"key_file,omitempty" mapstructure:"key_file"`
 }
 
-// ExecutorSPIFFEConfig names the SVID a Kubernetes executor's pod daemon
+// EnvironmentSPIFFEConfig names the SVID a Kubernetes environment's pod daemon
 // presents, so this daemon knows which identity to expect.
-type ExecutorSPIFFEConfig struct {
+type EnvironmentSPIFFEConfig struct {
 	TrustDomain string `yaml:"trust_domain,omitempty" mapstructure:"trust_domain"`
 	ServerID    string `yaml:"server_id,omitempty" mapstructure:"server_id"`
 }
 
-// ExecutorEntry registers one executor sessions can move to. The daemon kind
+// EnvironmentEntry registers one environment sessions can move to. The daemon kind
 // uses Address, Token and TLS, the kubernetes kind the cluster fields, and
 // Address overrides the port-forward when an Ingress exposes the pods.
-type ExecutorEntry struct {
-	Name    string        `yaml:"name" mapstructure:"name"`
-	Kind    ExecutorKind  `yaml:"kind" mapstructure:"kind"`
-	Address string        `yaml:"address,omitempty" mapstructure:"address"`
-	Token   string        `yaml:"token,omitempty" mapstructure:"token"`
-	TLS     PeerTLSConfig `yaml:"tls,omitempty" mapstructure:"tls"`
+type EnvironmentEntry struct {
+	Name    string          `yaml:"name" mapstructure:"name"`
+	Kind    EnvironmentKind `yaml:"kind" mapstructure:"kind"`
+	Address string          `yaml:"address,omitempty" mapstructure:"address"`
+	Token   string          `yaml:"token,omitempty" mapstructure:"token"`
+	TLS     PeerTLSConfig   `yaml:"tls,omitempty" mapstructure:"tls"`
 
-	Kubeconfig string               `yaml:"kubeconfig,omitempty" mapstructure:"kubeconfig"`
-	Context    string               `yaml:"context,omitempty" mapstructure:"context"`
-	Namespace  string               `yaml:"namespace,omitempty" mapstructure:"namespace"`
-	Image      string               `yaml:"image,omitempty" mapstructure:"image"`
-	Storage    string               `yaml:"storage,omitempty" mapstructure:"storage"`
-	IdleTTL    time.Duration        `yaml:"idle_ttl,omitempty" mapstructure:"idle_ttl"`
-	Auth       ExecutorAuth         `yaml:"auth,omitempty" mapstructure:"auth"`
-	SPIFFE     ExecutorSPIFFEConfig `yaml:"spiffe,omitempty" mapstructure:"spiffe"`
+	Kubeconfig string                  `yaml:"kubeconfig,omitempty" mapstructure:"kubeconfig"`
+	Context    string                  `yaml:"context,omitempty" mapstructure:"context"`
+	Namespace  string                  `yaml:"namespace,omitempty" mapstructure:"namespace"`
+	Image      string                  `yaml:"image,omitempty" mapstructure:"image"`
+	Storage    string                  `yaml:"storage,omitempty" mapstructure:"storage"`
+	IdleTTL    time.Duration           `yaml:"idle_ttl,omitempty" mapstructure:"idle_ttl"`
+	Auth       EnvironmentAuth         `yaml:"auth,omitempty" mapstructure:"auth"`
+	SPIFFE     EnvironmentSPIFFEConfig `yaml:"spiffe,omitempty" mapstructure:"spiffe"`
 	// Env is the non-secret environment the pod daemon starts with.
 	Env map[string]string `yaml:"env,omitempty" mapstructure:"env"`
 
-	// LeaseTTL is how long this daemon's lease row for a session the executor
+	// Retention is how long a Sandbox stays suspended once every agent on it is
+	// done before agent-sandbox deletes it with its volumes. Zero keeps it until
+	// the session is stopped.
+	Retention time.Duration `yaml:"retention,omitempty" mapstructure:"retention"`
+	// LeaseTTL is how long this daemon's lease row for a session the environment
 	// owns stays live without contact. Empty derives it from the kind.
 	LeaseTTL time.Duration `yaml:"lease_ttl,omitempty" mapstructure:"lease_ttl"`
 	// ForwardEnv names the environment variables sealed into a handoff for
-	// the target's workers, never written to the executor's own objects.
+	// the target's workers, never written to the environment's own objects.
 	ForwardEnv []string `yaml:"forward_env,omitempty" mapstructure:"forward_env"`
 }
 
 // EffectiveIdleTTL is how long a Kubernetes pod daemon idles before it
 // suspends its Sandbox.
-func (e ExecutorEntry) EffectiveIdleTTL() time.Duration {
+func (e EnvironmentEntry) EffectiveIdleTTL() time.Duration {
 	if e.IdleTTL > 0 {
 		return e.IdleTTL
 	}
@@ -173,39 +177,39 @@ func (e ExecutorEntry) EffectiveIdleTTL() time.Duration {
 
 // EffectiveLeaseTTL is the configured lease TTL, else the idle TTL plus a
 // grace for Kubernetes and a day for a standalone daemon.
-func (e ExecutorEntry) EffectiveLeaseTTL() time.Duration {
+func (e EnvironmentEntry) EffectiveLeaseTTL() time.Duration {
 	if e.LeaseTTL > 0 {
 		return e.LeaseTTL
 	}
-	if e.Kind == ExecutorKindKubernetes {
+	if e.Kind == EnvironmentKindKubernetes {
 		return e.EffectiveIdleTTL() + remoteLeaseGrace
 	}
 	return defaultDaemonLeaseTTL
 }
 
 // EffectiveAuth is the configured pod authentication, CA by default.
-func (e ExecutorEntry) EffectiveAuth() ExecutorAuth {
+func (e EnvironmentEntry) EffectiveAuth() EnvironmentAuth {
 	if e.Auth == "" {
-		return ExecutorAuthCA
+		return EnvironmentAuthCA
 	}
 	return e.Auth
 }
 
-// Identity is this daemon's name in session leases: the configured executor,
-// else the local executor entry's name, else the hostname.
+// Identity is this daemon's name in session leases: the configured environment,
+// else the local environment entry's name, else the hostname.
 func (d DaemonConfig) Identity() string {
-	if d.Executor != "" {
-		return d.Executor
+	if d.Environment != "" {
+		return d.Environment
 	}
-	for _, executor := range d.Executors {
-		if executor.Kind == ExecutorKindLocal {
-			return executor.Name
+	for _, environment := range d.Environments {
+		if environment.Kind == EnvironmentKindLocal {
+			return environment.Name
 		}
 	}
 	if host, err := os.Hostname(); err == nil && host != "" {
 		return host
 	}
-	return string(ExecutorKindLocal)
+	return string(EnvironmentKindLocal)
 }
 
 // WorkspaceDir is where a receiving daemon restores transferred projects.
@@ -221,15 +225,15 @@ func (d DaemonConfig) WorkspaceDir() string {
 	return d.WorkspaceRoot
 }
 
-// Remote returns the executor entry of that name, false when it is unknown or
+// Remote returns the environment entry of that name, false when it is unknown or
 // the local one.
-func (d DaemonConfig) Remote(name string) (ExecutorEntry, bool) {
-	for _, executor := range d.Executors {
-		if executor.Name == name && executor.Kind != ExecutorKindLocal {
-			return executor, true
+func (d DaemonConfig) Remote(name string) (EnvironmentEntry, bool) {
+	for _, environment := range d.Environments {
+		if environment.Name == name && environment.Kind != EnvironmentKindLocal {
+			return environment, true
 		}
 	}
-	return ExecutorEntry{}, false
+	return EnvironmentEntry{}, false
 }
 
 // RequiresClientAuth reports whether the binding authenticates peers with
@@ -239,30 +243,30 @@ func (t BindingTLSConfig) RequiresClientAuth() bool {
 }
 
 // Validate checks daemon.yaml: the TLS mode, that a non-loopback binding
-// serves TLS, and that every executor entry carries what its kind needs.
+// serves TLS, and that every environment entry carries what its kind needs.
 func (d DaemonConfig) Validate() error {
 	if err := d.Binding.validate(); err != nil {
 		return err
 	}
-	seen := make(map[string]bool, len(d.Executors))
+	seen := make(map[string]bool, len(d.Environments))
 	locals := 0
-	for _, executor := range d.Executors {
-		if executor.Name == "" {
-			return fmt.Errorf("every executor needs a name")
+	for _, environment := range d.Environments {
+		if environment.Name == "" {
+			return fmt.Errorf("every environment needs a name")
 		}
-		if seen[executor.Name] {
-			return fmt.Errorf("executor %q is registered twice", executor.Name)
+		if seen[environment.Name] {
+			return fmt.Errorf("environment %q is registered twice", environment.Name)
 		}
-		seen[executor.Name] = true
-		if executor.Kind == ExecutorKindLocal {
+		seen[environment.Name] = true
+		if environment.Kind == EnvironmentKindLocal {
 			locals++
 		}
-		if err := executor.validate(d.Executor); err != nil {
+		if err := environment.validate(d.Environment); err != nil {
 			return err
 		}
 	}
 	if locals > 1 {
-		return fmt.Errorf("only one executor may be of kind %q", ExecutorKindLocal)
+		return fmt.Errorf("only one environment may be of kind %q", EnvironmentKindLocal)
 	}
 	return nil
 }
@@ -286,35 +290,35 @@ func (b BindingConfig) validate() error {
 	return nil
 }
 
-func (e ExecutorEntry) validate(identity string) error {
+func (e EnvironmentEntry) validate(identity string) error {
 	switch e.Kind {
-	case ExecutorKindLocal:
+	case EnvironmentKindLocal:
 		if identity != "" && identity != e.Name {
-			return fmt.Errorf("executor %q of kind local must be named after daemon.executor %q", e.Name, identity)
+			return fmt.Errorf("environment %q of kind local must be named after daemon.environment %q", e.Name, identity)
 		}
-	case ExecutorKindDaemon:
+	case EnvironmentKindDaemon:
 		if e.Address == "" {
-			return fmt.Errorf("executor %q of kind daemon needs an address", e.Name)
+			return fmt.Errorf("environment %q of kind daemon needs an address", e.Name)
 		}
 		if e.TLS.CAFile == "" {
-			return fmt.Errorf("executor %q of kind daemon needs tls.ca_file, remote bindings require TLS", e.Name)
+			return fmt.Errorf("environment %q of kind daemon needs tls.ca_file, remote bindings require TLS", e.Name)
 		}
-	case ExecutorKindKubernetes:
+	case EnvironmentKindKubernetes:
 		if e.Namespace == "" || e.Image == "" {
-			return fmt.Errorf("executor %q of kind kubernetes needs a namespace and an image", e.Name)
+			return fmt.Errorf("environment %q of kind kubernetes needs a namespace and an image", e.Name)
 		}
 		switch e.EffectiveAuth() {
-		case ExecutorAuthCA:
-		case ExecutorAuthSPIFFE:
+		case EnvironmentAuthCA:
+		case EnvironmentAuthSPIFFE:
 			if e.SPIFFE.TrustDomain == "" {
-				return fmt.Errorf("executor %q with auth spiffe needs spiffe.trust_domain", e.Name)
+				return fmt.Errorf("environment %q with auth spiffe needs spiffe.trust_domain", e.Name)
 			}
 		default:
-			return fmt.Errorf("invalid auth %q for executor %q: must be %q or %q", e.Auth, e.Name, ExecutorAuthCA, ExecutorAuthSPIFFE)
+			return fmt.Errorf("invalid auth %q for environment %q: must be %q or %q", e.Auth, e.Name, EnvironmentAuthCA, EnvironmentAuthSPIFFE)
 		}
 	default:
-		return fmt.Errorf("invalid kind %q for executor %q: must be one of %q, %q, or %q",
-			e.Kind, e.Name, ExecutorKindLocal, ExecutorKindDaemon, ExecutorKindKubernetes)
+		return fmt.Errorf("invalid kind %q for environment %q: must be one of %q, %q, or %q",
+			e.Kind, e.Name, EnvironmentKindLocal, EnvironmentKindDaemon, EnvironmentKindKubernetes)
 	}
 	return nil
 }
@@ -386,12 +390,12 @@ func (c *Config) Binding() Binding {
 
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml
 // exists: the binding is off until the user or the desktop app enables it, no
-// TLS, and no executors beyond this daemon.
+// TLS, and no environments beyond this daemon.
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
 		Binding: BindingConfig{
 			TLS: BindingTLSConfig{Mode: TLSModeOff, SPIFFE: SPIFFEConfig{Socket: DefaultSPIFFESocket}},
 		},
-		Executors: []ExecutorEntry{},
+		Environments: []EnvironmentEntry{},
 	}
 }

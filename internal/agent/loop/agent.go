@@ -1146,10 +1146,8 @@ func (s *Agent) executeToolOnce(
 		execCtx = agentdomain.WithAgentMode(execCtx, s.stateManager.GetAgentMode())
 	}
 
-	if agentdomain.GetSessionID(execCtx) == "" && s.conversationRepo != nil {
-		if convID := s.conversationRepo.GetCurrentConversationID(); convID != "" {
-			execCtx = agentdomain.WithSessionID(execCtx, convID)
-		}
+	if id := s.sessionID(execCtx); id != "" {
+		execCtx = agentdomain.WithSessionID(execCtx, id)
 	}
 	if wasApproved {
 		execCtx = agentdomain.WithToolApproved(execCtx)

@@ -16,7 +16,7 @@ import (
 )
 
 // rewriteProjectDir names the frames that carry the client's project dir,
-// which a remote worker replaces with the workspace on the owning executor.
+// which a remote worker replaces with the workspace on the owning environment.
 var rewriteProjectDir = map[string]bool{
 	"new_session": true, frameResumeConversation: true, "list_conversations": true, "list_history": true,
 	"list_skills": true, "list_models": true, "tool_request": true, frameExportConversation: true, frameImportConversation: true,
@@ -59,7 +59,7 @@ func (p *peerFrames) await(ctx context.Context, types ...string) ([]byte, error)
 			return nil, ctx.Err()
 		case frame, ok := <-p.frames:
 			if !ok {
-				return nil, errors.New("the executor's daemon hung up")
+				return nil, errors.New("the environment's daemon hung up")
 			}
 			typ := frameType(frame)
 			for _, want := range types {
@@ -78,7 +78,7 @@ func (p *peerFrames) await(ctx context.Context, types ...string) ([]byte, error)
 	}
 }
 
-// remoteWorker relays a thread's frames to the daemon of the executor that
+// remoteWorker relays a thread's frames to the daemon of the environment that
 // owns the session, as if that daemon were the worker.
 type remoteWorker struct {
 	conn      *agui.Conn
@@ -89,14 +89,14 @@ type remoteWorker struct {
 	once      sync.Once
 }
 
-// connectRemote reaches the executor named by a lease and relays the thread
+// connectRemote reaches the environment named by a lease and relays the thread
 // to it, refreshing this daemon's row for that owner while connected.
 func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKey, lease agentdomain.Lease) (sessionsdomain.Worker, error) {
-	executor, ok := s.executors[lease.Executor]
+	environment, ok := s.environments[lease.Environment]
 	if !ok {
-		return nil, fmt.Errorf("executor %s is not registered in daemon.yaml", lease.Executor)
+		return nil, fmt.Errorf("environment %s is not registered in daemon.yaml", lease.Environment)
 	}
-	endpoint, err := executor.Ensure(ctx, s.session(key))
+	endpoint, err := environment.Reach(ctx, s.session(key))
 	if err != nil {
 		return nil, err
 	}
@@ -106,22 +106,22 @@ func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKe
 		endpoint.Release()
 		return nil, err
 	}
-	if info.Executor != lease.Executor {
+	if info.Environment != lease.Environment {
 		conn.Close()
 		endpoint.Release()
-		return nil, fmt.Errorf("the daemon reached for executor %s identifies as %q", lease.Executor, info.Executor)
+		return nil, fmt.Errorf("the daemon reached for environment %s identifies as %q", lease.Environment, info.Environment)
 	}
 	refreshCtx, cancel := context.WithCancel(context.Background())
 	w := &remoteWorker{conn: conn, endpoint: endpoint, workspace: lease.Workspace, lines: make(chan []byte, 64), cancel: cancel}
 	go w.relay(frames)
-	go s.refreshRemote(refreshCtx, key.ConversationID, lease.Executor, w)
+	go s.refreshRemote(refreshCtx, key.ConversationID, lease.Environment, w)
 	return w, nil
 }
 
 // refreshRemote keeps this daemon's row for the remote owner live while the
 // relay is connected, and drops the relay when the row changed hands.
-func (s *Service) refreshRemote(ctx context.Context, conversationID, executor string, w *remoteWorker) {
-	ttl := s.entries[executor].EffectiveLeaseTTL()
+func (s *Service) refreshRemote(ctx context.Context, conversationID, environment string, w *remoteWorker) {
+	ttl := s.entries[environment].EffectiveLeaseTTL()
 	ticker := time.NewTicker(leaseHeartbeat)
 	defer ticker.Stop()
 	for {
@@ -130,9 +130,9 @@ func (s *Service) refreshRemote(ctx context.Context, conversationID, executor st
 			return
 		case <-ticker.C:
 		}
-		err := s.leases.RenewLease(ctx, conversationID, executor, time.Now().Add(ttl))
+		err := s.leases.RenewLease(ctx, conversationID, environment, time.Now().Add(ttl))
 		if errors.Is(err, agentdomain.ErrLeaseLost) {
-			logger.Info("transfer drops a relay whose session changed hands", "conversation_id", conversationID, "executor", executor)
+			logger.Info("transfer drops a relay whose session changed hands", "conversation_id", conversationID, "environment", environment)
 			w.Stop()
 			return
 		}

@@ -180,5 +180,15 @@ func GetSQLiteMigrations() []Migration {
 				DROP TABLE IF EXISTS session_leases;
 			`,
 		},
+		{
+			Version:     "011",
+			Description: "Session leases name the owning environment",
+			UpSQL: `
+				ALTER TABLE session_leases RENAME COLUMN executor TO environment;
+			`,
+			DownSQL: `
+				ALTER TABLE session_leases RENAME COLUMN environment TO executor;
+			`,
+		},
 	}
 }
