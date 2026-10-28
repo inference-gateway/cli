@@ -530,6 +530,11 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 - **compact.auto_at**: Percentage of context window (1-80) at which to automatically trigger compaction (default: 80)
 - **compact.keep_first_messages**: Number of leading messages the compactor always preserves (default: `2`).
   A value at or below zero falls back to `2`. Env: `INFER_COMPACT_KEEP_FIRST_MESSAGES`.
+- **compact.strategy**: How a compaction seeds the continued session (default: `summary`). `summary` has an
+  LLM write the checkpoint. `pointer` skips that LLM call entirely and seeds a single message saying the
+  full history lives in the previous session (naming its id) so the model cherry-picks only the specific
+  entries it needs from there with `infer conversations show <id> --grep <substring>` - the message tells
+  it to never load the whole session. Env: `INFER_COMPACT_STRATEGY`.
 - **compact.rollover_on_idle_minutes**: Minutes a session may sit idle before a rollover starts a fresh one
   (default: `30`). Env: `INFER_COMPACT_ROLLOVER_ON_IDLE_MINUTES`.
 - **compact.summary_max_tokens**: Token budget for the compaction summary (default: `1024`).
@@ -537,7 +542,9 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
 
 Compaction writes a structured checkpoint with the sections `Objective`, `Important Details`, `Work State`,
 `Next Move` and `Relevant Files`, kept as a user message after the preserved head. An empty summary aborts the
-compaction and leaves the history untouched. Every skill whose `SKILL.md` was read in the summarized range is
+compaction and leaves the history untouched. With `compact.strategy: pointer` the checkpoint is just the
+pointer message naming the previous session - no sections are generated and no LLM call is made. Every skill
+whose `SKILL.md` was read in the summarized range is
 re-injected after the checkpoint as a `Skill` call and result (up to 20,000 characters per skill and
 100,000 in total, most recently read first), so the agent keeps following it. A repeat `Read` of a skill that
 is already in the conversation returns a short already-loaded note instead of the body.
@@ -1481,6 +1488,7 @@ http://browser-agent:8080
 
 - `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `true`)
 - `INFER_COMPACT_AUTO_AT`: Percentage of the context window (1-80) at which to auto-compact (default: `80`)
+- `INFER_COMPACT_STRATEGY`: How a compaction seeds the continued session - `summary` (default) or `pointer`
 
 ### Keybinding Environment Variables
 

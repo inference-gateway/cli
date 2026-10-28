@@ -1,11 +1,13 @@
 package conversation_test
 
 import (
+	"strings"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -812,4 +814,100 @@ func TestGenerateLLMSummary_UsesCheckpointTemplate(t *testing.T) {
 	for _, heading := range []string{"## Objective", "## Important Details", "## Work State", "## Next Move", "## Relevant Files"} {
 		assert.Contains(t, system, heading)
 	}
+}
+
+// TestOptimizeMessages_PointerStrategySkipsSummarizer pins the pointer strategy:
+// the checkpoint is one message pointing the model at the previous session and
+// no LLM call is made. The kept head survives verbatim.
+func TestOptimizeMessages_PointerStrategySkipsSummarizer(t *testing.T) {
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetCurrentConversationIDReturns("11111111-2222-4333-8444-555566667777")
+	mockClient := createMockSDKClient(t, "LLM would-be summary")
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		KeepFirstMessages: 2,
+		Client:            mockClient,
+		Config:            &config.Config{},
+		Strategy:          config.CompactStrategyPointer,
+		Repo:              repo,
+	})
+	messages := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")},
+		{Role: sdk.User, Content: sdk.NewMessageContent("again")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("ack")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	require.Len(t, result, 3, "the kept head plus the pointer, nothing else")
+	assert.Equal(t, messages[:2], result[:2], "the kept head must survive verbatim")
+	assert.Equal(t, sdk.User, result[2].Role)
+	text, _ := result[2].Content.AsMessageContent0()
+	assert.True(t, strings.HasPrefix(text, "--- Context Summary ---"),
+		"the pointer must open with the checkpoint marker so hasCheckpoint keeps detecting it")
+	assert.Contains(t, text, "session `11111111-2222-4333-8444-555566667777`")
+	assert.Contains(t, text, "infer conversations show 11111111-2222-4333-8444-555566667777 --grep")
+	assert.NotContains(t, text, "--- End Summary ---", "no LLM summary is embedded")
+	assert.Equal(t, 0, mockClient.GenerateContentCallCount(), "pointer mode must not call the summarizer")
+}
+
+// TestOptimizeMessages_PointerStrategyWithRestoreHook pins that the restore
+// hook runs in pointer mode too and lands after the pointer message. No client
+// is wired at all - pointer mode must work without one.
+func TestOptimizeMessages_PointerStrategyWithRestoreHook(t *testing.T) {
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetCurrentConversationIDReturns("99999999-8888-4777-8666-111122223333")
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		KeepFirstMessages: 2,
+		Config:            &config.Config{},
+		Strategy:          config.CompactStrategyPointer,
+		Repo:              repo,
+		RestoreContext: func([]sdk.Message) []sdk.Message {
+			return []sdk.Message{{Role: sdk.Assistant, Content: sdk.NewMessageContent("restored skill call")}}
+		},
+	})
+	messages := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")},
+		{Role: sdk.User, Content: sdk.NewMessageContent("again")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("ack")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	require.Len(t, result, 4, "kept head + pointer + restore hook output")
+	pointer, _ := result[2].Content.AsMessageContent0()
+	assert.Contains(t, pointer, "99999999-8888-4777-8666-111122223333")
+	restored, _ := result[3].Content.AsMessageContent0()
+	assert.Equal(t, "restored skill call", restored, "the restore hook must run in pointer mode too")
+}
+
+// TestOptimizeMessages_PointerStrategyWithoutSessionIDKeepsOriginal pins the
+// safe fallback: without a session id to point at, the history must survive
+// untouched rather than get dropped behind a broken pointer.
+func TestOptimizeMessages_PointerStrategyWithoutSessionIDKeepsOriginal(t *testing.T) {
+	mockClient := createMockSDKClient(t, "summary")
+	optimizer := conversation.NewConversationOptimizer(conversation.OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            80,
+		KeepFirstMessages: 2,
+		Client:            mockClient,
+		Config:            &config.Config{},
+		Strategy:          config.CompactStrategyPointer,
+		Repo:              conversation.NewInMemoryConversationRepository(nil, nil),
+	})
+	messages := []sdk.Message{
+		{Role: sdk.User, Content: sdk.NewMessageContent("hi")},
+		{Role: sdk.Assistant, Content: sdk.NewMessageContent("hello")},
+		{Role: sdk.User, Content: sdk.NewMessageContent("again")},
+	}
+
+	result := optimizer.OptimizeMessages(messages, "openai/gpt", true)
+
+	assert.Equal(t, messages, result, "a broken pointer must never drop history")
+	assert.Equal(t, 0, mockClient.GenerateContentCallCount())
 }
