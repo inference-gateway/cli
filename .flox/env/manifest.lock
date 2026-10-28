@@ -13,6 +13,10 @@
         "pkg-group": "codex",
         "version": "^0.162.1"
       },
+      "ctlptl": {
+        "pkg-path": "ctlptl",
+        "version": "^0.9.4"
+      },
       "docker": {
         "pkg-path": "docker",
         "version": "^29.8.0"
@@ -346,6 +350,93 @@
       },
       "system": "x86_64-linux",
       "group": "go",
+      "priority": 5
+    },
+    {
+      "attr_path": "ctlptl",
+      "broken": false,
+      "derivation": "/nix/store/c7rxlcsgn10ypgrpsvnh6pwvcqyxysz9-ctlptl-0.9.6.drv",
+      "description": "CLI for declaratively setting up local Kubernetes clusters",
+      "install_id": "ctlptl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=fe13242281a67641c0102cdb1087f0ebe586c7df",
+      "name": "ctlptl-0.9.6",
+      "pname": "ctlptl",
+      "rev": "fe13242281a67641c0102cdb1087f0ebe586c7df",
+      "rev_count": 1093333,
+      "rev_date": "2026-10-15T20:04:02Z",
+      "scrape_date": "2026-10-20T12:27:54.830207Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.9.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6b4dxqqimwhl6dnj2z8l773y74aani1m-ctlptl-0.9.6"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ctlptl",
+      "broken": false,
+      "derivation": "/nix/store/kjda9j2mpxbjkzpv66g9c3am3xbwdq0d-ctlptl-0.9.6.drv",
+      "description": "CLI for declaratively setting up local Kubernetes clusters",
+      "install_id": "ctlptl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=fe13242281a67641c0102cdb1087f0ebe586c7df",
+      "name": "ctlptl-0.9.6",
+      "pname": "ctlptl",
+      "rev": "fe13242281a67641c0102cdb1087f0ebe586c7df",
+      "rev_count": 1093333,
+      "rev_date": "2026-10-15T20:04:02Z",
+      "scrape_date": "2026-10-20T13:41:41.881193Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.9.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/c0x95isszpm7cvb270fh5lsmvw7f3h4y-ctlptl-0.9.6"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "ctlptl",
+      "broken": false,
+      "derivation": "/nix/store/b1mmnxf64wv3nnjxq3wg2hy0bmqmx8xc-ctlptl-0.9.6.drv",
+      "description": "CLI for declaratively setting up local Kubernetes clusters",
+      "install_id": "ctlptl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=fe13242281a67641c0102cdb1087f0ebe586c7df",
+      "name": "ctlptl-0.9.6",
+      "pname": "ctlptl",
+      "rev": "fe13242281a67641c0102cdb1087f0ebe586c7df",
+      "rev_count": 1093333,
+      "rev_date": "2026-10-15T20:04:02Z",
+      "scrape_date": "2026-10-20T15:06:19.455045Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.9.6",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/h29amgbr61p07fj4ncwm3flrm7xcnw6n-ctlptl-0.9.6"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
       "priority": 5
     },
     {

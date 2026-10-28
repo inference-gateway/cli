@@ -6,7 +6,8 @@ state, a pod running the same `infer` image as a daemon restores them, ownership
 every client keeps talking to its own daemon, which relays the thread to the pod. Closing the laptop does
 not stop the pod.
 
-The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1 (`K3S_VERSION` in the Taskfile) running the
+The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declared in `Cluster.yaml` and created by
+[ctlptl](https://github.com/tilt-dev/ctlptl), running the
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller, which gives every session
 a `Sandbox`: a stable pod with two persistent volumes (the workspace and the conversation store) that the
 pod daemon suspends when idle and the next transfer resumes. Two executors are configured: `k8s-dev`
@@ -19,7 +20,8 @@ for the wire frames.
 
 ## Prerequisites
 
-- [k3d](https://k3d.io/) v5, [kubectl](https://kubernetes.io/docs/tasks/tools/), [helm](https://helm.sh/) (SPIFFE only)
+- [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5 (ctlptl drives k3d)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/), [helm](https://helm.sh/) (SPIFFE only)
 - [docker](https://docs.docker.com/get-docker/) (k3d runs on it, `task image:import` builds with it)
 - [task](https://taskfile.dev/) and Go 1.26 (the image build and, for SPIFFE, the `spire-agent` build)
 - `task build` at the repository root: the tasks run that `infer` binary (`INFER=<path>` overrides it)
@@ -28,6 +30,7 @@ for the wire frames.
 
 | File | Purpose |
 | --- | --- |
+| `Cluster.yaml` | The ctlptl cluster: k3d `infer-executors` with one agent node, pinned to k3s v1.37.1 |
 | `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` (CA) and `k8s-spiffe` (SPIFFE) executors |
 | `k8s/namespace.yaml` | The `infer-executors` namespace, the `infer-executor` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
 | `k8s/spire-values.yaml` | Helm values for SPIRE: trust domain `infer.local`, join-token node attestation, the default SPIFFE ID per ServiceAccount |
