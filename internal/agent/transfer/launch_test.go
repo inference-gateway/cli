@@ -174,7 +174,7 @@ func TestLaunchClaimsTheSessionAndRunsLocally(t *testing.T) {
 func TestLaunchRefusesAForeignLiveLeaseItCannotReach(t *testing.T) {
 	l := &launcher{}
 	k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
-	k8s.EnsureReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
+	k8s.ReachReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
 	s, store := newService(t, l, k8s)
 	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Workspace: "/w", Until: time.Now().Add(time.Hour)})
 
@@ -195,7 +195,7 @@ func TestLaunchRefusesAForeignLiveLeaseItCannotReach(t *testing.T) {
 func TestLaunchReclaimsALapsedLeaseOfAnUnreachableEnvironment(t *testing.T) {
 	l := &launcher{}
 	k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
-	k8s.EnsureReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
+	k8s.ReachReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
 	s, store := newService(t, l, k8s)
 	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Until: time.Now().Add(-time.Minute)})
 

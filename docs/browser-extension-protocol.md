@@ -247,9 +247,22 @@ when it deletes the conversation instead of leaving the worker to idle out:
 {"type": "stop_thread", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
 ```
 
-- The CLI answers nothing. Followers of the thread with a run open get a
-  `RUN_ERROR` for it, exactly as when a worker exits mid-turn, and a thread
-  with no running worker is left alone.
+- Followers of the thread with a run open get a `RUN_ERROR` for it, exactly
+  as when a worker exits mid-turn, and a thread with no running worker is
+  left alone.
+- When another environment owns the session, the CLI deletes the session's
+  runtime there (a Kubernetes `Sandbox` with its volumes) and releases the
+  lease, so the session continues from the CLI's own copy.
+
+CLI → client, only the sender receives it:
+
+```json
+{"type": "thread_stopped", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "environment": "k8s-dev"}
+```
+
+- `environment` names the environment whose runtime was deleted, and is
+  absent when the session ran on the CLI itself. `error` replaces it when the
+  runtime could not be deleted, and the lease then stays.
 
 ## Active threads
 

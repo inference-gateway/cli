@@ -66,6 +66,20 @@ type FakeEnvironment struct {
 	probeReturnsOnCall map[int]struct {
 		result1 domain.EnvironmentStatus
 	}
+	ReachStub        func(context.Context, domain.Session) (domain.Endpoint, error)
+	reachMutex       sync.RWMutex
+	reachArgsForCall []struct {
+		arg1 context.Context
+		arg2 domain.Session
+	}
+	reachReturns struct {
+		result1 domain.Endpoint
+		result2 error
+	}
+	reachReturnsOnCall map[int]struct {
+		result1 domain.Endpoint
+		result2 error
+	}
 	SuspendStub        func(context.Context, domain.Session) error
 	suspendMutex       sync.RWMutex
 	suspendArgsForCall []struct {
@@ -374,6 +388,71 @@ func (fake *FakeEnvironment) ProbeReturnsOnCall(i int, result1 domain.Environmen
 	fake.probeReturnsOnCall[i] = struct {
 		result1 domain.EnvironmentStatus
 	}{result1}
+}
+
+func (fake *FakeEnvironment) Reach(arg1 context.Context, arg2 domain.Session) (domain.Endpoint, error) {
+	fake.reachMutex.Lock()
+	ret, specificReturn := fake.reachReturnsOnCall[len(fake.reachArgsForCall)]
+	fake.reachArgsForCall = append(fake.reachArgsForCall, struct {
+		arg1 context.Context
+		arg2 domain.Session
+	}{arg1, arg2})
+	stub := fake.ReachStub
+	fakeReturns := fake.reachReturns
+	fake.recordInvocation("Reach", []interface{}{arg1, arg2})
+	fake.reachMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeEnvironment) ReachCallCount() int {
+	fake.reachMutex.RLock()
+	defer fake.reachMutex.RUnlock()
+	return len(fake.reachArgsForCall)
+}
+
+func (fake *FakeEnvironment) ReachCalls(stub func(context.Context, domain.Session) (domain.Endpoint, error)) {
+	fake.reachMutex.Lock()
+	defer fake.reachMutex.Unlock()
+	fake.ReachStub = stub
+}
+
+func (fake *FakeEnvironment) ReachArgsForCall(i int) (context.Context, domain.Session) {
+	fake.reachMutex.RLock()
+	defer fake.reachMutex.RUnlock()
+	argsForCall := fake.reachArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeEnvironment) ReachReturns(result1 domain.Endpoint, result2 error) {
+	fake.reachMutex.Lock()
+	defer fake.reachMutex.Unlock()
+	fake.ReachStub = nil
+	fake.reachReturns = struct {
+		result1 domain.Endpoint
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeEnvironment) ReachReturnsOnCall(i int, result1 domain.Endpoint, result2 error) {
+	fake.reachMutex.Lock()
+	defer fake.reachMutex.Unlock()
+	fake.ReachStub = nil
+	if fake.reachReturnsOnCall == nil {
+		fake.reachReturnsOnCall = make(map[int]struct {
+			result1 domain.Endpoint
+			result2 error
+		})
+	}
+	fake.reachReturnsOnCall[i] = struct {
+		result1 domain.Endpoint
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeEnvironment) Suspend(arg1 context.Context, arg2 domain.Session) error {

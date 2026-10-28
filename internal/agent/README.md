@@ -21,7 +21,7 @@ on another environment.
   and tool-call types directly, so an SDK change reaches the loop without a translation layer.
 - `headless/` spawns `infer headless`, streams its stdout and returns the final assistant message. The `Agent` tool,
   the scheduler's cron jobs and heartbeat, and the GitHub setup call it.
-- `domain/` also names where an agent runs: the `Environment` port (ensure, probe, suspend, delete) with its three
+- `domain/` also names where an agent runs: the `Environment` port (ensure, reach, probe, suspend, delete) with its three
   implementations in `infrastructure/` (this daemon, a standalone daemon over TLS, a Kubernetes `Sandbox` per session
   under `infrastructure/kubernetes/`), the `Lease` that says which environment owns a session and the `LeaseStore` every
   storage backend implements, and the `Checkpoint` a transfer carries.

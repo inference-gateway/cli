@@ -120,23 +120,39 @@ func SandboxName(conversationID string) string {
 // Ensure creates or resumes the session's Sandbox, waits for it to be Ready,
 // and returns the pod daemon's binding through a port-forward.
 func (e *Environment) Ensure(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
+	return e.reach(ctx, session, true)
+}
+
+// Reach resumes the session's Sandbox like Ensure but never creates one, so a
+// Sandbox its retention deleted is reported instead of replaced by an empty one.
+func (e *Environment) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
+	return e.reach(ctx, session, false)
+}
+
+func (e *Environment) reach(ctx context.Context, session agentdomain.Session, create bool) (agentdomain.Endpoint, error) {
 	name := SandboxName(session.ConversationID)
+	sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
+	missing := k8serrors.IsNotFound(err)
+	switch {
+	case missing && !create:
+		return agentdomain.Endpoint{}, fmt.Errorf("sandbox %s of environment %s is gone: its retention ran out or it was deleted", name, e.entry.Name)
+	case err != nil && !missing:
+		return agentdomain.Endpoint{}, fmt.Errorf("reading Sandbox %s: %w", name, err)
+	}
 	token, err := e.ensureSecret(ctx, name)
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
-	sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
-	switch {
-	case k8serrors.IsNotFound(err):
-		if _, err := e.create(ctx, name, session); err != nil {
-			return agentdomain.Endpoint{}, err
-		}
-	case err != nil:
-		return agentdomain.Endpoint{}, fmt.Errorf("reading Sandbox %s: %w", name, err)
-	default:
-		if err := e.resume(ctx, sandbox); err != nil {
-			return agentdomain.Endpoint{}, err
-		}
+	if missing {
+		sandbox, err = e.create(ctx, name, session)
+	} else {
+		err = e.resume(ctx, sandbox)
+	}
+	if err != nil {
+		return agentdomain.Endpoint{}, err
+	}
+	if err := e.ownSecret(ctx, sandbox); err != nil {
+		return agentdomain.Endpoint{}, err
 	}
 	pod, err := e.awaitReady(ctx, name)
 	if err != nil {
@@ -197,6 +213,18 @@ func (e *Environment) ensureSecret(ctx context.Context, name string) (string, er
 	return token, nil
 }
 
+// ownSecret makes the Sandbox the owner of its Secret, so the garbage
+// collector removes the Secret with the Sandbox however that is deleted.
+func (e *Environment) ownSecret(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
+	owner := metav1.OwnerReference{APIVersion: sandboxGroup + "/" + sandboxVersion, Kind: sandboxKind, Name: sandbox.GetName(), UID: sandbox.GetUID()}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{owner}}})
+	name := sandbox.GetName() + tlsSecretSuffix
+	if _, err := e.typed.CoreV1().Secrets(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("making Sandbox %s the owner of Secret %s: %w", sandbox.GetName(), name, err)
+	}
+	return nil
+}
+
 func randomToken() (string, error) {
 	raw := make([]byte, 24)
 	if _, err := rand.Read(raw); err != nil {
@@ -241,8 +269,14 @@ func (e *Environment) resume(ctx context.Context, sandbox *k8sunstructured.Unstr
 	return nil
 }
 
+// setMode moves the Sandbox to mode. Running also clears the expiry a
+// suspension may have set, so a resumed session is never deleted under its pod.
 func (e *Environment) setMode(ctx context.Context, name, mode string) error {
-	patch, _ := json.Marshal(map[string]any{"spec": map[string]any{"operatingMode": mode}})
+	spec := map[string]any{"operatingMode": mode}
+	if mode == "Running" {
+		spec["shutdownTime"], spec["shutdownPolicy"] = nil, nil
+	}
+	patch, _ := json.Marshal(map[string]any{"spec": spec})
 	if _, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		return fmt.Errorf("setting Sandbox %s to %s: %w", name, mode, err)
 	}
@@ -409,6 +443,7 @@ func (e *Environment) podSpec(name string) corev1.PodSpec {
 		{Name: "INFER_DAEMON_WORKSPACE_ROOT", Value: workspaceMount},
 		{Name: "INFER_DAEMON_IDLE_EXIT", Value: e.entry.EffectiveIdleTTL().String()},
 		{Name: EnvSandboxName, Value: name},
+		{Name: EnvSandboxRetention, Value: e.entry.Retention.String()},
 		{Name: EnvSandboxNamespace, ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
 		{Name: "INFER_DAEMON_BINDING_TOKEN", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{Name: name + tlsSecretSuffix}, Key: secretTokenKey,

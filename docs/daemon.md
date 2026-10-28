@@ -97,6 +97,7 @@ environments:
     image: ghcr.io/inference-gateway/cli:latest
     storage: 5Gi
     idle_ttl: 2h
+    retention: 168h
     auth: ca
     env:
       INFER_GATEWAY_URL: http://inference-gateway:8080
@@ -120,6 +121,14 @@ environments:
   idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
   is the pod daemon's non-secret environment, such as the gateway URL. `address` replaces the
   port-forward when an Ingress or Gateway exposes the pods.
+- `retention` deletes a suspended Sandbox, its volumes and its Secret once it sat suspended that long,
+  through agent-sandbox's `shutdownTime`. It only starts when every agent on the pod is done: its last
+  run finished without waiting on an approval or a question. A run still going keeps the pod up, and a
+  run that waits on the user or ended in an error keeps the Sandbox until `infer daemon stop` deletes
+  it. Resuming the Sandbox clears the countdown. The pod records its verdict in the
+  `inference-gateway.com/agents-done` annotation, so a later pod that ran nothing keeps it. Without a
+  `retention` a suspended Sandbox stays until the session is stopped. A relay never recreates a Sandbox
+  its retention deleted: the session falls back to this machine's copy once its lease lapsed.
 - `forward_env` names variables of this daemon's environment that a transfer seals to the target's
   certificate for its workers. They never land in a Kubernetes object.
 - `workspace_root` is where a daemon restores transferred projects: `<root>/<project slug>/<conversation id>`.
@@ -150,6 +159,7 @@ The daemon's subcommands drive this from a shell:
 infer daemon environments                                    # who is reachable
 infer daemon transfer <conversation-id> --to k8s-dev      # move a session, follow the stages
 infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
+infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
 ```
 
 ## Session workers
@@ -161,7 +171,8 @@ project's `.infer/` config, storage, skills and sandbox apply. Thread options a 
 directories, max turns) become the worker's flags and `INFER_` env.
 
 Workers speak the binding's vocabulary on stdio, so the daemon relays frames without translating
-them. A client that deletes a conversation sends `stop_thread`, which stops its worker at once. A worker
+them. A client that deletes a conversation sends `stop_thread`, which stops its worker at once and
+deletes the session's runtime on the remote environment that owns it. A worker
 nobody follows stops 30 seconds after the turn comes back to the user with no run
 open, no reply pending and no background job still running. A worker that exits mid-turn ends its run
 with `RUN_ERROR` for every client of the thread, and the next `run_agent_input` starts a new one.

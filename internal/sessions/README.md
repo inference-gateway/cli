@@ -36,6 +36,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 - **Stopping a thread** - `stop_thread` names a thread by `project_dir` and `id` and stops its worker at
   once, which is what a client sends when it deletes the conversation. The worker's exit does the usual
   bookkeeping.
+- **Agents done** - `AgentsDone` reports whether the last run of every thread the registry ran finished
+  without waiting on the user. A pod daemon reads it when it idles out to decide whether its Sandbox's
+  retention may start.
 - **Crashes and idling** - a worker that exits mid-turn ends its open run with a synthesized `RUN_ERROR`. A
   worker nobody follows is stopped once it sat on the user's turn for the idle timeout with no open run,
   no pending reply and no background job (tracked from its `backgroundTasks` state), and daemon shutdown

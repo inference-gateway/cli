@@ -111,6 +111,20 @@ Sandbox: `kubectl -n infer-environments get sandboxes` shows `Ready False` with 
 pod is gone and the two volumes stay. The next `infer daemon run` or transfer sets the Sandbox back to
 `Running`, waits for the new pod and reattaches the volumes.
 
+The pod only idles out when no run is open, so an agent you sent off keeps working with the laptop closed.
+Once every agent on the pod is done, the suspension also starts the environment's `retention` (24 hours in
+`daemon.yaml`): agent-sandbox then deletes the Sandbox with its volumes and its Secret, unless a run or a
+transfer resumed it first. An agent that waits on an approval or a question, or whose last run failed, is not
+done, and its Sandbox stays. `kubectl -n infer-environments get sandbox -o yaml` shows the countdown as
+`spec.shutdownTime` and the verdict as the `inference-gateway.com/agents-done` annotation. To delete a
+session's Sandbox now, whatever its state:
+
+```bash
+HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.home/project
+```
+
+`stop` releases the lease too, so the session continues from the laptop's copy, as it was before the transfer.
+
 ## SPIFFE: SVIDs from SPIRE instead of the daemon CA
 
 The `k8s-spiffe` environment authenticates both ends with SPIFFE X.509 SVIDs. The pod gets its SVID
@@ -229,7 +243,7 @@ task cleanup
 | `desktop:screenshot` fails with `array index out of bounds` | No session lives on `k8s-desktop` yet. Run `task demo TARGET=k8s-desktop` first |
 | `artifacts:list` says the bucket does not exist | No run finished on `k8s-desktop` since `task artifacts:install`. The first run creates it |
 | `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-environments describe sandbox` and the pod's logs |
-| `session ... is owned by environment` | The session already moved. Continue it with `infer daemon run`, or `stop_thread` it to delete the Sandbox |
+| `session ... is owned by environment` | The session moved. Continue it with `infer daemon run`, or delete its Sandbox with `infer daemon stop` |
 | `restoring` fails with `does not apply cleanly` | The project changed after the transfer started. Retry |
 | `checkpointing` fails with `not a git checkout with a commit` | A transfer bundles `HEAD`, so the project needs at least one commit |
 | The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer daemon run` opens a new one |

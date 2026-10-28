@@ -154,6 +154,10 @@ type EnvironmentEntry struct {
 	// Env is the non-secret environment the pod daemon starts with.
 	Env map[string]string `yaml:"env,omitempty" mapstructure:"env"`
 
+	// Retention is how long a Sandbox stays suspended once every agent on it is
+	// done before agent-sandbox deletes it with its volumes. Zero keeps it until
+	// the session is stopped.
+	Retention time.Duration `yaml:"retention,omitempty" mapstructure:"retention"`
 	// LeaseTTL is how long this daemon's lease row for a session the environment
 	// owns stays live without contact. Empty derives it from the kind.
 	LeaseTTL time.Duration `yaml:"lease_ttl,omitempty" mapstructure:"lease_ttl"`

@@ -317,3 +317,48 @@ func runTurn(ctx context.Context, out io.Writer, client *daemonClient, conversat
 		return nil
 	}
 }
+
+func newStopCommand(state *runtime.State) *cobra.Command {
+	command := &cobra.Command{
+		Use:          "stop <conversation-id>",
+		Short:        "Stop a session's agent and delete its runtime and volumes on the remote environment that owns it",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectDir, err := projectDirFlag(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), clientTimeout)
+			defer cancel()
+			client, err := dialLocal(ctx, state.Config())
+			if err != nil {
+				return err
+			}
+			defer client.close()
+			if err := client.send(map[string]string{"type": "stop_thread", "project_dir": projectDir, "id": args[0]}); err != nil {
+				return err
+			}
+			frame, err := client.next(ctx, "thread_stopped")
+			if err != nil {
+				return err
+			}
+			return printStopped(cmd.OutOrStdout(), frame)
+		},
+	}
+	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
+	return command
+}
+
+// printStopped reports where the session's runtime was deleted, or why not.
+func printStopped(out io.Writer, frame map[string]any) error {
+	if message, _ := frame["error"].(string); message != "" {
+		return errors.New(message)
+	}
+	if environment, _ := frame["environment"].(string); environment != "" {
+		say(out, "deleted the session's runtime on %s and released its lease, it continues here next time\n", environment)
+		return nil
+	}
+	say(out, "stopped the session's worker on this daemon\n")
+	return nil
+}

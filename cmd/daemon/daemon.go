@@ -89,7 +89,7 @@ Examples:
 			return RunDaemonCommand(state.Config())
 		},
 	}
-	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state))
+	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state), newStopCommand(state))
 	return command
 }
 
@@ -286,7 +286,7 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 		return
 	}
 	if key, ok := stoppedThread(frame); ok {
-		h.transfers.StopSession(context.Background(), key)
+		h.transfers.StopSession(context.Background(), conn, key)
 	}
 	h.registry.Handle(conn, frame)
 }
@@ -447,7 +447,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 	dial := agentinfra.PeerDialer{Me: identity, Handshake: browserinfra.BindingHandshake}
 	environments := []agentdomain.Environment{agentinfra.NewLocalEnvironment(identity, map[string]string{
 		agentinfra.AttrVersion: version.Value(), "storage": string(storageConfig.Type),
-	}, selfSuspend())}
+	})}
 	for _, entry := range cfg.Daemon.Environments {
 		environment, err := buildEnvironment(entry, identity, tlsProvider, pki, dial)
 		if err != nil {
@@ -471,6 +471,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 		Environments: environments,
 		Keyring:      tlsProvider.Keyring(),
 		Launch:       sessionsinfra.LaunchWorker,
+		SelfSuspend:  selfSuspend(),
 	})
 	return service, tlsProvider, nil
 }
@@ -508,12 +509,13 @@ func needsPKI(cfg *config.Config) bool {
 }
 
 // selfSuspend is how a pod daemon parks its own Sandbox, nil outside one.
-func selfSuspend() func(ctx context.Context) error {
+func selfSuspend() func(ctx context.Context, done, known bool) error {
 	name, namespace := os.Getenv(k8senvironment.EnvSandboxName), os.Getenv(k8senvironment.EnvSandboxNamespace)
 	if name == "" || namespace == "" {
 		return nil
 	}
-	suspend, err := k8senvironment.SelfSuspend(name, namespace)
+	retention, _ := time.ParseDuration(os.Getenv(k8senvironment.EnvSandboxRetention))
+	suspend, err := k8senvironment.SelfSuspend(name, namespace, retention)
 	if err != nil {
 		logger.Warn("this daemon cannot suspend its own Sandbox", "error", err)
 		return nil

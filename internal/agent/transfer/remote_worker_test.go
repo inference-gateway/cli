@@ -86,7 +86,7 @@ func (p *peerBinding) endpoint() agentdomain.Endpoint {
 func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	peer := startPeer(t, "peer", nil)
 	environment := fakeEnvironment("peer", agentdomain.EnvironmentKindDaemon)
-	environment.EnsureReturns(peer.endpoint(), nil)
+	environment.ReachReturns(peer.endpoint(), nil)
 	s, _ := newService(t, &launcher{}, environment)
 	s.dial.Handshake = testHandshake
 
@@ -126,15 +126,15 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 			return false
 		}
 	})
-	if environment.EnsureCallCount() != 1 {
-		t.Fatalf("Ensure called %d times", environment.EnsureCallCount())
+	if environment.ReachCallCount() != 1 || environment.EnsureCallCount() != 0 {
+		t.Fatalf("a relay reached the environment %d times and ensured it %d times", environment.ReachCallCount(), environment.EnsureCallCount())
 	}
 }
 
 func TestRemoteWorkerRefusesAPeerWithAnotherIdentity(t *testing.T) {
 	peer := startPeer(t, "someone-else", nil)
 	environment := fakeEnvironment("peer", agentdomain.EnvironmentKindDaemon)
-	environment.EnsureReturns(peer.endpoint(), nil)
+	environment.ReachReturns(peer.endpoint(), nil)
 	s, _ := newService(t, &launcher{}, environment)
 	s.dial.Handshake = testHandshake
 
@@ -147,7 +147,7 @@ func TestRemoteWorkerRefusesAPeerWithAnotherIdentity(t *testing.T) {
 func TestLaunchRelaysToTheOwningEnvironment(t *testing.T) {
 	peer := startPeer(t, "peer", nil)
 	environment := fakeEnvironment("peer", agentdomain.EnvironmentKindDaemon)
-	environment.EnsureReturns(peer.endpoint(), nil)
+	environment.ReachReturns(peer.endpoint(), nil)
 	l := &launcher{}
 	s, store := newService(t, l, environment)
 	s.dial.Handshake = testHandshake

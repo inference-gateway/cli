@@ -40,6 +40,10 @@ func (e *DaemonEnvironment) Ensure(context.Context, agentdomain.Session) (agentd
 	return agentdomain.Endpoint{Addr: e.entry.Address, TLS: e.tls, Token: e.entry.Token}, nil
 }
 
+func (e *DaemonEnvironment) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
+	return e.Ensure(ctx, session)
+}
+
 // Probe dials the daemon and reports what its ack declared.
 func (e *DaemonEnvironment) Probe(ctx context.Context) agentdomain.EnvironmentStatus {
 	status := agentdomain.EnvironmentStatus{Name: e.entry.Name, Kind: agentdomain.EnvironmentKindDaemon}

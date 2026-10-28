@@ -96,7 +96,7 @@ func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKe
 	if !ok {
 		return nil, fmt.Errorf("environment %s is not registered in daemon.yaml", lease.Environment)
 	}
-	endpoint, err := environment.Ensure(ctx, s.session(key))
+	endpoint, err := environment.Reach(ctx, s.session(key))
 	if err != nil {
 		return nil, err
 	}

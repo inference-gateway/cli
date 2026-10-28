@@ -124,6 +124,20 @@ func (r *Registry) Request(ctx context.Context, frame []byte, replyType string) 
 	}
 }
 
+// AgentsDone reports whether the last run of every thread this registry ran
+// finished without waiting on the user. A run still open, suspended on an
+// interrupt or ended by an error is not done. known is false when it ran none.
+func (r *Registry) AgentsDone() (done, known bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, finished := range r.finished {
+		if !finished {
+			return false, true
+		}
+	}
+	return len(r.finished) > 0, len(r.finished) > 0
+}
+
 // Idle reports whether the registry has no thread and no client, and when it
 // last had either.
 func (r *Registry) Idle() (time.Time, bool) {

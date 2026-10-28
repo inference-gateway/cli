@@ -63,13 +63,14 @@ type EnvironmentStatus struct {
 }
 
 // Environment is a place sessions run. Ensure makes the environment's daemon for a
-// session reachable, creating or resuming what runs it. Probe reports whether
-// the environment can be reached at all. Suspend parks a session's runtime and
-// Delete removes it.
+// session reachable, creating or resuming what runs it, and Reach only resumes
+// what already runs it. Probe reports whether the environment can be reached
+// at all. Suspend parks a session's runtime and Delete removes it.
 type Environment interface {
 	Name() string
 	Kind() EnvironmentKind
 	Ensure(ctx context.Context, session Session) (Endpoint, error)
+	Reach(ctx context.Context, session Session) (Endpoint, error)
 	Probe(ctx context.Context) EnvironmentStatus
 	Suspend(ctx context.Context, session Session) error
 	Delete(ctx context.Context, session Session) error

@@ -126,7 +126,7 @@ func TestTransferSessionNeedsARemoteTarget(t *testing.T) {
 
 func TestListEnvironmentsReportsTheLocalEnvironmentFirst(t *testing.T) {
 	r := startReceiver(t, "desktop")
-	r.service.environments["local"] = agentinfra.NewLocalEnvironment("laptop", map[string]string{"version": "test"}, nil)
+	r.service.environments["local"] = agentinfra.NewLocalEnvironment("laptop", map[string]string{"version": "test"})
 	unreachable := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
 	unreachable.ProbeReturns(agentdomain.EnvironmentStatus{Name: "k8s", Kind: agentdomain.EnvironmentKindKubernetes, Error: "no cluster"})
 	r.service.environments["k8s"] = unreachable

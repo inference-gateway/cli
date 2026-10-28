@@ -1084,7 +1084,7 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   `client_auth`, `spiffe.socket`, `spiffe.trust_domain`, `spiffe.allowed_ids`) and `environments`, a list of
   `name` and `kind` (local|daemon|kubernetes) entries with `address`, `token`, `tls.ca_file`, `tls.cert_file`,
   `tls.key_file` for a daemon and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`,
-  `lease_ttl`, `auth` (ca|spiffe), `spiffe.trust_domain`, `spiffe.server_id`, `env`, `forward_env` for a
+  `retention`, `lease_ttl`, `auth` (ca|spiffe), `spiffe.trust_domain`, `spiffe.server_id`, `env`, `forward_env` for a
   Kubernetes environment. See [infer daemon](daemon.md#environments-and-transfers).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).

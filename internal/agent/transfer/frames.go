@@ -22,6 +22,7 @@ const (
 	frameEnvironments     = "environments"
 	frameTransferProgress = "transfer_progress"
 	frameSessionMoved     = "session_moved"
+	frameThreadStopped    = "thread_stopped"
 
 	frameResumeConversation   = "resume_conversation"
 	frameMessagesSnapshot     = "MESSAGES_SNAPSHOT"
@@ -55,6 +56,16 @@ type progressFrame struct {
 type sessionMovedFrame struct {
 	Type string `json:"type"`
 	agentdomain.SessionMoved
+}
+
+// threadStoppedFrame answers stop_thread: the environment whose runtime of the
+// session was deleted, empty when it ran here, or why it could not be.
+type threadStoppedFrame struct {
+	Type        string `json:"type"`
+	ProjectDir  string `json:"project_dir"`
+	ID          string `json:"id"`
+	Environment string `json:"environment,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // chunkFrame carries one slice of a checkpoint payload.

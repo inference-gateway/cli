@@ -50,6 +50,9 @@ type Deps struct {
 	Environments []agentdomain.Environment
 	Keyring      *agentinfra.Keyring
 	Launch       sessionsdomain.LaunchWorker
+	// SelfSuspend parks the runtime this daemon runs in, told whether every
+	// agent it ran is done and whether it ran any. Nil on bare metal.
+	SelfSuspend func(ctx context.Context, done, known bool) error
 }
 
 // Service runs agents on environments: it decides where a thread's worker runs
@@ -65,6 +68,7 @@ type Service struct {
 	launch       sessionsdomain.LaunchWorker
 	dial         agentinfra.PeerDialer
 	registry     *sessions.Registry
+	selfSuspend  func(ctx context.Context, done, known bool) error
 
 	mu          sync.Mutex
 	transfers   map[string]context.CancelFunc
@@ -84,6 +88,7 @@ func New(cfg Config, deps Deps) *Service {
 		entries:      make(map[string]config.EnvironmentEntry, len(cfg.Entries)),
 		keyring:      deps.Keyring,
 		launch:       deps.Launch,
+		selfSuspend:  deps.SelfSuspend,
 		dial:         agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
 		transfers:    make(map[string]context.CancelFunc),
 		imports:      make(map[string]*pendingImport),
@@ -166,32 +171,54 @@ func boolRank(b bool) int {
 }
 
 // StopSession handles a client dropping a session: when a remote environment owns
-// it, the environment's runtime is deleted and the lease released.
-func (s *Service) StopSession(ctx context.Context, key sessionsdomain.ThreadKey) {
+// it, the session's runtime there is deleted and the lease released, so the
+// session starts here next time. The client gets thread_stopped, naming the
+// environment whose runtime went or the error that kept it.
+func (s *Service) StopSession(ctx context.Context, to requester, key sessionsdomain.ThreadKey) {
+	stopped := threadStoppedFrame{Type: frameThreadStopped, ProjectDir: key.ProjectDir, ID: key.ConversationID}
+	environment, err := s.deleteRemote(ctx, key)
+	stopped.Environment = environment
+	if err != nil {
+		logger.Warn("transfer could not delete the session's runtime on its environment", "conversation_id", key.ConversationID, "error", err)
+		stopped.Error = err.Error()
+	}
+	to.Deliver(encode(stopped))
+}
+
+// deleteRemote deletes the session's runtime on the remote environment that
+// owns it and releases the lease, returning that environment, or "" when the
+// session is this daemon's or nobody's.
+func (s *Service) deleteRemote(ctx context.Context, key sessionsdomain.ThreadKey) (string, error) {
 	lease, found, err := s.leases.GetLease(ctx, key.ConversationID)
-	if err != nil || !found || lease.Environment == s.me {
-		return
+	if err != nil {
+		return "", describe(err, "reading the session's lease")
+	}
+	if !found || lease.Environment == s.me {
+		return "", nil
 	}
 	environment, ok := s.environments[lease.Environment]
 	if !ok {
-		return
+		return "", fmt.Errorf("environment %s is not registered in daemon.yaml", lease.Environment)
 	}
 	if err := environment.Delete(ctx, s.session(key)); err != nil {
-		logger.Warn("transfer could not delete the session's runtime on its environment", "environment", lease.Environment, "conversation_id", key.ConversationID, "error", err)
-		return
+		return "", describe(err, "deleting the session's runtime on %s", lease.Environment)
 	}
-	_ = s.leases.ReleaseLease(ctx, key.ConversationID, lease.Environment)
+	if err := s.leases.ReleaseLease(ctx, key.ConversationID, lease.Environment); err != nil {
+		return "", describe(err, "releasing the session's lease")
+	}
+	return lease.Environment, nil
 }
 
-// Suspend parks this daemon's own runtime on its environment when the daemon
-// idles out, the way a pod daemon suspends its Sandbox before exiting.
+// Suspend parks the runtime this daemon runs in when it idles out, the way a
+// pod daemon suspends its Sandbox before exiting, and says whether every
+// agent it ran is done.
 func (s *Service) Suspend(ctx context.Context) {
-	for _, environment := range s.environments {
-		if environment.Kind() == agentdomain.EnvironmentKindLocal {
-			if err := environment.Suspend(ctx, agentdomain.Session{}); err != nil {
-				logger.Warn("transfer could not suspend this daemon's runtime", "error", err)
-			}
-		}
+	if s.selfSuspend == nil {
+		return
+	}
+	done, known := s.registry.AgentsDone()
+	if err := s.selfSuspend(ctx, done, known); err != nil {
+		logger.Warn("transfer could not suspend this daemon's runtime", "error", err)
 	}
 }
 
