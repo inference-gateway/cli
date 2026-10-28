@@ -168,5 +168,21 @@ func GetPostgresMigrations() []Migration {
 				DROP TABLE IF EXISTS message_queue;
 			`,
 		},
+		{
+			Version:     "010",
+			Description: "Session leases naming the executor that owns each conversation",
+			UpSQL: `
+				CREATE TABLE IF NOT EXISTS session_leases (
+                    conversation_id TEXT PRIMARY KEY,
+                    executor        TEXT NOT NULL,
+                    workspace       TEXT NOT NULL DEFAULT '',
+                    transfer_id     TEXT NOT NULL DEFAULT '',
+                    until_unix      BIGINT NOT NULL
+				);
+			`,
+			DownSQL: `
+				DROP TABLE IF EXISTS session_leases;
+			`,
+		},
 	}
 }

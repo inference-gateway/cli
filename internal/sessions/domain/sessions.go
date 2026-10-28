@@ -23,6 +23,9 @@ type ThreadOptions struct {
 	MaxTurns           int      `json:"max_turns,omitempty"`
 	// Subagent marks a thread another thread's Agent tool spawned.
 	Subagent *Subagent `json:"subagent,omitempty"`
+	// Env is extra environment the worker starts with, such as credentials a
+	// transfer handed over. It never travels on the wire.
+	Env []string `json:"-"`
 }
 
 // Subagent is what a spawned thread knows about its spawn: the parent it

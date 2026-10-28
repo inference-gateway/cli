@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -42,15 +43,19 @@ func (b *lockedBuffer) String() string {
 }
 
 // daemonProc is a running `infer daemon` with only the AG-UI binding enabled.
+// tls is set when the binding serves TLS, so clients dial it accordingly.
 type daemonProc struct {
 	cmd      *exec.Cmd
 	port     int
+	tls      *tls.Config
 	output   *lockedBuffer
 	exited   chan error
 	stopOnce sync.Once
 }
 
-func startDaemon(t *testing.T, home string) *daemonProc {
+// startDaemon runs a daemon under home with the mock gateway and the binding
+// on a free port. extraEnv adds or overrides INFER_ variables.
+func startDaemon(t *testing.T, home string, extraEnv ...string) *daemonProc {
 	t.Helper()
 	d := &daemonProc{port: freePort(t), output: &lockedBuffer{}, exited: make(chan error, 1)}
 	d.cmd = exec.Command(binPath, "daemon")
@@ -65,6 +70,7 @@ func startDaemon(t *testing.T, home string) *daemonProc {
 		"INFER_BROWSER_USE_EXTENSION_PORT="+strconv.Itoa(d.port),
 		"INFER_BROWSER_USE_EXTENSION_TOKEN="+daemonToken,
 	)
+	d.cmd.Env = append(d.cmd.Env, extraEnv...)
 	d.cmd.Stdout = d.output
 	d.cmd.Stderr = d.output
 	require.NoError(t, d.cmd.Start())
@@ -111,7 +117,12 @@ type daemonClient struct {
 
 func dialDaemon(t *testing.T, d *daemonProc, client string) *daemonClient {
 	t.Helper()
-	conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://127.0.0.1:%d/ws", d.port), nil)
+	scheme := "ws"
+	if d.tls != nil {
+		scheme = "wss"
+	}
+	dialer := &websocket.Dialer{TLSClientConfig: d.tls, HandshakeTimeout: 5 * time.Second}
+	conn, _, err := dialer.Dial(fmt.Sprintf("%s://127.0.0.1:%d/ws", scheme, d.port), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 

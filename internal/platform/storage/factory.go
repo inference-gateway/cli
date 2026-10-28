@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // NewStorageFromConfig creates a storage configuration from app config
@@ -104,6 +105,7 @@ type fullBackend interface {
 	ScheduledRunStorage
 	PlanStorage
 	ShellHistoryStorage
+	agentdomain.LeaseStore
 }
 
 // NewStorage creates a new storage instance based on the provided configuration
@@ -119,6 +121,7 @@ func NewStorage(config StorageConfig) (*Stores, error) {
 		ScheduledRuns: backend,
 		Plans:         backend,
 		ShellHistory:  backend,
+		Leases:        backend,
 	}, nil
 }
 

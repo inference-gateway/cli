@@ -1,0 +1,110 @@
+version: '3'
+
+vars:
+  CLUSTER: infer-executors
+  NAMESPACE: infer-executors
+  AGENT_SANDBOX_VERSION: v1.0.8
+  SPIRE_VERSION: 1.15.5
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  SPIRE_SOCKET: /tmp/infer-spire-agent.sock
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+
+tasks:
+  cluster:create:
+    desc: Create the k3d cluster, install agent-sandbox and the executor namespace
+    cmds:
+      - k3d cluster create {{.CLUSTER}} --agents 1 --wait
+      - kubectl --context k3d-{{.CLUSTER}} apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
+      - kubectl --context k3d-{{.CLUSTER}} -n agent-sandbox-system wait --for=condition=Available deployment --all --timeout=180s
+      - kubectl --context k3d-{{.CLUSTER}} apply -f k8s/namespace.yaml
+
+  image:import:
+    desc: Build the infer image from this checkout and import it into the cluster
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. container:build
+      - k3d image import ghcr.io/inference-gateway/cli:local -c {{.CLUSTER}}
+
+  home:
+    desc: Seed the demo HOME with daemon.yaml and a small git project to transfer
+    cmds:
+      - mkdir -p {{.HOME_DIR}}/.infer {{.HOME_DIR}}/project
+      - cp daemon.yaml {{.HOME_DIR}}/.infer/daemon.yaml
+      - |
+        cd {{.HOME_DIR}}/project
+        if [ ! -d .git ]; then
+          git init --quiet -b main
+          git config user.email demo@example.com
+          git config user.name demo
+          git config commit.gpgsign false
+          echo "# transfer me" > README.md
+          git add README.md
+          git commit --quiet -m "init"
+        fi
+
+  daemon:start:
+    desc: Run the laptop daemon with the demo HOME (foreground, keep it in its own shell)
+    deps:
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} daemon
+
+  daemon:start:spiffe:
+    desc: Run the laptop daemon with its SVID from the spire-agent started by spire:agent (foreground)
+    deps:
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) INFER_DAEMON_BINDING_TLS_SPIFFE_SOCKET=unix://{{.SPIRE_SOCKET}} {{.INFER}} daemon
+
+  executors:
+    desc: List the executors and their reachability
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon executors
+
+  demo:
+    desc: Create a conversation, move it to the TARGET executor (default k8s-dev) and continue it there
+    vars:
+      TARGET: '{{default "k8s-dev" .TARGET}}'
+      ID:
+        sh: uuidgen | tr 'A-Z' 'a-z'
+    cmds:
+      - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon executors
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon transfer {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "say hello again" --project-dir {{.HOME_DIR}}/project
+      - echo "conversation {{.ID}} now lives on {{.TARGET}}"
+
+  spire:install:
+    desc: Install SPIRE (server, agent, CSI driver) into the cluster
+    cmds:
+      - helm --kube-context k3d-{{.CLUSTER}} upgrade --install -n spire-mgmt spire-crds spire-crds --repo https://spiffe.github.io/helm-charts-hardened/ --create-namespace
+      - helm --kube-context k3d-{{.CLUSTER}} upgrade --install -n spire-mgmt spire spire --repo https://spiffe.github.io/helm-charts-hardened/ -f k8s/spire-values.yaml --wait --timeout 10m
+
+  spire:agent:
+    desc: Build spire-agent for this machine, register the laptop daemon and run the agent (foreground)
+    cmds:
+      - GOBIN={{.HOME_DIR}}/bin go install github.com/spiffe/spire/cmd/spire-agent@v{{.SPIRE_VERSION}}
+      - rm -rf {{.HOME_DIR}}/spire && mkdir -p {{.HOME_DIR}}/spire/data
+      - |
+        set -e
+        spire() { kubectl --context k3d-{{.CLUSTER}} -n spire-server exec spire-server-0 -c spire-server -- spire-server "$@"; }
+        TOKEN=$(spire token generate -spiffeID spiffe://infer.local/executor/laptop | awk '{print $2}')
+        spire entry create -parentID spiffe://infer.local/executor/laptop \
+          -spiffeID spiffe://infer.local/executor/laptop/daemon -selector unix:uid:$(id -u) || true
+        spire bundle show > {{.HOME_DIR}}/spire/bundle.pem
+        sed -e "s|DATA_DIR|{{.HOME_DIR}}/spire/data|g" -e "s|SOCKET_PATH|{{.SPIRE_SOCKET}}|g" \
+          -e "s|BUNDLE_PATH|{{.HOME_DIR}}/spire/bundle.pem|g" -e "s|JOIN_TOKEN|$TOKEN|g" spire/agent.conf.tmpl > {{.HOME_DIR}}/spire/agent.conf
+        kubectl --context k3d-{{.CLUSTER}} -n spire-server port-forward svc/spire-server 8081:443 &
+        trap 'kill %1' EXIT
+        sleep 2
+        {{.HOME_DIR}}/bin/spire-agent run -config {{.HOME_DIR}}/spire/agent.conf
+
+  cleanup:
+    desc: Delete the cluster and the demo HOME
+    cmds:
+      - k3d cluster delete {{.CLUSTER}}
+      - rm -rf {{.HOME_DIR}}

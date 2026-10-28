@@ -1,0 +1,18 @@
+global:
+  spire:
+    namespaces:
+      create: true
+    clusterName: infer-executors
+    trustDomain: infer.local
+    recommendations:
+      enabled: true
+      strictMode: false
+spire-server:
+  nodeAttestor:
+    joinToken:
+      enabled: true
+  controllerManager:
+    identities:
+      clusterSPIFFEIDs:
+        default:
+          enabled: true

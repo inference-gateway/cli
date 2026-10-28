@@ -283,6 +283,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Models:        c.modelService,
 		Modes:         c.stateManager,
 		History:       c.GetShellHistoryStorage(),
+		Storage:       c.storage,
 		DefaultModel:  c.config.Agent.Model,
 	}, out)
 }

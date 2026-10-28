@@ -42,6 +42,8 @@ codex.version = "^0.162.1"
 codex.pkg-group = "codex"
 k3d.pkg-path = "k3d"
 k3d.version = "5.9.0"
+kubectl.pkg-path = "kubectl"
+kubernetes-helm.pkg-path = "kubernetes-helm"
 
 [hook]
 on-activate = '''

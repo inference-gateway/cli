@@ -11,6 +11,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -486,4 +487,107 @@ func conformanceShellHistoryCRUD(t *testing.T, store ShellHistoryStorage) {
 	require.Len(t, history, 2)
 	assert.Equal(t, "ls -la", history[0])
 	assert.Equal(t, "git status", history[1])
+}
+
+// runLeaseStoreConformance runs the lease compare-and-swap suite against any
+// LeaseStore implementation. newStore must return a fresh, isolated backend.
+func runLeaseStoreConformance(t *testing.T, newStore func(t *testing.T) agentdomain.LeaseStore) {
+	t.Helper()
+
+	t.Run("LeaseClaims", func(t *testing.T) {
+		conformanceLeaseClaims(t, newStore(t))
+	})
+	t.Run("LeaseRenewAndRelease", func(t *testing.T) {
+		conformanceLeaseRenewAndRelease(t, newStore(t))
+	})
+}
+
+func conformanceLeaseClaims(t *testing.T, store agentdomain.LeaseStore) {
+	ctx := context.Background()
+	live := time.Now().Add(time.Minute).Truncate(time.Second)
+
+	_, found, err := store.GetLease(ctx, "conv-1")
+	require.NoError(t, err)
+	assert.False(t, found, "a fresh store holds no lease")
+
+	laptop := agentdomain.Lease{ConversationID: "conv-1", Executor: "laptop", Until: live}
+	got, claimed, err := store.ClaimLease(ctx, laptop)
+	require.NoError(t, err)
+	assert.True(t, claimed, "the first claim wins")
+	assert.Equal(t, "laptop", got.Executor)
+
+	foreign := agentdomain.Lease{ConversationID: "conv-1", Executor: "k8s", Until: live}
+	got, claimed, err = store.ClaimLease(ctx, foreign)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a live lease refuses a foreign claim")
+	assert.Equal(t, "laptop", got.Executor, "the refusal names the holder")
+
+	reasserted := agentdomain.Lease{ConversationID: "conv-1", Executor: "laptop", Workspace: "/proj", TransferID: "t-1", Until: live}
+	_, claimed, err = store.ClaimLease(ctx, reasserted)
+	require.NoError(t, err)
+	assert.True(t, claimed, "the holder may rewrite its own row")
+
+	handover := agentdomain.Lease{ConversationID: "conv-1", Executor: "k8s", Workspace: "/workspace/proj", TransferID: "t-1", Until: live}
+	got, claimed, err = store.ClaimLease(ctx, handover)
+	require.NoError(t, err)
+	assert.True(t, claimed, "the same transfer id hands the lease over")
+	assert.Equal(t, "/workspace/proj", got.Workspace)
+
+	_, claimed, err = store.ClaimLease(ctx, handover)
+	require.NoError(t, err)
+	assert.True(t, claimed, "a retry of the same transfer is idempotent")
+
+	stored, found, err := store.GetLease(ctx, "conv-1")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, "k8s", stored.Executor)
+	assert.Equal(t, "t-1", stored.TransferID)
+	assert.Equal(t, live.Unix(), stored.Until.Unix())
+
+	blank := agentdomain.Lease{ConversationID: "conv-2", Executor: "laptop", Until: live}
+	_, claimed, err = store.ClaimLease(ctx, blank)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	_, claimed, err = store.ClaimLease(ctx, agentdomain.Lease{ConversationID: "conv-2", Executor: "k8s", Until: live})
+	require.NoError(t, err)
+	assert.False(t, claimed, "two empty transfer ids never match each other")
+
+	expired := agentdomain.Lease{ConversationID: "conv-3", Executor: "gone", Until: time.Now().Add(-time.Minute)}
+	_, claimed, err = store.ClaimLease(ctx, expired)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	got, claimed, err = store.ClaimLease(ctx, agentdomain.Lease{ConversationID: "conv-3", Executor: "laptop", Until: live})
+	require.NoError(t, err)
+	assert.True(t, claimed, "a lapsed lease yields")
+	assert.Equal(t, "laptop", got.Executor)
+}
+
+func conformanceLeaseRenewAndRelease(t *testing.T, store agentdomain.LeaseStore) {
+	ctx := context.Background()
+	until := time.Now().Add(time.Minute).Truncate(time.Second)
+	later := until.Add(time.Minute)
+
+	_, claimed, err := store.ClaimLease(ctx, agentdomain.Lease{ConversationID: "conv-1", Executor: "laptop", Until: until})
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	require.NoError(t, store.RenewLease(ctx, "conv-1", "laptop", later))
+	stored, _, err := store.GetLease(ctx, "conv-1")
+	require.NoError(t, err)
+	assert.Equal(t, later.Unix(), stored.Until.Unix(), "the holder moved the lapse forward")
+
+	err = store.RenewLease(ctx, "conv-1", "k8s", later.Add(time.Hour))
+	assert.ErrorIs(t, err, agentdomain.ErrLeaseLost, "a non-holder cannot renew")
+	assert.ErrorIs(t, store.RenewLease(ctx, "conv-missing", "laptop", later), agentdomain.ErrLeaseLost)
+
+	require.NoError(t, store.ReleaseLease(ctx, "conv-1", "k8s"))
+	_, found, err := store.GetLease(ctx, "conv-1")
+	require.NoError(t, err)
+	assert.True(t, found, "a non-holder cannot release")
+
+	require.NoError(t, store.ReleaseLease(ctx, "conv-1", "laptop"))
+	_, found, err = store.GetLease(ctx, "conv-1")
+	require.NoError(t, err)
+	assert.False(t, found, "the holder released the lease")
+	require.NoError(t, store.ReleaseLease(ctx, "conv-1", "laptop"), "releasing twice is harmless")
 }

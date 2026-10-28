@@ -15,6 +15,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -953,6 +954,9 @@ func TestJsonlStorage_Conformance(t *testing.T) {
 		return newConformanceJsonlStorage(t)
 	})
 	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		return newConformanceJsonlStorage(t)
+	})
+	runLeaseStoreConformance(t, func(t *testing.T) agentdomain.LeaseStore {
 		return newConformanceJsonlStorage(t)
 	})
 }

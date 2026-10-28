@@ -46,7 +46,7 @@ var sidecars = []sidecar{
 	{key: "heartbeat", file: config.HeartbeatFileName},
 	{key: "computer_use", file: config.ComputerUseFileName},
 	{key: "browser_use", file: config.BrowserUseFileName},
-	{key: "daemon", file: config.DaemonFileName},
+	{key: "daemon", file: config.DaemonFileName, fixup: keepExecutorEnvCase},
 	{key: "memory", file: config.MemoryConfigFileName},
 	{key: "plugins", file: config.PluginsFileName, homeOnly: true},
 }
@@ -197,6 +197,20 @@ func keepMCPEnvCase(m map[string]any) error {
 	servers, _ := m["servers"].([]any)
 	for _, server := range servers {
 		if entry, ok := server.(map[string]any); ok {
+			if err := retype[map[string]string](entry, "env"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// keepExecutorEnvCase retypes every executor's env map so Viper keeps the
+// variable names' case, as keepMCPEnvCase does for MCP servers.
+func keepExecutorEnvCase(m map[string]any) error {
+	executors, _ := m["executors"].([]any)
+	for _, executor := range executors {
+		if entry, ok := executor.(map[string]any); ok {
 			if err := retype[map[string]string](entry, "env"); err != nil {
 				return err
 			}

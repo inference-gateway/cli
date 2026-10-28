@@ -1494,6 +1494,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		return fmt.Errorf("invalid sandbox policy: %w", err)
 	}
 
+	if err := c.Daemon.Validate(); err != nil {
+		return fmt.Errorf("invalid daemon config: %w", err)
+	}
+
 	if c.JudgeRequired() && c.Judge.ResolveModel(c.Agent.Model) == "" {
 		return fmt.Errorf(
 			"tools.safety.approval_behaviour=judge but no judge model is resolvable: set judge.model in %s or agent.model",

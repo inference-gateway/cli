@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func setupTestStorage(t *testing.T) (*SQLiteStorage, func()) {
@@ -44,6 +46,11 @@ func TestSQLiteStorage_Conformance(t *testing.T) {
 		return storage
 	})
 	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		storage, cleanup := setupTestStorage(t)
+		t.Cleanup(cleanup)
+		return storage
+	})
+	runLeaseStoreConformance(t, func(t *testing.T) agentdomain.LeaseStore {
 		storage, cleanup := setupTestStorage(t)
 		t.Cleanup(cleanup)
 		return storage

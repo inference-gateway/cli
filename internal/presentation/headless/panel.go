@@ -126,6 +126,7 @@ type PanelDeps struct {
 	Models        convdomain.ModelService
 	Modes         agentdomain.AgentModeState
 	History       storage.ShellHistoryStorage
+	Storage       storage.ConversationStorage
 	DefaultModel  string
 }
 
@@ -141,6 +142,7 @@ type Panel struct {
 	models        *modelPicker
 	modes         *modes
 	tools         *toolRequests
+	transfers     *transfers
 }
 
 // NewPanel builds the panel units, one per frame family, each holding only the
@@ -153,6 +155,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
 	p.tools = newToolRequests(p.write, p.out, deps)
+	p.transfers = &transfers{write: p.write, store: deps.Storage}
 	return p
 }
 
@@ -191,6 +194,10 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.modes.set(msg.Mode)
 	case inboundToolRequest:
 		go p.tools.run(msg)
+	case inboundExportConversation:
+		p.transfers.export(msg.ID)
+	case inboundImportConversation:
+		p.transfers.importFrom(line)
 	default:
 		return false
 	}

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // TestPostgresStorage_Conformance runs the shared storage suite against a real
@@ -29,7 +31,7 @@ func TestPostgresStorage_Conformance(t *testing.T) {
 		t.Cleanup(func() { _ = storage.Close() })
 
 		_, err = storage.DB().ExecContext(context.Background(),
-			"TRUNCATE conversations, session_groups, scheduled_jobs, plans, shell_history")
+			"TRUNCATE conversations, session_groups, scheduled_jobs, plans, shell_history, session_leases")
 		require.NoError(t, err)
 
 		return storage
@@ -39,6 +41,7 @@ func TestPostgresStorage_Conformance(t *testing.T) {
 	runScheduledJobStorageConformance(t, func(t *testing.T) ScheduledJobStorage { return newStorage(t) })
 	runPlanStorageConformance(t, func(t *testing.T) PlanStorage { return newStorage(t) })
 	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage { return newStorage(t) })
+	runLeaseStoreConformance(t, func(t *testing.T) agentdomain.LeaseStore { return newStorage(t) })
 }
 
 // parsePostgresDSN parses a space-separated "key=value" libpq DSN into a

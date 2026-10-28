@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -20,6 +21,7 @@ type MemoryStorage struct {
 	scheduledRuns map[string]*scheddomain.RunRecord
 	plans         map[string]*PlanRecord
 	shellHistory  []string
+	leases        map[string]agentdomain.Lease
 	mutex         sync.RWMutex
 }
 
@@ -33,6 +35,7 @@ func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		conversations: make(map[string]conversationData),
 		sessionGroups: make(map[string]SessionGroupEntry),
+		leases:        make(map[string]agentdomain.Lease),
 	}
 }
 

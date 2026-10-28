@@ -6,6 +6,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -142,6 +143,7 @@ type Stores struct {
 	ScheduledRuns ScheduledRunStorage
 	Plans         PlanStorage
 	ShellHistory  ShellHistoryStorage
+	Leases        agentdomain.LeaseStore
 }
 
 // StorageConfig contains configuration for storage backends
