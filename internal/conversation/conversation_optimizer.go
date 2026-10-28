@@ -22,7 +22,7 @@ type ConversationOptimizer struct {
 	autoAt            int
 	bufferSize        int
 	keepFirstMessages int
-	strategy          string
+	strategy          config.CompactStrategy
 	client            sdk.Client
 	config            *config.Config
 	tokenizer         *TokenizerService
@@ -52,11 +52,7 @@ type OptimizerConfig struct {
 	// into the summary and returns messages to append after it, so context
 	// the agent must keep verbatim (loaded skills) survives compaction.
 	RestoreContext func(summarized []sdk.Message) []sdk.Message
-	// Strategy selects how the replaced tail is carried across a compaction:
-	// config.CompactStrategySummary (the default when empty) summarizes it
-	// with an extra LLM call, config.CompactStrategyPointer instead seeds one
-	// message pointing the model at the previous session's stored transcript.
-	Strategy string
+	Strategy       config.CompactStrategy
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
