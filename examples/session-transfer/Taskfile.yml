@@ -3,6 +3,7 @@ version: '3'
 vars:
   CLUSTER: infer-executors
   NAMESPACE: infer-executors
+  K3S_VERSION: v1.37.1-k3s1
   AGENT_SANDBOX_VERSION: v1.0.8
   SPIRE_VERSION: 1.15.5
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
@@ -17,7 +18,7 @@ tasks:
   cluster:create:
     desc: Create the k3d cluster, install agent-sandbox and the executor namespace
     cmds:
-      - k3d cluster create {{.CLUSTER}} --agents 1 --wait
+      - k3d cluster create {{.CLUSTER}} --agents 1 --image rancher/k3s:{{.K3S_VERSION}} --wait
       - kubectl --context k3d-{{.CLUSTER}} apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
       - kubectl --context k3d-{{.CLUSTER}} -n agent-sandbox-system wait --for=condition=Available deployment --all --timeout=180s
       - kubectl --context k3d-{{.CLUSTER}} apply -f k8s/namespace.yaml

@@ -6,7 +6,7 @@ state, a pod running the same `infer` image as a daemon restores them, ownership
 every client keeps talking to its own daemon, which relays the thread to the pod. Closing the laptop does
 not stop the pod.
 
-The cluster is a local [k3d](https://k3d.io/) cluster running the
+The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1 (`K3S_VERSION` in the Taskfile) running the
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller, which gives every session
 a `Sandbox`: a stable pod with two persistent volumes (the workspace and the conversation store) that the
 pod daemon suspends when idle and the next transfer resumes. Two executors are configured: `k8s-dev`
@@ -59,7 +59,7 @@ reply of a turn that ran on the pod:
 ```text
 NAME        KIND        REACHABLE  DETAILS
 laptop      local       true       storage=jsonl version=v0.238.0
-k8s-dev     kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:local kubernetes=v1.31.5+k3s1 namespace=infer-executors sandboxes=0
+k8s-dev     kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-executors sandboxes=0
 k8s-spiffe  kubernetes  true       auth=spiffe ...
 provisioning
 checkpointing
