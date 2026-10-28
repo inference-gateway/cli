@@ -645,6 +645,14 @@ type ExportConfig struct {
 	OutputDir string `yaml:"output_dir" mapstructure:"output_dir"`
 }
 
+// Compaction strategies for CompactConfig.Strategy: summary keeps today's
+// LLM-written checkpoint, pointer seeds a message pointing back at the
+// previous session instead.
+const (
+	CompactStrategySummary = "summary"
+	CompactStrategyPointer = "pointer"
+)
+
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
 	Enabled               bool `yaml:"enabled" mapstructure:"enabled"`
@@ -652,6 +660,12 @@ type CompactConfig struct {
 	KeepFirstMessages     int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
 	RolloverOnIdleMinutes int  `yaml:"rollover_on_idle_minutes" mapstructure:"rollover_on_idle_minutes"`
 	SummaryMaxTokens      int  `yaml:"summary_max_tokens" mapstructure:"summary_max_tokens"`
+	// Strategy selects how a replaced tail is carried into the new session:
+	//   "summary" (default): an extra LLM call writes the checkpoint.
+	//   "pointer": no LLM call - the checkpoint tells the model the full
+	//       history lives in the previous session (named by id), and the model
+	//       reads only what it needs from there.
+	Strategy string `yaml:"strategy" mapstructure:"strategy"`
 }
 
 // ProvisionerConfig contains on-demand GPU provisioning settings.
@@ -1429,6 +1443,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			KeepFirstMessages:     2,
 			RolloverOnIdleMinutes: 30,
 			SummaryMaxTokens:      1024,
+			Strategy:              CompactStrategySummary,
 		},
 		Web: WebConfig{
 			Enabled:               false,

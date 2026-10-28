@@ -504,6 +504,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		AutoAt:            c.config.Compact.AutoAt,
 		BufferSize:        2,
 		KeepFirstMessages: c.config.Compact.KeepFirstMessages,
+		Strategy:          c.config.Compact.Strategy,
 		Client:            summaryClient,
 		Config:            c.config,
 		Tokenizer:         c.tokenizer,

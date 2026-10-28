@@ -22,6 +22,7 @@ type ConversationOptimizer struct {
 	autoAt            int
 	bufferSize        int
 	keepFirstMessages int
+	strategy          string
 	client            sdk.Client
 	config            *config.Config
 	tokenizer         *TokenizerService
@@ -51,36 +52,49 @@ type OptimizerConfig struct {
 	// into the summary and returns messages to append after it, so context
 	// the agent must keep verbatim (loaded skills) survives compaction.
 	RestoreContext func(summarized []sdk.Message) []sdk.Message
+	// Strategy selects how the replaced tail is carried across a compaction:
+	// config.CompactStrategySummary (the default when empty) summarizes it
+	// with an extra LLM call, config.CompactStrategyPointer instead seeds one
+	// message pointing the model at the previous session's stored transcript.
+	Strategy string
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
-func NewConversationOptimizer(config OptimizerConfig) convdomain.ConversationOptimizer {
-	if config.AutoAt < 1 || config.AutoAt > 80 {
-		logger.Warn("compact.auto_at must be between 1 and 80, defaulting to 80", "provided", config.AutoAt)
-		config.AutoAt = 80
+func NewConversationOptimizer(cfg OptimizerConfig) convdomain.ConversationOptimizer {
+	if cfg.AutoAt < 1 || cfg.AutoAt > 80 {
+		logger.Warn("compact.auto_at must be between 1 and 80, defaulting to 80", "provided", cfg.AutoAt)
+		cfg.AutoAt = 80
 	}
-	if config.BufferSize <= 0 {
-		config.BufferSize = 2
+	if cfg.BufferSize <= 0 {
+		cfg.BufferSize = 2
 	}
-	if config.KeepFirstMessages <= 0 {
-		config.KeepFirstMessages = 2
+	if cfg.KeepFirstMessages <= 0 {
+		cfg.KeepFirstMessages = 2
+	}
+	if cfg.Strategy == "" {
+		cfg.Strategy = config.CompactStrategySummary
+	}
+	if cfg.Strategy != config.CompactStrategySummary && cfg.Strategy != config.CompactStrategyPointer {
+		logger.Warn("unknown compact.strategy, falling back to summary", "provided", cfg.Strategy)
+		cfg.Strategy = config.CompactStrategySummary
 	}
 
-	tokenizer := config.Tokenizer
+	tokenizer := cfg.Tokenizer
 	if tokenizer == nil {
 		tokenizer = NewTokenizerService(DefaultTokenizerConfig())
 	}
 
 	return &ConversationOptimizer{
-		enabled:           config.Enabled,
-		autoAt:            config.AutoAt,
-		bufferSize:        config.BufferSize,
-		keepFirstMessages: config.KeepFirstMessages,
-		client:            config.Client,
-		config:            config.Config,
+		enabled:           cfg.Enabled,
+		autoAt:            cfg.AutoAt,
+		bufferSize:        cfg.BufferSize,
+		keepFirstMessages: cfg.KeepFirstMessages,
+		strategy:          cfg.Strategy,
+		client:            cfg.Client,
+		config:            cfg.Config,
 		tokenizer:         tokenizer,
-		repo:              config.Repo,
-		restore:           config.RestoreContext,
+		repo:              cfg.Repo,
+		restore:           cfg.RestoreContext,
 	}
 }
 
@@ -174,8 +188,8 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 const contextSummaryMarker = "--- Context Summary ---"
 
 // smartOptimize keeps the first N messages (default 2) when they open with a
-// user turn, summarizes the rest into one user-role checkpoint, and appends
-// whatever the restore hook wants carried over verbatim.
+// user turn, folds the rest into one user-role checkpoint (summary or pointer
+// strategy), and appends whatever the restore hook wants carried over verbatim.
 func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model string) ([]sdk.Message, error) {
 	keep := co.headToKeep(messages)
 	minMessages := keep + 1
@@ -214,34 +228,76 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 		return messages, nil
 	}
 
-	if co.client == nil {
-		return nil, fmt.Errorf("LLM client is required for conversation compaction")
-	}
-	if model == "" {
-		return nil, fmt.Errorf("model is required for conversation compaction")
-	}
-
-	logger.Info("generating LLM summary for compaction", "model", model, "messages_to_summarize", len(messagesToSummarize))
-	summary, err := co.GenerateLLMSummary(messagesToSummarize, model)
+	checkpoint, err := co.checkpointMessage(messagesToSummarize, model)
 	if err != nil {
-		logger.Error("failed to generate LLM summary", "error", err)
-		return nil, fmt.Errorf("failed to generate summary: %w", err)
+		return nil, err
 	}
-
-	logger.Info("lLM summary generated successfully", "summary_length", len(summary))
-
-	wrappedSummary := formatting.WrapText(summary, 80)
-	formattedSummary := fmt.Sprintf("%s\n\n%s\n\n--- End Summary ---", contextSummaryMarker, wrappedSummary)
-	result = append(result, sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent(formattedSummary),
-	})
+	result = append(result, checkpoint)
 
 	if co.restore != nil {
 		result = append(result, co.restore(messagesToSummarize)...)
 	}
 
 	return result, nil
+}
+
+// checkpointMessage builds the single user-role checkpoint the continued
+// session is seeded with. The summary strategy has the LLM write it, the
+// pointer strategy skips that call and points at the previous session instead.
+func (co *ConversationOptimizer) checkpointMessage(messages []sdk.Message, model string) (sdk.Message, error) {
+	if co.strategy == config.CompactStrategyPointer {
+		return co.pointerCheckpoint()
+	}
+	return co.summaryCheckpoint(messages, model)
+}
+
+// summaryCheckpoint summarizes the tail into the checkpoint message via an
+// extra LLM call. The error makes the caller keep the history rather than
+// drop it without a summary.
+func (co *ConversationOptimizer) summaryCheckpoint(messages []sdk.Message, model string) (sdk.Message, error) {
+	if co.client == nil {
+		return sdk.Message{}, fmt.Errorf("LLM client is required for conversation compaction")
+	}
+	if model == "" {
+		return sdk.Message{}, fmt.Errorf("model is required for conversation compaction")
+	}
+
+	logger.Info("generating LLM summary for compaction", "model", model, "messages_to_summarize", len(messages))
+	summary, err := co.GenerateLLMSummary(messages, model)
+	if err != nil {
+		logger.Error("failed to generate LLM summary", "error", err)
+		return sdk.Message{}, fmt.Errorf("failed to generate summary: %w", err)
+	}
+
+	logger.Info("lLM summary generated successfully", "summary_length", len(summary))
+
+	wrappedSummary := formatting.WrapText(summary, 80)
+	return sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent(fmt.Sprintf("%s\n\n%s\n\n--- End Summary ---", contextSummaryMarker, wrappedSummary)),
+	}, nil
+}
+
+// pointerCheckpoint seeds one message that says the replaced tail is still
+// readable in the previous session, so the model pulls only what it needs.
+// The id is read at compaction time - during a rollover, before
+// StartNewConversation repoints the repo, it is still the previous session's id.
+func (co *ConversationOptimizer) pointerCheckpoint() (sdk.Message, error) {
+	previousID := ""
+	if co.repo != nil {
+		previousID = co.repo.GetCurrentConversationID()
+	}
+	if previousID == "" {
+		return sdk.Message{}, fmt.Errorf("pointer compaction needs the current session id to point back at")
+	}
+
+	return sdk.Message{
+		Role: sdk.User,
+		Content: sdk.NewMessageContent(fmt.Sprintf(
+			"%s\n\nThe earlier part of this conversation, including tool results, is stored in session `%s`. Run `infer conversations show %s` if you need details from it.",
+			contextSummaryMarker, previousID, previousID,
+		)),
+	}, nil
 }
 
 // headToKeep returns how many leading messages to keep verbatim. A head that
