@@ -225,6 +225,77 @@ func TestValidateWrite_GoLibCarveOut(t *testing.T) {
 	})
 }
 
+// TestValidateWrite_RustLibCarveOut locks in the read-only Rust carve-out:
+// the Cargo registry sources and git checkouts ($CARGO_HOME, default ~/.cargo)
+// and the rustup toolchain sources ($RUSTUP_HOME/toolchains/*/lib/rustlib/src,
+// default ~/.rustup) are readable without configuration, and writes stay denied.
+func TestValidateWrite_RustLibCarveOut(t *testing.T) {
+	home := t.TempDir()
+	sandboxDir := filepath.Join(home, "sandbox")
+	t.Setenv("HOME", home)
+	t.Setenv("CARGO_HOME", "")
+	t.Setenv("RUSTUP_HOME", "")
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(sandboxDir)
+
+	defaults := []string{
+		filepath.Join(home, ".cargo", "registry", "src", "index.crates.io-6f17d22bba15001f", "anyhow-1.0.99", "src", "lib.rs"),
+		filepath.Join(home, ".cargo", "git", "checkouts", "serde-3a4b", "3a4b", "serde", "src", "lib.rs"),
+		filepath.Join(home, ".rustup", "toolchains", "stable-x86_64-unknown-linux-gnu", "lib", "rustlib", "src", "library", "std", "lib.rs"),
+	}
+	t.Run("read allowed, write denied with the default homes", func(t *testing.T) {
+		for _, p := range defaults {
+			if err := ValidateRead(cfg, p); err != nil {
+				t.Fatalf("expected %s readable, got %v", p, err)
+			}
+			if err := ValidateWrite(context.Background(), cfg, p); err == nil {
+				t.Fatalf("expected write to %s rejected", p)
+			}
+		}
+	})
+
+	t.Run("env-resolved homes", func(t *testing.T) {
+		cargo := filepath.Join(home, "portable", "cargo")
+		rustup := filepath.Join(home, "portable", "rustup")
+		t.Setenv("CARGO_HOME", cargo)
+		t.Setenv("RUSTUP_HOME", rustup)
+
+		for _, p := range []string{
+			filepath.Join(cargo, "registry", "src", "index.crates.io-6f17d22bba15001f", "anyhow-1.0.99", "src", "lib.rs"),
+			filepath.Join(cargo, "git", "checkouts", "serde-3a4b", "3a4b", "serde", "src", "lib.rs"),
+			filepath.Join(rustup, "toolchains", "nightly-x86_64-unknown-linux-gnu", "lib", "rustlib", "src", "lib.rs"),
+		} {
+			if err := ValidateRead(cfg, p); err != nil {
+				t.Fatalf("expected %s readable, got %v", p, err)
+			}
+			if err := ValidateWrite(context.Background(), cfg, p); err == nil {
+				t.Fatalf("expected write to %s rejected", p)
+			}
+		}
+	})
+
+	t.Run("everything outside the carved-out dirs stays denied", func(t *testing.T) {
+		for _, p := range []string{
+			filepath.Join(home, ".cargo", "registry", "cache", "anyhow-1.0.99.crate"),
+			filepath.Join(home, ".cargo", "registry", "index", "an", "yhow"),
+			filepath.Join(home, ".rustup", "toolchains", "stable-x86_64-unknown-linux-gnu", "lib", "rustlib", "x86_64-unknown-linux-gnu", "lib", "libstd-abc.rlib"),
+		} {
+			if err := ValidateRead(cfg, p); err == nil {
+				t.Fatalf("expected %s denied", p)
+			}
+		}
+	})
+
+	t.Run("write in sandbox still allowed", func(t *testing.T) {
+		if err := os.MkdirAll(sandboxDir, 0o755); err != nil {
+			t.Fatalf("mkdirall: %v", err)
+		}
+		if err := ValidateWrite(context.Background(), cfg, filepath.Join(sandboxDir, "out.txt")); err != nil {
+			t.Fatalf("expected sandbox write allowed, got %v", err)
+		}
+	})
+}
+
 // TestValidateWrite_PlanScratchpad locks in the plan-mode gate: only the
 // project scratchpad is writable, whatever is allowed or granted elsewhere,
 // with traversal and symlink escapes out of it rejected like anything else.

@@ -28,6 +28,7 @@ words:
   - buger
   - buildx
   - cancelreader
+  - CARGO_HOME
   - chromium
   - Catmull
   - cellbuf
@@ -236,6 +237,9 @@ words:
   - robotn
   - runewidth
   - runuser
+  - rustlib
+  - rustup
+  - RUSTUP_HOME
   - sabhiram
   - sagents
   - sagikazarmark
@@ -289,6 +293,7 @@ words:
   - tklauser
   - tmpl
   - todowrite
+  - toolchains
   - toolname
   - uimocks
   - uniseg
