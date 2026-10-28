@@ -655,7 +655,7 @@ Four subcommands talk to the running daemon over its binding, so they need `daem
 in `~/.infer/daemon.yaml`:
 
 ```bash
-infer daemon environments                                            # every environment in daemon.yaml and whether it is reachable
+infer daemon environments                                         # every environment in daemon.yaml and whether it is reachable
 infer daemon transfer <conversation-id> --to k8s-dev              # move the session, printing each stage until ready
 infer daemon transfer <conversation-id> --to k8s-dev --file build/out.bin --transfer-id <uuid>
 infer daemon run <conversation-id> "continue please"              # one turn through the daemon, wherever the session runs

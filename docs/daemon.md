@@ -156,7 +156,7 @@ the [Daemon Binding Protocol](browser-extension-protocol.md#environments).
 The daemon's subcommands drive this from a shell:
 
 ```bash
-infer daemon environments                                    # who is reachable
+infer daemon environments                                 # who is reachable
 infer daemon transfer <conversation-id> --to k8s-dev      # move a session, follow the stages
 infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
 infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
