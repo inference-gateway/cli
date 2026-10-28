@@ -1,0 +1,42 @@
+fallback:
+  content: 'Try "browse to example.com".'
+scenarios:
+  - name: browse
+    match: '(?i)browse to example\.com'
+    turns:
+      - tool_calls:
+          - name: RecordStart
+            args:
+              mode: screen
+      - tool_calls:
+          - name: Computer
+            args:
+              action: screenshot
+      - tool_calls:
+          - name: Computer
+            args:
+              action: click
+              x: 640
+              "y": 400
+      - tool_calls:
+          - name: Computer
+            args:
+              action: key
+              combo: ctrl+l
+      - tool_calls:
+          - name: Computer
+            args:
+              action: type
+              text: https://example.com
+      - tool_calls:
+          - name: Computer
+            args:
+              action: key
+              combo: enter
+      - tool_calls:
+          - name: Computer
+            args:
+              action: screenshot
+      - tool_calls:
+          - name: RecordStop
+      - content: I opened https://example.com in the browser on my own desktop and recorded it.

@@ -26,7 +26,8 @@ and Windows fall back to screenshots. Actions are governed by
 `computer_use.enabled`, rate limits and `computer_use.approval`. The
 [desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
 (monitor, screen overlay, approvals). For a sandboxed desktop to drive, see
-[examples/computer-use](../examples/computer-use/).
+[examples/computer-use](../examples/computer-use/). To give an agent a desktop of its own in a Kubernetes
+pod, see the [desktop executor](../examples/session-transfer/README.md#a-computer-of-its-own-the-desktop-executor).
 
 ## Related
 

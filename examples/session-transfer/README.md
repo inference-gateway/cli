@@ -31,7 +31,9 @@ for the wire frames.
 | File | Purpose |
 | --- | --- |
 | `Cluster.yaml` | The ctlptl cluster: k3d `infer-executors` with one agent node, pinned to k3s v1.37.1 |
-| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` (CA) and `k8s-spiffe` (SPIFFE) executors |
+| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` (CA), `k8s-spiffe` (SPIFFE) and `k8s-desktop` executors |
+| `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
+| `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
 | `k8s/namespace.yaml` | The `infer-executors` namespace, the `infer-executor` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
 | `k8s/spire-values.yaml` | Helm values for SPIRE: trust domain `infer.local`, join-token node attestation, the default SPIFFE ID per ServiceAccount |
 | `spire/agent.conf.tmpl` | The laptop `spire-agent` config, filled in by `task spire:agent` |
@@ -46,24 +48,26 @@ The tasks run the daemon under `.home/` as `HOME`, so your own `~/.infer` stays 
 # 1. The cluster, the agent-sandbox controller and the executor namespace
 task cluster:create
 
-# 2. Build the infer image from this checkout and import it into the cluster
-task image:import
-
-# 3. In its own shell: the laptop daemon (binding on 127.0.0.1:52789)
+# 2. In its own shell: the laptop daemon (binding on 127.0.0.1:52789)
 task daemon:start
 
-# 4. In another shell: create a conversation, move it, continue it on the pod
+# 3. In another shell: create a conversation, move it, continue it on the pod
 task demo
 ```
+
+The executors run the release candidate image `ghcr.io/inference-gateway/cli:0.239.0-rc.1`, which the pod
+pulls from GHCR. To run this checkout on the pod instead, set both executors' `image` in `daemon.yaml` to
+`ghcr.io/inference-gateway/cli:local` and run `task image:import` before `task daemon:start`.
 
 `task demo` prints the executors first, then the transfer's stages, the Sandbox and its pod, and the
 reply of a turn that ran on the pod:
 
 ```text
-NAME        KIND        REACHABLE  DETAILS
-laptop      local       true       storage=jsonl version=v0.238.0
-k8s-dev     kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-executors sandboxes=0
-k8s-spiffe  kubernetes  true       auth=spiffe ...
+NAME         KIND        REACHABLE  DETAILS
+laptop       local       true       storage=jsonl version=v0.239.0-rc.1
+k8s-desktop  kubernetes  true       auth=ca image=infer-desktop:local ...
+k8s-dev      kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:0.239.0-rc.1 kubernetes=v1.37.1+k3s1 namespace=infer-executors sandboxes=0
+k8s-spiffe   kubernetes  true       auth=spiffe ...
 provisioning
 checkpointing
 restoring
@@ -136,6 +140,70 @@ the daemon included, may fetch the laptop's SVID. The agent's Workload API socke
 easily exceeds that. The pod daemon trusts any member of `infer.local`, and
 the laptop daemon trusts only the pod's SPIFFE ID, both set in `daemon.yaml`.
 
+## A computer of its own: the desktop executor
+
+The `k8s-desktop` executor gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
+Chromium and ffmpeg to the release candidate image, and its entrypoint starts display `:99` with Chromium on it
+before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the executor's `env` registers the `Computer` tool for the
+pod's workers, so after the transfer the agent drives the pod's screen, never your laptop's.
+
+```bash
+# 1. Build the desktop image and import it into the cluster
+task desktop:image
+
+# 2. With the laptop daemon running: move a fresh conversation to the desktop and ask it to browse
+task demo TARGET=k8s-desktop PROMPT="browse to example.com"
+
+# 3. Save what the pod's screen shows to .home/desktop.png
+task desktop:screenshot
+```
+
+The mock model plays `desktop/scenarios.yaml`: it starts a screen recording, then takes a screenshot, clicks
+into the browser, presses `ctrl+l`, types the URL and presses `enter`, each a `Computer` call that runs in the
+pod, and stops the recording. The reply is
+`I opened https://example.com in the browser on my own desktop and recorded it.` and `.home/desktop.png`
+shows Chromium on example.com. The recording is an artifact, see the next section. With a real model, drop
+`INFER_GATEWAY_MOCK_SCENARIOS` and the agent picks the steps from its own
+screenshots, so choose a vision model. The desktop lives as long as the pod: a suspended Sandbox comes back
+with a fresh display and browser, and only the workspace and the conversation persist.
+
+## Artifacts on durable storage: RustFS
+
+What the agent produces on its computer outlives the pod. [RustFS](https://rustfs.com/), an open source
+S3-compatible object store, runs in the cluster on its own volume, and when the agent is done with a run
+everything it placed in `~/.infer/artifacts` or `~/.infer/projects/<project>/artifacts/<session id>` is
+uploaded to the `infer-artifacts` bucket under the session id.
+
+```bash
+# 1. RustFS in the executor namespace (S3 API on rustfs:9000, console on rustfs:9001)
+task artifacts:install
+
+# 2. A conversation on the desktop: the agent browses and records its screen while it does
+task demo TARGET=k8s-desktop PROMPT="browse to example.com"
+
+# 3. The recording in RustFS, under the session id
+task artifacts:list
+
+# 4. Or browse the bucket at http://localhost:9001/rustfs/console/ (rustfsadmin / rustfsadmin)
+task artifacts:console
+```
+
+```text
+[2026-10-28 20:25:18 UTC]  59KiB STANDARD <conversation id>/20261028-202514.872.mp4
+```
+
+The listing runs in a pod of its own against RustFS, so it still shows the recording after the session's
+Sandbox is suspended or deleted.
+
+The upload is a `post_session` [command hook](../../docs/hooks.md) baked into the desktop image
+(`desktop/hooks.yaml`). It runs `desktop/upload-artifacts` after every finished run, which reads the session
+id from the hook's stdin and mirrors both artifact directories to `infer-artifacts/<session id>/` with the
+MinIO client. The executor's `env` points recordings at
+`~/.infer/artifacts`, allow-lists the hook with `INFER_TOOLS_BASH_ALLOW_APPEND`, and carries the endpoint,
+bucket and credentials. A pod without `ARTIFACTS_ENDPOINT` skips the upload. The demo credentials sit in
+`daemon.yaml` in plain text. Put real ones under the executor's `forward_env` instead, so they travel
+sealed with the session and never land in the Sandbox spec.
+
 ## Switching the pod to a real model
 
 The image sets `INFER_GATEWAY_URL=http://inference-gateway:8080`, so a pod reaches a gateway Service of
@@ -156,7 +224,10 @@ task cleanup
 | Symptom | Fix |
 | --- | --- |
 | `k8s-dev reachable false` with a CRD error | `task cluster:create` installs agent-sandbox, check `kubectl get crd sandboxes.agents.x-k8s.io` |
-| `provisioning` hangs, pod `ImagePullBackOff` | Run `task image:import` after every rebuild |
+| `provisioning` hangs, pod `ImagePullBackOff` | The node must reach `ghcr.io`. With the `:local` image, run `task image:import` after every rebuild |
+| `k8s-desktop` pod `ErrImageNeverPull` or `ImagePullBackOff` | Run `task desktop:image`, it imports `infer-desktop:local` into the cluster |
+| `desktop:screenshot` fails with `array index out of bounds` | No session lives on `k8s-desktop` yet. Run `task demo TARGET=k8s-desktop` first |
+| `artifacts:list` says the bucket does not exist | No run finished on `k8s-desktop` since `task artifacts:install`. The first run creates it |
 | `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-executors describe sandbox` and the pod's logs |
 | `session ... is owned by executor` | The session already moved. Continue it with `infer daemon run`, or `stop_thread` it to delete the Sandbox |
 | `restoring` fails with `does not apply cleanly` | The project changed after the transfer started. Retry |

@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+
+[ -n "${ARTIFACTS_ENDPOINT:-}" ] || exit 0
+session=$(jq -r '.session_id // empty')
+[ -n "$session" ] || exit 0
+
+export MC_HOST_artifacts="${ARTIFACTS_ENDPOINT%%://*}://${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}@${ARTIFACTS_ENDPOINT#*://}"
+mcli --quiet mb --ignore-existing "artifacts/${ARTIFACTS_BUCKET}"
+
+for dir in "$HOME/.infer/artifacts" "$HOME"/.infer/projects/*/artifacts/"$session"; do
+  if [ -d "$dir" ]; then
+    mcli --quiet mirror --overwrite "$dir" "artifacts/${ARTIFACTS_BUCKET}/${session}"
+  fi
+done

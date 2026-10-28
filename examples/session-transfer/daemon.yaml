@@ -6,7 +6,7 @@ executors:
     kind: kubernetes
     context: k3d-infer-executors
     namespace: infer-executors
-    image: ghcr.io/inference-gateway/cli:local
+    image: ghcr.io/inference-gateway/cli:0.239.0-rc.1
     storage: 1Gi
     idle_ttl: 30m
     auth: ca
@@ -17,7 +17,7 @@ executors:
     kind: kubernetes
     context: k3d-infer-executors
     namespace: infer-executors
-    image: ghcr.io/inference-gateway/cli:local
+    image: ghcr.io/inference-gateway/cli:0.239.0-rc.1
     storage: 1Gi
     idle_ttl: 30m
     auth: spiffe
@@ -27,6 +27,27 @@ executors:
     env:
       INFER_GATEWAY_MOCK: "true"
       INFER_AGENT_MODEL: mock/openai/gpt-4o
+  - name: k8s-desktop
+    kind: kubernetes
+    context: k3d-infer-executors
+    namespace: infer-executors
+    image: infer-desktop:local
+    storage: 1Gi
+    idle_ttl: 30m
+    auth: ca
+    env:
+      INFER_GATEWAY_MOCK: "true"
+      INFER_GATEWAY_MOCK_SCENARIOS: /opt/infer-desktop/scenarios.yaml
+      INFER_AGENT_MODEL: mock/openai/gpt-4o
+      INFER_COMPUTER_USE_ENABLED: "true"
+      INFER_COMPUTER_USE_RECORDING_ENABLED: "true"
+      INFER_COMPUTER_USE_RECORDING_REQUIRE_APPROVAL: "false"
+      INFER_COMPUTER_USE_RECORDING_OUTPUT_DIR: /home/infer/.infer/artifacts
+      INFER_TOOLS_BASH_ALLOW_APPEND: upload-artifacts
+      ARTIFACTS_ENDPOINT: http://rustfs:9000
+      ARTIFACTS_BUCKET: infer-artifacts
+      AWS_ACCESS_KEY_ID: rustfsadmin
+      AWS_SECRET_ACCESS_KEY: rustfsadmin
 binding:
   enabled: true
   port: 52789

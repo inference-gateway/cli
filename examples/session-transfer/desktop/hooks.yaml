@@ -1,0 +1,7 @@
+---
+enabled: true
+hooks:
+  - name: upload-artifacts
+    hook: post_session
+    command: upload-artifacts
+    timeout: 120

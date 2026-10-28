@@ -28,6 +28,44 @@ tasks:
       - task -d {{.TASKFILE_DIR}}/../.. container:build
       - k3d image import ghcr.io/inference-gateway/cli:local -c {{.CLUSTER}}
 
+  desktop:image:
+    desc: Build the desktop image (Xvfb and Chromium on top of INFER_IMAGE, default the release candidate) and import it into the cluster
+    cmds:
+      - docker build {{if .INFER_IMAGE}}--build-arg INFER_IMAGE={{.INFER_IMAGE}}{{end}} -t infer-desktop:local desktop
+      - k3d image import infer-desktop:local -c {{.CLUSTER}}
+
+  desktop:screenshot:
+    desc: Save what the k8s-desktop pod's screen shows to .home/desktop.png
+    cmds:
+      - |
+        POD=$(kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get pods -l inference-gateway.com/executor=k8s-desktop -o jsonpath='{.items[0].metadata.name}')
+        kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} exec $POD -- \
+          ffmpeg -loglevel error -f x11grab -video_size 1280x800 -i :99 -frames:v 1 -f image2 -vcodec png - > {{.HOME_DIR}}/desktop.png
+      - echo "saved {{.HOME_DIR}}/desktop.png"
+
+  artifacts:install:
+    desc: Deploy RustFS, the S3-compatible store the k8s-desktop pod uploads its artifacts to
+    cmds:
+      - kubectl --context k3d-{{.CLUSTER}} apply -f k8s/rustfs.yaml
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} rollout status deployment/rustfs --timeout=180s
+
+  artifacts:list:
+    desc: List the artifacts in RustFS, one prefix per session
+    cmds:
+      - defer: kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} delete pod artifacts-ls --ignore-not-found
+      - |
+        kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} run artifacts-ls --restart=Never \
+          --image=infer-desktop:local --image-pull-policy=Never \
+          --env MC_HOST_store=http://rustfsadmin:rustfsadmin@rustfs:9000 \
+          --command -- mcli ls -r store/infer-artifacts
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} wait --for=jsonpath='{.status.containerStatuses[0].state.terminated}' pod/artifacts-ls --timeout=60s
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} logs artifacts-ls
+
+  artifacts:console:
+    desc: Port-forward the RustFS console to http://localhost:9001/rustfs/console/ (rustfsadmin / rustfsadmin)
+    cmds:
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} port-forward svc/rustfs 9001:9001
+
   home:
     desc: Seed the demo HOME with daemon.yaml and a small git project to transfer
     cmds:
@@ -65,9 +103,10 @@ tasks:
       - HOME={{.HOME_DIR}} {{.INFER}} daemon executors
 
   demo:
-    desc: Create a conversation, move it to the TARGET executor (default k8s-dev) and continue it there
+    desc: Create a conversation, move it to the TARGET executor (default k8s-dev) and continue it there with PROMPT
     vars:
       TARGET: '{{default "k8s-dev" .TARGET}}'
+      PROMPT: '{{default "say hello again" .PROMPT}}'
       ID:
         sh: uuidgen | tr 'A-Z' 'a-z'
     cmds:
@@ -75,7 +114,7 @@ tasks:
       - HOME={{.HOME_DIR}} {{.INFER}} daemon executors
       - HOME={{.HOME_DIR}} {{.INFER}} daemon transfer {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "say hello again" --project-dir {{.HOME_DIR}}/project
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project
       - echo "conversation {{.ID}} now lives on {{.TARGET}}"
 
   spire:install:
