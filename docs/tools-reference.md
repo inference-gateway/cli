@@ -584,6 +584,11 @@ symlinks resolved). Arguments, `--flag=value` and `-Xvalue` values, input redire
 `make` or `task`, since they run whatever the repository's Makefile or Taskfile says. Add them to a
 mode's list, or append them with `INFER_TOOLS_BASH_ALLOW_APPEND`, where the repository is trusted.
 
+**Read-only library carve-outs:** dependency sources are readable without configuration, same as the file
+tools - Go (`$GOMODCACHE` or `$GOPATH/pkg/mod`, and `$GOROOT/src`) and Rust (`$CARGO_HOME/registry/src`
+and `$CARGO_HOME/git/checkouts`, default `~/.cargo`, plus `$RUSTUP_HOME/toolchains/*/lib/rustlib/src`,
+default `~/.rustup`). Writes there stay denied.
+
 **Benign redirections** that only discard or merge streams (`2>&1`, `>/dev/null`, `2>/dev/null`) are
 stripped before matching and remain allowed. A rejected command returns explanatory feedback naming
 the reason, and (in chat) still goes through the normal approval prompt.

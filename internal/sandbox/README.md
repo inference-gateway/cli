@@ -8,15 +8,15 @@ byte-stable so the provider prompt cache stays warm.
 **How** - `domain/` holds the policy value objects (`Allowed` with an `Access`, `Denied` with a `Violation`),
 the denial contract (`DeniedError`, `ParseDenial`) and the `SandboxAccess` approval name. The root package
 holds the process-wide `Granted` set and `GrantFor`, and applies the `filesystem` section of `sandbox.yaml` plus the carve-outs (skills,
-plugins, runtime dirs, memory, Go library dirs) through `ValidateRead` and `ValidateWrite`, and resolves the
+plugins, runtime dirs, memory, Go and Rust library dirs) through `ValidateRead` and `ValidateWrite`, and resolves the
 per-mode bash allow-list through `IsBashCommandAllowed`. `infrastructure/` persists an "always" grant into
 `~/.infer/sandbox.yaml`, the only policy file.
 
 ## How it plugs in
 
 - Read, Tree, Grep, Wait, ImageDecode, TextToSpeech and the file writer call `ValidateRead`. Write, Edit,
-  MultiEdit and Delete call `ValidateWrite`, which also rejects custom-tool directories and the read-only Go
-  library carve-out.
+  MultiEdit and Delete call `ValidateWrite`, which also rejects custom-tool directories and the read-only
+  library carve-out (Go and Rust).
 - Bash, Wait, the approval policy and command hooks call `IsBashCommandAllowed` and surface
   `BashCommandRejectionHint` when a command is denied. The system prompt lists `BashAllowedCommands`.
 - Decision order: denied entries first (a blocking one fails whatever its position, otherwise the first

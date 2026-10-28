@@ -141,7 +141,7 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 
 // implicitAccess is the access the built-in carve-outs give absPath: the
 // operational directories infer itself needs (skills, plugins, runtime output,
-// plans, insights, memory) are writable, the Go library dirs are read-only.
+// plans, insights, memory) are writable, the language library dirs are read-only.
 func implicitAccess(cfg *config.Config, absPath string) (sandboxdomain.Access, bool) {
 	switch {
 	case cfg.Agent.Skills.Enabled && isWithinSkillsDir(absPath),
@@ -151,7 +151,7 @@ func implicitAccess(cfg *config.Config, absPath string) (sandboxdomain.Access, b
 		isWithinDir(absPath, config.InsightsDir()),
 		isWithinMemoryDir(absPath, cfg.Memory):
 		return sandboxdomain.AccessWrite, true
-	case isWithinGoLibDirs(absPath):
+	case isWithinGoLibDirs(absPath), isWithinRustLibDirs(absPath):
 		return sandboxdomain.AccessRead, true
 	}
 	return "", false
@@ -415,6 +415,55 @@ func isWithinGoLibDirs(absPath string) bool {
 
 	goroot := os.Getenv("GOROOT")
 	return goroot != "" && isWithinDir(absPath, filepath.Join(goroot, "src"))
+}
+
+// isWithinRustLibDirs reports whether absPath lives inside the Cargo registry
+// sources ($CARGO_HOME/registry/src, $CARGO_HOME/git/checkouts, default ~/.cargo)
+// or the rustup toolchain sources ($RUSTUP_HOME/toolchains/*/lib/rustlib/src,
+// default ~/.rustup), resolved from the environment. The carve-out is read-only.
+func isWithinRustLibDirs(absPath string) bool {
+	cargoHome := os.Getenv("CARGO_HOME")
+	if cargoHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		cargoHome = filepath.Join(home, ".cargo")
+	}
+	if isWithinDir(absPath, filepath.Join(cargoHome, "registry", "src")) ||
+		isWithinDir(absPath, filepath.Join(cargoHome, "git", "checkouts")) {
+		return true
+	}
+
+	rustupHome := os.Getenv("RUSTUP_HOME")
+	if rustupHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		rustupHome = filepath.Join(home, ".rustup")
+	}
+	return isWithinRustupToolchainSrc(absPath, rustupHome)
+}
+
+// isWithinRustupToolchainSrc reports whether absPath is
+// <toolchains>/<toolchain>/lib/rustlib/src[/...]. The per-toolchain directory is
+// whatever rustup named it, so the shape is checked instead of listing the
+// toolchains directory, both as written and with symlinks resolved like
+// isWithinDir.
+func isWithinRustupToolchainSrc(absPath, rustupHome string) bool {
+	root := filepath.Join(rustupHome, "toolchains")
+	for _, base := range []string{root, config.RealPath(root)} {
+		rel, err := filepath.Rel(base, absPath)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) >= 4 && parts[1] == "lib" && parts[2] == "rustlib" && parts[3] == "src" {
+			return true
+		}
+	}
+	return false
 }
 
 // isWithinMemoryDir reports whether absPath lives inside the global memory
