@@ -12,3 +12,4 @@ parameters:
       description: Optional regex pattern to filter output lines. Only lines matching the pattern will be returned.
   required:
     - bash_id
+require_approval: false

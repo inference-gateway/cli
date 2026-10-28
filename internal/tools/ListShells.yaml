@@ -5,3 +5,4 @@ parameters:
   additionalProperties: false
   properties: {}
   required: []
+require_approval: false
