@@ -55,7 +55,7 @@ task daemon:start
 task demo
 ```
 
-The environments run the release candidate image `ghcr.io/inference-gateway/cli:0.239.0-rc.2`, which the pod
+The environments run the release candidate image `ghcr.io/inference-gateway/cli:0.239.0-rc.3`, which the pod
 pulls from GHCR. To run this checkout on the pod instead, set both environments' `image` in `daemon.yaml` to
 `ghcr.io/inference-gateway/cli:local` and run `task image:import` before `task daemon:start`.
 
@@ -64,9 +64,9 @@ reply of a turn that ran on the pod:
 
 ```text
 NAME         KIND        REACHABLE  DETAILS
-laptop       local       true       storage=jsonl version=v0.239.0-rc.2
+laptop       local       true       storage=jsonl version=v0.239.0-rc.3
 k8s-desktop  kubernetes  true       auth=ca image=infer-desktop:local ...
-k8s-dev      kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:0.239.0-rc.2 kubernetes=v1.37.1+k3s1 namespace=infer-environments sandboxes=0
+k8s-dev      kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:0.239.0-rc.3 kubernetes=v1.37.1+k3s1 namespace=infer-environments sandboxes=0
 k8s-spiffe   kubernetes  true       auth=spiffe ...
 provisioning
 checkpointing
