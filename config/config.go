@@ -645,13 +645,24 @@ type ExportConfig struct {
 	OutputDir string `yaml:"output_dir" mapstructure:"output_dir"`
 }
 
+// CompactStrategy selects how a replaced conversation tail is carried into the
+// next session: summary writes an LLM checkpoint, pointer seeds a message
+// pointing back at the previous session instead.
+type CompactStrategy string
+
+const (
+	CompactStrategySummary CompactStrategy = "summary"
+	CompactStrategyPointer CompactStrategy = "pointer"
+)
+
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
-	Enabled               bool `yaml:"enabled" mapstructure:"enabled"`
-	AutoAt                int  `yaml:"auto_at" mapstructure:"auto_at"`
-	KeepFirstMessages     int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
-	RolloverOnIdleMinutes int  `yaml:"rollover_on_idle_minutes" mapstructure:"rollover_on_idle_minutes"`
-	SummaryMaxTokens      int  `yaml:"summary_max_tokens" mapstructure:"summary_max_tokens"`
+	Enabled               bool            `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt                int             `yaml:"auto_at" mapstructure:"auto_at"`
+	KeepFirstMessages     int             `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
+	RolloverOnIdleMinutes int             `yaml:"rollover_on_idle_minutes" mapstructure:"rollover_on_idle_minutes"`
+	SummaryMaxTokens      int             `yaml:"summary_max_tokens" mapstructure:"summary_max_tokens"`
+	Strategy              CompactStrategy `yaml:"strategy" mapstructure:"strategy"`
 }
 
 // ProvisionerConfig contains on-demand GPU provisioning settings.
@@ -1429,6 +1440,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			KeepFirstMessages:     2,
 			RolloverOnIdleMinutes: 30,
 			SummaryMaxTokens:      1024,
+			Strategy:              CompactStrategySummary,
 		},
 		Web: WebConfig{
 			Enabled:               false,

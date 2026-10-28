@@ -584,3 +584,219 @@ func TestMaybeRollover_IdleTriggerForces(t *testing.T) {
 		t.Error("an idle-triggered rollover must compact with force=true")
 	}
 }
+
+// newPointerRolloverManagerForTest builds a rollover manager around the real
+// optimizer in pointer strategy with no LLM client at all, so any summarizer
+// call instead of the pointer would fail the compaction and show up here.
+func newPointerRolloverManagerForTest(t *testing.T, autoAt, idleMin int, restore func([]sdk.Message) []sdk.Message) (*SessionRollover, *PersistentConversationRepository, storage.SessionGroupStorage, func()) {
+	t.Helper()
+
+	storageBackend, err := storage.NewSQLiteStorage(storage.SQLiteConfig{Path: ":memory:"})
+	if err != nil {
+		t.Fatalf("create sqlite storage: %v", err)
+	}
+	repo := NewPersistentConversationRepository(nil, nil, storageBackend)
+
+	cfg := &config.Config{}
+	cfg.Compact.Enabled = true
+	cfg.Compact.AutoAt = autoAt
+	cfg.Compact.RolloverOnIdleMinutes = idleMin
+	cfg.Compact.KeepFirstMessages = 2
+	cfg.Compact.Strategy = config.CompactStrategyPointer
+
+	opt := NewConversationOptimizer(OptimizerConfig{
+		Enabled:           true,
+		AutoAt:            autoAt,
+		KeepFirstMessages: 2,
+		Config:            cfg,
+		Strategy:          config.CompactStrategyPointer,
+		Repo:              repo,
+		RestoreContext:    restore,
+	})
+
+	groupStore := storage.NewMemorySessionGroupStorage()
+	mgr := NewSessionRollover(cfg, opt, repo, NewTokenizerService(DefaultTokenizerConfig()), groupStore)
+
+	cleanup := func() {
+		_ = repo.Close()
+		_ = storageBackend.Close()
+	}
+	return mgr, repo, groupStore, cleanup
+}
+
+// assertPointerCheckpoint checks the seeded pointer message: it opens with the
+// checkpoint marker, names the previous session and tells the model to fetch
+// only the entries it needs rather than dump the session.
+func assertPointerCheckpoint(t *testing.T, pointerText, previousID string) {
+	t.Helper()
+	if !strings.HasPrefix(pointerText, contextSummaryMarker) {
+		t.Errorf("pointer message must open with %q so hasCheckpoint keeps working, got %q", contextSummaryMarker, pointerText)
+	}
+	if !strings.Contains(pointerText, previousID) {
+		t.Errorf("pointer message must name the previous session %q, got %q", previousID, pointerText)
+	}
+	if !strings.Contains(pointerText, "infer conversations show "+previousID+" --grep") {
+		t.Errorf("pointer message must tell the model to cherry-pick entries with --grep, got %q", pointerText)
+	}
+}
+
+// TestPerformRollover_PointerStrategySeedsPointer pins the manual /compact
+// pointer rollover: no LLM call (the optimizer runs with a nil client), and the
+// new session holds the kept head, the pointer naming the previous id and the
+// restore hook output. The pointed-at session must still hold the full history.
+func TestPerformRollover_PointerStrategySeedsPointer(t *testing.T) {
+	mgr, repo, groupStore, cleanup := newPointerRolloverManagerForTest(t, 80, 30, func([]sdk.Message) []sdk.Message {
+		return []sdk.Message{{
+			Role:    sdk.Assistant,
+			Content: sdk.NewMessageContent("restored skill call"),
+		}}
+	})
+	defer cleanup()
+
+	if _, _, err := mgr.ResolveSessionID("channel-pointer-group"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	originalID := repo.GetCurrentConversationID()
+
+	for _, content := range []string{"first", "second", "third", "fourth", "fifth"} {
+		addUserMessage(t, repo, content, time.Now())
+	}
+
+	newID, err := mgr.PerformRollover(context.Background(), "openai/gpt-4", "channel-pointer-group")
+	if err != nil {
+		t.Fatalf("PerformRollover: %v", err)
+	}
+	if newID == "" || newID == originalID {
+		t.Fatalf("new session id should differ from original; got %q (original %q)", newID, originalID)
+	}
+
+	messages := repo.GetMessages()
+	if len(messages) != 4 {
+		t.Fatalf("new session should hold 2 kept messages + pointer + restore, got %d", len(messages))
+	}
+	for i, want := range []string{"first", "second"} {
+		got, err := messages[i].Message.Content.AsMessageContent0()
+		if err != nil {
+			t.Fatalf("kept head content: %v", err)
+		}
+		if got != want {
+			t.Errorf("kept head should be verbatim: got %q want %q", got, want)
+		}
+	}
+	restored, err := messages[3].Message.Content.AsMessageContent0()
+	if err != nil || restored != "restored skill call" {
+		t.Errorf("restore hook output should follow the pointer, got %q (err %v)", restored, err)
+	}
+
+	pointerText, err := messages[2].Message.Content.AsMessageContent0()
+	if err != nil {
+		t.Fatalf("pointer content: %v", err)
+	}
+	assertPointerCheckpoint(t, pointerText, originalID)
+
+	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-pointer-group")
+	if err != nil || !ok {
+		t.Fatalf("GetSessionGroup: ok=%v err=%v", ok, err)
+	}
+	if len(entry.History) == 0 || entry.History[len(entry.History)-1] != originalID {
+		t.Fatalf("group history should record previous id %q, got %v", originalID, entry.History)
+	}
+	if !strings.Contains(pointerText, entry.History[len(entry.History)-1]) {
+		t.Errorf("pointer must name the id the group history records: entry %v pointer %q", entry.History, pointerText)
+	}
+
+	if err := repo.LoadConversation(context.Background(), originalID); err != nil {
+		t.Fatalf("the pointed-at session must stay readable: %v", err)
+	}
+	if got := len(repo.GetMessages()); got != 5 {
+		t.Errorf("the previous session must still hold the full conversation, got %d messages", got)
+	}
+}
+
+// TestMaybeRollover_PointerStrategyTokenTrigger pins the auto_at trigger in
+// pointer mode: the gate fires with force=false, the gated rollover still sees
+// a checkpoint (the pointer opens with the marker, so it must not return
+// errNoCheckpoint) and no summarizer runs.
+func TestMaybeRollover_PointerStrategyTokenTrigger(t *testing.T) {
+	seedContextWindow(t, "moonshot/moonshot-v1-8k", 8192)
+	mgr, repo, groupStore, cleanup := newPointerRolloverManagerForTest(t, 80, 0, nil)
+	defer cleanup()
+
+	if _, _, err := mgr.ResolveSessionID("channel-pointer-group"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	originalID := repo.GetCurrentConversationID()
+
+	for _, content := range []string{"first", "second", "third"} {
+		addUserMessage(t, repo, content, time.Now())
+	}
+	if err := repo.AddTokenUsage("moonshot/moonshot-v1-8k", 7000, 100, 7100, 0, 0); err != nil {
+		t.Fatalf("AddTokenUsage: %v", err)
+	}
+
+	newID, fired := mgr.MaybeRollover(context.Background(), "moonshot/moonshot-v1-8k", "channel-pointer-group")
+	if !fired {
+		t.Fatal("the token trigger must still roll over in pointer mode")
+	}
+	if newID == "" || newID == originalID {
+		t.Fatalf("new session id should differ from original; got %q (original %q)", newID, originalID)
+	}
+
+	messages := repo.GetMessages()
+	if len(messages) != 3 {
+		t.Fatalf("new session should hold 2 kept messages + pointer, got %d", len(messages))
+	}
+	pointerText, err := messages[2].Message.Content.AsMessageContent0()
+	if err != nil {
+		t.Fatalf("pointer content: %v", err)
+	}
+	assertPointerCheckpoint(t, pointerText, originalID)
+
+	entry, ok, err := groupStore.GetSessionGroup(context.Background(), "channel-pointer-group")
+	if err != nil || !ok {
+		t.Fatalf("GetSessionGroup: ok=%v err=%v", ok, err)
+	}
+	if len(entry.History) == 0 || entry.History[len(entry.History)-1] != originalID {
+		t.Errorf("group history should record previous id %q, got %v", originalID, entry.History)
+	}
+}
+
+// TestMaybeRollover_PointerStrategyIdleTrigger pins the idle trigger in pointer
+// mode: a session past the idle threshold rolls over into head + pointer with
+// no summarizer involved.
+func TestMaybeRollover_PointerStrategyIdleTrigger(t *testing.T) {
+	mgr, repo, _, cleanup := newPointerRolloverManagerForTest(t, 80, 30, nil)
+	defer cleanup()
+
+	if err := repo.StartNewConversation("Initial"); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	originalID := repo.GetCurrentConversationID()
+	for _, content := range []string{"first", "second", "third"} {
+		addUserMessage(t, repo, content, time.Now().Add(-31*time.Minute))
+	}
+
+	newID, fired := mgr.MaybeRollover(context.Background(), "openai/gpt-4", "")
+	if !fired {
+		t.Fatal("the idle trigger must still roll over in pointer mode")
+	}
+	if newID == "" || newID == originalID {
+		t.Fatalf("new session id should differ from original; got %q (original %q)", newID, originalID)
+	}
+
+	messages := repo.GetMessages()
+	if len(messages) != 3 {
+		t.Fatalf("new session should hold 2 kept messages + pointer, got %d", len(messages))
+	}
+	pointerText, err := messages[2].Message.Content.AsMessageContent0()
+	if err != nil {
+		t.Fatalf("pointer content: %v", err)
+	}
+	assertPointerCheckpoint(t, pointerText, originalID)
+}
