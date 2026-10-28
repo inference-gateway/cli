@@ -625,8 +625,8 @@ func newPointerRolloverManagerForTest(t *testing.T, autoAt, idleMin int, restore
 }
 
 // assertPointerCheckpoint checks the seeded pointer message: it opens with the
-// checkpoint marker and names the previous session plus the command that reads
-// it back.
+// checkpoint marker, names the previous session and tells the model to fetch
+// only the entries it needs rather than dump the session.
 func assertPointerCheckpoint(t *testing.T, pointerText, previousID string) {
 	t.Helper()
 	if !strings.HasPrefix(pointerText, contextSummaryMarker) {
@@ -635,8 +635,8 @@ func assertPointerCheckpoint(t *testing.T, pointerText, previousID string) {
 	if !strings.Contains(pointerText, previousID) {
 		t.Errorf("pointer message must name the previous session %q, got %q", previousID, pointerText)
 	}
-	if !strings.Contains(pointerText, "infer conversations show "+previousID) {
-		t.Errorf("pointer message must tell the model how to read the previous session, got %q", pointerText)
+	if !strings.Contains(pointerText, "infer conversations show "+previousID+" --grep") {
+		t.Errorf("pointer message must tell the model to cherry-pick entries with --grep, got %q", pointerText)
 	}
 }
 

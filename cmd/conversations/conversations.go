@@ -109,6 +109,9 @@ Examples:
   # Include hidden entries such as system reminders
   infer conversations show <session-id> --include-hidden
 
+  # Only the entries whose text mentions a substring
+  infer conversations show <session-id> --grep "undefined symbol"
+
   # Emit one JSON object per line for piping into jq
   infer conversations show <session-id> --format json | jq .`,
 		Args: cobra.ExactArgs(1),
@@ -118,6 +121,7 @@ Examples:
 	}
 	showCommand.Flags().Bool("include-hidden", false, "Include hidden entries (system reminders, plan prompts, drained background results, verify message)")
 	showCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	showCommand.Flags().String("grep", "", "Only show the entries whose text contains this substring (case-insensitive)")
 
 	command.AddCommand(listCommand, deleteCommand, showCommand)
 	return command
@@ -243,6 +247,7 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 
 	includeHidden, _ := cmd.Flags().GetBool("include-hidden")
 	format, _ := cmd.Flags().GetString("format")
+	grep, _ := cmd.Flags().GetString("grep")
 
 	sessionID := resolveConversationSessionID(services, rawID)
 
@@ -253,6 +258,7 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 	}
 
 	entries = filterConversationEntries(entries, includeHidden)
+	entries = grepConversationEntries(entries, grep)
 
 	if format == "json" {
 		return printConversationShowJSON(entries, metadata)
@@ -286,6 +292,23 @@ func filterConversationEntries(entries []convdomain.ConversationEntry, includeHi
 			continue
 		}
 		filtered = append(filtered, e)
+	}
+	return filtered
+}
+
+// grepConversationEntries keeps only the entries whose text content contains
+// the pattern (case-insensitive). An empty pattern keeps everything.
+func grepConversationEntries(entries []convdomain.ConversationEntry, pattern string) []convdomain.ConversationEntry {
+	if pattern == "" {
+		return entries
+	}
+	needle := strings.ToLower(pattern)
+	filtered := make([]convdomain.ConversationEntry, 0, len(entries))
+	for _, e := range entries {
+		text := strings.ToLower(formatting.ExtractTextFromContent(e.Message.Content, e.Images))
+		if strings.Contains(text, needle) {
+			filtered = append(filtered, e)
+		}
 	}
 	return filtered
 }

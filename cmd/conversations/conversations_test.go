@@ -352,6 +352,30 @@ func TestFilterConversationEntries_HiddenIncluded(t *testing.T) {
 	}
 }
 
+func TestGrepConversationEntries(t *testing.T) {
+	entries := makeShowEntries()
+
+	got := grepConversationEntries(entries, "tool")
+	if len(got) != 1 || got[0].Message.Role != sdk.Tool {
+		t.Fatalf("expected only the tool entry for 'tool', got %d entries", len(got))
+	}
+
+	got = grepConversationEntries(entries, "HELLO")
+	if len(got) != 1 || string(got[0].Message.Role) != "user" {
+		t.Fatalf("expected case-insensitive match on 'hello world', got %d entries", len(got))
+	}
+
+	got = grepConversationEntries(entries, "")
+	if len(got) != len(entries) {
+		t.Fatalf("empty pattern must keep every entry, got %d of %d", len(got), len(entries))
+	}
+
+	got = grepConversationEntries(entries, "no-such-term")
+	if len(got) != 0 {
+		t.Fatalf("expected no matches, got %d", len(got))
+	}
+}
+
 func TestBuildConversationShowText_PlainAndHeaders(t *testing.T) {
 	out := buildConversationShowText(makeShowEntries(), "session-123")
 

@@ -290,7 +290,7 @@ func (co *ConversationOptimizer) pointerCheckpoint() (sdk.Message, error) {
 	return sdk.Message{
 		Role: sdk.User,
 		Content: sdk.NewMessageContent(fmt.Sprintf(
-			"%s\n\nThe earlier part of this conversation, including tool results, is stored in session `%s`. Run `infer conversations show %s` if you need details from it.",
+			"%s\n\nThe earlier part of this conversation, including tool results, is stored in session `%s`. To look anything up, cherry-pick only the specific entries you need with `infer conversations show %s --grep <substring>` - do not load the whole session.",
 			contextSummaryMarker, previousID, previousID,
 		)),
 	}, nil

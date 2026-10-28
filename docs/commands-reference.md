@@ -720,6 +720,9 @@ rather than reading files directly).
   Off by default.
 - `--format text|json`: `text` (default) is human-readable; `json` emits one pretty-printed
   object with `metadata` and `entries`, so a whole conversation parses in one `jq` call.
+- `--grep <substring>`: Only show the entries whose text contains the substring
+  (case-insensitive), so a long session can be cherry-picked entry by entry without
+  loading the rest.
 
 The `<session-id>` is resolved the same way as `infer headless --session-id`: a literal UUID is
 used as-is, while any other value is treated as a session group key and resolved to that
@@ -739,6 +742,9 @@ infer conversations show channel-telegram-12345
 
 # Include hidden entries such as system reminders
 infer conversations show <session-id> --include-hidden
+
+# Only the entries whose text mentions a substring
+infer conversations show <session-id> --grep "undefined symbol"
 
 # One JSON object per line for piping into jq
 infer conversations show <session-id> --format json | jq .

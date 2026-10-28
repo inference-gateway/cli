@@ -848,7 +848,7 @@ func TestOptimizeMessages_PointerStrategySkipsSummarizer(t *testing.T) {
 	assert.True(t, strings.HasPrefix(text, "--- Context Summary ---"),
 		"the pointer must open with the checkpoint marker so hasCheckpoint keeps detecting it")
 	assert.Contains(t, text, "session `11111111-2222-4333-8444-555566667777`")
-	assert.Contains(t, text, "infer conversations show 11111111-2222-4333-8444-555566667777")
+	assert.Contains(t, text, "infer conversations show 11111111-2222-4333-8444-555566667777 --grep")
 	assert.NotContains(t, text, "--- End Summary ---", "no LLM summary is embedded")
 	assert.Equal(t, 0, mockClient.GenerateContentCallCount(), "pointer mode must not call the summarizer")
 }

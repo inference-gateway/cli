@@ -532,8 +532,9 @@ Environment overrides: `INFER_COMPUTER_USE_RECORDING_ENABLED`,
   A value at or below zero falls back to `2`. Env: `INFER_COMPACT_KEEP_FIRST_MESSAGES`.
 - **compact.strategy**: How a compaction seeds the continued session (default: `summary`). `summary` has an
   LLM write the checkpoint. `pointer` skips that LLM call entirely and seeds a single message saying the
-  full history lives in the previous session (naming its id) so the model pulls only what it needs from
-  there with `infer conversations show <id>`. Env: `INFER_COMPACT_STRATEGY`.
+  full history lives in the previous session (naming its id) so the model cherry-picks only the specific
+  entries it needs from there with `infer conversations show <id> --grep <substring>` - the message tells
+  it to never load the whole session. Env: `INFER_COMPACT_STRATEGY`.
 - **compact.rollover_on_idle_minutes**: Minutes a session may sit idle before a rollover starts a fresh one
   (default: `30`). Env: `INFER_COMPACT_ROLLOVER_ON_IDLE_MINUTES`.
 - **compact.summary_max_tokens**: Token budget for the compaction summary (default: `1024`).
