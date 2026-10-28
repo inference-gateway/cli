@@ -97,12 +97,10 @@ type BindingConfig struct {
 
 // BindingTLSConfig is the TLS the binding serves, if any.
 type BindingTLSConfig struct {
-	Mode     TLSMode `yaml:"mode" mapstructure:"mode"`
-	CertFile string  `yaml:"cert_file,omitempty" mapstructure:"cert_file"`
-	KeyFile  string  `yaml:"key_file,omitempty" mapstructure:"key_file"`
-	CAFile   string  `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
-	// ClientAuth requires and verifies client certificates against the CA.
-	// The ca and spiffe modes always do.
+	Mode       TLSMode      `yaml:"mode" mapstructure:"mode"`
+	CertFile   string       `yaml:"cert_file,omitempty" mapstructure:"cert_file"`
+	KeyFile    string       `yaml:"key_file,omitempty" mapstructure:"key_file"`
+	CAFile     string       `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
 	ClientAuth bool         `yaml:"client_auth" mapstructure:"client_auth"`
 	SPIFFE     SPIFFEConfig `yaml:"spiffe" mapstructure:"spiffe"`
 }
@@ -110,11 +108,9 @@ type BindingTLSConfig struct {
 // SPIFFEConfig reaches the SPIRE Workload API for the binding's own SVID and
 // names which peers it trusts.
 type SPIFFEConfig struct {
-	Socket      string `yaml:"socket,omitempty" mapstructure:"socket"`
-	TrustDomain string `yaml:"trust_domain,omitempty" mapstructure:"trust_domain"`
-	// AllowedIDs are the SPIFFE IDs accepted as peers. Empty accepts every
-	// member of the trust domain.
-	AllowedIDs []string `yaml:"allowed_ids,omitempty" mapstructure:"allowed_ids"`
+	Socket      string   `yaml:"socket,omitempty" mapstructure:"socket"`
+	TrustDomain string   `yaml:"trust_domain,omitempty" mapstructure:"trust_domain"`
+	AllowedIDs  []string `yaml:"allowed_ids,omitempty" mapstructure:"allowed_ids"`
 }
 
 // PeerTLSConfig is how this daemon reaches a daemon-kind environment over TLS:
@@ -151,8 +147,7 @@ type EnvironmentEntry struct {
 	IdleTTL    time.Duration           `yaml:"idle_ttl,omitempty" mapstructure:"idle_ttl"`
 	Auth       EnvironmentAuth         `yaml:"auth,omitempty" mapstructure:"auth"`
 	SPIFFE     EnvironmentSPIFFEConfig `yaml:"spiffe,omitempty" mapstructure:"spiffe"`
-	// Env is the non-secret environment the pod daemon starts with.
-	Env map[string]string `yaml:"env,omitempty" mapstructure:"env"`
+	Env        map[string]string       `yaml:"env,omitempty" mapstructure:"env"`
 
 	// Retention is how long a Sandbox stays suspended once every agent on it is
 	// done before agent-sandbox deletes it with its volumes. Zero keeps it until
