@@ -6,7 +6,7 @@ executors:
     kind: kubernetes
     context: k3d-infer-executors
     namespace: infer-executors
-    image: ghcr.io/inference-gateway/cli:0.239.0-rc.1
+    image: ghcr.io/inference-gateway/cli:0.239.0-rc.2
     storage: 1Gi
     idle_ttl: 30m
     auth: ca
@@ -17,7 +17,7 @@ executors:
     kind: kubernetes
     context: k3d-infer-executors
     namespace: infer-executors
-    image: ghcr.io/inference-gateway/cli:0.239.0-rc.1
+    image: ghcr.io/inference-gateway/cli:0.239.0-rc.2
     storage: 1Gi
     idle_ttl: 30m
     auth: spiffe
