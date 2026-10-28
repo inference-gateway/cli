@@ -5,7 +5,7 @@ adapters behind those ports, and the three ways to run one.
 **Why** - the loop is the core domain of the CLI, and every other context exists to hand it tools, storage or transport.
 **How** - `domain/` is the shared kernel every context may import. `infrastructure/` adapts its ports to the outside
 world. `loop/` runs an agent in process, `headless/` runs one as an `infer headless` child, and `transfer/` runs one
-on another executor.
+on another environment.
 
 ## How it plugs in
 
@@ -21,13 +21,13 @@ on another executor.
   and tool-call types directly, so an SDK change reaches the loop without a translation layer.
 - `headless/` spawns `infer headless`, streams its stdout and returns the final assistant message. The `Agent` tool,
   the scheduler's cron jobs and heartbeat, and the GitHub setup call it.
-- `domain/` also names where an agent runs: the `Executor` port (ensure, probe, suspend, delete) with its three
+- `domain/` also names where an agent runs: the `Environment` port (ensure, probe, suspend, delete) with its three
   implementations in `infrastructure/` (this daemon, a standalone daemon over TLS, a Kubernetes `Sandbox` per session
-  under `infrastructure/kubernetes/`), the `Lease` that says which executor owns a session and the `LeaseStore` every
+  under `infrastructure/kubernetes/`), the `Lease` that says which environment owns a session and the `LeaseStore` every
   storage backend implements, and the `Checkpoint` a transfer carries.
 - `transfer/` is the daemon's launch seam and its transfer saga. The sessions registry launches every thread through
   `Service.LaunchWorker`, which answers at once with a worker that connects in the background to a process here or to
-  the owning executor's daemon, by the lease. `transfer_session` quiesces the thread, packs the checkpoint (conversation
+  the owning environment's daemon, by the lease. `transfer_session` quiesces the thread, packs the checkpoint (conversation
   unless storage is shared, open interrupts, a git bundle plus patch, allowlisted files, credentials sealed with HPKE to
   the target's certificate), streams it to the peer, verifies the restored snapshot and hands the lease over. The
   receiving side restores into `workspace_root`, imports the conversation through a worker there and claims the lease.

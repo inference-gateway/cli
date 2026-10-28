@@ -88,9 +88,9 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		report(agentdomain.TransferFailed, err.Error())
 	}
 
-	executor, ok := s.executors[req.Target]
-	if !ok || executor.Kind() == agentdomain.ExecutorKindLocal {
-		fail(fmt.Errorf("executor %q is not a remote executor registered in daemon.yaml", req.Target))
+	environment, ok := s.environments[req.Target]
+	if !ok || environment.Kind() == agentdomain.EnvironmentKindLocal {
+		fail(fmt.Errorf("environment %q is not a remote environment registered in daemon.yaml", req.Target))
 		return
 	}
 	done, err := s.precondition(ctx, req)
@@ -105,7 +105,7 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 	}
 
 	report(agentdomain.TransferProvisioning, "")
-	endpoint, err := executor.Ensure(ctx, req.Session)
+	endpoint, err := environment.Ensure(ctx, req.Session)
 	if err != nil {
 		fail(describe(err, "provisioning %s", req.Target))
 		return
@@ -118,8 +118,8 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		return
 	}
 	defer conn.Close()
-	if info.Executor != req.Target {
-		fail(fmt.Errorf("the daemon reached for %s identifies as %q", req.Target, info.Executor))
+	if info.Environment != req.Target {
+		fail(fmt.Errorf("the daemon reached for %s identifies as %q", req.Target, info.Environment))
 		return
 	}
 
@@ -139,7 +139,7 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 	}
 
 	lease := agentdomain.Lease{
-		ConversationID: req.Session.ConversationID, Executor: req.Target, Workspace: workspace,
+		ConversationID: req.Session.ConversationID, Environment: req.Target, Workspace: workspace,
 		TransferID: req.TransferID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
 	}
 	if _, _, err := s.leases.ClaimLease(ctx, lease); err != nil {
@@ -150,7 +150,7 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 	s.announce(to, key, req, lease, endpoint.Addr, checkpoint.Interrupts)
 }
 
-// precondition refuses a session another executor owns, answers a completed
+// precondition refuses a session another environment owns, answers a completed
 // transfer idempotently, and stamps this daemon's own row with the transfer
 // id so the target's claim matches it.
 func (s *Service) precondition(ctx context.Context, req agentdomain.TransferRequest) (*agentdomain.Lease, error) {
@@ -158,19 +158,19 @@ func (s *Service) precondition(ctx context.Context, req agentdomain.TransferRequ
 	if err != nil {
 		return nil, describe(err, "reading the session's lease")
 	}
-	if found && lease.Executor == req.Target && lease.TransferID == req.TransferID {
+	if found && lease.Environment == req.Target && lease.TransferID == req.TransferID {
 		return &lease, nil
 	}
-	if found && lease.Executor != s.me && lease.Live(time.Now()) {
-		return nil, fmt.Errorf("session %s is owned by executor %s", req.Session.ConversationID, lease.Executor)
+	if found && lease.Environment != s.me && lease.Live(time.Now()) {
+		return nil, fmt.Errorf("session %s is owned by environment %s", req.Session.ConversationID, lease.Environment)
 	}
 	own := agentdomain.Lease{
-		ConversationID: req.Session.ConversationID, Executor: s.me, Workspace: req.Session.ProjectDir,
+		ConversationID: req.Session.ConversationID, Environment: s.me, Workspace: req.Session.ProjectDir,
 		TransferID: req.TransferID, Until: time.Now().Add(s.ownedTTL()),
 	}
 	if _, ok, err := s.leases.ClaimLease(ctx, own); err != nil || !ok {
 		if err == nil {
-			err = errors.New("another executor claimed the session first")
+			err = errors.New("another environment claimed the session first")
 		}
 		return nil, describe(err, "claiming the session for the transfer")
 	}
@@ -233,7 +233,7 @@ func (s *Service) export(ctx context.Context, session agentdomain.Session) (expo
 	return exported, nil
 }
 
-// sealCredentials encrypts the executor's forward_env values to the peer's
+// sealCredentials encrypts the environment's forward_env values to the peer's
 // certificate, so they travel only to the daemon that presented it.
 func (s *Service) sealCredentials(req agentdomain.TransferRequest, conn *agui.Conn) ([]byte, error) {
 	names := s.entries[req.Target].ForwardEnv
@@ -270,7 +270,7 @@ func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFram
 		}
 		chunks++
 	}
-	if err := conn.Send(encode(importFrame{Type: frameTransferImport, TransferID: req.TransferID, Executor: req.Target, Chunks: chunks, SHA256: hex.EncodeToString(sum[:])})); err != nil {
+	if err := conn.Send(encode(importFrame{Type: frameTransferImport, TransferID: req.TransferID, Environment: req.Target, Chunks: chunks, SHA256: hex.EncodeToString(sum[:])})); err != nil {
 		return "", describe(err, "sending the checkpoint")
 	}
 	replyCtx, cancel := context.WithTimeout(ctx, replyTimeout)
@@ -309,7 +309,7 @@ func snapshotDigest(frame []byte) (string, int) {
 // lives now and which interrupts the move cancelled.
 func (s *Service) announce(to requester, key sessionsdomain.ThreadKey, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
 	moved := encode(sessionMovedFrame{Type: frameSessionMoved, SessionMoved: agentdomain.SessionMoved{
-		Session: req.Session, Executor: lease.Executor, Addr: addr, Workspace: lease.Workspace, CancelledInterrupts: interrupts,
+		Session: req.Session, Environment: lease.Environment, Addr: addr, Workspace: lease.Workspace, CancelledInterrupts: interrupts,
 	}})
 	to.Deliver(moved)
 	if s.registry != nil {

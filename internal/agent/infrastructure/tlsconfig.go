@@ -22,7 +22,7 @@ import (
 const spiffeSourceTimeout = 30 * time.Second
 
 // TLSProvider builds every tls.Config the daemon needs from daemon.yaml: the
-// binding's server side and the client side for each executor, over the
+// binding's server side and the client side for each environment, over the
 // daemon-managed CA or the SPIRE Workload API. One SPIFFE source serves both
 // sides and rotates on its own.
 type TLSProvider struct {
@@ -124,9 +124,9 @@ func (p *TLSProvider) rememberServed(cfg *tls.Config) {
 	}
 }
 
-// ClientForDaemon dials a daemon-kind executor: its CA pins the server, and
+// ClientForDaemon dials a daemon-kind environment: its CA pins the server, and
 // a client certificate goes along when configured.
-func (p *TLSProvider) ClientForDaemon(entry config.ExecutorEntry) (*tls.Config, error) {
+func (p *TLSProvider) ClientForDaemon(entry config.EnvironmentEntry) (*tls.Config, error) {
 	pool, err := poolFromFile(entry.TLS.CAFile)
 	if err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func (p *TLSProvider) ClientForDaemon(entry config.ExecutorEntry) (*tls.Config, 
 	if entry.TLS.CertFile != "" {
 		cert, err := tls.LoadX509KeyPair(entry.TLS.CertFile, entry.TLS.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("loading the client certificate for executor %s: %w", entry.Name, err)
+			return nil, fmt.Errorf("loading the client certificate for environment %s: %w", entry.Name, err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
@@ -149,11 +149,11 @@ func (p *TLSProvider) ClientForDaemon(entry config.ExecutorEntry) (*tls.Config, 
 // ClientForKubernetes dials a pod daemon: with the daemon CA it pins the CA
 // and presents a client certificate naming this daemon, with SPIFFE it
 // presents its SVID and expects the pod's.
-func (p *TLSProvider) ClientForKubernetes(ctx context.Context, entry config.ExecutorEntry, serverName string) (*tls.Config, error) {
+func (p *TLSProvider) ClientForKubernetes(ctx context.Context, entry config.EnvironmentEntry, serverName string) (*tls.Config, error) {
 	switch entry.EffectiveAuth() {
-	case config.ExecutorAuthCA:
+	case config.EnvironmentAuthCA:
 		if p.pki == nil {
-			return nil, errors.New("executor auth ca needs the daemon CA")
+			return nil, errors.New("environment auth ca needs the daemon CA")
 		}
 		issued, err := p.pki.IssueClient(p.identity)
 		if err != nil {
@@ -164,7 +164,7 @@ func (p *TLSProvider) ClientForKubernetes(ctx context.Context, entry config.Exec
 			return nil, err
 		}
 		return &tls.Config{RootCAs: p.pki.Pool(), Certificates: []tls.Certificate{cert}, ServerName: serverName, MinVersion: tls.VersionTLS13}, nil
-	case config.ExecutorAuthSPIFFE:
+	case config.EnvironmentAuthSPIFFE:
 		source, err := p.spiffeSource(ctx)
 		if err != nil {
 			return nil, err
@@ -175,7 +175,7 @@ func (p *TLSProvider) ClientForKubernetes(ctx context.Context, entry config.Exec
 		}
 		return spiffetlsconfig.MTLSClientConfig(source, source, authorizer), nil
 	default:
-		return nil, fmt.Errorf("unknown auth %q for executor %s", entry.Auth, entry.Name)
+		return nil, fmt.Errorf("unknown auth %q for environment %s", entry.Auth, entry.Name)
 	}
 }
 

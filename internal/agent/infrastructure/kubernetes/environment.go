@@ -31,7 +31,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// The agent-sandbox API this executor drives, and the labels and annotation
+// The agent-sandbox API this environment drives, and the labels and annotation
 // it reads and writes.
 const (
 	sandboxGroup   = "agents.x-k8s.io"
@@ -39,7 +39,7 @@ const (
 	sandboxKind    = "Sandbox"
 
 	podNameAnnotation = "agents.x-k8s.io/pod-name"
-	labelExecutor     = "inference-gateway.com/executor"
+	labelEnvironment  = "inference-gateway.com/environment"
 	labelConversation = "inference-gateway.com/conversation"
 
 	bindingPort      = 52789
@@ -50,7 +50,7 @@ const (
 	stateMount       = "/home/infer/.infer/projects"
 	tlsMount         = "/etc/infer/tls"
 	spiffeMount      = "/spiffe-workload-api"
-	serviceAccount   = "infer-executor"
+	serviceAccount   = "infer-environment"
 	defaultStorage   = "5Gi"
 	tlsSecretSuffix  = "-tls"
 	secretTokenKey   = "token"
@@ -63,11 +63,11 @@ const (
 
 var sandboxGVR = k8sschema.GroupVersionResource{Group: sandboxGroup, Version: sandboxVersion, Resource: "sandboxes"}
 
-// Executor runs sessions as agent-sandbox Sandboxes: one per session, running
+// Environment runs sessions as agent-sandbox Sandboxes: one per session, running
 // the infer image as a daemon, reached through a port-forward unless the
 // entry names an address.
-type Executor struct {
-	entry    config.ExecutorEntry
+type Environment struct {
+	entry    config.EnvironmentEntry
 	identity string
 	tls      *agentinfra.TLSProvider
 	pki      *agentinfra.PKI
@@ -76,24 +76,24 @@ type Executor struct {
 	typed    k8sclient.Interface
 }
 
-// New connects to the cluster the entry names and returns the executor.
-func New(entry config.ExecutorEntry, identity string, tls *agentinfra.TLSProvider, pki *agentinfra.PKI) (*Executor, error) {
+// New connects to the cluster the entry names and returns the environment.
+func New(entry config.EnvironmentEntry, identity string, tls *agentinfra.TLSProvider, pki *agentinfra.PKI) (*Environment, error) {
 	restConfig, err := restConfigFor(entry)
 	if err != nil {
 		return nil, err
 	}
 	dynamicClient, err := k8sdynamic.NewForConfig(restConfig)
 	if err != nil {
-		return nil, fmt.Errorf("building the Kubernetes client for executor %s: %w", entry.Name, err)
+		return nil, fmt.Errorf("building the Kubernetes client for environment %s: %w", entry.Name, err)
 	}
 	typedClient, err := k8sclient.NewForConfig(restConfig)
 	if err != nil {
-		return nil, fmt.Errorf("building the Kubernetes client for executor %s: %w", entry.Name, err)
+		return nil, fmt.Errorf("building the Kubernetes client for environment %s: %w", entry.Name, err)
 	}
-	return &Executor{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, typed: typedClient}, nil
+	return &Environment{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, typed: typedClient}, nil
 }
 
-func restConfigFor(entry config.ExecutorEntry) (*k8srest.Config, error) {
+func restConfigFor(entry config.EnvironmentEntry) (*k8srest.Config, error) {
 	rules := k8sclientcmd.NewDefaultClientConfigLoadingRules()
 	if entry.Kubeconfig != "" {
 		rules.ExplicitPath = entry.Kubeconfig
@@ -101,13 +101,15 @@ func restConfigFor(entry config.ExecutorEntry) (*k8srest.Config, error) {
 	overrides := &k8sclientcmd.ConfigOverrides{CurrentContext: entry.Context}
 	restConfig, err := k8sclientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("loading the kubeconfig for executor %s: %w", entry.Name, err)
+		return nil, fmt.Errorf("loading the kubeconfig for environment %s: %w", entry.Name, err)
 	}
 	return restConfig, nil
 }
 
-func (e *Executor) Name() string                   { return e.entry.Name }
-func (e *Executor) Kind() agentdomain.ExecutorKind { return agentdomain.ExecutorKindKubernetes }
+func (e *Environment) Name() string { return e.entry.Name }
+func (e *Environment) Kind() agentdomain.EnvironmentKind {
+	return agentdomain.EnvironmentKindKubernetes
+}
 
 // SandboxName is the Sandbox a session runs in, stable across transfers.
 func SandboxName(conversationID string) string {
@@ -117,7 +119,7 @@ func SandboxName(conversationID string) string {
 
 // Ensure creates or resumes the session's Sandbox, waits for it to be Ready,
 // and returns the pod daemon's binding through a port-forward.
-func (e *Executor) Ensure(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
+func (e *Environment) Ensure(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
 	name := SandboxName(session.ConversationID)
 	token, err := e.ensureSecret(ctx, name)
 	if err != nil {
@@ -156,7 +158,7 @@ func (e *Executor) Ensure(ctx context.Context, session agentdomain.Session) (age
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // always, plus the certificates the daemon CA issued when auth is ca.
-func (e *Executor) ensureSecret(ctx context.Context, name string) (string, error) {
+func (e *Environment) ensureSecret(ctx context.Context, name string) (string, error) {
 	secrets := e.typed.CoreV1().Secrets(e.entry.Namespace)
 	existing, err := secrets.Get(ctx, name+tlsSecretSuffix, metav1.GetOptions{})
 	if err == nil {
@@ -170,9 +172,9 @@ func (e *Executor) ensureSecret(ctx context.Context, name string) (string, error
 		return "", err
 	}
 	data := map[string][]byte{secretTokenKey: []byte(token)}
-	if e.entry.EffectiveAuth() == config.ExecutorAuthCA {
+	if e.entry.EffectiveAuth() == config.EnvironmentAuthCA {
 		if e.pki == nil {
-			return "", errors.New("executor auth ca needs the daemon CA")
+			return "", errors.New("environment auth ca needs the daemon CA")
 		}
 		server, err := e.pki.IssueServer(name, name+"."+e.entry.Namespace, name+"."+e.entry.Namespace+".svc")
 		if err != nil {
@@ -186,7 +188,7 @@ func (e *Executor) ensureSecret(ctx context.Context, name string) (string, error
 		data[secretClientCert], data[secretClientKey] = client.CertPEM, client.KeyPEM
 	}
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelExecutor: e.entry.Name}},
+		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelEnvironment: e.entry.Name}},
 		Data:       data,
 	}
 	if _, err := secrets.Create(ctx, secret, metav1.CreateOptions{}); err != nil {
@@ -204,7 +206,7 @@ func randomToken() (string, error) {
 }
 
 // create submits the Sandbox for a session.
-func (e *Executor) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
+func (e *Environment) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	sandbox, err := e.sandbox(name, session)
 	if err != nil {
 		return nil, err
@@ -213,14 +215,14 @@ func (e *Executor) create(ctx context.Context, name string, session agentdomain.
 	if err != nil {
 		return nil, fmt.Errorf("creating Sandbox %s: %w", name, err)
 	}
-	logger.Info("created a Sandbox for the session", "executor", e.entry.Name, "sandbox", name, "conversation_id", session.ConversationID)
+	logger.Info("created a Sandbox for the session", "environment", e.entry.Name, "sandbox", name, "conversation_id", session.ConversationID)
 	return created, nil
 }
 
 // resume brings a parked or finished Sandbox back to Running: a suspended one
 // is set Running, a finished one cycles through Suspended first so a fresh pod
 // reattaches the volumes.
-func (e *Executor) resume(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
+func (e *Environment) resume(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
 	mode, _, _ := k8sunstructured.NestedString(sandbox.Object, "spec", "operatingMode")
 	ready := conditionTrue(sandbox, "Ready")
 	finished := conditionTrue(sandbox, "Finished")
@@ -239,7 +241,7 @@ func (e *Executor) resume(ctx context.Context, sandbox *k8sunstructured.Unstruct
 	return nil
 }
 
-func (e *Executor) setMode(ctx context.Context, name, mode string) error {
+func (e *Environment) setMode(ctx context.Context, name, mode string) error {
 	patch, _ := json.Marshal(map[string]any{"spec": map[string]any{"operatingMode": mode}})
 	if _, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		return fmt.Errorf("setting Sandbox %s to %s: %w", name, mode, err)
@@ -248,7 +250,7 @@ func (e *Executor) setMode(ctx context.Context, name, mode string) error {
 }
 
 // awaitReady polls until the Sandbox reports Ready and returns its pod name.
-func (e *Executor) awaitReady(ctx context.Context, name string) (string, error) {
+func (e *Environment) awaitReady(ctx context.Context, name string) (string, error) {
 	if err := e.awaitCondition(ctx, name, "Ready"); err != nil {
 		return "", err
 	}
@@ -263,7 +265,7 @@ func (e *Executor) awaitReady(ctx context.Context, name string) (string, error) 
 	return pod, nil
 }
 
-func (e *Executor) awaitCondition(ctx context.Context, name, condition string) error {
+func (e *Environment) awaitCondition(ctx context.Context, name, condition string) error {
 	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
 	defer cancel()
 	ticker := time.NewTicker(readyPoll)
@@ -312,13 +314,13 @@ func conditionMessage(sandbox *k8sunstructured.Unstructured, name string) string
 	return "no condition reported"
 }
 
-// Probe lists this executor's Sandboxes and the cluster version. A missing
+// Probe lists this environment's Sandboxes and the cluster version. A missing
 // CRD or an unreachable cluster is the error.
-func (e *Executor) Probe(ctx context.Context) agentdomain.ExecutorStatus {
-	status := agentdomain.ExecutorStatus{Name: e.entry.Name, Kind: agentdomain.ExecutorKindKubernetes, Capabilities: map[string]string{
+func (e *Environment) Probe(ctx context.Context) agentdomain.EnvironmentStatus {
+	status := agentdomain.EnvironmentStatus{Name: e.entry.Name, Kind: agentdomain.EnvironmentKindKubernetes, Capabilities: map[string]string{
 		"namespace": e.entry.Namespace, "image": e.entry.Image, "auth": string(e.entry.EffectiveAuth()),
 	}}
-	list, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelExecutor + "=" + e.entry.Name})
+	list, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelEnvironment + "=" + e.entry.Name})
 	if err != nil {
 		status.Error = describeClusterError(err)
 		return status
@@ -339,13 +341,13 @@ func describeClusterError(err error) string {
 }
 
 // Suspend parks the session's Sandbox, keeping its volumes.
-func (e *Executor) Suspend(ctx context.Context, session agentdomain.Session) error {
+func (e *Environment) Suspend(ctx context.Context, session agentdomain.Session) error {
 	return e.setMode(ctx, SandboxName(session.ConversationID), "Suspended")
 }
 
 // Delete removes the session's Sandbox and its Secret. The volumes go with
 // the Sandbox.
-func (e *Executor) Delete(ctx context.Context, session agentdomain.Session) error {
+func (e *Environment) Delete(ctx context.Context, session agentdomain.Session) error {
 	name := SandboxName(session.ConversationID)
 	if err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 		return fmt.Errorf("deleting Sandbox %s: %w", name, err)
@@ -359,7 +361,7 @@ func (e *Executor) Delete(ctx context.Context, session agentdomain.Session) erro
 // sandbox is the Sandbox object for a session: the infer image as a daemon
 // with its binding on the pod network, a workspace and a state volume, and
 // the authentication the entry chose.
-func (e *Executor) sandbox(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
+func (e *Environment) sandbox(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	podSpec := e.podSpec(name)
 	spec, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(&podSpec)
 	if err != nil {
@@ -370,7 +372,7 @@ func (e *Executor) sandbox(name string, session agentdomain.Session) (*k8sunstru
 		storage = defaultStorage
 	}
 	if _, err := k8sresource.ParseQuantity(storage); err != nil {
-		return nil, fmt.Errorf("invalid storage %q for executor %s: %w", storage, e.entry.Name, err)
+		return nil, fmt.Errorf("invalid storage %q for environment %s: %w", storage, e.entry.Name, err)
 	}
 	claim := func(volume string) map[string]any {
 		return map[string]any{
@@ -387,23 +389,23 @@ func (e *Executor) sandbox(name string, session agentdomain.Session) (*k8sunstru
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": e.entry.Namespace,
-			"labels":    map[string]any{labelExecutor: e.entry.Name, labelConversation: session.ConversationID},
+			"labels":    map[string]any{labelEnvironment: e.entry.Name, labelConversation: session.ConversationID},
 		},
 		"spec": map[string]any{
-			"podTemplate":          map[string]any{"metadata": map[string]any{"labels": map[string]any{labelExecutor: e.entry.Name}}, "spec": spec},
+			"podTemplate":          map[string]any{"metadata": map[string]any{"labels": map[string]any{labelEnvironment: e.entry.Name}}, "spec": spec},
 			"volumeClaimTemplates": []any{claim("workspace"), claim("state")},
 			"failedPodPolicy":      "Recreate",
 		},
 	}}, nil
 }
 
-func (e *Executor) podSpec(name string) corev1.PodSpec {
+func (e *Environment) podSpec(name string) corev1.PodSpec {
 	fsGroup := int64(1000)
 	env := []corev1.EnvVar{
 		{Name: "INFER_DAEMON_BINDING_ENABLED", Value: "true"},
 		{Name: "INFER_DAEMON_BINDING_HOST", Value: "0.0.0.0"},
 		{Name: "INFER_DAEMON_BINDING_PORT", Value: strconv.Itoa(bindingPort)},
-		{Name: "INFER_DAEMON_EXECUTOR", Value: e.entry.Name},
+		{Name: "INFER_DAEMON_ENVIRONMENT", Value: e.entry.Name},
 		{Name: "INFER_DAEMON_WORKSPACE_ROOT", Value: workspaceMount},
 		{Name: "INFER_DAEMON_IDLE_EXIT", Value: e.entry.EffectiveIdleTTL().String()},
 		{Name: EnvSandboxName, Value: name},
@@ -418,7 +420,7 @@ func (e *Executor) podSpec(name string) corev1.PodSpec {
 	volumes := []corev1.Volume{}
 	mounts := []corev1.VolumeMount{{Name: "workspace", MountPath: workspaceMount}, {Name: "state", MountPath: stateMount}}
 	switch e.entry.EffectiveAuth() {
-	case config.ExecutorAuthSPIFFE:
+	case config.EnvironmentAuthSPIFFE:
 		env = append(env,
 			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_MODE", Value: string(config.TLSModeSPIFFE)},
 			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_SPIFFE_TRUST_DOMAIN", Value: e.entry.SPIFFE.TrustDomain},

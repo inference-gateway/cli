@@ -1,8 +1,8 @@
 version: '3'
 
 vars:
-  CLUSTER: infer-executors
-  NAMESPACE: infer-executors
+  CLUSTER: infer-environments
+  NAMESPACE: infer-environments
   AGENT_SANDBOX_VERSION: v1.0.8
   SPIRE_VERSION: 1.15.5
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
@@ -15,7 +15,7 @@ env:
 
 tasks:
   cluster:create:
-    desc: Create the k3d cluster with ctlptl, install agent-sandbox and the executor namespace
+    desc: Create the k3d cluster with ctlptl, install agent-sandbox and the environment namespace
     cmds:
       - ctlptl apply -f Cluster.yaml
       - kubectl --context k3d-{{.CLUSTER}} apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
@@ -38,7 +38,7 @@ tasks:
     desc: Save what the k8s-desktop pod's screen shows to .home/desktop.png
     cmds:
       - |
-        POD=$(kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get pods -l inference-gateway.com/executor=k8s-desktop -o jsonpath='{.items[0].metadata.name}')
+        POD=$(kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get pods -l inference-gateway.com/environment=k8s-desktop -o jsonpath='{.items[0].metadata.name}')
         kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} exec $POD -- \
           ffmpeg -loglevel error -f x11grab -video_size 1280x800 -i :99 -frames:v 1 -f image2 -vcodec png - > {{.HOME_DIR}}/desktop.png
       - echo "saved {{.HOME_DIR}}/desktop.png"
@@ -97,13 +97,13 @@ tasks:
     cmds:
       - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) INFER_DAEMON_BINDING_TLS_SPIFFE_SOCKET=unix://{{.SPIRE_SOCKET}} {{.INFER}} daemon
 
-  executors:
-    desc: List the executors and their reachability
+  environments:
+    desc: List the environments and their reachability
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon executors
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon environments
 
   demo:
-    desc: Create a conversation, move it to the TARGET executor (default k8s-dev) and continue it there with PROMPT
+    desc: Create a conversation, move it to the TARGET environment (default k8s-dev) and continue it there with PROMPT
     vars:
       TARGET: '{{default "k8s-dev" .TARGET}}'
       PROMPT: '{{default "say hello again" .PROMPT}}'
@@ -111,7 +111,7 @@ tasks:
         sh: uuidgen | tr 'A-Z' 'a-z'
     cmds:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon executors
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon environments
       - HOME={{.HOME_DIR}} {{.INFER}} daemon transfer {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
       - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project
@@ -131,9 +131,9 @@ tasks:
       - |
         set -e
         spire() { kubectl --context k3d-{{.CLUSTER}} -n spire-server exec spire-server-0 -c spire-server -- spire-server "$@"; }
-        TOKEN=$(spire token generate -spiffeID spiffe://infer.local/executor/laptop | awk '{print $2}')
-        spire entry create -parentID spiffe://infer.local/executor/laptop \
-          -spiffeID spiffe://infer.local/executor/laptop/daemon -selector unix:uid:$(id -u) || true
+        TOKEN=$(spire token generate -spiffeID spiffe://infer.local/environment/laptop | awk '{print $2}')
+        spire entry create -parentID spiffe://infer.local/environment/laptop \
+          -spiffeID spiffe://infer.local/environment/laptop/daemon -selector unix:uid:$(id -u) || true
         spire bundle show > {{.HOME_DIR}}/spire/bundle.pem
         sed -e "s|DATA_DIR|{{.HOME_DIR}}/spire/data|g" -e "s|SOCKET_PATH|{{.SPIRE_SOCKET}}|g" \
           -e "s|BUNDLE_PATH|{{.HOME_DIR}}/spire/bundle.pem|g" -e "s|JOIN_TOKEN|$TOKEN|g" spire/agent.conf.tmpl > {{.HOME_DIR}}/spire/agent.conf

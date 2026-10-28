@@ -655,7 +655,7 @@ Three subcommands talk to the running daemon over its binding, so they need `dae
 in `~/.infer/daemon.yaml`:
 
 ```bash
-infer daemon executors                                            # every executor in daemon.yaml and whether it is reachable
+infer daemon environments                                            # every environment in daemon.yaml and whether it is reachable
 infer daemon transfer <conversation-id> --to k8s-dev              # move the session, printing each stage until ready
 infer daemon transfer <conversation-id> --to k8s-dev --file build/out.bin --transfer-id <uuid>
 infer daemon run <conversation-id> "continue please"              # one turn through the daemon, wherever the session runs
@@ -667,7 +667,7 @@ infer daemon run <conversation-id>                                # print the co
 - `--transfer-id` retries one transfer idempotently: a transfer that already succeeded answers `ready` at once.
 - `transfer` exits non-zero when the transfer fails, and the session stays where it was.
 
-See [Executors and transfers](daemon.md#executors-and-transfers) for the executors and the lease model.
+See [Environments and transfers](daemon.md#environments-and-transfers) for the environments and the lease model.
 
 ---
 

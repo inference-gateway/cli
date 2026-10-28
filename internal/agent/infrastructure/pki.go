@@ -25,7 +25,7 @@ const (
 )
 
 // PKI is the daemon-managed certificate authority: one CA per daemon that
-// issues server certificates for the executors it provisions and a client
+// issues server certificates for the environments it provisions and a client
 // certificate for itself, so a Kubernetes pod and the laptop authenticate
 // each other with mTLS and no external authority.
 type PKI struct {

@@ -23,7 +23,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	k8sexecutor "github.com/inference-gateway/cli/internal/agent/infrastructure/kubernetes"
+	k8senvironment "github.com/inference-gateway/cli/internal/agent/infrastructure/kubernetes"
 	agenttransfer "github.com/inference-gateway/cli/internal/agent/transfer"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
@@ -89,7 +89,7 @@ Examples:
 			return RunDaemonCommand(state.Config())
 		},
 	}
-	command.AddCommand(newExecutorsCommand(state), newTransferCommand(state), newRunCommand(state))
+	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state))
 	return command
 }
 
@@ -264,7 +264,7 @@ func threadsEnabled(cfg *config.Config) bool {
 
 // bindingHandler puts the binding's consumers behind its one handler. The
 // extension relay claims the browser frames, the transfer service the
-// executors and transfer frames, and the thread registry gets the rest.
+// environments and transfer frames, and the thread registry gets the rest.
 type bindingHandler struct {
 	relay     *browserinfra.ExtensionRelay
 	transfers *agenttransfer.Service
@@ -429,7 +429,7 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 
 // buildTransfers wires the transfer service: the lease store on the
 // configured storage, the daemon CA when a mode needs it, the TLS provider,
-// and one executor per daemon.yaml entry plus this daemon itself.
+// and one environment per daemon.yaml entry plus this daemon itself.
 func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLSProvider, error) {
 	identity := cfg.Daemon.Identity()
 	storageConfig := storage.NewStorageFromConfig(cfg)
@@ -445,16 +445,16 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 	}
 	tlsProvider := agentinfra.NewTLSProvider(identity, pki, cfg.Daemon.Binding.TLS.SPIFFE)
 	dial := agentinfra.PeerDialer{Me: identity, Handshake: browserinfra.BindingHandshake}
-	executors := []agentdomain.Executor{agentinfra.NewLocalExecutor(identity, map[string]string{
+	environments := []agentdomain.Environment{agentinfra.NewLocalEnvironment(identity, map[string]string{
 		agentinfra.AttrVersion: version.Value(), "storage": string(storageConfig.Type),
 	}, selfSuspend())}
-	for _, entry := range cfg.Daemon.Executors {
-		executor, err := buildExecutor(entry, identity, tlsProvider, pki, dial)
+	for _, entry := range cfg.Daemon.Environments {
+		environment, err := buildEnvironment(entry, identity, tlsProvider, pki, dial)
 		if err != nil {
 			return nil, nil, err
 		}
-		if executor != nil {
-			executors = append(executors, executor)
+		if environment != nil {
+			environments = append(environments, environment)
 		}
 	}
 	service := agenttransfer.New(agenttransfer.Config{
@@ -464,31 +464,31 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 		Version:       version.Value(),
 		StorageID:     storageIdentity(storageConfig),
 		Handshake:     browserinfra.BindingHandshake,
-		Entries:       cfg.Daemon.Executors,
+		Entries:       cfg.Daemon.Environments,
 		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
 	}, agenttransfer.Deps{
-		Leases:    stores.Leases,
-		Executors: executors,
-		Keyring:   tlsProvider.Keyring(),
-		Launch:    sessionsinfra.LaunchWorker,
+		Leases:       stores.Leases,
+		Environments: environments,
+		Keyring:      tlsProvider.Keyring(),
+		Launch:       sessionsinfra.LaunchWorker,
 	})
 	return service, tlsProvider, nil
 }
 
-func buildExecutor(entry config.ExecutorEntry, identity string, tlsProvider *agentinfra.TLSProvider, pki *agentinfra.PKI, dial agentinfra.PeerDialer) (agentdomain.Executor, error) {
+func buildEnvironment(entry config.EnvironmentEntry, identity string, tlsProvider *agentinfra.TLSProvider, pki *agentinfra.PKI, dial agentinfra.PeerDialer) (agentdomain.Environment, error) {
 	switch entry.Kind {
-	case config.ExecutorKindDaemon:
-		executor, err := agentinfra.NewDaemonExecutor(entry, tlsProvider, dial)
+	case config.EnvironmentKindDaemon:
+		environment, err := agentinfra.NewDaemonEnvironment(entry, tlsProvider, dial)
 		if err != nil {
-			return nil, fmt.Errorf("executor %s: %w", entry.Name, err)
+			return nil, fmt.Errorf("environment %s: %w", entry.Name, err)
 		}
-		return executor, nil
-	case config.ExecutorKindKubernetes:
-		executor, err := k8sexecutor.New(entry, identity, tlsProvider, pki)
+		return environment, nil
+	case config.EnvironmentKindKubernetes:
+		environment, err := k8senvironment.New(entry, identity, tlsProvider, pki)
 		if err != nil {
-			return nil, fmt.Errorf("executor %s: %w", entry.Name, err)
+			return nil, fmt.Errorf("environment %s: %w", entry.Name, err)
 		}
-		return executor, nil
+		return environment, nil
 	default:
 		return nil, nil
 	}
@@ -499,8 +499,8 @@ func needsPKI(cfg *config.Config) bool {
 	if cfg.Daemon.Binding.TLS.Mode == config.TLSModeCA {
 		return true
 	}
-	for _, entry := range cfg.Daemon.Executors {
-		if entry.Kind == config.ExecutorKindKubernetes && entry.EffectiveAuth() == config.ExecutorAuthCA {
+	for _, entry := range cfg.Daemon.Environments {
+		if entry.Kind == config.EnvironmentKindKubernetes && entry.EffectiveAuth() == config.EnvironmentAuthCA {
 			return true
 		}
 	}
@@ -509,11 +509,11 @@ func needsPKI(cfg *config.Config) bool {
 
 // selfSuspend is how a pod daemon parks its own Sandbox, nil outside one.
 func selfSuspend() func(ctx context.Context) error {
-	name, namespace := os.Getenv(k8sexecutor.EnvSandboxName), os.Getenv(k8sexecutor.EnvSandboxNamespace)
+	name, namespace := os.Getenv(k8senvironment.EnvSandboxName), os.Getenv(k8senvironment.EnvSandboxNamespace)
 	if name == "" || namespace == "" {
 		return nil
 	}
-	suspend, err := k8sexecutor.SelfSuspend(name, namespace)
+	suspend, err := k8senvironment.SelfSuspend(name, namespace)
 	if err != nil {
 		logger.Warn("this daemon cannot suspend its own Sandbox", "error", err)
 		return nil

@@ -1,4 +1,4 @@
-# Session transfer: move a daemon session to a Kubernetes executor
+# Session transfer: move a daemon session to a Kubernetes environment
 
 Move a running `infer daemon` session from your laptop to a Kubernetes sandbox and pick it up from any
 client. The worker process never moves: the daemon checkpoints the conversation and the project's git
@@ -10,12 +10,12 @@ The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declared i
 [ctlptl](https://github.com/tilt-dev/ctlptl), running the
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller, which gives every session
 a `Sandbox`: a stable pod with two persistent volumes (the workspace and the conversation store) that the
-pod daemon suspends when idle and the next transfer resumes. Two executors are configured: `k8s-dev`
+pod daemon suspends when idle and the next transfer resumes. Two environments are configured: `k8s-dev`
 authenticates the pod with mTLS from the daemon's own CA, `k8s-spiffe` with SPIFFE SVIDs issued by SPIRE
 inside the cluster and rotated by the SPIRE agents.
 
-Everything runs against the built-in mock model, so no API key is needed. See [infer daemon](../../docs/daemon.md#executors-and-transfers)
-for the executor model and the [Daemon Binding Protocol](../../docs/browser-extension-protocol.md#executors)
+Everything runs against the built-in mock model, so no API key is needed. See [infer daemon](../../docs/daemon.md#environments-and-transfers)
+for the environment model and the [Daemon Binding Protocol](../../docs/browser-extension-protocol.md#environments)
 for the wire frames.
 
 ## Prerequisites
@@ -30,11 +30,11 @@ for the wire frames.
 
 | File | Purpose |
 | --- | --- |
-| `Cluster.yaml` | The ctlptl cluster: k3d `infer-executors` with one agent node, pinned to k3s v1.37.1 |
-| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` (CA), `k8s-spiffe` (SPIFFE) and `k8s-desktop` executors |
+| `Cluster.yaml` | The ctlptl cluster: k3d `infer-environments` with one agent node, pinned to k3s v1.37.1 |
+| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` (CA), `k8s-spiffe` (SPIFFE) and `k8s-desktop` environments |
 | `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
 | `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
-| `k8s/namespace.yaml` | The `infer-executors` namespace, the `infer-executor` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
+| `k8s/namespace.yaml` | The `infer-environments` namespace, the `infer-environment` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
 | `k8s/spire-values.yaml` | Helm values for SPIRE: trust domain `infer.local`, join-token node attestation, the default SPIFFE ID per ServiceAccount |
 | `spire/agent.conf.tmpl` | The laptop `spire-agent` config, filled in by `task spire:agent` |
 | `Taskfile.yml` | Every step below |
@@ -42,10 +42,10 @@ for the wire frames.
 
 The tasks run the daemon under `.home/` as `HOME`, so your own `~/.infer` stays untouched.
 
-## Quick start: the daemon CA executor
+## Quick start: the daemon CA environment
 
 ```bash
-# 1. The cluster, the agent-sandbox controller and the executor namespace
+# 1. The cluster, the agent-sandbox controller and the environment namespace
 task cluster:create
 
 # 2. In its own shell: the laptop daemon (binding on 127.0.0.1:52789)
@@ -55,18 +55,18 @@ task daemon:start
 task demo
 ```
 
-The executors run the release candidate image `ghcr.io/inference-gateway/cli:0.239.0-rc.2`, which the pod
-pulls from GHCR. To run this checkout on the pod instead, set both executors' `image` in `daemon.yaml` to
+The environments run the release candidate image `ghcr.io/inference-gateway/cli:0.239.0-rc.2`, which the pod
+pulls from GHCR. To run this checkout on the pod instead, set both environments' `image` in `daemon.yaml` to
 `ghcr.io/inference-gateway/cli:local` and run `task image:import` before `task daemon:start`.
 
-`task demo` prints the executors first, then the transfer's stages, the Sandbox and its pod, and the
+`task demo` prints the environments first, then the transfer's stages, the Sandbox and its pod, and the
 reply of a turn that ran on the pod:
 
 ```text
 NAME         KIND        REACHABLE  DETAILS
 laptop       local       true       storage=jsonl version=v0.239.0-rc.2
 k8s-desktop  kubernetes  true       auth=ca image=infer-desktop:local ...
-k8s-dev      kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:0.239.0-rc.2 kubernetes=v1.37.1+k3s1 namespace=infer-executors sandboxes=0
+k8s-dev      kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:0.239.0-rc.2 kubernetes=v1.37.1+k3s1 namespace=infer-environments sandboxes=0
 k8s-spiffe   kubernetes  true       auth=spiffe ...
 provisioning
 checkpointing
@@ -80,7 +80,7 @@ Hello! How can I help?
 
 What each step proved:
 
-- `provisioning` created the `Sandbox` from the executor entry, a Secret with the pod's server certificate,
+- `provisioning` created the `Sandbox` from the environment entry, a Secret with the pod's server certificate,
   its client certificate and a binding token issued by the laptop daemon's CA (`.home/.infer/daemon/pki/`),
   waited for `Ready` and opened a port-forward to the pod's binding.
 - `checkpointing` stopped the laptop worker, exported the conversation through a worker in the project and
@@ -95,8 +95,8 @@ Look around:
 
 ```bash
 # The conversation and the workspace on the pod
-POD=$(kubectl -n infer-executors get pods -o jsonpath='{.items[0].metadata.name}')
-kubectl -n infer-executors exec $POD -- sh -c 'ls /workspace/project/*/ && ls /home/infer/.infer/projects/*/conversations'
+POD=$(kubectl -n infer-environments get pods -o jsonpath='{.items[0].metadata.name}')
+kubectl -n infer-environments exec $POD -- sh -c 'ls /workspace/project/*/ && ls /home/infer/.infer/projects/*/conversations'
 
 # A second transfer of the same session is refused: k8s-dev owns it now
 HOME=$PWD/.home ../../infer daemon transfer <conversation id> --to k8s-spiffe --project-dir $PWD/.home/project
@@ -107,16 +107,16 @@ HOME=$PWD/.home ../../infer daemon run <conversation id> "and again" --project-d
 ```
 
 After `idle_ttl` (30 minutes in `daemon.yaml`) with no client and no run, the pod daemon suspends its own
-Sandbox: `kubectl -n infer-executors get sandboxes` shows `Ready False` with reason `SandboxSuspended`, the
+Sandbox: `kubectl -n infer-environments get sandboxes` shows `Ready False` with reason `SandboxSuspended`, the
 pod is gone and the two volumes stay. The next `infer daemon run` or transfer sets the Sandbox back to
 `Running`, waits for the new pod and reattaches the volumes.
 
 ## SPIFFE: SVIDs from SPIRE instead of the daemon CA
 
-The `k8s-spiffe` executor authenticates both ends with SPIFFE X.509 SVIDs. The pod gets its SVID
-(`spiffe://infer.local/ns/infer-executors/sa/infer-executor`) from the SPIRE agent on its node through the
+The `k8s-spiffe` environment authenticates both ends with SPIFFE X.509 SVIDs. The pod gets its SVID
+(`spiffe://infer.local/ns/infer-environments/sa/infer-environment`) from the SPIRE agent on its node through the
 SPIFFE CSI driver, and the laptop daemon gets its own
-(`spiffe://infer.local/executor/laptop/daemon`) from a `spire-agent` running on the laptop, attested to the
+(`spiffe://infer.local/environment/laptop/daemon`) from a `spire-agent` running on the laptop, attested to the
 in-cluster SPIRE server with a join token. SPIRE rotates both.
 
 ```bash
@@ -130,7 +130,7 @@ task spire:agent
 # 3. Restart the laptop daemon with the agent's Workload API socket
 task daemon:start:spiffe
 
-# 4. Move a fresh conversation to the SPIFFE executor
+# 4. Move a fresh conversation to the SPIFFE environment
 task demo TARGET=k8s-spiffe
 ```
 
@@ -140,11 +140,11 @@ the daemon included, may fetch the laptop's SVID. The agent's Workload API socke
 easily exceeds that. The pod daemon trusts any member of `infer.local`, and
 the laptop daemon trusts only the pod's SPIFFE ID, both set in `daemon.yaml`.
 
-## A computer of its own: the desktop executor
+## A computer of its own: the desktop environment
 
-The `k8s-desktop` executor gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
+The `k8s-desktop` environment gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
 Chromium and ffmpeg to the release candidate image, and its entrypoint starts display `:99` with Chromium on it
-before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the executor's `env` registers the `Computer` tool for the
+before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the environment's `env` registers the `Computer` tool for the
 pod's workers, so after the transfer the agent drives the pod's screen, never your laptop's.
 
 ```bash
@@ -175,7 +175,7 @@ everything it placed in `~/.infer/artifacts` or `~/.infer/projects/<project>/art
 uploaded to the `infer-artifacts` bucket under the session id.
 
 ```bash
-# 1. RustFS in the executor namespace (S3 API on rustfs:9000, console on rustfs:9001)
+# 1. RustFS in the environment namespace (S3 API on rustfs:9000, console on rustfs:9001)
 task artifacts:install
 
 # 2. A conversation on the desktop: the agent browses and records its screen while it does
@@ -198,10 +198,10 @@ Sandbox is suspended or deleted.
 The upload is a `post_session` [command hook](../../docs/hooks.md) baked into the desktop image
 (`desktop/hooks.yaml`). It runs `desktop/upload-artifacts` after every finished run, which reads the session
 id from the hook's stdin and mirrors both artifact directories to `infer-artifacts/<session id>/` with the
-MinIO client. The executor's `env` points recordings at
+MinIO client. The environment's `env` points recordings at
 `~/.infer/artifacts`, allow-lists the hook with `INFER_TOOLS_BASH_ALLOW_APPEND`, and carries the endpoint,
 bucket and credentials. A pod without `ARTIFACTS_ENDPOINT` skips the upload. The demo credentials sit in
-`daemon.yaml` in plain text. Put real ones under the executor's `forward_env` instead, so they travel
+`daemon.yaml` in plain text. Put real ones under the environment's `forward_env` instead, so they travel
 sealed with the session and never land in the Sandbox spec.
 
 ## Switching the pod to a real model
@@ -209,8 +209,8 @@ sealed with the session and never land in the Sandbox spec.
 The image sets `INFER_GATEWAY_URL=http://inference-gateway:8080`, so a pod reaches a gateway Service of
 that name in its namespace. Deploy one (the [kubernetes example](../kubernetes/) uses the operator for
 this) with your provider keys in a Secret, drop `INFER_GATEWAY_MOCK` and set `INFER_AGENT_MODEL` in the
-executor's `env`. Provider and MCP credentials the laptop's workers use can travel with the session instead:
-list them under the executor's `forward_env`, and a transfer seals them to the pod's certificate for its
+environment's `env`. Provider and MCP credentials the laptop's workers use can travel with the session instead:
+list them under the environment's `forward_env`, and a transfer seals them to the pod's certificate for its
 workers. They never land in a Kubernetes object.
 
 ## Cleanup
@@ -228,8 +228,8 @@ task cleanup
 | `k8s-desktop` pod `ErrImageNeverPull` or `ImagePullBackOff` | Run `task desktop:image`, it imports `infer-desktop:local` into the cluster |
 | `desktop:screenshot` fails with `array index out of bounds` | No session lives on `k8s-desktop` yet. Run `task demo TARGET=k8s-desktop` first |
 | `artifacts:list` says the bucket does not exist | No run finished on `k8s-desktop` since `task artifacts:install`. The first run creates it |
-| `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-executors describe sandbox` and the pod's logs |
-| `session ... is owned by executor` | The session already moved. Continue it with `infer daemon run`, or `stop_thread` it to delete the Sandbox |
+| `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-environments describe sandbox` and the pod's logs |
+| `session ... is owned by environment` | The session already moved. Continue it with `infer daemon run`, or `stop_thread` it to delete the Sandbox |
 | `restoring` fails with `does not apply cleanly` | The project changed after the transfer started. Retry |
 | `checkpointing` fails with `not a git checkout with a commit` | A transfer bundles `HEAD`, so the project needs at least one commit |
 | The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer daemon run` opens a new one |
@@ -237,7 +237,7 @@ task cleanup
 | SPIFFE: the pod stays `ContainerCreating` | The CSI driver and SPIRE agent must run on the node: `kubectl get pods -n spire-system` |
 
 Two things to know. The lease a relaying daemon keeps for a remote owner lapses after `lease_ttl` (the
-executor's `idle_ttl` plus five minutes by default): a laptop that cannot reach the pod after that may
+environment's `idle_ttl` plus five minutes by default): a laptop that cannot reach the pod after that may
 reclaim the session locally, with the conversation as of the last checkpoint. And a panel request such as
 `list_conversations` from another client in the same project dir may be routed to the relay and answer from
 the pod's store.

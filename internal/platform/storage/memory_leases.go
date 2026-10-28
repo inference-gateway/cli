@@ -24,11 +24,11 @@ func (m *MemoryStorage) ClaimLease(_ context.Context, lease agentdomain.Lease) (
 	return lease, true, nil
 }
 
-func (m *MemoryStorage) RenewLease(_ context.Context, conversationID, executor string, until time.Time) error {
+func (m *MemoryStorage) RenewLease(_ context.Context, conversationID, environment string, until time.Time) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	current, ok := m.leases[conversationID]
-	if !ok || current.Executor != executor {
+	if !ok || current.Environment != environment {
 		return agentdomain.ErrLeaseLost
 	}
 	current.Until = until
@@ -36,10 +36,10 @@ func (m *MemoryStorage) RenewLease(_ context.Context, conversationID, executor s
 	return nil
 }
 
-func (m *MemoryStorage) ReleaseLease(_ context.Context, conversationID, executor string) error {
+func (m *MemoryStorage) ReleaseLease(_ context.Context, conversationID, environment string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	if current, ok := m.leases[conversationID]; ok && current.Executor == executor {
+	if current, ok := m.leases[conversationID]; ok && current.Environment == environment {
 		delete(m.leases, conversationID)
 	}
 	return nil

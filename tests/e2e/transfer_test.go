@@ -84,22 +84,22 @@ func gitProject(t *testing.T) string {
 	return dir
 }
 
-// peers starts daemon A, which registers daemon B as an executor of kind
-// daemon, and daemon B, which serves its binding over TLS as executor "b".
+// peers starts daemon A, which registers daemon B as an environment of kind
+// daemon, and daemon B, which serves its binding over TLS as environment "b".
 func peers(t *testing.T) (a, b *daemonProc, workspaceRoot string) {
 	t.Helper()
 	homeA, homeB := t.TempDir(), t.TempDir()
 	certFile, keyFile, caFile, clientTLS := peerCA(t, homeB)
 	workspaceRoot = filepath.Join(homeB, "workspaces")
 	b = startDaemonWithTLS(t, homeB, clientTLS,
-		"INFER_DAEMON_EXECUTOR=b",
+		"INFER_DAEMON_ENVIRONMENT=b",
 		"INFER_DAEMON_WORKSPACE_ROOT="+workspaceRoot,
 		"INFER_DAEMON_BINDING_TLS_MODE=files",
 		"INFER_DAEMON_BINDING_TLS_CERT_FILE="+certFile,
 		"INFER_DAEMON_BINDING_TLS_KEY_FILE="+keyFile,
 	)
-	daemonYAML := fmt.Sprintf(`executor: a
-executors:
+	daemonYAML := fmt.Sprintf(`environment: a
+environments:
   - name: b
     kind: daemon
     address: 127.0.0.1:%d
@@ -151,7 +151,7 @@ func TestTransferMovesASessionToAnotherDaemon(t *testing.T) {
 	stages := transfer(desktop, project, threadID, "b", transferID)
 	require.Equal(t, []string{"provisioning", "checkpointing", "restoring", "ready"}, stages, "daemon A output:\n%s\ndaemon B output:\n%s", a.output, b.output)
 	moved := desktop.next("session_moved")
-	require.Equal(t, "b", moved["executor"])
+	require.Equal(t, "b", moved["environment"])
 	workspace, _ := moved["workspace"].(string)
 	require.True(t, filepath.HasPrefix(workspace, workspaceRoot), "workspace %q is not under %q", workspace, workspaceRoot)
 	require.FileExists(t, filepath.Join(workspace, "notes.txt"), "the uncommitted file must travel with the workspace")
@@ -192,12 +192,12 @@ func TestTransferFailuresLeaveTheSessionAtHome(t *testing.T) {
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "the session must still run at home: %v", events)
 }
 
-func TestListExecutorsReportsReachability(t *testing.T) {
+func TestListEnvironmentsReportsReachability(t *testing.T) {
 	home := t.TempDir()
 	deadPort := freePort(t)
 	_, _, caFile, _ := peerCA(t, home)
-	daemonYAML := fmt.Sprintf(`executor: a
-executors:
+	daemonYAML := fmt.Sprintf(`environment: a
+environments:
   - name: ghost
     kind: daemon
     address: 127.0.0.1:%d
@@ -210,14 +210,14 @@ executors:
 	d := startDaemon(t, home)
 	client := dialDaemon(t, d, "desktop")
 
-	client.send(map[string]any{"type": "list_executors"})
-	executors, _ := client.next("executors")["executors"].([]any)
-	require.Len(t, executors, 2, "daemon output:\n%s", d.output)
-	local := executors[0].(map[string]any)
+	client.send(map[string]any{"type": "list_environments"})
+	environments, _ := client.next("environments")["environments"].([]any)
+	require.Len(t, environments, 2, "daemon output:\n%s", d.output)
+	local := environments[0].(map[string]any)
 	require.Equal(t, "a", local["name"])
 	require.Equal(t, true, local["reachable"])
-	ghost := executors[1].(map[string]any)
+	ghost := environments[1].(map[string]any)
 	require.Equal(t, "ghost", ghost["name"])
 	require.Equal(t, false, ghost["reachable"])
-	require.NotEmpty(t, ghost["error"], "an unreachable executor is reported, not hidden")
+	require.NotEmpty(t, ghost["error"], "an unreachable environment is reported, not hidden")
 }

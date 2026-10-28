@@ -23,7 +23,7 @@ type sealedEnv struct {
 }
 
 // SealEnv encrypts the forwarded environment to the public key of the peer's
-// leaf certificate with HPKE, so only the executor that presented that
+// leaf certificate with HPKE, so only the environment that presented that
 // certificate reads it. Keys that are not P-256 cannot seal.
 func SealEnv(peer *x509.Certificate, env map[string]string, transferID string) ([]byte, error) {
 	if len(env) == 0 {

@@ -94,7 +94,7 @@ func (s *JsonlStorage) ClaimLease(_ context.Context, lease agentdomain.Lease) (a
 	return lease, true, s.saveLeasesLocked(leases)
 }
 
-func (s *JsonlStorage) RenewLease(_ context.Context, conversationID, executor string, until time.Time) error {
+func (s *JsonlStorage) RenewLease(_ context.Context, conversationID, environment string, until time.Time) error {
 	s.leasesMu.Lock()
 	defer s.leasesMu.Unlock()
 	leases, err := s.loadLeasesLocked()
@@ -102,7 +102,7 @@ func (s *JsonlStorage) RenewLease(_ context.Context, conversationID, executor st
 		return err
 	}
 	current, ok := leases[conversationID]
-	if !ok || current.Executor != executor {
+	if !ok || current.Environment != environment {
 		return agentdomain.ErrLeaseLost
 	}
 	current.Until = until
@@ -110,7 +110,7 @@ func (s *JsonlStorage) RenewLease(_ context.Context, conversationID, executor st
 	return s.saveLeasesLocked(leases)
 }
 
-func (s *JsonlStorage) ReleaseLease(_ context.Context, conversationID, executor string) error {
+func (s *JsonlStorage) ReleaseLease(_ context.Context, conversationID, environment string) error {
 	s.leasesMu.Lock()
 	defer s.leasesMu.Unlock()
 	leases, err := s.loadLeasesLocked()
@@ -118,7 +118,7 @@ func (s *JsonlStorage) ReleaseLease(_ context.Context, conversationID, executor 
 		return err
 	}
 	current, ok := leases[conversationID]
-	if !ok || current.Executor != executor {
+	if !ok || current.Environment != environment {
 		return nil
 	}
 	delete(leases, conversationID)

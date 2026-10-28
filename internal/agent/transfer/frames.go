@@ -6,20 +6,20 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// The frames of the executors and transfers vocabulary. Clients send the
+// The frames of the environments and transfers vocabulary. Clients send the
 // first group to their daemon, peers exchange the second over a daemon
 // connection, and the third goes back to clients.
 const (
-	frameListExecutors   = "list_executors"
-	frameTransferSession = "transfer_session"
-	frameTransferCancel  = "transfer_cancel"
+	frameListEnvironments = "list_environments"
+	frameTransferSession  = "transfer_session"
+	frameTransferCancel   = "transfer_cancel"
 
 	frameTransferChunk    = "transfer_chunk"
 	frameTransferImport   = "transfer_import"
 	frameTransferImported = "transfer_imported"
 	frameTransferAbort    = "transfer_abort"
 
-	frameExecutors        = "executors"
+	frameEnvironments     = "environments"
 	frameTransferProgress = "transfer_progress"
 	frameSessionMoved     = "session_moved"
 
@@ -42,9 +42,9 @@ type clientFrame struct {
 	Files      []string `json:"files"`
 }
 
-type executorsFrame struct {
-	Type      string                       `json:"type"`
-	Executors []agentdomain.ExecutorStatus `json:"executors"`
+type environmentsFrame struct {
+	Type         string                          `json:"type"`
+	Environments []agentdomain.EnvironmentStatus `json:"environments"`
 }
 
 type progressFrame struct {
@@ -66,13 +66,13 @@ type chunkFrame struct {
 }
 
 // importFrame closes a chunked checkpoint: how many chunks, their digest, and
-// which executor the sender believes it is talking to.
+// which environment the sender believes it is talking to.
 type importFrame struct {
-	Type       string `json:"type"`
-	TransferID string `json:"transfer_id"`
-	Executor   string `json:"executor"`
-	Chunks     int    `json:"chunks"`
-	SHA256     string `json:"sha256"`
+	Type        string `json:"type"`
+	TransferID  string `json:"transfer_id"`
+	Environment string `json:"environment"`
+	Chunks      int    `json:"chunks"`
+	SHA256      string `json:"sha256"`
 }
 
 type importedFrame struct {

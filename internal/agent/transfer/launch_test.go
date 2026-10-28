@@ -46,23 +46,23 @@ func (l *launcher) count() int {
 	return len(l.keys)
 }
 
-func fakeExecutor(name string, kind agentdomain.ExecutorKind) *agentdomainmocks.FakeExecutor {
-	e := &agentdomainmocks.FakeExecutor{}
+func fakeEnvironment(name string, kind agentdomain.EnvironmentKind) *agentdomainmocks.FakeEnvironment {
+	e := &agentdomainmocks.FakeEnvironment{}
 	e.NameReturns(name)
 	e.KindReturns(kind)
 	return e
 }
 
-func newService(t *testing.T, l *launcher, executors ...agentdomain.Executor) (*Service, *storage.MemoryStorage) {
+func newService(t *testing.T, l *launcher, environments ...agentdomain.Environment) (*Service, *storage.MemoryStorage) {
 	t.Helper()
 	store := storage.NewMemoryStorage()
-	entries := []config.ExecutorEntry{}
-	for _, e := range executors {
-		if e.Kind() != agentdomain.ExecutorKindLocal {
-			entries = append(entries, config.ExecutorEntry{Name: e.Name(), Kind: config.ExecutorKind(e.Kind()), Address: "peer:1", TLS: config.PeerTLSConfig{CAFile: "ca"}})
+	entries := []config.EnvironmentEntry{}
+	for _, e := range environments {
+		if e.Kind() != agentdomain.EnvironmentKindLocal {
+			entries = append(entries, config.EnvironmentEntry{Name: e.Name(), Kind: config.EnvironmentKind(e.Kind()), Address: "peer:1", TLS: config.PeerTLSConfig{CAFile: "ca"}})
 		}
 	}
-	s := New(Config{Identity: "laptop", WorkspaceRoot: t.TempDir(), Entries: entries}, Deps{Leases: store, Executors: executors, Launch: l.launch})
+	s := New(Config{Identity: "laptop", WorkspaceRoot: t.TempDir(), Entries: entries}, Deps{Leases: store, Environments: environments, Launch: l.launch})
 	return s, store
 }
 
@@ -161,7 +161,7 @@ func TestLaunchClaimsTheSessionAndRunsLocally(t *testing.T) {
 		t.Fatalf("launched %+v with %+v", l.keys[0], l.opts[0])
 	}
 	lease, found, _ := store.GetLease(context.Background(), "conv-1")
-	if !found || lease.Executor != "laptop" || lease.Workspace != "/proj" {
+	if !found || lease.Environment != "laptop" || lease.Workspace != "/proj" {
 		t.Fatalf("lease = %+v, %v", lease, found)
 	}
 	l.lines[0] <- []byte(`{"type":"RUN_STARTED"}`)
@@ -173,36 +173,36 @@ func TestLaunchClaimsTheSessionAndRunsLocally(t *testing.T) {
 
 func TestLaunchRefusesAForeignLiveLeaseItCannotReach(t *testing.T) {
 	l := &launcher{}
-	k8s := fakeExecutor("k8s", agentdomain.ExecutorKindKubernetes)
+	k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
 	k8s.EnsureReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
 	s, store := newService(t, l, k8s)
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Executor: "k8s", Workspace: "/w", Until: time.Now().Add(time.Hour)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Workspace: "/w", Until: time.Now().Add(time.Hour)})
 
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	got := firstLine(t, w)
-	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "owned by executor k8s") || !strings.Contains(got, "cluster down") {
+	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "owned by environment k8s") || !strings.Contains(got, "cluster down") {
 		t.Fatalf("got %q", got)
 	}
 	if l.count() != 0 {
-		t.Fatal("a process worker was launched for a session another executor owns")
+		t.Fatal("a process worker was launched for a session another environment owns")
 	}
 	lease, _, _ := store.GetLease(context.Background(), "conv-1")
-	if lease.Executor != "k8s" {
+	if lease.Environment != "k8s" {
 		t.Fatalf("the lease changed hands: %+v", lease)
 	}
 }
 
-func TestLaunchReclaimsALapsedLeaseOfAnUnreachableExecutor(t *testing.T) {
+func TestLaunchReclaimsALapsedLeaseOfAnUnreachableEnvironment(t *testing.T) {
 	l := &launcher{}
-	k8s := fakeExecutor("k8s", agentdomain.ExecutorKindKubernetes)
+	k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
 	k8s.EnsureReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
 	s, store := newService(t, l, k8s)
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Executor: "k8s", Until: time.Now().Add(-time.Minute)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Until: time.Now().Add(-time.Minute)})
 
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	eventually(t, "the session to be reclaimed", func() bool { return l.count() == 1 })
 	lease, _, _ := store.GetLease(context.Background(), "conv-1")
-	if lease.Executor != "laptop" {
+	if lease.Environment != "laptop" {
 		t.Fatalf("lease = %+v", lease)
 	}
 	w.Stop()
@@ -211,7 +211,7 @@ func TestLaunchReclaimsALapsedLeaseOfAnUnreachableExecutor(t *testing.T) {
 func TestLaunchRefusesAnUnknownOwner(t *testing.T) {
 	l := &launcher{}
 	s, store := newService(t, l)
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Executor: "ghost", Until: time.Now().Add(time.Hour)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "ghost", Until: time.Now().Add(time.Hour)})
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	if got := firstLine(t, w); !strings.Contains(got, "not registered") {
 		t.Fatalf("got %q", got)

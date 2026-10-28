@@ -1,11 +1,11 @@
-executor: laptop
-executors:
+environment: laptop
+environments:
   - name: laptop
     kind: local
   - name: k8s-dev
     kind: kubernetes
-    context: k3d-infer-executors
-    namespace: infer-executors
+    context: k3d-infer-environments
+    namespace: infer-environments
     image: ghcr.io/inference-gateway/cli:0.239.0-rc.2
     storage: 1Gi
     idle_ttl: 30m
@@ -15,22 +15,22 @@ executors:
       INFER_AGENT_MODEL: mock/openai/gpt-4o
   - name: k8s-spiffe
     kind: kubernetes
-    context: k3d-infer-executors
-    namespace: infer-executors
+    context: k3d-infer-environments
+    namespace: infer-environments
     image: ghcr.io/inference-gateway/cli:0.239.0-rc.2
     storage: 1Gi
     idle_ttl: 30m
     auth: spiffe
     spiffe:
       trust_domain: infer.local
-      server_id: spiffe://infer.local/ns/infer-executors/sa/infer-executor
+      server_id: spiffe://infer.local/ns/infer-environments/sa/infer-environment
     env:
       INFER_GATEWAY_MOCK: "true"
       INFER_AGENT_MODEL: mock/openai/gpt-4o
   - name: k8s-desktop
     kind: kubernetes
-    context: k3d-infer-executors
-    namespace: infer-executors
+    context: k3d-infer-environments
+    namespace: infer-environments
     image: infer-desktop:local
     storage: 1Gi
     idle_ttl: 30m

@@ -113,7 +113,7 @@ func TestBindingServesTLSAndTheDialerReadsTheAck(t *testing.T) {
 		Host:      "127.0.0.1",
 		Token:     "test-token",
 		TLS:       ca.serverConfig(t, tls.NoClientCert),
-		AckAttrs:  map[string]any{"executor": "workstation", "storage_id": "abc"},
+		AckAttrs:  map[string]any{"environment": "workstation", "storage_id": "abc"},
 		Handshake: testHandshake,
 	})
 
@@ -121,8 +121,8 @@ func TestBindingServesTLSAndTheDialerReadsTheAck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial over TLS: %v", err)
 	}
-	if got := conn.AckAttr("executor"); got != "workstation" {
-		t.Fatalf("executor ack attr = %q, want workstation", got)
+	if got := conn.AckAttr("environment"); got != "workstation" {
+		t.Fatalf("environment ack attr = %q, want workstation", got)
 	}
 	if got := conn.AckAttr("storage_id"); got != "abc" {
 		t.Fatalf("storage_id ack attr = %q, want abc", got)

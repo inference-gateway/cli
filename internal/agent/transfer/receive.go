@@ -96,8 +96,8 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 		reply("", err)
 		return
 	}
-	if f.Executor != s.me {
-		reply("", fmt.Errorf("this daemon is executor %q, not %q", s.me, f.Executor))
+	if f.Environment != s.me {
+		reply("", fmt.Errorf("this daemon is environment %q, not %q", s.me, f.Environment))
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
@@ -156,7 +156,7 @@ func (s *Service) install(ctx context.Context, transferID string, checkpoint age
 		}
 		s.remember(session.ConversationID, env)
 	}
-	lease := agentdomain.Lease{ConversationID: session.ConversationID, Executor: s.me, Workspace: workspace, TransferID: transferID, Until: time.Now().Add(s.ownedTTL())}
+	lease := agentdomain.Lease{ConversationID: session.ConversationID, Environment: s.me, Workspace: workspace, TransferID: transferID, Until: time.Now().Add(s.ownedTTL())}
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err != nil {
 		_ = os.RemoveAll(workspace)
@@ -164,7 +164,7 @@ func (s *Service) install(ctx context.Context, transferID string, checkpoint age
 	}
 	if !ok {
 		_ = os.RemoveAll(workspace)
-		return "", fmt.Errorf("the session is owned by executor %s", holder.Executor)
+		return "", fmt.Errorf("the session is owned by environment %s", holder.Environment)
 	}
 	s.mu.Lock()
 	s.installed[transferID] = lease

@@ -81,30 +81,30 @@ func TestBindingAddr(t *testing.T) {
 }
 
 func TestDaemonConfigValidate(t *testing.T) {
-	kubernetes := ExecutorEntry{Name: "k8s", Kind: ExecutorKindKubernetes, Namespace: "infer", Image: "infer:local"}
-	daemon := ExecutorEntry{Name: "ws", Kind: ExecutorKindDaemon, Address: "ws.lan:52789", TLS: PeerTLSConfig{CAFile: "ca.crt"}}
+	kubernetes := EnvironmentEntry{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "infer", Image: "infer:local"}
+	daemon := EnvironmentEntry{Name: "ws", Kind: EnvironmentKindDaemon, Address: "ws.lan:52789", TLS: PeerTLSConfig{CAFile: "ca.crt"}}
 	tests := []struct {
 		name    string
 		cfg     DaemonConfig
 		wantErr string
 	}{
 		{"defaults", *DefaultDaemonConfig(), ""},
-		{"valid executors", DaemonConfig{Executor: "laptop", Executors: []ExecutorEntry{{Name: "laptop", Kind: ExecutorKindLocal}, kubernetes, daemon}}, ""},
+		{"valid environments", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "laptop", Kind: EnvironmentKindLocal}, kubernetes, daemon}}, ""},
 		{"unknown tls mode", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: "pem"}}}, "binding.tls.mode"},
 		{"files mode needs files", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeFiles}}}, "cert_file and key_file"},
 		{"spiffe mode needs a trust domain", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeSPIFFE}}}, "trust_domain"},
 		{"remote host needs tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0"}}, "must not be off"},
 		{"remote host with tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0", TLS: BindingTLSConfig{Mode: TLSModeCA}}}, ""},
-		{"duplicate names", DaemonConfig{Executors: []ExecutorEntry{kubernetes, kubernetes}}, "twice"},
-		{"nameless", DaemonConfig{Executors: []ExecutorEntry{{Kind: ExecutorKindDaemon}}}, "needs a name"},
-		{"unknown kind", DaemonConfig{Executors: []ExecutorEntry{{Name: "x", Kind: "vm"}}}, "invalid kind"},
-		{"two locals", DaemonConfig{Executors: []ExecutorEntry{{Name: "a", Kind: ExecutorKindLocal}, {Name: "b", Kind: ExecutorKindLocal}}}, "only one executor"},
-		{"local named after the identity", DaemonConfig{Executor: "laptop", Executors: []ExecutorEntry{{Name: "other", Kind: ExecutorKindLocal}}}, "named after daemon.executor"},
-		{"daemon kind needs an address", DaemonConfig{Executors: []ExecutorEntry{{Name: "ws", Kind: ExecutorKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
-		{"daemon kind needs tls", DaemonConfig{Executors: []ExecutorEntry{{Name: "ws", Kind: ExecutorKindDaemon, Address: "a:1"}}}, "require TLS"},
-		{"kubernetes needs namespace and image", DaemonConfig{Executors: []ExecutorEntry{{Name: "k8s", Kind: ExecutorKindKubernetes}}}, "namespace and an image"},
-		{"kubernetes spiffe needs a trust domain", DaemonConfig{Executors: []ExecutorEntry{{Name: "k8s", Kind: ExecutorKindKubernetes, Namespace: "n", Image: "i", Auth: ExecutorAuthSPIFFE}}}, "spiffe.trust_domain"},
-		{"kubernetes unknown auth", DaemonConfig{Executors: []ExecutorEntry{{Name: "k8s", Kind: ExecutorKindKubernetes, Namespace: "n", Image: "i", Auth: "token"}}}, "invalid auth"},
+		{"duplicate names", DaemonConfig{Environments: []EnvironmentEntry{kubernetes, kubernetes}}, "twice"},
+		{"nameless", DaemonConfig{Environments: []EnvironmentEntry{{Kind: EnvironmentKindDaemon}}}, "needs a name"},
+		{"unknown kind", DaemonConfig{Environments: []EnvironmentEntry{{Name: "x", Kind: "vm"}}}, "invalid kind"},
+		{"two locals", DaemonConfig{Environments: []EnvironmentEntry{{Name: "a", Kind: EnvironmentKindLocal}, {Name: "b", Kind: EnvironmentKindLocal}}}, "only one environment"},
+		{"local named after the identity", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "other", Kind: EnvironmentKindLocal}}}, "named after daemon.environment"},
+		{"daemon kind needs an address", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
+		{"daemon kind needs tls", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, "require TLS"},
+		{"kubernetes needs namespace and image", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes}}}, "namespace and an image"},
+		{"kubernetes spiffe needs a trust domain", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "n", Image: "i", Auth: EnvironmentAuthSPIFFE}}}, "spiffe.trust_domain"},
+		{"kubernetes unknown auth", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "n", Image: "i", Auth: "token"}}}, "invalid auth"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,17 +123,17 @@ func TestDaemonConfigValidate(t *testing.T) {
 }
 
 func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
-	if got := (DaemonConfig{Executor: "laptop"}).Identity(); got != "laptop" {
+	if got := (DaemonConfig{Environment: "laptop"}).Identity(); got != "laptop" {
 		t.Fatalf("Identity() = %q, want laptop", got)
 	}
-	if got := (DaemonConfig{Executors: []ExecutorEntry{{Name: "desk", Kind: ExecutorKindLocal}}}).Identity(); got != "desk" {
+	if got := (DaemonConfig{Environments: []EnvironmentEntry{{Name: "desk", Kind: EnvironmentKindLocal}}}).Identity(); got != "desk" {
 		t.Fatalf("Identity() = %q, want the local entry's name", got)
 	}
 	if got := (DaemonConfig{}).Identity(); got == "" {
 		t.Fatal("Identity() falls back to the hostname, never empty")
 	}
 
-	k8s := ExecutorEntry{Kind: ExecutorKindKubernetes}
+	k8s := EnvironmentEntry{Kind: EnvironmentKindKubernetes}
 	if got := k8s.EffectiveLeaseTTL(); got != 2*time.Hour+5*time.Minute {
 		t.Fatalf("kubernetes lease ttl = %v", got)
 	}
@@ -141,13 +141,13 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	if got := k8s.EffectiveLeaseTTL(); got != time.Hour+5*time.Minute {
 		t.Fatalf("kubernetes lease ttl follows idle ttl: %v", got)
 	}
-	if got := (ExecutorEntry{Kind: ExecutorKindDaemon}).EffectiveLeaseTTL(); got != 24*time.Hour {
+	if got := (EnvironmentEntry{Kind: EnvironmentKindDaemon}).EffectiveLeaseTTL(); got != 24*time.Hour {
 		t.Fatalf("daemon lease ttl = %v", got)
 	}
-	if got := (ExecutorEntry{Kind: ExecutorKindDaemon, LeaseTTL: time.Minute}).EffectiveLeaseTTL(); got != time.Minute {
+	if got := (EnvironmentEntry{Kind: EnvironmentKindDaemon, LeaseTTL: time.Minute}).EffectiveLeaseTTL(); got != time.Minute {
 		t.Fatalf("configured lease ttl wins: %v", got)
 	}
-	if got := k8s.EffectiveAuth(); got != ExecutorAuthCA {
+	if got := k8s.EffectiveAuth(); got != EnvironmentAuthCA {
 		t.Fatalf("default auth = %q", got)
 	}
 }
