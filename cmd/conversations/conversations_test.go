@@ -3,6 +3,8 @@ package conversations
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -650,6 +652,72 @@ func TestWindowConversationEntries(t *testing.T) {
 	got, start, total := windowConversationEntries(short, false, true)
 	if len(got) != 5 || start != 1 || total != 5 {
 		t.Errorf("short session with append: start/count/total = %d/%d/%d, want 1/5/5", start, len(got), total)
+	}
+}
+
+// showConversation pipelines hidden-filter, grep, then window. With --grep the
+// window must therefore skip the first 10 of the grep RESULTS - not of the raw
+// session - so a paged read of matches starts where the matches do.
+func TestShowPipelineWindowsAfterGrep(t *testing.T) {
+	raw := make([]convdomain.ConversationEntry, 25)
+	for i := range raw {
+		text := fmt.Sprintf("entry-%02d just filler text", i)
+		if i%2 == 0 {
+			text = fmt.Sprintf("entry-%02d mentions the marker", i)
+		}
+		raw[i] = convdomain.ConversationEntry{
+			Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(text)},
+		}
+	}
+
+	wantAll := []int{0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24}
+	sessionIndexes := func(entries []convdomain.ConversationEntry) []int {
+		indexes := make([]int, 0, len(entries))
+		for _, e := range entries {
+			text := formatting.ExtractTextFromContent(e.Message.Content, e.Images)
+			label := strings.Fields(text)[0]
+			i, err := strconv.Atoi(strings.TrimPrefix(label, "entry-"))
+			if err != nil {
+				t.Fatalf("unexpected entry text %q", text)
+			}
+			indexes = append(indexes, i)
+		}
+		return indexes
+	}
+
+	matches := grepConversationEntries(filterConversationEntries(raw, false), "marker")
+	if len(matches) != 13 {
+		t.Fatalf("expected 13 matches out of 25 entries, got %d", len(matches))
+	}
+
+	head, start, total := windowConversationEntries(matches, false, false)
+	if start != 1 || total != 13 {
+		t.Errorf("head window: start/total = %d/%d, want 1/13", start, total)
+	}
+	if got := sessionIndexes(head); !slices.Equal(got, wantAll[:10]) {
+		t.Errorf("head window picked %v, want the first 10 matches %v", got, wantAll[:10])
+	}
+
+	rest, start, total := windowConversationEntries(matches, false, true)
+	if start != defaultShowEntries+1 || total != 13 {
+		t.Errorf("append window: start/total = %d/%d, want %d/13", start, total, defaultShowEntries+1)
+	}
+	if got := sessionIndexes(rest); !slices.Equal(got, wantAll[10:]) {
+		t.Errorf("append window picked %v, want the last matches %v - append must skip the first 10 of the grep results, not the session", got, wantAll[10:])
+	}
+
+	everything, start, total := windowConversationEntries(matches, true, false)
+	if start != 1 || total != 13 || len(everything) != 13 {
+		t.Errorf("no-trunc: start/total/len = %d/%d/%d, want 1/13/13", start, total, len(everything))
+	}
+	if got := sessionIndexes(everything); !slices.Equal(got, wantAll) {
+		t.Errorf("no-trunc kept %v, want all matches %v", got, wantAll)
+	}
+
+	single := grepConversationEntries(filterConversationEntries(raw, false), "entry-01")
+	got, start, total := windowConversationEntries(single, false, true)
+	if len(got) != 1 || start != 1 || total != 1 {
+		t.Errorf("short result set with append: start/total/len = %d/%d/%d, want 1/1/1", start, total, len(got))
 	}
 }
 
