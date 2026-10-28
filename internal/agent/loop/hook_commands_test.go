@@ -13,9 +13,13 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 	plugins "github.com/inference-gateway/cli/internal/plugins"
 )
 
@@ -163,4 +167,49 @@ func TestRunHookCommand_HonorsTimeout(t *testing.T) {
 	require.Len(t, events, 1)
 	assert.Equal(t, "hook_command", events[0]["type"])
 	assert.NotEqualValues(t, 0, events[0]["exit_code"], "a killed command must report a non-zero exit")
+}
+
+func TestDispatchHooks_FeedsSessionIDToCommandHooks(t *testing.T) {
+	tests := []struct {
+		name      string
+		ctx       context.Context
+		currentID string
+		want      string
+	}{
+		{
+			name:      "session id carried on the context",
+			ctx:       agentdomain.WithSessionID(context.Background(), "ctx-session"),
+			currentID: "repo-session",
+			want:      "ctx-session",
+		},
+		{
+			name:      "falls back to the current conversation",
+			ctx:       context.Background(),
+			currentID: "repo-session",
+			want:      "repo-session",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := withDebugStreamWriter(t)
+			repo := &convmocks.FakeConversationRepository{}
+			repo.GetCurrentConversationIDReturns(tt.currentID)
+			agent := &Agent{
+				config: allowCfg("cat"),
+				hookProvider: hooksProvider(true, config.HookCommandConfig{
+					Name: "stdin", Hook: agentdomain.HookPostSession, Command: "cat", Timeout: 5,
+				}),
+				conversationRepo: repo,
+			}
+			conversation := []sdk.Message{}
+
+			agent.dispatchHooks(&states.AgentContext{Ctx: tt.ctx, Conversation: &conversation}, agentdomain.HookPostSession)
+
+			events := parseEvents(t, buf)
+			require.Len(t, events, 1)
+			out, _ := events[0]["output"].(string)
+			assert.Contains(t, out, `"session_id":"`+tt.want+`"`)
+		})
+	}
 }
