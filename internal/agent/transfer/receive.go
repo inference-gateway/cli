@@ -92,6 +92,10 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 		reply("", fmt.Errorf("checkpoint schema %d is not the %d this daemon speaks", checkpoint.SchemaVersion, agentdomain.CheckpointSchemaVersion))
 		return
 	}
+	if err := checkpoint.Session.Validate(); err != nil {
+		reply("", err)
+		return
+	}
 	if f.Executor != s.me {
 		reply("", fmt.Errorf("this daemon is executor %q, not %q", s.me, f.Executor))
 		return

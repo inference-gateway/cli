@@ -49,7 +49,7 @@ func PackWorkspace(ctx context.Context, projectDir string, extra []string, exclu
 	if err != nil {
 		return agentdomain.Workspace{}, fmt.Errorf("packing the untracked files: %w", err)
 	}
-	extraPaths, err := relativeFiles(projectDir, extra)
+	extraPaths, err := relativeFiles(projectDir, extra, excluded)
 	if err != nil {
 		return agentdomain.Workspace{}, err
 	}
@@ -116,9 +116,9 @@ func untrackedFiles(ctx context.Context, projectDir string, excluded func(abs st
 	return files, nil
 }
 
-// relativeFiles checks the extra files live inside the project and returns
-// them relative to it.
-func relativeFiles(projectDir string, paths []string) ([]string, error) {
+// relativeFiles checks the extra files live inside the project and pass
+// excluded, and returns them relative to it.
+func relativeFiles(projectDir string, paths []string, excluded func(abs string) bool) ([]string, error) {
 	files := make([]string, 0, len(paths))
 	for _, path := range paths {
 		abs := path
@@ -126,25 +126,34 @@ func relativeFiles(projectDir string, paths []string) ([]string, error) {
 			abs = filepath.Join(projectDir, path)
 		}
 		rel, err := filepath.Rel(projectDir, abs)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		if err != nil || !filepath.IsLocal(rel) {
 			return nil, fmt.Errorf("extra file %q is outside the project", path)
+		}
+		if excluded != nil && excluded(abs) {
+			return nil, fmt.Errorf("extra file %q is denied by the sandbox policy", path)
 		}
 		files = append(files, rel)
 	}
 	return files, nil
 }
 
-// tarFiles packs the files, relative to root, as a gzipped tar. No files
-// means no payload.
-func tarFiles(root string, files []string) ([]byte, error) {
+// tarFiles packs the files, relative to projectDir, as a gzipped tar. Files
+// are read through an os.Root, so a symlinked directory never leads outside
+// the project. No files means no payload.
+func tarFiles(projectDir string, files []string) ([]byte, error) {
 	if len(files) == 0 {
 		return nil, nil
 	}
+	project, err := os.OpenRoot(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = project.Close() }()
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	for _, rel := range files {
-		if err := addFile(tw, root, rel); err != nil {
+		if err := addFile(tw, project, rel); err != nil {
 			return nil, err
 		}
 	}
@@ -157,9 +166,8 @@ func tarFiles(root string, files []string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func addFile(tw *tar.Writer, root, rel string) error {
-	abs := filepath.Join(root, rel)
-	info, err := os.Lstat(abs)
+func addFile(tw *tar.Writer, project *os.Root, rel string) error {
+	info, err := project.Lstat(rel)
 	if err != nil {
 		return err
 	}
@@ -174,7 +182,7 @@ func addFile(tw *tar.Writer, root, rel string) error {
 	if err := tw.WriteHeader(header); err != nil {
 		return err
 	}
-	file, err := os.Open(abs)
+	file, err := project.Open(rel)
 	if err != nil {
 		return err
 	}
@@ -228,11 +236,17 @@ func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string) 
 	return nil
 }
 
-// untar writes a gzipped tar into dir, refusing entries that escape it.
+// untar writes a gzipped tar into dir through an os.Root, refusing entries
+// that name a path outside it or reach outside it through a symlink.
 func untar(data []byte, dir string) error {
 	if len(data) == 0 {
 		return nil
 	}
+	workspace, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = workspace.Close() }()
 	gz, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return err
@@ -249,21 +263,21 @@ func untar(data []byte, dir string) error {
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		target := filepath.Join(dir, filepath.FromSlash(header.Name))
-		if rel, err := filepath.Rel(dir, target); err != nil || strings.HasPrefix(rel, "..") {
+		name := filepath.FromSlash(header.Name)
+		if !filepath.IsLocal(name) {
 			return fmt.Errorf("archive entry %q escapes the workspace", header.Name)
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-			return err
+		if err := workspace.MkdirAll(filepath.Dir(name), 0755); err != nil {
+			return fmt.Errorf("archive entry %q: %w", header.Name, err)
 		}
-		if err := writeEntry(target, tr, header.FileInfo().Mode().Perm()); err != nil {
-			return err
+		if err := writeEntry(workspace, name, tr, header.FileInfo().Mode().Perm()); err != nil {
+			return fmt.Errorf("archive entry %q: %w", header.Name, err)
 		}
 	}
 }
 
-func writeEntry(target string, r io.Reader, mode os.FileMode) error {
-	file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode|0600)
+func writeEntry(workspace *os.Root, name string, r io.Reader, mode os.FileMode) error {
+	file, err := workspace.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode|0600)
 	if err != nil {
 		return err
 	}

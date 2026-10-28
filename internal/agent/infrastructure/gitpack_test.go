@@ -1,6 +1,9 @@
 package infrastructure
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"os"
 	"path/filepath"
@@ -129,4 +132,68 @@ func TestWorkspaceDetachedHeadAndRefusals(t *testing.T) {
 	if err := UnpackWorkspace(t.Context(), ws, filepath.Join(t.TempDir(), "broken")); err == nil {
 		t.Fatal("an empty bundle must fail the restore")
 	}
+}
+
+func TestPackWorkspaceKeepsExtraFilesInsideTheProject(t *testing.T) {
+	src := gitRepo(t)
+	outside := t.TempDir()
+	write(t, outside, "secret", "do not ship\n")
+	if err := os.Symlink(outside, filepath.Join(src, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, src, "local.env", "TOKEN=x\n")
+	denyEnv := func(abs string) bool { return strings.HasSuffix(abs, ".env") }
+
+	if _, err := PackWorkspace(t.Context(), src, []string{"linked/secret"}, nil); err == nil {
+		t.Fatal("an extra file behind a symlinked directory outside the project must be refused")
+	}
+	if _, err := PackWorkspace(t.Context(), src, []string{"local.env"}, denyEnv); err == nil || !strings.Contains(err.Error(), "sandbox policy") {
+		t.Fatalf("an extra file the sandbox denies must be refused, got %v", err)
+	}
+}
+
+func TestUntarRefusesEntriesThatLeaveTheWorkspace(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry string
+	}{
+		{"parent path", "../evil"},
+		{"absolute path", "/evil"},
+		{"through a symlinked directory", "linked/evil"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			outside := t.TempDir()
+			if err := os.Symlink(outside, filepath.Join(dir, "linked")); err != nil {
+				t.Fatal(err)
+			}
+			if err := untar(tarOf(t, tt.entry, "pwned\n"), dir); err == nil {
+				t.Fatalf("entry %q was written", tt.entry)
+			}
+			if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+				t.Fatalf("entry %q landed outside the workspace", tt.entry)
+			}
+		})
+	}
+}
+
+func tarOf(t *testing.T, name, content string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0644, Size: int64(len(content)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write([]byte(content)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }

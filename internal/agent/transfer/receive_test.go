@@ -82,6 +82,8 @@ func TestReceiveValidatesTheCheckpointBeforeRestoring(t *testing.T) {
 		{"wrong executor", checkpoint, "someone-else", nil, "not \"someone-else\""},
 		{"wrong schema", agentdomain.Checkpoint{SchemaVersion: 99, Session: checkpoint.Session}, "laptop", nil, "schema 99"},
 		{"empty bundle", checkpoint, "laptop", nil, "restoring the workspace"},
+		{"slug leaves the workspace root", agentdomain.Checkpoint{SchemaVersion: checkpoint.SchemaVersion, Session: agentdomain.Session{ConversationID: "conv-1", Slug: ".."}}, "laptop", nil, "not a plain name"},
+		{"id leaves the workspace root", agentdomain.Checkpoint{SchemaVersion: checkpoint.SchemaVersion, Session: agentdomain.Session{ConversationID: "../../outside", Slug: "proj"}}, "laptop", nil, "not a plain name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

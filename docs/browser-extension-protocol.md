@@ -575,7 +575,8 @@ CLI → client, only the requesting client receives it, once per stage:
 - `transfer_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
   at once and moves nothing twice.
 - A session another live executor owns is refused with `failed`.
-- `files` are extra files relative to the project that travel although git does not track them.
+- `files` are extra files relative to the project that travel although git does not track them. A file
+  outside the project, or one `sandbox.yaml` denies, fails the transfer.
 
 ```json
 {"type": "transfer_cancel", "transfer_id": "<uuid>"}

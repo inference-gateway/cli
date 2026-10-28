@@ -3,6 +3,8 @@ package domain
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
+	"path/filepath"
 )
 
 // ExecutorKind names where an agent runs: this daemon, a standalone daemon
@@ -21,6 +23,18 @@ type Session struct {
 	ProjectDir     string `json:"project_dir"`
 	ConversationID string `json:"conversation_id"`
 	Slug           string `json:"slug"`
+}
+
+// Validate checks the slug and the conversation id are each one plain path
+// element, because a receiving executor restores the session under
+// <workspace_root>/<slug>/<conversation id> and clears that directory first.
+func (s Session) Validate() error {
+	for _, element := range []string{s.Slug, s.ConversationID} {
+		if element == "." || element != filepath.Base(element) || !filepath.IsLocal(element) {
+			return fmt.Errorf("session path element %q is not a plain name", element)
+		}
+	}
+	return nil
 }
 
 // Endpoint is a reachable daemon binding on an executor. Close releases what
