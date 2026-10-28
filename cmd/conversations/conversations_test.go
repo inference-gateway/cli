@@ -2,6 +2,7 @@ package conversations
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 )
 
 func TestRenderConversationsJSON(t *testing.T) {
@@ -377,7 +379,8 @@ func TestGrepConversationEntries(t *testing.T) {
 }
 
 func TestBuildConversationShowText_PlainAndHeaders(t *testing.T) {
-	out := buildConversationShowText(makeShowEntries(), "session-123")
+	entries := makeShowEntries()
+	out := buildConversationShowText(entries, "session-123", 1, len(entries))
 
 	wants := []string{
 		"Conversation: session-123",
@@ -398,7 +401,7 @@ func TestBuildConversationShowText_PlainAndHeaders(t *testing.T) {
 
 func TestBuildConversationShowText_HiddenTagAndToolCallID(t *testing.T) {
 	entries := filterConversationEntries(makeShowEntries(), true)
-	out := buildConversationShowText(entries, "s")
+	out := buildConversationShowText(entries, "s", 1, len(entries))
 
 	if !strings.Contains(out, "[hidden]") {
 		t.Errorf("expected [hidden] tag in output:\n%s", out)
@@ -409,7 +412,7 @@ func TestBuildConversationShowText_HiddenTagAndToolCallID(t *testing.T) {
 }
 
 func TestBuildConversationShowText_Empty(t *testing.T) {
-	out := buildConversationShowText(nil, "s")
+	out := buildConversationShowText(nil, "s", 1, 0)
 	if !strings.Contains(out, "Entries: 0") {
 		t.Errorf("expected 'Entries: 0' for empty conversation:\n%s", out)
 	}
@@ -428,7 +431,7 @@ func TestBuildConversationShowJSON_MetadataAndEntries(t *testing.T) {
 		TokenStats:      convdomain.SessionTokenStats{TotalInputTokens: 120, TotalOutputTokens: 30, TotalCachedTokens: 100, LastInputTokens: 80},
 		CostStats:       convdomain.SessionCostStats{TotalCost: 0.42},
 	}
-	out, err := buildConversationShowJSON(entries, metadata)
+	out, err := buildConversationShowJSON(entries, metadata, false)
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -467,7 +470,7 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hey")},
 		Time:    time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
 	}
-	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{})
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{}, false)
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -482,7 +485,7 @@ func TestBuildConversationShowJSON_OmitsEmptyOptionalFields(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(doc.Entries))
 	}
 
-	for _, omitted := range []string{"tool_call_id", "hidden", "model", "tool_execution", "reasoning_content"} {
+	for _, omitted := range []string{"tool_call_id", "hidden", "model", "tool_execution", "reasoning_content", "truncated"} {
 		if _, present := doc.Entries[0][omitted]; present {
 			t.Errorf("expected %s to be omitted from the entry: %s", omitted, out)
 		}
@@ -508,7 +511,7 @@ func TestBuildConversationShowJSON_CarriesStructuredToolResult(t *testing.T) {
 			Success:   true,
 		},
 	}
-	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{})
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{}, false)
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -535,7 +538,7 @@ func TestBuildConversationShowJSON_CarriesReasoningContent(t *testing.T) {
 		Time:             time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC),
 		ReasoningContent: "thinking it through",
 	}
-	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{})
+	out, err := buildConversationShowJSON([]convdomain.ConversationEntry{entry}, convdomain.ConversationMetadata{}, false)
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -550,7 +553,7 @@ func TestBuildConversationShowJSON_CarriesReasoningContent(t *testing.T) {
 }
 
 func TestBuildConversationShowJSON_Empty(t *testing.T) {
-	out, err := buildConversationShowJSON(nil, convdomain.ConversationMetadata{})
+	out, err := buildConversationShowJSON(nil, convdomain.ConversationMetadata{}, false)
 	if err != nil {
 		t.Fatalf("buildConversationShowJSON() failed: %v", err)
 	}
@@ -606,5 +609,81 @@ func TestConversationsDeleteCmd_Definition(t *testing.T) {
 	}
 	if command.RunE == nil {
 		t.Error("expected RunE to be set")
+	}
+}
+
+func TestWindowConversationEntries(t *testing.T) {
+	entries := make([]convdomain.ConversationEntry, 13)
+	for i := range entries {
+		entries[i] = convdomain.ConversationEntry{
+			Message: sdk.Message{Content: sdk.NewMessageContent(fmt.Sprintf("entry %d", i+1))},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		noTrunc   bool
+		showRest  bool
+		wantStart int
+		wantCount int
+	}{
+		{"default caps at the first window", false, false, 1, defaultShowEntries},
+		{"no-trunc keeps everything", true, false, 1, 13},
+		{"append shows what the window skipped", false, true, defaultShowEntries + 1, 3},
+	}
+	for _, tt := range tests {
+		got, start, total := windowConversationEntries(entries, tt.noTrunc, tt.showRest)
+		if start != tt.wantStart || len(got) != tt.wantCount {
+			t.Errorf("%s: start/count = %d/%d, want %d/%d", tt.name, start, len(got), tt.wantStart, tt.wantCount)
+		}
+		if total != 13 {
+			t.Errorf("%s: total = %d, want the filtered count 13", tt.name, total)
+		}
+	}
+
+	rest, _, _ := windowConversationEntries(entries, false, true)
+	if text := formatting.ExtractTextFromContent(rest[0].Message.Content, rest[0].Images); text != "entry 11" {
+		t.Errorf("append window starts at the wrong entry: got %q, want %q", text, "entry 11")
+	}
+
+	short := entries[:5]
+	got, start, total := windowConversationEntries(short, false, true)
+	if len(got) != 5 || start != 1 || total != 5 {
+		t.Errorf("short session with append: start/count/total = %d/%d/%d, want 1/5/5", start, len(got), total)
+	}
+}
+
+func TestBuildConversationShowText_AppendWindowKeepsRealNumbers(t *testing.T) {
+	tail := makeShowEntries()[2:]
+	out := buildConversationShowText(tail, "s", 3, 4)
+
+	if !strings.Contains(out, "#3 [tool]") {
+		t.Errorf("expected the first append-window entry to keep its session number:\n%s", out)
+	}
+	if !strings.Contains(out, "Skipped the first 2 entries") {
+		t.Errorf("expected the skipped-entries hint:\n%s", out)
+	}
+}
+
+func TestBuildConversationShowText_HeadWindowHintsAtTheRest(t *testing.T) {
+	out := buildConversationShowText(makeShowEntries(), "s", 1, 9)
+
+	if !strings.Contains(out, "Showing the first 4 of 9 entries") {
+		t.Errorf("expected the first-window hint:\n%s", out)
+	}
+}
+
+func TestBuildConversationShowJSON_FlagsTruncation(t *testing.T) {
+	out, err := buildConversationShowJSON(makeShowEntries()[:2], convdomain.ConversationMetadata{}, true)
+	if err != nil {
+		t.Fatalf("buildConversationShowJSON() failed: %v", err)
+	}
+
+	var decoded showConversationOutput
+	if err := json.Unmarshal([]byte(out), &decoded); err != nil {
+		t.Fatalf("output not valid JSON: %v (%q)", err, out)
+	}
+	if !decoded.Truncated {
+		t.Errorf("expected truncated to be flagged: %s", out)
 	}
 }

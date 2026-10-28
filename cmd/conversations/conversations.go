@@ -95,6 +95,10 @@ Hidden entries - system reminders, plan-approval prompts, drained background-tas
 results, and the synthetic verify message injected by 'infer headless' - are omitted
 by default. Pass --include-hidden to surface them.
 
+By default only the first 10 entries are printed so a careless show does not flood
+its reader. Pass --no-trunc for every entry, or --append (-a) for the entries after
+those first 10.
+
 The session id is resolved the same way as 'infer headless --session-id': a literal
 UUID is used as-is, while any other value is treated as a session group key and
 resolved to that group's current session id (registering the group if it is new).
@@ -112,6 +116,9 @@ Examples:
   # Only the entries whose text mentions a substring
   infer conversations show <session-id> --grep "undefined symbol"
 
+  # Show the entries after the default first-10 window
+  infer conversations show <session-id> --append
+
   # Emit one JSON object per line for piping into jq
   infer conversations show <session-id> --format json | jq .`,
 		Args: cobra.ExactArgs(1),
@@ -122,6 +129,8 @@ Examples:
 	showCommand.Flags().Bool("include-hidden", false, "Include hidden entries (system reminders, plan prompts, drained background results, verify message)")
 	showCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	showCommand.Flags().String("grep", "", "Only show the entries whose text contains this substring (case-insensitive)")
+	showCommand.Flags().Bool("no-trunc", false, "Print every entry instead of the default first-10 window")
+	showCommand.Flags().BoolP("append", "a", false, "Print the entries after the default first-10 window instead of the window itself")
 
 	command.AddCommand(listCommand, deleteCommand, showCommand)
 	return command
@@ -248,6 +257,8 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 	includeHidden, _ := cmd.Flags().GetBool("include-hidden")
 	format, _ := cmd.Flags().GetString("format")
 	grep, _ := cmd.Flags().GetString("grep")
+	noTrunc, _ := cmd.Flags().GetBool("no-trunc")
+	showRest, _ := cmd.Flags().GetBool("append")
 
 	sessionID := resolveConversationSessionID(services, rawID)
 
@@ -259,11 +270,12 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 
 	entries = filterConversationEntries(entries, includeHidden)
 	entries = grepConversationEntries(entries, grep)
+	window, start, total := windowConversationEntries(entries, noTrunc, showRest)
 
 	if format == "json" {
-		return printConversationShowJSON(entries, metadata)
+		return printConversationShowJSON(window, metadata, start, total)
 	}
-	return printConversationShowText(entries, sessionID)
+	return printConversationShowText(window, sessionID, start, total)
 }
 
 // resolveConversationSessionID mirrors 'infer headless --session-id' resolution:
@@ -313,9 +325,30 @@ func grepConversationEntries(entries []convdomain.ConversationEntry, pattern str
 	return filtered
 }
 
-// buildConversationShowText renders entries as a human-friendly plain-text block.
-// It is a pure function: it returns the rendered string and prints nothing.
-func buildConversationShowText(entries []convdomain.ConversationEntry, sessionID string) string {
+// defaultShowEntries caps 'conversations show' unless --no-trunc lifts it.
+const defaultShowEntries = 10
+
+// windowConversationEntries slices the filtered entries down to the default first
+// window: --no-trunc keeps everything, --append (-a) keeps only the entries after
+// the window so a session can be read in chunks, and a short session is never
+// windowed. start is the 1-based number of the first returned entry, total is what
+// the filters left.
+func windowConversationEntries(entries []convdomain.ConversationEntry, noTrunc, showRest bool) ([]convdomain.ConversationEntry, int, int) {
+	total := len(entries)
+	if noTrunc || total <= defaultShowEntries {
+		return entries, 1, total
+	}
+	if showRest {
+		return entries[defaultShowEntries:], defaultShowEntries + 1, total
+	}
+	return entries[:defaultShowEntries], 1, total
+}
+
+// buildConversationShowText renders a window of entries as a human-friendly
+// plain-text block, numbering each one from start so the #N handles stay true to
+// where the entry sits in the session. It is a pure function: it returns the
+// rendered string and prints nothing.
+func buildConversationShowText(entries []convdomain.ConversationEntry, sessionID string, start, total int) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "Conversation: %s\n", sessionID)
@@ -327,9 +360,16 @@ func buildConversationShowText(entries []convdomain.ConversationEntry, sessionID
 	}
 
 	for i, e := range entries {
-		b.WriteString(buildConversationEntryHeader(i, e))
+		b.WriteString(buildConversationEntryHeader(start+i-1, e))
 		b.WriteString(formatting.ExtractTextFromContent(e.Message.Content, e.Images))
 		b.WriteString("\n\n")
+	}
+
+	switch {
+	case start > 1:
+		fmt.Fprintf(&b, "Skipped the first %d entries - rerun with --no-trunc to see them and everything else.\n", start-1)
+	case start+len(entries)-1 < total:
+		fmt.Fprintf(&b, "Showing the first %d of %d entries - rerun with --append (-a) for the rest or with --no-trunc for everything.\n", len(entries), total)
 	}
 	return b.String()
 }
@@ -383,8 +423,9 @@ func toConversationShowEntry(e convdomain.ConversationEntry) conversationShowEnt
 
 // showConversationOutput is the JSON structure for 'conversations show --format json'.
 type showConversationOutput struct {
-	Metadata metadataProjection      `json:"metadata"`
-	Entries  []conversationShowEntry `json:"entries"`
+	Metadata  metadataProjection      `json:"metadata"`
+	Entries   []conversationShowEntry `json:"entries"`
+	Truncated bool                    `json:"truncated,omitempty"`
 }
 
 // metadataProjection exposes the metadata fields consumers need, including
@@ -420,15 +461,16 @@ func toMetadataProjection(m convdomain.ConversationMetadata) metadataProjection 
 }
 
 // buildConversationShowJSON returns the JSON representation of a conversation
-// including metadata and entries.
-func buildConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) (string, error) {
+// including metadata and entries; truncated flags a windowed view.
+func buildConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata, truncated bool) (string, error) {
 	entryProjections := make([]conversationShowEntry, 0, len(entries))
 	for _, e := range entries {
 		entryProjections = append(entryProjections, toConversationShowEntry(e))
 	}
 	out := showConversationOutput{
-		Metadata: toMetadataProjection(metadata),
-		Entries:  entryProjections,
+		Metadata:  toMetadataProjection(metadata),
+		Entries:   entryProjections,
+		Truncated: truncated,
 	}
 	jsonBytes, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
@@ -437,13 +479,13 @@ func buildConversationShowJSON(entries []convdomain.ConversationEntry, metadata 
 	return string(jsonBytes), nil
 }
 
-func printConversationShowText(entries []convdomain.ConversationEntry, sessionID string) error {
-	fmt.Print(buildConversationShowText(entries, sessionID))
+func printConversationShowText(entries []convdomain.ConversationEntry, sessionID string, start, total int) error {
+	fmt.Print(buildConversationShowText(entries, sessionID, start, total))
 	return nil
 }
 
-func printConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata) error {
-	out, err := buildConversationShowJSON(entries, metadata)
+func printConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata, start, total int) error {
+	out, err := buildConversationShowJSON(entries, metadata, start > 1 || total > len(entries))
 	if err != nil {
 		return err
 	}
