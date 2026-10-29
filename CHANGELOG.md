@@ -5,6 +5,113 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.238.0...v0.239.0-rc.1) (2026-10-29)
+
+### 🚀 Features
+
+* **conversation:** add compact.strategy pointer mode ([#1629](https://github.com/inference-gateway/cli/issues/1629)) ([6367927](https://github.com/inference-gateway/cli/commit/63679275d6177aa69c640e4d7cf0ab71e2cdf9ec)), closes [#1627](https://github.com/inference-gateway/cli/issues/1627), references [#1592](https://github.com/inference-gateway/cli/issues/1592)
+* **tui:** add the daemon thread adapters for infer chat --daemon ([5b5e4b9](https://github.com/inference-gateway/cli/commit/5b5e4b90e9c8c86336b6374a5a8b9eac24df9251))
+* **agent:** move a session back to the daemon it came from ([6a348d4](https://github.com/inference-gateway/cli/commit/6a348d4fc04a72ff42de7a4966ee25fbb9014816))
+* **tui:** name where each session runs in the conversations table ([d9545ca](https://github.com/inference-gateway/cli/commit/d9545ca0f636cf8f2372a085ff97979ea780463b))
+* **tui:** route or turn off laptop-only features in a daemon chat ([aff34d7](https://github.com/inference-gateway/cli/commit/aff34d7ee2117a4912c5aa1648d0c01d1e8ca4db))
+* **chat:** run the chat TUI on the local daemon with --daemon ([7147070](https://github.com/inference-gateway/cli/commit/71470703ed723701725a88dc0ba7e37c7e10135b))
+* **daemon:** share the local dial and detach the auto-started daemon ([0aa2712](https://github.com/inference-gateway/cli/commit/0aa27128d82b258d1d45e5ce656ac536d2608fea))
+* **tui:** show where a daemon chat's session runs and move it from the TUI ([9fd6dd5](https://github.com/inference-gateway/cli/commit/9fd6dd5f5865ad4211314087d3828a8ab81ca317))
+* **web:** start the web terminal's chats in daemon mode with --daemon ([450a4ff](https://github.com/inference-gateway/cli/commit/450a4ff2da2f16b5067c5d8b2125ee37374b5fa6))
+* **daemon:** transfer sessions between local and remote executors ([#1628](https://github.com/inference-gateway/cli/issues/1628)) ([f36f0fc](https://github.com/inference-gateway/cli/commit/f36f0fc631c14f6c2ee3c846932e53deb86973c5)), closes [#1619](https://github.com/inference-gateway/cli/issues/1619)
+* **headless:** widen the daemon protocol for rich thread clients ([27e74a5](https://github.com/inference-gateway/cli/commit/27e74a5feaace2de0046d93bf2eb857994bb4b21))
+
+### 🐛 Bug Fixes
+
+* **agent:** bring a session back only to the checkout it left ([08bb7e7](https://github.com/inference-gateway/cli/commit/08bb7e750d1b48507744b4a49bc9522c62800cf3))
+* **headless:** end a run's turn when the run finishes ([5244523](https://github.com/inference-gateway/cli/commit/5244523d5ca022d6729595b9bbe8b9e83f38f169))
+* **tui:** end every daemon chat turn, also after an idle reconnect ([5bad11b](https://github.com/inference-gateway/cli/commit/5bad11b02086e04816f68897fa2f838557d8f3fe))
+* **tui:** hand a daemon chat's plan decision to its worker ([3ba5d72](https://github.com/inference-gateway/cli/commit/3ba5d72d2b912e91adfb519c10b1ae42c593e7cf))
+* **daemon:** hold an OS lock on the daemon's pid file ([e79e893](https://github.com/inference-gateway/cli/commit/e79e893cf1ddd961d28b0facab7f95ce3a946e78))
+* **chat:** keep a daemon chat in step with its worker across reattaches ([7bfeaad](https://github.com/inference-gateway/cli/commit/7bfeaad80a6e02074a3a5c8fb5f63163bfb4d76d))
+* **agent:** keep a landing inside its checkout and refuse odd session ids ([2321508](https://github.com/inference-gateway/cli/commit/2321508cc50f80713a9cc95d549b1e9f4b82844d))
+* **daemon:** keep starting while an old daemon still holds the lock ([614cfb5](https://github.com/inference-gateway/cli/commit/614cfb58d4770063cf2df61141be6f1ce3a4c355))
+* **tui:** keep the keys typed in the same burst as enter ([a56699f](https://github.com/inference-gateway/cli/commit/a56699ff690894ad7323d59a6d64e447f120d6b3))
+* **headless:** list conversations with their usage ([1d94d42](https://github.com/inference-gateway/cli/commit/1d94d42e31eae7a4d97c349818dd7ae7de57faeb))
+* **tui:** offer no local files to @ on a remote session ([eaaca9b](https://github.com/inference-gateway/cli/commit/eaaca9b1abf804bd402a818932fdee9a14905076))
+* **chat:** show model details in a daemon chat's model picker ([13cfb77](https://github.com/inference-gateway/cli/commit/13cfb77b75f24e37bf58421bf0eb5fe2c2876833))
+* **daemon:** stop once the daemon's binary is gone ([bec872b](https://github.com/inference-gateway/cli/commit/bec872b8b72c1f906f2860a7cdefc9e2f5fc9a8c))
+
+### 📚 Documentation
+
+* **daemon:** document infer chat --daemon, /environments and /transfer ([d2f98af](https://github.com/inference-gateway/cli/commit/d2f98aff27f1c38c54e76357bb75403e9bf7e04d))
+
+### ✅ Tests
+
+* **tui:** cover the environments picker, the transfer flow and the shortcuts ([1b38f57](https://github.com/inference-gateway/cli/commit/1b38f573d1bcc4322c6ed144a4911ab02878ab13))
+* **e2e:** drive infer chat --daemon through a reattach and a round trip ([48a0d69](https://github.com/inference-gateway/cli/commit/48a0d695b12345690e0f8f19902e256416513d64))
+* **conversations:** prove show --grep --append pages the grep results ([#1630](https://github.com/inference-gateway/cli/issues/1630)) ([09fbb1d](https://github.com/inference-gateway/cli/commit/09fbb1dfce2b135eac1388ec1516bccefd6ddbbe)), references [#11](https://github.com/inference-gateway/cli/issues/11) [#11](https://github.com/inference-gateway/cli/issues/11) [#11](https://github.com/inference-gateway/cli/issues/11)
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.239.0-rc.1 --help
+npx @inference-gateway/cli@0.239.0-rc.1 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.239.0-rc.1
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.239.0-rc.1
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.239.0-rc.1
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.239.0-rc.1"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.239.0-rc.1
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.239.0-rc.4](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.3...v0.239.0-rc.4) (2026-10-28)
 
 ### 🚀 Features
