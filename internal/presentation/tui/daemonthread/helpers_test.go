@@ -76,6 +76,8 @@ func (d *fakeDaemon) handle(conn *agui.Conn, frame []byte) {
 		send(conn, `{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
 	case "set_mode":
 		send(conn, `{"type":"mode","mode":"`+f["mode"].(string)+`"}`)
+	case "select_model":
+		send(conn, `{"type":"models","current":"`+f["model"].(string)+`"}`)
 	case "export_conversation":
 		data, _ := json.Marshal(map[string]any{"type": "conversation_export", "id": f["id"], "entries": export})
 		send(conn, string(data))

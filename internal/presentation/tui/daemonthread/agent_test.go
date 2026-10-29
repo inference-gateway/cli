@@ -184,6 +184,34 @@ func TestAgentFollowOnlyRequestEndsWhenNothingRuns(t *testing.T) {
 	}
 }
 
+func TestAgentTellsARestartedDaemonsWorkerTheModeAndModel(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, _ := agentOver(thread)
+	turn := func() {
+		events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req"})
+		if err != nil {
+			t.Fatalf("RunWithStream: %v", err)
+		}
+		collect(t, events, nil)
+	}
+	turn()
+	turn()
+	d.binding.Close()
+	eventually(t, "the offline placement", func() bool { return thread.Placement().Offline })
+	again := startDaemon(t, d.port)
+	eventually(t, "the follow on the new daemon", func() bool { return len(again.frames("resume_conversation")) == 1 })
+
+	turn()
+
+	for name, daemon := range map[string]*fakeDaemon{"first": d, "restarted": again} {
+		modes, models := daemon.frames("set_mode"), daemon.frames("select_model")
+		if len(modes) != 1 || len(models) != 1 || models[0]["model"] != "m1" {
+			t.Errorf("%s daemon got mode syncs %v and model syncs %v, want one of each to m1", name, modes, models)
+		}
+	}
+}
+
 func TestModelsAdoptTheWorkersModelAndSwitchIt(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, _ := connected(t, d)
@@ -197,7 +225,6 @@ func TestModelsAdoptTheWorkersModelAndSwitchIt(t *testing.T) {
 	if err := models.SelectModel("m1"); err != nil || models.GetCurrentModel() != "m1" {
 		t.Fatalf("SelectModel = %v, current %q", err, models.GetCurrentModel())
 	}
-	eventually(t, "the worker to learn the model", func() bool { return len(d.frames("select_model")) == 1 })
 	if err := models.SelectModel("missing"); err == nil {
 		t.Error("an unknown model was selected")
 	}
