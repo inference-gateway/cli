@@ -50,6 +50,10 @@ type RunDecoder struct {
 	known     map[string]*decodedCall
 	results   []*agentdomain.ToolExecutionResult
 	prompts   []Prompt
+	// held is the completion of a step that handed no calls to tools. It
+	// ends the client's turn, so it waits for the run to finish, unless a
+	// queued message continues the run first.
+	held *agentdomain.ChatCompleteEvent
 }
 
 // decodedCall is a tool call the run streamed: its name and its arguments.
@@ -139,7 +143,7 @@ func (d *RunDecoder) Decode(frame []byte) ([]agentdomain.ChatEvent, RunEnd) {
 	case "RUN_FINISHED":
 		return d.runFinished(f.Outcome.Type, f.Outcome.Interrupts)
 	case "RUN_ERROR":
-		events := d.closeStep()
+		events := d.releaseHeld(d.closeStep())
 		return append(events, agentdomain.ChatErrorEvent{RequestID: d.requestID, Timestamp: time.Now(), Error: errors.New(f.Message)}), RunFailed
 	}
 	return nil, RunOpen
@@ -155,6 +159,7 @@ func (d *RunDecoder) Prompts() []Prompt {
 // continuation of a suspended one, whose prompts someone answered.
 func (d *RunDecoder) runStarted() ([]agentdomain.ChatEvent, RunEnd) {
 	d.prompts = nil
+	d.held = nil
 	if d.started {
 		return nil, RunResumed
 	}
@@ -281,10 +286,16 @@ func (d *RunDecoder) activity(activityType string, content json.RawMessage) agen
 }
 
 // runFinished closes the run: a suspended run hands out its prompts, a
-// cancelled one completes as cancelled, and a finished one has already
-// completed with its last step.
+// cancelled one completes as cancelled, and a finished one completes with its
+// last step, or with an empty one when no step completed it: a direct `!cmd`
+// run stops on its tool result, and the run that records a plan decision has
+// no step at all.
 func (d *RunDecoder) runFinished(outcome string, interrupts []agui.Interrupt) ([]agentdomain.ChatEvent, RunEnd) {
 	events := d.closeStep()
+	if outcome != "interrupt" && outcome != string(agui.OutcomeCancelled) && d.held == nil {
+		d.held = &agentdomain.ChatCompleteEvent{RequestID: d.requestID, Timestamp: time.Now()}
+	}
+	events = d.releaseHeld(events)
 	switch outcome {
 	case "interrupt":
 		d.prompts = make([]Prompt, 0, len(interrupts))
@@ -361,7 +372,7 @@ func (d *RunDecoder) questionsOf(id string, metadata map[string]any) []agentdoma
 // closeStep completes the model's open step with its text, reasoning and tool
 // calls, after the results of the step before it.
 func (d *RunDecoder) closeStep() []agentdomain.ChatEvent {
-	events := d.withResults()
+	events := d.toolResults()
 	if d.text.Len() == 0 && d.reasoning.Len() == 0 && len(d.calls) == 0 {
 		return events
 	}
@@ -375,12 +386,38 @@ func (d *RunDecoder) closeStep() []agentdomain.ChatEvent {
 	d.text.Reset()
 	d.reasoning.Reset()
 	d.calls = nil
+	if len(calls) == 0 {
+		d.held = &complete
+		return events
+	}
 	return append(events, complete)
 }
 
-// withResults prepends the completion of the tool results decoded so far to
-// events, since whatever follows them starts the next step.
+// releaseHeld appends the held completion of the last step to events.
+func (d *RunDecoder) releaseHeld(events []agentdomain.ChatEvent) []agentdomain.ChatEvent {
+	if d.held == nil {
+		return events
+	}
+	events = append(events, *d.held)
+	d.held = nil
+	return events
+}
+
+// withResults prepends the held completion and the completion of the tool
+// results decoded so far to events, since whatever follows them starts the
+// next step.
 func (d *RunDecoder) withResults(events ...agentdomain.ChatEvent) []agentdomain.ChatEvent {
+	events = d.toolResults(events...)
+	if d.held != nil {
+		events = append([]agentdomain.ChatEvent{*d.held}, events...)
+		d.held = nil
+	}
+	return events
+}
+
+// toolResults prepends the completion of the tool results decoded so far to
+// events.
+func (d *RunDecoder) toolResults(events ...agentdomain.ChatEvent) []agentdomain.ChatEvent {
 	if len(d.results) == 0 {
 		return events
 	}

@@ -158,7 +158,7 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 				agentdomain.ToolApprovalRequestedEvent{ToolCall: bashCall("tc1", `{"command":"rm"}`), Context: "judge escalated", ResponseChan: make(chan agentdomain.ApprovalAction, 1)},
 				agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolCallID: "tc1", Success: true}}},
 			},
-			want: []string{"start", `complete:||tc1=Bash{"command":"rm"}`, `approval:tc1:Bash{"command":"rm"}:judge escalated`, "results:tc1:1/1"},
+			want: []string{"start", `complete:||tc1=Bash{"command":"rm"}`, `approval:tc1:Bash{"command":"rm"}:judge escalated`, "results:tc1:1/1", "complete:||"},
 			ends: []RunEnd{RunSuspended, RunResumed, RunFinished},
 		},
 		{
@@ -167,14 +167,14 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 			events: []agentdomain.ChatEvent{agentdomain.UserQuestionRequestedEvent{
 				ToolCallID: "q1", Questions: []agentdomain.UserQuestion{{Header: "Lang", Question: "Which?"}}, ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 			}},
-			want: []string{"start", "question:q1:1"},
+			want: []string{"start", "question:q1:1", "complete:||"},
 			ends: []RunEnd{RunSuspended, RunResumed, RunFinished},
 		},
 		{
 			name:   "plan approval",
 			deps:   RunEncoderDeps{Plans: rejected},
 			events: []agentdomain.ChatEvent{agentdomain.PlanApprovalRequestedEvent{PlanID: "plan-1", PlanContent: "1. do it"}},
-			want:   []string{"start", "plan:plan-1:1. do it"},
+			want:   []string{"start", "plan:plan-1:1. do it", "complete:||"},
 			ends:   []RunEnd{RunSuspended, RunResumed, RunFinished},
 		},
 		{
@@ -192,7 +192,7 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 		{
 			name:   "queued user message",
 			events: []agentdomain.ChatEvent{agentdomain.MessageQueuedEvent{RequestID: ipc.UserMessageRequestID, Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("also this")}}},
-			want:   []string{"start", "queued:user:also this"},
+			want:   []string{"start", "queued:user:also this", "complete:||"},
 			ends:   []RunEnd{RunFinished},
 		},
 		{
@@ -203,7 +203,7 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 				agentdomain.ToolExecutionProgressEvent{ToolCallID: "tc1", ToolName: "Bash", Status: "running"},
 				agentdomain.BashOutputChunkEvent{ToolCallID: "tc1", Output: "line"},
 			},
-			want: []string{"start", "todos:1", "judge:Bash:approved", "progress:tc1:running", "bash:tc1:line:false"},
+			want: []string{"start", "todos:1", "judge:Bash:approved", "progress:tc1:running", "bash:tc1:line:false", "complete:||"},
 			ends: []RunEnd{RunFinished},
 		},
 	}
@@ -258,5 +258,54 @@ func TestRunDecoderToleratesAttachingMidRun(t *testing.T) {
 	got, ends := decodeRun(t, lines)
 	if want := []string{"text:…rest", "complete:…rest||"}; !slices.Equal(got, want) || !slices.Equal(ends, []RunEnd{RunFinished}) {
 		t.Fatalf("events = %q ends %v, want %q finished", got, ends, want)
+	}
+}
+
+func TestRunDecoderEndsADirectCallRunWithACompletion(t *testing.T) {
+	lines := encodeRun(t, RunEncoderDeps{},
+		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{bashCall("tc1", `{"command":"ls"}`)}},
+		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolCallID: "tc1", ToolName: "Bash", Success: true}}, SuccessCount: 1, TotalExecuted: 1},
+	)
+
+	events, ends := decodeRun(t, lines)
+
+	want := []string{"start", `complete:||tc1=Bash{"command":"ls"}`, "results:tc1:1/1", "complete:||"}
+	if !slices.Equal(events, want) || !slices.Equal(ends, []RunEnd{RunFinished}) {
+		t.Errorf("events = %q ending %v, want %q ending the turn", events, ends, want)
+	}
+}
+
+func TestRunDecoderEndsARunWithoutStepsWithACompletion(t *testing.T) {
+	events, ends := decodeRun(t, encodeRun(t, RunEncoderDeps{}))
+
+	if want := []string{"start", "complete:||"}; !slices.Equal(events, want) || !slices.Equal(ends, []RunEnd{RunFinished}) {
+		t.Errorf("events = %q ending %v, want %q so the turn ends", events, ends, want)
+	}
+}
+
+func TestRunDecoderEndsTheTurnOnlyWithTheRun(t *testing.T) {
+	withUsage := &convmocks.FakeConversationRepository{}
+	withUsage.GetSessionTokensReturns(convdomain.SessionTokenStats{RequestCount: 1, TotalInputTokens: 10})
+	lines := encodeRun(t, RunEncoderDeps{Repo: withUsage},
+		agentdomain.ChatChunkEvent{Content: "first"}, agentdomain.ChatCompleteEvent{},
+		agentdomain.MessageQueuedEvent{RequestID: ipc.UserMessageRequestID, Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("more")}},
+		agentdomain.ChatChunkEvent{Content: "second"}, agentdomain.ChatCompleteEvent{},
+	)
+	decoder := NewRunDecoder("req-1")
+	var events []string
+
+	for _, line := range lines {
+		decoded, end := decoder.Decode([]byte(line))
+		for _, event := range decoded {
+			if complete, ok := event.(agentdomain.ChatCompleteEvent); ok && complete.Message == "second" && end != RunFinished {
+				t.Error("the last step ended the turn before its run finished")
+			}
+			events = append(events, summarize(event))
+		}
+	}
+
+	want := []string{"start", "text:first", "complete:first||", "queued:user:more", "text:second", "complete:second||"}
+	if !slices.Equal(events, want) {
+		t.Errorf("events = %q, want %q", events, want)
 	}
 }
