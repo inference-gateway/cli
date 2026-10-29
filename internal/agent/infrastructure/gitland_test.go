@@ -185,3 +185,20 @@ func TestCheckoutStateFollowsTheTree(t *testing.T) {
 		t.Error("editing an untracked file kept the fingerprint")
 	}
 }
+
+func TestCheckoutStateNamesAnUntrackedSymlinkWithoutFollowingIt(t *testing.T) {
+	dir := gitRepo(t)
+	before, _, err := CheckoutState(t.Context(), dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/etc/hosts", filepath.Join(dir, "outside")); err != nil {
+		t.Fatal(err)
+	}
+
+	after, clean, err := CheckoutState(t.Context(), dir, nil)
+
+	if err != nil || clean || after == before {
+		t.Errorf("CheckoutState = %q, clean %v, %v, want the new symlink to change the fingerprint", after, clean, err)
+	}
+}

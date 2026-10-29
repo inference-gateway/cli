@@ -330,9 +330,12 @@ func (s *Service) forgetOrigin(conversationID string) {
 	}
 }
 
+// originFile is where the origin of a session is kept, "" when the daemon
+// remembers none or the conversation id is not a plain file name.
 func (s *Service) originFile(conversationID string) string {
-	if s.cfg.StateDir == "" || filepath.Base(conversationID) != conversationID {
+	name := filepath.Base(conversationID)
+	if s.cfg.StateDir == "" || name != conversationID || name == "." || strings.Contains(name, "..") {
 		return ""
 	}
-	return filepath.Join(s.cfg.StateDir, "origins", conversationID)
+	return filepath.Join(s.cfg.StateDir, "origins", name)
 }

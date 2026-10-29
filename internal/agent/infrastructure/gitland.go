@@ -39,17 +39,40 @@ func CheckoutState(ctx context.Context, projectDir string, excluded func(abs str
 	if err != nil {
 		return "", false, err
 	}
+	project, err := os.OpenRoot(projectDir)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = project.Close() }()
 	sum := sha256.New()
 	_, _ = fmt.Fprintf(sum, "%s\x00%s\x00", strings.TrimSpace(string(head)), branch)
 	_, _ = sum.Write(patch)
 	for _, rel := range untracked {
-		data, err := os.ReadFile(filepath.Join(projectDir, rel))
+		digest, err := untrackedDigest(project, rel)
 		if err != nil {
 			return "", false, fmt.Errorf("reading %s: %w", rel, err)
 		}
-		_, _ = fmt.Fprintf(sum, "\x00%s\x00%x", rel, sha256.Sum256(data))
+		_, _ = fmt.Fprintf(sum, "\x00%s\x00%s", rel, digest)
 	}
 	return hex.EncodeToString(sum.Sum(nil)), len(patch) == 0 && len(untracked) == 0, nil
+}
+
+// untrackedDigest fingerprints an untracked file the way a pack carries it: a
+// regular file by its content, anything else, which a pack leaves out, by its
+// kind alone.
+func untrackedDigest(project *os.Root, rel string) (string, error) {
+	info, err := project.Lstat(rel)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return info.Mode().Type().String(), nil
+	}
+	data, err := project.ReadFile(rel)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
 // Landing is a packed workspace applied onto an existing checkout. It stays
@@ -254,11 +277,16 @@ func (l *Landing) removeWritten(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	project, err := os.OpenRoot(l.dir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = project.Close() }()
 	for _, rel := range untracked {
 		if slices.Contains(l.kept, rel) {
 			continue
 		}
-		if err := os.Remove(filepath.Join(l.dir, rel)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := project.Remove(rel); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("removing %s: %w", rel, err)
 		}
 	}

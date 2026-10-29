@@ -39,6 +39,11 @@ func (s *Service) startTransfer(to requester, f clientFrame) {
 		to.Deliver(runError("transfer_session needs transfer_id, project_dir, id and target"))
 		return
 	}
+	session := s.session(sessionsdomain.ThreadKey{ProjectDir: f.ProjectDir, ConversationID: f.ID})
+	if err := session.Validate(); err != nil {
+		refuseTransfer(to, f.TransferID, err.Error())
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 	s.mu.Lock()
 	if _, running := s.transfers[f.TransferID]; running {
@@ -65,7 +70,7 @@ func (s *Service) startTransfer(to requester, f clientFrame) {
 	}()
 	req := agentdomain.TransferRequest{
 		TransferID: f.TransferID,
-		Session:    s.session(sessionsdomain.ThreadKey{ProjectDir: f.ProjectDir, ConversationID: f.ID}),
+		Session:    session,
 		Target:     f.Target,
 		Files:      f.Files,
 	}

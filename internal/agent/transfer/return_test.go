@@ -245,3 +245,28 @@ func TestPackForReturnRefusesWhatItDidNotRestore(t *testing.T) {
 		})
 	}
 }
+
+func TestOriginFileTakesOnlyPlainConversationIDs(t *testing.T) {
+	s := New(Config{Identity: "laptop", StateDir: t.TempDir()}, Deps{})
+
+	for _, id := range []string{"", ".", "..", "a/b", "../escape", "x/../y"} {
+		if path := s.originFile(id); path != "" {
+			t.Errorf("originFile(%q) = %q, want none", id, path)
+		}
+	}
+	if path := s.originFile("conv-1"); path != filepath.Join(s.cfg.StateDir, "origins", "conv-1") {
+		t.Errorf("originFile(conv-1) = %q", path)
+	}
+}
+
+func TestStartTransferRefusesAConversationIDThatIsNotAPlainName(t *testing.T) {
+	s, _ := newService(t, &launcher{})
+	client := &sessionsmocks.FakeClient{}
+
+	s.startTransfer(client, clientFrame{Type: frameTransferSession, TransferID: "t-1", ProjectDir: "/proj", ID: "../../etc", Target: "laptop"})
+
+	progress := delivered[progressFrame](client, frameTransferProgress)
+	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "not a plain name") {
+		t.Fatalf("progress = %+v, want the id refused", progress)
+	}
+}
