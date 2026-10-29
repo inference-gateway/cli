@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 )
 
@@ -60,6 +61,9 @@ func (app *ChatApplication) liveCadence() time.Duration {
 		if app.toolCallRenderer != nil && app.toolCallRenderer.HasActivePreviews() {
 			return time.Second
 		}
+	}
+	if app.environmentsView != nil && app.environmentsView.IsLoading() && app.stateManager.GetCurrentView() == tui.ViewStateEnvironments {
+		return components.SpinnerFrameInterval
 	}
 	if app.subagentList != nil && app.subagentList.HasRows() {
 		return time.Second

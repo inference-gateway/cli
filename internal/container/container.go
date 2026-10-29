@@ -818,6 +818,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewDiffShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewExplorerShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewEnvironmentsShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewTransferShortcut(c.config.Daemon.Environments))
 	c.shortcutRegistry.Register(shortcuts.NewReleaseNotesShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())

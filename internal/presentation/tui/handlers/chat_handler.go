@@ -181,6 +181,11 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.handleChatStreamOpened(m)
 	case agentdomain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
+	case tui.FollowRunEvent:
+		if h.stateManager.IsAgentBusy() {
+			return nil
+		}
+		return h.startChatCompletion()
 	case tui.RolloverCompletedEvent:
 		return h.HandleRolloverCompletedEvent(m)
 	case tui.ConversationSelectedEvent:

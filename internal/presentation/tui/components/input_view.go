@@ -169,6 +169,7 @@ func (iv *InputView) SetThemeService(themeService tui.ThemeService) {
 type inputViewState interface {
 	tui.ApprovalPrompt
 	tui.PlanApprovalPrompt
+	GetSessionPlacement() tui.SessionPlacement
 }
 
 // SetStateManager sets the state manager for this input view
@@ -400,13 +401,15 @@ func (iv *InputView) Render() string {
 }
 
 // buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box
-// top border, or "⎇ <branch> ─ #<pr>" when a PR exists for the current branch
-// and git_pr is enabled. Returns "" when the git_branch indicator is disabled
-// or there is no branch to show (not a repo / detached HEAD). Truncation to
-// fit the border is handled by the style provider, so no length cap is applied
-// here.
+// top border, with " ─ #<pr>" when a PR exists and git_pr is enabled. It is ""
+// when git_branch is off, there is no branch (not a repo, detached HEAD) or the
+// session runs on another environment, whose checkout this one is not. The
+// style provider truncates it to fit the border.
 func (iv *InputView) buildGitBranchLabel() string {
 	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
+		return ""
+	}
+	if iv.stateManager != nil && iv.stateManager.GetSessionPlacement().Remote() {
 		return ""
 	}
 

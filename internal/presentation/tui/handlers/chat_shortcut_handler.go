@@ -232,7 +232,7 @@ func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcut
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution
-func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any) tea.Msg { //nolint:cyclop
+func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any) tea.Msg { //nolint:cyclop,gocyclo
 	switch sideEffect {
 	case shortcuts.SideEffectSwitchModel:
 		return s.handleSwitchModelSideEffect()
@@ -262,6 +262,13 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowToolsListSideEffect()
 	case shortcuts.SideEffectShowAgents:
 		return s.handleShowAgentsSideEffect()
+	case shortcuts.SideEffectShowEnvironments:
+		return tui.ShowEnvironmentsEvent{}
+	case shortcuts.SideEffectTransferSession:
+		if request, ok := data.(tui.TransferRequestedEvent); ok {
+			return request
+		}
+		return nil
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:

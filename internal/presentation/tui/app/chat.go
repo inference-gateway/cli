@@ -102,6 +102,8 @@ type ChatApplication struct {
 	helpView             *components.HelpView
 	toolsView            *components.ToolsView
 	agentsView           *components.AgentsView
+	environmentsView     *components.EnvironmentsView
+	sessionMover         tui.SessionMover
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -332,6 +334,7 @@ func NewChatApplication(
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
 	app.agentsView = components.NewAgentsView(app.stateManager, app.toolService, styleProvider)
+	app.environmentsView = components.NewEnvironmentsView(styleProvider, app.loadEnvironments)
 	if persistentRepo, ok := app.conversationRepo.(convdomain.PersistentConversationRepository); ok {
 		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
@@ -594,7 +597,7 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 
 	}
 
-	return nil
+	return app.handleSessionPlacementEvents(msg)
 }
 
 // CanRequestSuggestion implements tui.SuggestionGate: the chat UI is quiet
@@ -697,6 +700,8 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleToolsListView(msg)
 	case tui.ViewStateAgents:
 		return app.handleAgentsView(msg)
+	case tui.ViewStateEnvironments:
+		return app.handleEnvironmentsView(msg)
 	default:
 		return nil
 	}
@@ -714,6 +719,7 @@ func (app *ChatApplication) isInputBlocked(currentView tui.ViewState) bool {
 		app.stateManager.GetPlanApprovalUIState() != nil ||
 		app.stateManager.GetUserQuestionUIState() != nil ||
 		app.stateManager.GetRetryStatus() != nil ||
+		app.transferring() ||
 		inHistoryMode ||
 		currentView == tui.ViewStateDiffViewer ||
 		currentView == tui.ViewStateExplorer ||
@@ -816,6 +822,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
+
+	if app.transferring() && key.Matches(keyMsg, guardKeys.cancel) {
+		return app.cancelTransfer()
+	}
 
 	if app.stateManager.GetUserQuestionUIState() != nil && !key.Matches(keyMsg, guardKeys.interrupt) {
 		if cmd := app.questionFormView.Forward(keyMsg); cmd != nil {
@@ -982,6 +992,8 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 				StatusType: tui.StatusDefault,
 			}
 		}}
+	case tui.StatusIndicatorActionEnvironments:
+		return []tea.Cmd{app.openEnvironments()}
 	case tui.StatusIndicatorActionA2AAgents:
 		_ = app.stateManager.TransitionToView(tui.ViewStateAgents)
 		return []tea.Cmd{func() tea.Msg {
@@ -1032,6 +1044,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderToolsList()
 	case tui.ViewStateAgents:
 		return app.renderAgents()
+	case tui.ViewStateEnvironments:
+		return app.renderEnvironments()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}

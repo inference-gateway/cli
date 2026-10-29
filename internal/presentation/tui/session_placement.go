@@ -53,6 +53,23 @@ type SessionPlacementChangedEvent struct {
 // another client's turn, or a run suspended on a prompt it should answer.
 type FollowRunEvent struct{}
 
+// ShowEnvironmentsEvent opens the environments picker.
+type ShowEnvironmentsEvent struct{}
+
+// EnvironmentsLoadedEvent carries the environments the session can move to,
+// or why they could not be listed.
+type EnvironmentsLoadedEvent struct {
+	Environments []agentdomain.EnvironmentStatus
+	Err          error
+}
+
+// TransferRequestedEvent asks to move the session to Target, with Files
+// git does not track carried along.
+type TransferRequestedEvent struct {
+	Target string
+	Files  []string
+}
+
 // TransferProgressEvent reports one stage of the session's running transfer.
 type TransferProgressEvent struct {
 	Progress agentdomain.TransferProgress

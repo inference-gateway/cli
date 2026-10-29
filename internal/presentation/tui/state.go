@@ -58,6 +58,9 @@ type ApplicationState struct {
 	computerUsePaused bool
 	pausedRequestID   string
 
+	// Where a daemon chat's session runs
+	sessionPlacement SessionPlacement
+
 	// Debugging
 	debugMode bool
 }
@@ -77,6 +80,7 @@ const (
 	ViewStateHelp
 	ViewStateToolsList
 	ViewStateAgents
+	ViewStateEnvironments
 )
 
 func (v ViewState) String() string {
@@ -103,6 +107,8 @@ func (v ViewState) String() string {
 		return "ToolsList"
 	case ViewStateAgents:
 		return "Agents"
+	case ViewStateEnvironments:
+		return "Environments"
 	default:
 		return "Unknown"
 	}
@@ -185,6 +191,16 @@ func (s *ApplicationState) CycleAgentMode() agentdomain.AgentMode {
 	return s.agentMode
 }
 
+// GetSessionPlacement is where a daemon chat's session runs.
+func (s *ApplicationState) GetSessionPlacement() SessionPlacement {
+	return s.sessionPlacement
+}
+
+// SetSessionPlacement records where a daemon chat's session runs.
+func (s *ApplicationState) SetSessionPlacement(placement SessionPlacement) {
+	s.sessionPlacement = placement
+}
+
 // isValidTransition validates if a view transition is allowed
 func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 	if from == to {
@@ -204,6 +220,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateHelp,
 			ViewStateToolsList,
 			ViewStateAgents,
+			ViewStateEnvironments,
 		},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
@@ -214,6 +231,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateHelp:                  {ViewStateChat},
 		ViewStateToolsList:             {ViewStateChat},
 		ViewStateAgents:                {ViewStateChat},
+		ViewStateEnvironments:          {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]
