@@ -72,6 +72,12 @@ with the same `messageId`:
 | `agent_status` | `agent:<name>` | `name`, `state`, `message`, pull progress `done`/`total` |
 | `judge_verdict` | `judge:<tool>:<turn>` | `tool`, `model`, `decision`, `reason`, `turn` |
 | `computer_use` | `computer_use:<toolCallId>` | `toolCallId`, `action`, pointer `x`/`y` in screen coordinates, `screenWidth`, `screenHeight` |
+| `tool_progress` | `tool:<toolCallId>` | `toolCallId`, `toolName`, `status`, `message` |
+| `bash_output` | `bash:<toolCallId>` | `toolCallId`, `output` (the latest chunk, not the whole output so far), `complete` |
+
+A tool's `status` moves through `queued`, `starting`, `running` and `saving` to `completed` or
+`failed`. `bash_output` carries one chunk per snapshot, so a client that shows the whole output
+appends each chunk instead of replacing what it has.
 
 A computer-use action is written just before the Computer tool performs a
 pointer (`move`, `click`, `double_click`, `triple_click`) or keyboard (`type`,
@@ -129,7 +135,9 @@ answer is a resume entry on the next run, sent as a `run_agent_input` frame on s
 continuation run writes the `TOOL_CALL_RESULT` for the same `toolCallId`:
 
 ```json
-{"type":"RUN_FINISHED","threadId":"s1","runId":"r1","outcome":{"type":"interrupt","interrupts":[{"id":"call-1","reason":"tool_call","toolCallId":"call-1"}]}}
+{"type":"RUN_FINISHED","threadId":"s1","runId":"r1","outcome":{"type":"interrupt","interrupts":[
+  {"id":"call-1","reason":"tool_call","toolCallId":"call-1","message":"<approval context>",
+   "metadata":{"toolName":"Bash","arguments":"{\"command\":\"ls\"}"}}]}}
 ```
 
 ```json
@@ -137,10 +145,20 @@ continuation run writes the `TOOL_CALL_RESULT` for the same `toolCallId`:
 ```
 
 - `status` `resolved` approves the tool call, `cancelled` declines it.
+- An approval's `metadata` names the call (`toolName`, `arguments` as a JSON string) and its
+  `message` carries the approval's context, such as the judge's escalation note, when there is one.
+  A client renders the prompt from the interrupt alone, even for a call the run never streamed,
+  such as a `SandboxAccess` grant whose id is the gated call's id plus `-sandbox`.
 - A question's interrupt has `reason` `input_required` and a `responseSchema` describing the
   `payload` the answer carries: `{"answers": [{header, question, selectedLabels, otherText}]}`,
-  the AskUserQuestion tool's own shape. `cancelled` dismisses the form and the tool takes its
-  dismissed path.
+  the AskUserQuestion tool's own shape. Its `metadata.questions` lists the questions it asks.
+  `cancelled` dismisses the form and the tool takes its dismissed path.
+- An accepted plan suspends the run too. Its interrupt has `reason` `plan_approval`, the plan's id as
+  `id` and the plan in `metadata` (`planId`, `plan`). The resume `payload` is
+  `{"action": "accept" | "accept_standard" | "reject"}`: `accept` executes it in auto-accept mode,
+  `accept_standard` executes it approving each step, and `reject` (or `cancelled`) keeps planning.
+  The worker records the decision on the plan, switches the agent mode and runs the plan as the
+  next turn, in a fresh conversation whose id the next `RUN_STARTED` carries as `threadId`.
 - A resume must answer every open interrupt of the run. The daemon refuses one that misses an
   interrupt with `RUN_ERROR`, keeps the first resume for a thread and drops the later ones.
 - `RecordStart` requires approval outside auto-accept mode by default, gated by
@@ -148,7 +166,8 @@ continuation run writes the `TOOL_CALL_RESULT` for the same `toolCallId`:
   interrupt. Without an approver it is blocked.
 
 The legacy `approval_response` and `user_question_response` stdin lines of `json` mode are still
-accepted by the worker, but the resume entry is the contract.
+accepted by the worker, and `{"type":"plan_approval_response","plan_id":"...","action":"accept"}` decides
+a plan the same way, but the resume entry is the contract.
 
 A running recording is a `backgroundTasks` job with kind `recording`, and the run waits for it
 (up to `a2a.task.agent_mode_max_wait_seconds`) instead of finishing, so send the stop request as a
@@ -156,8 +175,8 @@ A running recording is a `backgroundTasks` job with kind `recording`, and the ru
 the process exits, after the terminal event, so no `screenRecording` patch with `active: false`
 follows it: clear the indicator on `RUN_FINISHED` or `RUN_ERROR`.
 
-Whole messages are emitted as single-delta triads (the synchronous headless loop produces complete
-messages); live token streaming is a planned follow-up.
+Text and reasoning stream as the model produces them, one `TEXT_MESSAGE_CONTENT` or
+`REASONING_MESSAGE_CONTENT` per chunk. Tool calls are written whole once the model's step completes.
 
 ## What stays custom and why
 
@@ -201,6 +220,7 @@ lines without translating them.
 | `new_session`, `resume_conversation` | Answered with a `MESSAGES_SNAPSHOT` of the worker's conversation |
 | `list_*`, `select_model`, `set_mode`, `tool_request` | Answered with the [panel frames](browser-extension-protocol.md) for the worker's dir |
 | `approval_response` | Answers a pending `tool_request`'s CUSTOM `approval_request` |
+| `plan_approval_response` | Decides the plan a `plan_approval` interrupt waits on, like its resume entry |
 
 `input` is a `RunAgentInput`. `messages` holds the new messages only, since the worker owns the
 history. A user message's `content` is a string or content parts: `{"type":"text","text":...}` and
@@ -208,7 +228,8 @@ history. A user message's `content` is a string or content parts: `{"type":"text
 tmp dir. PNG, JPEG, GIF and WebP images reach the model as image parts, and other files as a note naming
 the saved path. Files over 10 MiB are skipped.
 
-Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation id, then exactly one
+Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation the worker holds (a
+rollover or an accepted plan moves it on to a new one, which a client follows), then exactly one
 `RUN_FINISHED` or `RUN_ERROR`. Each serve run opens with `MESSAGES_SNAPSHOT`, including the newly submitted user messages. `select_model`
 switches the model the next turns use. Without `--model` and `agent.model`, the worker falls back to the gateway's
 first model, so it can answer panel frames in an unconfigured project.

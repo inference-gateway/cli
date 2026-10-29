@@ -202,6 +202,33 @@ func AnswerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan 
 	}
 }
 
+// AnswerPlan waits for the decision on the plan e asks to execute. Stale
+// plan ids are skipped, and a nil or closed channel keeps planning.
+func AnswerPlan(e agentdomain.PlanApprovalRequestedEvent, plans <-chan ipc.PlanApprovalResponse) agentdomain.PlanApprovalAction {
+	if plans == nil {
+		return agentdomain.PlanApprovalReject
+	}
+	for resp := range plans {
+		if resp.PlanID != "" && resp.PlanID != e.PlanID {
+			continue
+		}
+		return PlanAction(resp.Action)
+	}
+	return agentdomain.PlanApprovalReject
+}
+
+// PlanAction maps a plan decision's wire name to the agent's action. An
+// unknown name keeps planning.
+func PlanAction(action string) agentdomain.PlanApprovalAction {
+	switch action {
+	case ipc.PlanAccept:
+		return agentdomain.PlanApprovalAccept
+	case ipc.PlanAcceptStandard:
+		return agentdomain.PlanApprovalAcceptStandard
+	}
+	return agentdomain.PlanApprovalReject
+}
+
 // UserQuestionRequest builds the IPC payload for one question form.
 func UserQuestionRequest(e agentdomain.UserQuestionRequestedEvent) ipc.UserQuestionRequest {
 	questions, _ := json.Marshal(e.Questions)

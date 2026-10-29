@@ -287,18 +287,22 @@ func TestExtensionRelayLeavesOtherFramesToTheHost(t *testing.T) {
 	}
 }
 
-func TestExtensionRelayDesktopsDoNotReplaceTheExtension(t *testing.T) {
-	relay, rest, binding := startRelay(t)
-	extension := connectExtension(t, relay, binding)
+func TestExtensionRelayClientsDoNotReplaceTheExtension(t *testing.T) {
+	for _, kind := range []string{"desktop", "browser", "tui", "cli", "daemon", "subagent-parent"} {
+		t.Run(kind, func(t *testing.T) {
+			relay, rest, binding := startRelay(t)
+			extension := connectExtension(t, relay, binding)
 
-	for range 2 {
-		connect(t, binding, "desktop").send(t, map[string]string{"type": "list_skills"})
-	}
-	eventually(t, "both desktops relaying", func() bool { return rest.HandleCallCount() == 2 })
+			for range 2 {
+				connect(t, binding, kind).send(t, map[string]string{"type": "list_skills"})
+			}
+			eventually(t, "both clients relaying", func() bool { return rest.HandleCallCount() == 2 })
 
-	go extension.answer()
-	if _, err := relay.relay(context.Background(), json.RawMessage(navigateCommand)); err != nil {
-		t.Fatalf("relay with desktops attached: %v", err)
+			go extension.answer()
+			if _, err := relay.relay(context.Background(), json.RawMessage(navigateCommand)); err != nil {
+				t.Fatalf("relay with %s clients attached: %v", kind, err)
+			}
+		})
 	}
 }
 

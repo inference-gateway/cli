@@ -35,6 +35,10 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 		w.fail(describe(err, "reading the session's lease").Error())
 		return
 	}
+	if !found && opts.Environment != "" && opts.Environment != s.me {
+		s.relayNamed(ctx, w, key, opts)
+		return
+	}
 	if !found || lease.Environment == s.me {
 		s.launchLocal(ctx, w, key, opts, lease.TransferID)
 		return
@@ -52,6 +56,20 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 	logger.Warn("transfer reclaims a session whose environment is unreachable and whose lease lapsed",
 		"conversation_id", key.ConversationID, "environment", lease.Environment, "error", err)
 	s.launchLocal(ctx, w, key, opts, "")
+}
+
+// relayNamed relays a thread no lease places to the environment its client
+// named, which holds the conversation. Unlike a lapsed lease, an unreachable
+// named environment never falls back to a local worker, which would start the
+// conversation empty here.
+func (s *Service) relayNamed(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) {
+	placed := agentdomain.Lease{ConversationID: key.ConversationID, Environment: opts.Environment, Workspace: opts.Workspace}
+	remote, err := s.connectRemote(ctx, key, placed)
+	if err != nil {
+		w.fail(fmt.Sprintf("session %s cannot be reached on environment %s: %v", key.ConversationID, opts.Environment, err))
+		return
+	}
+	w.attach(remote)
 }
 
 // launchLocal claims the session for this daemon and starts a process worker

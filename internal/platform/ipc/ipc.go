@@ -40,6 +40,24 @@ type UserQuestionResponse struct {
 	Cancelled  bool            `json:"cancelled,omitempty"`
 }
 
+// PlanApprovalResponse is written to the agent's stdin by the host UI after
+// the user decides on a plan the agent asked to execute. Action is one of
+// PlanAccept, PlanAcceptStandard or PlanReject.
+type PlanApprovalResponse struct {
+	Type   string `json:"type"` // "plan_approval_response"
+	PlanID string `json:"plan_id"`
+	Action string `json:"action"`
+}
+
+// The plan decisions a PlanApprovalResponse or a plan interrupt's resume
+// payload carries: execute in auto-accept mode, execute approving each step,
+// or keep planning.
+const (
+	PlanAccept         = "accept"
+	PlanAcceptStandard = "accept_standard"
+	PlanReject         = "reject"
+)
+
 // RunAgentInputFrameType is the stdin frame that starts or continues a run
 // with new user messages. Its body is an AG-UI RunAgentInput.
 const RunAgentInputFrameType = "run_agent_input"

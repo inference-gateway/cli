@@ -12,6 +12,7 @@ import (
 
 	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -347,6 +348,62 @@ func TestRegistryReapsIdleWorkers(t *testing.T) {
 	if l.count() != 2 {
 		t.Fatal("no worker may launch after shutdown")
 	}
+}
+
+const (
+	suspendedSnapshot = `{"type":"MESSAGES_SNAPSHOT","messages":[]}`
+	suspendedStart    = `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`
+	suspendedRun      = `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1","outcome":{"type":"interrupt","interrupts":[{"id":"call-1","reason":"tool_call","toolCallId":"call-1"}]}}`
+)
+
+// suspendThread follows conv-1 with c and has its worker suspend the run on
+// one approval interrupt.
+func suspendThread(t *testing.T, r *Registry, l *launcher, c *sessionsmocks.FakeClient) (*sessionsmocks.FakeWorker, chan []byte) {
+	t.Helper()
+	handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	worker, lines := l.worker(0)
+	for _, line := range []string{suspendedSnapshot, suspendedStart, suspendedRun} {
+		lines <- []byte(line)
+	}
+	receives(t, c, suspendedSnapshot, suspendedStart, suspendedRun)
+	return worker, lines
+}
+
+func TestRegistryReplaysASuspendedRunToANewFollower(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	first := &sessionsmocks.FakeClient{}
+	_, lines := suspendThread(t, r, l, first)
+
+	second := &sessionsmocks.FakeClient{}
+	handle(r, second, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	lines <- []byte(suspendedSnapshot)
+	receives(t, second, suspendedSnapshot, suspendedRun)
+	receives(t, first, suspendedSnapshot, suspendedStart, suspendedRun)
+
+	continued := `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-2"}`
+	lines <- []byte(continued)
+	receives(t, second, suspendedSnapshot, suspendedRun, continued)
+	third := &sessionsmocks.FakeClient{}
+	handle(r, third, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	lines <- []byte(suspendedSnapshot)
+	receives(t, third, suspendedSnapshot)
+}
+
+func TestRegistryKeepsASuspendedWorkerForTheApprovalTimeout(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Minute)
+	c := &sessionsmocks.FakeClient{}
+	worker, _ := suspendThread(t, r, l, c)
+	r.Detach(c)
+
+	r.reap(time.Now().Add(2 * time.Minute))
+	time.Sleep(20 * time.Millisecond)
+	if worker.StopCallCount() != 0 {
+		t.Fatal("a worker waiting on an open approval was reaped at the idle timeout")
+	}
+	r.reap(time.Now().Add(constants.ApprovalTimeout + time.Minute))
+	eventually(t, "the suspended worker to stop after the approval timeout", func() bool { return worker.StopCallCount() == 1 })
 }
 
 // TestRegistryStopsAThreadOnRequest deletes a conversation the way the desktop

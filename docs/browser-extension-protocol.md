@@ -71,8 +71,10 @@ Client → CLI, first frame, within 5 seconds of connecting:
 {"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 2, "extension_version": "1.9.2"}
 ```
 
-- `client` is `extension`, `desktop` or `browser`. An absent or unknown value counts as
-  `extension`.
+- `client` names the kind of client: `extension`, `desktop`, `browser`, `tui` (`infer chat --daemon`),
+  `cli` (`infer daemon` subcommands), `subagent-parent` or `daemon` (a peer daemon). Only `extension`, or
+  an absent value, is the browser extension. Every other value is a client and never takes the
+  extension's place.
 - The handshake is lenient: any hello with a valid token is accepted. A hello
   without `protocol_version` is logged as a warning.
 
@@ -181,6 +183,12 @@ Both make the connection follow that thread:
   paths added to the user's `sandbox.yaml` allowed list), `max_turns` and
   `subagent` (`{"parent": "<conversation id>", "depth": 1, "tools": [...]}`,
   set by a worker's Agent tool when the thread is a subagent it spawned).
+- `environment` and `workspace` place a thread whose conversation no lease
+  places: the registered environment that holds it and its project dir there.
+  A client sends them when it opens a session it listed on a remote
+  environment (`list_conversations` on a relayed thread). The daemon relays the
+  thread there and never starts it locally, even when the environment cannot
+  be reached.
 - `resume_conversation` requires `id`. A worker that resumes a long-idle
   conversation can roll it over to a new id, so resume with the last `threadId`
   you saw.
@@ -292,10 +300,18 @@ thread receives it:
 ]}}
 ```
 
-- `reason` is `tool_call` for an approval, with the `toolCallId` of the call the
-  run streamed before it suspended (`TOOL_CALL_START` carries its name and
-  `TOOL_CALL_ARGS` its arguments), or `input_required` for a question, with a
-  `responseSchema` describing the answer's `payload`.
+- `reason` is `tool_call` for an approval, with the `toolCallId` of the call
+  and `metadata` naming it (`toolName`, `arguments`), plus a `message` with the
+  approval's context when there is one. A `SandboxAccess` grant is never
+  streamed as a tool call, so the interrupt is all a client sees of it.
+- `reason` is `input_required` for a question, with a `responseSchema`
+  describing the answer's `payload` and `metadata.questions` listing the
+  questions.
+- `reason` is `plan_approval` for a plan the agent asks to execute, with the
+  plan in `metadata` (`planId`, `plan`). The answer's `payload` is
+  `{"action": "accept" | "accept_standard" | "reject"}`, and an accepted plan
+  runs as the next turn in a new conversation, whose id the `RUN_STARTED`
+  that follows carries as `threadId`.
 
 Client → CLI, the user's decision, as a `run_agent_input` carrying resume
 entries and no messages:
@@ -308,6 +324,11 @@ entries and no messages:
   A question's answer travels in the entry's `payload`.
 - A resume answers every open interrupt of the run. The daemon refuses one that
   misses an interrupt with a `RUN_ERROR` naming the missing ids.
+- A client that starts following the thread while its run is suspended gets
+  the suspended `RUN_FINISHED` again right after its `MESSAGES_SNAPSHOT`. A
+  worker whose run waits on an open interrupt is kept for at least the
+  5 minute approval timeout after its last client left, so a reattaching
+  client can still answer.
 - The first resume wins. The daemon drops the later ones for the same
   interrupts, and the thread's other clients learn the decision from the
   `RUN_STARTED` of the continuation run that follows, whose `STATE_SNAPSHOT`

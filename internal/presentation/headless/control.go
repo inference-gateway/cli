@@ -25,7 +25,7 @@ const continuePrompt = "Please continue from where you left off."
 
 // headlessControl is the single reader of the headless process's stdin. It
 // routes the run inputs a client sends into the message queue and, through
-// their resume entries, into the approval and question brokers the renderer
+// their resume entries, into the approval, question and plan brokers the renderer
 // blocks on, and browser results into the stdio browser. It mirrors what the
 // chat approval coordinator does in the TUI. The channels close on stdin EOF.
 type headlessControl struct {
@@ -34,6 +34,7 @@ type headlessControl struct {
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
 	questions    chan ipc.UserQuestionResponse
+	plans        chan ipc.PlanApprovalResponse
 
 	// pending holds the interrupts the runs raised, keyed by interrupt id and
 	// carrying the reason, so a resume entry routes to its own broker.
@@ -53,6 +54,7 @@ func newHeadlessControl(agentService agentdomain.AgentService, messageQueue conv
 		sessionID:    sessionID,
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
+		plans:        make(chan ipc.PlanApprovalResponse, 4),
 		pending:      make(map[string]string),
 		wake:         make(chan struct{}, 1),
 	}
@@ -93,6 +95,7 @@ func (c *headlessControl) readLines(in io.Reader) {
 	}
 	close(c.approvals)
 	close(c.questions)
+	close(c.plans)
 	close(c.wake)
 	if c.browser != nil {
 		c.browser.close()
@@ -120,6 +123,11 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		var resp ipc.UserQuestionResponse
 		if json.Unmarshal(line, &resp) == nil {
 			c.questions <- resp
+		}
+	case "plan_approval_response":
+		var resp ipc.PlanApprovalResponse
+		if json.Unmarshal(line, &resp) == nil {
+			c.plans <- resp
 		}
 	case ipc.RunAgentInputFrameType:
 		var frame runInputFrame
@@ -245,11 +253,16 @@ func (c *headlessControl) answerResume(entry agui.ResumeEntry) {
 	if !open {
 		return
 	}
-	payload, _ := json.Marshal(entry.Payload)
-	if reason == agui.InterruptInputRequired {
+	switch reason {
+	case agui.InterruptInputRequired:
 		c.questions <- ipc.UserQuestionResponse{
 			Type: "user_question_response", ToolCallID: entry.InterruptID,
-			Answers: payload, Cancelled: entry.Status != agui.ResumeStatusResolved,
+			Answers: questionAnswers(entry.Payload), Cancelled: entry.Status != agui.ResumeStatusResolved,
+		}
+		return
+	case interruptPlanApproval:
+		c.plans <- ipc.PlanApprovalResponse{
+			Type: "plan_approval_response", PlanID: entry.InterruptID, Action: planDecision(entry),
 		}
 		return
 	}
@@ -257,6 +270,35 @@ func (c *headlessControl) answerResume(entry agui.ResumeEntry) {
 		Type: "approval_response", ToolCallID: entry.InterruptID,
 		Approved: entry.Status == agui.ResumeStatusResolved,
 	}
+}
+
+// questionAnswers is the answers array of a question's resume payload, given
+// as {"answers": [...]} the way the interrupt's response schema asks, or bare.
+func questionAnswers(payload any) json.RawMessage {
+	raw, _ := json.Marshal(payload)
+	var wrapped struct {
+		Answers json.RawMessage `json:"answers"`
+	}
+	if json.Unmarshal(raw, &wrapped) == nil && wrapped.Answers != nil {
+		return wrapped.Answers
+	}
+	return raw
+}
+
+// planDecision is the action a plan's resume entry decides. A cancelled entry
+// or a payload without a known action keeps planning.
+func planDecision(entry agui.ResumeEntry) string {
+	if entry.Status != agui.ResumeStatusResolved {
+		return ipc.PlanReject
+	}
+	raw, _ := json.Marshal(entry.Payload)
+	var payload struct {
+		Action string `json:"action"`
+	}
+	if json.Unmarshal(raw, &payload) != nil {
+		return ipc.PlanReject
+	}
+	return payload.Action
 }
 
 // Note records the interrupt a run just raised, so the resume entry that
@@ -285,6 +327,7 @@ func (c *headlessControl) awaitTurn() bool {
 		case _, open = <-c.wake:
 		case _, open = <-c.approvals:
 		case _, open = <-c.questions:
+		case _, open = <-c.plans:
 		}
 		if !open {
 			return !c.messageQueue.IsEmpty()

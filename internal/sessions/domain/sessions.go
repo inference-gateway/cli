@@ -23,6 +23,11 @@ type ThreadOptions struct {
 	MaxTurns           int      `json:"max_turns,omitempty"`
 	// Subagent marks a thread another thread's Agent tool spawned.
 	Subagent *Subagent `json:"subagent,omitempty"`
+	// Environment and Workspace place a thread no lease places: the
+	// environment that holds its conversation and the project dir there, as
+	// when a client opens a session it listed on a remote environment.
+	Environment string `json:"environment,omitempty"`
+	Workspace   string `json:"workspace,omitempty"`
 	// Env is extra environment the worker starts with, such as credentials a
 	// transfer handed over. It never travels on the wire.
 	Env []string `json:"-"`

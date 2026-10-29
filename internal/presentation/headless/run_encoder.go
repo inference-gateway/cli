@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -102,9 +103,15 @@ type RunEncoder struct {
 
 	approvals <-chan ipc.ApprovalResponse
 	questions <-chan ipc.UserQuestionResponse
+	plans     <-chan ipc.PlanApprovalResponse
+	modes     agentdomain.AgentModeState
 	startup   *startupNotes
 	interrupt Interrupts
 	publish   []Publish
+
+	// plan is the plan the user accepted during the run, which the serve
+	// worker executes in a fresh session once the run ends.
+	plan *string
 }
 
 // RunEncoderDeps are the collaborators of one run's encoder.
@@ -115,6 +122,8 @@ type RunEncoderDeps struct {
 	Jobs      func() []scheddomain.TrackedJob
 	Approvals <-chan ipc.ApprovalResponse
 	Questions <-chan ipc.UserQuestionResponse
+	Plans     <-chan ipc.PlanApprovalResponse
+	Modes     agentdomain.AgentModeState
 	Startup   *startupNotes
 	Interrupt Interrupts
 	Publish   []Publish
@@ -136,6 +145,8 @@ func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 		jobs:      deps.Jobs,
 		approvals: deps.Approvals,
 		questions: deps.Questions,
+		plans:     deps.Plans,
+		modes:     deps.Modes,
 		startup:   deps.Startup,
 		interrupt: deps.Interrupt,
 		publish:   deps.Publish,
@@ -211,6 +222,85 @@ func (r *RunEncoder) emitJudgeVerdict(ev agentdomain.JudgeVerdictChatEvent) {
 		"tool": ev.Tool, "model": ev.Model, "decision": ev.Decision, "reason": ev.Reason, "turn": ev.Turn,
 	}
 	r.run.Activity("judge:"+ev.Tool+":"+fmt.Sprint(ev.Turn), "judge_verdict", verdict)
+}
+
+// approvalInterrupt is the interrupt a gated tool call suspends the run on. It
+// names the call and its arguments and carries the approval's context, so a
+// client can render it even for a call it never saw streamed, as with
+// SandboxAccess.
+func approvalInterrupt(ev agentdomain.ToolApprovalRequestedEvent) agui.Interrupt {
+	return agui.Interrupt{
+		ID: ev.ToolCall.ID, Reason: agui.InterruptToolCall, ToolCallID: ev.ToolCall.ID, Message: ev.Context,
+		Metadata: map[string]any{"toolName": ev.ToolCall.Function.Name, "arguments": ev.ToolCall.Function.Arguments},
+	}
+}
+
+// interruptPlanApproval is the reason of the interrupt a plan the agent asks
+// to execute suspends the run on. Its resume payload is {"action": ...}.
+const interruptPlanApproval = "plan_approval"
+
+// planSchema describes the payload a plan interrupt's resume entry carries.
+var planSchema = map[string]any{
+	"type": "object",
+	"properties": map[string]any{
+		"action": map[string]any{"type": "string", "enum": []string{ipc.PlanAccept, ipc.PlanAcceptStandard, ipc.PlanReject}},
+	},
+	"required": []string{"action"},
+}
+
+// planInterruptID is the id of a plan's interrupt, the plan's own id.
+func planInterruptID(ev agentdomain.PlanApprovalRequestedEvent) string {
+	return cmp.Or(ev.PlanID, "plan")
+}
+
+// planInterrupt is the interrupt a plan suspends the run on, carrying the
+// plan so a client can show it for review.
+func planInterrupt(ev agentdomain.PlanApprovalRequestedEvent) agui.Interrupt {
+	return agui.Interrupt{
+		ID: planInterruptID(ev), Reason: interruptPlanApproval, ResponseSchema: planSchema,
+		Message:  "Review the plan and decide whether to execute it",
+		Metadata: map[string]any{"planId": ev.PlanID, "plan": ev.PlanContent},
+	}
+}
+
+// decidePlan applies the decision on a plan the way the chat TUI does: it
+// records the decision on the plan entry, and an accepted plan switches the
+// agent mode it executes in and is kept for the serve worker to execute.
+func (r *RunEncoder) decidePlan(ev agentdomain.PlanApprovalRequestedEvent, action agentdomain.PlanApprovalAction) {
+	if updater, ok := r.repo.(interface {
+		UpdatePlanStatus(agentdomain.PlanApprovalAction)
+	}); ok {
+		updater.UpdatePlanStatus(action)
+	}
+	mode, execute := planMode(action)
+	if !execute {
+		return
+	}
+	if r.modes != nil {
+		r.modes.SetAgentMode(mode)
+	}
+	r.plan = &ev.PlanID
+}
+
+// planMode is the agent mode an accepted plan executes in, and false for a
+// plan the user sent back.
+func planMode(action agentdomain.PlanApprovalAction) (agentdomain.AgentMode, bool) {
+	switch action {
+	case agentdomain.PlanApprovalAccept:
+		return agentdomain.AgentModeAutoAccept, true
+	case agentdomain.PlanApprovalAcceptStandard:
+		return agentdomain.AgentModeStandard, true
+	}
+	return agentdomain.AgentModeStandard, false
+}
+
+// AcceptedPlan reports the plan the user accepted during the run, which the
+// caller executes in a fresh session.
+func (r *RunEncoder) AcceptedPlan() (string, bool) {
+	if r.plan == nil {
+		return "", false
+	}
+	return *r.plan, true
 }
 
 // suspendFor ends the open run on the one interrupt it waits on: the terminal
@@ -306,12 +396,28 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 	case agentdomain.JudgeVerdictChatEvent:
 		r.emitJudgeVerdict(ev)
 		render.JudgeStderr(ev)
+	case agentdomain.ToolExecutionProgressEvent:
+		r.run.Activity("tool:"+ev.ToolCallID, "tool_progress", map[string]any{
+			"toolCallId": ev.ToolCallID, "toolName": ev.ToolName, "status": ev.Status, "message": ev.Message,
+		})
+	case agentdomain.BashOutputChunkEvent:
+		r.run.Activity("bash:"+ev.ToolCallID, "bash_output", map[string]any{
+			"toolCallId": ev.ToolCallID, "output": ev.Output, "complete": ev.IsComplete,
+		})
 	case agentdomain.ToolApprovalRequestedEvent:
-		r.suspendFor(agui.Interrupt{ID: ev.ToolCall.ID, Reason: agui.InterruptToolCall, ToolCallID: ev.ToolCall.ID})
+		r.suspendFor(approvalInterrupt(ev))
 		render.AnswerApproval(ev, r.approvals)
 		r.continueRun(ev.ToolCall.ID)
+	case agentdomain.PlanApprovalRequestedEvent:
+		r.suspendFor(planInterrupt(ev))
+		action := render.AnswerPlan(ev, r.plans)
+		r.continueRun(planInterruptID(ev))
+		r.decidePlan(ev, action)
 	case agentdomain.UserQuestionRequestedEvent:
-		r.suspendFor(agui.Interrupt{ID: ev.ToolCallID, Reason: agui.InterruptInputRequired, ResponseSchema: answerSchema})
+		r.suspendFor(agui.Interrupt{
+			ID: ev.ToolCallID, Reason: agui.InterruptInputRequired, ResponseSchema: answerSchema,
+			Metadata: map[string]any{"questions": ev.Questions},
+		})
 		render.AnswerQuestions(ev, r.questions)
 		r.continueRun(ev.ToolCallID)
 	default:
