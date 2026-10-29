@@ -434,6 +434,9 @@ CLI → client, the configured model ids (empty when unavailable):
 
 - Each entry is a `provider/model` id exactly as the CLI would accept it.
 - The first entry is the CLI's default model.
+- `catalog`, when the worker fetched the gateway's models, holds their gateway
+  entries (`id`, `context_window`, `pricing`, `modalities`), the details the
+  chat TUI's model picker shows.
 
 Client → CLI, switch the thread's model for its next turns (same effect as
 `/model` in the TUI). The CLI answers with a fresh `models` frame, where

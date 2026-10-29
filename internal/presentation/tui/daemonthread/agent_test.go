@@ -13,6 +13,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
@@ -199,6 +200,24 @@ func TestModelsAdoptTheWorkersModelAndSwitchIt(t *testing.T) {
 	eventually(t, "the worker to learn the model", func() bool { return len(d.frames("select_model")) == 1 })
 	if err := models.SelectModel("missing"); err == nil {
 		t.Error("an unknown model was selected")
+	}
+}
+
+func TestModelsRecordWhatTheWorkersGatewaySaysAboutEachModel(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	d.answer("list_models", `{"type":"models","models":["daemon/seer"],"catalog":[{"id":"daemon/seer","context_window":{"tokens":128000},`+
+		`"pricing":{"input_per_token":"0.000001","output_per_token":"0.000002"},"modalities":{"input":["text","image"],"output":["text"]}}]}`)
+
+	if _, err := NewModels(thread).ListModels(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	if window, known := models.LookupContextWindow("daemon/seer"); !known || window != 128000 {
+		t.Errorf("context window = %d, %v, want the worker's 128000", window, known)
+	}
+	if label := models.ModalitiesLabel("daemon/seer"); label != "vision" {
+		t.Errorf("modalities = %q, want vision", label)
 	}
 }
 

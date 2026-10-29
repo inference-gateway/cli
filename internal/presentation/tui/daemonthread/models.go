@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 )
 
 // Models is the chat TUI's model service in daemon mode: the models the
@@ -24,18 +28,24 @@ func NewModels(thread *Thread) *Models {
 }
 
 // ListModels asks the worker for its models, adopting its current one when
-// the TUI has not picked one yet.
+// the TUI has not picked one yet. Their context windows, prices and
+// modalities, which the worker fetched from its gateway, are recorded here
+// too, so the model picker shows them.
 func (m *Models) ListModels(ctx context.Context) ([]string, error) {
 	data, err := m.thread.Request(ctx, map[string]string{"type": "list_models", "project_dir": m.thread.opts.ProjectDir}, "models")
 	if err != nil {
 		return nil, err
 	}
 	var listed struct {
-		Models  []string `json:"models"`
-		Current string   `json:"current"`
+		Models  []string    `json:"models"`
+		Current string      `json:"current"`
+		Catalog []sdk.Model `json:"catalog"`
 	}
 	if err := json.Unmarshal(data, &listed); err != nil {
 		return nil, err
+	}
+	if len(listed.Catalog) > 0 {
+		conversation.RecordModels(listed.Catalog)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
