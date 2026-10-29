@@ -56,19 +56,15 @@ func (m *Models) ListModels(ctx context.Context) ([]string, error) {
 	return slices.Clone(listed.Models), nil
 }
 
-// SelectModel switches the model the thread's next turns use. It returns at
-// once, since it runs on the TUI's update loop, and the worker learns it
-// asynchronously.
+// SelectModel switches the model the thread's next turns use. The worker
+// learns it when the next turn starts, so a pick made offline is not lost.
 func (m *Models) SelectModel(modelID string) error {
 	if err := m.ValidateModel(modelID); err != nil {
 		return err
 	}
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.current = modelID
-	m.mu.Unlock()
-	go func() {
-		_ = m.thread.Send(map[string]string{"type": "select_model", "model": modelID, "project_dir": m.thread.opts.ProjectDir})
-	}()
 	return nil
 }
 

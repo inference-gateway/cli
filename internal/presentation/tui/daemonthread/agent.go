@@ -36,9 +36,16 @@ type Agent struct {
 	modes  agentdomain.AgentModeState
 	models convdomain.ModelService
 
-	mu        sync.Mutex
-	modeFor   string
-	syncedFor agentdomain.AgentMode
+	mu     sync.Mutex
+	synced workerState
+}
+
+// workerState is what the TUI last told the followed thread's worker.
+type workerState struct {
+	id         string
+	generation int
+	mode       agentdomain.AgentMode
+	model      string
 }
 
 // NewAgent builds the daemon-mode agent over thread, mirroring into repo.
@@ -99,6 +106,7 @@ func (a *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 }
 
 // prepare follows the conversation the TUI holds, syncs the agent mode and
+// model and
 // sends the messages the worker does not have yet, reporting whether it sent
 // any.
 func (a *Agent) prepare(ctx context.Context) (bool, error) {
@@ -113,7 +121,7 @@ func (a *Agent) prepare(ctx context.Context) (bool, error) {
 			return false, err
 		}
 	}
-	if err := a.syncMode(ctx); err != nil {
+	if err := a.syncWorker(ctx); err != nil {
 		return false, err
 	}
 	a.moveQueued(ctx)
@@ -134,22 +142,28 @@ func (a *Agent) threadOptions() sessionsdomain.ThreadOptions {
 	return sessionsdomain.ThreadOptions{Model: a.models.GetCurrentModel(), Mode: a.modes.GetAgentMode().ModeKey()}
 }
 
-// syncMode tells the followed thread's worker the TUI's agent mode when it
-// changed or the thread did.
-func (a *Agent) syncMode(ctx context.Context) error {
-	mode, id := a.modes.GetAgentMode(), a.thread.Live()
+// syncWorker tells the followed thread's worker the TUI's agent mode and
+// model when either changed, the thread did or the connection came back,
+// since a daemon that restarted meanwhile runs a fresh worker on its defaults.
+func (a *Agent) syncWorker(ctx context.Context) error {
+	want := workerState{id: a.thread.Live(), generation: a.thread.Generation(), mode: a.modes.GetAgentMode(), model: a.models.GetCurrentModel()}
 	a.mu.Lock()
-	synced := a.modeFor == id && a.syncedFor == mode
+	synced := a.synced == want
 	a.mu.Unlock()
 	if synced {
 		return nil
 	}
-	frame := map[string]string{"type": "set_mode", "mode": mode.ModeKey(), "project_dir": a.thread.opts.ProjectDir}
-	if _, err := a.thread.Request(ctx, frame, "mode"); err != nil {
+	project := a.thread.opts.ProjectDir
+	if _, err := a.thread.Request(ctx, map[string]string{"type": "set_mode", "mode": want.mode.ModeKey(), "project_dir": project}, "mode"); err != nil {
 		return err
 	}
+	if want.model != "" {
+		if _, err := a.thread.Request(ctx, map[string]string{"type": "select_model", "model": want.model, "project_dir": project}, "models"); err != nil {
+			return err
+		}
+	}
 	a.mu.Lock()
-	a.modeFor, a.syncedFor = id, mode
+	a.synced = want
 	a.mu.Unlock()
 	return nil
 }
@@ -329,8 +343,8 @@ func (a *Agent) answer(prompts []headless.Prompt) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	if err := a.syncMode(ctx); err != nil {
-		logger.Warn("daemon chat could not sync the agent mode before resuming", "error", err)
+	if err := a.syncWorker(ctx); err != nil {
+		logger.Warn("daemon chat could not sync the agent mode and model before resuming", "error", err)
 	}
 	if err := a.thread.Send(runInputFrame{Type: "run_agent_input", Input: runInput{Resume: entries}}); err != nil {
 		logger.Warn("daemon chat could not resume the run", "error", err)

@@ -66,6 +66,7 @@ type Thread struct {
 	waiters    []*waiter
 	synced     map[string]int
 	transfer   string
+	generation int
 	closed     bool
 
 	wake  chan struct{}
@@ -133,6 +134,7 @@ func (t *Thread) Connect(ctx context.Context) error {
 	}
 	t.mu.Lock()
 	t.conn = conn
+	t.generation++
 	t.placement.Daemon = true
 	t.placement.Offline = false
 	t.placement.Local = conn.AckAttr("environment")
@@ -268,6 +270,14 @@ func (t *Thread) SetSynced(id string, n int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.synced[id] = n
+}
+
+// Generation counts the connections to the daemon, since a daemon that
+// restarted meanwhile runs a fresh worker behind the same thread.
+func (t *Thread) Generation() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.generation
 }
 
 // Running reports whether the followed thread has an open run.
