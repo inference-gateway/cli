@@ -32,6 +32,7 @@ type stateStore interface {
 	tui.PlanApprovalPrompt
 	agentdomain.TodoList
 	BroadcastEvent(event agentdomain.ChatEvent)
+	GetSessionPlacement() tui.SessionPlacement
 }
 
 type ChatHandler struct {
@@ -687,7 +688,17 @@ func (h *ChatHandler) HandleToolCommand(commandText string) tea.Cmd {
 // HandleBackgroundShellRequest signals the currently-running bash command to
 // detach to the background. Delegates to DirectExecutionService.
 func (h *ChatHandler) HandleBackgroundShellRequest() tea.Cmd {
+	if reason := h.stateManager.GetSessionPlacement().Unavailable(tui.FeatureBackgroundShell); reason != "" {
+		return unavailable("Moving a command to the background", reason)
+	}
 	return h.directExec.HandleBackgroundShellRequest()
+}
+
+// unavailable tells the user a feature does not apply to this session, and why.
+func unavailable(feature, reason string) tea.Cmd {
+	return func() tea.Msg {
+		return tui.SetStatusEvent{Message: feature + " is unavailable: " + reason, StatusType: tui.StatusDefault}
+	}
 }
 
 // ParseToolCall satisfies the legacy tui.ChatHandler interface by

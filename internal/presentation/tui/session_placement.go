@@ -32,6 +32,47 @@ func (p SessionPlacement) Where() string {
 	return p.Local
 }
 
+// Feature is a chat feature that acts in the TUI's own process, so whether it
+// applies depends on where the session runs.
+type Feature int
+
+const (
+	// FeatureLocalFiles reads this machine's checkout: @file, /diff and /explorer.
+	FeatureLocalFiles Feature = iota
+	// FeatureCompaction compacts the conversation the TUI holds.
+	FeatureCompaction
+	// FeatureHistoryRewind rewinds or edits the conversation the TUI holds.
+	FeatureHistoryRewind
+	// FeatureBackgroundShell detaches the shell the TUI runs a command in.
+	FeatureBackgroundShell
+	// FeatureTasks manages the A2A tasks the TUI's own agent started.
+	FeatureTasks
+)
+
+// Unavailable says why feature does not apply to the session at p, or "" when
+// it does. An in-process chat has every feature, a daemon chat's worker owns
+// the conversation, and a remote session's checkout is not this one.
+func (p SessionPlacement) Unavailable(feature Feature) string {
+	if !p.Daemon {
+		return ""
+	}
+	switch feature {
+	case FeatureLocalFiles:
+		if p.Remote() {
+			return "the session runs on " + p.Environment + ", whose checkout is not this one"
+		}
+	case FeatureCompaction:
+		return "the daemon's worker compacts the session itself at compact.auto_at"
+	case FeatureHistoryRewind:
+		return "the conversation lives on the daemon's worker"
+	case FeatureBackgroundShell:
+		return "the session's commands run in the daemon's worker"
+	case FeatureTasks:
+		return "a daemon chat starts no A2A tasks of its own"
+	}
+	return ""
+}
+
 // SessionMover lists the environments a daemon chat's session can move to and
 // moves it there, for /environments and /transfer.
 type SessionMover interface {

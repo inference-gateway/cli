@@ -99,10 +99,24 @@ func (s *ChatShortcutHandler) executeShortcut(
 	}
 }
 
+// placedShortcuts are the shortcuts that act in the TUI's own process, by the
+// feature that says whether they apply to the session.
+var placedShortcuts = map[string]tui.Feature{
+	"diff":     tui.FeatureLocalFiles,
+	"explorer": tui.FeatureLocalFiles,
+	"compact":  tui.FeatureCompaction,
+	"tasks":    tui.FeatureTasks,
+}
+
 // tryExecuteFromRegistry attempts to execute shortcut from the shortcut registry
 func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []string) tea.Msg {
 	if s.handler.shortcutRegistry == nil {
 		return nil
+	}
+	if feature, placed := placedShortcuts[shortcut]; placed {
+		if reason := s.handler.stateManager.GetSessionPlacement().Unavailable(feature); reason != "" {
+			return unavailable("/"+shortcut, reason)()
+		}
 	}
 
 	shortcutInstance, exists := s.handler.shortcutRegistry.Get(shortcut)

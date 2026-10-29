@@ -2250,6 +2250,10 @@ func (app *ChatApplication) ToggleRawFormat() {
 func (app *ChatApplication) handleNavigateBackInTime(event tui.NavigateBackInTimeEvent) []tea.Cmd {
 	var cmds []tea.Cmd
 
+	if reason := app.stateManager.GetSessionPlacement().Unavailable(tui.FeatureHistoryRewind); reason != "" {
+		return []tea.Cmd{statusCmd("Rewinding the conversation is unavailable: " + reason)}
+	}
+
 	iv, ok := app.inputView.(*components.InputView)
 	if !ok {
 		return cmds
