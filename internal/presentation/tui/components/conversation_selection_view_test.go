@@ -1,12 +1,14 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
@@ -102,5 +104,31 @@ func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
 
 	if !selector.IsSelected() {
 		t.Error("Expected selector to be selected after second use")
+	}
+}
+
+func TestConversationSelectorShowsWhereEachSessionRuns(t *testing.T) {
+	tests := []struct {
+		name    string
+		listed  convdomain.ConversationSummary
+		located bool
+	}{
+		{name: "a daemon chat's listing", listed: convdomain.ConversationSummary{ID: "c1", Environment: "k8s-dev"}, located: true},
+		{name: "an in-process listing", listed: convdomain.ConversationSummary{ID: "c1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeThemeService := &tuimocks.FakeThemeService{}
+			fakeThemeService.GetCurrentThemeReturns(&tuimocks.FakeTheme{})
+			selector := NewConversationSelector(&convmocks.FakePersistentConversationRepository{}, styles.NewProvider(fakeThemeService))
+			selector.SetWidth(200)
+
+			selector.Update(tui.ConversationsLoadedEvent{Conversations: []any{tt.listed}})
+
+			view := selector.table.View()
+			if located := strings.Contains(view, "Environment") && strings.Contains(view, "k8s-dev"); located != tt.located {
+				t.Errorf("the table names the environment: %v, want %v\n%s", located, tt.located, view)
+			}
+		})
 	}
 }

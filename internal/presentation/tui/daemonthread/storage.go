@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
+
+// leaseReads bounds the lease reads a listing runs at once.
+const leaseReads = 8
 
 // errDeleteRemote refuses deleting a conversation the daemon's worker stores.
 var errDeleteRemote = errors.New("conversations are deleted from the daemon's own storage, not from a daemon chat")
@@ -68,7 +72,39 @@ func (s *Storage) ListConversations(ctx context.Context, _ string, _, offset int
 	if err := json.Unmarshal(data, &listed); err != nil {
 		return nil, err
 	}
+	s.locate(ctx, listed.Conversations)
 	return listed.Conversations, nil
+}
+
+// locate names where each listed session runs. A remote lease store answers
+// each read with a round trip, so the reads run side by side.
+func (s *Storage) locate(ctx context.Context, summaries []convdomain.ConversationSummary) {
+	var wg sync.WaitGroup
+	slots := make(chan struct{}, leaseReads)
+	for i := range summaries {
+		wg.Go(func() {
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			summaries[i].Environment = s.environmentOf(ctx, summaries[i].ID)
+		})
+	}
+	wg.Wait()
+}
+
+// environmentOf names where the session of id runs: the environment its lease
+// names, or else the one whose storage holds it, where the thread's session
+// runs. It is "" when the lease cannot be read.
+func (s *Storage) environmentOf(ctx context.Context, id string) string {
+	if s.thread.leases != nil {
+		lease, found, err := s.thread.leases.GetLease(ctx, id)
+		if err != nil {
+			return ""
+		}
+		if found {
+			return lease.Environment
+		}
+	}
+	return s.thread.Placement().Where()
 }
 
 func (s *Storage) SaveConversation(context.Context, string, []convdomain.ConversationEntry, convdomain.ConversationMetadata) error {

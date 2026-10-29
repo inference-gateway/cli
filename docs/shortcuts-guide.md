@@ -54,7 +54,8 @@ These shortcuts are available out of the box:
   Vendored as `~/.infer/shortcuts/reset.yaml`, wrapping `infer reset` - edit or delete it like any other shortcut.
   A chat session running during the wipe keeps the conversation it already has in memory; run `/new` or restart to be fully fresh.
 - `/compact` - Save the conversation and start a new session seeded with a summary
-- `/conversations` - Open the conversation selection dropdown. In a daemon chat it lists the sessions where the current one runs
+- `/conversations` - Open the conversation selection dropdown. In a daemon chat it lists the sessions where the current one runs,
+  with an Environment column naming where each session runs now
 - `/environments` - Show where a daemon chat's session runs and every environment it can move to, with their reachability and details.
   `enter` moves the session to the selected one. Selecting the status bar's environment indicator opens the same picker
 - `/transfer [environment] [file...]` - Move a daemon chat's session to an environment, carrying the listed files git does not track.
