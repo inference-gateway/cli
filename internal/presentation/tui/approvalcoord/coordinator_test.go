@@ -219,3 +219,42 @@ func TestService_HandleComputerUseResumed(t *testing.T) {
 		}
 	})
 }
+
+func TestService_HandlePlanApprovalResponseAnswersTheDaemonWorker(t *testing.T) {
+	tests := []struct {
+		action agentdomain.PlanApprovalAction
+		mode   agentdomain.AgentMode
+	}{
+		{action: agentdomain.PlanApprovalAccept, mode: agentdomain.AgentModeAutoAccept},
+		{action: agentdomain.PlanApprovalAcceptStandard, mode: agentdomain.AgentModeStandard},
+		{action: agentdomain.PlanApprovalReject, mode: agentdomain.AgentModePlan},
+	}
+	for _, tt := range tests {
+		t.Run(tt.action.String(), func(t *testing.T) {
+			svc, repo, state, _ := newCoordinator()
+			state.SetAgentMode(agentdomain.AgentModePlan)
+			answer := make(chan agentdomain.PlanApprovalAction, 1)
+			state.SetupPlanApprovalUIState("# Plan", "plan-1", answer)
+
+			cmd, restart := svc.HandlePlanApprovalResponse(tui.PlanApprovalResponseEvent{Action: tt.action})
+
+			if restart || cmd == nil {
+				t.Fatalf("restart = %v, cmd = %v, want the worker to run the plan and a status", restart, cmd)
+			}
+			select {
+			case got := <-answer:
+				if got != tt.action {
+					t.Errorf("the worker got %v, want %v", got, tt.action)
+				}
+			default:
+				t.Fatal("the decision never reached the worker")
+			}
+			if state.GetAgentMode() != tt.mode {
+				t.Errorf("mode = %v, want %v", state.GetAgentMode(), tt.mode)
+			}
+			if state.GetPlanApprovalUIState() != nil || repo.GetMessageCount() != 0 {
+				t.Error("the decision left the prompt open or wrote to the TUI's conversation")
+			}
+		})
+	}
+}
