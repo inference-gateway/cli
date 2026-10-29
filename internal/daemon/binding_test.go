@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"os"
+	"runtime"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -23,8 +24,11 @@ func TestFillBindingTokenSharesOneOwnerOnlyToken(t *testing.T) {
 		t.Fatalf("tokens %q and %q, want one shared token", first.Daemon.Binding.Token, second.Daemon.Binding.Token)
 	}
 	info, err := os.Stat(LocalTokenFile())
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("token file %v, %v, want mode 0600", info, err)
+	if err != nil {
+		t.Fatalf("token file: %v", err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("token file mode %v, want 0600", info.Mode().Perm())
 	}
 }
 
