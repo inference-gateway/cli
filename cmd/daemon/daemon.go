@@ -384,7 +384,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		if !b.Dialable() {
 			return threadHost{}, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml, or require TLS client certificates")
 		}
-		serverTLS, err := tlsProvider.Server(ctx, b.TLS)
+		serverTLS, err := tlsProvider.Server(b.TLS)
 		if err != nil {
 			return threadHost{}, fmt.Errorf("configuring the AG-UI binding's TLS: %w", err)
 		}
@@ -415,7 +415,6 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 				binding.Close()
 			}
 			<-stopped
-			tlsProvider.Close()
 		},
 		idle: idle,
 	}, nil
@@ -497,7 +496,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 			return nil, nil, fmt.Errorf("opening the daemon CA: %w", err)
 		}
 	}
-	tlsProvider := agentinfra.NewTLSProvider(identity, pki, cfg.Daemon.Binding.TLS.SPIFFE)
+	tlsProvider := agentinfra.NewTLSProvider(identity, pki)
 	dial := agentinfra.PeerDialer{Me: identity, Handshake: browserinfra.BindingHandshake}
 	environments := []agentdomain.Environment{agentinfra.NewLocalEnvironment(identity, map[string]string{
 		agentinfra.AttrVersion: version.Value(), "storage": string(storageConfig.Type),
@@ -557,7 +556,7 @@ func needsPKI(cfg *config.Config) bool {
 		return true
 	}
 	for _, entry := range cfg.Daemon.Environments {
-		if entry.Kind == config.EnvironmentKindKubernetes && entry.EffectiveAuth() == config.EnvironmentAuthCA {
+		if entry.Kind == config.EnvironmentKindKubernetes {
 			return true
 		}
 	}

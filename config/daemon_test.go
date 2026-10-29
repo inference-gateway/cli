@@ -92,7 +92,6 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"valid environments", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "laptop", Kind: EnvironmentKindLocal}, kubernetes, daemon}}, ""},
 		{"unknown tls mode", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: "pem"}}}, "binding.tls.mode"},
 		{"files mode needs files", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeFiles}}}, "cert_file and key_file"},
-		{"spiffe mode needs a trust domain", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeSPIFFE}}}, "trust_domain"},
 		{"remote host needs tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0"}}, "must not be off"},
 		{"remote host with tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0", TLS: BindingTLSConfig{Mode: TLSModeCA}}}, ""},
 		{"duplicate names", DaemonConfig{Environments: []EnvironmentEntry{kubernetes, kubernetes}}, "twice"},
@@ -103,8 +102,6 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"daemon kind needs an address", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
 		{"daemon kind needs tls", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, "require TLS"},
 		{"kubernetes needs namespace and image", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes}}}, "namespace and an image"},
-		{"kubernetes spiffe needs a trust domain", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "n", Image: "i", Auth: EnvironmentAuthSPIFFE}}}, "spiffe.trust_domain"},
-		{"kubernetes unknown auth", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "n", Image: "i", Auth: "token"}}}, "invalid auth"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -146,9 +143,6 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	}
 	if got := (EnvironmentEntry{Kind: EnvironmentKindDaemon, LeaseTTL: time.Minute}).EffectiveLeaseTTL(); got != time.Minute {
 		t.Fatalf("configured lease ttl wins: %v", got)
-	}
-	if got := k8s.EffectiveAuth(); got != EnvironmentAuthCA {
-		t.Fatalf("default auth = %q", got)
 	}
 }
 

@@ -1088,12 +1088,11 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
 - **`daemon.yaml`** - `environment` (this daemon's name in session leases, default the hostname), `workspace_root`,
   `idle_exit`, `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
-  with client certificates), `binding.tls` (`mode` off|files|ca|spiffe, `cert_file`, `key_file`, `ca_file`,
-  `client_auth`, `spiffe.socket`, `spiffe.trust_domain`, `spiffe.allowed_ids`) and `environments`, a list of
-  `name` and `kind` (local|daemon|kubernetes) entries with `address`, `token`, `tls.ca_file`, `tls.cert_file`,
-  `tls.key_file` for a daemon and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`,
-  `retention`, `lease_ttl`, `auth` (ca|spiffe), `spiffe.trust_domain`, `spiffe.server_id`, `env`, `forward_env` for a
-  Kubernetes environment. See [infer daemon](daemon.md#environments-and-transfers).
+  with client certificates), `binding.tls` (`mode` off|files|ca, `cert_file`, `key_file`, `ca_file`,
+  `client_auth`) and `environments`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
+  `address`, `token`, `tls.ca_file`, `tls.cert_file`, `tls.key_file` for a daemon and `kubeconfig`, `context`,
+  `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`, `forward_env` for a Kubernetes
+  environment. See [infer daemon](daemon.md#environments-and-transfers).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).
 

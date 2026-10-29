@@ -71,9 +71,8 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `off` | plain `ws://`, loopback only | the token |
 | `files` | `cert_file` and `key_file` | the token, or client certificates signed by `ca_file` when `client_auth: true` |
 | `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
-| `spiffe` | the SVID the SPIRE Workload API serves on `spiffe.socket` | SVIDs of `spiffe.allowed_ids`, else any member of `spiffe.trust_domain` |
 
-With `ca` or `spiffe` the token may be empty, since every connection carries a verified certificate.
+With `ca` the token may be empty, since every connection carries a verified certificate.
 The `infer daemon environments`, `transfer`, `run` and `stop` commands dial the local binding over whichever
 mode it serves, with the token or, when it requires them, a client certificate.
 
@@ -103,7 +102,6 @@ environments:
     storage: 5Gi
     idle_ttl: 2h
     retention: 168h
-    auth: ca
     env:
       INFER_GATEWAY_URL: http://inference-gateway:8080
     forward_env:
@@ -120,10 +118,9 @@ environments:
   `tls.cert_file` with `tls.key_file` present a client certificate when it requires one.
 - `kind: kubernetes` runs one agent-sandbox `Sandbox` per session in `namespace`, from `image`, as an
   `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
-  volume of `storage` each, so a session survives its pod. `auth: ca` has this daemon's CA issue the
-  pod's server certificate and a client certificate into a Secret, and `auth: spiffe` mounts the SPIRE
-  Workload API and expects `spiffe.server_id` or any member of `spiffe.trust_domain`. The pod daemon
-  idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
+  volume of `storage` each, so a session survives its pod. This daemon's CA issues the pod's server
+  certificate and a client certificate into a Secret, and the pod daemon's binding requires them. The pod
+  daemon idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
   is the pod daemon's non-secret environment, such as the gateway URL. `address` replaces the
   port-forward when an Ingress or Gateway exposes the pods.
 - `retention` deletes a suspended Sandbox, its volumes and its Secret once it sat suspended that long,
