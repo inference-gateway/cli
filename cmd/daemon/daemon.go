@@ -30,6 +30,7 @@ import (
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -106,6 +107,9 @@ Examples:
 // starts whichever are enabled. At least one must be enabled or the daemon refuses to boot
 // (otherwise it would just sleep forever).
 func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
+	if err := daemonhost.FillBindingToken(cfg); err != nil {
+		return err
+	}
 	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !cfg.Binding().Enabled && !cfg.A2A.Server.Enabled {
 		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, heartbeat, the AG-UI binding (browser_use with backend: extension), or the A2A server (a2a.server) in .infer/")
 	}

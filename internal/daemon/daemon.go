@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -16,10 +15,10 @@ import (
 // bind its port.
 const bootWait = 15 * time.Second
 
-// EnsureRunning makes an infer daemon listen on port, starting one in the
-// background when nothing does. The daemon's own pid lock makes a redundant
-// start exit, so callers never coordinate, and the wait covers a daemon already
-// on its way.
+// EnsureRunning makes an infer daemon serve its binding on port, starting one
+// in the background when nothing listens there. The daemon's own pid lock makes
+// a redundant start exit, so callers never coordinate, and the wait covers a
+// daemon already on its way.
 func EnsureRunning(ctx context.Context, port int) error {
 	if reachable(port) {
 		return nil
@@ -33,7 +32,7 @@ func EnsureRunning(ctx context.Context, port int) error {
 			return nil
 		}
 		if !time.Now().Before(deadline) {
-			return errors.New("the infer daemon did not bind its binding port in time")
+			return fmt.Errorf("the infer daemon did not open its binding on port %d in time (an infer daemon already running without its binding has to be restarted)", port)
 		}
 		select {
 		case <-ctx.Done():
@@ -49,7 +48,8 @@ const autoStartIdleExit = 30 * time.Minute
 
 // start runs this binary as a background daemon in a session of its own, so
 // it and the threads it runs outlive the caller's terminal, and it stops once
-// idle for autoStartIdleExit. A package var, so tests stub the boot. It
+// idle for autoStartIdleExit. Its callers dial its binding, so it serves one
+// whatever daemon.yaml says. A package var, so tests stub the boot. It
 // inherits the caller's env and working directory, so its config.
 var start = func() error {
 	exe, err := os.Executable()
@@ -57,6 +57,7 @@ var start = func() error {
 		return err
 	}
 	cmd := process.Command(exe, "daemon", "--idle-exit", autoStartIdleExit.String())
+	cmd.Env = append(os.Environ(), "INFER_DAEMON_BINDING_ENABLED=true")
 	process.Detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
