@@ -226,6 +226,26 @@ func TestAgentsDoneOnlyWhenEveryLastRunFinishedWithoutWaiting(t *testing.T) {
 	}
 }
 
+func TestAgentsDoneOnceAnInterruptedSessionMovedAway(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	r.MovedAway(hooksKey)
+	if done, known := r.AgentsDone(); done || known {
+		t.Fatalf("AgentsDone() = %v, %v for a thread that never ran here, want false, false", done, known)
+	}
+	c := &sessionsmocks.FakeClient{}
+	handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	_, lines := l.worker(0)
+	lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
+	lines <- []byte(`{"type":"RUN_ERROR","threadId":"conv-1","runId":"run-1","message":"interrupted"}`)
+	eventually(t, "the interrupted run", func() bool { return c.DeliverCallCount() == 2 })
+
+	r.MovedAway(hooksKey)
+	if done, known := r.AgentsDone(); !done || !known {
+		t.Fatalf("AgentsDone() = %v, %v after the session moved away, want true, true", done, known)
+	}
+}
+
 func TestAgentsDoneIgnoresTheRunAReapedWorkerDrains(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)

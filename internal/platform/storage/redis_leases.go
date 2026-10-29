@@ -24,6 +24,8 @@ type redisLease struct {
 // redisClaimLeaseScript is the compare-and-swap: ARGV[1] is the new lease,
 // ARGV[2] its environment, ARGV[3] its transfer id and ARGV[4] now. It returns
 // the current holder when that holder keeps the lease, or an empty string.
+// It mirrors agentdomain.Lease.Yields, and the lease conformance suite holds
+// the two together.
 const redisClaimLeaseScript = `
 local current = redis.call('GET', KEYS[1])
 if current then

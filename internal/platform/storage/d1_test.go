@@ -16,6 +16,8 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	_ "modernc.org/sqlite"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // newD1MockServer stands up an httptest.Server that speaks the D1 /query
@@ -193,6 +195,9 @@ func TestD1Storage_Conformance(t *testing.T) {
 		return setupTestD1Storage(t)
 	})
 	runShellHistoryStorageConformance(t, func(t *testing.T) ShellHistoryStorage {
+		return setupTestD1Storage(t)
+	})
+	runLeaseStoreConformance(t, func(t *testing.T) agentdomain.LeaseStore {
 		return setupTestD1Storage(t)
 	})
 }

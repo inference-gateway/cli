@@ -74,8 +74,8 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `spiffe` | the SVID the SPIRE Workload API serves on `spiffe.socket` | SVIDs of `spiffe.allowed_ids`, else any member of `spiffe.trust_domain` |
 
 With `ca` or `spiffe` the token may be empty, since every connection carries a verified certificate.
-The `infer daemon environments`, `transfer` and `run` commands dial the local binding over whichever mode
-it serves.
+The `infer daemon environments`, `transfer`, `run` and `stop` commands dial the local binding over whichever
+mode it serves, with the token or, when it requires them, a client certificate.
 
 ## Environments and transfers
 
@@ -167,6 +167,10 @@ infer daemon transfer <conversation-id> --to k8s-dev      # move a session, foll
 infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
 infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
 ```
+
+A transfer starts on the daemon that owns the session. A daemon that only relays a session refuses to
+move it with `session <id> is owned by environment <name>`, so a session on a remote environment moves
+again only from that environment's own daemon.
 
 ## Session workers
 

@@ -190,6 +190,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - name: Checkout code
       uses: actions/checkout@v7.0.1
@@ -200,7 +209,8 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    - name: Run storage conformance against PostgreSQL
+    - name: Run storage conformance against PostgreSQL and Redis
       env:
         INFER_TEST_POSTGRES_DSN: "host=localhost port=5432 user=postgres password=postgres dbname=infer_test sslmode=disable"
+        INFER_TEST_REDIS_ADDR: "localhost:6379"
       run: go test -race -tags purego ./internal/platform/storage/...

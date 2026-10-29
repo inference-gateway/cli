@@ -345,13 +345,15 @@ func snapshotDigest(frame []byte) string {
 }
 
 // announce tells the requester and the thread's followers where the session
-// lives now and which interrupts the move cancelled.
+// lives now and which interrupts the move cancelled, and frees the thread's
+// last run here from holding back this daemon's Sandbox retention.
 func (s *Service) announce(to requester, key sessionsdomain.ThreadKey, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
 	moved := encode(sessionMovedFrame{Type: frameSessionMoved, SessionMoved: agentdomain.SessionMoved{
 		Session: req.Session, Environment: lease.Environment, Addr: addr, Workspace: lease.Workspace, CancelledInterrupts: interrupts,
 	}})
 	to.Deliver(moved)
 	if s.registry != nil {
+		s.registry.MovedAway(key)
 		s.registry.Deliver(key, moved)
 	}
 }

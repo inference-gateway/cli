@@ -138,6 +138,16 @@ func (r *Registry) AgentsDone() (done, known bool) {
 	return len(r.finished) > 0, len(r.finished) > 0
 }
 
+// MovedAway records that a thread's session now lives in another environment.
+// Its last run here, interrupted or not, no longer keeps AgentsDone false.
+func (r *Registry) MovedAway(key sessionsdomain.ThreadKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ran := r.finished[key]; ran {
+		r.finished[key] = true
+	}
+}
+
 // Idle reports whether the registry has no thread and no client, and when it
 // last had either.
 func (r *Registry) Idle() (time.Time, bool) {

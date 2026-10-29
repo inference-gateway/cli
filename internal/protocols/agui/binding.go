@@ -41,6 +41,10 @@ const connWriteTimeout = 10 * time.Second
 // pingInterval keeps an idle connection alive.
 const pingInterval = 20 * time.Second
 
+// maxInboundFrameBytes caps one frame a dialing end sends, its hello
+// included, so a peer cannot pin the listener's memory with a single message.
+const maxInboundFrameBytes = 64 << 20
+
 // outboundQueue caps the frames a connection owes its peer. A peer must read
 // its socket at least that fast, or it is closed for a reconnect.
 const outboundQueue = 64
@@ -297,6 +301,7 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	ws.SetReadLimit(maxInboundFrameBytes)
 
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	var helloRaw json.RawMessage

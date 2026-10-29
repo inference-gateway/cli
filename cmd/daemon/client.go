@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -53,8 +52,8 @@ func (c *daemonClient) Detach(*agui.Conn) {
 // it serves any.
 func dialLocal(ctx context.Context, cfg *config.Config) (*daemonClient, error) {
 	binding := cfg.Binding()
-	if !binding.Dialable() {
-		return nil, errors.New("the daemon binding is off or has no token: enable daemon.binding in daemon.yaml and start infer daemon")
+	if !authenticates(binding) {
+		return nil, errors.New("the daemon binding is off or has neither a token nor TLS client certificates: enable daemon.binding in daemon.yaml with a token or a client-certificate TLS mode, and start infer daemon")
 	}
 	var pki *agentinfra.PKI
 	if binding.TLS.Mode == config.TLSModeCA {
@@ -77,6 +76,12 @@ func dialLocal(ctx context.Context, cfg *config.Config) (*daemonClient, error) {
 	}
 	client.conn = conn
 	return client, nil
+}
+
+// authenticates reports whether these commands can dial the binding: it is on
+// and a token or a client certificate proves who they are.
+func authenticates(binding config.Binding) bool {
+	return binding.Enabled && (binding.Token != "" || binding.TLS.RequiresClientAuth())
 }
 
 func (c *daemonClient) close() {
@@ -273,7 +278,7 @@ func newRunCommand(state *runtime.State) *cobra.Command {
 			if len(args) == 1 {
 				return printSnapshot(cmd.OutOrStdout(), snapshot)
 			}
-			return runTurn(ctx, cmd.OutOrStdout(), client, args[0], args[1])
+			return runTurn(ctx, cmd.OutOrStdout(), cmd.ErrOrStderr(), client, args[0], args[1])
 		},
 	}
 	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
@@ -295,7 +300,7 @@ func printSnapshot(out io.Writer, snapshot map[string]any) error {
 }
 
 // runTurn sends one user message and streams the assistant text until the run ends.
-func runTurn(ctx context.Context, out io.Writer, client *daemonClient, conversationID, prompt string) error {
+func runTurn(ctx context.Context, out, errOut io.Writer, client *daemonClient, conversationID, prompt string) error {
 	input := agui.RunAgentInput{ThreadID: conversationID, RunID: uuid.NewString(), Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: prompt}}}
 	if err := client.send(map[string]any{"type": "run_agent_input", "input": input}); err != nil {
 		return err
@@ -312,7 +317,7 @@ func runTurn(ctx context.Context, out io.Writer, client *daemonClient, conversat
 		}
 		say(out, "\n")
 		if outcome, ok := frame["outcome"].(map[string]any); ok && outcome["type"] == "interrupt" {
-			say(os.Stderr, "the run is waiting on an approval or a question, answer it from a client that follows the thread\n")
+			say(errOut, "the run is waiting on an approval or a question, answer it from a client that follows the thread\n")
 		}
 		return nil
 	}
