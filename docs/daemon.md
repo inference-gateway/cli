@@ -274,6 +274,10 @@ survive closing the terminal. It stops after 30 minutes with no thread and no cl
 `idle_exit` sets its own idle time. `infer daemon --idle-exit <duration>` gives a daemon you start by
 hand the same fallback.
 
+A daemon starts its session workers from its own binary, so it stops once that binary is gone, as a
+`go run` build is when its run ends. The next client then starts one from its own binary, and the
+sessions resume where they left off.
+
 The pid file is `~/.infer/run/daemon.pid`. A second `infer daemon` exits with
 `daemon already running (pid N)` while that pid is alive, and a stale file is overwritten. Stop the
 daemon by signalling that pid. There is no `stop` or `status` subcommand.

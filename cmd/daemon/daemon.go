@@ -207,10 +207,13 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 
 	logger.Info("daemon ready. Press Ctrl+C to stop.")
 
+	exe, _ := os.Executable()
 	select {
 	case <-sigChan:
 	case <-threads.idle:
 		logger.Info("the daemon idled out", "idle_exit", cfg.Daemon.IdleExit)
+	case <-watchExecutable(ctx, exe):
+		logger.Warn("the daemon's binary is gone, stopping so the next client starts a current one", "executable", exe)
 	}
 	logger.Info("shutting down...")
 	cancel()
@@ -446,6 +449,36 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 		}
 	}()
 	return idle
+}
+
+// executableCheck is how often the daemon looks for the binary it runs.
+const executableCheck = 500 * time.Millisecond
+
+// watchExecutable closes the returned channel once exe is gone, as a go run
+// build is when its run ends. The daemon starts its workers from that binary,
+// so without it no session opens, and the daemon stops to let the next client
+// start one from its own binary. An empty exe is never watched.
+func watchExecutable(ctx context.Context, exe string) <-chan struct{} {
+	gone := make(chan struct{})
+	if exe == "" {
+		return gone
+	}
+	go func() {
+		ticker := time.NewTicker(executableCheck)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			if _, err := os.Stat(exe); errors.Is(err, os.ErrNotExist) {
+				close(gone)
+				return
+			}
+		}
+	}()
+	return gone
 }
 
 // buildTransfers wires the transfer service: the lease store on the
