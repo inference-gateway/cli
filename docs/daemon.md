@@ -278,9 +278,10 @@ A daemon starts its session workers from its own binary, so it stops once that b
 `go run` build is when its run ends. The next client then starts one from its own binary, and the
 sessions resume where they left off.
 
-The pid file is `~/.infer/run/daemon.pid`. A second `infer daemon` exits with
-`daemon already running (pid N)` while that pid is alive, and a stale file is overwritten. Stop the
-daemon by signalling that pid. There is no `stop` or `status` subcommand.
+The pid file is `~/.infer/run/daemon.pid`, and the daemon holds an OS lock on it while it runs. A
+second `infer daemon` exits with `daemon already running (pid N)` while that lock is held, also when
+two start at once, and a file a crashed daemon left behind is taken over. Stop the daemon by
+signalling that pid. There is no `stop` or `status` subcommand.
 
 ## Logs
 

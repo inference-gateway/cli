@@ -33,9 +33,9 @@ import (
 	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
@@ -597,28 +597,40 @@ func storageIdentity(cfg storage.StorageConfig) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// acquireDaemonLock enforces one daemon per machine via a PID file in
-// ~/.infer/run/daemon.pid (next to gateway.pid). Stale files (dead PID) are
-// overwritten. The returned release func removes the file.
-// ponytail: check-then-write race; flock if two daemons ever start in the same instant.
+// acquireDaemonLock enforces one daemon per user via an OS lock on
+// ~/.infer/run/daemon.pid (next to gateway.pid), which holds the daemon's pid.
+// The lock dies with the process, so two daemons starting at once cannot both
+// win, and a file a crashed daemon left behind is taken over. The returned
+// release removes the file and lets go of the lock.
 func acquireDaemonLock() (func(), error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return func() {}, nil
 	}
 	pidPath := filepath.Join(home, config.ConfigDirName, "run", "daemon.pid")
-	if data, err := os.ReadFile(pidPath); err == nil {
-		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid != os.Getpid() && utils.ProcessAlive(pid) {
-			return nil, fmt.Errorf("daemon already running (pid %d); stop it or remove %s", pid, pidPath)
-		}
-	}
 	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+	lock, err := process.LockFile(pidPath)
+	if errors.Is(err, process.ErrLocked) {
+		holder, _ := os.ReadFile(pidPath)
+		return nil, fmt.Errorf("daemon already running (pid %s), stop it first", strings.TrimSpace(string(holder)))
+	}
+	if err != nil {
 		return nil, err
 	}
-	return func() { _ = os.Remove(pidPath) }, nil
+	if err := lock.Truncate(0); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	if _, err := lock.WriteAt([]byte(strconv.Itoa(os.Getpid())), 0); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	return func() {
+		_ = os.Remove(pidPath)
+		_ = lock.Close()
+	}, nil
 }
 
 // startScheduler initialises the schedule scheduler service when the schedule
