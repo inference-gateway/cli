@@ -136,6 +136,7 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *agentdomain.ToolExe
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
+	result = typed(result)
 
 	dim := s.styleProvider.GetThemeColor("dim")
 	inner := s.cardWidth(terminalWidth) - 4
@@ -273,6 +274,7 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *agentdomain.Tool
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
+	result = typed(result)
 
 	var tree string
 	if tool, err := s.toolRegistry.GetTool(result.ToolName); err != nil {
@@ -445,6 +447,7 @@ func (s *ToolFormatterService) FormatToolResultForLLM(result *agentdomain.ToolEx
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
+	result = typed(result)
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {

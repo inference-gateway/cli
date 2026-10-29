@@ -294,6 +294,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SkillsService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain AgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain AgentModeState
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain UINotifier
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain ModelService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/llm internal/platform/llm Completer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ThemeService
