@@ -37,8 +37,11 @@ type Config struct {
 	IdleExit      time.Duration
 	Version       string
 	StorageID     string
-	Handshake     agui.Handshake
-	Entries       []config.EnvironmentEntry
+	// LeaseBackend names the storage type the lease store lives on, to warn
+	// when two daemons cannot see each other's rows.
+	LeaseBackend config.StorageType
+	Handshake    agui.Handshake
+	Entries      []config.EnvironmentEntry
 	// Denies reports whether the sandbox policy keeps a project file out of a
 	// checkpoint.
 	Denies func(projectDir, absPath string) bool
@@ -70,30 +73,32 @@ type Service struct {
 	registry     *sessions.Registry
 	selfSuspend  func(ctx context.Context, done, known bool) error
 
-	mu          sync.Mutex
-	transfers   map[string]context.CancelFunc
-	imports     map[string]*pendingImport
-	installed   map[string]agentdomain.Lease
-	credentials map[string][]string
+	mu            sync.Mutex
+	transfers     map[string]context.CancelFunc
+	conversations map[string]string
+	imports       map[string]*pendingImport
+	installed     map[string]agentdomain.Lease
+	credentials   map[string][]string
 }
 
 // New builds the service. AttachRegistry must follow once the registry exists,
 // since the registry itself is built over LaunchWorker.
 func New(cfg Config, deps Deps) *Service {
 	s := &Service{
-		cfg:          cfg,
-		me:           cfg.Identity,
-		leases:       deps.Leases,
-		environments: make(map[string]agentdomain.Environment, len(deps.Environments)),
-		entries:      make(map[string]config.EnvironmentEntry, len(cfg.Entries)),
-		keyring:      deps.Keyring,
-		launch:       deps.Launch,
-		selfSuspend:  deps.SelfSuspend,
-		dial:         agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
-		transfers:    make(map[string]context.CancelFunc),
-		imports:      make(map[string]*pendingImport),
-		installed:    make(map[string]agentdomain.Lease),
-		credentials:  make(map[string][]string),
+		cfg:           cfg,
+		me:            cfg.Identity,
+		leases:        deps.Leases,
+		environments:  make(map[string]agentdomain.Environment, len(deps.Environments)),
+		entries:       make(map[string]config.EnvironmentEntry, len(cfg.Entries)),
+		keyring:       deps.Keyring,
+		launch:        deps.Launch,
+		selfSuspend:   deps.SelfSuspend,
+		dial:          agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
+		transfers:     make(map[string]context.CancelFunc),
+		conversations: make(map[string]string),
+		imports:       make(map[string]*pendingImport),
+		installed:     make(map[string]agentdomain.Lease),
+		credentials:   make(map[string][]string),
 	}
 	for _, environment := range deps.Environments {
 		s.environments[environment.Name()] = environment
@@ -213,7 +218,7 @@ func (s *Service) deleteRemote(ctx context.Context, key sessionsdomain.ThreadKey
 // pod daemon suspends its Sandbox before exiting, and says whether every
 // agent it ran is done.
 func (s *Service) Suspend(ctx context.Context) {
-	if s.selfSuspend == nil {
+	if s.selfSuspend == nil || s.registry == nil {
 		return
 	}
 	done, known := s.registry.AgentsDone()

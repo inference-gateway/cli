@@ -286,9 +286,18 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 		return
 	}
 	if key, ok := stoppedThread(frame); ok {
-		h.transfers.StopSession(context.Background(), conn, key)
+		go h.stopSession(conn, key)
 	}
 	h.registry.Handle(conn, frame)
+}
+
+// stopSession answers stop_thread off the binding's read loop: a delete that
+// hangs on an unreachable environment cannot stall the frames after it, and
+// the client still gets its thread_stopped once it answers.
+func (h bindingHandler) stopSession(conn *agui.Conn, key sessionsdomain.ThreadKey) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	h.transfers.StopSession(ctx, conn, key)
 }
 
 // stoppedThread reads the thread a stop_thread frame names.
@@ -463,6 +472,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 		IdleExit:      cfg.Daemon.IdleExit,
 		Version:       version.Value(),
 		StorageID:     storageIdentity(storageConfig),
+		LeaseBackend:  storageConfig.Type,
 		Handshake:     browserinfra.BindingHandshake,
 		Entries:       cfg.Daemon.Environments,
 		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },

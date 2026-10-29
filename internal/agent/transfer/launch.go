@@ -70,6 +70,7 @@ func (s *Service) launchLocal(ctx context.Context, w *lazyWorker, key sessionsdo
 	opts.Env = append(opts.Env, s.credentialsFor(key.ConversationID)...)
 	inner, err := s.launch(key, opts)
 	if err != nil {
+		_ = s.leases.ReleaseLease(ctx, key.ConversationID, s.me)
 		w.fail(err.Error())
 		return
 	}

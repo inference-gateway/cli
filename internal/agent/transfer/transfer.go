@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -33,9 +34,9 @@ type requester interface {
 
 // startTransfer validates a transfer_session frame and runs the saga under a
 // cancellable context registered by transfer id.
-func (s *Service) startTransfer(conn *agui.Conn, f clientFrame) {
+func (s *Service) startTransfer(to requester, f clientFrame) {
 	if f.TransferID == "" || f.ProjectDir == "" || f.ID == "" || f.Target == "" {
-		conn.Deliver(runError("transfer_session needs transfer_id, project_dir, id and target"))
+		to.Deliver(runError("transfer_session needs transfer_id, project_dir, id and target"))
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
@@ -43,17 +44,23 @@ func (s *Service) startTransfer(conn *agui.Conn, f clientFrame) {
 	if _, running := s.transfers[f.TransferID]; running {
 		s.mu.Unlock()
 		cancel()
-		conn.Deliver(encode(progressFrame{Type: frameTransferProgress, TransferProgress: agentdomain.TransferProgress{
-			TransferID: f.TransferID, Stage: agentdomain.TransferFailed, Message: "a transfer with this id is already running",
-		}}))
+		refuseTransfer(to, f.TransferID, "a transfer with this id is already running")
+		return
+	}
+	if s.conversations[f.ID] != "" {
+		s.mu.Unlock()
+		cancel()
+		refuseTransfer(to, f.TransferID, "a transfer of this session is already running")
 		return
 	}
 	s.transfers[f.TransferID] = cancel
+	s.conversations[f.ID] = f.TransferID
 	s.mu.Unlock()
 	defer func() {
 		cancel()
 		s.mu.Lock()
 		delete(s.transfers, f.TransferID)
+		delete(s.conversations, f.ID)
 		s.mu.Unlock()
 	}()
 	req := agentdomain.TransferRequest{
@@ -62,7 +69,7 @@ func (s *Service) startTransfer(conn *agui.Conn, f clientFrame) {
 		Target:     f.Target,
 		Files:      f.Files,
 	}
-	s.transfer(ctx, conn, req)
+	s.transfer(ctx, to, req)
 }
 
 func (s *Service) cancelTransfer(transferID string) {
@@ -74,24 +81,27 @@ func (s *Service) cancelTransfer(transferID string) {
 	}
 }
 
+// refuseTransfer answers a transfer request the service will not run.
+func refuseTransfer(to requester, transferID, reason string) {
+	to.Deliver(encode(progressFrame{Type: frameTransferProgress, TransferProgress: agentdomain.TransferProgress{
+		TransferID: transferID, Stage: agentdomain.TransferFailed, Message: reason,
+	}}))
+}
+
 // transfer is the saga: precondition, provisioning, checkpointing, restoring,
 // ready. Any failure before ready leaves the session here.
 func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.TransferRequest) {
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
-	report := func(stage agentdomain.TransferStage, message string) {
-		to.Deliver(encode(progressFrame{Type: frameTransferProgress, TransferProgress: agentdomain.TransferProgress{
-			TransferID: req.TransferID, Stage: stage, Message: message,
-		}}))
-	}
-	fail := func(err error) {
-		logger.Warn("transfer failed", "transfer_id", req.TransferID, "conversation_id", req.Session.ConversationID, "target", req.Target, "error", err)
-		report(agentdomain.TransferFailed, err.Error())
-	}
+	report := func(stage agentdomain.TransferStage, message string) { s.report(to, req, stage, message) }
+	fail := func(err error) { s.failTransfer(to, req, err) }
 
 	environment, ok := s.environments[req.Target]
 	if !ok || environment.Kind() == agentdomain.EnvironmentKindLocal {
 		fail(fmt.Errorf("environment %q is not a remote environment registered in daemon.yaml", req.Target))
 		return
+	}
+	if backend := s.cfg.LeaseBackend; backend == config.StorageTypeJsonl || backend == config.StorageTypeMemory {
+		logger.Warn("transfer runs on per-machine lease storage - a crash mid-saga can leave both daemons believing they own the session, point storage.type at a shared backend to close the window", "backend", backend, "target", req.Target, "conversation_id", req.Session.ConversationID)
 	}
 	done, err := s.precondition(ctx, req)
 	if err != nil {
@@ -142,12 +152,36 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		ConversationID: req.Session.ConversationID, Environment: req.Target, Workspace: workspace,
 		TransferID: req.TransferID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
 	}
-	if _, _, err := s.leases.ClaimLease(ctx, lease); err != nil {
-		fail(describe(err, "recording the new owner"))
+	s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts)
+}
+
+// handOver writes the target's lease row and announces the move, or aborts
+// the restore there when the row will not yield.
+func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
+	holder, ok, err := s.leases.ClaimLease(ctx, lease)
+	if err == nil && !ok {
+		err = fmt.Errorf("environment %s holds the session's lease", holder.Environment)
+	}
+	if err != nil {
+		_ = peer.Send(encode(abortFrame{Type: frameTransferAbort, TransferID: req.TransferID}))
+		s.failTransfer(to, req, describe(err, "recording the new owner"))
 		return
 	}
-	report(agentdomain.TransferReady, "")
-	s.announce(to, key, req, lease, endpoint.Addr, checkpoint.Interrupts)
+	s.report(to, req, agentdomain.TransferReady, "")
+	s.announce(to, sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}, req, lease, addr, interrupts)
+}
+
+// report hands the requester one progress frame of the transfer.
+func (s *Service) report(to requester, req agentdomain.TransferRequest, stage agentdomain.TransferStage, message string) {
+	to.Deliver(encode(progressFrame{Type: frameTransferProgress, TransferProgress: agentdomain.TransferProgress{
+		TransferID: req.TransferID, Stage: stage, Message: message,
+	}}))
+}
+
+// failTransfer logs why the transfer failed and reports it to the requester.
+func (s *Service) failTransfer(to requester, req agentdomain.TransferRequest, err error) {
+	logger.Warn("transfer failed", "transfer_id", req.TransferID, "conversation_id", req.Session.ConversationID, "target", req.Target, "error", err)
+	s.report(to, req, agentdomain.TransferFailed, err.Error())
 }
 
 // precondition refuses a session another environment owns, answers a completed
@@ -280,29 +314,34 @@ func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFram
 		return "", describe(err, "waiting for %s to restore the session", req.Target)
 	}
 	var imported importedFrame
-	if json.Unmarshal(reply, &imported) != nil || !imported.OK {
+	if err := json.Unmarshal(reply, &imported); err != nil {
+		return "", describe(err, "reading %s's restore reply", req.Target)
+	}
+	if !imported.OK {
 		return "", fmt.Errorf("%s refused the checkpoint: %s", req.Target, imported.Error)
 	}
 	if err := conn.Send(encode(map[string]string{"type": frameResumeConversation, "project_dir": imported.Workspace, "id": req.Session.ConversationID})); err != nil {
 		return "", describe(err, "resuming the conversation on %s", req.Target)
 	}
-	snapshot, err := frames.await(replyCtx, frameMessagesSnapshot)
+	snapshotCtx, snapshotCancel := context.WithTimeout(ctx, replyTimeout)
+	defer snapshotCancel()
+	snapshot, err := frames.await(snapshotCtx, frameMessagesSnapshot)
 	if err != nil {
 		return "", describe(err, "waiting for the conversation to resume on %s", req.Target)
 	}
-	if digest, count := snapshotDigest(snapshot); digest != checkpoint.Digest {
-		return "", fmt.Errorf("the conversation on %s has %d messages and does not match the checkpoint's %d", req.Target, count, checkpoint.MessageCount)
+	if digest := snapshotDigest(snapshot); digest != checkpoint.Digest {
+		return "", fmt.Errorf("the conversation on %s renders to digest %s, not the checkpoint's %s", req.Target, digest, checkpoint.Digest)
 	}
 	return imported.Workspace, nil
 }
 
 // snapshotDigest fingerprints a MESSAGES_SNAPSHOT the way the worker does.
-func snapshotDigest(frame []byte) (string, int) {
+func snapshotDigest(frame []byte) string {
 	var snapshot struct {
 		Messages []agui.Message `json:"messages"`
 	}
 	_ = json.Unmarshal(frame, &snapshot)
-	return agui.SnapshotDigest(snapshot.Messages), len(snapshot.Messages)
+	return agui.SnapshotDigest(snapshot.Messages)
 }
 
 // announce tells the requester and the thread's followers where the session

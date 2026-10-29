@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -58,7 +59,9 @@ func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
 		pending = &pendingImport{chunks: make(map[int][]byte)}
 		s.imports[chunk.TransferID] = pending
 	}
-	pending.size += len(chunk.Data)
+	if _, retransmitted := pending.chunks[chunk.Seq]; !retransmitted {
+		pending.size += len(chunk.Data)
+	}
 	if pending.size > maxPayloadBytes {
 		delete(s.imports, chunk.TransferID)
 		conn.Deliver(encode(importedFrame{Type: frameTransferImported, TransferID: chunk.TransferID, Error: "the checkpoint is larger than this daemon accepts"}))
@@ -138,7 +141,10 @@ func (s *Service) install(ctx context.Context, transferID string, checkpoint age
 	if err := os.RemoveAll(workspace); err != nil {
 		return "", describe(err, "clearing the workspace")
 	}
-	if err := agentinfra.UnpackWorkspace(ctx, checkpoint.Workspace, workspace); err != nil {
+	denied := func(rel string) bool {
+		return s.cfg.Denies != nil && s.cfg.Denies(workspace, filepath.Join(workspace, rel))
+	}
+	if err := agentinfra.UnpackWorkspace(ctx, checkpoint.Workspace, workspace, denied); err != nil {
 		_ = os.RemoveAll(workspace)
 		return "", describe(err, "restoring the workspace")
 	}

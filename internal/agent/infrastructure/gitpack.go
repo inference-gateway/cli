@@ -41,6 +41,9 @@ func PackWorkspace(ctx context.Context, projectDir string, extra []string, exclu
 	if err != nil {
 		return agentdomain.Workspace{}, fmt.Errorf("diffing the workspace: %w", err)
 	}
+	if err := denyUncommitted(ctx, projectDir, excluded); err != nil {
+		return agentdomain.Workspace{}, err
+	}
 	untrackedPaths, err := untrackedFiles(ctx, projectDir, excluded)
 	if err != nil {
 		return agentdomain.Workspace{}, err
@@ -114,6 +117,26 @@ func untrackedFiles(ctx context.Context, projectDir string, excluded func(abs st
 		files = append(files, rel)
 	}
 	return files, nil
+}
+
+// denyUncommitted refuses the checkpoint when a tracked file the sandbox
+// policy denies has uncommitted changes, since the patch would ship its
+// exact bytes. It fails loudly instead of trimming the patch, which would
+// no longer apply.
+func denyUncommitted(ctx context.Context, projectDir string, excluded func(abs string) bool) error {
+	if excluded == nil {
+		return nil
+	}
+	out, err := utils.RunGit(ctx, projectDir, "diff", "--name-only", "-z", "HEAD")
+	if err != nil {
+		return fmt.Errorf("listing the uncommitted changes: %w", err)
+	}
+	for _, rel := range strings.Split(string(out), "\x00") {
+		if rel != "" && excluded(filepath.Join(projectDir, rel)) {
+			return fmt.Errorf("the uncommitted changes touch %q, which the sandbox policy denies", rel)
+		}
+	}
+	return nil
 }
 
 // relativeFiles checks the extra files live inside the project and pass
@@ -193,8 +216,9 @@ func addFile(tw *tar.Writer, project *os.Root, rel string) error {
 
 // UnpackWorkspace restores a packed workspace into dir, which must not exist
 // yet: clone the bundle, check the branch out, apply the patch only when it
-// applies cleanly, then unpack the untracked and extra files.
-func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string) error {
+// applies cleanly, then unpack the untracked and extra files. The denied
+// callback keeps a peer-planted entry out, the way the sender's policy does.
+func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, denied func(rel string) bool) error {
 	if _, err := os.Stat(dir); err == nil {
 		return fmt.Errorf("workspace %s already exists", dir)
 	}
@@ -227,18 +251,20 @@ func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string) 
 			return fmt.Errorf("applying the workspace patch: %w", err)
 		}
 	}
-	if err := untar(ws.Untracked, dir); err != nil {
+	if err := untar(ws.Untracked, dir, denied, MaxWorkspaceBytes); err != nil {
 		return fmt.Errorf("unpacking the untracked files: %w", err)
 	}
-	if err := untar(ws.Extra, dir); err != nil {
+	if err := untar(ws.Extra, dir, denied, MaxWorkspaceBytes); err != nil {
 		return fmt.Errorf("unpacking the extra files: %w", err)
 	}
 	return nil
 }
 
 // untar writes a gzipped tar into dir through an os.Root, refusing entries
-// that name a path outside it or reach outside it through a symlink.
-func untar(data []byte, dir string) error {
+// that name a path outside it or reach outside it through a symlink, entries
+// under .git, entries the denied callback refuses, and an archive whose
+// decompressed size passes limit.
+func untar(data []byte, dir string, denied func(rel string) bool, limit int64) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -251,7 +277,7 @@ func untar(data []byte, dir string) error {
 	if err != nil {
 		return err
 	}
-	tr := tar.NewReader(gz)
+	tr := tar.NewReader(&limitedReader{r: gz, left: limit, limit: limit})
 	for {
 		header, err := tr.Next()
 		if errors.Is(err, io.EOF) {
@@ -263,17 +289,51 @@ func untar(data []byte, dir string) error {
 		if header.Typeflag != tar.TypeReg {
 			continue
 		}
-		name := filepath.FromSlash(header.Name)
+		name := filepath.Clean(filepath.FromSlash(header.Name))
 		if !filepath.IsLocal(name) {
 			return fmt.Errorf("archive entry %q escapes the workspace", header.Name)
+		}
+		if rejectedEntry(filepath.ToSlash(name), denied) {
+			return fmt.Errorf("archive entry %q is not allowed into the workspace", header.Name)
 		}
 		if err := workspace.MkdirAll(filepath.Dir(name), 0755); err != nil {
 			return fmt.Errorf("archive entry %q: %w", header.Name, err)
 		}
-		if err := writeEntry(workspace, name, tr, header.FileInfo().Mode().Perm()); err != nil {
+		if err := writeEntry(workspace, name, tr, min(header.FileInfo().Mode().Perm(), 0755)); err != nil {
 			return fmt.Errorf("archive entry %q: %w", header.Name, err)
 		}
 	}
+}
+
+// rejectedEntry reports whether an archive entry may not be restored: it sits
+// under .git, where a planted config or hook would run git's code on the next
+// command, or the policy denies it.
+func rejectedEntry(rel string, denied func(rel string) bool) bool {
+	first, _, _ := strings.Cut(rel, "/")
+	if strings.EqualFold(first, ".git") {
+		return true
+	}
+	return denied != nil && denied(rel)
+}
+
+// limitedReader fails once reading passes limit, so a small compressed
+// archive cannot decompress into an unbounded workspace.
+type limitedReader struct {
+	r     io.Reader
+	left  int64
+	limit int64
+}
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	if l.left <= 0 {
+		return 0, fmt.Errorf("the archive decompresses past %d bytes", l.limit)
+	}
+	if int64(len(p)) > l.left {
+		p = p[:l.left]
+	}
+	n, err := l.r.Read(p)
+	l.left -= int64(n)
+	return n, err
 }
 
 func writeEntry(workspace *os.Root, name string, r io.Reader, mode os.FileMode) error {

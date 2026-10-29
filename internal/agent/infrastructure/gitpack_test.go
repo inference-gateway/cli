@@ -75,7 +75,7 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	}
 
 	dst := filepath.Join(t.TempDir(), "restored")
-	if err := UnpackWorkspace(t.Context(), ws, dst); err != nil {
+	if err := UnpackWorkspace(t.Context(), ws, dst, nil); err != nil {
 		t.Fatalf("Unpack: %v", err)
 	}
 	if got := read(t, dst, "README.md"); got != "hello\nchanged\n" {
@@ -96,7 +96,7 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(branch)) != "main" {
 		t.Fatalf("restored branch = %q, %v", branch, err)
 	}
-	if err := UnpackWorkspace(t.Context(), ws, dst); err == nil {
+	if err := UnpackWorkspace(t.Context(), ws, dst, nil); err == nil {
 		t.Fatal("unpacking over an existing workspace must fail")
 	}
 }
@@ -115,7 +115,7 @@ func TestWorkspaceDetachedHeadAndRefusals(t *testing.T) {
 		t.Fatalf("a detached head packs its commit, got %q", ws.Branch)
 	}
 	dst := filepath.Join(t.TempDir(), "restored")
-	if err := UnpackWorkspace(t.Context(), ws, dst); err != nil {
+	if err := UnpackWorkspace(t.Context(), ws, dst, nil); err != nil {
 		t.Fatalf("Unpack detached: %v", err)
 	}
 
@@ -129,7 +129,7 @@ func TestWorkspaceDetachedHeadAndRefusals(t *testing.T) {
 	write(t, src, "README.md", "diverged\n")
 	ws, _ = PackWorkspace(t.Context(), src, nil, nil)
 	ws.Bundle = nil
-	if err := UnpackWorkspace(t.Context(), ws, filepath.Join(t.TempDir(), "broken")); err == nil {
+	if err := UnpackWorkspace(t.Context(), ws, filepath.Join(t.TempDir(), "broken"), nil); err == nil {
 		t.Fatal("an empty bundle must fail the restore")
 	}
 }
@@ -168,7 +168,7 @@ func TestUntarRefusesEntriesThatLeaveTheWorkspace(t *testing.T) {
 			if err := os.Symlink(outside, filepath.Join(dir, "linked")); err != nil {
 				t.Fatal(err)
 			}
-			if err := untar(tarOf(t, tt.entry, "pwned\n"), dir); err == nil {
+			if err := untar(tarOf(t, tt.entry, "pwned\n"), dir, nil, MaxWorkspaceBytes); err == nil {
 				t.Fatalf("entry %q was written", tt.entry)
 			}
 			if entries, _ := os.ReadDir(outside); len(entries) != 0 {
@@ -196,4 +196,59 @@ func tarOf(t *testing.T, name, content string) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func TestUntarRefusesPlantedEntries(t *testing.T) {
+	tests := []struct {
+		name   string
+		entry  string
+		denied func(string) bool
+	}{
+		{"git config", ".git/config", nil},
+		{"git hook, any case", ".GIT/hooks/pre-commit", nil},
+		{"denied file", "id_rsa", func(string) bool { return true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			err := untar(tarOf(t, tt.entry, "pwned\n"), dir, tt.denied, MaxWorkspaceBytes)
+			if err == nil {
+				t.Fatalf("entry %q was written", tt.entry)
+			}
+			if _, err := os.Stat(filepath.Join(dir, tt.entry)); err == nil {
+				t.Fatalf("entry %q landed in the workspace", tt.entry)
+			}
+		})
+	}
+}
+
+func TestUntarCapsTheDecompressedSize(t *testing.T) {
+	archive := tarOf(t, "bomb", strings.Repeat("x", 4096))
+	err := untar(archive, t.TempDir(), nil, 1024)
+	if err == nil || !strings.Contains(err.Error(), "decompresses past") {
+		t.Fatalf("untar = %v, want the decompressed size cap", err)
+	}
+}
+
+func TestPackWorkspaceRefusesUncommittedChangesToADeniedFile(t *testing.T) {
+	src := gitRepo(t)
+	write(t, src, "deploy.env", "TOKEN=old\n")
+	for _, args := range [][]string{{"add", "deploy.env"}, {"commit", "--quiet", "-m", "secrets"}} {
+		if _, err := utils.RunGit(t.Context(), src, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, src, "deploy.env", "TOKEN=new\n")
+	write(t, src, "README.md", "hello\nchanged\n")
+	denied := func(abs string) bool { return strings.HasSuffix(abs, ".env") }
+
+	_, err := PackWorkspace(t.Context(), src, nil, denied)
+	if err == nil || !strings.Contains(err.Error(), "deploy.env") || !strings.Contains(err.Error(), "sandbox policy") {
+		t.Fatalf("Pack = %v, want the denied uncommitted change refused", err)
+	}
+
+	allow := func(string) bool { return false }
+	if _, err := PackWorkspace(t.Context(), src, nil, allow); err != nil {
+		t.Fatalf("a workspace without denied changes must still pack: %v", err)
+	}
 }

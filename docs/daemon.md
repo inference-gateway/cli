@@ -153,6 +153,12 @@ no-op once it succeeded. With `storage.type` jsonl the leases are machine-local
 (`~/.infer/leases.json`), with a shared Postgres or Redis every daemon sees them. The wire frames are in
 the [Daemon Binding Protocol](browser-extension-protocol.md#environments).
 
+Two daemons that transfer sessions between them should point `storage.type` at a backend they share -
+Postgres, Redis or D1. On jsonl or memory each machine keeps its own lease rows, so the one-owner
+guarantee holds only through the source daemon's final claim and a crash mid-transfer can leave both
+daemons believing they own the session. A transfer on a per-machine backend still runs, with a warning
+in the daemon's log.
+
 The daemon's subcommands drive this from a shell:
 
 ```bash
