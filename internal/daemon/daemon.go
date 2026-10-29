@@ -43,17 +43,21 @@ func EnsureRunning(ctx context.Context, port int) error {
 	}
 }
 
-// start runs this binary as a background daemon that outlives the caller.
-// A package var, so tests stub the boot instead of spawning the test binary.
-// ponytail: no new session, so closing the caller's terminal stops the daemon
-// too and the next Browser call starts another. Run it as a service if it must
-// survive that. It inherits the caller's env and working directory, so its config.
+// autoStartIdleExit is how long a daemon started on demand idles before it
+// stops, unless daemon.yaml sets its own idle_exit.
+const autoStartIdleExit = 30 * time.Minute
+
+// start runs this binary as a background daemon in a session of its own, so
+// it and the threads it runs outlive the caller's terminal, and it stops once
+// idle for autoStartIdleExit. A package var, so tests stub the boot. It
+// inherits the caller's env and working directory, so its config.
 var start = func() error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := process.Command(exe, "daemon")
+	cmd := process.Command(exe, "daemon", "--idle-exit", autoStartIdleExit.String())
+	process.Detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}

@@ -359,10 +359,10 @@ func (b Binding) ListenHost() string {
 	return b.Host
 }
 
-// Dialable reports whether a client can reach the binding: it is on and has
-// a token to present.
+// Dialable reports whether a client can reach the binding: it is on and a
+// token or a client certificate proves who the client is.
 func (b Binding) Dialable() bool {
-	return b.Enabled && b.Token != ""
+	return b.Enabled && (b.Token != "" || b.TLS.RequiresClientAuth())
 }
 
 // Binding resolves the AG-UI binding from daemon.yaml and browser_use.yaml.

@@ -318,8 +318,8 @@ func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager c
 }
 
 // refuseForeignSession fails when another environment holds the session's
-// lease, lapsed or not: chat cannot relay to the owner or probe it before a
-// reclaim, so only the daemon may continue such a session.
+// lease, lapsed or not: in-process chat cannot relay to the owner or probe it
+// before a reclaim, so only daemon mode may continue such a session.
 func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, environment, sessionID string) error {
 	if leases == nil {
 		return nil
@@ -331,7 +331,7 @@ func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, en
 	if !found || lease.Environment == environment {
 		return nil
 	}
-	return fmt.Errorf("session %s is owned by environment %s, continue it through the daemon with: infer daemon run %s \"<prompt>\"",
+	return fmt.Errorf("session %s runs on environment %s, attach to it with: infer chat --daemon --session-id %s",
 		sessionID, lease.Environment, sessionID)
 }
 

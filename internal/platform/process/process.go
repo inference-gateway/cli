@@ -24,6 +24,13 @@ func CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd 
 	return cmd
 }
 
+// Detach makes cmd's process outlive the caller's terminal: it starts in a
+// session (a process group on windows) of its own, so closing the terminal or
+// its Ctrl+C never reaches it.
+func Detach(cmd *exec.Cmd) {
+	detach(cmd)
+}
+
 // KillTreeOnCancel kills the command and every process it started on timeout
 // or cancel, on every platform, so a script's children die too and stop
 // holding its output pipes open. A descendant whose parent already exited is

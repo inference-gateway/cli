@@ -132,7 +132,8 @@ environments:
 - `forward_env` names variables of this daemon's environment that a transfer seals to the target's
   certificate for its workers. They never land in a Kubernetes object.
 - `workspace_root` is where a daemon restores transferred projects: `<root>/<project slug>/<conversation id>`.
-- `idle_exit` stops a daemon that had no thread and no client for that long. Pod daemons get `idle_ttl`.
+- `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
+  except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
 
 A transfer moves a session between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
@@ -211,9 +212,12 @@ infer daemon
 ```
 
 With `browser_use.backend: extension`, `infer chat` and a one-shot `infer headless` start the daemon
-on demand on their first browser tool call when nothing listens on the binding's port. A daemon
-started this way runs in the background with the starting process's config and shares its terminal:
-closing the terminal stops it, and the next browser call starts another.
+on demand on their first browser tool call when nothing listens on the binding's port, and the Agent
+tool and `infer chat --daemon` do the same for their threads. A daemon started this way runs in the
+background with the starting process's config, in a session of its own, so it and the threads it runs
+survive closing the terminal. It stops after 30 minutes with no thread and no client, unless
+`idle_exit` sets its own idle time. `infer daemon --idle-exit <duration>` gives a daemon you start by
+hand the same fallback.
 
 The pid file is `~/.infer/run/daemon.pid`. A second `infer daemon` exits with
 `daemon already running (pid N)` while that pid is alive, and a stale file is overwritten. Stop the

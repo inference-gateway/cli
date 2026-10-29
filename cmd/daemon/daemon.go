@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -86,9 +87,16 @@ Examples:
   infer daemon`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			state.ConfigureDaemonLogging()
-			return RunDaemonCommand(state.Config())
+			cfg := state.Config()
+			fallback, err := cmd.Flags().GetDuration("idle-exit")
+			if err != nil {
+				return err
+			}
+			cfg.Daemon.IdleExit = cmp.Or(cfg.Daemon.IdleExit, fallback)
+			return RunDaemonCommand(cfg)
 		},
 	}
+	command.Flags().Duration("idle-exit", 0, "Stop after this long with no threads and no clients, unless daemon.yaml sets idle_exit (a daemon a client starts on demand passes 30m)")
 	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state), newStopCommand(state))
 	return command
 }
@@ -366,7 +374,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {
-		if b.Token == "" && !b.TLS.RequiresClientAuth() {
+		if !b.Dialable() {
 			return threadHost{}, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml, or require TLS client certificates")
 		}
 		serverTLS, err := tlsProvider.Server(ctx, b.TLS)

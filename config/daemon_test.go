@@ -55,7 +55,7 @@ func TestBindingResolution(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("Binding() = %+v, want %+v", got, tt.want)
 			}
-			if got.Dialable() != (tt.want.Enabled && tt.want.Token != "") {
+			if got.Dialable() != (tt.want.Enabled && (tt.want.Token != "" || tt.want.TLS.RequiresClientAuth())) {
 				t.Fatalf("Dialable() = %v for %+v", got.Dialable(), got)
 			}
 		})
@@ -149,5 +149,27 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	}
 	if got := k8s.EffectiveAuth(); got != EnvironmentAuthCA {
 		t.Fatalf("default auth = %q", got)
+	}
+}
+
+func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
+	tests := []struct {
+		name    string
+		binding Binding
+		want    bool
+	}{
+		{"off", Binding{Token: "secret"}, false},
+		{"on without a token or certificates", Binding{Enabled: true}, false},
+		{"on with a token", Binding{Enabled: true, Token: "secret"}, true},
+		{"on with the ca mode and no token", Binding{Enabled: true, TLS: BindingTLSConfig{Mode: TLSModeCA}}, true},
+		{"on with files and client auth", Binding{Enabled: true, TLS: BindingTLSConfig{Mode: TLSModeFiles, ClientAuth: true}}, true},
+		{"on with files and no client auth", Binding{Enabled: true, TLS: BindingTLSConfig{Mode: TLSModeFiles}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.binding.Dialable(); got != tt.want {
+				t.Fatalf("Dialable() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
