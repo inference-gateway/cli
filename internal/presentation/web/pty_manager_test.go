@@ -44,3 +44,23 @@ func TestBuildLocalSessionCommandWithoutTmux(t *testing.T) {
 		t.Errorf("args = %v, want %v", args, want)
 	}
 }
+
+func TestBuildLocalSessionCommandKeepsDaemonMode(t *testing.T) {
+	cfg := &config.Config{Chat: config.ChatConfig{Daemon: true}}
+
+	args := buildLocalSessionCommand(cfg, "/usr/local/bin/infer").Args
+
+	want := []string{"/usr/local/bin/infer", "chat", "--daemon"}
+	if !slices.Equal(args, want) {
+		t.Errorf("args = %v, want %v", args, want)
+	}
+
+	if !tmuxInstalled() {
+		return
+	}
+	cfg.Web.Tmux = true
+	tmuxArgs := buildLocalSessionCommand(cfg, "/usr/local/bin/infer").Args
+	if inner := tmuxArgs[len(tmuxArgs)-1]; inner != "'/usr/local/bin/infer' chat --daemon" {
+		t.Errorf("tmux runs %q, want the chat in daemon mode", inner)
+	}
+}

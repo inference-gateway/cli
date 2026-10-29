@@ -101,6 +101,7 @@ and have a conversational interface with the inference gateway.`,
 }
 
 func applyWebFlags(cmd *cobra.Command, cfg *config.Config) {
+	defer passDaemonMode(cfg)
 	if cmd.Flags().Changed("port") {
 		cfg.Web.Port, _ = cmd.Flags().GetInt("port")
 	}
@@ -128,6 +129,19 @@ func applyWebFlags(cmd *cobra.Command, cfg *config.Config) {
 			AutoInstall: func() *bool { b := !noInstall; return &b }(),
 			Description: "Remote server configured via CLI flags",
 		},
+	}
+}
+
+// passDaemonMode has every SSH server start its infer chat in daemon mode when
+// this one runs in it.
+func passDaemonMode(cfg *config.Config) {
+	if !cfg.Chat.Daemon {
+		return
+	}
+	for i, server := range cfg.Web.Servers {
+		if !slices.Contains(server.CommandArgs, "--daemon") {
+			cfg.Web.Servers[i].CommandArgs = append(server.CommandArgs, "--daemon")
+		}
 	}
 }
 
