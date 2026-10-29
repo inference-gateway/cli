@@ -166,7 +166,7 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		TransferID: req.TransferID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
 	}
 	if s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts) && fingerprint != "" {
-		s.rememberOrigin(req.Session.ConversationID, fingerprint)
+		s.rememberOrigin(req.Session.ConversationID, req.Session.ProjectDir, fingerprint)
 	}
 }
 

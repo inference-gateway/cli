@@ -100,7 +100,11 @@ func (s *Service) checkoutReady(ctx context.Context, session agentdomain.Session
 	if err != nil {
 		return describe(err, "reading the checkout at %s", session.ProjectDir)
 	}
-	if clean || fingerprint == s.origin(session.ConversationID) {
+	left, origin := s.origin(session.ConversationID)
+	if left != "" && left != session.ProjectDir {
+		return fmt.Errorf("the session left the checkout at %s: move it back from a chat in that project", left)
+	}
+	if clean || fingerprint == origin {
 		return nil
 	}
 	return fmt.Errorf("the checkout at %s changed since the session left it: stash those changes (git stash -u), move the session back, then git stash pop", session.ProjectDir)
@@ -296,15 +300,15 @@ func (s *Service) excludes(projectDir string) func(abs string) bool {
 	return func(abs string) bool { return s.cfg.Denies != nil && s.cfg.Denies(projectDir, abs) }
 }
 
-// rememberOrigin keeps the fingerprint of the checkout a session left, which
-// lets it come back onto that checkout while it is unchanged.
-func (s *Service) rememberOrigin(conversationID, fingerprint string) {
+// rememberOrigin keeps the checkout a session left and its fingerprint, which
+// lets it come back onto that checkout, and only that one, while unchanged.
+func (s *Service) rememberOrigin(conversationID, projectDir, fingerprint string) {
 	path := s.originFile(conversationID)
 	if path == "" {
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err == nil {
-		err = os.WriteFile(path, []byte(fingerprint), 0o600)
+		err = os.WriteFile(path, []byte(projectDir+"\n"+fingerprint), 0o600)
 		if err == nil {
 			return
 		}
@@ -312,16 +316,19 @@ func (s *Service) rememberOrigin(conversationID, fingerprint string) {
 	logger.Warn("transfer could not remember the checkout a session left", "conversation_id", conversationID)
 }
 
-func (s *Service) origin(conversationID string) string {
+// origin is the checkout a session left and its fingerprint then, or empty
+// strings when the daemon remembers none.
+func (s *Service) origin(conversationID string) (string, string) {
 	path := s.originFile(conversationID)
 	if path == "" {
-		return ""
+		return "", ""
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ""
+		return "", ""
 	}
-	return strings.TrimSpace(string(data))
+	projectDir, fingerprint, _ := strings.Cut(strings.TrimSpace(string(data)), "\n")
+	return projectDir, fingerprint
 }
 
 func (s *Service) forgetOrigin(conversationID string) {

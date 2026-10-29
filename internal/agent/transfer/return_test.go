@@ -202,14 +202,14 @@ func TestBringBackAcceptsADirtyCheckoutUnchangedSinceItLeft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.rememberOrigin("conv-1", fingerprint)
+	s.rememberOrigin("conv-1", laptop, fingerprint)
 
 	client := moveBack(s, laptop)
 
 	if moved := delivered[sessionMovedFrame](client, frameSessionMoved); len(moved) != 1 {
 		t.Fatalf("progress = %+v, want the session back", delivered[progressFrame](client, frameTransferProgress))
 	}
-	if s.origin("conv-1") != "" {
+	if left, _ := s.origin("conv-1"); left != "" {
 		t.Error("the origin of a session that came back is still remembered")
 	}
 }
@@ -268,5 +268,24 @@ func TestStartTransferRefusesAConversationIDThatIsNotAPlainName(t *testing.T) {
 	progress := delivered[progressFrame](client, frameTransferProgress)
 	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "not a plain name") {
 		t.Fatalf("progress = %+v, want the id refused", progress)
+	}
+}
+
+func TestBringBackRefusesAnotherCheckoutThanTheOneItLeft(t *testing.T) {
+	laptop := checkout(t)
+	s, store, _, environment := returningService(t, podCheckpoint(t, laptop))
+	s.rememberOrigin("conv-1", "/somewhere/else", "fingerprint")
+
+	client := moveBack(s, laptop)
+
+	progress := delivered[progressFrame](client, frameTransferProgress)
+	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "/somewhere/else") {
+		t.Fatalf("progress = %+v, want a refusal naming the checkout the session left", progress)
+	}
+	if environment.ReachCallCount() != 0 {
+		t.Error("the refused move reached k8s-dev")
+	}
+	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Environment != "k8s-dev" {
+		t.Errorf("the refused move left the lease with %s", lease.Environment)
 	}
 }
