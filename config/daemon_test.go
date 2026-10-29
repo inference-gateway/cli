@@ -100,7 +100,7 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"two locals", DaemonConfig{Environments: []EnvironmentEntry{{Name: "a", Kind: EnvironmentKindLocal}, {Name: "b", Kind: EnvironmentKindLocal}}}, "only one environment"},
 		{"local named after the identity", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "other", Kind: EnvironmentKindLocal}}}, "named after daemon.environment"},
 		{"daemon kind needs an address", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
-		{"daemon kind needs tls", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, "require TLS"},
+		{"daemon kind trusts the system roots without a ca_file", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, ""},
 		{"kubernetes needs namespace and image", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes}}}, "namespace and an image"},
 	}
 	for _, tt := range tests {

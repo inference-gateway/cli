@@ -1090,9 +1090,9 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
   with client certificates), `binding.tls` (`mode` off|files|ca, `cert_file`, `key_file`, `ca_file`,
   `client_auth`) and `environments`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
-  `address`, `token`, `tls.ca_file`, `tls.cert_file`, `tls.key_file` for a daemon and `kubeconfig`, `context`,
-  `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`, `forward_env` for a Kubernetes
-  environment. See [infer daemon](daemon.md#environments-and-transfers).
+  `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
+  and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
+  `forward_env` for a Kubernetes environment. See [infer daemon](daemon.md#environments-and-transfers).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).
 

@@ -91,8 +91,8 @@ type BindingTLSConfig struct {
 }
 
 // PeerTLSConfig is how this daemon reaches a daemon-kind environment over TLS:
-// the CA that signed its certificate, and a client certificate when the
-// peer requires one.
+// the CA that signed its certificate, else the system roots, and a client
+// certificate when the peer requires one.
 type PeerTLSConfig struct {
 	CAFile   string `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
 	CertFile string `yaml:"cert_file,omitempty" mapstructure:"cert_file"`
@@ -251,9 +251,6 @@ func (e EnvironmentEntry) validate(identity string) error {
 	case EnvironmentKindDaemon:
 		if e.Address == "" {
 			return fmt.Errorf("environment %q of kind daemon needs an address", e.Name)
-		}
-		if e.TLS.CAFile == "" {
-			return fmt.Errorf("environment %q of kind daemon needs tls.ca_file, remote bindings require TLS", e.Name)
 		}
 	case EnvironmentKindKubernetes:
 		if e.Namespace == "" || e.Image == "" {

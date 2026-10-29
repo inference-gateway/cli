@@ -78,18 +78,20 @@ func (p *TLSProvider) Server(cfg config.BindingTLSConfig) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// ClientForDaemon dials a daemon-kind environment: its CA pins the server, and
-// a client certificate goes along when configured.
+// ClientForDaemon dials a daemon-kind environment: its CA pins the server,
+// else the system roots verify it, such as the certificate `tailscale serve`
+// presents. A client certificate goes along when configured.
 func (p *TLSProvider) ClientForDaemon(entry config.EnvironmentEntry) (*tls.Config, error) {
-	pool, err := poolFromFile(entry.TLS.CAFile)
-	if err != nil {
-		return nil, err
-	}
 	host, _, err := net.SplitHostPort(entry.Address)
 	if err != nil {
 		host = entry.Address
 	}
-	tlsConfig := &tls.Config{RootCAs: pool, ServerName: host, MinVersion: tls.VersionTLS13}
+	tlsConfig := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS13}
+	if entry.TLS.CAFile != "" {
+		if tlsConfig.RootCAs, err = poolFromFile(entry.TLS.CAFile); err != nil {
+			return nil, err
+		}
+	}
 	if entry.TLS.CertFile != "" {
 		cert, err := tls.LoadX509KeyPair(entry.TLS.CertFile, entry.TLS.KeyFile)
 		if err != nil {

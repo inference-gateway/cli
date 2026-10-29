@@ -114,8 +114,9 @@ environments:
       ca_file: ~/.infer/daemon/workstation-ca.crt
 ```
 
-- `kind: daemon` is a standalone `infer daemon` whose binding serves TLS. `tls.ca_file` pins it, and
-  `tls.cert_file` with `tls.key_file` present a client certificate when it requires one.
+- `kind: daemon` is a standalone `infer daemon` reached over TLS. `tls.ca_file` pins its certificate,
+  without one the system roots verify it, and `tls.cert_file` with `tls.key_file` present a client
+  certificate when it requires one. Its `environment` must match the entry's `name`.
 - `kind: kubernetes` runs one agent-sandbox `Sandbox` per session in `namespace`, from `image`, as an
   `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
   volume of `storage` each, so a session survives its pod. This daemon's CA issues the pod's server
@@ -190,6 +191,30 @@ conversation import all succeed, and any failure undoes all three, so the sessio
 Untracked files the sandbox policy denies are never touched. The remote runtime stays behind and suspends
 after its `idle_ttl`. A pod that runs an infer too old to send sessions back fails the move within 15
 seconds.
+
+### Daemons on other machines
+
+A VPN such as [Tailscale](https://tailscale.com/) gives two machines network identity and encryption, so
+the daemons need no identity system of their own. On the remote machine, keep the binding on loopback
+with a token and let [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve) publish it under
+the machine's `*.ts.net` name with a certificate the system roots trust:
+
+```bash
+tailscale serve --bg --https=443 http://127.0.0.1:52789
+```
+
+Register it with that name and no `tls`:
+
+```yaml
+  - name: workstation
+    kind: daemon
+    address: workstation.example.ts.net:443
+    token: ${WORKSTATION_TOKEN}
+```
+
+A grant in the tailnet policy decides which machines reach it. `forward_env` needs the remote daemon to
+serve TLS itself (`files` or `ca`): a transfer seals the variables to the certificate the peer presents,
+and behind Serve the key of that certificate belongs to Tailscale, not to the daemon.
 
 ## Session workers
 
