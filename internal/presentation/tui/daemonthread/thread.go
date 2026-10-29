@@ -505,9 +505,16 @@ func (t *Thread) push(h header, frame []byte) {
 	}
 }
 
+// pushMarker tells the turn reading the inbox that the connection dropped or
+// came back. With no turn reading, there is nobody to tell, and a marker left
+// queued would end the next turn before its run starts.
 func (t *Thread) pushMarker(marker string) {
 	frame, _ := json.Marshal(map[string]string{"type": marker})
 	t.mu.Lock()
+	if !t.consuming {
+		t.mu.Unlock()
+		return
+	}
 	t.inbox = append(t.inbox, frame)
 	t.mu.Unlock()
 	t.signal()

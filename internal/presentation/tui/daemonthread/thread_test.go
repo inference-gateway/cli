@@ -76,6 +76,7 @@ func TestThreadAsksTheTUIToFollowARunItDidNotStart(t *testing.T) {
 func TestThreadReconnectsAndFollowsAgain(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, notifier := connected(t, d)
+	defer thread.Consume()()
 	d.binding.Close()
 	eventually(t, "the offline placement", func() bool { return thread.Placement().Offline })
 
@@ -95,6 +96,21 @@ func TestThreadReconnectsAndFollowsAgain(t *testing.T) {
 	offline := slices.IndexFunc(placements, func(p tui.SessionPlacementChangedEvent) bool { return p.Placement.Offline })
 	if offline < 0 || placements[len(placements)-1].Placement.Offline {
 		t.Errorf("placements = %+v, want an offline one and an online one last", placements)
+	}
+}
+
+func TestThreadLeavesNoMarkersForTheNextTurnAfterAnIdleReconnect(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	d.binding.Close()
+	eventually(t, "the offline placement", func() bool { return thread.Placement().Offline })
+
+	again := startDaemon(t, d.port)
+	eventually(t, "the follow on the new daemon", func() bool { return len(again.frames("resume_conversation")) == 1 })
+
+	if thread.Pending() {
+		frame, _ := thread.Next(t.Context())
+		t.Fatalf("an idle reconnect left %s for the next turn to read", frame)
 	}
 }
 

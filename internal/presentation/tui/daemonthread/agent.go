@@ -196,10 +196,11 @@ func userContent(entry convdomain.ConversationEntry) any {
 
 // pump decodes the run frames into events, mirrors them and answers the
 // prompts the run suspends on, until the run ends. A follow-only request with
-// nothing running ends at once.
+// nothing running completes at once, which ends the TUI's turn.
 func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<- agentdomain.ChatEvent) {
 	if !sent && !a.thread.Running() && !a.thread.Pending() {
 		a.reconcile()
+		out <- agentdomain.ChatCompleteEvent{RequestID: requestID, Timestamp: time.Now()}
 		return
 	}
 	decoder := headless.NewRunDecoder(requestID)
@@ -215,6 +216,7 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 		case markerReconnected:
 			if !a.thread.Running() {
 				a.reconcile()
+				out <- agentdomain.ChatCompleteEvent{RequestID: requestID, Timestamp: time.Now()}
 				return
 			}
 			continue

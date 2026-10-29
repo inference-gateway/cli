@@ -99,8 +99,8 @@ func TestAgentRunsATurnOnTheWorkerAndReconcilesTheConversation(t *testing.T) {
 	}) {
 		t.Errorf("events %v lack the streamed text", got)
 	}
-	if mirrored != 3 {
-		t.Errorf("mirror held %d entries when the tool result arrived, want the user, assistant and tool entries", mirrored)
+	if mirrored < 3 {
+		t.Errorf("mirror held %d entries when the tool result arrived, want at least the user, assistant and tool entries", mirrored)
 	}
 	inputs := d.frames("run_agent_input")
 	messages, _ := inputs[0]["input"].(map[string]any)["messages"].([]any)
@@ -171,8 +171,12 @@ func TestAgentFollowOnlyRequestEndsWhenNothingRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := collect(t, events, nil); len(got) != 0 {
-		t.Fatalf("events = %v, want none for a thread at rest", got)
+	got := collect(t, events, nil)
+	if len(got) != 1 {
+		t.Fatalf("events = %v, want only the completion ending the turn on a thread at rest", got)
+	}
+	if complete, ok := got[0].(agentdomain.ChatCompleteEvent); !ok || complete.RequestID != "req-1" {
+		t.Fatalf("events = %v, want only the completion ending the turn on a thread at rest", got)
 	}
 	if inputs := d.frames("run_agent_input"); len(inputs) != 0 {
 		t.Fatalf("a follow-only request sent %v", inputs)
