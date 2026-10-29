@@ -12,22 +12,30 @@ import (
 )
 
 // bootWait bounds how long EnsureRunning waits for a daemon it just started to
-// bind its port.
-const bootWait = 15 * time.Second
+// bind its port, and restartEvery paces the starts it retries meanwhile.
+const (
+	bootWait     = 15 * time.Second
+	restartEvery = 2 * time.Second
+)
 
 // EnsureRunning makes an infer daemon serve its binding on port, starting one
 // in the background when nothing listens there. The daemon's own pid lock makes
 // a redundant start exit, so callers never coordinate, and the wait covers a
-// daemon already on its way.
+// daemon already on its way. A daemon still shutting down holds that lock, so
+// the start is retried until it is gone.
 func EnsureRunning(ctx context.Context, port int) error {
 	if reachable(port) {
 		return nil
 	}
-	if err := start(); err != nil {
-		return fmt.Errorf("starting the infer daemon failed: %w", err)
-	}
 	deadline := time.Now().Add(bootWait)
+	var nextStart time.Time
 	for {
+		if !time.Now().Before(nextStart) {
+			if err := start(); err != nil {
+				return fmt.Errorf("starting the infer daemon failed: %w", err)
+			}
+			nextStart = time.Now().Add(restartEvery)
+		}
 		if reachable(port) {
 			return nil
 		}
