@@ -353,6 +353,9 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 - `title` is the conversation's title (an auto-derived first-message preview
   until a better one is generated); `updated_at` is RFC 3339; `message_count`
   is the number of stored messages.
+- `token_stats` (`request_count`, `total_input_tokens`, `total_output_tokens`, …)
+  and `cost_stats` (`TotalCost`, `Currency`, …) carry the session's usage, the
+  columns of the chat TUI's conversation picker.
 - The list is capped at 50 conversations, the 50 most recently updated.
 - The array is empty when the project runs without conversation persistence
   (`storage.enabled: false`).

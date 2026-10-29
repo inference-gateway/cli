@@ -79,10 +79,12 @@ type modelsFrame struct {
 }
 
 type conversationSummary struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	MessageCount int       `json:"message_count"`
+	ID           string                       `json:"id"`
+	Title        string                       `json:"title"`
+	UpdatedAt    time.Time                    `json:"updated_at"`
+	MessageCount int                          `json:"message_count"`
+	TokenStats   convdomain.SessionTokenStats `json:"token_stats"`
+	CostStats    convdomain.SessionCostStats  `json:"cost_stats"`
 }
 
 type conversationsFrame struct {
@@ -258,6 +260,8 @@ func (c *conversations) list() {
 			Title:        s.Title,
 			UpdatedAt:    s.UpdatedAt,
 			MessageCount: s.MessageCount,
+			TokenStats:   s.TokenStats,
+			CostStats:    s.CostStats,
 		})
 	}
 	c.write(conversationsFrame{Type: outboundConversations, Conversations: out})
