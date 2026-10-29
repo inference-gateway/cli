@@ -283,6 +283,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Models:        c.modelService,
 		Modes:         c.stateManager,
 		History:       c.GetShellHistoryStorage(),
+		Storage:       c.storage,
 		DefaultModel:  c.config.Agent.Model,
 	}, out)
 }
@@ -1099,6 +1100,15 @@ func (c *ServiceContainer) GetShellHistoryStorage() storage.ShellHistoryStorage 
 		return nil
 	}
 	return c.stores.ShellHistory
+}
+
+// GetLeaseStore returns the session lease store, or nil when storage failed
+// to initialize.
+func (c *ServiceContainer) GetLeaseStore() agentdomain.LeaseStore {
+	if c.stores == nil {
+		return nil
+	}
+	return c.stores.Leases
 }
 
 // GetGatewaySupervisor returns the gateway manager

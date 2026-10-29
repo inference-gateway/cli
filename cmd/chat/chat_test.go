@@ -4,9 +4,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 )
 
@@ -54,27 +57,79 @@ func TestChatCommandSessionIDFlag(t *testing.T) {
 }
 
 func TestResumeChatSession(t *testing.T) {
-	t.Run("loads the requested conversation", func(t *testing.T) {
+	tests := []struct {
+		name      string
+		lease     agentdomain.Lease
+		found     bool
+		leaseErr  error
+		loadErr   error
+		wantErr   string
+		wantLoads int
+	}{
+		{
+			name:      "loads a session nobody holds a lease on",
+			wantLoads: 1,
+		},
+		{
+			name:      "loads a session this environment owns",
+			lease:     agentdomain.Lease{Environment: "laptop", Until: time.Now().Add(time.Hour)},
+			found:     true,
+			wantLoads: 1,
+		},
+		{
+			name:      "continues without panicking when loading fails",
+			loadErr:   errors.New("not found"),
+			wantLoads: 1,
+		},
+		{
+			name:    "refuses a session another environment owns",
+			lease:   agentdomain.Lease{Environment: "k8s-dev", Until: time.Now().Add(time.Hour)},
+			found:   true,
+			wantErr: "session abc-123-def is owned by environment k8s-dev",
+		},
+		{
+			name:    "refuses a session whose lease another environment let lapse",
+			lease:   agentdomain.Lease{Environment: "k8s-dev", Until: time.Now().Add(-time.Hour)},
+			found:   true,
+			wantErr: "infer daemon run abc-123-def",
+		},
+		{
+			name:     "refuses when the lease cannot be read",
+			leaseErr: errors.New("corrupt leases file"),
+			wantErr:  "reading the lease of session abc-123-def: corrupt leases file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeRepo := &convmocks.FakeConversationRepository{}
+			fakeRepo.LoadConversationReturns(tt.loadErr)
+			leases := &agentdomainmocks.FakeLeaseStore{}
+			leases.GetLeaseReturns(tt.lease, tt.found, tt.leaseErr)
+
+			err := resumeChatSession(fakeRepo, nil, leases, "laptop", "abc-123-def")
+
+			if tt.wantErr == "" && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)) {
+				t.Fatalf("expected an error containing %q, got %v", tt.wantErr, err)
+			}
+			if got := fakeRepo.LoadConversationCallCount(); got != tt.wantLoads {
+				t.Fatalf("expected LoadConversation to be called %d times, got %d", tt.wantLoads, got)
+			}
+			if _, id := leases.GetLeaseArgsForCall(0); id != "abc-123-def" {
+				t.Errorf("expected the lease of abc-123-def, got %q", id)
+			}
+		})
+	}
+
+	t.Run("skips the lease check without a lease store", func(t *testing.T) {
 		fakeRepo := &convmocks.FakeConversationRepository{}
-		fakeRepo.LoadConversationReturns(nil)
 
-		resumeChatSession(fakeRepo, nil, "abc-123-def")
-
-		if fakeRepo.LoadConversationCallCount() != 1 {
-			t.Fatalf("expected LoadConversation to be called once, got %d", fakeRepo.LoadConversationCallCount())
+		if err := resumeChatSession(fakeRepo, nil, nil, "laptop", "abc-123-def"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
-		_, id := fakeRepo.LoadConversationArgsForCall(0)
-		if id != "abc-123-def" {
-			t.Errorf("expected conversation ID abc-123-def, got %q", id)
-		}
-	})
-
-	t.Run("continues without panicking when loading fails", func(t *testing.T) {
-		fakeRepo := &convmocks.FakeConversationRepository{}
-		fakeRepo.LoadConversationReturns(errors.New("not found"))
-
-		resumeChatSession(fakeRepo, nil, "missing-id")
-
 		if fakeRepo.LoadConversationCallCount() != 1 {
 			t.Fatalf("expected LoadConversation to be called once, got %d", fakeRepo.LoadConversationCallCount())
 		}

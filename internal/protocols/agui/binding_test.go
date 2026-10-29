@@ -133,7 +133,7 @@ func TestBindingRejectsBadHello(t *testing.T) {
 
 func TestBindingRefusesToStartWithoutToken(t *testing.T) {
 	binding := agui.NewBinding(agui.BindingConfig{Handshake: testHandshake}, &aguimocks.FakeHandler{})
-	if err := binding.Start(); err == nil || !strings.Contains(err.Error(), "token is empty") {
+	if err := binding.Start(); err == nil || !strings.Contains(err.Error(), "needs a token") {
 		t.Fatalf("expected token error, got %v", err)
 	}
 }

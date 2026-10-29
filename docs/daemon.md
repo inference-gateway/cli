@@ -26,7 +26,8 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Scheduler | `tools.schedule.enabled` | Skipped with `scheduler.backend: github`. See [Scheduling](scheduling.md) |
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
-| AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | The clients' WebSocket and the `/artifacts/` route |
+| AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peer daemons and `/artifacts/` |
+| Environments | `daemon.environments` | Where sessions can be transferred to, see [Environments and transfers](#environments-and-transfers) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
 Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then
@@ -43,22 +44,137 @@ into `config.yaml`. Treat `mode: auto` as handing unrestricted bash to every hol
 
 ## The binding
 
-The binding listens on `ws://127.0.0.1:<port>/ws`. Its switch, port and token live in
+The binding listens on `ws://127.0.0.1:<port>/ws`. Its switch, host, port, token and TLS live in
 `~/.infer/daemon.yaml`, and `browser_use.extension` stays the fallback for the port and the token:
 
 ```yaml
 # ~/.infer/daemon.yaml
 binding:
   enabled: true
+  host: 127.0.0.1
   port: 52789
   token: <shared secret>
+  tls:
+    mode: off
 ```
 
-Env overrides follow the usual scheme: `INFER_DAEMON_BINDING_ENABLED`, `INFER_DAEMON_BINDING_PORT`,
-`INFER_DAEMON_BINDING_TOKEN`. The wire contract is the
-[Daemon Binding Protocol](browser-extension-protocol.md), and the events on it are the
+Env overrides follow the usual scheme: `INFER_DAEMON_BINDING_ENABLED`, `INFER_DAEMON_BINDING_HOST`,
+`INFER_DAEMON_BINDING_PORT`, `INFER_DAEMON_BINDING_TOKEN`, `INFER_DAEMON_BINDING_TLS_MODE`. The wire
+contract is the [Daemon Binding Protocol](browser-extension-protocol.md), and the events on it are the
 [AG-UI output](ag-ui-output.md). The same listener serves generated images read-only at
 `GET /artifacts/<project-slug>/<relative-path>`.
+
+A binding on any host but loopback must serve TLS. `tls.mode` picks how:
+
+| Mode | Server side | Who it trusts |
+| --- | --- | --- |
+| `off` | plain `ws://`, loopback only | the token |
+| `files` | `cert_file` and `key_file` | the token, or client certificates signed by `ca_file` when `client_auth: true` |
+| `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
+| `spiffe` | the SVID the SPIRE Workload API serves on `spiffe.socket` | SVIDs of `spiffe.allowed_ids`, else any member of `spiffe.trust_domain` |
+
+With `ca` or `spiffe` the token may be empty, since every connection carries a verified certificate.
+The `infer daemon environments`, `transfer`, `run` and `stop` commands dial the local binding over whichever
+mode it serves, with the token or, when it requires them, a client certificate.
+
+## Environments and transfers
+
+An environment is where a session's agent runs. This daemon is one, named by `environment` (default the
+hostname), and `daemon.yaml` registers the others:
+
+```yaml
+# ~/.infer/daemon.yaml
+environment: laptop
+workspace_root: ~/.infer/workspaces
+idle_exit: 0s
+environments:
+  - name: laptop
+    kind: local
+  - name: k8s-dev
+    kind: kubernetes
+    context: k3d-infer-environments
+    namespace: infer-environments
+    image: ghcr.io/inference-gateway/cli:latest
+    storage: 5Gi
+    idle_ttl: 2h
+    retention: 168h
+    auth: ca
+    env:
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+    forward_env:
+      - GITHUB_TOKEN
+  - name: workstation
+    kind: daemon
+    address: workstation.lan:52789
+    token: ${WORKSTATION_TOKEN}
+    tls:
+      ca_file: ~/.infer/daemon/workstation-ca.crt
+```
+
+- `kind: daemon` is a standalone `infer daemon` whose binding serves TLS. `tls.ca_file` pins it, and
+  `tls.cert_file` with `tls.key_file` present a client certificate when it requires one.
+- `kind: kubernetes` runs one agent-sandbox `Sandbox` per session in `namespace`, from `image`, as an
+  `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
+  volume of `storage` each, so a session survives its pod. `auth: ca` has this daemon's CA issue the
+  pod's server certificate and a client certificate into a Secret, and `auth: spiffe` mounts the SPIRE
+  Workload API and expects `spiffe.server_id` or any member of `spiffe.trust_domain`. The pod daemon
+  idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
+  is the pod daemon's non-secret environment, such as the gateway URL. `address` replaces the
+  port-forward when an Ingress or Gateway exposes the pods.
+- `retention` deletes a suspended Sandbox, its volumes and its Secret once it sat suspended that long,
+  through agent-sandbox's `shutdownTime`. It only starts when every agent on the pod is done: its last
+  run finished without waiting on an approval or a question. A run still going keeps the pod up, and a
+  run that waits on the user or ended in an error keeps the Sandbox until `infer daemon stop` deletes
+  it. Resuming the Sandbox clears the countdown. The pod records its verdict in the
+  `inference-gateway.com/agents-done` annotation, so a later pod that ran nothing keeps it. Without a
+  `retention` a suspended Sandbox stays until the session is stopped. A relay never recreates a Sandbox
+  its retention deleted: the session falls back to this machine's copy once its lease lapsed.
+- `forward_env` names variables of this daemon's environment that a transfer seals to the target's
+  certificate for its workers. They never land in a Kubernetes object.
+- `workspace_root` is where a daemon restores transferred projects: `<root>/<project slug>/<conversation id>`.
+- `idle_exit` stops a daemon that had no thread and no client for that long. Pod daemons get `idle_ttl`.
+
+A transfer moves a session between turns: the source daemon interrupts an open run, stops the worker so
+storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
+project's `HEAD` with a patch of the uncommitted and untracked changes (minus what `sandbox.yaml`
+denies) and the files the request lists, and streams that checkpoint to the target. The target restores
+it, imports the conversation through a worker in the new workspace, claims the session's lease and
+answers `resume_conversation` with a snapshot the source checks against the checkpoint before it
+reports `ready`. From then on the session lives on the target: clients that resume through the source
+are relayed there, a client that reaches a daemon-kind environment resumes there directly, and killing the
+source does not stop the target.
+
+The restored clone keeps the source's `origin`, minus any credentials an http(s) URL embeds, so the agent
+on the target can push to the same remote. Credentials never travel in that URL, so forward a token
+through `forward_env` instead.
+
+Ownership is a lease stored next to the conversations: `environment`, `workspace`, `transfer_id` and when
+it lapses. A worker starts only on a session this daemon owns or nobody does, relays to the owner
+otherwise, and reclaims a lapsed lease whose owner cannot be reached. The owner renews its lease every
+30 seconds while a worker runs, a relaying daemon refreshes its own row for the owner for the
+environment's `lease_ttl`, and a transfer is a compare-and-swap keyed by `transfer_id`, so a retry is a
+no-op once it succeeded. With `storage.type` jsonl the leases are machine-local
+(`~/.infer/leases.json`), with a shared Postgres or Redis every daemon sees them. The wire frames are in
+the [Daemon Binding Protocol](browser-extension-protocol.md#environments).
+
+Two daemons that transfer sessions between them should point `storage.type` at a backend they share -
+Postgres, Redis or D1. On jsonl or memory each machine keeps its own lease rows, so the one-owner
+guarantee holds only through the source daemon's final claim and a crash mid-transfer can leave both
+daemons believing they own the session. A transfer on a per-machine backend still runs, with a warning
+in the daemon's log.
+
+The daemon's subcommands drive this from a shell:
+
+```bash
+infer daemon environments                                 # who is reachable
+infer daemon transfer <conversation-id> --to k8s-dev      # move a session, follow the stages
+infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
+infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
+```
+
+A transfer starts on the daemon that owns the session. A daemon that only relays a session refuses to
+move it with `session <id> is owned by environment <name>`, so a session on a remote environment moves
+again only from that environment's own daemon.
 
 ## Session workers
 
@@ -69,7 +185,8 @@ project's `.infer/` config, storage, skills and sandbox apply. Thread options a 
 directories, max turns) become the worker's flags and `INFER_` env.
 
 Workers speak the binding's vocabulary on stdio, so the daemon relays frames without translating
-them. A client that deletes a conversation sends `stop_thread`, which stops its worker at once. A worker
+them. A client that deletes a conversation sends `stop_thread`, which stops its worker at once and
+deletes the session's runtime on the remote environment that owns it. A worker
 nobody follows stops 30 seconds after the turn comes back to the user with no run
 open, no reply pending and no background job still running. A worker that exits mid-turn ends its run
 with `RUN_ERROR` for every client of the thread, and the next `run_agent_input` starts a new one.
@@ -78,6 +195,9 @@ A worker's headless subagents are threads too: the worker opens
 `subagent-<parent id>-<child id>` over the binding as a client, so the daemon runs the subagent in
 a worker of its own and the desktop can follow it live. Without a configured binding the worker
 spawns the subagent itself instead.
+
+A thread whose session another environment owns gets no local worker: the daemon relays its frames to the
+owning environment's daemon instead, see [Environments and transfers](#environments-and-transfers).
 
 Scheduled jobs and heartbeat wake-ups do not use workers. Each runs as a one-shot `infer headless`
 inside the daemon, one process per run, and no client follows it.

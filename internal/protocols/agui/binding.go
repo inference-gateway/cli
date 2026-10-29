@@ -1,15 +1,21 @@
 package agui
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"maps"
 	"net"
 	"net/http"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -35,6 +41,10 @@ const connWriteTimeout = 10 * time.Second
 // pingInterval keeps an idle connection alive.
 const pingInterval = 20 * time.Second
 
+// maxInboundFrameBytes caps one frame a dialing end sends, its hello
+// included, so a peer cannot pin the listener's memory with a single message.
+const maxInboundFrameBytes = 64 << 20
+
 // outboundQueue caps the frames a connection owes its peer. A peer must read
 // its socket at least that fast, or it is closed for a reconnect.
 const outboundQueue = 64
@@ -55,10 +65,8 @@ type helloFrame struct {
 	ProtocolVersion json.RawMessage `json:"protocol_version"`
 }
 
-type helloAckFrame struct {
-	Type            string `json:"type"`
-	ProtocolVersion int    `json:"protocol_version"`
-}
+// loopbackHost is where the binding listens unless its config names a host.
+const loopbackHost = "127.0.0.1"
 
 // Handler receives what happens on a binding's connections. Attach runs once a
 // connection authenticated and before its first frame, Handle once per frame,
@@ -77,16 +85,19 @@ type Conn struct {
 	// version the binding itself never interprets. The token is never among
 	// them.
 	helloAttrs map[string]string
-	out        chan []byte
-	mu         sync.Mutex
-	done       chan struct{}
-	closeOnce  sync.Once
+	// ackAttrs are the other fields the ack declared to a dialing end, host
+	// facts like its identity the binding itself never interprets.
+	ackAttrs  map[string]string
+	out       chan []byte
+	mu        sync.Mutex
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 // newConn wraps one authenticated socket and starts its writer goroutine, so
 // Deliver only queues frames and never waits on the socket.
-func newConn(ws *websocket.Conn, kind string, helloAttrs map[string]string) *Conn {
-	c := &Conn{ws: ws, kind: kind, helloAttrs: helloAttrs, out: make(chan []byte, outboundQueue), done: make(chan struct{})}
+func newConn(ws *websocket.Conn, kind string, helloAttrs, ackAttrs map[string]string) *Conn {
+	c := &Conn{ws: ws, kind: kind, helloAttrs: helloAttrs, ackAttrs: ackAttrs, out: make(chan []byte, outboundQueue), done: make(chan struct{})}
 	go c.writeLoop()
 	return c
 }
@@ -100,6 +111,22 @@ func (c *Conn) Kind() string {
 // omitted it.
 func (c *Conn) HelloAttr(key string) string {
 	return c.helloAttrs[key]
+}
+
+// AckAttr is one other field the ack declared to this dialing end, empty when
+// the ack omitted it or this is the listening end.
+func (c *Conn) AckAttr(key string) string {
+	return c.ackAttrs[key]
+}
+
+// PeerCertificates are the certificates the other end presented over TLS,
+// nil on a plain connection.
+func (c *Conn) PeerCertificates() []*x509.Certificate {
+	tlsConn, ok := c.ws.NetConn().(*tls.Conn)
+	if !ok {
+		return nil
+	}
+	return tlsConn.ConnectionState().PeerCertificates
 }
 
 // Send writes one frame and reports the write's failure.
@@ -161,21 +188,33 @@ func (c *Conn) serve(handler Handler) {
 	}
 }
 
-// BindingConfig configures the listening end. AllowOrigin decides over requests
-// that carry an Origin header, and without it only requests without one pass.
-// Routes registers optional non-WebSocket HTTP handlers, e.g. static files,
-// which serve under the same loopback listener as /ws.
+// BindingConfig configures the listening end. Host defaults to loopback. TLS
+// serves the listener over TLS and, when it requires and verifies client
+// certificates, stands in for the token. AckAttrs are the other fields the ack
+// declares, host facts a dialing end reads back with AckAttr. AllowOrigin
+// decides over requests that carry an Origin header, and without it only
+// requests without one pass. Routes registers optional non-WebSocket HTTP
+// handlers, e.g. static files, which serve under the same listener as /ws.
 type BindingConfig struct {
+	Host        string
 	Port        int
 	Token       string
+	TLS         *tls.Config
+	AckAttrs    map[string]any
 	Handshake   Handshake
 	AllowOrigin func(origin string) bool
 	Routes      map[string]http.Handler
 }
 
-// Binding hosts the localhost AG-UI WebSocket binding. It owns the listener,
-// the Origin check, the token handshake and the connections, and hands every
-// frame to its Handler.
+// requiresClientCert reports whether the TLS config authenticates every
+// connection with a verified client certificate.
+func (cfg BindingConfig) requiresClientCert() bool {
+	return cfg.TLS != nil && cfg.TLS.ClientAuth == tls.RequireAndVerifyClientCert
+}
+
+// Binding hosts the AG-UI WebSocket binding. It owns the listener, the Origin
+// check, the token handshake and the connections, and hands every frame to its
+// Handler.
 type Binding struct {
 	cfg      BindingConfig
 	handler  Handler
@@ -200,16 +239,23 @@ func NewBinding(cfg BindingConfig, handler Handler) *Binding {
 	}
 }
 
-// Start listens on 127.0.0.1:<port> and serves the /ws endpoint.
+// Start listens on <host>:<port> and serves the /ws endpoint.
 func (b *Binding) Start() error {
-	if b.cfg.Token == "" {
-		return errors.New("the binding token is empty")
+	if b.cfg.Token == "" && !b.cfg.requiresClientCert() {
+		return errors.New("the binding needs a token or TLS client certificates")
 	}
 
-	addr := fmt.Sprintf("127.0.0.1:%d", b.cfg.Port)
+	host := b.cfg.Host
+	if host == "" {
+		host = loopbackHost
+	}
+	addr := net.JoinHostPort(host, strconv.Itoa(b.cfg.Port))
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("binding failed to listen on %s: %w", addr, err)
+	}
+	if b.cfg.TLS != nil {
+		listener = tls.NewListener(listener, b.cfg.TLS)
 	}
 
 	b.addr = listener.Addr().String()
@@ -220,7 +266,11 @@ func (b *Binding) Start() error {
 		}
 	}
 	mux.HandleFunc("/ws", b.handleWS)
-	b.server = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	b.server = &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ErrorLog:          log.New(quietProbes{next: log.Writer()}, log.Prefix(), log.Flags()),
+	}
 	go func() {
 		if err := b.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Warn("binding server stopped", "error", err)
@@ -228,6 +278,17 @@ func (b *Binding) Start() error {
 	}()
 	logger.Info("binding listening", "addr", b.addr)
 	return nil
+}
+
+// quietProbes drops the handshake EOF a TCP readiness probe leaves on a TLS listener at
+// every check, and passes every other server error through.
+type quietProbes struct{ next io.Writer }
+
+func (q quietProbes) Write(line []byte) (int, error) {
+	if bytes.Contains(line, []byte("TLS handshake error")) && bytes.HasSuffix(bytes.TrimSpace(line), []byte(": EOF")) {
+		return len(line), nil
+	}
+	return q.next.Write(line)
 }
 
 // Addr returns the actual listen address (useful with port 0 in tests).
@@ -240,12 +301,13 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	ws.SetReadLimit(maxInboundFrameBytes)
 
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	var helloRaw json.RawMessage
 	var hello helloFrame
 	if ws.ReadJSON(&helloRaw) != nil || json.Unmarshal(helloRaw, &hello) != nil || hello.Type != b.cfg.Handshake.Hello ||
-		subtle.ConstantTimeCompare([]byte(hello.Token), []byte(b.cfg.Token)) != 1 {
+		!b.authenticated(r, hello.Token) {
 		logger.Warn("binding rejected a connection with a bad or missing hello")
 		_ = ws.Close()
 		return
@@ -255,13 +317,34 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	if len(hello.ProtocolVersion) == 0 {
 		logger.Warn("binding accepted a hello without protocol_version", "client", hello.Client)
 	}
-	if err := ws.WriteJSON(helloAckFrame{Type: b.cfg.Handshake.Ack, ProtocolVersion: protocolVersion}); err != nil {
+	if err := ws.WriteJSON(b.ackFrame()); err != nil {
 		_ = ws.Close()
 		return
 	}
-	c := newConn(ws, hello.Client, declaredHelloAttrs(helloRaw))
+	c := newConn(ws, hello.Client, declaredHelloAttrs(helloRaw), nil)
 	logger.Info("binding client connected", "client", c.kind, "protocol_version", c.HelloAttr(protocolVersionField))
 	b.adopt(c)
+}
+
+// authenticated accepts the configured token, or a client certificate the TLS
+// listener already verified when the config requires one.
+func (b *Binding) authenticated(r *http.Request, token string) bool {
+	if b.cfg.Token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(b.cfg.Token)) == 1 {
+		return true
+	}
+	return b.cfg.requiresClientCert() && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
+// ackFrame is the hello's answer: the ack type, the protocol version and the
+// host facts the config declares.
+func (b *Binding) ackFrame() map[string]any {
+	ack := make(map[string]any, len(b.cfg.AckAttrs)+2)
+	for key, value := range b.cfg.AckAttrs {
+		ack[key] = value
+	}
+	ack["type"] = b.cfg.Handshake.Ack
+	ack[protocolVersionField] = protocolVersion
+	return ack
 }
 
 func (b *Binding) adopt(c *Conn) {
@@ -339,29 +422,35 @@ func (b *Binding) Close() {
 
 // DialConfig configures the dialing end. Kind is the client kind the hello
 // declares, and HelloAttrs the other fields it declares, e.g. a version the
-// host reports on.
+// host reports on. TLS dials wss:// with that config.
 type DialConfig struct {
 	Addr       string
 	Token      string
 	Kind       string
 	HelloAttrs map[string]string
 	Handshake  Handshake
+	TLS        *tls.Config
 }
 
 // Dial connects to a binding, performs the handshake and hands every frame the
 // binding sends to handler until the connection dies.
 func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
-	ws, _, err := (&websocket.Dialer{HandshakeTimeout: handshakeTimeout}).
-		DialContext(ctx, fmt.Sprintf("ws://%s/ws", cfg.Addr), nil)
+	scheme := "ws"
+	if cfg.TLS != nil {
+		scheme = "wss"
+	}
+	ws, _, err := (&websocket.Dialer{HandshakeTimeout: handshakeTimeout, TLSClientConfig: cfg.TLS}).
+		DialContext(ctx, fmt.Sprintf("%s://%s/ws", scheme, cfg.Addr), nil)
 	if err != nil {
 		return nil, fmt.Errorf("nothing accepted the connection on %s: %w", cfg.Addr, err)
 	}
-	if err := sayHello(ws, cfg); err != nil {
+	ackAttrs, err := sayHello(ws, cfg)
+	if err != nil {
 		_ = ws.Close()
 		return nil, err
 	}
 
-	c := newConn(ws, cfg.Kind, cfg.HelloAttrs)
+	c := newConn(ws, cfg.Kind, cfg.HelloAttrs, ackAttrs)
 	handler.Attach(c)
 	go func() {
 		c.serve(handler)
@@ -371,7 +460,8 @@ func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
 	return c, nil
 }
 
-func sayHello(ws *websocket.Conn, cfg DialConfig) error {
+// sayHello sends the hello and returns the other fields the ack declared.
+func sayHello(ws *websocket.Conn, cfg DialConfig) (map[string]string, error) {
 	hello := make(map[string]any, len(cfg.HelloAttrs)+4)
 	for key, value := range cfg.HelloAttrs {
 		hello[key] = value
@@ -382,13 +472,16 @@ func sayHello(ws *websocket.Conn, cfg DialConfig) error {
 	hello[protocolVersionField] = protocolVersion
 	raw, _ := json.Marshal(hello)
 	if err := ws.WriteMessage(websocket.TextMessage, raw); err != nil {
-		return fmt.Errorf("the binding on %s did not take the hello: %w", cfg.Addr, err)
+		return nil, fmt.Errorf("the binding on %s did not take the hello: %w", cfg.Addr, err)
 	}
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))
-	var ack helloAckFrame
-	if err := ws.ReadJSON(&ack); err != nil || ack.Type != cfg.Handshake.Ack {
-		return fmt.Errorf("the binding on %s did not ack the hello", cfg.Addr)
+	var ackRaw json.RawMessage
+	var ack struct {
+		Type string `json:"type"`
+	}
+	if err := ws.ReadJSON(&ackRaw); err != nil || json.Unmarshal(ackRaw, &ack) != nil || ack.Type != cfg.Handshake.Ack {
+		return nil, fmt.Errorf("the binding on %s did not ack the hello", cfg.Addr)
 	}
 	_ = ws.SetReadDeadline(time.Time{})
-	return nil
+	return declaredHelloAttrs(ackRaw), nil
 }

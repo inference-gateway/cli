@@ -99,6 +99,7 @@ One line per feature, each linking to its full guide:
 - **Task management** - the A2A task interface - [Tasks Management](docs/tasks-management.md)
 - **Daemon** - the hub the desktop app, the extension and Telegram reach the agent through - [infer daemon](docs/daemon.md)
 - **Daemon binding** - the WebSocket wire contract, including browser use through the extension - [Daemon Binding Protocol](docs/browser-extension-protocol.md)
+- **Session transfer** - move a session to a Kubernetes sandbox or another daemon - [infer daemon](docs/daemon.md#environments-and-transfers)
 - **Explorer and diffs** - in-terminal file tree, fuzzy finder and diff viewer - [Explorer](docs/explorer.md)
 
 ### Skills and plugins

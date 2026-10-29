@@ -31,6 +31,7 @@ type JsonlStorage struct {
 	persistedCounts map[string]int
 	persistedMutex  sync.RWMutex
 	groupIndexMu    sync.Mutex
+	leasesMu        sync.Mutex
 	listedIn        sync.Map
 }
 

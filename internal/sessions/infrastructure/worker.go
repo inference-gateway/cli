@@ -116,6 +116,7 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	if opts.MaxTurns > 0 {
 		env = append(env, "INFER_AGENT_MAX_TURNS="+strconv.Itoa(opts.MaxTurns))
 	}
+	env = append(env, opts.Env...)
 	if sub := opts.Subagent; sub != nil {
 		env = append(env,
 			scheddomain.EnvSubagentParentSession+"="+sub.Parent,

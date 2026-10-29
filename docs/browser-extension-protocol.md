@@ -247,9 +247,22 @@ when it deletes the conversation instead of leaving the worker to idle out:
 {"type": "stop_thread", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
 ```
 
-- The CLI answers nothing. Followers of the thread with a run open get a
-  `RUN_ERROR` for it, exactly as when a worker exits mid-turn, and a thread
-  with no running worker is left alone.
+- Followers of the thread with a run open get a `RUN_ERROR` for it, exactly
+  as when a worker exits mid-turn, and a thread with no running worker is
+  left alone.
+- When another environment owns the session, the CLI deletes the session's
+  runtime there (a Kubernetes `Sandbox` with its volumes) and releases the
+  lease, so the session continues from the CLI's own copy.
+
+CLI → client, only the sender receives it:
+
+```json
+{"type": "thread_stopped", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "environment": "k8s-dev"}
+```
+
+- `environment` names the environment whose runtime was deleted, and is
+  absent when the session ran on the CLI itself. `error` replaces it when the
+  runtime could not be deleted, and the lease then stays.
 
 ## Active threads
 
@@ -474,7 +487,8 @@ Client → CLI, the user's decision:
   so a `scope` field is ignored: an approval decides the call it names and
   nothing else.
 - The first answer wins. Later answers for the same `tool_call_id` are
-  ignored.
+  ignored. The other clients of the thread that saw the request receive
+  `{"type": "CUSTOM", "name": "approval_resolved", "value": {"tool_call_id": "<request id>"}}`.
 
 ## Tool calls (client → CLI)
 
@@ -512,6 +526,136 @@ CLI → client, exactly one result per request id:
   requests running `gh api ...` with the user's own `gh` auth. Allowlisting
   `gh api` in the CLI's bash-allow configuration avoids an approval prompt per
   call.
+
+## Environments
+
+An environment is where a session's agent runs: this daemon, a standalone daemon reachable over TLS, or a
+Kubernetes `Sandbox` per session. `~/.infer/daemon.yaml` registers them by name, see
+[infer daemon](daemon.md#environments-and-transfers).
+
+Client → CLI:
+
+```json
+{"type": "list_environments"}
+```
+
+CLI → client, only the requesting client receives it:
+
+```json
+{
+  "type": "environments",
+  "environments": [
+    {"name": "laptop", "kind": "local", "reachable": true, "capabilities": {"version": "0.238.0", "storage": "jsonl"}},
+    {"name": "k8s-dev", "kind": "kubernetes", "reachable": false, "error": "the agent-sandbox CRD is not installed: ..."}
+  ]
+}
+```
+
+- The local environment comes first. An unreachable environment is reported with its `error`, never hidden.
+- `capabilities` is what the environment declared about itself: version, storage id, sandbox count, image, auth.
+
+## Transfers
+
+A transfer moves a session to another environment. The source daemon quiesces the thread's worker, packs a
+checkpoint and streams it to the target's daemon, the target restores it and claims the session's lease,
+and the source tells the thread's clients where the session lives now. The checkpoint carries the
+conversation unless both daemons share one storage backend, the interrupts the last run was suspended
+on, a git bundle of `HEAD` with the credential-free `origin` URL and a patch of the uncommitted and
+untracked changes (minus what `sandbox.yaml` denies), the listed extra files, and the environment's
+`forward_env` values sealed to the target's certificate. A transfer happens between turns: an open run
+is interrupted first.
+
+Client → CLI:
+
+```json
+{
+  "type": "transfer_session",
+  "transfer_id": "<uuid>",
+  "project_dir": "/abs/path/to/project",
+  "id": "<conversation id>",
+  "target": "k8s-dev",
+  "files": ["build/out.bin"]
+}
+```
+
+CLI → client, only the requesting client receives it, once per stage:
+
+```json
+{"type": "transfer_progress", "transfer_id": "<uuid>", "stage": "provisioning"}
+```
+
+- `stage` is one of `provisioning`, `checkpointing`, `restoring`, `ready` and `failed`. A `failed` stage
+  carries `message` and leaves the session on the source with its lease intact.
+- `transfer_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
+  at once and moves nothing twice.
+- A session another live environment owns is refused with `failed`.
+- `files` are extra files relative to the project that travel although git does not track them. A file
+  outside the project, or one `sandbox.yaml` denies, fails the transfer.
+
+```json
+{"type": "transfer_cancel", "transfer_id": "<uuid>"}
+```
+
+Cancels a transfer before `ready`. The session stays on the source, which relaunches its worker on the
+next frame.
+
+CLI → the requesting client and every client of the thread, after `ready`:
+
+```json
+{
+  "type": "session_moved",
+  "session": {"project_dir": "/abs/path/to/project", "conversation_id": "<conversation id>", "slug": "project"},
+  "environment": "k8s-dev",
+  "addr": "",
+  "workspace": "/workspace/project/<conversation id>",
+  "cancelled_interrupts": [{"id": "<interrupt id>", "reason": "tool_call", "toolCallId": "<tool call id>"}]
+}
+```
+
+- Clients keep using `resume_conversation` with their own `project_dir`: the source daemon relays the
+  thread to the owning environment's daemon and rewrites `project_dir` to `workspace` on the way. Killing
+  the source daemon after `ready` does not touch the target.
+- `addr` is the target's binding when a client can dial it directly (a daemon-kind environment), with
+  `project_dir` set to `workspace`. It is empty for a Kubernetes environment reached through a port-forward.
+- `cancelled_interrupts` are the interrupts the suspended run was waiting on, as its `RUN_FINISHED`
+  listed them. The target's worker closes the matching tool calls as cancelled, so the client tells the
+  user and sends the next `run_agent_input` without a `resume`.
+
+### Daemon to daemon
+
+A daemon dials another daemon's binding with `client: "daemon"` and an `environment` hello field naming
+itself. The ack carries `environment`, `version` and `storage_id`, so the dialer checks it reached the
+environment it meant and whether the two share a storage backend. The checkpoint streams as
+`transfer_chunk` frames of at most 4 MiB and is closed by `transfer_import`:
+
+```json
+{"type": "transfer_chunk", "transfer_id": "<uuid>", "seq": 0, "data": "<base64>"}
+{"type": "transfer_import", "transfer_id": "<uuid>", "environment": "k8s-dev", "chunks": 3, "sha256": "<hex>"}
+{"type": "transfer_imported", "transfer_id": "<uuid>", "ok": true, "workspace": "/workspace/project/<conversation id>"}
+```
+
+The target validates the checkpoint (schema version, digest, the patch applies cleanly) before it
+restores the workspace, imports the conversation through a worker there and claims the lease. The source
+then sends `resume_conversation` on the same connection and reports `ready` only when the
+`MESSAGES_SNAPSHOT` renders to the checkpoint's digest. `transfer_abort` with the `transfer_id` undoes an
+import whose verification failed. A daemon accepts these frames only from connections of kind `daemon`
+and only when `environment` names itself.
+
+### Conversation export and import
+
+Workers answer two panel frames the daemon uses to move a conversation between storage backends, since the
+worker runs in the project dir whose storage layout the conversation lives in:
+
+```json
+{"type": "export_conversation", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
+{"type": "conversation_export", "id": "<conversation id>", "entries": [...], "metadata": {...}, "message_count": 4, "digest": "<hex>"}
+{"type": "import_conversation", "project_dir": "/abs/path/to/workspace", "id": "<conversation id>", "entries": [...], "metadata": {...}}
+{"type": "conversation_imported", "id": "<conversation id>", "message_count": 4, "digest": "<hex>"}
+```
+
+- `digest` fingerprints the `MESSAGES_SNAPSHOT` the entries render to, without message ids, so two daemons
+  agree a restored conversation matches.
+- A worker without conversation storage answers with `error` set.
 
 ## Extension-side checklist
 

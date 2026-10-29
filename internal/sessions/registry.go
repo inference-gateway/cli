@@ -45,13 +45,15 @@ var forwarded = map[string]bool{
 // replyTypes maps each panel request to the reply frames its worker answers
 // with, which go back to the requester instead of the whole thread.
 var replyTypes = map[string][]string{
-	"list_conversations": {"conversations"},
-	"list_history":       {"history"},
-	"list_skills":        {"skills"},
-	"list_models":        {"models"},
-	"select_model":       {"models", "mode"},
-	"set_mode":           {"mode"},
-	frameToolRequest:     {frameToolResult},
+	"list_conversations":  {"conversations"},
+	"list_history":        {"history"},
+	"list_skills":         {"skills"},
+	"list_models":         {"models"},
+	"select_model":        {"models", "mode"},
+	"set_mode":            {"mode"},
+	"export_conversation": {"conversation_export"},
+	"import_conversation": {"conversation_imported"},
+	frameToolRequest:      {frameToolResult},
 }
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
@@ -71,8 +73,8 @@ type workerLine struct {
 	Name    string          `json:"name"`
 	Value   json.RawMessage `json:"value"`
 	Outcome struct {
-		Type       string            `json:"type"`
-		Interrupts []workerInterrupt `json:"interrupts"`
+		Type       string          `json:"type"`
+		Interrupts json.RawMessage `json:"interrupts"`
 	} `json:"outcome"`
 	Snapshot struct {
 		BackgroundTasks backgroundTasks `json:"backgroundTasks"`
@@ -127,6 +129,13 @@ type Registry struct {
 	subs      map[sessionsdomain.Client]*thread
 	approvals map[string]*thread
 	all       map[sessionsdomain.Client]struct{}
+	// lastActive is when the registry last had a thread or a client, read by
+	// Idle. Written with mu held.
+	lastActive time.Time
+	// finished holds, per thread that ran, whether its last run finished
+	// without waiting on the user. It outlives the thread, one entry per
+	// conversation for the daemon's lifetime. Read by AgentsDone.
+	finished map[sessionsdomain.ThreadKey]bool
 }
 
 // thread is one project dir plus conversation id and the worker running it.
@@ -140,21 +149,26 @@ type thread struct {
 	waiting    map[string][]sessionsdomain.Client
 	runID      string
 	interrupts map[string]struct{}
-	jobs       int
-	active     time.Time
-	launchErr  error
+	// interruptsRaw is the interrupts array of the suspended run's terminal
+	// line as the worker wrote it, so a checkpoint carries every field.
+	interruptsRaw json.RawMessage
+	jobs          int
+	active        time.Time
+	launchErr     error
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
 // the ones nobody follows once they sat idle for idle.
 func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Registry {
 	return &Registry{
-		launch:    launch,
-		idle:      idle,
-		threads:   make(map[sessionsdomain.ThreadKey]*thread),
-		subs:      make(map[sessionsdomain.Client]*thread),
-		approvals: make(map[string]*thread),
-		all:       make(map[sessionsdomain.Client]struct{}),
+		launch:     launch,
+		idle:       idle,
+		threads:    make(map[sessionsdomain.ThreadKey]*thread),
+		subs:       make(map[sessionsdomain.Client]*thread),
+		approvals:  make(map[string]*thread),
+		all:        make(map[sessionsdomain.Client]struct{}),
+		lastActive: time.Now(),
+		finished:   make(map[sessionsdomain.ThreadKey]bool),
 	}
 }
 
@@ -172,6 +186,7 @@ func (r *Registry) RouteBrowser(relay sessionsdomain.BrowserRelay) {
 func (r *Registry) Attach(c sessionsdomain.Client) {
 	r.mu.Lock()
 	r.all[c] = struct{}{}
+	r.lastActive = time.Now()
 	frame := r.activityFrame()
 	r.mu.Unlock()
 	c.Deliver(frame)
@@ -235,6 +250,7 @@ func (r *Registry) Detach(c sessionsdomain.Client) {
 	}
 	delete(r.subs, c)
 	delete(r.all, c)
+	r.lastActive = time.Now()
 }
 
 // Run stops idle workers until ctx ends, then stops every worker and waits
@@ -358,6 +374,7 @@ func (r *Registry) pickLocked(c sessionsdomain.Client, requested string) (*threa
 // workerLocked returns t's worker, launching it first when it is not running.
 func (r *Registry) workerLocked(t *thread) (sessionsdomain.Worker, error) {
 	t.active = time.Now()
+	r.lastActive = t.active
 	if t.worker != nil {
 		return t.worker, nil
 	}
@@ -465,8 +482,10 @@ func openInterrupts(l workerLine) map[string]struct{} {
 	if l.Outcome.Type != "interrupt" {
 		return nil
 	}
-	ids := make(map[string]struct{}, len(l.Outcome.Interrupts))
-	for _, interrupt := range l.Outcome.Interrupts {
+	var interrupts []workerInterrupt
+	_ = json.Unmarshal(l.Outcome.Interrupts, &interrupts)
+	ids := make(map[string]struct{}, len(interrupts))
+	for _, interrupt := range interrupts {
 		ids[interrupt.ID] = struct{}{}
 	}
 	return ids
@@ -598,11 +617,16 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 	switch l.Type {
 	case "RUN_STARTED":
 		t.runID = l.RunID
-		t.interrupts = nil
+		t.interrupts, t.interruptsRaw = nil, nil
+		r.recordRun(t, false)
 		activity = r.activityFrame()
 	case "RUN_FINISHED":
 		t.runID = ""
 		t.interrupts = openInterrupts(l)
+		if t.interrupts != nil {
+			t.interruptsRaw = l.Outcome.Interrupts
+		}
+		r.recordRun(t, t.interrupts == nil)
 		activity = r.activityFrame()
 	case "STATE_SNAPSHOT":
 		t.jobs = l.Snapshot.BackgroundTasks.Running
@@ -611,7 +635,7 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 			t.jobs = *jobs
 		}
 	case "RUN_ERROR":
-		t.interrupts = nil
+		t.interrupts, t.interruptsRaw = nil, nil
 		if t.runID == "" {
 			concerned := t.takeWaiters()
 			maps.Copy(concerned, t.clients)
@@ -637,6 +661,15 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 	return slices.Collect(maps.Keys(t.clients)), activity
 }
 
+// recordRun notes for AgentsDone how the run of a thread stands. A worker the
+// registry already let go drains a pending approval into one more run on its
+// way out, which says nothing about the agent, so only an attached worker counts.
+func (r *Registry) recordRun(t *thread, finished bool) {
+	if t.worker != nil && r.threads[t.key] == t {
+		r.finished[t.key] = finished
+	}
+}
+
 // exited forgets a worker that is gone. A run it left open ends with
 // RUN_ERROR, and clients still waiting on it get one too, so nobody hangs.
 func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
@@ -646,7 +679,8 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 		return
 	}
 	t.worker = nil
-	t.interrupts = nil
+	t.interrupts, t.interruptsRaw = nil, nil
+	r.lastActive = time.Now()
 	for id, owner := range r.approvals {
 		if owner == t {
 			delete(r.approvals, id)
@@ -688,6 +722,7 @@ func (r *Registry) reap(now time.Time) {
 			t.worker = nil
 		}
 		delete(r.threads, key)
+		r.lastActive = now
 	}
 	r.mu.Unlock()
 	for _, w := range idle {

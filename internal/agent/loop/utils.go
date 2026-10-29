@@ -1165,9 +1165,21 @@ func (s *Agent) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.Ho
 	}
 	sessionID := ""
 	if agentCtx.Ctx != nil {
-		sessionID = agentdomain.GetSessionID(agentCtx.Ctx)
+		sessionID = s.sessionID(agentCtx.Ctx)
 	}
 	runCommandHooks(agentCtx.Ctx, s.config, s.hookProvider, mode, hook, agentCtx.Turns, sessionID)
+}
+
+// sessionID resolves the conversation a call belongs to: the id carried on ctx,
+// else the repository's current conversation, so hooks and tools agree on it.
+func (s *Agent) sessionID(ctx context.Context) string {
+	if id := agentdomain.GetSessionID(ctx); id != "" {
+		return id
+	}
+	if s.conversationRepo != nil {
+		return s.conversationRepo.GetCurrentConversationID()
+	}
+	return ""
 }
 
 // waitForBackgroundTasks blocks until in-flight background work (A2A tasks,

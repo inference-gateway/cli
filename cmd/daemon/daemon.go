@@ -2,6 +2,9 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +22,9 @@ import (
 	version "github.com/inference-gateway/cli/cmd/version"
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	k8senvironment "github.com/inference-gateway/cli/internal/agent/infrastructure/kubernetes"
+	agenttransfer "github.com/inference-gateway/cli/internal/agent/transfer"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
@@ -32,6 +38,7 @@ import (
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
 	heartbeat "github.com/inference-gateway/cli/internal/scheduler/heartbeat"
@@ -41,7 +48,7 @@ import (
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {
-	return &cobra.Command{
+	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Start the background daemon: scheduler, channels, heartbeat, and the AG-UI binding",
 		Long: `Start a long-running daemon hosting up to four subsystems, whichever are
@@ -82,6 +89,8 @@ Examples:
 			return RunDaemonCommand(state.Config())
 		},
 	}
+	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state), newStopCommand(state))
+	return command
 }
 
 // RunDaemonCommand starts the daemon. It hosts up to five subsystems -
@@ -133,10 +142,11 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	stopThreads, err := startThreads(ctx, cfg, cm)
+	threads, err := startThreads(ctx, cfg, cm)
 	if err != nil {
 		return err
 	}
+	stopThreads := threads.stop
 
 	if cfg.Channels.Enabled {
 		logger.Info("starting channel listener...")
@@ -185,7 +195,11 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 
 	logger.Info("daemon ready. Press Ctrl+C to stop.")
 
-	<-sigChan
+	select {
+	case <-sigChan:
+	case <-threads.idle:
+		logger.Info("the daemon idled out", "idle_exit", cfg.Daemon.IdleExit)
+	}
 	logger.Info("shutting down...")
 	cancel()
 	stopThreads()
@@ -248,12 +262,13 @@ func threadsEnabled(cfg *config.Config) bool {
 	return cfg.Binding().Enabled || cfg.Channels.Enabled
 }
 
-// bindingHandler puts the binding's two consumers behind its one handler. The
-// extension relay claims the browser frames, and the thread registry gets the
-// rest.
+// bindingHandler puts the binding's consumers behind its one handler. The
+// extension relay claims the browser frames, the transfer service the
+// environments and transfer frames, and the thread registry gets the rest.
 type bindingHandler struct {
-	relay    *browserinfra.ExtensionRelay
-	registry *sessions.Registry
+	relay     *browserinfra.ExtensionRelay
+	transfers *agenttransfer.Service
+	registry  *sessions.Registry
 }
 
 func (h bindingHandler) Attach(conn *agui.Conn) {
@@ -267,7 +282,35 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 	if h.relay != nil && h.relay.Handle(conn, frame) {
 		return
 	}
+	if h.transfers.Handle(conn, frame) {
+		return
+	}
+	if key, ok := stoppedThread(frame); ok {
+		go h.stopSession(conn, key)
+	}
 	h.registry.Handle(conn, frame)
+}
+
+// stopSession answers stop_thread off the binding's read loop: a delete that
+// hangs on an unreachable environment cannot stall the frames after it, and
+// the client still gets its thread_stopped once it answers.
+func (h bindingHandler) stopSession(conn *agui.Conn, key sessionsdomain.ThreadKey) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	h.transfers.StopSession(ctx, conn, key)
+}
+
+// stoppedThread reads the thread a stop_thread frame names.
+func stoppedThread(frame []byte) (sessionsdomain.ThreadKey, bool) {
+	var f struct {
+		Type       string `json:"type"`
+		ProjectDir string `json:"project_dir"`
+		ID         string `json:"id"`
+	}
+	if json.Unmarshal(frame, &f) != nil || f.Type != "stop_thread" || f.ProjectDir == "" || f.ID == "" {
+		return sessionsdomain.ThreadKey{}, false
+	}
+	return sessionsdomain.ThreadKey{ProjectDir: f.ProjectDir, ConversationID: f.ID}, true
 }
 
 func (h bindingHandler) Detach(conn *agui.Conn) {
@@ -277,16 +320,24 @@ func (h bindingHandler) Detach(conn *agui.Conn) {
 	h.registry.Detach(conn)
 }
 
+// threadHost is what startThreads hands back: how to stop the threads and a
+// channel that closes when the daemon idled past daemon.idle_exit.
+type threadHost struct {
+	stop func()
+	idle <-chan struct{}
+}
+
 // startThreads starts the daemon's thread registry for every session worker
-// it hosts, and serves the AG-UI WebSocket binding on its own switch, port
-// and token. The browser extension relay attaches only with the extension
-// backend, and the channels drive their chats as clients of the registry.
-// stop, called after ctx ends, closes the binding and waits for every
-// session worker to exit. The daemon is the only infer process that binds
-// the binding port, so a port that is already held fails the boot.
-func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelManagerService) (stop func(), err error) {
+// it hosts, and serves the AG-UI WebSocket binding on its own switch, host,
+// port, token and TLS. The browser extension relay attaches only with the
+// extension backend, the channels drive their chats as clients of the
+// registry, and the transfer service decides where each thread runs. stop,
+// called after ctx ends, closes the binding and waits for every session
+// worker to exit. The daemon is the only infer process that binds the binding
+// port, so a port that is already held fails the boot.
+func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelManagerService) (threadHost, error) { //nolint:funlen
 	if !threadsEnabled(cfg) {
-		return func() {}, nil
+		return threadHost{stop: func() {}}, nil
 	}
 
 	var relay *browserinfra.ExtensionRelay
@@ -294,14 +345,19 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		relay = browserinfra.NewExtensionRelay(cfg.BrowserUse.Extension, nil)
 	}
 
-	registry := sessions.NewRegistry(sessionsinfra.LaunchWorker, workerIdleTimeout)
+	transfers, tlsProvider, err := buildTransfers(cfg)
+	if err != nil {
+		return threadHost{}, err
+	}
+	registry := sessions.NewRegistry(transfers.LaunchWorker, workerIdleTimeout)
+	transfers.AttachRegistry(registry)
 	if relay != nil {
 		registry.RouteBrowser(relay.Relay)
 	}
 	if cfg.Channels.Enabled {
 		projectDir, err := os.Getwd()
 		if err != nil {
-			return nil, fmt.Errorf("resolving the working directory: %w", err)
+			return threadHost{}, fmt.Errorf("resolving the working directory: %w", err)
 		}
 		cm.SetThreadDriver(registry, projectDir, sessionsdomain.ThreadOptions{
 			SystemPrompt: cfg.Prompts.Agent.SystemPromptRemote,
@@ -310,18 +366,25 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {
-		if b.Token == "" {
-			return nil, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml")
+		if b.Token == "" && !b.TLS.RequiresClientAuth() {
+			return threadHost{}, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml, or require TLS client certificates")
+		}
+		serverTLS, err := tlsProvider.Server(ctx, b.TLS)
+		if err != nil {
+			return threadHost{}, fmt.Errorf("configuring the AG-UI binding's TLS: %w", err)
 		}
 		binding = agui.NewBinding(agui.BindingConfig{
+			Host:        b.ListenHost(),
 			Port:        b.Port,
 			Token:       b.Token,
+			TLS:         serverTLS,
+			AckAttrs:    transfers.AckAttrs(),
 			Handshake:   browserinfra.BindingHandshake,
 			AllowOrigin: browserinfra.AllowExtensionOrigin,
 			Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
-		}, bindingHandler{relay: relay, registry: registry})
+		}, bindingHandler{relay: relay, transfers: transfers, registry: registry})
 		if err := binding.Start(); err != nil {
-			return nil, fmt.Errorf("failed to start the AG-UI binding: %w", err)
+			return threadHost{}, fmt.Errorf("failed to start the AG-UI binding: %w", err)
 		}
 	}
 
@@ -330,12 +393,162 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		defer close(stopped)
 		registry.Run(ctx)
 	}()
-	return func() {
-		if binding != nil {
-			binding.Close()
-		}
-		<-stopped
+	idle := watchIdle(ctx, cfg.Daemon.IdleExit, registry, transfers)
+	return threadHost{
+		stop: func() {
+			if binding != nil {
+				binding.Close()
+			}
+			<-stopped
+			tlsProvider.Close()
+		},
+		idle: idle,
 	}, nil
+}
+
+// idleCheck is how often the daemon looks at whether it idled out.
+const idleCheck = 30 * time.Second
+
+// watchIdle closes the returned channel once the registry has had no thread
+// and no client for idleExit, after parking this daemon's own runtime. A zero
+// idleExit never closes it.
+func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.Registry, transfers *agenttransfer.Service) <-chan struct{} {
+	idle := make(chan struct{})
+	if idleExit <= 0 {
+		return idle
+	}
+	go func() {
+		ticker := time.NewTicker(idleCheck)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			if since, isIdle := registry.Idle(); isIdle && time.Since(since) >= idleExit {
+				transfers.Suspend(ctx)
+				close(idle)
+				return
+			}
+		}
+	}()
+	return idle
+}
+
+// buildTransfers wires the transfer service: the lease store on the
+// configured storage, the daemon CA when a mode needs it, the TLS provider,
+// and one environment per daemon.yaml entry plus this daemon itself.
+func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLSProvider, error) {
+	identity := cfg.Daemon.Identity()
+	storageConfig := storage.NewStorageFromConfig(cfg)
+	stores, err := storage.NewStorage(storageConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening storage for the session leases: %w", err)
+	}
+	var pki *agentinfra.PKI
+	if needsPKI(cfg) {
+		if pki, err = agentinfra.LoadOrCreatePKI(filepath.Join(config.UserSpaceConfigDir(), "daemon", "pki")); err != nil {
+			return nil, nil, fmt.Errorf("opening the daemon CA: %w", err)
+		}
+	}
+	tlsProvider := agentinfra.NewTLSProvider(identity, pki, cfg.Daemon.Binding.TLS.SPIFFE)
+	dial := agentinfra.PeerDialer{Me: identity, Handshake: browserinfra.BindingHandshake}
+	environments := []agentdomain.Environment{agentinfra.NewLocalEnvironment(identity, map[string]string{
+		agentinfra.AttrVersion: version.Value(), "storage": string(storageConfig.Type),
+	})}
+	for _, entry := range cfg.Daemon.Environments {
+		environment, err := buildEnvironment(entry, identity, tlsProvider, pki, dial)
+		if err != nil {
+			return nil, nil, err
+		}
+		if environment != nil {
+			environments = append(environments, environment)
+		}
+	}
+	service := agenttransfer.New(agenttransfer.Config{
+		Identity:      identity,
+		WorkspaceRoot: cfg.Daemon.WorkspaceDir(),
+		IdleExit:      cfg.Daemon.IdleExit,
+		Version:       version.Value(),
+		StorageID:     storageIdentity(storageConfig),
+		LeaseBackend:  storageConfig.Type,
+		Handshake:     browserinfra.BindingHandshake,
+		Entries:       cfg.Daemon.Environments,
+		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
+	}, agenttransfer.Deps{
+		Leases:       stores.Leases,
+		Environments: environments,
+		Keyring:      tlsProvider.Keyring(),
+		Launch:       sessionsinfra.LaunchWorker,
+		SelfSuspend:  selfSuspend(),
+	})
+	return service, tlsProvider, nil
+}
+
+func buildEnvironment(entry config.EnvironmentEntry, identity string, tlsProvider *agentinfra.TLSProvider, pki *agentinfra.PKI, dial agentinfra.PeerDialer) (agentdomain.Environment, error) {
+	switch entry.Kind {
+	case config.EnvironmentKindDaemon:
+		environment, err := agentinfra.NewDaemonEnvironment(entry, tlsProvider, dial)
+		if err != nil {
+			return nil, fmt.Errorf("environment %s: %w", entry.Name, err)
+		}
+		return environment, nil
+	case config.EnvironmentKindKubernetes:
+		environment, err := k8senvironment.New(entry, identity, tlsProvider, pki)
+		if err != nil {
+			return nil, fmt.Errorf("environment %s: %w", entry.Name, err)
+		}
+		return environment, nil
+	default:
+		return nil, nil
+	}
+}
+
+// needsPKI reports whether any configured mode relies on the daemon CA.
+func needsPKI(cfg *config.Config) bool {
+	if cfg.Daemon.Binding.TLS.Mode == config.TLSModeCA {
+		return true
+	}
+	for _, entry := range cfg.Daemon.Environments {
+		if entry.Kind == config.EnvironmentKindKubernetes && entry.EffectiveAuth() == config.EnvironmentAuthCA {
+			return true
+		}
+	}
+	return false
+}
+
+// selfSuspend is how a pod daemon parks its own Sandbox, nil outside one.
+func selfSuspend() func(ctx context.Context, done, known bool) error {
+	name, namespace := os.Getenv(k8senvironment.EnvSandboxName), os.Getenv(k8senvironment.EnvSandboxNamespace)
+	if name == "" || namespace == "" {
+		return nil
+	}
+	retention, _ := time.ParseDuration(os.Getenv(k8senvironment.EnvSandboxRetention))
+	suspend, err := k8senvironment.SelfSuspend(name, namespace, retention)
+	if err != nil {
+		logger.Warn("this daemon cannot suspend its own Sandbox", "error", err)
+		return nil
+	}
+	return suspend
+}
+
+// storageIdentity names a storage backend so two daemons can tell whether
+// they share one and skip copying conversations.
+func storageIdentity(cfg storage.StorageConfig) string {
+	var identity string
+	switch cfg.Type {
+	case config.StorageTypePostgres:
+		identity = fmt.Sprintf("postgres://%s:%d/%s", cfg.Postgres.Host, cfg.Postgres.Port, cfg.Postgres.Database)
+	case config.StorageTypeRedis:
+		identity = fmt.Sprintf("redis://%s:%d/%d", cfg.Redis.Host, cfg.Redis.Port, cfg.Redis.Database)
+	case config.StorageTypeD1:
+		identity = "d1://" + cfg.D1.AccountID + "/" + cfg.D1.DatabaseID
+	default:
+		return ""
+	}
+	sum := sha256.Sum256([]byte(identity))
+	return hex.EncodeToString(sum[:])
 }
 
 // acquireDaemonLock enforces one daemon per machine via a PID file in

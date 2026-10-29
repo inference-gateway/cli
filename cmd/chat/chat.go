@@ -200,7 +200,9 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 	sessionRolloverManager := services.GetSessionRollover()
 
 	if sessionID != "" {
-		resumeChatSession(conversationRepo, sessionRolloverManager, sessionID)
+		if err := resumeChatSession(conversationRepo, sessionRolloverManager, services.GetLeaseStore(), cfg.Daemon.Identity(), sessionID); err != nil {
+			return err
+		}
 	}
 
 	if mode := scheddomain.InheritedAgentMode(); mode != agentdomain.AgentModeStandard {
@@ -283,10 +285,11 @@ func chatExitMessage(sessionID string) string {
 }
 
 // resumeChatSession loads the conversation for sessionID into the repository,
-// resolving rollover chains first. When the conversation cannot be loaded it
-// adopts the requested ID for the new session if the repository supports it,
-// mirroring `infer headless --session-id` semantics.
-func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager convdomain.SessionRollover, sessionID string) {
+// resolving rollover chains first and refusing a session another environment
+// owns. When the conversation cannot be loaded it adopts the requested ID for
+// the new session if the repository supports it, mirroring `infer headless
+// --session-id` semantics.
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager convdomain.SessionRollover, leases agentdomain.LeaseStore, environment, sessionID string) error {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -294,6 +297,10 @@ func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager c
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	if err := refuseForeignSession(ctx, leases, environment, sessionID); err != nil {
+		return err
+	}
 
 	if err := repo.LoadConversation(ctx, sessionID); err != nil {
 		logger.Warn("failed to load chat session", "session_id", sessionID, "error", err)
@@ -303,10 +310,29 @@ func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager c
 		} else {
 			fmt.Println(colors.CreateColoredText("Could not resume session "+sessionID+"; starting fresh.", colors.DimColor))
 		}
-		return
+		return nil
 	}
 
 	logger.Info("resumed chat session", "session_id", sessionID)
+	return nil
+}
+
+// refuseForeignSession fails when another environment holds the session's
+// lease, lapsed or not: chat cannot relay to the owner or probe it before a
+// reclaim, so only the daemon may continue such a session.
+func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, environment, sessionID string) error {
+	if leases == nil {
+		return nil
+	}
+	lease, found, err := leases.GetLease(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("reading the lease of session %s: %w", sessionID, err)
+	}
+	if !found || lease.Environment == environment {
+		return nil
+	}
+	return fmt.Errorf("session %s is owned by environment %s, continue it through the daemon with: infer daemon run %s \"<prompt>\"",
+		sessionID, lease.Environment, sessionID)
 }
 
 // StartWebChatSession starts a web-based chat session with PTY and WebSocket
