@@ -114,8 +114,8 @@ func (app *ChatApplication) transferRefusal(target string) string {
 		return "infer daemon is unreachable, reconnecting · try again once it is back"
 	case placement.Transferring != "":
 		return "A transfer to " + placement.Transferring + " is already running · esc cancels it"
-	case placement.Remote():
-		return "The session runs on " + placement.Environment + " and moves on only from " + placement.Environment + "'s own daemon"
+	case placement.Remote() && target != placement.Local:
+		return "From " + placement.Environment + " the session moves only back to " + placement.Local
 	case target == placement.Where():
 		return "The session already runs on " + target
 	case app.stateManager.IsAgentBusy():
@@ -170,9 +170,19 @@ func (app *ChatApplication) transferring() bool {
 	return app.stateManager.GetSessionPlacement().Transferring != ""
 }
 
-// transferStage says what a stage of the move does.
+// transferStage says what a stage of the move does, which differs on the way
+// back from where the session runs.
 func transferStage(placement tui.SessionPlacement, stage agentdomain.TransferStage) string {
 	target := placement.Transferring
+	if placement.Remote() && target == placement.Local {
+		from := placement.Environment
+		return map[agentdomain.TransferStage]string{
+			agentdomain.TransferProvisioning:  "reaching " + from,
+			agentdomain.TransferCheckpointing: "packing the session on " + from,
+			agentdomain.TransferRestoring:     "landing its workspace and conversation here",
+			agentdomain.TransferReady:         "ready, reattaching",
+		}[stage]
+	}
 	return map[agentdomain.TransferStage]string{
 		agentdomain.TransferProvisioning:  "provisioning " + target,
 		agentdomain.TransferCheckpointing: "checkpointing the conversation and workspace",

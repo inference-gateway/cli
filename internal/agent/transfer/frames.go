@@ -14,10 +14,13 @@ const (
 	frameTransferSession  = "transfer_session"
 	frameTransferCancel   = "transfer_cancel"
 
-	frameTransferChunk    = "transfer_chunk"
-	frameTransferImport   = "transfer_import"
-	frameTransferImported = "transfer_imported"
-	frameTransferAbort    = "transfer_abort"
+	frameTransferChunk     = "transfer_chunk"
+	frameTransferImport    = "transfer_import"
+	frameTransferImported  = "transfer_imported"
+	frameTransferAbort     = "transfer_abort"
+	frameTransferReturn    = "transfer_return"
+	frameTransferReturning = "transfer_returning"
+	frameTransferReturned  = "transfer_returned"
 
 	frameEnvironments     = "environments"
 	frameTransferProgress = "transfer_progress"
@@ -97,6 +100,18 @@ type importedFrame struct {
 type abortFrame struct {
 	Type       string `json:"type"`
 	TransferID string `json:"transfer_id"`
+}
+
+// returnFrame asks the daemon that owns a session to pack it and stream it
+// back to Environment, the daemon it came from. The owner answers
+// transfer_returning at once, and transfer_returned, carrying only the
+// transfer id, tells it the session landed.
+type returnFrame struct {
+	Type        string `json:"type"`
+	TransferID  string `json:"transfer_id"`
+	ID          string `json:"id"`
+	Workspace   string `json:"workspace,omitempty"`
+	Environment string `json:"environment"`
 }
 
 // exportedConversation is the panel's conversation_export reply as the

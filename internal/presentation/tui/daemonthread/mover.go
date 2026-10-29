@@ -49,10 +49,10 @@ func (t *Thread) Transfer(target string, files []string) error {
 	case t.transfer != "":
 		t.mu.Unlock()
 		return errors.New("a transfer of this session is already running")
-	case t.placement.Remote():
+	case t.placement.Remote() && target != t.placement.Local:
 		where := t.placement.Environment
 		t.mu.Unlock()
-		return errors.New("the session runs on " + where + " and moves on only from " + where + "'s own daemon")
+		return errors.New("the session runs on " + where + " and moves only back to " + t.placement.Local + " from there")
 	}
 	frame := transferFrame{Type: "transfer_session", TransferID: uuid.NewString(), ProjectDir: t.opts.ProjectDir, ID: t.following, Target: target, Files: files}
 	t.transfer = frame.TransferID

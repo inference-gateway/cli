@@ -8,7 +8,6 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 func TestThreadFollowsAndPlacesTheSessionOnTheLocalDaemon(t *testing.T) {
@@ -159,17 +158,24 @@ func TestThreadTransfersAndFollowsTheMovedSession(t *testing.T) {
 	}
 }
 
-func TestThreadRefusesToTransferARemoteSession(t *testing.T) {
+func TestThreadMovesARemoteSessionOnlyBackHome(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, _ := connected(t, d)
 	send(d.conn(), `{"type":"session_moved","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/w"}`)
 	eventually(t, "the move", func() bool { return thread.Placement().Remote() })
 
 	err := thread.Transfer("workstation", nil)
-	if err == nil || !strings.Contains(err.Error(), "k8s-dev's own daemon") {
-		t.Fatalf("err = %v, want the refusal naming the owner", err)
+	if err == nil || !strings.Contains(err.Error(), "only back to laptop") {
+		t.Fatalf("err = %v, want the refusal naming the way back", err)
 	}
-	if follow := thread.Follow(t.Context(), "conv-1", sessionsdomain.ThreadOptions{}); follow != nil {
-		t.Fatal(follow)
+	if len(d.frames("transfer_session")) != 0 {
+		t.Fatal("the refused transfer reached the daemon")
+	}
+	if err := thread.Transfer("laptop", nil); err != nil {
+		t.Fatalf("moving back home: %v", err)
+	}
+	eventually(t, "the move back to reach the daemon", func() bool { return len(d.frames("transfer_session")) == 1 })
+	if target := d.frames("transfer_session")[0]["target"]; target != "laptop" {
+		t.Errorf("target = %v, want laptop", target)
 	}
 }

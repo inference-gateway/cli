@@ -487,6 +487,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 		LeaseBackend:  storageConfig.Type,
 		Handshake:     browserinfra.BindingHandshake,
 		Entries:       cfg.Daemon.Environments,
+		StateDir:      filepath.Join(config.UserSpaceConfigDir(), "daemon"),
 		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
 	}, agenttransfer.Deps{
 		Leases:       stores.Leases,

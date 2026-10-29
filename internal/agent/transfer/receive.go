@@ -27,6 +27,58 @@ type pendingImport struct {
 	size   int
 }
 
+func newPendingImport() *pendingImport {
+	return &pendingImport{chunks: make(map[int][]byte)}
+}
+
+// add keeps one chunk, refusing a checkpoint that grows past what this
+// daemon accepts. A retransmitted chunk replaces the first copy.
+func (p *pendingImport) add(chunk chunkFrame) error {
+	if _, retransmitted := p.chunks[chunk.Seq]; !retransmitted {
+		p.size += len(chunk.Data)
+	}
+	if p.size > maxPayloadBytes {
+		return errors.New("the checkpoint is larger than this daemon accepts")
+	}
+	p.chunks[chunk.Seq] = chunk.Data
+	return nil
+}
+
+// payload joins the chunks the import frame closes and checks their digest.
+func (p *pendingImport) payload(f importFrame) ([]byte, error) {
+	if p == nil || len(p.chunks) != f.Chunks {
+		return nil, fmt.Errorf("the checkpoint arrived incomplete")
+	}
+	payload := make([]byte, 0, p.size)
+	for seq := range f.Chunks {
+		chunk, ok := p.chunks[seq]
+		if !ok {
+			return nil, fmt.Errorf("checkpoint chunk %d is missing", seq)
+		}
+		payload = append(payload, chunk...)
+	}
+	sum := sha256.Sum256(payload)
+	if hex.EncodeToString(sum[:]) != f.SHA256 {
+		return nil, errors.New("the checkpoint's digest does not match")
+	}
+	return payload, nil
+}
+
+// decodeCheckpoint reads a checkpoint payload this daemon can restore.
+func decodeCheckpoint(payload []byte) (agentdomain.Checkpoint, error) {
+	var checkpoint agentdomain.Checkpoint
+	if err := json.Unmarshal(payload, &checkpoint); err != nil {
+		return agentdomain.Checkpoint{}, describe(err, "decoding the checkpoint")
+	}
+	if checkpoint.SchemaVersion != agentdomain.CheckpointSchemaVersion {
+		return agentdomain.Checkpoint{}, fmt.Errorf("checkpoint schema %d is not the %d this daemon speaks", checkpoint.SchemaVersion, agentdomain.CheckpointSchemaVersion)
+	}
+	if err := checkpoint.Session.Validate(); err != nil {
+		return agentdomain.Checkpoint{}, err
+	}
+	return checkpoint, nil
+}
+
 // receive handles the peer frames of an incoming transfer.
 func (s *Service) receive(conn *agui.Conn, typ string, frame []byte) {
 	switch typ {
@@ -44,6 +96,18 @@ func (s *Service) receive(conn *agui.Conn, typ string, frame []byte) {
 			return
 		}
 		go s.abort(f.TransferID)
+	case frameTransferReturn:
+		var f returnFrame
+		if json.Unmarshal(frame, &f) != nil {
+			return
+		}
+		go s.packForReturn(conn, f)
+	case frameTransferReturned:
+		var f returnFrame
+		if json.Unmarshal(frame, &f) != nil {
+			return
+		}
+		go s.returned(f.TransferID)
 	}
 }
 
@@ -56,18 +120,13 @@ func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
 	defer s.mu.Unlock()
 	pending := s.imports[chunk.TransferID]
 	if pending == nil {
-		pending = &pendingImport{chunks: make(map[int][]byte)}
+		pending = newPendingImport()
 		s.imports[chunk.TransferID] = pending
 	}
-	if _, retransmitted := pending.chunks[chunk.Seq]; !retransmitted {
-		pending.size += len(chunk.Data)
-	}
-	if pending.size > maxPayloadBytes {
+	if err := pending.add(chunk); err != nil {
 		delete(s.imports, chunk.TransferID)
-		conn.Deliver(encode(importedFrame{Type: frameTransferImported, TransferID: chunk.TransferID, Error: "the checkpoint is larger than this daemon accepts"}))
-		return
+		conn.Deliver(encode(importedFrame{Type: frameTransferImported, TransferID: chunk.TransferID, Error: err.Error()}))
 	}
-	pending.chunks[chunk.Seq] = chunk.Data
 }
 
 // receiveImport assembles and validates the checkpoint, restores the
@@ -81,21 +140,17 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 		}
 		conn.Deliver(encode(frame))
 	}
-	payload, err := s.assemble(f)
+	s.mu.Lock()
+	pending := s.imports[f.TransferID]
+	delete(s.imports, f.TransferID)
+	s.mu.Unlock()
+	payload, err := pending.payload(f)
 	if err != nil {
 		reply("", err)
 		return
 	}
-	var checkpoint agentdomain.Checkpoint
-	if err := json.Unmarshal(payload, &checkpoint); err != nil {
-		reply("", describe(err, "decoding the checkpoint"))
-		return
-	}
-	if checkpoint.SchemaVersion != agentdomain.CheckpointSchemaVersion {
-		reply("", fmt.Errorf("checkpoint schema %d is not the %d this daemon speaks", checkpoint.SchemaVersion, agentdomain.CheckpointSchemaVersion))
-		return
-	}
-	if err := checkpoint.Session.Validate(); err != nil {
+	checkpoint, err := decodeCheckpoint(payload)
+	if err != nil {
 		reply("", err)
 		return
 	}
@@ -107,29 +162,6 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 	defer cancel()
 	workspace, err := s.install(ctx, f.TransferID, checkpoint)
 	reply(workspace, err)
-}
-
-func (s *Service) assemble(f importFrame) ([]byte, error) {
-	s.mu.Lock()
-	pending := s.imports[f.TransferID]
-	delete(s.imports, f.TransferID)
-	s.mu.Unlock()
-	if pending == nil || len(pending.chunks) != f.Chunks {
-		return nil, fmt.Errorf("the checkpoint arrived incomplete")
-	}
-	payload := make([]byte, 0, pending.size)
-	for seq := range f.Chunks {
-		chunk, ok := pending.chunks[seq]
-		if !ok {
-			return nil, fmt.Errorf("checkpoint chunk %d is missing", seq)
-		}
-		payload = append(payload, chunk...)
-	}
-	sum := sha256.Sum256(payload)
-	if hex.EncodeToString(sum[:]) != f.SHA256 {
-		return nil, errors.New("the checkpoint's digest does not match")
-	}
-	return payload, nil
 }
 
 // install restores the checkpoint into a fresh workspace, imports its

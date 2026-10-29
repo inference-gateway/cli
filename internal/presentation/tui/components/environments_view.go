@@ -251,8 +251,8 @@ func (m *EnvironmentsView) refusal(it environmentItem) string {
 		return "A transfer to " + m.placement.Transferring + " is already running · esc in the chat cancels it"
 	case it.current:
 		return "The session already runs on " + it.status.Name
-	case m.placement.Remote():
-		return "The session moves on only from " + m.placement.Environment + "'s own daemon"
+	case m.placement.Remote() && it.status.Name != m.placement.Local:
+		return "From " + m.placement.Environment + " the session moves only back to " + m.placement.Local
 	case !it.status.Reachable:
 		return it.status.Name + " is unreachable · r reprobes"
 	}

@@ -1,0 +1,247 @@
+package transfer
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	sessions "github.com/inference-gateway/cli/internal/sessions"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
+)
+
+func runGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := utils.RunGit(context.Background(), dir, args...)
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// checkout is a git checkout with one commit, the way a session leaves it.
+func checkout(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	runGit(t, dir, "init", "--quiet", "-b", "main")
+	for _, kv := range [][2]string{{"user.email", "test@example.com"}, {"user.name", "Test"}, {"commit.gpgsign", "false"}} {
+		runGit(t, dir, "config", kv[0], kv[1])
+	}
+	runGit(t, dir, "commit", "--quiet", "--allow-empty", "-m", "init")
+	return dir
+}
+
+// podCheckpoint is what the session's owner sends back after it committed
+// on top of the checkout it got.
+func podCheckpoint(t *testing.T, laptop string) agentdomain.Checkpoint {
+	t.Helper()
+	sent, err := agentinfra.PackWorkspace(t.Context(), laptop, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pod := filepath.Join(t.TempDir(), "pod")
+	if err := agentinfra.UnpackWorkspace(t.Context(), sent, pod, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, kv := range [][2]string{{"user.email", "pod@example.com"}, {"user.name", "Pod"}, {"commit.gpgsign", "false"}} {
+		runGit(t, pod, "config", kv[0], kv[1])
+	}
+	runGit(t, pod, "commit", "--quiet", "--allow-empty", "-m", "done on the pod")
+	workspace, err := agentinfra.PackWorkspace(t.Context(), pod, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return agentdomain.Checkpoint{
+		SchemaVersion: agentdomain.CheckpointSchemaVersion,
+		Session:       agentdomain.Session{ProjectDir: "/workspace/x", ConversationID: "conv-1", Slug: "x"},
+		Digest:        "d-1",
+		Conversation:  json.RawMessage(`{"entries":[],"metadata":{}}`),
+		Workspace:     workspace,
+	}
+}
+
+// importingLaunch launches workers that store any imported conversation and
+// answer with the digest it renders to.
+func importingLaunch(key sessionsdomain.ThreadKey, _ sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
+	lines := make(chan []byte, 16)
+	w := &sessionsmocks.FakeWorker{}
+	w.LinesReturns(lines)
+	w.StopCalls(sync.OnceFunc(func() { close(lines) }))
+	w.SendCalls(func(frame []byte) error {
+		if frameType(frame) == frameImportConversation {
+			lines <- encode(map[string]string{"type": frameConversationImported, "id": key.ConversationID, "digest": "d-1"})
+		}
+		return nil
+	})
+	return w, nil
+}
+
+// returningService is the laptop daemon of a session that runs on k8s-dev,
+// whose daemon answers transfer_return with checkpoint, its answer arriving
+// only after the chunks.
+func returningService(t *testing.T, checkpoint agentdomain.Checkpoint) (*Service, *storage.MemoryStorage, *peerBinding, *agentdomainmocks.FakeEnvironment) {
+	t.Helper()
+	peer := startPeer(t, "k8s-dev", func(conn *agui.Conn, frame []byte) {
+		var f returnFrame
+		if json.Unmarshal(frame, &f) == nil && f.Type == frameTransferReturn {
+			go func() {
+				_ = sendCheckpoint(conn, f.TransferID, f.Environment, checkpoint)
+				_ = conn.Send(encode(returnFrame{Type: frameTransferReturning, TransferID: f.TransferID}))
+			}()
+		}
+	})
+	environment := fakeEnvironment("k8s-dev", agentdomain.EnvironmentKindKubernetes)
+	environment.ReachReturns(peer.endpoint(), nil)
+	store := storage.NewMemoryStorage()
+	s := New(Config{
+		Identity: "laptop", WorkspaceRoot: t.TempDir(), StateDir: t.TempDir(),
+		Entries: []config.EnvironmentEntry{{Name: "k8s-dev", Kind: config.EnvironmentKindKubernetes}},
+	}, Deps{Leases: store, Environments: []agentdomain.Environment{environment}, Launch: importingLaunch})
+	s.dial.Handshake = testHandshake
+	s.AttachRegistry(sessions.NewRegistry(s.LaunchWorker, time.Minute))
+	remote := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s-dev", Workspace: "/workspace/x", TransferID: "t-0", Until: time.Now().Add(time.Hour)}
+	if _, ok, err := store.ClaimLease(t.Context(), remote); err != nil || !ok {
+		t.Fatalf("seeding the remote lease: %v", err)
+	}
+	return s, store, peer, environment
+}
+
+func moveBack(s *Service, laptop string) *sessionsmocks.FakeClient {
+	client := &sessionsmocks.FakeClient{}
+	s.startTransfer(client, clientFrame{Type: frameTransferSession, TransferID: "t-1", ProjectDir: laptop, ID: "conv-1", Target: "laptop"})
+	return client
+}
+
+func delivered[T any](client *sessionsmocks.FakeClient, frameType string) []T {
+	var out []T
+	for i := range client.DeliverCallCount() {
+		frame := client.DeliverArgsForCall(i)
+		var head struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(frame, &head) != nil || head.Type != frameType {
+			continue
+		}
+		var v T
+		if json.Unmarshal(frame, &v) == nil {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
+	laptop := checkout(t)
+	s, store, peer, _ := returningService(t, podCheckpoint(t, laptop))
+
+	client := moveBack(s, laptop)
+
+	if progress := delivered[progressFrame](client, frameTransferProgress); len(progress) == 0 || progress[len(progress)-1].Stage != agentdomain.TransferReady {
+		t.Fatalf("progress = %+v, want it to end ready", progress)
+	}
+	moved := delivered[sessionMovedFrame](client, frameSessionMoved)
+	if len(moved) != 1 || moved[0].Environment != "laptop" || moved[0].Workspace != laptop {
+		t.Fatalf("moves = %+v, want one back to the laptop checkout", moved)
+	}
+	lease, found, err := store.GetLease(t.Context(), "conv-1")
+	if err != nil || !found || lease.Environment != "laptop" || lease.Workspace != laptop {
+		t.Fatalf("lease = %+v, %v, %v, want the laptop's own", lease, found, err)
+	}
+	if got := runGit(t, laptop, "log", "-1", "--format=%s"); got != "done on the pod" {
+		t.Errorf("the checkout's HEAD is %q, want the pod's commit", got)
+	}
+	frames := peer.received(t, 2)
+	if frameType(frames[0]) != frameTransferReturn || frameType(frames[1]) != frameTransferReturned {
+		t.Errorf("k8s-dev got %s then %s, want the return request and its confirmation", frames[0], frames[1])
+	}
+}
+
+func TestBringBackRefusesACheckoutThatChangedSinceItLeft(t *testing.T) {
+	laptop := checkout(t)
+	s, store, _, environment := returningService(t, podCheckpoint(t, laptop))
+	runGit(t, laptop, "commit", "--quiet", "--allow-empty", "-m", "edited after the move")
+	if err := os.WriteFile(filepath.Join(laptop, "draft.txt"), []byte("draft"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	client := moveBack(s, laptop)
+
+	progress := delivered[progressFrame](client, frameTransferProgress)
+	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "changed since the session left") {
+		t.Fatalf("progress = %+v, want one refusal naming the changed checkout", progress)
+	}
+	if environment.ReachCallCount() != 0 {
+		t.Error("the refused move reached k8s-dev")
+	}
+	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Environment != "k8s-dev" {
+		t.Errorf("the refused move left the lease with %s", lease.Environment)
+	}
+}
+
+func TestBringBackAcceptsADirtyCheckoutUnchangedSinceItLeft(t *testing.T) {
+	laptop := checkout(t)
+	if err := os.WriteFile(filepath.Join(laptop, "draft.txt"), []byte("draft"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := podCheckpoint(t, laptop)
+	s, _, _, _ := returningService(t, checkpoint)
+	fingerprint, _, err := agentinfra.CheckoutState(t.Context(), laptop, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.rememberOrigin("conv-1", fingerprint)
+
+	client := moveBack(s, laptop)
+
+	if moved := delivered[sessionMovedFrame](client, frameSessionMoved); len(moved) != 1 {
+		t.Fatalf("progress = %+v, want the session back", delivered[progressFrame](client, frameTransferProgress))
+	}
+	if s.origin("conv-1") != "" {
+		t.Error("the origin of a session that came back is still remembered")
+	}
+}
+
+func TestPackForReturnRefusesWhatItDidNotRestore(t *testing.T) {
+	tests := []struct {
+		name      string
+		owner     string
+		workspace func(root string) string
+		wantErr   string
+	}{
+		{name: "another owner", owner: "k8s-other", workspace: func(root string) string { return filepath.Join(root, "x", "conv-1") }, wantErr: "runs on k8s-other"},
+		{name: "outside the workspace root", workspace: func(string) string { return "/etc" }, wantErr: "is not a workspace"},
+		{name: "no workspace", workspace: func(string) string { return "" }, wantErr: "is not a workspace"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := startReceiver(t, agentinfra.PeerClientKind)
+			if tt.owner != "" {
+				_, _, _ = r.service.leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "conv-1", Environment: tt.owner, Until: time.Now().Add(time.Hour)})
+			}
+
+			r.send(t, returnFrame{Type: frameTransferReturn, TransferID: "t-1", ID: "conv-1", Workspace: tt.workspace(r.service.cfg.WorkspaceRoot), Environment: "home"})
+
+			ctx, cancel := contextWithTimeout(t, 5*time.Second)
+			defer cancel()
+			if _, err := r.frames.await(ctx, frameTransferReturning); err != nil {
+				t.Fatalf("no answer to the move back: %v", err)
+			}
+			if _, err := r.frames.await(ctx, frameTransferChunk); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("await = %v, want a refusal containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
