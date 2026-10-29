@@ -51,6 +51,17 @@ func chatSay(t *testing.T, session, text string) {
 	tmuxSendKeys(t, session, "Enter")
 }
 
+// expectListedOn opens the conversations table, expects the session's
+// conversation on environment, and closes the table again.
+func expectListedOn(t *testing.T, session, environment string, daemons ...*daemonProc) {
+	t.Helper()
+	chatSay(t, session, "/conversations")
+	expectPane(t, session, "Environment", daemons...)
+	require.Regexp(t, `say hello\s+`+environment+`\s`, capturePane(session))
+	tmuxSendKeys(t, session, "Escape")
+	expectPane(t, session, "Type your message", daemons...)
+}
+
 func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
 	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_ENVIRONMENT=a")
 	project := gitProject(t)
@@ -85,9 +96,16 @@ func TestChatDaemonMovesTheSessionAndBringsItBack(t *testing.T) {
 	chatSay(t, session, "say hello again")
 	expectPane(t, session, "You: say hello again", a, b)
 	expectPane(t, session, "Response complete", a, b)
+	expectListedOn(t, session, "b", a, b)
+	chatSay(t, session, "/diff")
+	expectPane(t, session, "/diff is unavailable: the session runs on b", a, b)
+	chatSay(t, session, "say hello @README.md")
+	expectPane(t, session, "You: say hello @README.md", a, b)
+	require.NotContains(t, capturePane(session), "transfer me", "a remote session read this machine's file:\n%s", capturePane(session))
 
 	chatSay(t, session, "/transfer a")
 	expectPane(t, session, "Session now runs on a", a, b)
 	expectPane(t, session, "⌂ a", a, b)
 	require.NotContains(t, capturePane(session), "⇄ b", "the indicator still names b:\n%s", capturePane(session))
+	expectListedOn(t, session, "a", a, b)
 }

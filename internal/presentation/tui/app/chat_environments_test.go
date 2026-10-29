@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
@@ -169,5 +170,30 @@ func TestOpenEnvironmentsNeedsADaemonChat(t *testing.T) {
 	}
 	if daemon.liveCadence() != components.SpinnerFrameInterval {
 		t.Error("the probing picker does not animate")
+	}
+}
+
+func TestTheInputOffersThisCheckoutsFilesOnlyWhereTheSessionReadsThem(t *testing.T) {
+	tests := []struct {
+		name      string
+		placement tui.SessionPlacement
+		offered   bool
+	}{
+		{name: "in process", placement: tui.SessionPlacement{}, offered: true},
+		{name: "on the local daemon", placement: sessionOnLaptop, offered: true},
+		{name: "on another environment", placement: sessionOnK8sDev},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project := &agentdomainmocks.FakeFileService{}
+			project.ListProjectFilesReturns([]string{"README.md"}, nil)
+			files := localFiles(project, func() tui.SessionPlacement { return tt.placement })
+
+			listed, _ := files.ListProjectFiles()
+
+			if offered := len(listed) == 1 && files.ValidateFile("README.md") == nil; offered != tt.offered {
+				t.Errorf("README.md offered: %v, want %v", offered, tt.offered)
+			}
+		})
 	}
 }

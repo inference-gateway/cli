@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -21,6 +22,35 @@ var transferSteps = map[agentdomain.TransferStage]int{
 	agentdomain.TransferCheckpointing: 2,
 	agentdomain.TransferRestoring:     3,
 	agentdomain.TransferReady:         4,
+}
+
+// placedFiles offers the project's files to the input while the session can
+// read this checkout, and none while it runs on another environment.
+type placedFiles struct {
+	agentdomain.FileService
+	placement func() tui.SessionPlacement
+}
+
+// localFiles wraps files so the input offers them only where the session runs.
+func localFiles(files agentdomain.FileService, placement func() tui.SessionPlacement) agentdomain.FileService {
+	if files == nil {
+		return nil
+	}
+	return placedFiles{FileService: files, placement: placement}
+}
+
+func (f placedFiles) ListProjectFiles() ([]string, error) {
+	if f.placement().Unavailable(tui.FeatureLocalFiles) != "" {
+		return nil, nil
+	}
+	return f.FileService.ListProjectFiles()
+}
+
+func (f placedFiles) ValidateFile(path string) error {
+	if reason := f.placement().Unavailable(tui.FeatureLocalFiles); reason != "" {
+		return errors.New(reason)
+	}
+	return f.FileService.ValidateFile(path)
 }
 
 // SetSessionMover gives a daemon chat the mover behind /environments and

@@ -259,7 +259,7 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 		iv.SetSkillsService(app.skillsService)
 		iv.SetShortcutRegistry(app.shortcutRegistry)
-		iv.SetFileService(app.fileService)
+		iv.SetFileService(localFiles(app.fileService, app.stateManager.GetSessionPlacement))
 		iv.SetGitHubIssueService(app.githubIssueService)
 		iv.SetMessageQueue(app.messageQueue)
 	}
@@ -267,7 +267,7 @@ func NewChatApplication(
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService, app.skillsService, app.githubIssueService)
 	if ac, ok := app.autocomplete.(*autocomplete.Autocomplete); ok {
 		ac.SetStateManager(app.stateManager)
-		ac.SetFileService(app.fileService)
+		ac.SetFileService(localFiles(app.fileService, app.stateManager.GetSessionPlacement))
 	}
 
 	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)

@@ -244,8 +244,8 @@ only back to this machine.
 | Approvals, questions, plan approval, `esc`, the queue, model switch, agent mode, pasted images, skills | Run on the worker |
 | `!cmd` and `!!Tool(...)` | Run on the worker as a turn of their own |
 | `/new`, `/clear`, `ctrl+n` | Start a new thread on this machine's daemon |
-| `/conversations` | Lists the sessions where the current one runs |
-| `@file` | Inlines this machine's file on a local session. On a remote one it stays a reference the agent reads in its workspace |
+| `/conversations` | Lists the sessions where the current one runs, with the environment each one runs on now |
+| `@file` | Inlines this machine's file on a local session. On a remote one `@` lists no files and the reference goes to the agent's workspace |
 | `/diff`, `/explorer`, the git branch label | Read this machine's checkout, so they are off while the session runs on another environment |
 | `/compact` | Off, the worker compacts the session itself at `compact.auto_at` |
 | `/effort` | Off, the worker's config sets the reasoning effort |
