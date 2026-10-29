@@ -126,6 +126,12 @@ func TestWorkspaceDetachedHeadAndRefusals(t *testing.T) {
 		t.Fatal("a directory without a git commit must be refused")
 	}
 
+	optionLike := ws
+	optionLike.Branch = "--orphan=planted"
+	if err := UnpackWorkspace(t.Context(), optionLike, filepath.Join(t.TempDir(), "planted"), nil); err == nil {
+		t.Fatal("a peer-sent branch that reads as an option must fail the restore")
+	}
+
 	write(t, src, "README.md", "diverged\n")
 	ws, _ = PackWorkspace(t.Context(), src, nil, nil)
 	ws.Bundle = nil
@@ -250,5 +256,47 @@ func TestPackWorkspaceRefusesUncommittedChangesToADeniedFile(t *testing.T) {
 	allow := func(string) bool { return false }
 	if _, err := PackWorkspace(t.Context(), src, nil, allow); err != nil {
 		t.Fatalf("a workspace without denied changes must still pack: %v", err)
+	}
+}
+
+func TestWorkspaceOriginFollowsTheSourceWithoutCredentials(t *testing.T) {
+	tests := []struct {
+		name     string
+		origin   string
+		peerSent string
+		want     string
+	}{
+		{name: "no origin", want: ""},
+		{name: "https token dropped", origin: "https://x-access-token:ghp_secret@github.com/acme/private.git", want: "https://github.com/acme/private.git"},
+		{name: "scp-like ssh kept", origin: "git@github.com:acme/private.git", want: "git@github.com:acme/private.git"},
+		{name: "option-like peer origin stays a url", peerSent: "--upload-pack=touch pwned", want: "--upload-pack=touch pwned"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := gitRepo(t)
+			if tt.origin != "" {
+				if _, err := utils.RunGit(t.Context(), src, "remote", "add", "origin", tt.origin); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ws, err := PackWorkspace(t.Context(), src, nil, nil)
+			if err != nil {
+				t.Fatalf("Pack: %v", err)
+			}
+			if tt.peerSent != "" {
+				ws.Origin = tt.peerSent
+			}
+			if ws.Origin != tt.want {
+				t.Fatalf("packed origin = %q, want %q", ws.Origin, tt.want)
+			}
+			dst := filepath.Join(t.TempDir(), "restored")
+			if err := UnpackWorkspace(t.Context(), ws, dst, nil); err != nil {
+				t.Fatalf("Unpack: %v", err)
+			}
+			got, err := utils.RunGit(t.Context(), dst, "remote", "get-url", "origin")
+			if strings.TrimSpace(string(got)) != tt.want || (err == nil) != (tt.want != "") {
+				t.Fatalf("restored origin = %q, %v, want %q", got, err, tt.want)
+			}
+		})
 	}
 }

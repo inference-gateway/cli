@@ -144,6 +144,10 @@ reports `ready`. From then on the session lives on the target: clients that resu
 are relayed there, a client that reaches a daemon-kind environment resumes there directly, and killing the
 source does not stop the target.
 
+The restored clone keeps the source's `origin`, minus any credentials an http(s) URL embeds, so the agent
+on the target can push to the same remote. Credentials never travel in that URL, so forward a token
+through `forward_env` instead.
+
 Ownership is a lease stored next to the conversations: `environment`, `workspace`, `transfer_id` and when
 it lapses. A worker starts only on a session this daemon owns or nobody does, relays to the owner
 otherwise, and reclaims a lapsed lease whose owner cannot be reached. The owner renews its lease every

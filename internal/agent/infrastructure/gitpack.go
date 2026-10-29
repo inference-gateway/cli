@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -60,7 +61,7 @@ func PackWorkspace(ctx context.Context, projectDir string, extra []string, exclu
 	if err != nil {
 		return agentdomain.Workspace{}, fmt.Errorf("packing the extra files: %w", err)
 	}
-	ws := agentdomain.Workspace{Branch: branch, Bundle: bundle, Patch: patch, Untracked: untracked, Extra: extraTar}
+	ws := agentdomain.Workspace{Branch: branch, Origin: originURL(ctx, projectDir), Bundle: bundle, Patch: patch, Untracked: untracked, Extra: extraTar}
 	if size := len(bundle) + len(patch) + len(untracked) + len(extraTar); size > MaxWorkspaceBytes {
 		return agentdomain.Workspace{}, fmt.Errorf("the workspace checkpoint is %d bytes, over the %d byte limit", size, MaxWorkspaceBytes)
 	}
@@ -83,6 +84,21 @@ func headRefs(ctx context.Context, projectDir string) (string, []string, error) 
 		return "", nil, fmt.Errorf("resolving HEAD: %w", err)
 	}
 	return strings.TrimSpace(string(sha)), []string{detachedHead}, nil
+}
+
+// originURL is the project's origin remote, with the userinfo of an http(s)
+// URL dropped so a token embedded there never travels. No origin is "".
+func originURL(ctx context.Context, projectDir string) string {
+	out, err := utils.RunGit(ctx, projectDir, "remote", "get-url", "origin")
+	if err != nil {
+		return ""
+	}
+	origin := strings.TrimSpace(string(out))
+	if u, err := url.Parse(origin); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+		u.User = nil
+		return u.String()
+	}
+	return origin
 }
 
 func bundleRefs(ctx context.Context, projectDir string, refs []string) ([]byte, error) {
@@ -239,9 +255,15 @@ func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, 
 		return fmt.Errorf("cloning the bundle: %w", err)
 	}
 	if ws.Branch != "" {
+		if strings.HasPrefix(ws.Branch, "-") {
+			return fmt.Errorf("the workspace branch %q is not a branch or a commit", ws.Branch)
+		}
 		if _, err := utils.RunGit(ctx, dir, "checkout", "--quiet", ws.Branch); err != nil {
 			return fmt.Errorf("checking out %s: %w", ws.Branch, err)
 		}
+	}
+	if err := pointOrigin(ctx, dir, ws.Origin); err != nil {
+		return err
 	}
 	if len(ws.Patch) > 0 {
 		if _, err := utils.RunGitStdin(ctx, dir, string(ws.Patch), "apply", "--binary", "--check"); err != nil {
@@ -256,6 +278,20 @@ func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, 
 	}
 	if err := untar(ws.Extra, dir, denied, MaxWorkspaceBytes); err != nil {
 		return fmt.Errorf("unpacking the extra files: %w", err)
+	}
+	return nil
+}
+
+// pointOrigin aims the clone's origin, which names the deleted bundle file, at
+// the source's remote, or removes it when the source had none. The "--" keeps
+// a peer-sent URL from reading as an option.
+func pointOrigin(ctx context.Context, dir, origin string) error {
+	args := []string{"remote", "remove", "origin"}
+	if origin != "" {
+		args = []string{"remote", "set-url", "--", "origin", origin}
+	}
+	if _, err := utils.RunGit(ctx, dir, args...); err != nil {
+		return fmt.Errorf("pointing origin at the source's remote: %w", err)
 	}
 	return nil
 }

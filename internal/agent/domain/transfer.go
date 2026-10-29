@@ -20,9 +20,11 @@ const (
 // Workspace is the project's git state: a bundle of HEAD, a binary patch of
 // the uncommitted changes, a tarball of the untracked files that respect
 // .gitignore and the sandbox's denied paths, and the explicitly listed extra
-// files. Branch is the checked-out branch the restore checks out again.
+// files. Branch is the branch the restore checks out again, and Origin the
+// credential-free origin remote the restored clone pushes to.
 type Workspace struct {
 	Branch    string `json:"branch"`
+	Origin    string `json:"origin,omitempty"`
 	Bundle    []byte `json:"bundle,omitempty"`
 	Patch     []byte `json:"patch,omitempty"`
 	Untracked []byte `json:"untracked,omitempty"`
