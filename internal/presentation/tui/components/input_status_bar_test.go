@@ -1334,3 +1334,39 @@ func TestInputStatusBar_ShouldShowIndicator_Duration(t *testing.T) {
 		t.Error("chat.status_bar.indicators.duration=false must hide the indicator")
 	}
 }
+
+func TestInputStatusBar_BuildEnvironmentIndicator(t *testing.T) {
+	theme := &tuimocks.FakeTheme{}
+	theme.GetDimColorReturns("dim")
+	theme.GetAccentColorReturns("accent")
+	theme.GetWarningColorReturns("warning")
+	theme.GetErrorColorReturns("error")
+	themeService := &tuimocks.FakeThemeService{}
+	themeService.GetCurrentThemeReturns(theme)
+
+	tests := []struct {
+		name      string
+		placement tui.SessionPlacement
+		text      string
+		color     string
+	}{
+		{name: "in process", placement: tui.SessionPlacement{}},
+		{name: "on the local daemon", placement: tui.SessionPlacement{Daemon: true, Local: "laptop"}, text: icons.LocalSession + " laptop", color: "dim"},
+		{name: "on another environment", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}, text: icons.RemoteSession + " k8s-dev", color: "accent"},
+		{name: "moving", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Transferring: "k8s-dev"}, text: icons.MovingSession + " k8s-dev", color: "warning"},
+		{name: "offline", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Offline: true}, text: icons.LocalSession + " laptop · offline", color: "error"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := tui.NewApplicationState()
+			state.SetSessionPlacement(tt.placement)
+			statusBar := &InputStatusBar{stateManager: state, styleProvider: styles.NewProvider(themeService)}
+
+			text, color := statusBar.buildEnvironmentIndicator()
+
+			if text != tt.text || color != tt.color {
+				t.Errorf("indicator = %q in %q, want %q in %q", text, color, tt.text, tt.color)
+			}
+		})
+	}
+}
