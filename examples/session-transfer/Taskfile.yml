@@ -97,6 +97,14 @@ tasks:
     cmds:
       - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) INFER_DAEMON_BINDING_TLS_SPIFFE_SOCKET=unix://{{.SPIRE_SOCKET}} {{.INFER}} daemon
 
+  chat:
+    desc: Chat in the demo project through the laptop daemon (started when needed), and move the session with /environments or /transfer
+    deps:
+      - home
+    interactive: true
+    cmds:
+      - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} chat --daemon
+
   environments:
     desc: List the environments and their reachability
     cmds:

@@ -48,7 +48,7 @@ The tasks run the daemon under `.home/` as `HOME`, so your own `~/.infer` stays 
 # 1. The cluster, the agent-sandbox controller and the environment namespace
 task cluster:create
 
-# 2. In its own shell: the laptop daemon (binding on 127.0.0.1:52789)
+# 2. In its own shell: the laptop daemon (binding on 127.0.0.1:52790, clear of a daemon of your own on 52789)
 task daemon:start
 
 # 3. In another shell: create a conversation, move it, continue it on the pod
@@ -181,6 +181,36 @@ shows Chromium on example.com. The recording is an artifact, see the next sectio
 screenshots, so choose a vision model. The desktop lives as long as the pod: a suspended Sandbox comes back
 with a fresh display and browser, and only the workspace and the conversation persist.
 
+## From the chat TUI: infer chat --daemon
+
+`infer chat --daemon` drives the same sessions from the chat TUI. The laptop daemon runs every turn, so the
+chat follows the session wherever it moves and the session keeps running when the TUI closes. The status bar
+shows where it runs: `⌂ laptop` here, `⇄ k8s-desktop` on the pod, `⇢ k8s-desktop` while it moves.
+
+```bash
+# 1. With the desktop image imported (task desktop:image): the chat, which starts the laptop daemon when none runs
+task chat
+```
+
+In the chat:
+
+1. Send `say hello`. The turn runs on a worker of the laptop daemon.
+2. Press `↓` to reach the status bar, `→` to the `⌂ laptop` indicator and `enter`, or type `/environments`.
+   The picker lists every environment with its reachability and details and marks `laptop` with `● here`.
+3. Pick `k8s-desktop` and press `enter`, or type `/transfer k8s-desktop`. The status line counts the four
+   stages, `provisioning`, `checkpointing`, `restoring` and `ready`, and the indicator turns into `⇄ k8s-desktop`.
+4. Send `browse to example.com`. The turn runs in the pod, and `task desktop:screenshot` in another shell saves
+   its screen to `.home/desktop.png`.
+5. Quit with `/exit`. The session keeps running on the pod, and the exit line prints the command that comes
+   back to it: `infer chat --daemon --session-id <id>`.
+6. Bring it home with `/transfer laptop`, or `laptop` in the picker. The pod packs the session, its commits
+   fast-forward the checkout in `.home/project`, and its uncommitted and untracked files land there too.
+
+Moving back lands only while the checkout is clean or unchanged since the session left, so stash your own
+changes first (`git stash -u`, then `git stash pop` afterwards). It needs a pod image that can send sessions
+back, which the release candidate in `daemon.yaml` is not yet: run `task image:import`, then
+`task desktop:image INFER_IMAGE=ghcr.io/inference-gateway/cli:local`.
+
 ## Artifacts on durable storage: RustFS
 
 What the agent produces on its computer outlives the pod. [RustFS](https://rustfs.com/), an open source
@@ -245,6 +275,8 @@ task cleanup
 | `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-environments describe sandbox` and the pod's logs |
 | `session ... is owned by environment` | The session moved. Continue it with `infer daemon run`, or delete its Sandbox with `infer daemon stop` |
 | `restoring` fails with `does not apply cleanly` | The project changed after the transfer started. Retry |
+| Moving back fails with `did not answer the move back` | The pod's infer cannot send sessions back. Rebuild its image, see the chat section |
+| Moving back fails with `changed since the session left it` | Stash the checkout's changes (`git stash -u`), move back, then `git stash pop` |
 | `checkpointing` fails with `not a git checkout with a commit` | A transfer bundles `HEAD`, so the project needs at least one commit |
 | The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer daemon run` opens a new one |
 | SPIFFE: `fetching an SVID from the SPIRE Workload API` | Keep `task spire:agent` running and start the daemon with `task daemon:start:spiffe` |

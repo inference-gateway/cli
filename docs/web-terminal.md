@@ -146,6 +146,7 @@ infer chat --web [--port PORT] [--host HOST]
 - `--ssh-port <port>`: Remote SSH port (default: 22)
 - `--ssh-no-install`: Disable auto-installation of infer on the remote host
 - `--ssh-command <path>`: Path to the infer binary on the remote host (default: infer)
+- `--daemon`: Start every session's `infer chat` in daemon mode, locally and on every SSH server
 
 ### Configuration File
 

@@ -53,5 +53,5 @@ environments:
       AWS_SECRET_ACCESS_KEY: rustfsadmin
 binding:
   enabled: true
-  port: 52789
+  port: 52790
   token: session-transfer-demo

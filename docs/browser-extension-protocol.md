@@ -609,7 +609,8 @@ CLI → client, only the requesting client receives it, once per stage:
   carries `message` and leaves the session on the source with its lease intact.
 - `transfer_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
   at once and moves nothing twice.
-- A session another live environment owns is refused with `failed`.
+- A session another live environment owns is refused with `failed`, unless `target` names the daemon it
+  left, which brings it back (see [Daemon to daemon](#daemon-to-daemon)).
 - `files` are extra files relative to the project that travel although git does not track them. A file
   outside the project, or one `sandbox.yaml` denies, fails the transfer.
 
@@ -661,6 +662,19 @@ then sends `resume_conversation` on the same connection and reports `ready` only
 `MESSAGES_SNAPSHOT` renders to the checkpoint's digest. `transfer_abort` with the `transfer_id` undoes an
 import whose verification failed. A daemon accepts these frames only from connections of kind `daemon`
 and only when `environment` names itself.
+
+A session comes back the other way over a connection the daemon it left opens to its owner. That daemon
+sends `transfer_return` with the workspace its lease names, the owner answers `transfer_returning` at once,
+quiesces the worker, then streams the checkpoint back as `transfer_chunk` frames closed by `transfer_import`
+naming the requester. The checkpoint always carries the conversation. Once the workspace landed, the lease
+moved and the conversation imported, the requester sends `transfer_returned` and the owner releases its row.
+An owner packs only a workspace under its own workspace root and refuses a session another environment owns.
+
+```json
+{"type": "transfer_return", "transfer_id": "<uuid>", "id": "<conversation id>", "workspace": "/workspace/project/<conversation id>", "environment": "laptop"}
+{"type": "transfer_returning", "transfer_id": "<uuid>", "id": "<conversation id>"}
+{"type": "transfer_returned", "transfer_id": "<uuid>"}
+```
 
 ### Conversation export and import
 
