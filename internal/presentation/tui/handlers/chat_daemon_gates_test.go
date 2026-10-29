@@ -173,7 +173,9 @@ func TestFollowRunStartsATurnOnlyWhileTheChatIsIdle(t *testing.T) {
 
 	busy := newPlacedChat(localDaemon)
 	_ = busy.state.StartChatSession("req-1", "m", make(chan agentdomain.ChatEvent))
-	busy.handler.Handle(tui.FollowRunEvent{})
+	if retry := busy.handler.Handle(tui.FollowRunEvent{}); retry == nil {
+		t.Error("a chat in a turn dropped the request to follow a run instead of asking again")
+	}
 	if busy.runner.StartCallCount() != 0 {
 		t.Error("a chat in a turn started a second one to follow a run")
 	}

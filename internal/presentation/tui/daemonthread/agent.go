@@ -2,7 +2,9 @@ package daemonthread
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -240,6 +242,13 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 	}
 }
 
+// frameName is a run frame's type.
+func frameName(frame []byte) string {
+	var h header
+	_ = json.Unmarshal(frame, &h)
+	return h.Type
+}
+
 // mirror writes what an event adds to the conversation the way the
 // in-process agent would, so the TUI renders it before the reconcile.
 func (a *Agent) mirror(event agentdomain.ChatEvent) {
@@ -269,6 +278,14 @@ func (a *Agent) mirror(event agentdomain.ChatEvent) {
 		}
 	case agentdomain.MessageQueuedEvent:
 		entries = append(entries, convdomain.ConversationEntry{Message: e.Message, Time: time.Now()})
+	case agentdomain.PlanApprovalRequestedEvent:
+		if a.planPending() {
+			break
+		}
+		entries = append(entries, convdomain.ConversationEntry{
+			Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(e.PlanContent)},
+			Time:    time.Now(), IsPlan: true, PlanApprovalStatus: convdomain.PlanApprovalPending,
+		})
 	}
 	for _, entry := range entries {
 		if err := a.repo.AddMessage(entry); err != nil {
@@ -276,6 +293,14 @@ func (a *Agent) mirror(event agentdomain.ChatEvent) {
 		}
 	}
 	a.thread.SetSynced(a.repo.GetCurrentConversationID(), a.repo.GetMessageCount())
+}
+
+// planPending reports whether the mirror already shows a plan waiting for a
+// decision, as one loaded from the worker on reattach does.
+func (a *Agent) planPending() bool {
+	return slices.ContainsFunc(a.repo.GetMessages(), func(entry convdomain.ConversationEntry) bool {
+		return entry.IsPlan && entry.PlanApprovalStatus == convdomain.PlanApprovalPending
+	})
 }
 
 // reconcile replaces the mirror with the conversation as the worker stored

@@ -53,19 +53,20 @@ type Thread struct {
 	opts   Options
 	leases agentdomain.LeaseStore
 
-	mu        sync.Mutex
-	conn      *agui.Conn
-	notifier  agentdomain.UINotifier
-	following string
-	live      string
-	placement tui.SessionPlacement
-	running   bool
-	consuming bool
-	inbox     [][]byte
-	waiters   []*waiter
-	synced    map[string]int
-	transfer  string
-	closed    bool
+	mu         sync.Mutex
+	conn       *agui.Conn
+	notifier   agentdomain.UINotifier
+	following  string
+	live       string
+	placement  tui.SessionPlacement
+	running    bool
+	consumers  int
+	unfollowed bool
+	inbox      [][]byte
+	waiters    []*waiter
+	synced     map[string]int
+	transfer   string
+	closed     bool
 
 	wake  chan struct{}
 	notes chan struct{}
@@ -176,6 +177,30 @@ func (t *Thread) Follow(ctx context.Context, id string, opts sessionsdomain.Thre
 		t.locate(ctx, id)
 	}
 	return nil
+}
+
+// SessionProject is the project dir of a session this machine's daemon runs,
+// from its lease, or "" when another environment runs it or no lease names one.
+func (t *Thread) SessionProject(ctx context.Context, id string) string {
+	if t.leases == nil {
+		return ""
+	}
+	lease, found, err := t.leases.GetLease(ctx, id)
+	t.mu.Lock()
+	local := t.placement.Local
+	t.mu.Unlock()
+	if err != nil || !found || lease.Environment != local {
+		return ""
+	}
+	return lease.Workspace
+}
+
+// MoveTo makes this a daemon chat in projectDir. It is for attaching, before
+// the thread follows a session, since every request names the project dir.
+func (t *Thread) MoveTo(projectDir string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.opts.ProjectDir = projectDir
 }
 
 // followFrame opens or resumes the thread of one conversation.
@@ -305,16 +330,34 @@ func (t *Thread) dropWaiter(w *waiter) {
 }
 
 // Consume marks a request as the reader of the run frames until the returned
-// release runs, so a run it started does not ask the TUI to follow it.
+// release runs, so a run it started does not ask the TUI to follow it. A run
+// that started while the request was finishing, as an accepted plan's does,
+// asks once the release runs. A request may start before the last one's
+// release ran, so only the last release does.
 func (t *Thread) Consume() func() {
 	t.mu.Lock()
-	t.consuming = true
+	t.consumers++
+	t.unfollowed = false
 	t.mu.Unlock()
 	return func() {
 		t.mu.Lock()
-		t.consuming = false
+		t.consumers--
+		started := t.consumers == 0 && slices.ContainsFunc(t.inbox, func(frame []byte) bool { return Marker(frame) == "" && frameName(frame) == "RUN_STARTED" })
+		t.unfollowed = t.unfollowed || started
 		t.mu.Unlock()
+		if started {
+			t.post(tui.FollowRunEvent{})
+		}
 	}
+}
+
+// Unfollowed reports whether a run started, or one suspended on a prompt was
+// replayed, with no turn reading the thread since, or a run is under way. A
+// chat that attached before its UI could take the follow request still owes it.
+func (t *Thread) Unfollowed() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.unfollowed || t.running
 }
 
 // DiscardSettled drops queued frames of runs that already ended, which the
@@ -497,7 +540,8 @@ func (t *Thread) push(h header, frame []byte) {
 		t.running = false
 	}
 	t.inbox = append(t.inbox, frame)
-	follow := !t.consuming && (h.Type == "RUN_STARTED" || h.Type == "RUN_FINISHED" && h.Outcome.Type == "interrupt")
+	follow := t.consumers == 0 && (h.Type == "RUN_STARTED" || h.Type == "RUN_FINISHED" && h.Outcome.Type == "interrupt")
+	t.unfollowed = t.unfollowed || follow
 	t.mu.Unlock()
 	t.signal()
 	if follow {
@@ -511,7 +555,7 @@ func (t *Thread) push(h header, frame []byte) {
 func (t *Thread) pushMarker(marker string) {
 	frame, _ := json.Marshal(map[string]string{"type": marker})
 	t.mu.Lock()
-	if !t.consuming {
+	if t.consumers == 0 {
 		t.mu.Unlock()
 		return
 	}

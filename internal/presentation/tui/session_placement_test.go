@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 	"testing"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestSessionPlacementSaysWhereTheSessionRuns(t *testing.T) {
@@ -53,5 +55,14 @@ func TestSessionPlacementUnavailable(t *testing.T) {
 		if local.Unavailable(feature) == "" {
 			t.Errorf("feature %d acts on the TUI's own conversation yet is available in a daemon chat", feature)
 		}
+	}
+}
+
+func TestATurnThatStreamsNothingStillCompletes(t *testing.T) {
+	s := NewApplicationState()
+	s.StartChatSession("req-1", "m", make(chan agentdomain.ChatEvent))
+
+	if err := s.UpdateChatStatus(ChatStatusCompleted); err != nil {
+		t.Fatalf("a turn that streamed nothing could not complete: %v", err)
 	}
 }

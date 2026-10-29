@@ -6,8 +6,11 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
@@ -233,6 +236,10 @@ func TestService_HandlePlanApprovalResponseAnswersTheDaemonWorker(t *testing.T) 
 		t.Run(tt.action.String(), func(t *testing.T) {
 			svc, repo, state, _ := newCoordinator()
 			state.SetAgentMode(agentdomain.AgentModePlan)
+			_ = repo.AddMessage(convdomain.ConversationEntry{
+				Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("# Plan")},
+				IsPlan:  true, PlanApprovalStatus: convdomain.PlanApprovalPending,
+			})
 			answer := make(chan agentdomain.PlanApprovalAction, 1)
 			state.SetupPlanApprovalUIState("# Plan", "plan-1", answer)
 
@@ -252,8 +259,11 @@ func TestService_HandlePlanApprovalResponseAnswersTheDaemonWorker(t *testing.T) 
 			if state.GetAgentMode() != tt.mode {
 				t.Errorf("mode = %v, want %v", state.GetAgentMode(), tt.mode)
 			}
-			if state.GetPlanApprovalUIState() != nil || repo.GetMessageCount() != 0 {
-				t.Error("the decision left the prompt open or wrote to the TUI's conversation")
+			if state.GetPlanApprovalUIState() != nil || repo.GetMessageCount() != 1 {
+				t.Error("the decision left the prompt open or added to the TUI's conversation")
+			}
+			if repo.GetMessages()[0].PlanApprovalStatus == convdomain.PlanApprovalPending {
+				t.Error("the TUI's copy of the plan still waits for a decision")
 			}
 		})
 	}

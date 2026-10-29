@@ -338,6 +338,7 @@ func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool
 			ChatStatusThinking,
 			ChatStatusGenerating,
 			ChatStatusWaitingTools,
+			ChatStatusCompleted,
 			ChatStatusError,
 			ChatStatusCancelled,
 		},

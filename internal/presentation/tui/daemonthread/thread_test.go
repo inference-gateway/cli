@@ -5,9 +5,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 func TestThreadFollowsAndPlacesTheSessionOnTheLocalDaemon(t *testing.T) {
@@ -177,5 +180,82 @@ func TestThreadMovesARemoteSessionOnlyBackHome(t *testing.T) {
 	eventually(t, "the move back to reach the daemon", func() bool { return len(d.frames("transfer_session")) == 1 })
 	if target := d.frames("transfer_session")[0]["target"]; target != "laptop" {
 		t.Errorf("target = %v, want laptop", target)
+	}
+}
+
+func TestThreadFindsTheProjectOfASessionItsDaemonRuns(t *testing.T) {
+	d := startDaemon(t, 0)
+	leases := storage.NewMemoryStorage()
+	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "here", Environment: "laptop", Workspace: "/proj/other", Until: time.Now().Add(time.Hour)})
+	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "away", Environment: "k8s-dev", Workspace: "/workspace/x", Until: time.Now().Add(time.Hour)})
+	thread := New(d.config(), Options{ProjectDir: "/proj"}, leases)
+	t.Cleanup(thread.Close)
+	if err := thread.Connect(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	if dir := thread.SessionProject(t.Context(), "here"); dir != "/proj/other" {
+		t.Errorf("SessionProject(here) = %q, want its own project", dir)
+	}
+	for _, id := range []string{"away", "unknown"} {
+		if dir := thread.SessionProject(t.Context(), id); dir != "" {
+			t.Errorf("SessionProject(%s) = %q, want none", id, dir)
+		}
+	}
+
+	thread.MoveTo("/proj/other")
+	if err := thread.Follow(t.Context(), "here", sessionsdomain.ThreadOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if follow := d.frames("resume_conversation"); follow[0]["project_dir"] != "/proj/other" {
+		t.Errorf("followed in %v, want the session's own project", follow[0]["project_dir"])
+	}
+}
+
+func TestThreadOwesAFollowForAPromptReplayedBeforeAnyTurnReads(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	if thread.Unfollowed() {
+		t.Fatal("a thread at rest owes a follow")
+	}
+
+	send(d.conn(), `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"r1","outcome":{"type":"interrupt","interrupts":[{"id":"plan-1","reason":"plan_approval"}]}}`)
+	eventually(t, "the replayed prompt", func() bool { return thread.Unfollowed() })
+
+	release := thread.Consume()
+	defer release()
+	if thread.Unfollowed() {
+		t.Error("the follow is still owed once a turn reads the thread")
+	}
+}
+
+func TestThreadAsksToFollowARunThatStartedWhileATurnFinished(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, notifier := connected(t, d)
+	release := thread.Consume()
+	send(d.conn(), `{"type":"RUN_STARTED","threadId":"conv-2","runId":"r2"}`)
+	eventually(t, "the next run's start", func() bool { return thread.Pending() })
+	if len(notified[tui.FollowRunEvent](notifier)) != 0 {
+		t.Fatal("asked to follow while a turn read the thread")
+	}
+
+	release()
+
+	eventually(t, "the request to follow the next run", func() bool { return len(notified[tui.FollowRunEvent](notifier)) == 1 })
+}
+
+func TestThreadKeepsATurnReadingWhenTheTurnBeforeReleasesLate(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, notifier := connected(t, d)
+	late := thread.Consume()
+	release := thread.Consume()
+	defer release()
+
+	late()
+	send(d.conn(), `{"type":"RUN_STARTED","threadId":"conv-2","runId":"r2"}`)
+
+	eventually(t, "the run's start", func() bool { return thread.Pending() })
+	if len(notified[tui.FollowRunEvent](notifier)) != 0 {
+		t.Error("asked to follow the run a turn reads")
 	}
 }

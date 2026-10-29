@@ -68,13 +68,23 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 	if err := thread.Connect(ctx); err != nil {
 		return attachError(err)
 	}
-
-	mode := scheddomain.InheritedAgentMode()
-	services.GetStateStore().SetAgentMode(mode)
 	fresh := sessionID == ""
 	if fresh {
 		sessionID = uuid.NewString()
 	}
+
+	if !fresh {
+		if dir := thread.SessionProject(ctx, sessionID); dir != "" && dir != projectDir {
+			if err := os.Chdir(dir); err != nil {
+				return fmt.Errorf("session %s belongs to %s: %w", sessionID, dir, err)
+			}
+			thread.MoveTo(dir)
+			dim("• Session " + shortID(sessionID) + " belongs to " + dir + ", attaching there…")
+		}
+	}
+
+	mode := scheddomain.InheritedAgentMode()
+	services.GetStateStore().SetAgentMode(mode)
 	if err := thread.Follow(ctx, sessionID, sessionsdomain.ThreadOptions{Model: cfg.Agent.Model, Mode: mode.ModeKey()}); err != nil {
 		return fmt.Errorf("opening session %s on infer daemon: %w (check it with: infer daemon environments)", sessionID, err)
 	}
@@ -118,10 +128,7 @@ func attachError(err error) error {
 
 // placementLine says where the session runs as the TUI attaches to it.
 func placementLine(placement tui.SessionPlacement, sessionID string, fresh bool) string {
-	short := sessionID
-	if len(short) > 8 {
-		short = short[:8]
-	}
+	short := shortID(sessionID)
 	switch {
 	case placement.Remote():
 		return fmt.Sprintf("• Session %s runs on %s, attaching through %s…", short, placement.Environment, placement.Local)
@@ -129,6 +136,14 @@ func placementLine(placement tui.SessionPlacement, sessionID string, fresh bool)
 		return fmt.Sprintf("• Starting session %s on %s…", short, placement.Where())
 	}
 	return fmt.Sprintf("• Session %s runs on %s…", short, placement.Where())
+}
+
+// shortID is the first eight characters of a session id, enough to tell it apart.
+func shortID(sessionID string) string {
+	if len(sessionID) > 8 {
+		return sessionID[:8]
+	}
+	return sessionID
 }
 
 // daemonExitMessage tells the user the session outlives the TUI and how to

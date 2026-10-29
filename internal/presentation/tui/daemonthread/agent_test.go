@@ -227,3 +227,48 @@ func TestStorageListsAndLoadsTheWorkersConversations(t *testing.T) {
 		t.Error("a daemon chat deleted a worker's conversation")
 	}
 }
+
+func TestAgentShowsTheWorkersPlanForReview(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, repo := agentOver(thread)
+	d.setRuns(func(conn *agui.Conn, input map[string]any) {
+		send(conn, `{"type":"RUN_STARTED","threadId":"conv-1","runId":"r1"}`)
+		send(conn, `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"r1","outcome":{"type":"interrupt","interrupts":[{"id":"plan-1","reason":"plan_approval","message":"Review the plan","metadata":{"planId":"plan-1","plan":"1. Do it"}}]}}`)
+	})
+	_ = repo.AddMessage(userEntry("plan it"))
+
+	events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event := range events {
+		if plan, ok := event.(agentdomain.PlanApprovalRequestedEvent); ok {
+			entries := repo.GetMessages()
+			last := entries[len(entries)-1]
+			text, _ := last.Message.Content.AsMessageContent0()
+			if !last.IsPlan || last.PlanApprovalStatus != convdomain.PlanApprovalPending || text != "1. Do it" {
+				t.Errorf("the mirror ends with %+v when the plan prompt arrives, want the pending plan", last)
+			}
+			close(plan.ResponseChan)
+			return
+		}
+	}
+	t.Fatal("the run never asked for the plan's approval")
+}
+
+func TestAgentKeepsOnePlanWhenTheWorkerAlreadyStoredIt(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, repo := agentOver(thread)
+	_ = repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("1. Do it")},
+		IsPlan:  true, PlanApprovalStatus: convdomain.PlanApprovalPending,
+	})
+
+	agent.mirror(agentdomain.PlanApprovalRequestedEvent{PlanID: "plan-1", PlanContent: "1. Do it"})
+
+	if repo.GetMessageCount() != 1 {
+		t.Errorf("the mirror holds %d entries, want the one stored plan", repo.GetMessageCount())
+	}
+}

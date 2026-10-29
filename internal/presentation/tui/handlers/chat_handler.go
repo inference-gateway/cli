@@ -22,6 +22,10 @@ import (
 // completed turn before the one next-step suggestion request is sent.
 const suggestionQuietPeriod = 2 * time.Second
 
+// followRetry paces asking again to follow a daemon run while the chat is in a
+// turn, which the run's own start may have raced.
+const followRetry = 250 * time.Millisecond
+
 // stateStore is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, the todo list, and event broadcast to external
@@ -184,7 +188,7 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.HandleUserInputEvent(m)
 	case tui.FollowRunEvent:
 		if h.stateManager.IsAgentBusy() {
-			return nil
+			return tea.Tick(followRetry, func(time.Time) tea.Msg { return tui.FollowRunEvent{} })
 		}
 		return h.startChatCompletion()
 	case tui.RolloverCompletedEvent:

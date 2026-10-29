@@ -16,7 +16,8 @@ import (
 
 // runChatProgram runs the chat TUI over services until the user quits, then
 // prints the conversation and exitMessage for the session it ended on. The
-// in-process and the daemon chat share it.
+// in-process and the daemon chat share it. A daemon chat that attached to a
+// running turn, or a prompt still open, follows it once the program runs.
 func runChatProgram(services *container.ServiceContainer, cfg *config.Config, models []string, defaultModel string, versionInfo tui.VersionInfo, exitMessage func(sessionID string) string) error {
 	application := app.NewChatApplication(
 		cfg,
@@ -57,6 +58,9 @@ func runChatProgram(services *container.ServiceContainer, cfg *config.Config, mo
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)
+	if thread := services.GetDaemonThread(); thread != nil && thread.Unfollowed() {
+		go notifier.Notify(tui.FollowRunEvent{})
+	}
 
 	heartbeatCtx, stopHeartbeat := context.WithCancel(context.Background())
 	defer stopHeartbeat()
