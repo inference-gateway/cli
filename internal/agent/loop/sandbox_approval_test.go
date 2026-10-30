@@ -28,7 +28,7 @@ func TestRequestSandboxApproval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan agentdomain.ChatEvent, 1)
-			pub := newEventPublisher("req-1", events)
+			pub := newEventPublisher("req-1", events, nil)
 			svc := &Agent{}
 			tc := sdk.ChatCompletionMessageToolCall{
 				ID:       "call-1",

@@ -4,8 +4,6 @@
 
 package domain
 
-import ()
-
 // AgentModeState handles agent mode switching
 type AgentModeState interface {
 	GetAgentMode() AgentMode

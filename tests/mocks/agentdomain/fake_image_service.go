@@ -99,10 +99,11 @@ type FakeImageService struct {
 		result1 *domain.ImageAttachment
 		result2 error
 	}
-	ReadImageFromURLStub        func(string) (*domain.ImageAttachment, error)
+	ReadImageFromURLStub        func(context.Context, string) (*domain.ImageAttachment, error)
 	readImageFromURLMutex       sync.RWMutex
 	readImageFromURLArgsForCall []struct {
-		arg1 string
+		arg1 context.Context
+		arg2 string
 	}
 	readImageFromURLReturns struct {
 		result1 *domain.ImageAttachment
@@ -516,18 +517,19 @@ func (fake *FakeImageService) ReadImageFromFileReturnsOnCall(i int, result1 *dom
 	}{result1, result2}
 }
 
-func (fake *FakeImageService) ReadImageFromURL(arg1 string) (*domain.ImageAttachment, error) {
+func (fake *FakeImageService) ReadImageFromURL(arg1 context.Context, arg2 string) (*domain.ImageAttachment, error) {
 	fake.readImageFromURLMutex.Lock()
 	ret, specificReturn := fake.readImageFromURLReturnsOnCall[len(fake.readImageFromURLArgsForCall)]
 	fake.readImageFromURLArgsForCall = append(fake.readImageFromURLArgsForCall, struct {
-		arg1 string
-	}{arg1})
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
 	stub := fake.ReadImageFromURLStub
 	fakeReturns := fake.readImageFromURLReturns
-	fake.recordInvocation("ReadImageFromURL", []interface{}{arg1})
+	fake.recordInvocation("ReadImageFromURL", []interface{}{arg1, arg2})
 	fake.readImageFromURLMutex.Unlock()
 	if stub != nil {
-		return stub(arg1)
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -541,17 +543,17 @@ func (fake *FakeImageService) ReadImageFromURLCallCount() int {
 	return len(fake.readImageFromURLArgsForCall)
 }
 
-func (fake *FakeImageService) ReadImageFromURLCalls(stub func(string) (*domain.ImageAttachment, error)) {
+func (fake *FakeImageService) ReadImageFromURLCalls(stub func(context.Context, string) (*domain.ImageAttachment, error)) {
 	fake.readImageFromURLMutex.Lock()
 	defer fake.readImageFromURLMutex.Unlock()
 	fake.ReadImageFromURLStub = stub
 }
 
-func (fake *FakeImageService) ReadImageFromURLArgsForCall(i int) string {
+func (fake *FakeImageService) ReadImageFromURLArgsForCall(i int) (context.Context, string) {
 	fake.readImageFromURLMutex.RLock()
 	defer fake.readImageFromURLMutex.RUnlock()
 	argsForCall := fake.readImageFromURLArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeImageService) ReadImageFromURLReturns(result1 *domain.ImageAttachment, result2 error) {

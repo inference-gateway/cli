@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,7 +8,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
@@ -21,15 +19,7 @@ const compactionTimeout = 70 * time.Second
 // nonHiddenMessages returns the current conversation's user-visible messages
 // (hidden system reminders / continue prompts are excluded from summarization).
 func (h *ChatHandler) nonHiddenMessages() []sdk.Message {
-	entries := h.conversationRepo.GetMessages()
-	messages := make([]sdk.Message, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Hidden {
-			continue
-		}
-		messages = append(messages, entry.Message)
-	}
-	return messages
+	return conversation.VisibleMessages(h.conversationRepo.GetMessages())
 }
 
 // optimizeWithTimeout force-compacts messages under a hard timeout. It returns
@@ -54,21 +44,7 @@ func (h *ChatHandler) optimizeWithTimeout(messages []sdk.Message, model string) 
 // The old conversation is preserved in storage; only the in-memory working set
 // is replaced.
 func (h *ChatHandler) reseedConversationWithMessages(messages []sdk.Message, model string) error {
-	newTitle := fmt.Sprintf("Continued from %s", h.conversationRepo.GetCurrentConversationTitle())
-	if err := h.conversationRepo.StartNewConversation(newTitle); err != nil {
-		return err
-	}
-	for _, msg := range messages {
-		entry := convdomain.ConversationEntry{
-			Message: msg,
-			Model:   model,
-			Time:    time.Now(),
-		}
-		if err := h.conversationRepo.AddMessage(entry); err != nil {
-			logger.Error("failed to add optimized message", "error", err)
-		}
-	}
-	return nil
+	return conversation.ReseedConversation(h.conversationRepo, messages, model)
 }
 
 // newSessionAfterPlanApproval starts the fresh conversation an approved plan

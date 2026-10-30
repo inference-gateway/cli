@@ -200,14 +200,8 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 
 	summaryStartIndex = co.adjustBoundaryForToolCallsAtStart(messages, summaryStartIndex)
 
-	if summaryStartIndex < keep {
-		logger.Info("adjusting kept messages due to boundary moved back",
-			"original_keep", keep,
-			"adjusted_keep", summaryStartIndex)
-		result = make([]sdk.Message, summaryStartIndex)
-		copy(result, messages[:summaryStartIndex])
-	} else if summaryStartIndex > keep {
-		logger.Info("adjusting kept messages due to boundary moved forward to include tool responses",
+	if summaryStartIndex != keep {
+		logger.Info("adjusting kept messages so tool responses stay with their call",
 			"original_keep", keep,
 			"adjusted_keep", summaryStartIndex)
 		result = make([]sdk.Message, summaryStartIndex)

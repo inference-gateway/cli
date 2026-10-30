@@ -152,13 +152,11 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 		{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Generate a title for this conversation:\n\n%s", conversationText))},
 	}
 
-	slashIndex := strings.Index(model, "/")
-	if slashIndex == -1 {
+	provider, modelName, ok := strings.Cut(model, "/")
+	if !ok {
 		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
 
-	provider := model[:slashIndex]
-	modelName := strings.TrimPrefix(model, provider+"/")
 	providerType := sdk.Provider(provider)
 
 	response, err := g.client.
@@ -184,14 +182,7 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 	title := strings.TrimSpace(contentStr)
 	title = strings.Trim(title, `"'`)
 
-	if len(title) > 50 {
-		title = title[:50]
-		if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
-			title = title[:lastSpace]
-		}
-	}
-
-	return title, nil
+	return truncateTitle(title, 50), nil
 }
 
 // formatConversationForTitleGeneration formats conversation entries for AI processing
@@ -269,12 +260,19 @@ func (g *ConversationTitleGenerator) createTitleFromContent(content string) stri
 		title += word
 	}
 
-	if len(title) > 50 {
-		title = title[:50]
-		if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
-			title = title[:lastSpace]
-		}
-	}
+	return truncateTitle(title, 50)
+}
 
-	return title
+// truncateTitle caps title at max runes instead of bytes, so a multibyte
+// character is never split in the middle.
+func truncateTitle(title string, max int) string {
+	runes := []rune(title)
+	if len(runes) <= max {
+		return title
+	}
+	cut := string(runes[:max])
+	if lastSpace := strings.LastIndex(cut, " "); lastSpace > max-20 {
+		cut = cut[:lastSpace]
+	}
+	return cut
 }

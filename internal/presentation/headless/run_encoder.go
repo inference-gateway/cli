@@ -14,6 +14,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
@@ -175,7 +176,10 @@ func (r *RunEncoder) drainStartup() []agui.Published {
 }
 
 func (r *RunEncoder) emitToolResult(result *agentdomain.ToolExecutionResult) {
-	content, _ := json.Marshal(result)
+	content, err := json.Marshal(result)
+	if err != nil {
+		logger.Error("failed to encode the tool result for the AG-UI wire", "tool_call_id", result.ToolCallID, "error", err)
+	}
 	r.run.ToolResult(result.ToolCallID, string(content))
 }
 

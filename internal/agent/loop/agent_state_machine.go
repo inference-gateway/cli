@@ -195,10 +195,6 @@ func (sm *stateMachine) addTransition(from, to states.AgentExecutionState, guard
 		action:  action,
 	}
 
-	if sm.transitions[from] == nil {
-		sm.transitions[from] = []stateTransition{}
-	}
-
 	sm.transitions[from] = append(sm.transitions[from], transition)
 }
 

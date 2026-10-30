@@ -181,7 +181,7 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 			return a.service.stateManager.GetAgentMode()
 		},
 		PublishChatEvent: func(event agentdomain.ChatEvent) {
-			a.eventPublisher.chatEvents <- event
+			a.eventPublisher.send(event)
 		},
 		PublishChatComplete: func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics) {
 			a.eventPublisher.publishChatComplete(reasoning, toolCalls, metrics)

@@ -39,7 +39,7 @@ func TestControlEventsWaitForTheConsumer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan agentdomain.ChatEvent)
-			p := newEventPublisher("req-1", events)
+			p := newEventPublisher("req-1", events, nil)
 
 			go tt.publish(p)
 
