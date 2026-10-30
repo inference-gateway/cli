@@ -16,12 +16,6 @@ import (
 // hang the UI thread. Shared by /compact and the post-plan-approval flow.
 const compactionTimeout = 70 * time.Second
 
-// nonHiddenMessages returns the current conversation's user-visible messages
-// (hidden system reminders / continue prompts are excluded from summarization).
-func (h *ChatHandler) nonHiddenMessages() []sdk.Message {
-	return conversation.VisibleMessages(h.conversationRepo.GetMessages())
-}
-
 // optimizeWithTimeout force-compacts messages under a hard timeout. It returns
 // (optimized, true) on success and (nil, false) if the summarization timed out.
 func (h *ChatHandler) optimizeWithTimeout(messages []sdk.Message, model string) ([]sdk.Message, bool) {
@@ -37,14 +31,6 @@ func (h *ChatHandler) optimizeWithTimeout(messages []sdk.Message, model string) 
 		logger.Error("optimization timed out", "timeout", compactionTimeout)
 		return nil, false
 	}
-}
-
-// reseedConversationWithMessages saves the current conversation and starts a
-// fresh one titled "Continued from <old title>", seeded with the given messages.
-// The old conversation is preserved in storage; only the in-memory working set
-// is replaced.
-func (h *ChatHandler) reseedConversationWithMessages(messages []sdk.Message, model string) error {
-	return conversation.ReseedConversation(h.conversationRepo, messages, model)
 }
 
 // newSessionAfterPlanApproval starts the fresh conversation an approved plan

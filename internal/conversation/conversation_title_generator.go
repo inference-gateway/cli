@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -182,7 +183,7 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 	title := strings.TrimSpace(contentStr)
 	title = strings.Trim(title, `"'`)
 
-	return truncateTitle(title, 50), nil
+	return truncateTitle(title), nil
 }
 
 // formatConversationForTitleGeneration formats conversation entries for AI processing
@@ -260,18 +261,25 @@ func (g *ConversationTitleGenerator) createTitleFromContent(content string) stri
 		title += word
 	}
 
-	return truncateTitle(title, 50)
+	return truncateTitle(title)
 }
 
-// truncateTitle caps title at max runes instead of bytes, so a multibyte
-// character is never split in the middle.
-func truncateTitle(title string, max int) string {
+// maxTitleRunes caps a title's length. A cut title ends at its last word break
+// when that keeps more than minTitleRunes, so it rarely ends mid-word.
+const (
+	maxTitleRunes = 50
+	minTitleRunes = 30
+)
+
+// truncateTitle caps title at maxTitleRunes runes instead of bytes, so a
+// multibyte character is never split in the middle.
+func truncateTitle(title string) string {
 	runes := []rune(title)
-	if len(runes) <= max {
+	if len(runes) <= maxTitleRunes {
 		return title
 	}
-	cut := string(runes[:max])
-	if lastSpace := strings.LastIndex(cut, " "); lastSpace > max-20 {
+	cut := string(runes[:maxTitleRunes])
+	if lastSpace := strings.LastIndex(cut, " "); lastSpace >= 0 && utf8.RuneCountInString(cut[:lastSpace]) > minTitleRunes {
 		cut = cut[:lastSpace]
 	}
 	return cut

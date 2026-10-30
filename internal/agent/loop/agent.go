@@ -115,10 +115,17 @@ type eventPublisher struct {
 	inputGate  func(wait func())
 }
 
-// send publishes evt onto the chat channel and waits for the consumer, but
-// returns once the session is cancelled, so a stopped consumer unwinds the
-// agent goroutine instead of wedging it. A nil done stays a plain send.
+// send publishes evt onto the chat channel and waits for the consumer. Delivery
+// is tried first, so events of a cancelled run (its own cancelled completion
+// included) still reach a draining consumer. Only a full channel on a cancelled
+// session gives up, which unwinds the agent instead of wedging it on a consumer
+// that stopped reading. A nil done stays a plain send.
 func (p *eventPublisher) send(evt agentdomain.ChatEvent) {
+	select {
+	case p.chatEvents <- evt:
+		return
+	default:
+	}
 	select {
 	case p.chatEvents <- evt:
 	case <-p.done:
