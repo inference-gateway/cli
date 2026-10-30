@@ -717,14 +717,13 @@ func (t *TaskView) renderTaskInfo() string {
 	var content strings.Builder
 
 	accentColor := t.styleProvider.GetThemeColor("accent")
-	dimColor := t.styleProvider.GetThemeColor("dim")
 
 	header := t.styleProvider.RenderWithColorAndBold("Task Details", accentColor)
 	content.WriteString(header)
 	content.WriteString("\n")
 
 	separatorWidth := t.getSeparatorWidth()
-	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	separator := t.styleProvider.RenderSeparator(separatorWidth, "─")
 	content.WriteString(separator)
 	content.WriteString("\n\n")
 
@@ -766,7 +765,7 @@ func (t *TaskView) renderTaskInfo() string {
 	view.WriteString(t.infoViewport.View())
 	view.WriteString("\n")
 
-	footerSeparator := t.styleProvider.RenderWithColor(strings.Repeat("─", t.width), dimColor)
+	footerSeparator := t.styleProvider.RenderSeparator(t.width, "─")
 	view.WriteString(footerSeparator)
 	view.WriteString("\n")
 
@@ -867,7 +866,7 @@ func (t *TaskView) writeSpeaker(content *strings.Builder, label string) {
 
 // writeDetailSection opens a titled section of the detail panel.
 func (t *TaskView) writeDetailSection(content *strings.Builder, title string) {
-	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", t.getSeparatorWidth()), t.styleProvider.GetThemeColor("dim"))
+	separator := t.styleProvider.RenderSeparator(t.getSeparatorWidth(), "─")
 	header := t.styleProvider.RenderWithColorAndBold(title, t.styleProvider.GetThemeColor("accent"))
 	fmt.Fprintf(content, "\n%s\n%s\n%s\n\n", separator, header, separator)
 }
@@ -1076,7 +1075,7 @@ func (t *TaskView) writeViewTabs(b *strings.Builder) {
 	dimTabs := t.styleProvider.RenderDimText(tabs)
 	fmt.Fprintf(b, "%s\n", dimTabs)
 
-	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.getSeparatorWidth()))
+	separator := t.styleProvider.RenderSeparator(t.getSeparatorWidth(), "─")
 	fmt.Fprintf(b, "%s\n\n", separator)
 }
 
@@ -1123,7 +1122,7 @@ func (t *TaskView) writeSectionHeader(b *strings.Builder, kind scheddomain.JobKi
 	dimHeader := t.styleProvider.RenderDimText(t.columnHeader(kind))
 	fmt.Fprintf(b, "%s\n", dimHeader)
 
-	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.getSeparatorWidth()))
+	separator := t.styleProvider.RenderSeparator(t.getSeparatorWidth(), "─")
 	fmt.Fprintf(b, "%s\n", separator)
 }
 
@@ -1236,7 +1235,7 @@ func sectionTitle(kind scheddomain.JobKind) string {
 // writeFooter writes the footer section with keyboard shortcuts
 func (t *TaskView) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
-	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width))
+	separator := t.styleProvider.RenderSeparator(t.width, "─")
 	b.WriteString(separator)
 	b.WriteString("\n")
 

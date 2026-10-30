@@ -540,7 +540,7 @@ func (c *ConversationSelector) writeConversationList(b *strings.Builder) {
 // writeFooter writes the footer section
 func (c *ConversationSelector) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", c.width))
+	b.WriteString(c.styleProvider.RenderSeparator(c.width, "─"))
 	b.WriteString("\n")
 
 	if c.searchMode {
@@ -564,7 +564,7 @@ func (c *ConversationSelector) writeDeleteConfirmation(b *strings.Builder) strin
 	c.writeConversationList(b)
 
 	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", c.width))
+	b.WriteString(c.styleProvider.RenderSeparator(c.width, "─"))
 	b.WriteString("\n\n")
 
 	errorColor := c.styleProvider.GetThemeColor("error")

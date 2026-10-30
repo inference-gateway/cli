@@ -139,7 +139,7 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *agentdomain.ToolExe
 	out := make([]string, 0, len(lines)+3)
 	out = append(out, s.statusLine(result, terminalWidth))
 	if len(lines) > 0 {
-		out = append(out, s.styleProvider.RenderWithColor(strings.Repeat("─", inner), dim))
+		out = append(out, s.styleProvider.RenderSeparator(inner, "─"))
 		for _, ln := range lines {
 			out = append(out, s.styleProvider.RenderWithColor(ln, dim))
 		}
@@ -277,7 +277,7 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *agentdomain.Tool
 	tree = wrapTreeLines(tree, inner)
 	body := s.insertHeaderRule(s.themeTreeLines(tree), tree, inner)
 	if !strings.HasPrefix(tree, result.ToolName+"(") {
-		rule := s.styleProvider.RenderWithColor(strings.Repeat("─", inner), s.styleProvider.GetThemeColor("dim"))
+		rule := s.styleProvider.RenderSeparator(inner, "─")
 		body = s.statusLine(result, terminalWidth) + "\n" + rule + "\n" + body
 	}
 	if hint := s.collapseHintLine(result); hint != "" {

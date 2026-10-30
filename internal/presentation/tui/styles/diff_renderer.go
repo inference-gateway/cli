@@ -465,10 +465,10 @@ func (d *DiffRenderer) renderFileHeader(filePath string, stats DiffStats) string
 	sepWidth := max(d.styleProvider.GetWidth(content.String()), 40)
 
 	var header strings.Builder
-	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", sepWidth)))
+	header.WriteString(d.styleProvider.RenderSeparator(sepWidth, "─"))
 	header.WriteString("\n")
 	header.WriteString(content.String())
 	header.WriteString("\n")
-	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", sepWidth)))
+	header.WriteString(d.styleProvider.RenderSeparator(sepWidth, "─"))
 	return header.String()
 }
