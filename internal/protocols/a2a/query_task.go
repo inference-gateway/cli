@@ -21,7 +21,7 @@ import (
 
 type QueryTaskTool struct {
 	config    *config.Config
-	formatter tools.CustomFormatter
+	formatter tools.BaseFormatter
 	liveness  scheddomain.JobLivenessReporter
 }
 
@@ -239,16 +239,7 @@ func (t *QueryTaskTool) FormatForUI(result *agentdomain.ToolExecutionResult) str
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 func (t *QueryTaskTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
@@ -269,10 +260,6 @@ func (t *QueryTaskTool) FormatPreview(result *agentdomain.ToolExecutionResult) s
 
 func (t *QueryTaskTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
-}
-
-func (t *QueryTaskTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 func (t *QueryTaskTool) IsEnabled() bool {

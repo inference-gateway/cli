@@ -193,24 +193,7 @@ func (t *CreateAvatarTool) FormatForLLM(result *agentdomain.ToolExecutionResult)
 	return formatter.FormatExpanded(result, summary)
 }
 
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *CreateAvatarTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *CreateAvatarTool) ShouldAlwaysExpand() bool {
-	return false
-}
-
 // FormatResult formats the result based on the requested format type
 func (t *CreateAvatarTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatResult(result, formatType, t.FormatForLLM, t.FormatForLLM, t.FormatPreview)
 }

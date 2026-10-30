@@ -136,16 +136,7 @@ func (t *AskUserQuestionTool) failure(args map[string]any, start time.Time, msg 
 
 // FormatResult formats tool execution results for different contexts.
 func (t *AskUserQuestionTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -174,8 +165,7 @@ func (t *AskUserQuestionTool) FormatForUI(result *agentdomain.ToolExecutionResul
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	return fmt.Sprintf("AskUserQuestion(...)\n└─ %s %s", statusIcon, t.FormatPreview(result))
+	return renderCollapsed(ToolAskUserQuestion+"(...)", result.Success, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption.

@@ -451,16 +451,7 @@ func planModeWorkDir(mode agentdomain.AgentMode) (string, error) {
 
 // FormatResult formats tool execution results for different contexts
 func (t *BashTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -526,24 +517,7 @@ func (t *BashTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-
-	previewLines := strings.Split(preview, "\n")
-	for i, line := range previewLines {
-		if i == 0 {
-			fmt.Fprintf(&output, "└─ %s %s", statusIcon, line)
-		} else {
-			fmt.Fprintf(&output, "\n     %s", line)
-		}
-	}
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
@@ -575,14 +549,4 @@ func (t *BashTool) formatBashData(data any) string {
 		fmt.Fprintf(&output, "Output:\n%s\n", bashResult.Output)
 	}
 	return output.String()
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *BashTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *BashTool) ShouldAlwaysExpand() bool {
-	return false
 }

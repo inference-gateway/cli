@@ -116,12 +116,7 @@ func (t *ApproveSubagentTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts.
 func (t *ApproveSubagentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatResult(result, formatType, t.FormatForLLM, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -149,14 +144,4 @@ func (t *ApproveSubagentTool) FormatForLLM(result *agentdomain.ToolExecutionResu
 	}
 	msg, _ := data["message"].(string)
 	return msg
-}
-
-// ShouldCollapseArg returns whether an argument should be collapsed.
-func (t *ApproveSubagentTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand returns whether results should always be expanded.
-func (t *ApproveSubagentTool) ShouldAlwaysExpand() bool {
-	return false
 }

@@ -90,43 +90,28 @@ func (s *ToolFormatterService) FormatToolCall(toolName string, args map[string]a
 	}
 	slices.Sort(keys)
 
-	var shouldCollapseFunc func(string) bool
-	tool, err := s.toolRegistry.GetTool(toolName)
-	if err == nil {
-		shouldCollapseFunc = tool.ShouldCollapseArg
-	} else {
-		shouldCollapseFunc = func(string) bool { return false }
-	}
+	tool, _ := s.toolRegistry.GetTool(toolName)
+	collapses := argCollapser(tool)
 
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {
-		value := args[key]
-		var formattedValue string
-		if shouldCollapseFunc(key) {
+		formattedValue := fmt.Sprintf("%v", args[key])
+		if collapses != nil && collapses(key) {
 			formattedValue = `"..."`
-		} else {
-			formattedValue = fmt.Sprintf("%v", value)
 		}
 		argPairs = append(argPairs, fmt.Sprintf("%s=%s", key, formattedValue))
 	}
 
-	return fmt.Sprintf("%s(%s)", toolName, s.joinArgs(argPairs))
+	return fmt.Sprintf("%s(%s)", toolName, strings.Join(argPairs, ", "))
 }
 
-// joinArgs joins argument pairs with commas, handling long argument lists
-func (s *ToolFormatterService) joinArgs(args []string) string {
-	if len(args) == 0 {
-		return ""
+// argCollapser returns the tool's rule for hiding long arguments, or nil when
+// the tool shows every argument.
+func argCollapser(tool agentdomain.Tool) func(string) bool {
+	if collapser, ok := tool.(agentdomain.ArgCollapser); ok {
+		return collapser.ShouldCollapseArg
 	}
-	if len(args) == 1 {
-		return args[0]
-	}
-
-	result := args[0]
-	for i := 1; i < len(args); i++ {
-		result += ", " + args[i]
-	}
-	return result
+	return nil
 }
 
 // FormatToolResultForUI formats the collapsed (default) tool result: a themed status
@@ -344,7 +329,7 @@ func (s *ToolFormatterService) expandedDiffTree(result *agentdomain.ToolExecutio
 	}
 
 	diff := renderer.RenderDiff(*info)
-	return tools.NewCustomFormatter(result.ToolName, tool.ShouldCollapseArg).FormatExpanded(result, diff), true
+	return tools.NewCustomFormatter(result.ToolName, argCollapser(tool)).FormatExpanded(result, diff), true
 }
 
 // multiEditSummaryDiff builds the summary shown for a successful MultiEdit.
@@ -534,11 +519,9 @@ func (s *ToolFormatterService) shortenPathInValue(value string) string {
 
 // ShouldAlwaysExpandTool checks if a tool result should always be expanded
 func (s *ToolFormatterService) ShouldAlwaysExpandTool(toolName string) bool {
-	tool, err := s.toolRegistry.GetTool(toolName)
-	if err != nil {
-		return false
-	}
-	return tool.ShouldAlwaysExpand()
+	tool, _ := s.toolRegistry.GetTool(toolName)
+	expander, ok := tool.(agentdomain.AlwaysExpander)
+	return ok && expander.ShouldAlwaysExpand()
 }
 
 // isGatewayToolWithEnhancedVisualization checks if this is a Gateway tool with enhanced visualization

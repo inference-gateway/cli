@@ -161,13 +161,7 @@ func (t *Tool) formatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-	lines := strings.Split(t.FormatPreview(result), "\n")
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n└─ %s %s", t.formatter.FormatToolCall(result.Arguments, false), t.formatter.FormatStatusIcon(result.Success), lines[0])
-	for _, line := range lines[1:] {
-		fmt.Fprintf(&output, "\n     %s", line)
-	}
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 func (t *Tool) formatForLLM(result *agentdomain.ToolExecutionResult) string {
@@ -176,16 +170,6 @@ func (t *Tool) formatForLLM(result *agentdomain.ToolExecutionResult) string {
 	}
 	output, _ := result.Data.(string)
 	return t.formatter.FormatExpanded(result, output)
-}
-
-// ShouldCollapseArg keeps every argument visible.
-func (t *Tool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand leaves the result collapsed by default.
-func (t *Tool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 // projectTool is a custom tool a project ships in .infer/tools or

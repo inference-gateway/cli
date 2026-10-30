@@ -135,13 +135,3 @@ func (t *recordTool) FormatForLLM(result *agentdomain.ToolExecutionResult) strin
 	}
 	return t.FormatPreview(result)
 }
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *recordTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *recordTool) ShouldAlwaysExpand() bool {
-	return false
-}

@@ -441,13 +441,3 @@ func (t *GetLatestFrameTool) FormatForLLM(result *agentdomain.ToolExecutionResul
 	}
 	return msg + " Image is attached."
 }
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *GetLatestFrameTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *GetLatestFrameTool) ShouldAlwaysExpand() bool {
-	return false
-}

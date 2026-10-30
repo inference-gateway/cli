@@ -601,13 +601,6 @@ func TestSubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 	assert.False(t, tool.ShouldCollapseArg("task_description"))
 }
 
-func TestSubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
-	cfg := &config.Config{}
-	tool := NewSubmitTaskTool(cfg, nil, nil, nil, nil)
-
-	assert.False(t, tool.ShouldAlwaysExpand())
-}
-
 func TestArtifactDownloadURL_FallsBackToFilePartURL(t *testing.T) {
 	uri := "http://localhost:8084/artifacts/ctx/art/fullpage.png"
 	name := "fullpage.png"

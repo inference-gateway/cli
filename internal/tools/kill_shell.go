@@ -92,16 +92,7 @@ func (t *KillShellTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts
 func (t *KillShellTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -137,14 +128,4 @@ func (t *KillShellTool) FormatForLLM(result *agentdomain.ToolExecutionResult) st
 
 	message, _ := data["message"].(string)
 	return message
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *KillShellTool) ShouldAlwaysExpand() bool {
-	return false
-}
-
-// ShouldCollapseArg determines if a specific argument should be collapsed in UI
-func (t *KillShellTool) ShouldCollapseArg(key string) bool {
-	return false
 }
