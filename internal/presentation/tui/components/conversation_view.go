@@ -68,7 +68,7 @@ type ConversationView struct {
 	renderCache map[int]renderCacheEntry
 
 	// welcomeCache memoizes the tall welcome box render, invalidated on
-	// resize and theme refresh.
+	// resize, theme refresh and a new config path or version.
 	welcomeCache      string
 	welcomeCacheValid bool
 
@@ -125,11 +125,13 @@ func (cv *ConversationView) SetToolFormatter(formatter tui.ToolFormatter) {
 // SetConfigPath sets the config path for the welcome message
 func (cv *ConversationView) SetConfigPath(configPath string) {
 	cv.configPath = configPath
+	cv.welcomeCacheValid = false
 }
 
 // SetVersionInfo sets the version information for the welcome message
 func (cv *ConversationView) SetVersionInfo(info tui.VersionInfo) {
 	cv.versionInfo = &info
+	cv.welcomeCacheValid = false
 }
 
 // SetToolCallRenderer sets the tool call renderer for displaying real-time tool execution status
