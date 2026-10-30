@@ -6,7 +6,7 @@ environments:
     kind: kubernetes
     context: k3d-infer-environments
     namespace: infer-environments
-    image: ghcr.io/inference-gateway/cli:0.239.0-rc.3
+    image: ghcr.io/inference-gateway/cli:0.239.0-rc.4
     storage: 1Gi
     idle_ttl: 30m
     retention: 24h

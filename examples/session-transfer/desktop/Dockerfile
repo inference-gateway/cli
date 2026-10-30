@@ -1,4 +1,4 @@
-ARG INFER_IMAGE=ghcr.io/inference-gateway/cli:0.239.0-rc.3
+ARG INFER_IMAGE=ghcr.io/inference-gateway/cli:0.239.0-rc.4
 FROM ${INFER_IMAGE}
 
 USER root
