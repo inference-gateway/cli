@@ -30,4 +30,9 @@ parameters:
       minimum: 1
   required:
     - file_path
-modes: [standard, auto, auto-with-judge, plan, readonly]
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
+  - readonly

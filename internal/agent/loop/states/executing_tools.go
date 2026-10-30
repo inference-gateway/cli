@@ -7,9 +7,7 @@ import (
 // ExecutingToolsState handles events in the ExecutingTools state.
 //
 // This state processes tool execution completion:
-//  1. ToolsCompletedEvent (Stop=false) → transitions to PostToolExecution
-//  2. ToolsCompletedEvent (Stop=true)  → transitions to the Stopped terminal
-//     (a rejected tool or a successful RequestPlanApproval ended the loop)
+//  1. ToolsCompletedEvent → transitions to PostToolExecution
 type ExecutingToolsState struct {
 	ctx *StateContext
 }
@@ -26,17 +24,8 @@ func (s *ExecutingToolsState) Name() AgentExecutionState {
 
 // Handle processes events in ExecutingTools state
 func (s *ExecutingToolsState) Handle(event AgentEvent) error {
-	switch e := event.(type) {
+	switch event.(type) {
 	case ToolsCompletedEvent:
-		if e.Stop {
-			logger.Debug("tools execution signalled stop, terminating loop")
-			if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateStopped); err != nil {
-				logger.Error("failed to transition to stopped", "error", err)
-				return err
-			}
-			return nil
-		}
-
 		logger.Debug("tools execution completed")
 		if err := s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StatePostToolExecution); err != nil {
 			logger.Error("failed to transition to post tool execution", "error", err)

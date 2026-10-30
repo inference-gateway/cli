@@ -1297,26 +1297,21 @@ func (s *Agent) executeToolOnce(
 	return entry
 }
 
-// handleToolResults appends tool results to the conversation and returns true
-// when the agent should stop (a plan is awaiting approval). Rejections cannot
-// occur on this route; the state machine's ApprovingToolsState is the only
-// place a rejection ends the turn.
-func (s *Agent) handleToolResults(
+// presentPlan appends the plan a round's RequestPlanApproval asked for after
+// its tool results and publishes it for approval. It reports whether the
+// round requested one, which ends the run until the user decides.
+func (s *Agent) presentPlan(
 	toolResults []convdomain.ConversationEntry,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 	req *agentdomain.AgentRequest,
 ) bool {
 	planContent, planID := s.checkPlanApproval(toolResults)
-
-	s.addToolResultsToConversation(toolResults, conversation, req.Model)
-
-	if planContent != "" {
-		s.createPlanMessage(planContent, planID, conversation, eventPublisher, req)
-		return true
+	if planContent == "" {
+		return false
 	}
-
-	return false
+	s.createPlanMessage(planContent, planID, conversation, eventPublisher, req)
+	return true
 }
 
 // checkPlanApproval returns the plan content and ID when a RequestPlanApproval
@@ -1333,8 +1328,8 @@ func (s *Agent) checkPlanApproval(toolResults []convdomain.ConversationEntry) (p
 	return planContent, planID
 }
 
-// addToolResultsToConversation adds tool results and images to the conversation
-func (s *Agent) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
+// addToolResultsToConversation adds tool results to the conversation
+func (s *Agent) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message) {
 	for _, entry := range toolResults {
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
@@ -1343,8 +1338,6 @@ func (s *Agent) addToolResultsToConversation(toolResults []convdomain.Conversati
 		}
 		*conversation = append(*conversation, toolResult)
 	}
-
-	s.addImageMessageFromToolResults(toolResults, conversation, model)
 }
 
 // createPlanMessage creates and stores a plan message for approval

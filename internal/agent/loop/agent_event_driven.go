@@ -192,6 +192,12 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 		PublishToolResults: func(results []convdomain.ConversationEntry) {
 			a.eventPublisher.publishToolExecutionCompleted(results)
 		},
+		AttachToolImages: func(results []convdomain.ConversationEntry) {
+			a.service.addImageMessageFromToolResults(results, a.agentCtx.Conversation, a.req.Model)
+		},
+		PresentPlan: func(results []convdomain.ConversationEntry) bool {
+			return a.service.presentPlan(results, a.agentCtx.Conversation, a.eventPublisher, a.req)
+		},
 		DispatchHooks: func(hook agentdomain.HookPoint) {
 			a.service.dispatchHooks(a.agentCtx, hook)
 		},

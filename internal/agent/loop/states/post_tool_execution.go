@@ -8,9 +8,11 @@ import (
 // PostToolExecutionState handles events in the PostToolExecution state.
 //
 // This state:
-//  1. Checks if messages were queued during tool execution → drains and goes to CheckingQueue
-//  2. Checks if can complete → Completing
-//  3. Otherwise → CheckingQueue for next turn
+//  1. Hands the images the tools returned to the model, then checks if the
+//     tools requested a plan → presents it and goes to Stopped
+//  2. Checks if messages were queued during tool execution → drains and goes to CheckingQueue
+//  3. Checks if can complete → Completing
+//  4. Otherwise → CheckingQueue for next turn
 type PostToolExecutionState struct {
 	ctx *StateContext
 }
@@ -31,6 +33,13 @@ func (s *PostToolExecutionState) Handle(event AgentEvent) error {
 		"turn", s.ctx.AgentCtx.Turns,
 		"max_turns", s.ctx.AgentCtx.MaxTurns,
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
+
+	s.attachToolImages()
+
+	if s.ctx.PresentPlan != nil && s.ctx.PresentPlan(*s.ctx.ToolResults) {
+		logger.Debug("plan awaiting approval, stopping loop")
+		return s.ctx.StateMachine.Transition(s.ctx.AgentCtx, StateStopped)
+	}
 
 	if s.ctx.DispatchHooks != nil {
 		s.ctx.DispatchHooks(agentdomain.HookPostTool)
@@ -56,6 +65,16 @@ func (s *PostToolExecutionState) Handle(event AgentEvent) error {
 		s.ctx.Events <- MessageReceivedEvent{}
 	}
 	return nil
+}
+
+// attachToolImages hands the images a round's tools returned to the model. A
+// rejected round ends the turn without them: the trailing user message they
+// ride in would keep the loop from completing.
+func (s *PostToolExecutionState) attachToolImages() {
+	if s.ctx.AttachToolImages == nil || !s.ctx.AgentCtx.HasToolResults {
+		return
+	}
+	s.ctx.AttachToolImages(*s.ctx.ToolResults)
 }
 
 // handleQueuedMessages drains queued messages into conversation history. On a

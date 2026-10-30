@@ -36,4 +36,9 @@ parameters:
       description: Whether to show hidden files and directories (defaults to false)
       default: false
   required: []
-modes: [standard, auto, auto-with-judge, plan, readonly]
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
+  - readonly

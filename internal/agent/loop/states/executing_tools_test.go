@@ -8,9 +8,8 @@ import (
 	states "github.com/inference-gateway/cli/internal/agent/loop/states"
 )
 
-// TestExecutingToolsState_Handle covers the two states.ToolsCompletedEvent routes
-// (continue to PostToolExecution, or Stop=true → the Stopped terminal),
-// transition-failure propagation on both, and stray-event tolerance.
+// TestExecutingToolsState_Handle covers the states.ToolsCompletedEvent route to
+// PostToolExecution, transition-failure propagation, and stray-event tolerance.
 func TestExecutingToolsState_Handle(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -27,23 +26,11 @@ func TestExecutingToolsState_Handle(t *testing.T) {
 			wantEvents:      []states.AgentEvent{states.MessageReceivedEvent{}},
 		},
 		{
-			name:            "stop signal terminates the loop",
-			event:           states.ToolsCompletedEvent{Stop: true},
-			wantTransitions: []states.AgentExecutionState{states.StateStopped},
-		},
-		{
 			name:            "transition failure is returned",
 			event:           states.ToolsCompletedEvent{},
 			transitionErr:   errBoom,
 			wantErr:         true,
 			wantTransitions: []states.AgentExecutionState{states.StatePostToolExecution},
-		},
-		{
-			name:            "stop transition failure is returned",
-			event:           states.ToolsCompletedEvent{Stop: true},
-			transitionErr:   errBoom,
-			wantErr:         true,
-			wantTransitions: []states.AgentExecutionState{states.StateStopped},
 		},
 		{
 			name:  "stray event is a no-op",

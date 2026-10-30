@@ -147,14 +147,14 @@ func (sm *stateMachine) registerTransitions() {
 
 	sm.addTransition(states.StateExecutingTools, states.StatePostToolExecution, nil, nil)
 
-	sm.addTransition(states.StateExecutingTools, states.StateStopped, nil, nil)
-
 	for _, state := range []states.AgentExecutionState{states.StateApprovingTools, states.StateExecutingTools} {
 		sm.addTransition(state, states.StateInputRequired, nil, nil)
 		sm.addTransition(states.StateInputRequired, state, nil, nil)
 	}
 
 	sm.addTransition(states.StatePostToolExecution, states.StateCheckingQueue, nil, nil)
+
+	sm.addTransition(states.StatePostToolExecution, states.StateStopped, nil, nil)
 
 	sm.addTransition(states.StatePostToolExecution, states.StateCompleting,
 		func(ctx *states.AgentContext) bool {

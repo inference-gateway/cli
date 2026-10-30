@@ -29,4 +29,5 @@ parameters:
     - title
     - plan
 require_approval: false
-modes: [plan]
+modes:
+  - plan
