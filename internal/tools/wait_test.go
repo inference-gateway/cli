@@ -539,13 +539,12 @@ func TestWaitTool_Execute_Cancellation(t *testing.T) {
 func TestWaitTool_Execute_ShellsWithShellService(t *testing.T) {
 	cfg := testWaitConfig()
 	fake := &schedmocks.FakeBackgroundShellService{}
-	exitZero := 0
-	fake.GetShellReturns(&scheddomain.BackgroundShell{
-		ShellID:  "test-shell-1",
-		Command:  "echo hello",
-		State:    scheddomain.ShellStateCompleted,
-		ExitCode: &exitZero,
-	})
+	shell := &scheddomain.BackgroundShell{
+		ShellID: "test-shell-1",
+		Command: "echo hello",
+	}
+	shell.Finish(scheddomain.ShellStateCompleted, 0, time.Now())
+	fake.GetShellReturns(shell)
 	tool := NewWaitTool(cfg, fake)
 
 	result, err := tool.Execute(context.Background(), map[string]any{

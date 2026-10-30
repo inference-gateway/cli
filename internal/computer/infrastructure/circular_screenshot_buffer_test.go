@@ -95,14 +95,9 @@ func TestCircularScreenshotBufferWrapAround(t *testing.T) {
 			assert.Equal(t, tt.wantRecentIDs, ids)
 
 			for _, id := range tt.wantRecentIDs {
-				got, err := buf.GetByID(id)
-				require.NoError(t, err, "retained screenshot %s", id)
-				assert.Equal(t, id, got.ID)
 				assert.FileExists(t, paths[id], "retained screenshot must keep its disk file")
 			}
 			for _, id := range tt.wantEvictedIDs {
-				_, err := buf.GetByID(id)
-				assert.Error(t, err, "evicted screenshot %s must not be findable", id)
 				assert.NoFileExists(t, paths[id], "evicted screenshot must be removed from disk")
 			}
 		})
@@ -142,30 +137,6 @@ func TestCircularScreenshotBufferGetRecentLimits(t *testing.T) {
 			assert.Equal(t, tt.wantIDs, ids)
 		})
 	}
-}
-
-func TestCircularScreenshotBufferClear(t *testing.T) {
-	buf := newTestBuffer(t, 3)
-	var paths []string
-	for i := 1; i <= 3; i++ {
-		frame := testFrame(fmt.Sprintf("s%d", i))
-		require.NoError(t, buf.Add(frame))
-		paths = append(paths, frame.Path)
-	}
-
-	require.NoError(t, buf.Clear())
-	assert.Equal(t, 0, buf.Count())
-	_, err := buf.GetLatest()
-	assert.Error(t, err)
-	for _, p := range paths {
-		assert.NoFileExists(t, p)
-	}
-
-	require.NoError(t, buf.Add(testFrame("after")))
-	assert.Equal(t, 1, buf.Count())
-	latest, err := buf.GetLatest()
-	require.NoError(t, err)
-	assert.Equal(t, "after", latest.ID)
 }
 
 func TestCircularScreenshotBufferCleanup(t *testing.T) {

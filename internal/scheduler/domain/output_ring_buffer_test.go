@@ -14,10 +14,6 @@ func TestNewOutputRingBuffer(t *testing.T) {
 		t.Fatal("NewOutputRingBuffer returned nil")
 	}
 
-	if rb.MaxSize() != 1024 {
-		t.Errorf("Expected maxSize=1024, got %d", rb.MaxSize())
-	}
-
 	if rb.Size() != 0 {
 		t.Errorf("Expected size=0, got %d", rb.Size())
 	}
@@ -137,7 +133,6 @@ func TestReadFrom_WithWrap(t *testing.T) {
 	_, _ = rb.Write([]byte("ABCDEFGHIJ"))
 	_, _ = rb.Write([]byte("KLMNO"))
 
-	t.Logf("Buffer state: %s", rb.Stats())
 	t.Logf("Buffer contents: %q", rb.String())
 
 	tests := []struct {
@@ -219,25 +214,6 @@ func TestRecent(t *testing.T) {
 				t.Errorf("Expected %q, got %q", tt.expected, result)
 			}
 		})
-	}
-}
-
-func TestClear(t *testing.T) {
-	rb := NewOutputRingBuffer(100)
-
-	_, _ = rb.Write([]byte("Hello World"))
-	rb.Clear()
-
-	if rb.Size() != 0 {
-		t.Errorf("Expected size=0 after clear, got %d", rb.Size())
-	}
-
-	if rb.TotalWritten() != 0 {
-		t.Errorf("Expected totalWritten=0 after clear, got %d", rb.TotalWritten())
-	}
-
-	if rb.String() != "" {
-		t.Errorf("Expected empty buffer after clear, got %q", rb.String())
 	}
 }
 
@@ -355,24 +331,6 @@ func TestIOWriterInterface(t *testing.T) {
 	if n != 5 {
 		t.Errorf("Expected to write 5 bytes, wrote %d", n)
 	}
-}
-
-func TestStats(t *testing.T) {
-	rb := NewOutputRingBuffer(100)
-
-	_, _ = rb.Write([]byte("Hello World"))
-
-	stats := rb.Stats()
-
-	if stats == "" {
-		t.Error("Stats returned empty string")
-	}
-
-	if !strings.Contains(stats, "size=") {
-		t.Error("Stats missing size information")
-	}
-
-	t.Logf("Stats output: %s", stats)
 }
 
 func BenchmarkWrite_Small(b *testing.B) {

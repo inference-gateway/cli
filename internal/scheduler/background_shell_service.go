@@ -65,9 +65,7 @@ func (s *BackgroundShellService) DetachToBackground(
 		Command:      command,
 		Cmd:          cmd,
 		StartedAt:    time.Now(),
-		State:        scheddomain.ShellStateRunning,
 		OutputBuffer: outputBuffer,
-		ReadOffset:   0,
 		ReadersDone:  readersDone,
 	}
 
@@ -102,16 +100,8 @@ func (s *BackgroundShellService) GetShellOutput(shellID string, fromOffset int64
 		return "", 0, "", fmt.Errorf("shell not found: %s", shellID)
 	}
 
-	offset := fromOffset
-	if offset < 0 {
-		offset = shell.ReadOffset
-	}
-
-	output, newOffset := shell.OutputBuffer.ReadFrom(offset)
-
-	shell.ReadOffset = newOffset
-
-	return output, newOffset, shell.State, nil
+	output, newOffset, state := shell.Read(fromOffset)
+	return output, newOffset, state, nil
 }
 
 // GetShellOutputWithFilter retrieves output with optional regex filtering
@@ -153,8 +143,8 @@ func (s *BackgroundShellService) CancelShell(shellID string) error {
 	if shell == nil {
 		return fmt.Errorf("shell not found: %s", shellID)
 	}
-	if shell.State != scheddomain.ShellStateRunning {
-		return fmt.Errorf("shell is not running (state: %s)", shell.State)
+	if state := shell.Status().State; state != scheddomain.ShellStateRunning {
+		return fmt.Errorf("shell is not running (state: %s)", state)
 	}
 
 	logger.Info("cancelling background shell", "shell_id", shellID)
@@ -189,7 +179,7 @@ func (s *BackgroundShellService) GetStats() map[string]int {
 	}
 
 	for _, shell := range all {
-		switch shell.State {
+		switch shell.Status().State {
 		case scheddomain.ShellStateRunning:
 			stats["running"]++
 		case scheddomain.ShellStateCompleted:

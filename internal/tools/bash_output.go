@@ -74,20 +74,21 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 		}, nil
 	}
 
+	recordedExit := shell.Status().ExitCode
 	var statusMsg string
 	switch state {
 	case scheddomain.ShellStateRunning:
 		statusMsg = "Shell is still running"
 	case scheddomain.ShellStateCompleted:
 		exitCode := 0
-		if shell.ExitCode != nil {
-			exitCode = *shell.ExitCode
+		if recordedExit != nil {
+			exitCode = *recordedExit
 		}
 		statusMsg = fmt.Sprintf("Shell completed with exit code %d", exitCode)
 	case scheddomain.ShellStateFailed:
 		exitCode := -1
-		if shell.ExitCode != nil {
-			exitCode = *shell.ExitCode
+		if recordedExit != nil {
+			exitCode = *recordedExit
 		}
 		statusMsg = fmt.Sprintf("Shell failed with exit code %d", exitCode)
 	case scheddomain.ShellStateCancelled:
