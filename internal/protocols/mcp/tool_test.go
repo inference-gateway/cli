@@ -526,15 +526,6 @@ func TestMCPTool_ShouldCollapseArg(t *testing.T) {
 	}
 }
 
-func TestMCPTool_ShouldAlwaysExpand(t *testing.T) {
-	mockClient := &mcpmocks.FakeClient{}
-	tool := NewMCPTool("server", "tool", "desc", nil, mockClient, &config.MCPConfig{})
-
-	if tool.ShouldAlwaysExpand() {
-		t.Error("Expected ShouldAlwaysExpand to return false for MCP tools")
-	}
-}
-
 // A result the tool itself flagged with isError fails the execution even
 // though the JSON-RPC call succeeded.
 func TestMCPTool_Execute_ToolReportedError(t *testing.T) {

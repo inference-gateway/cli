@@ -235,56 +235,32 @@ func (t *TextToSpeechTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *TextToSpeechTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "Speech synthesis failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Speech generated"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Speech saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, speechFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *TextToSpeechTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("Speech synthesis failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Speech generated"
-	}
-	path, _ := data["path"].(string)
-	summary := fmt.Sprintf("Speech saved to %s", path)
-	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
-		summary = fmt.Sprintf("%s (%.1fs of audio)", summary, d)
-	}
-	formatter := NewBaseFormatter(ToolTextToSpeech)
-	return formatter.FormatExpanded(result, summary)
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *TextToSpeechTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *TextToSpeechTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, speechFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *TextToSpeechTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
+	return formatSavedResult(result, formatType, speechFile)
+}
+
+// speechFile describes the file the TextToSpeech tool saves.
+var speechFile = savedFile{
+	tool:    ToolTextToSpeech,
+	noun:    "Speech",
+	failure: "Speech synthesis failed",
+	done:    "Speech generated",
+	details: speechDetails,
+}
+
+// speechDetails renders the length of the synthesized audio, when known.
+func speechDetails(data map[string]any) string {
+	if d, ok := data["duration_seconds"].(float64); ok && d > 0 {
+		return fmt.Sprintf(" (%.1fs of audio)", d)
 	}
+	return ""
 }

@@ -149,54 +149,24 @@ func (t *ImageEditTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *ImageEditTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "Image edit failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Image edited"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Image saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, imageEditFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *ImageEditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("Image edit failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Image edited"
-	}
-	path, _ := data["path"].(string)
-	quality, _ := data["quality"].(string)
-	size, _ := data["size"].(string)
-	formatter := NewBaseFormatter(ToolImageEdit)
-	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *ImageEditTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *ImageEditTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, imageEditFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *ImageEditTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatSavedResult(result, formatType, imageEditFile)
+}
+
+// imageEditFile describes the file the ImageEdit tool saves.
+var imageEditFile = savedFile{
+	tool:    ToolImageEdit,
+	noun:    "Image",
+	failure: "Image edit failed",
+	done:    "Image edited",
+	details: imageDetails,
 }

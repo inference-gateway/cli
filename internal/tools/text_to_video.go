@@ -211,53 +211,23 @@ func (t *TextToVideoTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *TextToVideoTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "Video generation failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Video generated"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Video saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, videoFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *TextToVideoTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("Video generation failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Video generated"
-	}
-	path, _ := data["path"].(string)
-	summary := fmt.Sprintf("Video saved to %s", path)
-	formatter := NewBaseFormatter(ToolTextToVideo)
-	return formatter.FormatExpanded(result, summary)
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *TextToVideoTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *TextToVideoTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, videoFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *TextToVideoTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatSavedResult(result, formatType, videoFile)
+}
+
+// videoFile describes the file the TextToVideo tool saves.
+var videoFile = savedFile{
+	tool:    ToolTextToVideo,
+	noun:    "Video",
+	failure: "Video generation failed",
+	done:    "Video generated",
 }

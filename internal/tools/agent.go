@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -730,17 +731,14 @@ func (t *AgentTool) markdownAgentCatalog() string {
 	if len(t.mdAgents) == 0 {
 		return ""
 	}
-	names := make([]string, 0, len(t.mdAgents))
-	for _, agent := range t.mdAgents {
-		names = append(names, agent.name)
-	}
-	sort.Strings(names)
+	agents := slices.SortedFunc(slices.Values(t.mdAgents), func(a, b markdownAgent) int {
+		return strings.Compare(a.name, b.name)
+	})
 
 	var out strings.Builder
 	out.WriteString("Available agents:")
-	for _, name := range names {
-		agent, _ := t.lookupMarkdownAgent(name)
-		fmt.Fprintf(&out, "\n- %s: %s", name, agent.description)
+	for _, agent := range agents {
+		fmt.Fprintf(&out, "\n- %s: %s", agent.name, agent.description)
 	}
 	return out.String()
 }
@@ -810,16 +808,7 @@ func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string
 
 // FormatResult formats tool execution results for different contexts.
 func (t *AgentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a compact one-line preview.
@@ -845,12 +834,7 @@ func (t *AgentTool) FormatForUI(result *agentdomain.ToolExecutionResult) string 
 	if result == nil {
 		return "Agent result unavailable"
 	}
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	var out strings.Builder
-	fmt.Fprintf(&out, "%s\n", toolCall)
-	fmt.Fprintf(&out, "└─ %s %s", statusIcon, t.FormatPreview(result))
-	return out.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM renders a structured detail block for the assistant.
@@ -906,21 +890,6 @@ func formatSubResult(sub AgentSubResult) string {
 		fmt.Fprintf(&out, "%s\n", sub.Result)
 	}
 	return out.String()
-}
-
-// ShouldCollapseArg keeps the Agent tool's arguments visible rather than
-// collapsing them to "...". The task description is the one thing a user needs
-// to see when approving an Agent call - and unlike Write/Edit there is no diff
-// or preview below the summary to fall back on - so it must show in the approval
-// prompt and the tool-call line. Long values are truncated by the surrounding
-// view's width budget.
-func (t *AgentTool) ShouldCollapseArg(string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand keeps the result block collapsed by default.
-func (t *AgentTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 // --- helpers ---

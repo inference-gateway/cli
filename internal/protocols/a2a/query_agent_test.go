@@ -211,10 +211,3 @@ func TestQueryAgentTool_ShouldCollapseArg(t *testing.T) {
 
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
 }
-
-func TestQueryAgentTool_ShouldAlwaysExpand(t *testing.T) {
-	cfg := &config.Config{}
-	tool := NewQueryAgentTool(cfg)
-
-	assert.False(t, tool.ShouldAlwaysExpand())
-}

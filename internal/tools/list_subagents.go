@@ -170,13 +170,3 @@ func (t *ListSubagentsTool) formatList(result *agentdomain.ToolExecutionResult) 
 	out.WriteString("\nRunning subagents notify you automatically when they finish - do not poll. SendSubagentInput steers a running one or tells it to wrap up and report now. Use CloseSubagent(subagent_id=\"<id>\") only to stop one early or tidy a finished pane.")
 	return out.String()
 }
-
-// ShouldCollapseArg returns whether an argument should be collapsed.
-func (t *ListSubagentsTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand returns whether results should always be expanded.
-func (t *ListSubagentsTool) ShouldAlwaysExpand() bool {
-	return false
-}

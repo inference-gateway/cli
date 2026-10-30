@@ -174,12 +174,7 @@ func (t *SendSubagentInputTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts.
 func (t *SendSubagentInputTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatResult(result, formatType, t.FormatForLLM, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -206,14 +201,4 @@ func (t *SendSubagentInputTool) FormatForLLM(result *agentdomain.ToolExecutionRe
 	}
 	msg, _ := data["message"].(string)
 	return msg
-}
-
-// ShouldCollapseArg returns whether an argument should be collapsed.
-func (t *SendSubagentInputTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand returns whether results should always be expanded.
-func (t *SendSubagentInputTool) ShouldAlwaysExpand() bool {
-	return false
 }

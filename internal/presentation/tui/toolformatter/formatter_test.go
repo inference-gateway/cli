@@ -68,7 +68,6 @@ func (t *fakeTool) FormatResult(_ *agentdomain.ToolExecutionResult, ft agentdoma
 	return t.preview
 }
 func (t *fakeTool) FormatPreview(*agentdomain.ToolExecutionResult) string { return t.preview }
-func (t *fakeTool) ShouldCollapseArg(string) bool                         { return false }
 func (t *fakeTool) ShouldAlwaysExpand() bool                              { return t.alwaysExpand }
 
 // FormatResultBody satisfies ResultBodyProvider; returns "" when hasBody is false so

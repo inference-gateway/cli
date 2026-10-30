@@ -196,16 +196,7 @@ func (t *WaitTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts.
 func (t *WaitTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -233,16 +224,7 @@ func (t *WaitTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption. Condition details
@@ -346,11 +328,6 @@ func (t *WaitTool) formatCommandResult(data map[string]any, b *strings.Builder) 
 // ShouldCollapseArg determines if an argument should be collapsed in display.
 func (t *WaitTool) ShouldCollapseArg(key string) bool {
 	return key == "command" || key == "shell_ids"
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI.
-func (t *WaitTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 // waitShells blocks until the referenced background shell(s) exit.

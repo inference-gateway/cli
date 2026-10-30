@@ -113,16 +113,6 @@ func TestFormatResultDispatch(t *testing.T) {
 	}
 }
 
-func TestBaseDisplayFlags(t *testing.T) {
-	b := &browserToolBase{}
-	if b.ShouldCollapseArg("selector") {
-		t.Error("ShouldCollapseArg should be false")
-	}
-	if b.ShouldAlwaysExpand() {
-		t.Error("ShouldAlwaysExpand should be false")
-	}
-}
-
 func TestRequireString(t *testing.T) {
 	tests := []struct {
 		name    string

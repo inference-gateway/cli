@@ -39,7 +39,7 @@ const (
 type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter CustomFormatter
+	formatter BaseFormatter
 	backend   memory.MemoryBackend
 	project   projects.Identity
 }
@@ -672,16 +672,7 @@ func (t *MemoryTool) okResult(args map[string]any, start time.Time, data *Memory
 
 // FormatResult formats tool execution results for different contexts.
 func (t *MemoryTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -741,21 +732,10 @@ func (t *MemoryTool) FormatForUI(result *agentdomain.ToolExecutionResult) string
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-
-	var output strings.Builder
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	fmt.Fprintf(&output, "%s\n", toolCall)
-
 	if !result.Success {
-		fmt.Fprintf(&output, "└─ %s Memory failed: %s", statusIcon, result.Error)
-		return output.String()
+		return t.formatter.FormatCollapsed(result, "Memory failed: "+result.Error)
 	}
-
-	preview := t.FormatPreview(result)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption with expanded structure.
@@ -796,9 +776,4 @@ func (t *MemoryTool) formatMemoryResultData(result *agentdomain.ToolExecutionRes
 // ShouldCollapseArg determines if an argument should be collapsed in display.
 func (t *MemoryTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI.
-func (t *MemoryTool) ShouldAlwaysExpand() bool {
-	return false
 }

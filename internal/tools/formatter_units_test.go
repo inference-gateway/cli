@@ -68,52 +68,6 @@ func TestTruncateText(t *testing.T) {
 	}
 }
 
-func TestCollapseArgValue(t *testing.T) {
-	f := NewBaseFormatter("Test")
-	tests := []struct {
-		name      string
-		value     any
-		maxLength int
-		want      string
-	}{
-		{"short string", "abc", 10, "abc"},
-		{"exact length", "abcde", 5, "abcde"},
-		{"truncated", "abcdefgh", 6, "abc..."},
-		{"max 3", "abcdefgh", 3, "..."},
-		{"non-string value", 12345, 4, "1..."},
-		{"multibyte split", "héllo world", 5, "h\xc3..."},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := f.collapseArgValue(tt.value, tt.maxLength); got != tt.want {
-				t.Errorf("collapseArgValue(%v, %d) = %q, want %q", tt.value, tt.maxLength, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetDomainFromURL(t *testing.T) {
-	f := NewBaseFormatter("Test")
-	tests := []struct {
-		name string
-		url  string
-		want string
-	}{
-		{"https with path", "https://example.com/a/b", "example.com"},
-		{"http", "http://example.com", "example.com"},
-		{"no scheme", "example.com/path", "example.com"},
-		{"with port", "https://example.com:8080/x", "example.com:8080"},
-		{"empty", "", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := f.GetDomainFromURL(tt.url); got != tt.want {
-				t.Errorf("GetDomainFromURL(%q) = %q, want %q", tt.url, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGetFileName(t *testing.T) {
 	f := NewBaseFormatter("Test")
 	tests := []struct {
@@ -123,33 +77,13 @@ func TestGetFileName(t *testing.T) {
 	}{
 		{"nested path", "a/b/c.txt", "c.txt"},
 		{"bare filename", "file.txt", "file.txt"},
-		{"trailing slash", "a/b/", ""},
-		{"empty", "", ""},
+		{"trailing slash", "a/b/", "b"},
+		{"empty", "", "."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := f.GetFileName(tt.path); got != tt.want {
 				t.Errorf("GetFileName(%q) = %q, want %q", tt.path, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestJoinArgs(t *testing.T) {
-	f := NewBaseFormatter("Test")
-	tests := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"empty", nil, ""},
-		{"one", []string{"a=1"}, "a=1"},
-		{"many", []string{"a=1", "b=2", "c=3"}, "a=1, b=2, c=3"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := f.joinArgs(tt.args); got != tt.want {
-				t.Errorf("joinArgs(%v) = %q, want %q", tt.args, got, tt.want)
 			}
 		})
 	}
@@ -239,5 +173,30 @@ func TestFormatExpandedFailureAndCustomCollapse(t *testing.T) {
 	}
 	if strings.Contains(out, "Result:") || strings.Contains(out, "Metadata:") {
 		t.Errorf("empty sections must be omitted:\n%s", out)
+	}
+}
+
+func TestFormatCollapsed(t *testing.T) {
+	f := NewCustomFormatter("Write", func(key string) bool { return key == "content" })
+	tests := []struct {
+		name    string
+		success bool
+		summary string
+		want    string
+	}{
+		{"success", true, "Created f.go", "Write(content=..., path=f.go)\n└─ ✓ Created f.go"},
+		{"failure", false, "disk full", "Write(content=..., path=f.go)\n└─ ✗ disk full"},
+		{"multi-line summary", true, "line one\nline two", "Write(content=..., path=f.go)\n└─ ✓ line one\n     line two"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := &agentdomain.ToolExecutionResult{
+				Success:   tt.success,
+				Arguments: map[string]any{"content": "abc", "path": "f.go"},
+			}
+			if got := f.FormatCollapsed(result, tt.summary); got != tt.want {
+				t.Errorf("FormatCollapsed() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

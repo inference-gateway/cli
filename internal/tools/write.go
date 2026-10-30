@@ -23,10 +23,9 @@ const (
 type WriteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter CustomFormatter
+	formatter BaseFormatter
 	writer    *filewriter.SafeFileWriter
 	chunks    *filewriter.StreamingChunkBuffer
-	extractor *ParameterExtractor
 }
 
 // NewWriteTool creates a new write tool with clean architecture
@@ -36,7 +35,6 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	backupManager := filewriter.NewBackup(filepath.Join(runtimeDir, "backups"))
 	fileWriter := filewriter.NewSafeFileWriter(pathValidator, backupManager)
 	chunkManager := filewriter.NewStreamingChunkBuffer(config.ProjectTmpDir(), fileWriter)
-	paramExtractor := NewParameterExtractor()
 
 	return &WriteTool{
 		config:  cfg,
@@ -44,9 +42,8 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 		formatter: NewCustomFormatter(ToolWrite, func(key string) bool {
 			return key == "content"
 		}),
-		writer:    fileWriter,
-		chunks:    chunkManager,
-		extractor: paramExtractor,
+		writer: fileWriter,
+		chunks: chunkManager,
 	}
 }
 
@@ -74,7 +71,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 		}, nil
 	}
 
-	params, err := t.extractor.ExtractWriteParams(args)
+	writeReq, err := writeRequest(args)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
 			ToolName:  ToolWrite,
@@ -85,7 +82,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 		}, nil
 	}
 
-	result := t.executeWrite(ctx, params, args, start)
+	result := t.executeWrite(ctx, writeReq, args, start)
 
 	format := t.extractFormat(args)
 	if format == JSONFormat {
@@ -111,22 +108,13 @@ func (t *WriteTool) Validate(args map[string]any) error {
 		return fmt.Errorf("write tool is not enabled")
 	}
 
-	_, err := t.extractor.ExtractWriteParams(args)
+	_, err := writeRequest(args)
 	return err
 }
 
 // FormatResult formats tool execution results for different contexts
 func (t *WriteTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -160,30 +148,17 @@ func (t *WriteTool) FormatForUI(result *agentdomain.ToolExecutionResult) string 
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-
-	var output strings.Builder
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	fmt.Fprintf(&output, "%s\n", toolCall)
-
 	if !result.Success {
-		fmt.Fprintf(&output, "└─ %s Write failed: %s", statusIcon, result.Error)
-		return output.String()
+		return t.formatter.FormatCollapsed(result, "Write failed: "+result.Error)
 	}
-
 	if writeResult, ok := result.Data.(*agentdomain.FileWriteToolResult); ok {
 		action := "Updated"
 		if writeResult.Created {
 			action = "Created"
 		}
-		fmt.Fprintf(&output, "└─ %s %s file (%d bytes, %d lines)",
-			statusIcon, action, writeResult.BytesWritten, writeResult.LinesWritten)
-		return output.String()
+		return t.formatter.FormatCollapsed(result, fmt.Sprintf("%s file (%d bytes, %d lines)", action, writeResult.BytesWritten, writeResult.LinesWritten))
 	}
-
-	fmt.Fprintf(&output, "└─ %s Write completed", statusIcon)
-	return output.String()
+	return t.formatter.FormatCollapsed(result, "Write completed")
 }
 
 // FormatForLLM formats the result for LLM consumption with expanded tree structure
@@ -224,15 +199,8 @@ func (t *WriteTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
 
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *WriteTool) ShouldAlwaysExpand() bool {
-	return false
-}
-
 // executeWrite handles regular file write operations
-func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *agentdomain.ToolExecutionResult {
-	writeReq := t.extractor.ToWriteRequest(params)
-
+func (t *WriteTool) executeWrite(ctx context.Context, writeReq filewriter.WriteRequest, args map[string]any, start time.Time) *agentdomain.ToolExecutionResult {
 	writeResult, err := t.writer.Write(ctx, writeReq)
 	if err != nil {
 		return &agentdomain.ToolExecutionResult{
@@ -247,7 +215,7 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 	domainResult := &agentdomain.FileWriteToolResult{
 		FilePath:     writeResult.Path,
 		BytesWritten: writeResult.BytesWritten,
-		LinesWritten: countNewLines(params.Content),
+		LinesWritten: countNewLines(writeReq.Content),
 		Created:      writeResult.Created,
 		Overwritten:  !writeResult.Created,
 		IsComplete:   true,
@@ -260,6 +228,36 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 		Duration:  time.Since(start),
 		Data:      domainResult,
 	}
+}
+
+// writeRequest reads the file_path and content arguments into a request that
+// overwrites the file.
+func writeRequest(args map[string]any) (filewriter.WriteRequest, error) {
+	filePath, err := requiredString(args, "file_path")
+	if err != nil {
+		return filewriter.WriteRequest{}, err
+	}
+	content, err := requiredString(args, "content")
+	if err != nil {
+		return filewriter.WriteRequest{}, err
+	}
+	return filewriter.WriteRequest{Path: filePath, Content: content, Overwrite: true}, nil
+}
+
+// requiredString reads an argument that must be a non-empty string.
+func requiredString(args map[string]any, key string) (string, error) {
+	value, exists := args[key]
+	if !exists {
+		return "", fmt.Errorf("missing required parameter: %s", key)
+	}
+	str, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("parameter %s must be a string, got %T", key, value)
+	}
+	if str == "" {
+		return "", fmt.Errorf("parameter %s cannot be empty", key)
+	}
+	return str, nil
 }
 
 // extractFormat extracts the output format from arguments

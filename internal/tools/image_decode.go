@@ -150,12 +150,7 @@ func (t *ImageDecodeTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts
 func (t *ImageDecodeTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatResult(result, formatType, t.FormatForLLM, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -171,21 +166,14 @@ func (t *ImageDecodeTool) FormatPreview(result *agentdomain.ToolExecutionResult)
 
 // FormatForLLM formats the result for LLM consumption
 func (t *ImageDecodeTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
+	if result == nil {
+		return "Error: no result"
+	}
+	if !result.Success {
 		return fmt.Sprintf("Error: %s", result.Error)
 	}
 	if data, ok := result.Data.(agentdomain.FrameToolResult); ok && data.Annotation != nil {
 		return agentdomain.AnnotationText(data.Annotation)
 	}
 	return "Image attached above."
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *ImageDecodeTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *ImageDecodeTool) ShouldAlwaysExpand() bool {
-	return false
 }
