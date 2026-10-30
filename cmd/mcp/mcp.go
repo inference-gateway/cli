@@ -2,12 +2,10 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -96,28 +94,36 @@ Example:
 		Short: "Enable an MCP server",
 		Long:  `Enable a specific MCP server.`,
 		Args:  cobra.ExactArgs(1),
-		RunE:  c.enableMCPServer,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.setMCPServerEnabled(cmd, args, true)
+		},
 	}
 	mcpDisableCmd := &cobra.Command{
 		Use:   "disable <name>",
 		Short: "Disable an MCP server",
 		Long:  `Disable a specific MCP server.`,
 		Args:  cobra.ExactArgs(1),
-		RunE:  c.disableMCPServer,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.setMCPServerEnabled(cmd, args, false)
+		},
 	}
 	mcpEnableGlobalCmd := &cobra.Command{
 		Use:   "enable-global",
 		Short: "Enable MCP globally",
 		Long:  `Enable the MCP feature globally. This allows MCP servers to be used.`,
 		Args:  cobra.NoArgs,
-		RunE:  c.enableMCPGlobal,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.setMCPGlobalEnabled(cmd, args, true)
+		},
 	}
 	mcpDisableGlobalCmd := &cobra.Command{
 		Use:   "disable-global",
 		Short: "Disable MCP globally",
 		Long:  `Disable the MCP feature globally. This prevents all MCP servers from being used.`,
 		Args:  cobra.NoArgs,
-		RunE:  c.disableMCPGlobal,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.setMCPGlobalEnabled(cmd, args, false)
+		},
 	}
 
 	mcpCmd.AddCommand(mcpListCmd, mcpStatusCmd, mcpStartCmd, mcpStopCmd, mcpAddCmd, mcpRemoveCmd, mcpUpdateCmd, mcpEnableCmd, mcpDisableCmd, mcpEnableGlobalCmd, mcpDisableGlobalCmd)
@@ -132,7 +138,7 @@ Example:
 	mcpAddCmd.Flags().Int("port", 0, "Container port to expose")
 	mcpAddCmd.Flags().Int("startup-timeout", 60, "Startup timeout in seconds")
 
-	mcpStatusCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(mcpStatusCmd, "text", "json")
 
 	mcpUpdateCmd.Flags().String("url", "", "Update the server URL")
 	mcpUpdateCmd.Flags().String("description", "", "Update the description")
@@ -141,27 +147,26 @@ Example:
 	mcpUpdateCmd.Flags().StringSlice("exclude", []string{}, "Update filter for excluded tools (empty = no change)")
 	mcpUpdateCmd.Flags().Bool("enabled", true, "Enable/disable the server")
 
-	mcpCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
+	runtime.AddProjectFlag(mcpCmd)
 
 	return mcpCmd
 }
 
 // getMCPConfigPath returns the mcp.yaml path to write. Writes target the
 // userspace baseline (~/.infer/) by default; --project targets the project
-// .infer/mcp.yaml instead.
-func getMCPConfigPath(cmd *cobra.Command) string {
-	if runtime.ProjectFlag(cmd) {
-		return config.DefaultMCPPath
-	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return config.DefaultMCPPath
-	}
-	return filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
+// .infer/mcp.yaml instead. A missing home directory is an error like the
+// other write-path lookups.
+func getMCPConfigPath(cmd *cobra.Command) (string, error) {
+	return runtime.WritePath(runtime.ProjectFlag(cmd), config.MCPFileName)
 }
 
 func (c *command) listMCPServers(cmd *cobra.Command, _ []string) error {
-	configPath := getMCPConfigPath(cmd)
+	w := cmd.OutOrStdout()
+
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return err
+	}
 
 	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
@@ -169,27 +174,27 @@ func (c *command) listMCPServers(cmd *cobra.Command, _ []string) error {
 	}
 
 	if len(cfg.Servers) == 0 {
-		fmt.Println("No MCP servers configured.")
-		fmt.Println()
-		fmt.Printf("To add a server: infer mcp add <name> <url>\n")
+		fmt.Fprintln(w, "No MCP servers configured.")
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "To add a server: infer mcp add <name> <url>\n")
 		return nil
 	}
 
-	fmt.Println(c.renderer.Title("MCP Configuration"))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Title("MCP Configuration"))
+	fmt.Fprintln(w)
 
-	fmt.Println(c.renderer.Field("Global Status", fmt.Sprintf("%s %s", c.renderer.StatusIcon(cfg.Enabled), enabledText(cfg.Enabled))))
-	fmt.Println(c.renderer.Field("Connection Timeout", fmt.Sprintf("%ds", cfg.ConnectionTimeout)))
-	fmt.Println(c.renderer.Field("Discovery Timeout", fmt.Sprintf("%ds", cfg.DiscoveryTimeout)))
+	fmt.Fprintln(w, c.renderer.Field("Global Status", fmt.Sprintf("%s %s", c.renderer.StatusIcon(cfg.Enabled), enabledText(cfg.Enabled))))
+	fmt.Fprintln(w, c.renderer.Field("Connection Timeout", fmt.Sprintf("%ds", cfg.ConnectionTimeout)))
+	fmt.Fprintln(w, c.renderer.Field("Discovery Timeout", fmt.Sprintf("%ds", cfg.DiscoveryTimeout)))
 	liveness := enabledText(cfg.LivenessProbeEnabled)
 	if cfg.LivenessProbeEnabled {
 		liveness += fmt.Sprintf(" (interval: %ds)", cfg.LivenessProbeInterval)
 	}
-	fmt.Println(c.renderer.Field("Liveness Probes", liveness))
-	fmt.Println(c.renderer.Field("Config Path", configPath))
-	fmt.Println()
-	fmt.Println(c.renderer.Hint(fmt.Sprintf("%d server(s) configured", len(cfg.Servers))))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Field("Liveness Probes", liveness))
+	fmt.Fprintln(w, c.renderer.Field("Config Path", configPath))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, c.renderer.Hint(fmt.Sprintf("%d server(s) configured", len(cfg.Servers))))
+	fmt.Fprintln(w)
 
 	serversTable := c.renderer.NewListTable("Enabled", "Name", "URL", "Description", "Timeout", "Auto")
 	for _, server := range cfg.Servers {
@@ -214,17 +219,22 @@ func (c *command) listMCPServers(cmd *cobra.Command, _ []string) error {
 
 		serversTable.Row(c.renderer.StatusIcon(server.Enabled), server.Name, server.GetURL(), description, timeoutStr, autoStart)
 	}
-	fmt.Println(serversTable.Render())
+	fmt.Fprintln(w, serversTable.Render())
 
-	c.printMCPToolFilters(cfg.Servers)
+	c.printMCPToolFilters(w, cfg.Servers)
 
-	fmt.Println()
-	fmt.Println(c.renderer.StatusLegend())
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, c.renderer.StatusLegend())
 	return nil
 }
 
 func (c *command) mcpStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadMCP(getMCPConfigPath(cmd))
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}
@@ -240,23 +250,19 @@ func (c *command) mcpStatus(cmd *cobra.Command, args []string) error {
 
 	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
-		out, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal MCP status: %w", err)
-		}
-		fmt.Println(string(out))
-		return nil
+		return output.PrintJSON(cmd.OutOrStdout(), report)
 	}
 
+	w := cmd.OutOrStdout()
 	if !report.Enabled {
-		fmt.Println(c.renderer.Hint("MCP is disabled globally (infer mcp enable-global)"))
+		fmt.Fprintln(w, c.renderer.Hint("MCP is disabled globally (infer mcp enable-global)"))
 	}
-	fmt.Println(c.renderer.Title(report.Indicator()))
+	fmt.Fprintln(w, c.renderer.Title(report.Indicator()))
 	if len(report.Servers) == 0 {
-		fmt.Println("No MCP servers configured.")
+		fmt.Fprintln(w, "No MCP servers configured.")
 		return nil
 	}
-	fmt.Println()
+	fmt.Fprintln(w)
 	statusTable := c.renderer.NewListTable("Connected", "Name", "Tools", "Error")
 	for _, server := range report.Servers {
 		errText := server.Error
@@ -265,7 +271,7 @@ func (c *command) mcpStatus(cmd *cobra.Command, args []string) error {
 		}
 		statusTable.Row(c.renderer.StatusIcon(server.Connected), server.Name, fmt.Sprintf("%d", server.Tools), errText)
 	}
-	fmt.Println(statusTable.Render())
+	fmt.Fprintln(w, statusTable.Render())
 	return nil
 }
 
@@ -274,10 +280,11 @@ func (c *command) startMCPServers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := c.sharedRuntime()
+	rt, err := runtime.SharedContainerRuntime(c.state.Config())
 	if err != nil {
 		return err
 	}
+	w := cmd.OutOrStdout()
 	ctx := context.Background()
 	if err := rt.EnsureNetwork(ctx); err != nil {
 		return fmt.Errorf("failed to create container network: %w", err)
@@ -287,10 +294,10 @@ func (c *command) startMCPServers(cmd *cobra.Command, args []string) error {
 	for _, server := range servers {
 		if err := supervisor.StartServer(ctx, server); err != nil {
 			failed = errors.Join(failed, fmt.Errorf("%s: %w", server.Name, err))
-			fmt.Printf("%s %s\n", c.renderer.StatusIcon(false), server.Name)
+			fmt.Fprintf(w, "%s %s\n", c.renderer.StatusIcon(false), server.Name)
 			continue
 		}
-		fmt.Printf("%s %s\n", c.renderer.StatusIcon(true), server.Name)
+		fmt.Fprintf(w, "%s %s\n", c.renderer.StatusIcon(true), server.Name)
 	}
 	return failed
 }
@@ -300,7 +307,7 @@ func (c *command) stopMCPServers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := c.sharedRuntime()
+	rt, err := runtime.SharedContainerRuntime(c.state.Config())
 	if err != nil {
 		return err
 	}
@@ -309,14 +316,19 @@ func (c *command) stopMCPServers(cmd *cobra.Command, args []string) error {
 		if err := supervisor.StopServer(context.Background(), server.Name); err != nil {
 			return fmt.Errorf("%s: %w", server.Name, err)
 		}
-		fmt.Printf("%s %s stopped\n", c.renderer.StatusIcon(true), server.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s stopped\n", c.renderer.StatusIcon(true), server.Name)
 	}
 	return nil
 }
 
 // runnableServers returns the enabled run:true servers, narrowed to args[0] when given.
 func (c *command) runnableServers(cmd *cobra.Command, args []string) (*config.MCPConfig, []config.MCPServerEntry, error) {
-	cfg, err := config.LoadMCP(getMCPConfigPath(cmd))
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load MCP config: %w", err)
 	}
@@ -339,20 +351,9 @@ func (c *command) runnableServers(cmd *cobra.Command, args []string) (*config.MC
 	return cfg, servers, nil
 }
 
-func (c *command) sharedRuntime() (containerruntime.ContainerRuntime, error) {
-	rt, err := containerruntime.NewContainerRuntime(containerruntime.SharedSessionID, containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
-	if err != nil {
-		return nil, err
-	}
-	if rt == nil {
-		return nil, fmt.Errorf("no container runtime configured (set container_runtime.type to docker or podman)")
-	}
-	return rt, nil
-}
-
 // printMCPToolFilters prints the per-server include/exclude tool filters when
 // any server defines them.
-func (c *command) printMCPToolFilters(servers []config.MCPServerEntry) {
+func (c *command) printMCPToolFilters(w io.Writer, servers []config.MCPServerEntry) {
 	hasFilters := false
 	for _, server := range servers {
 		if len(server.IncludeTools) > 0 || len(server.ExcludeTools) > 0 {
@@ -364,20 +365,25 @@ func (c *command) printMCPToolFilters(servers []config.MCPServerEntry) {
 		return
 	}
 
-	fmt.Println()
-	fmt.Println(c.renderer.Title("Tool Filters"))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, c.renderer.Title("Tool Filters"))
 	for _, server := range servers {
 		if len(server.IncludeTools) > 0 {
-			fmt.Println(c.renderer.Field(server.Name+" include", strings.Join(server.IncludeTools, ", ")))
+			fmt.Fprintln(w, c.renderer.Field(server.Name+" include", strings.Join(server.IncludeTools, ", ")))
 		}
 		if len(server.ExcludeTools) > 0 {
-			fmt.Println(c.renderer.Field(server.Name+" exclude", strings.Join(server.ExcludeTools, ", ")))
+			fmt.Fprintln(w, c.renderer.Field(server.Name+" exclude", strings.Join(server.ExcludeTools, ", ")))
 		}
 	}
 }
 
 func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 	name := args[0]
+
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return err
+	}
 
 	description, _ := cmd.Flags().GetString("description")
 	timeout, _ := cmd.Flags().GetInt("timeout")
@@ -419,8 +425,6 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 		server.Ports = nil
 	} else if run {
 		basePort := 3000
-
-		configPath := getMCPConfigPath(cmd)
 		existingConfig, _ := config.LoadMCP(configPath)
 
 		for _, existing := range existingConfig.Servers {
@@ -436,8 +440,6 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 		server.Ports = nil
 	}
 
-	configPath := getMCPConfigPath(cmd)
-
 	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
@@ -446,27 +448,36 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add MCP server: %w", err)
 	}
 
-	fmt.Printf("%s MCP server added: %s\n",
-		c.renderer.StatusIcon(true),
-		name)
-	fmt.Printf("  URL: %s\n", server.GetURL())
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s MCP server added: %s\n", c.renderer.StatusIcon(true), name)
+	fmt.Fprintf(w, "  URL: %s\n", server.GetURL())
 	if description != "" {
-		fmt.Printf("  Description: %s\n", description)
+		fmt.Fprintf(w, "  Description: %s\n", description)
 	}
 	if run {
-		fmt.Printf("  Auto-start: %s (OCI: %s)\n", enabledText(true), oci)
+		fmt.Fprintf(w, "  Auto-start: %s (OCI: %s)\n", enabledText(true), oci)
 	}
-	fmt.Printf("  Status: %s\n", enabledText(enabled))
-	fmt.Printf("\nConfiguration saved to %s\n", configPath)
-	fmt.Printf("\nNote: If using chat mode, restart the chat session to connect to the new MCP server.\n")
+	fmt.Fprintf(w, "  Status: %s\n", enabledText(enabled))
+	fmt.Fprintf(w, "\n")
+	saved(w, configPath)
 
 	return nil
+}
+
+// saved prints the write trailer shared by every command that rewrites
+// mcp.yaml: where it landed and that a running chat session must restart.
+func saved(w io.Writer, path string) {
+	fmt.Fprintf(w, "Configuration saved to %s\n", path)
+	fmt.Fprintln(w, "Note: If using chat mode, restart the chat session to apply changes.")
 }
 
 func (c *command) removeMCPServer(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	configPath := getMCPConfigPath(cmd)
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return err
+	}
 
 	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
@@ -476,10 +487,9 @@ func (c *command) removeMCPServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to remove MCP server: %w", err)
 	}
 
-	fmt.Printf("%s MCP server removed: %s\n",
-		c.renderer.StatusIcon(true),
-		name)
-	fmt.Printf("Configuration saved to %s\n", configPath)
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s MCP server removed: %s\n", c.renderer.StatusIcon(true), name)
+	saved(w, configPath)
 
 	return nil
 }
@@ -487,7 +497,10 @@ func (c *command) removeMCPServer(cmd *cobra.Command, args []string) error {
 func (c *command) updateMCPServer(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	configPath := getMCPConfigPath(cmd)
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return err
+	}
 
 	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
@@ -538,18 +551,20 @@ func (c *command) updateMCPServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update MCP server: %w", err)
 	}
 
-	fmt.Printf("%s MCP server updated: %s\n",
-		c.renderer.StatusIcon(true),
-		name)
-	fmt.Printf("Configuration saved to %s\n", configPath)
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s MCP server updated: %s\n", c.renderer.StatusIcon(true), name)
+	saved(w, configPath)
 
 	return nil
 }
 
-func (c *command) enableMCPServer(cmd *cobra.Command, args []string) error {
+func (c *command) setMCPServerEnabled(cmd *cobra.Command, args []string, enable bool) error {
 	name := args[0]
 
-	configPath := getMCPConfigPath(cmd)
+	configPath, err := getMCPConfigPath(cmd)
+	if err != nil {
+		return err
+	}
 
 	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
@@ -560,88 +575,47 @@ func (c *command) enableMCPServer(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get MCP server: %w", err)
 	}
 
-	server.Enabled = true
+	server.Enabled = enable
 
+	action := "enable"
+	if !enable {
+		action = "disable"
+	}
 	if err := cfg.UpdateEntry(*server); err != nil {
-		return fmt.Errorf("failed to enable MCP server: %w", err)
+		return fmt.Errorf("failed to %s MCP server: %w", action, err)
 	}
 
-	fmt.Printf("%s MCP server enabled: %s\n",
-		c.renderer.StatusIcon(true),
-		name)
-	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s MCP server %s: %s\n", c.renderer.StatusIcon(enable), name, enabledText(enable))
+	saved(w, configPath)
 
 	return nil
 }
 
-func (c *command) disableMCPServer(cmd *cobra.Command, args []string) error {
-	name := args[0]
-
-	configPath := getMCPConfigPath(cmd)
-
-	cfg, err := config.LoadMCP(configPath)
+func (c *command) setMCPGlobalEnabled(cmd *cobra.Command, _ []string, enable bool) error {
+	configPath, err := getMCPConfigPath(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to load MCP config: %w", err)
+		return err
 	}
-	server, err := cfg.ReadEntry(name)
-	if err != nil {
-		return fmt.Errorf("failed to get MCP server: %w", err)
-	}
-
-	server.Enabled = false
-
-	if err := cfg.UpdateEntry(*server); err != nil {
-		return fmt.Errorf("failed to disable MCP server: %w", err)
-	}
-
-	fmt.Printf("%s MCP server disabled: %s\n",
-		c.renderer.StatusIcon(false),
-		name)
-	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
-
-	return nil
-}
-
-func (c *command) enableMCPGlobal(cmd *cobra.Command, _ []string) error {
-	configPath := getMCPConfigPath(cmd)
 
 	cfg, err := config.LoadMCP(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}
 
-	cfg.Enabled = true
+	cfg.Enabled = enable
 
+	action := "enable"
+	if !enable {
+		action = "disable"
+	}
 	if err := config.SaveMCP(configPath, cfg); err != nil {
-		return fmt.Errorf("failed to enable MCP globally: %w", err)
+		return fmt.Errorf("failed to %s MCP globally: %w", action, err)
 	}
 
-	fmt.Printf("%s MCP enabled globally\n", c.renderer.StatusIcon(true))
-	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
-
-	return nil
-}
-
-func (c *command) disableMCPGlobal(cmd *cobra.Command, _ []string) error {
-	configPath := getMCPConfigPath(cmd)
-
-	cfg, err := config.LoadMCP(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load MCP config: %w", err)
-	}
-
-	cfg.Enabled = false
-
-	if err := config.SaveMCP(configPath, cfg); err != nil {
-		return fmt.Errorf("failed to disable MCP globally: %w", err)
-	}
-
-	fmt.Printf("%s MCP disabled globally\n", c.renderer.StatusIcon(false))
-	fmt.Printf("Configuration saved to %s\n", configPath)
-	fmt.Printf("\nNote: If using chat mode, restart the chat session to apply changes.\n")
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s MCP %s globally\n", c.renderer.StatusIcon(enable), enabledText(enable))
+	saved(w, configPath)
 
 	return nil
 }
