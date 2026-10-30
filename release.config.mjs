@@ -1,16 +1,7 @@
 /**
- * semantic-release configuration.
- *
- * This is a JS config (not YAML) because the installation section is appended
- * to the release notes via `writerOpts.footerPartial`, which
- * conventional-changelog-writer v9 only accepts as a function. Generating the
- * section in the notes (rather than the GitHub plugin's releaseBodyTemplate)
- * is what lets `addReleases: bottom` work: that option rewrites the release
- * body from the raw notes, so anything not in the notes gets discarded.
+ * Appended to the GitHub release body only, so CHANGELOG.md keeps just the changes.
  */
-
-const installationSection = (context) => {
-  const version = context.version;
+const installationSection = ({ version }) => {
   const gitTag = `v${version}`;
 
   return `
@@ -129,7 +120,6 @@ export default {
         },
         writerOpts: {
           commitsSort: ['subject', 'scope'],
-          footerPartial: installationSection,
         },
       },
     ],
@@ -198,7 +188,7 @@ export default {
           { path: 'dist/checksums.txt.sigstore.json' },
         ],
         discussionCategoryName: false,
-        addReleases: 'bottom',
+        releaseBodyTemplate: '<%= nextRelease.notes %>' + installationSection({ version: '<%= nextRelease.version %>' }),
         releasedLabels: ["<%= nextRelease.channel ? 'prerelease' : 'released' %>"],
       },
     ],
