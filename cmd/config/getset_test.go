@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	cobra "github.com/spf13/cobra"
+	yaml "gopkg.in/yaml.v3"
 
+	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 )
 
@@ -123,13 +125,34 @@ func TestLookupConfigKey(t *testing.T) {
 	}
 }
 
-func TestSplitListValue(t *testing.T) {
-	got := splitListValue("a, b ,,c\nd")
+func TestParseDelimitedList(t *testing.T) {
+	got := runtime.ParseDelimitedList("a, b ,,c\nd")
 	want := []string{"a", "b", "c", "d"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	if got := splitListValue("  "); len(got) != 0 {
+	if got := runtime.ParseDelimitedList("  "); len(got) != 0 {
 		t.Fatalf("expected empty slice, got %v", got)
+	}
+}
+
+// A `config set key ""` parse now returns a nil slice (ParseDelimitedList)
+// where the old splitListValue returned an empty one. Both must save the same
+// file: yaml encodes either as a bare empty sequence, so the project override
+// keeps `key: []` instead of dropping the key or writing null.
+func TestParseDelimitedListEmptyMarshalsLikeEmptySlice(t *testing.T) {
+	nilOut, err := yaml.Marshal([]string(nil))
+	if err != nil {
+		t.Fatalf("marshal nil slice: %v", err)
+	}
+	emptyOut, err := yaml.Marshal([]string{})
+	if err != nil {
+		t.Fatalf("marshal empty slice: %v", err)
+	}
+	if string(nilOut) != string(emptyOut) {
+		t.Fatalf("nil and empty slices no longer marshal alike: %q vs %q", nilOut, emptyOut)
+	}
+	if string(nilOut) != "[]\n" {
+		t.Fatalf("expected a bare empty sequence, got %q", nilOut)
 	}
 }
