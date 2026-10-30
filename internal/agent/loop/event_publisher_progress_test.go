@@ -11,7 +11,7 @@ import (
 // not stall their tool when the consumer falls behind.
 func TestPublishToolProgressDropsInsteadOfBlocking(t *testing.T) {
 	events := make(chan agentdomain.ChatEvent)
-	p := newEventPublisher("req-1", events)
+	p := newEventPublisher("req-1", events, nil)
 
 	done := make(chan struct{})
 	go func() {
@@ -28,7 +28,7 @@ func TestPublishToolProgressDropsInsteadOfBlocking(t *testing.T) {
 
 func TestPublishToolProgressDeliversWhenConsumerKeepsUp(t *testing.T) {
 	events := make(chan agentdomain.ChatEvent, 1)
-	p := newEventPublisher("req-1", events)
+	p := newEventPublisher("req-1", events, nil)
 
 	p.publishToolProgress("call-1", "TextToSpeech", "Downloading tts model: 12 MB")
 

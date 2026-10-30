@@ -3,8 +3,10 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	assert "github.com/stretchr/testify/assert"
 
@@ -195,4 +197,25 @@ func TestConversationTitleGenerator_formatConversationForTitleGeneration(t *test
 	assert.NotContains(t, result, "System message")
 
 	assert.True(t, len(result) <= 2000, "Formatted content should not exceed 2000 characters")
+}
+
+func TestTruncateTitle(t *testing.T) {
+	tests := []struct {
+		name  string
+		title string
+		want  string
+	}{
+		{name: "short title is kept", title: "Fix the login bug", want: "Fix the login bug"},
+		{name: "long title ends at its last word break", title: strings.Repeat("word ", 12), want: strings.TrimSpace(strings.Repeat("word ", 10))},
+		{name: "multibyte runes are never split", title: strings.Repeat("é", 60), want: strings.Repeat("é", 50)},
+		{name: "an early word break counts runes, not bytes", title: strings.Repeat("é", 20) + " " + strings.Repeat("é", 40), want: strings.Repeat("é", 20) + " " + strings.Repeat("é", 29)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateTitle(tt.title)
+			assert.Equal(t, tt.want, got)
+			assert.True(t, utf8.ValidString(got))
+		})
+	}
 }

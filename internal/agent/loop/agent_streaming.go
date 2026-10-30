@@ -170,7 +170,7 @@ func (a *eventDrivenAgent) outboundConversation() []sdk.Message {
 	if conversationAwaitsToolResults(conversation) {
 		return conversation
 	}
-	if tail, ok := a.service.volatileTailMessage(conversation, a.req.IsChatMode); ok {
+	if tail, ok := a.service.volatileTailMessage(a.agentCtx.Ctx, conversation, a.req.IsChatMode); ok {
 		conversation = append(slices.Clone(conversation), tail)
 	}
 	return conversation
@@ -198,11 +198,11 @@ func rateLimitMessage(provider string, err *sdk.RateLimitError, now time.Time) e
 // failStream publishes a terminal stream error and moves the state machine to
 // StateError.
 func (a *eventDrivenAgent) failStream(err error) {
-	a.eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
+	a.eventPublisher.send(agentdomain.ChatErrorEvent{
 		RequestID: a.req.RequestID,
 		Timestamp: time.Now(),
 		Error:     err,
-	}
+	})
 	if terr := a.stateMachine.Transition(a.agentCtx, states.StateError); terr != nil {
 		logger.Error("failed to transition to Error state after stream failure", "error", terr)
 	}
@@ -293,15 +293,7 @@ func (a *eventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, p
 	if cause := context.Cause(requestCtx); errors.Is(cause, context.DeadlineExceeded) {
 		logger.Error("stream timeout", "error", cause)
 		telemetry.SetSpanError(requestCtx, cause)
-		a.eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
-			RequestID: a.req.RequestID,
-			Timestamp: time.Now(),
-			Error:     a.firstChunkTimeout(),
-		}
-		if err := a.stateMachine.Transition(a.agentCtx, states.StateError); err != nil {
-			logger.Error("failed to transition to Error state after stream failure", "error", err)
-		}
-		a.events <- states.MessageReceivedEvent{}
+		a.failStream(a.firstChunkTimeout())
 		return
 	}
 

@@ -210,12 +210,12 @@ func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEnt
 	threshold := (contextWindow * autoAt) / 100
 
 	lastInput := m.repo.GetSessionTokens().LastInputTokens
-	return m.tokenizer.EffectiveContextTokens(lastInput, visibleMessages(entries)) >= threshold
+	return m.tokenizer.EffectiveContextTokens(lastInput, VisibleMessages(entries)) >= threshold
 }
 
-// visibleMessages is the message set a rollover compacts: hidden entries are
-// dropped so the gate and the compaction estimate the same conversation.
-func visibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
+// VisibleMessages is the message set a compaction sees: hidden entries are
+// dropped so a gate and the compaction itself estimate the same conversation.
+func VisibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Hidden {
@@ -224,6 +224,26 @@ func visibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
 		messages = append(messages, entry.Message)
 	}
 	return messages
+}
+
+// ReseedConversation starts a fresh conversation titled "Continued from <old
+// title>" and seeds it with the given messages. The old conversation is
+// preserved in storage; per-message save failures are logged, not returned.
+func ReseedConversation(repo convdomain.ConversationRepository, messages []sdk.Message, model string) error {
+	if err := repo.StartNewConversation(fmt.Sprintf("Continued from %s", repo.GetCurrentConversationTitle())); err != nil {
+		return err
+	}
+	for _, msg := range messages {
+		entry := convdomain.ConversationEntry{
+			Message: msg,
+			Model:   model,
+			Time:    time.Now(),
+		}
+		if err := repo.AddMessage(entry); err != nil {
+			logger.Error("failed to add optimized message", "error", err)
+		}
+	}
+	return nil
 }
 
 // errNoCheckpoint reports a gated rollover whose optimizer produced no
@@ -251,8 +271,8 @@ func hasCheckpoint(messages []sdk.Message) bool {
 // re-adds the summarized messages, and (if groupKey != "") updates the
 // configured SessionGroupStorage to point the group at the new session ID.
 //
-// This mirrors performCompactAsync in chat_shortcut_handler.go:510-615 - same
-// optimizer call, same StartNewConversation call, same AddMessage loop.
+// The same reseed work backs /compact (performCompactAsync), with both paths
+// handing them over to ReseedConversation.
 //
 // Returns the new session UUID on success.
 func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey string) (string, error) {
@@ -276,10 +296,9 @@ func (m *SessionRollover) performRollover(ctx context.Context, model, groupKey s
 		return "", errors.New("no messages to rollover")
 	}
 
-	originalTitle := m.repo.GetCurrentConversationTitle()
 	originalID := m.repo.GetCurrentConversationID()
 
-	messages := visibleMessages(entries)
+	messages := VisibleMessages(entries)
 	if len(messages) == 0 {
 		return "", errors.New("no visible messages to rollover")
 	}
@@ -298,23 +317,11 @@ func (m *SessionRollover) performRollover(ctx context.Context, model, groupKey s
 		logger.Debug("optimizer returned no reduction, copying messages as-is")
 	}
 
-	newTitle := fmt.Sprintf("Continued from %s", originalTitle)
-	if err := m.repo.StartNewConversation(newTitle); err != nil {
+	if err := ReseedConversation(m.repo, optimized, model); err != nil {
 		return "", fmt.Errorf("failed to start new conversation: %w", err)
 	}
 
 	newID := m.repo.GetCurrentConversationID()
-
-	for _, msg := range optimized {
-		entry := convdomain.ConversationEntry{
-			Message: msg,
-			Model:   model,
-			Time:    time.Now(),
-		}
-		if err := m.repo.AddMessage(entry); err != nil {
-			logger.Error("failed to add summarized message to new session", "error", err)
-		}
-	}
 
 	if groupKey != "" {
 		if err := m.updateGroupIndex(ctx, groupKey, newID, originalID); err != nil {

@@ -64,7 +64,7 @@ func createTestAgent(mocks *testMocks, ctx *states.AgentContext) *eventDrivenAge
 		conversationRepo: mocks.repo,
 		stateManager:     mocks.stateManager,
 		approvalPolicy:   mocks.approval,
-		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
+		toolCallsMap:     make(map[int]*sdk.ChatCompletionMessageToolCall),
 	}
 
 	eventPublisher := &eventPublisher{

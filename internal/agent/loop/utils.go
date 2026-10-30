@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -36,15 +37,13 @@ func (s *Agent) accumulateToolCalls(deltas []sdk.ChatCompletionMessageToolCallCh
 	defer s.toolCallsMux.Unlock()
 
 	for _, delta := range deltas {
-		key := fmt.Sprintf("%d", delta.Index)
-
 		deltaID := ""
 		if delta.ID != nil {
 			deltaID = *delta.ID
 		}
 
-		if s.toolCallsMap[key] == nil {
-			s.toolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
+		if s.toolCallsMap[delta.Index] == nil {
+			s.toolCallsMap[delta.Index] = &sdk.ChatCompletionMessageToolCall{
 				ID:   deltaID,
 				Type: sdk.Function,
 				Function: sdk.ChatCompletionMessageToolCallFunction{
@@ -54,7 +53,7 @@ func (s *Agent) accumulateToolCalls(deltas []sdk.ChatCompletionMessageToolCallCh
 			}
 		}
 
-		toolCall := s.toolCallsMap[key]
+		toolCall := s.toolCallsMap[delta.Index]
 		if deltaID != "" {
 			toolCall.ID = deltaID
 		}
@@ -112,23 +111,12 @@ func (s *Agent) getAccumulatedToolCalls() []*sdk.ChatCompletionMessageToolCall {
 		return nil
 	}
 
-	indices := make([]int, 0, len(s.toolCallsMap))
-	for key := range s.toolCallsMap {
-		var idx int
-		_, _ = fmt.Sscanf(key, "%d", &idx)
-		indices = append(indices, idx)
-	}
-	slices.Sort(indices)
-
 	result := make([]*sdk.ChatCompletionMessageToolCall, 0, len(s.toolCallsMap))
-	for _, idx := range indices {
-		key := fmt.Sprintf("%d", idx)
-		if tc, ok := s.toolCallsMap[key]; ok {
-			result = append(result, tc)
-		}
+	for _, idx := range slices.Sorted(maps.Keys(s.toolCallsMap)) {
+		result = append(result, s.toolCallsMap[idx])
 	}
 
-	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
+	s.toolCallsMap = make(map[int]*sdk.ChatCompletionMessageToolCall)
 	return result
 }
 
@@ -137,7 +125,7 @@ func (s *Agent) clearToolCallsMap() {
 	s.toolCallsMux.Lock()
 	defer s.toolCallsMux.Unlock()
 
-	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
+	s.toolCallsMap = make(map[int]*sdk.ChatCompletionMessageToolCall)
 }
 
 // BuildSystemPrompt assembles the static system prompt sent as message[0]
@@ -181,7 +169,7 @@ func (s *Agent) BuildSystemPrompt() string {
 // means no tail is sent. Exposed for the `infer debug agent system_prompt`
 // command, alongside SystemPromptSections.
 func (s *Agent) VolatileTailText() (string, bool) {
-	tail, ok := s.volatileTailMessage(nil, true)
+	tail, ok := s.volatileTailMessage(context.Background(), nil, true)
 	if !ok {
 		return "", false
 	}
@@ -212,14 +200,14 @@ func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 // current date, live-mode tool roster and bash allow-list), appended to the outbound
 // payload only, never persisted, so message[0] stays byte-stable for KV-cache
 // reuse. ok=false means append nothing; callers gate the append after repair.
-func (s *Agent) volatileTailMessage(messages []sdk.Message, isChat bool) (sdk.Message, bool) {
+func (s *Agent) volatileTailMessage(ctx context.Context, messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
 	}
 
 	var b strings.Builder
 	if s.config.GetAgentConfig().SystemPromptWithDefaults {
-		for _, section := range s.volatileContextSections(len(messages)/2, messages, isChat) {
+		for _, section := range s.volatileContextSections(ctx, len(messages)/2, messages, isChat) {
 			b.WriteString(section.Text)
 		}
 	}
@@ -263,11 +251,11 @@ func (s *Agent) contextSections() []PromptSection {
 // the session progresses (or with an agent-mode switch, since the tool roster
 // and bash allow-list advertise the live mode); they are delivered per request
 // via volatileTailMessage rather than in the system prompt.
-func (s *Agent) volatileContextSections(currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
+func (s *Agent) volatileContextSections(ctx context.Context, currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
 	return []PromptSection{
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
-		{Name: "active_skill", Text: s.buildActiveSkillInfo(messages, isChat), Volatile: true},
+		{Name: "active_skill", Text: s.buildActiveSkillInfo(ctx, messages, isChat), Volatile: true},
 		{Name: "loaded_skills", Text: s.buildLoadedSkillsInfo(messages), Volatile: true},
 		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
 		{Name: "bash_allow_list", Text: s.buildBashAllowInfo(), Volatile: true},
@@ -297,7 +285,7 @@ func (s *Agent) SystemPromptSections() []PromptSection {
 	}
 	if s.config.GetAgentConfig().SystemPromptWithDefaults {
 		sections = append(sections, s.contextSections()...)
-		sections = append(sections, s.volatileContextSections(0, nil, true)...)
+		sections = append(sections, s.volatileContextSections(context.Background(), 0, nil, true)...)
 	}
 
 	nonEmpty := sections[:0]
@@ -520,7 +508,7 @@ var (
 // the install is user-approved at the input layer instead (see
 // ChatMessageProcessor.confirmCatalogInstall), so a not-yet-installed skill is
 // skipped here rather than fetched behind the user's back.
-func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string {
+func (s *Agent) buildActiveSkillInfo(ctx context.Context, messages []sdk.Message, isChat bool) string {
 	if s.skillsService == nil {
 		return ""
 	}
@@ -548,7 +536,7 @@ func (s *Agent) buildActiveSkillInfo(messages []sdk.Message, isChat bool) string
 			if isChat {
 				continue
 			}
-			if sk, ok = s.skillsService.Discover(context.Background(), name); !ok {
+			if sk, ok = s.skillsService.Discover(ctx, name); !ok {
 				continue
 			}
 		}

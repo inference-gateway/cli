@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -194,8 +195,8 @@ func TestBuildLoadedSkillsInfo(t *testing.T) {
 	messages := answered(userMsg("/go"), skillCall("1", "go"))
 
 	assert.Contains(t, svc.buildLoadedSkillsInfo(messages), "do not load it again: go")
-	assert.Empty(t, svc.buildActiveSkillInfo(messages, true), "a loaded skill is no longer told to be loaded")
-	assert.Contains(t, svc.buildActiveSkillInfo([]sdk.Message{userMsg("/go")}, true), "Path: /s/go/SKILL.md")
+	assert.Empty(t, svc.buildActiveSkillInfo(context.Background(), messages, true), "a loaded skill is no longer told to be loaded")
+	assert.Contains(t, svc.buildActiveSkillInfo(context.Background(), []sdk.Message{userMsg("/go")}, true), "Path: /s/go/SKILL.md")
 	assert.Empty(t, svc.buildLoadedSkillsInfo([]sdk.Message{userMsg("/go")}))
 }
 

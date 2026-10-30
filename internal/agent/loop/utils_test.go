@@ -621,7 +621,7 @@ func TestBuildActiveSkillInfo(t *testing.T) {
 				s = &Agent{}
 			}
 
-			got := s.buildActiveSkillInfo(tt.messages, false)
+			got := s.buildActiveSkillInfo(context.Background(), tt.messages, false)
 
 			if tt.wantEmpty {
 				require.Empty(t, got)
@@ -936,7 +936,7 @@ func TestVolatileTailMessage(t *testing.T) {
 	}
 
 	t.Run("carries volatile sections and date", func(t *testing.T) {
-		msg, ok := newSvc(true, true).volatileTailMessage(nil, true)
+		msg, ok := newSvc(true, true).volatileTailMessage(context.Background(), nil, true)
 		require.True(t, ok)
 		require.Equal(t, sdk.User, msg.Role)
 		content := tailContent(t, msg)
@@ -947,13 +947,13 @@ func TestVolatileTailMessage(t *testing.T) {
 	})
 
 	t.Run("disabled section is absent", func(t *testing.T) {
-		msg, ok := newSvc(false, true).volatileTailMessage(nil, true)
+		msg, ok := newSvc(false, true).volatileTailMessage(context.Background(), nil, true)
 		require.True(t, ok)
 		require.NotContains(t, tailContent(t, msg), "PERSISTENT MEMORY INDEX")
 	})
 
 	t.Run("defaults off keeps only the date", func(t *testing.T) {
-		msg, ok := newSvc(true, false).volatileTailMessage(nil, true)
+		msg, ok := newSvc(true, false).volatileTailMessage(context.Background(), nil, true)
 		require.True(t, ok)
 		content := tailContent(t, msg)
 		require.NotContains(t, content, "PERSISTENT MEMORY INDEX")
@@ -963,7 +963,7 @@ func TestVolatileTailMessage(t *testing.T) {
 	t.Run("no system prompt yields no tail", func(t *testing.T) {
 		s := newSvc(true, true)
 		s.config.Prompts.Agent.SystemPrompt = ""
-		_, ok := s.volatileTailMessage(nil, true)
+		_, ok := s.volatileTailMessage(context.Background(), nil, true)
 		require.False(t, ok)
 	})
 
@@ -974,7 +974,7 @@ func TestVolatileTailMessage(t *testing.T) {
 			{Role: sdk.Assistant, ToolCalls: &toolCalls},
 		}
 
-		_, ok := newSvc(true, true).volatileTailMessage(messages, true)
+		_, ok := newSvc(true, true).volatileTailMessage(context.Background(), messages, true)
 		require.True(t, ok)
 	})
 }
@@ -1024,11 +1024,11 @@ func TestBuildActiveSkillInfo_CatalogInstallIsHeadlessOnly(t *testing.T) {
 	messages := []sdk.Message{userMsg("/rust do a thing")}
 
 	chatAgent, chatFake := newAgent()
-	require.Empty(t, chatAgent.buildActiveSkillInfo(messages, true))
+	require.Empty(t, chatAgent.buildActiveSkillInfo(context.Background(), messages, true))
 	require.Zero(t, chatFake.DiscoverCallCount(), "chat must not download without approval")
 
 	headlessAgent, headlessFake := newAgent()
-	got := headlessAgent.buildActiveSkillInfo(messages, false)
+	got := headlessAgent.buildActiveSkillInfo(context.Background(), messages, false)
 	require.Contains(t, got, "/abs/.infer/tmp/skills/rust/SKILL.md")
 	require.Equal(t, 1, headlessFake.DiscoverCallCount())
 }

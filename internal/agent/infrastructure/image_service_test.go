@@ -68,7 +68,7 @@ func TestImageService_ReadImageFromURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := NewImageService(localImageConfig(), nil)
-			attachment, err := service.ReadImageFromURL(tt.url)
+			attachment, err := service.ReadImageFromURL(context.Background(), tt.url)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -90,7 +90,7 @@ func TestImageService_ReadImageFromURL_404(t *testing.T) {
 	defer server.Close()
 
 	service := NewImageService(localImageConfig(), nil)
-	attachment, err := service.ReadImageFromURL(server.URL + "/notfound.png")
+	attachment, err := service.ReadImageFromURL(context.Background(), server.URL+"/notfound.png")
 
 	assert.Error(t, err)
 	assert.Nil(t, attachment)
@@ -112,7 +112,7 @@ func TestImageService_ReadImageFromURL_OversizedImage(t *testing.T) {
 	defer server.Close()
 
 	service := NewImageService(localImageConfig(), nil)
-	attachment, err := service.ReadImageFromURL(server.URL + "/large.png")
+	attachment, err := service.ReadImageFromURL(context.Background(), server.URL+"/large.png")
 
 	assert.Error(t, err)
 	assert.Nil(t, attachment)
@@ -500,9 +500,9 @@ func TestImageService_ReadImageFromURL_BlocksNonPublicAndBadSchemes(t *testing.T
 
 	service := NewImageService(config.DefaultConfig(), nil)
 
-	_, err := service.ReadImageFromURL(server.URL + "/img.png")
+	_, err := service.ReadImageFromURL(context.Background(), server.URL+"/img.png")
 	assert.Error(t, err, "loopback URLs must be refused")
 
-	_, err = service.ReadImageFromURL("file:///etc/passwd")
+	_, err = service.ReadImageFromURL(context.Background(), "file:///etc/passwd")
 	assert.ErrorContains(t, err, "unsupported image URL scheme")
 }
