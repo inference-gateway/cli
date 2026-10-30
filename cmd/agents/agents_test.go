@@ -6,6 +6,7 @@ import (
 	cobra "github.com/spf13/cobra"
 
 	output "github.com/inference-gateway/cli/cmd/output"
+	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 )
 
@@ -19,7 +20,6 @@ func TestResolveTagFlag(t *testing.T) {
 	}{
 		{"no tag flag is a no-op", "browser-agent", nil, "", false},
 		{"tag resolves against the default image", "browser-agent", []string{"--tag", "lightpanda"}, "ghcr.io/inference-gateway/browser-agent:lightpanda", false},
-		{"tag and oci are mutually exclusive", "browser-agent", []string{"--tag", "lightpanda", "--oci", "ghcr.io/org/other:v1"}, "", true},
 		{"tag on an unknown agent", "code-reviewer", []string{"--tag", "latest"}, "", true},
 	}
 
@@ -40,6 +40,32 @@ func TestResolveTagFlag(t *testing.T) {
 				t.Errorf("resolveTagFlag(%q) = %q, want %q", tt.agent, got, tt.expected)
 			}
 		})
+	}
+}
+
+// --tag and --oci are declared mutually exclusive through Cobra's flag groups,
+// and the update group is one-required, so the rejection happens before RunE.
+func TestAgentFlagGroups(t *testing.T) {
+	addCmd, _, err := NewCommand(runtime.NewState(), output.NewRenderer()).Find([]string{"add"})
+	if err != nil {
+		t.Fatalf("find add command: %v", err)
+	}
+	if err := addCmd.Flags().Set("tag", "lightpanda"); err != nil {
+		t.Fatalf("set tag: %v", err)
+	}
+	if err := addCmd.Flags().Set("oci", "ghcr.io/org/other:v1"); err != nil {
+		t.Fatalf("set oci: %v", err)
+	}
+	if err := addCmd.ValidateFlagGroups(); err == nil {
+		t.Error("expected --tag and --oci to be mutually exclusive on the add command")
+	}
+
+	updateCmd, _, err := NewCommand(runtime.NewState(), output.NewRenderer()).Find([]string{"update"})
+	if err != nil {
+		t.Fatalf("find update command: %v", err)
+	}
+	if err := updateCmd.ValidateFlagGroups(); err == nil {
+		t.Error("expected the update flags to be declared one-required")
 	}
 }
 
