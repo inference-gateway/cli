@@ -26,7 +26,7 @@ const annotationAgentsDone = "inference-gateway.com/agents-done"
 
 // SelfSuspend returns the function a pod daemon calls before it idles out: it
 // patches its own Sandbox to Suspended through the in-cluster API, so the
-// controller parks the pod and keeps the volumes for the next transfer. done
+// controller parks the pod and keeps the volumes for the next teleport. done
 // says whether every agent finished, and known whether this pod ran any.
 func SelfSuspend(sandbox, namespace string, retention time.Duration) (func(ctx context.Context, done, known bool) error, error) {
 	restConfig, err := k8srest.InClusterConfig()

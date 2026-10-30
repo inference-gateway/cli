@@ -124,7 +124,7 @@ func projectDirFlag(cmd *cobra.Command) (string, error) {
 func newEnvironmentsCommand(state *runtime.State) *cobra.Command {
 	return &cobra.Command{
 		Use:          "environments",
-		Short:        "List the environments sessions can be transferred to and whether each is reachable",
+		Short:        "List the environments sessions can be teleported to and whether each is reachable",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), clientTimeout)
@@ -168,24 +168,24 @@ func printEnvironments(out io.Writer, frame map[string]any) error {
 	return w.Flush()
 }
 
-func newTransferCommand(state *runtime.State) *cobra.Command {
+func newTeleportCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
-		Use:          "transfer <conversation-id>",
-		Short:        "Move a session to another environment and follow the transfer",
+		Use:          "teleport <conversation-id>",
+		Short:        "Teleport a session to another environment and follow the teleport",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, _ := cmd.Flags().GetString("to")
 			if target == "" {
-				return errors.New("--to names the environment to move the session to")
+				return errors.New("--to names the environment to teleport the session to")
 			}
 			projectDir, err := projectDirFlag(cmd)
 			if err != nil {
 				return err
 			}
-			transferID, _ := cmd.Flags().GetString("transfer-id")
-			if transferID == "" {
-				transferID = uuid.NewString()
+			teleportID, _ := cmd.Flags().GetString("teleport-id")
+			if teleportID == "" {
+				teleportID = uuid.NewString()
 			}
 			files, _ := cmd.Flags().GetStringSlice("file")
 			ctx, cancel := context.WithTimeout(cmd.Context(), clientTimeout)
@@ -195,36 +195,36 @@ func newTransferCommand(state *runtime.State) *cobra.Command {
 				return err
 			}
 			defer client.close()
-			request := map[string]any{"type": "transfer_session", "transfer_id": transferID, "project_dir": projectDir, "id": args[0], "target": target, "files": files}
+			request := map[string]any{"type": "teleport_session", "teleport_id": teleportID, "project_dir": projectDir, "id": args[0], "target": target, "files": files}
 			if err := client.send(request); err != nil {
 				return err
 			}
-			return followTransfer(ctx, cmd.OutOrStdout(), client)
+			return followTeleport(ctx, cmd.OutOrStdout(), client)
 		},
 	}
-	command.Flags().String("to", "", "The environment to move the session to (a name from daemon.yaml)")
+	command.Flags().String("to", "", "The environment to teleport the session to (a name from daemon.yaml)")
 	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
-	command.Flags().String("transfer-id", "", "Reuse a transfer id to retry the same transfer idempotently")
+	command.Flags().String("teleport-id", "", "Reuse a teleport id to retry the same teleport idempotently")
 	command.Flags().StringSlice("file", nil, "Extra files to carry along, relative to the project (repeatable)")
 	return command
 }
 
-// followTransfer prints each stage until the transfer is ready or failed.
-func followTransfer(ctx context.Context, out io.Writer, client *daemonClient) error {
+// followTeleport prints each stage until the teleport is ready or failed.
+func followTeleport(ctx context.Context, out io.Writer, client *daemonClient) error {
 	for {
-		frame, err := client.next(ctx, "transfer_progress", "session_moved")
+		frame, err := client.next(ctx, "teleport_progress", "session_teleported")
 		if err != nil {
 			return err
 		}
-		if frame["type"] == "session_moved" {
+		if frame["type"] == "session_teleported" {
 			say(out, "session now lives on %v in %v\n", frame["environment"], frame["workspace"])
 			return nil
 		}
 		stage, _ := frame["stage"].(string)
 		message, _ := frame["message"].(string)
 		say(out, "%s %s\n", stage, message)
-		if stage == string(agentdomain.TransferFailed) {
-			return errors.New("the transfer failed: " + message)
+		if stage == string(agentdomain.TeleportFailed) {
+			return errors.New("the teleport failed: " + message)
 		}
 	}
 }

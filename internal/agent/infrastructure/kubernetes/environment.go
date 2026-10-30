@@ -111,7 +111,7 @@ func (e *Environment) Kind() agentdomain.EnvironmentKind {
 }
 
 // SandboxName is the Sandbox a session runs in on an environment, stable
-// across transfers. Environments sharing a namespace never reach each other's.
+// across teleports. Environments sharing a namespace never reach each other's.
 func SandboxName(environment, conversationID string) string {
 	sum := sha256.Sum256([]byte(environment + "/" + conversationID))
 	return "infer-" + hex.EncodeToString(sum[:])[:12]

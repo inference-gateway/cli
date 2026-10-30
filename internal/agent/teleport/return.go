@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"context"
@@ -17,15 +17,15 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// returnAckTimeout bounds the owner's answer to a move back, which it sends
+// returnAckTimeout bounds the owner's answer to a teleport back, which it sends
 // before it quiesces and packs.
 const returnAckTimeout = 15 * time.Second
 
-// bringBack moves a session that runs on a remote environment back to this
+// teleportBack teleports a session that runs on a remote environment back to this
 // daemon: the owner packs it, its workspace lands on the checkout it left and
 // its conversation is stored here again. A failure leaves it where it was.
-func (s *Service) bringBack(ctx context.Context, to requester, req agentdomain.TransferRequest) {
-	fail := func(err error) { s.failTransfer(to, req, err) }
+func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomain.TeleportRequest) {
+	fail := func(err error) { s.failTeleport(to, req, err) }
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
 	remote, found, err := s.leases.GetLease(ctx, req.Session.ConversationID)
 	switch {
@@ -46,7 +46,7 @@ func (s *Service) bringBack(ctx context.Context, to requester, req agentdomain.T
 		return
 	}
 
-	s.report(to, req, agentdomain.TransferProvisioning, "")
+	s.report(to, req, agentdomain.TeleportProvisioning, "")
 	endpoint, err := environment.Reach(ctx, req.Session)
 	if err != nil {
 		fail(describe(err, "reaching %s", remote.Environment))
@@ -65,7 +65,7 @@ func (s *Service) bringBack(ctx context.Context, to requester, req agentdomain.T
 		return
 	}
 
-	s.report(to, req, agentdomain.TransferCheckpointing, "")
+	s.report(to, req, agentdomain.TeleportCheckpointing, "")
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
 	defer cancel()
 	if _, err := s.registry.Quiesce(quiesceCtx, key); err != nil {
@@ -78,19 +78,19 @@ func (s *Service) bringBack(ctx context.Context, to requester, req agentdomain.T
 		return
 	}
 
-	s.report(to, req, agentdomain.TransferRestoring, "")
+	s.report(to, req, agentdomain.TeleportRestoring, "")
 	if err := s.land(ctx, req, remote, checkpoint); err != nil {
 		fail(err)
 		return
 	}
-	_ = conn.Send(encode(returnFrame{Type: frameTransferReturned, TransferID: req.TransferID}))
+	_ = conn.Send(encode(returnFrame{Type: frameTeleportReturned, TeleportID: req.TeleportID}))
 	s.forgetOrigin(req.Session.ConversationID)
-	s.report(to, req, agentdomain.TransferReady, "")
-	moved := encode(sessionMovedFrame{Type: frameSessionMoved, SessionMoved: agentdomain.SessionMoved{
+	s.report(to, req, agentdomain.TeleportReady, "")
+	teleported := encode(sessionTeleportedFrame{Type: frameSessionTeleported, SessionTeleported: agentdomain.SessionTeleported{
 		Session: req.Session, Environment: s.me, Workspace: req.Session.ProjectDir, CancelledInterrupts: checkpoint.Interrupts,
 	}})
-	to.Deliver(moved)
-	s.registry.Deliver(key, moved)
+	to.Deliver(teleported)
+	s.registry.Deliver(key, teleported)
 }
 
 // checkoutReady says why the session's workspace cannot land on the checkout
@@ -102,20 +102,20 @@ func (s *Service) checkoutReady(ctx context.Context, session agentdomain.Session
 	}
 	left, origin := s.origin(session.ConversationID)
 	if left != "" && left != session.ProjectDir {
-		return fmt.Errorf("the session left the checkout at %s: move it back from a chat in that project", left)
+		return fmt.Errorf("the session left the checkout at %s: teleport it back from a chat in that project", left)
 	}
 	if clean || fingerprint == origin {
 		return nil
 	}
-	return fmt.Errorf("the checkout at %s changed since the session left it: stash those changes (git stash -u), move the session back, then git stash pop", session.ProjectDir)
+	return fmt.Errorf("the checkout at %s changed since the session left it: stash those changes (git stash -u), teleport the session back, then git stash pop", session.ProjectDir)
 }
 
 // fetchCheckpoint asks the session's owner to pack it and collects the
 // checkpoint it streams back. An owner that does not answer at once runs an
 // infer that cannot send sessions back.
-func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TransferRequest, remote agentdomain.Lease) (agentdomain.Checkpoint, error) {
+func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TeleportRequest, remote agentdomain.Lease) (agentdomain.Checkpoint, error) {
 	owner := remote.Environment
-	ask := returnFrame{Type: frameTransferReturn, TransferID: req.TransferID, ID: req.Session.ConversationID, Workspace: remote.Workspace, Environment: s.me}
+	ask := returnFrame{Type: frameTeleportReturn, TeleportID: req.TeleportID, ID: req.Session.ConversationID, Workspace: remote.Workspace, Environment: s.me}
 	if err := conn.Send(encode(ask)); err != nil {
 		return agentdomain.Checkpoint{}, describe(err, "asking %s for the session", owner)
 	}
@@ -126,18 +126,18 @@ func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *
 	wait := ackCtx
 	pending := newPendingImport()
 	for {
-		frame, err := frames.await(wait, frameTransferReturning, frameTransferChunk, frameTransferImport)
+		frame, err := frames.await(wait, frameTeleportReturning, frameTeleportChunk, frameTeleportImport)
 		if err != nil && wait == ackCtx && errors.Is(err, context.DeadlineExceeded) {
-			return agentdomain.Checkpoint{}, fmt.Errorf("%s's daemon did not answer the move back, it may run an infer too old to send sessions back", owner)
+			return agentdomain.Checkpoint{}, fmt.Errorf("%s's daemon did not answer the teleport back, it may run an infer too old to send sessions back", owner)
 		}
 		if err != nil {
 			return agentdomain.Checkpoint{}, describe(err, "waiting for %s to pack the session", owner)
 		}
 		wait = replyCtx
 		switch frameType(frame) {
-		case frameTransferReturning:
+		case frameTeleportReturning:
 			continue
-		case frameTransferChunk:
+		case frameTeleportChunk:
 			var chunk chunkFrame
 			if err := json.Unmarshal(frame, &chunk); err != nil {
 				return agentdomain.Checkpoint{}, describe(err, "reading a checkpoint chunk from %s", owner)
@@ -169,7 +169,7 @@ func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *
 // land puts the checkpoint's workspace on the session's checkout, takes the
 // session's lease back and stores its conversation here. A failure undoes
 // all three, so the session stays with its remote owner.
-func (s *Service) land(ctx context.Context, req agentdomain.TransferRequest, remote agentdomain.Lease, checkpoint agentdomain.Checkpoint) error {
+func (s *Service) land(ctx context.Context, req agentdomain.TeleportRequest, remote agentdomain.Lease, checkpoint agentdomain.Checkpoint) error {
 	landing, err := agentinfra.LandWorkspace(ctx, checkpoint.Workspace, req.Session.ProjectDir, s.excludes(req.Session.ProjectDir))
 	if err != nil {
 		return describe(err, "landing the workspace on %s", req.Session.ProjectDir)
@@ -181,7 +181,7 @@ func (s *Service) land(ctx context.Context, req agentdomain.TransferRequest, rem
 		return err
 	}
 	if err := landing.Keep(ctx); err != nil {
-		logger.Warn("transfer could not drop the stash a landing kept", "project_dir", req.Session.ProjectDir, "error", err)
+		logger.Warn("teleport could not drop the stash a landing kept", "project_dir", req.Session.ProjectDir, "error", err)
 	}
 	return nil
 }
@@ -189,12 +189,12 @@ func (s *Service) land(ctx context.Context, req agentdomain.TransferRequest, rem
 // reclaim moves the session's lease from its remote owner to this daemon and
 // imports the conversation through a worker here, handing the lease back when
 // the import fails.
-func (s *Service) reclaim(ctx context.Context, req agentdomain.TransferRequest, remote agentdomain.Lease, checkpoint agentdomain.Checkpoint) error {
+func (s *Service) reclaim(ctx context.Context, req agentdomain.TeleportRequest, remote agentdomain.Lease, checkpoint agentdomain.Checkpoint) error {
 	conversationID := req.Session.ConversationID
 	if err := s.leases.ReleaseLease(ctx, conversationID, remote.Environment); err != nil {
 		return describe(err, "releasing %s's lease", remote.Environment)
 	}
-	own := agentdomain.Lease{ConversationID: conversationID, Environment: s.me, Workspace: req.Session.ProjectDir, TransferID: req.TransferID, Until: time.Now().Add(s.ownedTTL())}
+	own := agentdomain.Lease{ConversationID: conversationID, Environment: s.me, Workspace: req.Session.ProjectDir, TeleportID: req.TeleportID, Until: time.Now().Add(s.ownedTTL())}
 	giveBack := func(err error) error {
 		_ = s.leases.ReleaseLease(ctx, conversationID, s.me)
 		remote.Until = time.Now().Add(s.entries[remote.Environment].EffectiveLeaseTTL())
@@ -215,21 +215,21 @@ func (s *Service) reclaim(ctx context.Context, req agentdomain.TransferRequest, 
 	return nil
 }
 
-// packForReturn answers transfer_return from the daemon a session came from:
+// packForReturn answers teleport_return from the daemon a session came from:
 // it brings the session to rest here, packs it and streams it back.
 func (s *Service) packForReturn(conn *agui.Conn, f returnFrame) {
-	_ = conn.Send(encode(returnFrame{Type: frameTransferReturning, TransferID: f.TransferID, ID: f.ID}))
+	_ = conn.Send(encode(returnFrame{Type: frameTeleportReturning, TeleportID: f.TeleportID, ID: f.ID}))
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
 	checkpoint, key, err := s.packOwned(ctx, f)
 	if err == nil {
 		s.mu.Lock()
-		s.returns[f.TransferID] = key
+		s.returns[f.TeleportID] = key
 		s.mu.Unlock()
-		err = sendCheckpoint(conn, f.TransferID, f.Environment, checkpoint)
+		err = sendCheckpoint(conn, f.TeleportID, f.Environment, checkpoint)
 	}
 	if err != nil {
-		logger.Warn("transfer could not send a session back", "transfer_id", f.TransferID, "conversation_id", f.ID, "error", err)
+		logger.Warn("teleport could not send a session back", "teleport_id", f.TeleportID, "conversation_id", f.ID, "error", err)
 		_ = conn.Send(runError(err.Error()))
 	}
 }
@@ -278,19 +278,19 @@ func (s *Service) packOwned(ctx context.Context, f returnFrame) (agentdomain.Che
 
 // returned lets go of a session that landed back where it came from: its
 // last run here stops holding the runtime back and its lease row goes.
-func (s *Service) returned(transferID string) {
+func (s *Service) returned(teleportID string) {
 	s.mu.Lock()
-	key, ok := s.returns[transferID]
-	delete(s.returns, transferID)
+	key, ok := s.returns[teleportID]
+	delete(s.returns, teleportID)
 	s.mu.Unlock()
 	if !ok {
 		return
 	}
-	s.registry.MovedAway(key)
+	s.registry.TeleportedAway(key)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	if err := s.leases.ReleaseLease(ctx, key.ConversationID, s.me); err != nil {
-		logger.Warn("transfer could not release a session that went back", "conversation_id", key.ConversationID, "error", err)
+		logger.Warn("teleport could not release a session that went back", "conversation_id", key.ConversationID, "error", err)
 	}
 }
 
@@ -313,7 +313,7 @@ func (s *Service) rememberOrigin(conversationID, projectDir, fingerprint string)
 			return
 		}
 	}
-	logger.Warn("transfer could not remember the checkout a session left", "conversation_id", conversationID)
+	logger.Warn("teleport could not remember the checkout a session left", "conversation_id", conversationID)
 }
 
 // origin is the checkout a session left and its fingerprint then, or empty

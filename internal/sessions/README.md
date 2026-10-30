@@ -62,10 +62,10 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   daemon owns the subagent's worker and the desktop follows the same thread live. The subagent worker reports
   each finished turn to its parent as a CUSTOM `subagent_turn` event. Without a configured binding the tool
   falls back to spawning `infer headless --keep-alive` itself.
-- `Quiesce`, `Deliver`, `Request`, `MovedAway` and `Idle` are the hooks a session transfer uses: end a thread's run and
+- `Quiesce`, `Deliver`, `Request`, `TeleportedAway` and `Idle` are the hooks a session teleport uses: end a thread's run and
   stop its worker while keeping its clients, tell a thread's followers something, ask a worker in a project dir one
   panel question, stop a thread whose session left from holding `AgentsDone` back, and learn whether the daemon sits
-  idle. The agent context's `transfer` package drives them.
+  idle. The agent context's `teleport` package drives them.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
   env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so

@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"context"
@@ -90,16 +90,16 @@ func importingLaunch(key sessionsdomain.ThreadKey, _ sessionsdomain.ThreadOption
 }
 
 // returningService is the laptop daemon of a session that runs on k8s-dev,
-// whose daemon answers transfer_return with checkpoint, its answer arriving
+// whose daemon answers teleport_return with checkpoint, its answer arriving
 // only after the chunks.
 func returningService(t *testing.T, checkpoint agentdomain.Checkpoint) (*Service, *storage.MemoryStorage, *peerBinding, *agentdomainmocks.FakeEnvironment) {
 	t.Helper()
 	peer := startPeer(t, "k8s-dev", func(conn *agui.Conn, frame []byte) {
 		var f returnFrame
-		if json.Unmarshal(frame, &f) == nil && f.Type == frameTransferReturn {
+		if json.Unmarshal(frame, &f) == nil && f.Type == frameTeleportReturn {
 			go func() {
-				_ = sendCheckpoint(conn, f.TransferID, f.Environment, checkpoint)
-				_ = conn.Send(encode(returnFrame{Type: frameTransferReturning, TransferID: f.TransferID}))
+				_ = sendCheckpoint(conn, f.TeleportID, f.Environment, checkpoint)
+				_ = conn.Send(encode(returnFrame{Type: frameTeleportReturning, TeleportID: f.TeleportID}))
 			}()
 		}
 	})
@@ -112,16 +112,16 @@ func returningService(t *testing.T, checkpoint agentdomain.Checkpoint) (*Service
 	}, Deps{Leases: store, Environments: []agentdomain.Environment{environment}, Launch: importingLaunch})
 	s.dial.Handshake = testHandshake
 	s.AttachRegistry(sessions.NewRegistry(s.LaunchWorker, time.Minute))
-	remote := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s-dev", Workspace: "/workspace/x", TransferID: "t-0", Until: time.Now().Add(time.Hour)}
+	remote := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s-dev", Workspace: "/workspace/x", TeleportID: "t-0", Until: time.Now().Add(time.Hour)}
 	if _, ok, err := store.ClaimLease(t.Context(), remote); err != nil || !ok {
 		t.Fatalf("seeding the remote lease: %v", err)
 	}
 	return s, store, peer, environment
 }
 
-func moveBack(s *Service, laptop string) *sessionsmocks.FakeClient {
+func requestTeleportBack(s *Service, laptop string) *sessionsmocks.FakeClient {
 	client := &sessionsmocks.FakeClient{}
-	s.startTransfer(client, clientFrame{Type: frameTransferSession, TransferID: "t-1", ProjectDir: laptop, ID: "conv-1", Target: "laptop"})
+	s.startTeleport(client, clientFrame{Type: frameTeleportSession, TeleportID: "t-1", ProjectDir: laptop, ID: "conv-1", Target: "laptop"})
 	return client
 }
 
@@ -147,14 +147,14 @@ func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
 	laptop := checkout(t)
 	s, store, peer, _ := returningService(t, podCheckpoint(t, laptop))
 
-	client := moveBack(s, laptop)
+	client := requestTeleportBack(s, laptop)
 
-	if progress := delivered[progressFrame](client, frameTransferProgress); len(progress) == 0 || progress[len(progress)-1].Stage != agentdomain.TransferReady {
+	if progress := delivered[progressFrame](client, frameTeleportProgress); len(progress) == 0 || progress[len(progress)-1].Stage != agentdomain.TeleportReady {
 		t.Fatalf("progress = %+v, want it to end ready", progress)
 	}
-	moved := delivered[sessionMovedFrame](client, frameSessionMoved)
-	if len(moved) != 1 || moved[0].Environment != "laptop" || moved[0].Workspace != laptop {
-		t.Fatalf("moves = %+v, want one back to the laptop checkout", moved)
+	teleported := delivered[sessionTeleportedFrame](client, frameSessionTeleported)
+	if len(teleported) != 1 || teleported[0].Environment != "laptop" || teleported[0].Workspace != laptop {
+		t.Fatalf("teleports = %+v, want one back to the laptop checkout", teleported)
 	}
 	lease, found, err := store.GetLease(t.Context(), "conv-1")
 	if err != nil || !found || lease.Environment != "laptop" || lease.Workspace != laptop {
@@ -164,7 +164,7 @@ func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
 		t.Errorf("the checkout's HEAD is %q, want the pod's commit", got)
 	}
 	frames := peer.received(t, 2)
-	if frameType(frames[0]) != frameTransferReturn || frameType(frames[1]) != frameTransferReturned {
+	if frameType(frames[0]) != frameTeleportReturn || frameType(frames[1]) != frameTeleportReturned {
 		t.Errorf("k8s-dev got %s then %s, want the return request and its confirmation", frames[0], frames[1])
 	}
 }
@@ -172,22 +172,22 @@ func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
 func TestBringBackRefusesACheckoutThatChangedSinceItLeft(t *testing.T) {
 	laptop := checkout(t)
 	s, store, _, environment := returningService(t, podCheckpoint(t, laptop))
-	runGit(t, laptop, "commit", "--quiet", "--allow-empty", "-m", "edited after the move")
+	runGit(t, laptop, "commit", "--quiet", "--allow-empty", "-m", "edited after the teleport")
 	if err := os.WriteFile(filepath.Join(laptop, "draft.txt"), []byte("draft"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	client := moveBack(s, laptop)
+	client := requestTeleportBack(s, laptop)
 
-	progress := delivered[progressFrame](client, frameTransferProgress)
-	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "changed since the session left") {
+	progress := delivered[progressFrame](client, frameTeleportProgress)
+	if len(progress) != 1 || progress[0].Stage != agentdomain.TeleportFailed || !strings.Contains(progress[0].Message, "changed since the session left") {
 		t.Fatalf("progress = %+v, want one refusal naming the changed checkout", progress)
 	}
 	if environment.ReachCallCount() != 0 {
-		t.Error("the refused move reached k8s-dev")
+		t.Error("the refused teleport reached k8s-dev")
 	}
 	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Environment != "k8s-dev" {
-		t.Errorf("the refused move left the lease with %s", lease.Environment)
+		t.Errorf("the refused teleport left the lease with %s", lease.Environment)
 	}
 }
 
@@ -204,10 +204,10 @@ func TestBringBackAcceptsADirtyCheckoutUnchangedSinceItLeft(t *testing.T) {
 	}
 	s.rememberOrigin("conv-1", laptop, fingerprint)
 
-	client := moveBack(s, laptop)
+	client := requestTeleportBack(s, laptop)
 
-	if moved := delivered[sessionMovedFrame](client, frameSessionMoved); len(moved) != 1 {
-		t.Fatalf("progress = %+v, want the session back", delivered[progressFrame](client, frameTransferProgress))
+	if teleported := delivered[sessionTeleportedFrame](client, frameSessionTeleported); len(teleported) != 1 {
+		t.Fatalf("progress = %+v, want the session back", delivered[progressFrame](client, frameTeleportProgress))
 	}
 	if left, _ := s.origin("conv-1"); left != "" {
 		t.Error("the origin of a session that came back is still remembered")
@@ -232,14 +232,14 @@ func TestPackForReturnRefusesWhatItDidNotRestore(t *testing.T) {
 				_, _, _ = r.service.leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "conv-1", Environment: tt.owner, Until: time.Now().Add(time.Hour)})
 			}
 
-			r.send(t, returnFrame{Type: frameTransferReturn, TransferID: "t-1", ID: "conv-1", Workspace: tt.workspace(r.service.cfg.WorkspaceRoot), Environment: "home"})
+			r.send(t, returnFrame{Type: frameTeleportReturn, TeleportID: "t-1", ID: "conv-1", Workspace: tt.workspace(r.service.cfg.WorkspaceRoot), Environment: "home"})
 
 			ctx, cancel := contextWithTimeout(t, 5*time.Second)
 			defer cancel()
-			if _, err := r.frames.await(ctx, frameTransferReturning); err != nil {
-				t.Fatalf("no answer to the move back: %v", err)
+			if _, err := r.frames.await(ctx, frameTeleportReturning); err != nil {
+				t.Fatalf("no answer to the teleport back: %v", err)
 			}
-			if _, err := r.frames.await(ctx, frameTransferChunk); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+			if _, err := r.frames.await(ctx, frameTeleportChunk); err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("await = %v, want a refusal containing %q", err, tt.wantErr)
 			}
 		})
@@ -259,14 +259,14 @@ func TestOriginFileTakesOnlyPlainConversationIDs(t *testing.T) {
 	}
 }
 
-func TestStartTransferRefusesAConversationIDThatIsNotAPlainName(t *testing.T) {
+func TestStartTeleportRefusesAConversationIDThatIsNotAPlainName(t *testing.T) {
 	s, _ := newService(t, &launcher{})
 	client := &sessionsmocks.FakeClient{}
 
-	s.startTransfer(client, clientFrame{Type: frameTransferSession, TransferID: "t-1", ProjectDir: "/proj", ID: "../../etc", Target: "laptop"})
+	s.startTeleport(client, clientFrame{Type: frameTeleportSession, TeleportID: "t-1", ProjectDir: "/proj", ID: "../../etc", Target: "laptop"})
 
-	progress := delivered[progressFrame](client, frameTransferProgress)
-	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "not a plain name") {
+	progress := delivered[progressFrame](client, frameTeleportProgress)
+	if len(progress) != 1 || progress[0].Stage != agentdomain.TeleportFailed || !strings.Contains(progress[0].Message, "not a plain name") {
 		t.Fatalf("progress = %+v, want the id refused", progress)
 	}
 }
@@ -276,16 +276,16 @@ func TestBringBackRefusesAnotherCheckoutThanTheOneItLeft(t *testing.T) {
 	s, store, _, environment := returningService(t, podCheckpoint(t, laptop))
 	s.rememberOrigin("conv-1", "/somewhere/else", "fingerprint")
 
-	client := moveBack(s, laptop)
+	client := requestTeleportBack(s, laptop)
 
-	progress := delivered[progressFrame](client, frameTransferProgress)
-	if len(progress) != 1 || progress[0].Stage != agentdomain.TransferFailed || !strings.Contains(progress[0].Message, "/somewhere/else") {
+	progress := delivered[progressFrame](client, frameTeleportProgress)
+	if len(progress) != 1 || progress[0].Stage != agentdomain.TeleportFailed || !strings.Contains(progress[0].Message, "/somewhere/else") {
 		t.Fatalf("progress = %+v, want a refusal naming the checkout the session left", progress)
 	}
 	if environment.ReachCallCount() != 0 {
-		t.Error("the refused move reached k8s-dev")
+		t.Error("the refused teleport reached k8s-dev")
 	}
 	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Environment != "k8s-dev" {
-		t.Errorf("the refused move left the lease with %s", lease.Environment)
+		t.Errorf("the refused teleport left the lease with %s", lease.Environment)
 	}
 }

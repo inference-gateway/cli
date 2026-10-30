@@ -18,12 +18,12 @@ func staleAutocomplete(typed string) *tuimocks.FakeAutocompleteComponent {
 	seen := ""
 	autocomplete.UpdateCalls(func(text string, _ int) { seen = text })
 	autocomplete.IsVisibleCalls(func() bool { return seen != typed })
-	autocomplete.HandleKeyReturns(true, "/transfer ")
+	autocomplete.HandleKeyReturns(true, "/teleport ")
 	return autocomplete
 }
 
 func TestEnterSubmitsWhatWasTypedEvenBeforeTheAutocompleteCaughtUp(t *testing.T) {
-	const typed = "/transfer b"
+	const typed = "/teleport b"
 	ctx := newTestContext(tui.ViewStateChat, typed)
 	input := ctx.GetInputView().(*tuimocks.FakeInputComponent)
 	input.GetCursorReturns(len(typed))

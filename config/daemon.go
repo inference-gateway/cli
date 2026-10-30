@@ -15,7 +15,7 @@ const (
 	DefaultDaemonDir = ConfigDirName + "/" + DaemonFileName
 
 	// WorkspacesDirName is the userspace directory a receiving daemon restores
-	// transferred projects into.
+	// teleported projects into.
 	WorkspacesDirName = "workspaces"
 
 	defaultKubernetesIdleTTL = 2 * time.Hour
@@ -45,13 +45,13 @@ const (
 
 // DaemonConfig contains settings for the `infer daemon` command itself, the
 // long-running host of the channels, scheduler, heartbeat and the AG-UI
-// binding, and the environments sessions can be transferred to. Stored in its own
+// binding, and the environments sessions can be teleported to. Stored in its own
 // daemon.yaml sidecar.
 type DaemonConfig struct {
 	// Environment is this daemon's identity in session leases. Empty takes the
 	// name of the local environment entry, else the hostname.
 	Environment string `yaml:"environment,omitempty" mapstructure:"environment"`
-	// WorkspaceRoot is where a receiving daemon restores transferred projects.
+	// WorkspaceRoot is where a receiving daemon restores teleported projects.
 	WorkspaceRoot string `yaml:"workspace_root,omitempty" mapstructure:"workspace_root"`
 	// IdleExit stops the daemon after this long with no threads and no clients.
 	// Zero keeps it running.
@@ -99,7 +99,7 @@ type PeerTLSConfig struct {
 	KeyFile  string `yaml:"key_file,omitempty" mapstructure:"key_file"`
 }
 
-// EnvironmentEntry registers one environment sessions can move to. The daemon kind
+// EnvironmentEntry registers one environment sessions can teleport to. The daemon kind
 // uses Address, Token and TLS, the kubernetes kind the cluster fields, and
 // Address overrides the port-forward when an Ingress exposes the pods.
 type EnvironmentEntry struct {
@@ -167,7 +167,7 @@ func (d DaemonConfig) Identity() string {
 	return string(EnvironmentKindLocal)
 }
 
-// WorkspaceDir is where a receiving daemon restores transferred projects.
+// WorkspaceDir is where a receiving daemon restores teleported projects.
 func (d DaemonConfig) WorkspaceDir() string {
 	if d.WorkspaceRoot == "" {
 		return filepath.Join(UserSpaceConfigDir(), WorkspacesDirName)

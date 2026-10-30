@@ -54,7 +54,7 @@ func runChatProgram(services *container.ServiceContainer, cfg *config.Config, mo
 		services.GetNextStepSuggestionRunner(),
 	)
 	application.SetTranscriptStore(services.GetStorage())
-	application.SetSessionMover(services.GetSessionMover())
+	application.SetSessionTeleporter(services.GetSessionTeleporter())
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)

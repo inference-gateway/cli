@@ -11,13 +11,13 @@ import (
 var ErrLeaseLost = errors.New("the session lease belongs to another environment")
 
 // Lease records which environment owns a conversation's session: the environment
-// that may run its worker, the workspace it runs in there, the transfer that
+// that may run its worker, the workspace it runs in there, the teleport that
 // handed it over, and when the claim lapses unless renewed.
 type Lease struct {
 	ConversationID string    `json:"conversation_id"`
 	Environment    string    `json:"environment"`
 	Workspace      string    `json:"workspace,omitempty"`
-	TransferID     string    `json:"transfer_id,omitempty"`
+	TeleportID     string    `json:"teleport_id,omitempty"`
 	Until          time.Time `json:"until"`
 }
 
@@ -27,12 +27,12 @@ func (l Lease) Live(now time.Time) bool {
 }
 
 // Yields reports whether claim may replace this lease: the holder re-asserts
-// its own row, a retry carries the same transfer id, or the lease lapsed.
+// its own row, a retry carries the same teleport id, or the lease lapsed.
 func (l Lease) Yields(claim Lease, now time.Time) bool {
 	if l.Environment == claim.Environment {
 		return true
 	}
-	if claim.TransferID != "" && l.TransferID == claim.TransferID {
+	if claim.TeleportID != "" && l.TeleportID == claim.TeleportID {
 		return true
 	}
 	return !l.Live(now)

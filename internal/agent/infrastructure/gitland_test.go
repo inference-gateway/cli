@@ -21,7 +21,7 @@ func git(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// podWork clones the checkout the way a transfer restores it, lets the
+// podWork clones the checkout the way a teleport restores it, lets the
 // session commit, edit and add a file there, and packs the result.
 func podWork(t *testing.T, laptop string) agentdomain.Workspace {
 	t.Helper()

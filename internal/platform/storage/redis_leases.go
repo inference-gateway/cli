@@ -17,12 +17,12 @@ import (
 type redisLease struct {
 	Environment string `json:"environment"`
 	Workspace   string `json:"workspace"`
-	TransferID  string `json:"transfer_id"`
+	TeleportID  string `json:"teleport_id"`
 	UntilUnix   int64  `json:"until_unix"`
 }
 
 // redisClaimLeaseScript is the compare-and-swap: ARGV[1] is the new lease,
-// ARGV[2] its environment, ARGV[3] its transfer id and ARGV[4] now. It returns
+// ARGV[2] its environment, ARGV[3] its teleport id and ARGV[4] now. It returns
 // the current holder when that holder keeps the lease, or an empty string.
 // It mirrors agentdomain.Lease.Yields, and the lease conformance suite holds
 // the two together.
@@ -31,7 +31,7 @@ local current = redis.call('GET', KEYS[1])
 if current then
 	local held = cjson.decode(current)
 	local yields = held.environment == ARGV[2]
-		or (ARGV[3] ~= '' and held.transfer_id == ARGV[3])
+		or (ARGV[3] ~= '' and held.teleport_id == ARGV[3])
 		or tonumber(held.until_unix) < tonumber(ARGV[4])
 	if not yields then
 		return current
@@ -83,13 +83,13 @@ func (s *RedisStorage) GetLease(ctx context.Context, conversationID string) (age
 
 func (s *RedisStorage) ClaimLease(ctx context.Context, lease agentdomain.Lease) (agentdomain.Lease, bool, error) {
 	payload, err := json.Marshal(redisLease{
-		Environment: lease.Environment, Workspace: lease.Workspace, TransferID: lease.TransferID, UntilUnix: lease.Until.Unix(),
+		Environment: lease.Environment, Workspace: lease.Workspace, TeleportID: lease.TeleportID, UntilUnix: lease.Until.Unix(),
 	})
 	if err != nil {
 		return agentdomain.Lease{}, false, fmt.Errorf("encoding the session lease: %w", err)
 	}
 	held, err := s.client.Eval(ctx, redisClaimLeaseScript, []string{s.leaseKey(lease.ConversationID)},
-		string(payload), lease.Environment, lease.TransferID, time.Now().Unix()).Text()
+		string(payload), lease.Environment, lease.TeleportID, time.Now().Unix()).Text()
 	if err != nil {
 		return agentdomain.Lease{}, false, fmt.Errorf("claiming the session lease: %w", err)
 	}
@@ -127,7 +127,7 @@ func decodeRedisLease(conversationID, raw string) (agentdomain.Lease, bool, erro
 		ConversationID: conversationID,
 		Environment:    stored.Environment,
 		Workspace:      stored.Workspace,
-		TransferID:     stored.TransferID,
+		TeleportID:     stored.TeleportID,
 		Until:          time.Unix(stored.UntilUnix, 0).UTC(),
 	}, true, nil
 }

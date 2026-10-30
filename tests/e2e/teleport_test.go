@@ -67,11 +67,11 @@ func peerCA(t *testing.T, dir string) (certFile, keyFile, caFile string, client 
 }
 
 // gitProject makes a project dir a git checkout with one commit, which a
-// transfer needs to bundle.
+// teleport needs to bundle.
 func gitProject(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("transfer me\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("teleport me\n"), 0644))
 	for _, args := range [][]string{
 		{"init", "--quiet", "-b", "main"}, {"config", "user.email", "e2e@example.com"}, {"config", "user.name", "e2e"},
 		{"config", "commit.gpgsign", "false"}, {"add", "."}, {"commit", "--quiet", "-m", "init"},
@@ -121,46 +121,46 @@ func startDaemonWithTLS(t *testing.T, home string, clientTLS *tls.Config, extraE
 	return d
 }
 
-// transfer asks daemon A to move the thread and collects the progress stages
+// teleport asks daemon A to teleport the thread and collects the progress stages
 // through ready or failed.
-func transfer(c *daemonClient, project, threadID, target, transferID string) []string {
+func teleport(c *daemonClient, project, threadID, target, teleportID string) []string {
 	c.t.Helper()
-	c.send(map[string]any{"type": "transfer_session", "transfer_id": transferID, "project_dir": project, "id": threadID, "target": target})
+	c.send(map[string]any{"type": "teleport_session", "teleport_id": teleportID, "project_dir": project, "id": threadID, "target": target})
 	var stages []string
 	for {
-		frame := c.next("transfer_progress")
+		frame := c.next("teleport_progress")
 		stage, _ := frame["stage"].(string)
 		stages = append(stages, stage)
 		if stage == "ready" || stage == "failed" {
 			if stage == "failed" {
-				c.t.Logf("transfer failed: %v", frame["message"])
+				c.t.Logf("teleport failed: %v", frame["message"])
 			}
 			return stages
 		}
 	}
 }
 
-func TestTransferMovesASessionToAnotherDaemon(t *testing.T) {
+func TestTeleportSendsASessionToAnotherDaemon(t *testing.T) {
 	a, b, workspaceRoot := peers(t)
 	project := gitProject(t)
 	desktop := dialDaemon(t, a, "desktop")
 	threadID := openThread(desktop, project, "auto")
 	require.NoError(t, os.WriteFile(filepath.Join(project, "notes.txt"), []byte("uncommitted\n"), 0644))
 
-	transferID := uuid.NewString()
-	stages := transfer(desktop, project, threadID, "b", transferID)
+	teleportID := uuid.NewString()
+	stages := teleport(desktop, project, threadID, "b", teleportID)
 	require.Equal(t, []string{"provisioning", "checkpointing", "restoring", "ready"}, stages, "daemon A output:\n%s\ndaemon B output:\n%s", a.output, b.output)
-	moved := desktop.next("session_moved")
-	require.Equal(t, "b", moved["environment"])
-	workspace, _ := moved["workspace"].(string)
+	teleported := desktop.next("session_teleported")
+	require.Equal(t, "b", teleported["environment"])
+	workspace, _ := teleported["workspace"].(string)
 	require.True(t, filepath.HasPrefix(workspace, workspaceRoot), "workspace %q is not under %q", workspace, workspaceRoot)
 	require.FileExists(t, filepath.Join(workspace, "notes.txt"), "the uncommitted file must travel with the workspace")
 
-	require.Equal(t, []string{"ready"}, transfer(desktop, project, threadID, "b", transferID), "a retry of the same transfer is a no-op")
+	require.Equal(t, []string{"ready"}, teleport(desktop, project, threadID, "b", teleportID), "a retry of the same teleport is a no-op")
 
 	relay := dialDaemon(t, a, "desktop")
 	relay.send(map[string]any{"type": "resume_conversation", "project_dir": project, "id": threadID})
-	require.True(t, snapshotContains(relay.next("MESSAGES_SNAPSHOT"), "Hello! How can I help?"), "daemon A must relay the moved session")
+	require.True(t, snapshotContains(relay.next("MESSAGES_SNAPSHOT"), "Hello! How can I help?"), "daemon A must relay the teleported session")
 	relay.say("say hello again")
 	events := relay.run()
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "events: %v\ndaemon A:\n%s\ndaemon B:\n%s", events, a.output, b.output)
@@ -178,13 +178,13 @@ func TestTransferMovesASessionToAnotherDaemon(t *testing.T) {
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "daemon B must keep serving after daemon A is gone: %v", events)
 }
 
-func TestTransferFailuresLeaveTheSessionAtHome(t *testing.T) {
+func TestTeleportFailuresLeaveTheSessionAtHome(t *testing.T) {
 	a, _, _ := peers(t)
 	project := gitProject(t)
 	desktop := dialDaemon(t, a, "desktop")
 	threadID := openThread(desktop, project, "auto")
 
-	stages := transfer(desktop, project, threadID, "nowhere", uuid.NewString())
+	stages := teleport(desktop, project, threadID, "nowhere", uuid.NewString())
 	require.Equal(t, []string{"failed"}, stages)
 
 	desktop.say("say hello again")

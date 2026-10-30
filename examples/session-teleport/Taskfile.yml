@@ -27,7 +27,7 @@ tasks:
       - k3d image import ghcr.io/inference-gateway/cli:local -c {{.CLUSTER}}
 
   desktop:image:
-    desc: Build the desktop image (Xvfb and Chromium on top of INFER_IMAGE, default the release candidate) and import it into the cluster
+    desc: Build the desktop image (Xvfb and Chromium on top of INFER_IMAGE, default the image task image:import builds) and import it into the cluster
     cmds:
       - docker build {{if .INFER_IMAGE}}--build-arg INFER_IMAGE={{.INFER_IMAGE}}{{end}} -t infer-desktop:local desktop
       - k3d image import infer-desktop:local -c {{.CLUSTER}}
@@ -65,7 +65,7 @@ tasks:
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} port-forward svc/rustfs 9001:9001
 
   home:
-    desc: Seed the demo HOME with daemon.yaml and a small git project to transfer
+    desc: Seed the demo HOME with daemon.yaml and a small git project to teleport
     cmds:
       - mkdir -p {{.HOME_DIR}}/.infer {{.HOME_DIR}}/project
       - cp daemon.yaml {{.HOME_DIR}}/.infer/daemon.yaml
@@ -76,7 +76,7 @@ tasks:
           git config user.email demo@example.com
           git config user.name demo
           git config commit.gpgsign false
-          echo "# transfer me" > README.md
+          echo "# teleport me" > README.md
           git add README.md
           git commit --quiet -m "init"
         fi
@@ -89,7 +89,7 @@ tasks:
       - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} daemon
 
   chat:
-    desc: Chat in the demo project through the laptop daemon (started when needed), and move the session with /environments or /transfer
+    desc: Chat in the demo project through the laptop daemon (started when needed), and teleport the session with /environments or /teleport
     deps:
       - home
     interactive: true
@@ -102,7 +102,7 @@ tasks:
       - HOME={{.HOME_DIR}} {{.INFER}} daemon environments
 
   demo:
-    desc: Create a conversation, move it to the TARGET environment (default k8s-dev) and continue it there with PROMPT
+    desc: Create a conversation, teleport it to the TARGET environment (default k8s-dev) and continue it there with PROMPT
     vars:
       TARGET: '{{default "k8s-dev" .TARGET}}'
       PROMPT: '{{default "say hello again" .PROMPT}}'
@@ -111,7 +111,7 @@ tasks:
     cmds:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
       - HOME={{.HOME_DIR}} {{.INFER}} daemon environments
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon transfer {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon teleport {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
       - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project
       - echo "conversation {{.ID}} now lives on {{.TARGET}}"

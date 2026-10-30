@@ -99,9 +99,9 @@ func TestDeliverReachesTheThreadsFollowers(t *testing.T) {
 	handle(r, b, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
 	handle(r, other, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-2"}`)
 
-	r.Deliver(hooksKey, []byte(`{"type":"session_moved"}`))
-	receives(t, a, `{"type":"session_moved"}`)
-	receives(t, b, `{"type":"session_moved"}`)
+	r.Deliver(hooksKey, []byte(`{"type":"session_teleported"}`))
+	receives(t, a, `{"type":"session_teleported"}`)
+	receives(t, b, `{"type":"session_teleported"}`)
 	if other.DeliverCallCount() != 0 {
 		t.Fatal("a client of another thread got the frame")
 	}
@@ -226,10 +226,10 @@ func TestAgentsDoneOnlyWhenEveryLastRunFinishedWithoutWaiting(t *testing.T) {
 	}
 }
 
-func TestAgentsDoneOnceAnInterruptedSessionMovedAway(t *testing.T) {
+func TestAgentsDoneOnceAnInterruptedSessionTeleportedAway(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)
-	r.MovedAway(hooksKey)
+	r.TeleportedAway(hooksKey)
 	if done, known := r.AgentsDone(); done || known {
 		t.Fatalf("AgentsDone() = %v, %v for a thread that never ran here, want false, false", done, known)
 	}
@@ -240,9 +240,9 @@ func TestAgentsDoneOnceAnInterruptedSessionMovedAway(t *testing.T) {
 	lines <- []byte(`{"type":"RUN_ERROR","threadId":"conv-1","runId":"run-1","message":"interrupted"}`)
 	eventually(t, "the interrupted run", func() bool { return c.DeliverCallCount() == 2 })
 
-	r.MovedAway(hooksKey)
+	r.TeleportedAway(hooksKey)
 	if done, known := r.AgentsDone(); !done || !known {
-		t.Fatalf("AgentsDone() = %v, %v after the session moved away, want true, true", done, known)
+		t.Fatalf("AgentsDone() = %v, %v after the session teleported away, want true, true", done, known)
 	}
 }
 

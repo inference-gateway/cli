@@ -9,15 +9,15 @@ import (
 	"github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-type FakeSessionMover struct {
-	CancelTransferStub        func() error
-	cancelTransferMutex       sync.RWMutex
-	cancelTransferArgsForCall []struct {
+type FakeSessionTeleporter struct {
+	CancelTeleportStub        func() error
+	cancelTeleportMutex       sync.RWMutex
+	cancelTeleportArgsForCall []struct {
 	}
-	cancelTransferReturns struct {
+	cancelTeleportReturns struct {
 		result1 error
 	}
-	cancelTransferReturnsOnCall map[int]struct {
+	cancelTeleportReturnsOnCall map[int]struct {
 		result1 error
 	}
 	ListEnvironmentsStub        func(context.Context) ([]domain.EnvironmentStatus, error)
@@ -43,31 +43,31 @@ type FakeSessionMover struct {
 	placementReturnsOnCall map[int]struct {
 		result1 tui.SessionPlacement
 	}
-	TransferStub        func(string, []string) error
-	transferMutex       sync.RWMutex
-	transferArgsForCall []struct {
+	TeleportStub        func(string, []string) error
+	teleportMutex       sync.RWMutex
+	teleportArgsForCall []struct {
 		arg1 string
 		arg2 []string
 	}
-	transferReturns struct {
+	teleportReturns struct {
 		result1 error
 	}
-	transferReturnsOnCall map[int]struct {
+	teleportReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeSessionMover) CancelTransfer() error {
-	fake.cancelTransferMutex.Lock()
-	ret, specificReturn := fake.cancelTransferReturnsOnCall[len(fake.cancelTransferArgsForCall)]
-	fake.cancelTransferArgsForCall = append(fake.cancelTransferArgsForCall, struct {
+func (fake *FakeSessionTeleporter) CancelTeleport() error {
+	fake.cancelTeleportMutex.Lock()
+	ret, specificReturn := fake.cancelTeleportReturnsOnCall[len(fake.cancelTeleportArgsForCall)]
+	fake.cancelTeleportArgsForCall = append(fake.cancelTeleportArgsForCall, struct {
 	}{})
-	stub := fake.CancelTransferStub
-	fakeReturns := fake.cancelTransferReturns
-	fake.recordInvocation("CancelTransfer", []interface{}{})
-	fake.cancelTransferMutex.Unlock()
+	stub := fake.CancelTeleportStub
+	fakeReturns := fake.cancelTeleportReturns
+	fake.recordInvocation("CancelTeleport", []interface{}{})
+	fake.cancelTeleportMutex.Unlock()
 	if stub != nil {
 		return stub()
 	}
@@ -77,42 +77,42 @@ func (fake *FakeSessionMover) CancelTransfer() error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeSessionMover) CancelTransferCallCount() int {
-	fake.cancelTransferMutex.RLock()
-	defer fake.cancelTransferMutex.RUnlock()
-	return len(fake.cancelTransferArgsForCall)
+func (fake *FakeSessionTeleporter) CancelTeleportCallCount() int {
+	fake.cancelTeleportMutex.RLock()
+	defer fake.cancelTeleportMutex.RUnlock()
+	return len(fake.cancelTeleportArgsForCall)
 }
 
-func (fake *FakeSessionMover) CancelTransferCalls(stub func() error) {
-	fake.cancelTransferMutex.Lock()
-	defer fake.cancelTransferMutex.Unlock()
-	fake.CancelTransferStub = stub
+func (fake *FakeSessionTeleporter) CancelTeleportCalls(stub func() error) {
+	fake.cancelTeleportMutex.Lock()
+	defer fake.cancelTeleportMutex.Unlock()
+	fake.CancelTeleportStub = stub
 }
 
-func (fake *FakeSessionMover) CancelTransferReturns(result1 error) {
-	fake.cancelTransferMutex.Lock()
-	defer fake.cancelTransferMutex.Unlock()
-	fake.CancelTransferStub = nil
-	fake.cancelTransferReturns = struct {
+func (fake *FakeSessionTeleporter) CancelTeleportReturns(result1 error) {
+	fake.cancelTeleportMutex.Lock()
+	defer fake.cancelTeleportMutex.Unlock()
+	fake.CancelTeleportStub = nil
+	fake.cancelTeleportReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeSessionMover) CancelTransferReturnsOnCall(i int, result1 error) {
-	fake.cancelTransferMutex.Lock()
-	defer fake.cancelTransferMutex.Unlock()
-	fake.CancelTransferStub = nil
-	if fake.cancelTransferReturnsOnCall == nil {
-		fake.cancelTransferReturnsOnCall = make(map[int]struct {
+func (fake *FakeSessionTeleporter) CancelTeleportReturnsOnCall(i int, result1 error) {
+	fake.cancelTeleportMutex.Lock()
+	defer fake.cancelTeleportMutex.Unlock()
+	fake.CancelTeleportStub = nil
+	if fake.cancelTeleportReturnsOnCall == nil {
+		fake.cancelTeleportReturnsOnCall = make(map[int]struct {
 			result1 error
 		})
 	}
-	fake.cancelTransferReturnsOnCall[i] = struct {
+	fake.cancelTeleportReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeSessionMover) ListEnvironments(arg1 context.Context) ([]domain.EnvironmentStatus, error) {
+func (fake *FakeSessionTeleporter) ListEnvironments(arg1 context.Context) ([]domain.EnvironmentStatus, error) {
 	fake.listEnvironmentsMutex.Lock()
 	ret, specificReturn := fake.listEnvironmentsReturnsOnCall[len(fake.listEnvironmentsArgsForCall)]
 	fake.listEnvironmentsArgsForCall = append(fake.listEnvironmentsArgsForCall, struct {
@@ -131,26 +131,26 @@ func (fake *FakeSessionMover) ListEnvironments(arg1 context.Context) ([]domain.E
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeSessionMover) ListEnvironmentsCallCount() int {
+func (fake *FakeSessionTeleporter) ListEnvironmentsCallCount() int {
 	fake.listEnvironmentsMutex.RLock()
 	defer fake.listEnvironmentsMutex.RUnlock()
 	return len(fake.listEnvironmentsArgsForCall)
 }
 
-func (fake *FakeSessionMover) ListEnvironmentsCalls(stub func(context.Context) ([]domain.EnvironmentStatus, error)) {
+func (fake *FakeSessionTeleporter) ListEnvironmentsCalls(stub func(context.Context) ([]domain.EnvironmentStatus, error)) {
 	fake.listEnvironmentsMutex.Lock()
 	defer fake.listEnvironmentsMutex.Unlock()
 	fake.ListEnvironmentsStub = stub
 }
 
-func (fake *FakeSessionMover) ListEnvironmentsArgsForCall(i int) context.Context {
+func (fake *FakeSessionTeleporter) ListEnvironmentsArgsForCall(i int) context.Context {
 	fake.listEnvironmentsMutex.RLock()
 	defer fake.listEnvironmentsMutex.RUnlock()
 	argsForCall := fake.listEnvironmentsArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeSessionMover) ListEnvironmentsReturns(result1 []domain.EnvironmentStatus, result2 error) {
+func (fake *FakeSessionTeleporter) ListEnvironmentsReturns(result1 []domain.EnvironmentStatus, result2 error) {
 	fake.listEnvironmentsMutex.Lock()
 	defer fake.listEnvironmentsMutex.Unlock()
 	fake.ListEnvironmentsStub = nil
@@ -160,7 +160,7 @@ func (fake *FakeSessionMover) ListEnvironmentsReturns(result1 []domain.Environme
 	}{result1, result2}
 }
 
-func (fake *FakeSessionMover) ListEnvironmentsReturnsOnCall(i int, result1 []domain.EnvironmentStatus, result2 error) {
+func (fake *FakeSessionTeleporter) ListEnvironmentsReturnsOnCall(i int, result1 []domain.EnvironmentStatus, result2 error) {
 	fake.listEnvironmentsMutex.Lock()
 	defer fake.listEnvironmentsMutex.Unlock()
 	fake.ListEnvironmentsStub = nil
@@ -176,7 +176,7 @@ func (fake *FakeSessionMover) ListEnvironmentsReturnsOnCall(i int, result1 []dom
 	}{result1, result2}
 }
 
-func (fake *FakeSessionMover) Placement() tui.SessionPlacement {
+func (fake *FakeSessionTeleporter) Placement() tui.SessionPlacement {
 	fake.placementMutex.Lock()
 	ret, specificReturn := fake.placementReturnsOnCall[len(fake.placementArgsForCall)]
 	fake.placementArgsForCall = append(fake.placementArgsForCall, struct {
@@ -194,19 +194,19 @@ func (fake *FakeSessionMover) Placement() tui.SessionPlacement {
 	return fakeReturns.result1
 }
 
-func (fake *FakeSessionMover) PlacementCallCount() int {
+func (fake *FakeSessionTeleporter) PlacementCallCount() int {
 	fake.placementMutex.RLock()
 	defer fake.placementMutex.RUnlock()
 	return len(fake.placementArgsForCall)
 }
 
-func (fake *FakeSessionMover) PlacementCalls(stub func() tui.SessionPlacement) {
+func (fake *FakeSessionTeleporter) PlacementCalls(stub func() tui.SessionPlacement) {
 	fake.placementMutex.Lock()
 	defer fake.placementMutex.Unlock()
 	fake.PlacementStub = stub
 }
 
-func (fake *FakeSessionMover) PlacementReturns(result1 tui.SessionPlacement) {
+func (fake *FakeSessionTeleporter) PlacementReturns(result1 tui.SessionPlacement) {
 	fake.placementMutex.Lock()
 	defer fake.placementMutex.Unlock()
 	fake.PlacementStub = nil
@@ -215,7 +215,7 @@ func (fake *FakeSessionMover) PlacementReturns(result1 tui.SessionPlacement) {
 	}{result1}
 }
 
-func (fake *FakeSessionMover) PlacementReturnsOnCall(i int, result1 tui.SessionPlacement) {
+func (fake *FakeSessionTeleporter) PlacementReturnsOnCall(i int, result1 tui.SessionPlacement) {
 	fake.placementMutex.Lock()
 	defer fake.placementMutex.Unlock()
 	fake.PlacementStub = nil
@@ -229,22 +229,22 @@ func (fake *FakeSessionMover) PlacementReturnsOnCall(i int, result1 tui.SessionP
 	}{result1}
 }
 
-func (fake *FakeSessionMover) Transfer(arg1 string, arg2 []string) error {
+func (fake *FakeSessionTeleporter) Teleport(arg1 string, arg2 []string) error {
 	var arg2Copy []string
 	if arg2 != nil {
 		arg2Copy = make([]string, len(arg2))
 		copy(arg2Copy, arg2)
 	}
-	fake.transferMutex.Lock()
-	ret, specificReturn := fake.transferReturnsOnCall[len(fake.transferArgsForCall)]
-	fake.transferArgsForCall = append(fake.transferArgsForCall, struct {
+	fake.teleportMutex.Lock()
+	ret, specificReturn := fake.teleportReturnsOnCall[len(fake.teleportArgsForCall)]
+	fake.teleportArgsForCall = append(fake.teleportArgsForCall, struct {
 		arg1 string
 		arg2 []string
 	}{arg1, arg2Copy})
-	stub := fake.TransferStub
-	fakeReturns := fake.transferReturns
-	fake.recordInvocation("Transfer", []interface{}{arg1, arg2Copy})
-	fake.transferMutex.Unlock()
+	stub := fake.TeleportStub
+	fakeReturns := fake.teleportReturns
+	fake.recordInvocation("Teleport", []interface{}{arg1, arg2Copy})
+	fake.teleportMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2)
 	}
@@ -254,49 +254,49 @@ func (fake *FakeSessionMover) Transfer(arg1 string, arg2 []string) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeSessionMover) TransferCallCount() int {
-	fake.transferMutex.RLock()
-	defer fake.transferMutex.RUnlock()
-	return len(fake.transferArgsForCall)
+func (fake *FakeSessionTeleporter) TeleportCallCount() int {
+	fake.teleportMutex.RLock()
+	defer fake.teleportMutex.RUnlock()
+	return len(fake.teleportArgsForCall)
 }
 
-func (fake *FakeSessionMover) TransferCalls(stub func(string, []string) error) {
-	fake.transferMutex.Lock()
-	defer fake.transferMutex.Unlock()
-	fake.TransferStub = stub
+func (fake *FakeSessionTeleporter) TeleportCalls(stub func(string, []string) error) {
+	fake.teleportMutex.Lock()
+	defer fake.teleportMutex.Unlock()
+	fake.TeleportStub = stub
 }
 
-func (fake *FakeSessionMover) TransferArgsForCall(i int) (string, []string) {
-	fake.transferMutex.RLock()
-	defer fake.transferMutex.RUnlock()
-	argsForCall := fake.transferArgsForCall[i]
+func (fake *FakeSessionTeleporter) TeleportArgsForCall(i int) (string, []string) {
+	fake.teleportMutex.RLock()
+	defer fake.teleportMutex.RUnlock()
+	argsForCall := fake.teleportArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeSessionMover) TransferReturns(result1 error) {
-	fake.transferMutex.Lock()
-	defer fake.transferMutex.Unlock()
-	fake.TransferStub = nil
-	fake.transferReturns = struct {
+func (fake *FakeSessionTeleporter) TeleportReturns(result1 error) {
+	fake.teleportMutex.Lock()
+	defer fake.teleportMutex.Unlock()
+	fake.TeleportStub = nil
+	fake.teleportReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeSessionMover) TransferReturnsOnCall(i int, result1 error) {
-	fake.transferMutex.Lock()
-	defer fake.transferMutex.Unlock()
-	fake.TransferStub = nil
-	if fake.transferReturnsOnCall == nil {
-		fake.transferReturnsOnCall = make(map[int]struct {
+func (fake *FakeSessionTeleporter) TeleportReturnsOnCall(i int, result1 error) {
+	fake.teleportMutex.Lock()
+	defer fake.teleportMutex.Unlock()
+	fake.TeleportStub = nil
+	if fake.teleportReturnsOnCall == nil {
+		fake.teleportReturnsOnCall = make(map[int]struct {
 			result1 error
 		})
 	}
-	fake.transferReturnsOnCall[i] = struct {
+	fake.teleportReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeSessionMover) Invocations() map[string][][]interface{} {
+func (fake *FakeSessionTeleporter) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -306,7 +306,7 @@ func (fake *FakeSessionMover) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeSessionMover) recordInvocation(key string, args []interface{}) {
+func (fake *FakeSessionTeleporter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -318,4 +318,4 @@ func (fake *FakeSessionMover) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ tui.SessionMover = new(FakeSessionMover)
+var _ tui.SessionTeleporter = new(FakeSessionTeleporter)

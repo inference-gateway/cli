@@ -3,18 +3,18 @@ package domain
 import "encoding/json"
 
 // CheckpointSchemaVersion is the shape of Checkpoint a receiving daemon
-// understands. A mismatch refuses the transfer before anything is restored.
+// understands. A mismatch refuses the teleport before anything is restored.
 const CheckpointSchemaVersion = 1
 
-// TransferStage is one step of a transfer as reported to its requester.
-type TransferStage string
+// TeleportStage is one step of a teleport as reported to its requester.
+type TeleportStage string
 
 const (
-	TransferProvisioning  TransferStage = "provisioning"
-	TransferCheckpointing TransferStage = "checkpointing"
-	TransferRestoring     TransferStage = "restoring"
-	TransferReady         TransferStage = "ready"
-	TransferFailed        TransferStage = "failed"
+	TeleportProvisioning  TeleportStage = "provisioning"
+	TeleportCheckpointing TeleportStage = "checkpointing"
+	TeleportRestoring     TeleportStage = "restoring"
+	TeleportReady         TeleportStage = "ready"
+	TeleportFailed        TeleportStage = "failed"
 )
 
 // Workspace is the project's git state: a bundle of HEAD, a binary patch of
@@ -46,26 +46,26 @@ type Checkpoint struct {
 	SealedEnv     []byte          `json:"sealed_env,omitempty"`
 }
 
-// TransferRequest is what a client asks for: move the session to the named
-// environment, carrying the listed extra files. TransferID makes retries
+// TeleportRequest is what a client asks for: teleport the session to the named
+// environment, carrying the listed extra files. TeleportID makes retries
 // idempotent.
-type TransferRequest struct {
-	TransferID string   `json:"transfer_id"`
+type TeleportRequest struct {
+	TeleportID string   `json:"teleport_id"`
 	Session    Session  `json:"session"`
 	Target     string   `json:"target"`
 	Files      []string `json:"files,omitempty"`
 }
 
-// TransferProgress reports one stage of a transfer to its requester.
-type TransferProgress struct {
-	TransferID string        `json:"transfer_id"`
-	Stage      TransferStage `json:"stage"`
+// TeleportProgress reports one stage of a teleport to its requester.
+type TeleportProgress struct {
+	TeleportID string        `json:"teleport_id"`
+	Stage      TeleportStage `json:"stage"`
 	Message    string        `json:"message,omitempty"`
 }
 
-// SessionMoved tells a thread's clients where the session lives now and which
-// interrupts the move cancelled, so they resume there.
-type SessionMoved struct {
+// SessionTeleported tells a thread's clients where the session lives now and which
+// interrupts the teleport cancelled, so they resume there.
+type SessionTeleported struct {
 	Session             Session         `json:"session"`
 	Environment         string          `json:"environment"`
 	Addr                string          `json:"addr,omitempty"`

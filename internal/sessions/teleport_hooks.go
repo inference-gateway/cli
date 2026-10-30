@@ -16,7 +16,7 @@ import (
 // the worker's own lines advance.
 const hookPollInterval = 10 * time.Millisecond
 
-// Quiesce brings a thread to rest for a transfer: it interrupts an open run,
+// Quiesce brings a thread to rest for a teleport: it interrupts an open run,
 // waits for it to end, stops the worker so its storage is flushed, and returns
 // the interrupts the run was suspended on, as the worker wrote them. The
 // thread and its clients stay, so a later frame relaunches a worker.
@@ -138,9 +138,9 @@ func (r *Registry) AgentsDone() (done, known bool) {
 	return len(r.finished) > 0, len(r.finished) > 0
 }
 
-// MovedAway records that a thread's session now lives in another environment.
+// TeleportedAway records that a thread's session now lives in another environment.
 // Its last run here, interrupted or not, no longer keeps AgentsDone false.
-func (r *Registry) MovedAway(key sessionsdomain.ThreadKey) {
+func (r *Registry) TeleportedAway(key sessionsdomain.ThreadKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ran := r.finished[key]; ran {

@@ -16,12 +16,12 @@ import (
 // environmentsTimeout bounds listing the environments, which probes each one.
 const environmentsTimeout = 30 * time.Second
 
-// transferSteps numbers the stages of a transfer for the status progress bar.
-var transferSteps = map[agentdomain.TransferStage]int{
-	agentdomain.TransferProvisioning:  1,
-	agentdomain.TransferCheckpointing: 2,
-	agentdomain.TransferRestoring:     3,
-	agentdomain.TransferReady:         4,
+// teleportSteps numbers the stages of a teleport for the status progress bar.
+var teleportSteps = map[agentdomain.TeleportStage]int{
+	agentdomain.TeleportProvisioning:  1,
+	agentdomain.TeleportCheckpointing: 2,
+	agentdomain.TeleportRestoring:     3,
+	agentdomain.TeleportReady:         4,
 }
 
 // placedFiles offers the project's files to the input while the session can
@@ -53,25 +53,25 @@ func (f placedFiles) ValidateFile(path string) error {
 	return f.FileService.ValidateFile(path)
 }
 
-// SetSessionMover gives a daemon chat the mover behind /environments and
-// /transfer, and records where its session runs. An in-process chat has none.
-func (app *ChatApplication) SetSessionMover(mover tui.SessionMover) {
-	app.sessionMover = mover
-	if mover != nil {
-		app.stateManager.SetSessionPlacement(mover.Placement())
+// SetSessionTeleporter gives a daemon chat the teleporter behind /environments and
+// /teleport, and records where its session runs. An in-process chat has none.
+func (app *ChatApplication) SetSessionTeleporter(teleporter tui.SessionTeleporter) {
+	app.sessionTeleporter = teleporter
+	if teleporter != nil {
+		app.stateManager.SetSessionPlacement(teleporter.Placement())
 	}
 }
 
 // handleSessionPlacementEvents drives the environments picker and the
-// transfer of a daemon chat's session.
+// teleport of a daemon chat's session.
 func (app *ChatApplication) handleSessionPlacementEvents(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
 	case tui.ShowEnvironmentsEvent:
 		return app.openEnvironments()
-	case tui.TransferRequestedEvent:
-		return app.requestTransfer(m)
-	case tui.TransferProgressEvent:
-		return app.transferProgressed(m.Progress)
+	case tui.TeleportRequestedEvent:
+		return app.requestTeleport(m)
+	case tui.TeleportProgressEvent:
+		return app.teleportProgressed(m.Progress)
 	case tui.SessionPlacementChangedEvent:
 		return app.placementChanged(m)
 	}
@@ -79,7 +79,7 @@ func (app *ChatApplication) handleSessionPlacementEvents(msg tea.Msg) tea.Cmd {
 }
 
 func (app *ChatApplication) openEnvironments() tea.Cmd {
-	if app.sessionMover == nil {
+	if app.sessionTeleporter == nil {
 		return statusCmd(daemonOnlyHint)
 	}
 	if err := app.stateManager.TransitionToView(tui.ViewStateEnvironments); err != nil {
@@ -90,14 +90,14 @@ func (app *ChatApplication) openEnvironments() tea.Cmd {
 
 // loadEnvironments lists the environments off the update loop.
 func (app *ChatApplication) loadEnvironments() tea.Cmd {
-	mover := app.sessionMover
-	if mover == nil {
+	teleporter := app.sessionTeleporter
+	if teleporter == nil {
 		return nil
 	}
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), environmentsTimeout)
 		defer cancel()
-		environments, err := mover.ListEnvironments(ctx)
+		environments, err := teleporter.ListEnvironments(ctx)
 		return tui.EnvironmentsLoadedEvent{Environments: environments, Err: err}
 	}
 }
@@ -122,59 +122,59 @@ func (app *ChatApplication) renderEnvironments() string {
 	return app.environmentsView.View().Content
 }
 
-// requestTransfer moves the session to the target, or says why it cannot go.
-func (app *ChatApplication) requestTransfer(request tui.TransferRequestedEvent) tea.Cmd {
-	if refusal := app.transferRefusal(request.Target); refusal != "" {
+// requestTeleport teleports the session to the target, or says why it cannot go.
+func (app *ChatApplication) requestTeleport(request tui.TeleportRequestedEvent) tea.Cmd {
+	if refusal := app.teleportRefusal(request.Target); refusal != "" {
 		return errorCmd(refusal, false)
 	}
-	if err := app.sessionMover.Transfer(request.Target, request.Files); err != nil {
-		return errorCmd(fmt.Sprintf("Could not move the session to %s: %v", request.Target, err), false)
+	if err := app.sessionTeleporter.Teleport(request.Target, request.Files); err != nil {
+		return errorCmd(fmt.Sprintf("Could not teleport the session to %s: %v", request.Target, err), false)
 	}
-	app.stateManager.SetSessionPlacement(app.sessionMover.Placement())
-	return transferStatusCmd(request.Target, "requesting the move", 0)
+	app.stateManager.SetSessionPlacement(app.sessionTeleporter.Placement())
+	return teleportStatusCmd(request.Target, "requesting the teleport", 0)
 }
 
-// transferRefusal is why the session cannot move to target now, or "".
-func (app *ChatApplication) transferRefusal(target string) string {
+// teleportRefusal is why the session cannot teleport to target now, or "".
+func (app *ChatApplication) teleportRefusal(target string) string {
 	placement := app.stateManager.GetSessionPlacement()
 	switch {
-	case app.sessionMover == nil:
+	case app.sessionTeleporter == nil:
 		return daemonOnlyHint
 	case placement.Offline:
 		return "infer daemon is unreachable, reconnecting · try again once it is back"
-	case placement.Transferring != "":
-		return "A transfer to " + placement.Transferring + " is already running · esc cancels it"
+	case placement.Teleporting != "":
+		return "A teleport to " + placement.Teleporting + " is already running · esc cancels it"
 	case placement.Remote() && target != placement.Local:
-		return "From " + placement.Environment + " the session moves only back to " + placement.Local
+		return "From " + placement.Environment + " the session teleports only back to " + placement.Local
 	case target == placement.Where():
 		return "The session already runs on " + target
 	case app.stateManager.IsAgentBusy():
-		return "Wait for the turn to finish before moving the session · esc stops it"
+		return "Wait for the turn to finish before teleporting the session · esc stops it"
 	}
 	return ""
 }
 
-// transferProgressed shows the stage the running transfer reached. A failure
+// teleportProgressed shows the stage the running teleport reached. A failure
 // stays on screen, since the session is left where it was.
-func (app *ChatApplication) transferProgressed(progress agentdomain.TransferProgress) tea.Cmd {
+func (app *ChatApplication) teleportProgressed(progress agentdomain.TeleportProgress) tea.Cmd {
 	placement := app.stateManager.GetSessionPlacement()
-	target := placement.Transferring
-	if progress.Stage == agentdomain.TransferFailed {
-		return errorCmd(fmt.Sprintf("Transfer to %s failed: %s. The session stays on %s.", target, progress.Message, placement.Where()), true)
+	target := placement.Teleporting
+	if progress.Stage == agentdomain.TeleportFailed {
+		return errorCmd(fmt.Sprintf("Teleport to %s failed: %s. The session stays on %s.", target, progress.Message, placement.Where()), true)
 	}
-	return transferStatusCmd(target, transferStage(placement, progress.Stage), transferSteps[progress.Stage])
+	return teleportStatusCmd(target, teleportStage(placement, progress.Stage), teleportSteps[progress.Stage])
 }
 
 // placementChanged records where the session runs now and says so when it
-// moved, lost the daemon or got it back.
+// teleported, lost the daemon or got it back.
 func (app *ChatApplication) placementChanged(event tui.SessionPlacementChangedEvent) tea.Cmd {
 	before := app.stateManager.GetSessionPlacement()
 	app.stateManager.SetSessionPlacement(event.Placement)
 	switch {
-	case event.Moved:
+	case event.Teleported:
 		message := "✓ Session now runs on " + event.Placement.Where()
 		if event.CancelledInterrupts > 0 {
-			message += fmt.Sprintf(" · %d open prompt(s) were cancelled by the move", event.CancelledInterrupts)
+			message += fmt.Sprintf(" · %d open prompt(s) were cancelled by the teleport", event.CancelledInterrupts)
 		}
 		return statusCmd(message)
 	case event.Placement.Offline && !before.Offline:
@@ -187,49 +187,49 @@ func (app *ChatApplication) placementChanged(event tui.SessionPlacementChangedEv
 	return nil
 }
 
-// cancelTransfer stops the running transfer, which leaves the session here.
-func (app *ChatApplication) cancelTransfer() []tea.Cmd {
-	if err := app.sessionMover.CancelTransfer(); err != nil {
-		return []tea.Cmd{errorCmd(fmt.Sprintf("Could not cancel the transfer: %v", err), false)}
+// cancelTeleport stops the running teleport, which leaves the session here.
+func (app *ChatApplication) cancelTeleport() []tea.Cmd {
+	if err := app.sessionTeleporter.CancelTeleport(); err != nil {
+		return []tea.Cmd{errorCmd(fmt.Sprintf("Could not cancel the teleport: %v", err), false)}
 	}
-	return []tea.Cmd{statusCmd("Cancelling the transfer…")}
+	return []tea.Cmd{statusCmd("Cancelling the teleport…")}
 }
 
-// transferring reports whether the session is moving, which blocks input.
-func (app *ChatApplication) transferring() bool {
-	return app.stateManager.GetSessionPlacement().Transferring != ""
+// teleporting reports whether the session is teleporting, which blocks input.
+func (app *ChatApplication) teleporting() bool {
+	return app.stateManager.GetSessionPlacement().Teleporting != ""
 }
 
-// transferStage says what a stage of the move does, which differs on the way
+// teleportStage says what a stage of the teleport does, which differs on the way
 // back from where the session runs.
-func transferStage(placement tui.SessionPlacement, stage agentdomain.TransferStage) string {
-	target := placement.Transferring
+func teleportStage(placement tui.SessionPlacement, stage agentdomain.TeleportStage) string {
+	target := placement.Teleporting
 	if placement.Remote() && target == placement.Local {
 		from := placement.Environment
-		return map[agentdomain.TransferStage]string{
-			agentdomain.TransferProvisioning:  "reaching " + from,
-			agentdomain.TransferCheckpointing: "packing the session on " + from,
-			agentdomain.TransferRestoring:     "landing its workspace and conversation here",
-			agentdomain.TransferReady:         "ready, reattaching",
+		return map[agentdomain.TeleportStage]string{
+			agentdomain.TeleportProvisioning:  "reaching " + from,
+			agentdomain.TeleportCheckpointing: "packing the session on " + from,
+			agentdomain.TeleportRestoring:     "landing its workspace and conversation here",
+			agentdomain.TeleportReady:         "ready, reattaching",
 		}[stage]
 	}
-	return map[agentdomain.TransferStage]string{
-		agentdomain.TransferProvisioning:  "provisioning " + target,
-		agentdomain.TransferCheckpointing: "checkpointing the conversation and workspace",
-		agentdomain.TransferRestoring:     "restoring on " + target,
-		agentdomain.TransferReady:         "ready, reattaching",
+	return map[agentdomain.TeleportStage]string{
+		agentdomain.TeleportProvisioning:  "provisioning " + target,
+		agentdomain.TeleportCheckpointing: "checkpointing the conversation and workspace",
+		agentdomain.TeleportRestoring:     "restoring on " + target,
+		agentdomain.TeleportReady:         "ready, reattaching",
 	}[stage]
 }
 
 const daemonOnlyHint = "Environments are for daemon chats · start one with infer chat --daemon"
 
-func transferStatusCmd(target, stage string, step int) tea.Cmd {
+func teleportStatusCmd(target, stage string, step int) tea.Cmd {
 	return func() tea.Msg {
 		return tui.SetStatusEvent{
-			Message:    fmt.Sprintf("Moving session to %s · %s · esc cancels", target, stage),
+			Message:    fmt.Sprintf("Teleporting session to %s · %s · esc cancels", target, stage),
 			Spinner:    true,
 			StatusType: tui.StatusWorking,
-			Progress:   &tui.StatusProgress{Current: step, Total: len(transferSteps)},
+			Progress:   &tui.StatusProgress{Current: step, Total: len(teleportSteps)},
 		}
 	}
 }

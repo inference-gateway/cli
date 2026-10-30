@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"crypto/sha256"
@@ -55,14 +55,14 @@ func (r *receiver) importCheckpoint(t *testing.T, checkpoint agentdomain.Checkpo
 	if tamper != nil {
 		payload = tamper(payload)
 	}
-	r.send(t, chunkFrame{Type: frameTransferChunk, TransferID: "t-1", Seq: 0, Data: payload[:len(payload)/2]})
-	r.send(t, chunkFrame{Type: frameTransferChunk, TransferID: "t-1", Seq: 1, Data: payload[len(payload)/2:]})
-	r.send(t, importFrame{Type: frameTransferImport, TransferID: "t-1", Environment: environment, Chunks: 2, SHA256: hex.EncodeToString(sum[:])})
+	r.send(t, chunkFrame{Type: frameTeleportChunk, TeleportID: "t-1", Seq: 0, Data: payload[:len(payload)/2]})
+	r.send(t, chunkFrame{Type: frameTeleportChunk, TeleportID: "t-1", Seq: 1, Data: payload[len(payload)/2:]})
+	r.send(t, importFrame{Type: frameTeleportImport, TeleportID: "t-1", Environment: environment, Chunks: 2, SHA256: hex.EncodeToString(sum[:])})
 	ctx, cancel := contextWithTimeout(t, 5*time.Second)
 	defer cancel()
-	reply, err := r.frames.await(ctx, frameTransferImported)
+	reply, err := r.frames.await(ctx, frameTeleportImported)
 	if err != nil {
-		t.Fatalf("no transfer_imported: %v", err)
+		t.Fatalf("no teleport_imported: %v", err)
 	}
 	var imported importedFrame
 	_ = json.Unmarshal(reply, &imported)
@@ -98,28 +98,28 @@ func TestReceiveValidatesTheCheckpointBeforeRestoring(t *testing.T) {
 
 func TestReceiveIgnoresPeerFramesFromClients(t *testing.T) {
 	r := startReceiver(t, "desktop")
-	r.send(t, importFrame{Type: frameTransferImport, TransferID: "t-1", Environment: "laptop", Chunks: 0})
+	r.send(t, importFrame{Type: frameTeleportImport, TeleportID: "t-1", Environment: "laptop", Chunks: 0})
 	ctx, cancel := contextWithTimeout(t, 300*time.Millisecond)
 	defer cancel()
-	if _, err := r.frames.await(ctx, frameTransferImported); err == nil {
-		t.Fatal("a client's transfer_import was answered")
+	if _, err := r.frames.await(ctx, frameTeleportImported); err == nil {
+		t.Fatal("a client's teleport_import was answered")
 	}
 }
 
-func TestTransferSessionNeedsARemoteTarget(t *testing.T) {
+func TestTeleportSessionNeedsARemoteTarget(t *testing.T) {
 	r := startReceiver(t, "desktop")
-	r.send(t, map[string]string{"type": frameTransferSession, "transfer_id": "t-1", "project_dir": "/proj", "id": "conv-1", "target": "nowhere"})
+	r.send(t, map[string]string{"type": frameTeleportSession, "teleport_id": "t-1", "project_dir": "/proj", "id": "conv-1", "target": "nowhere"})
 	ctx, cancel := contextWithTimeout(t, 5*time.Second)
 	defer cancel()
-	reply, err := r.frames.await(ctx, frameTransferProgress)
+	reply, err := r.frames.await(ctx, frameTeleportProgress)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(reply), `"stage":"failed"`) || !strings.Contains(string(reply), "nowhere") {
 		t.Fatalf("progress = %s", reply)
 	}
-	r.send(t, map[string]string{"type": frameTransferSession, "transfer_id": "", "project_dir": "/proj", "id": "conv-1", "target": "x"})
-	if _, err := r.frames.await(ctx, "never"); err == nil || !strings.Contains(err.Error(), "needs transfer_id") {
+	r.send(t, map[string]string{"type": frameTeleportSession, "teleport_id": "", "project_dir": "/proj", "id": "conv-1", "target": "x"})
+	if _, err := r.frames.await(ctx, "never"); err == nil || !strings.Contains(err.Error(), "needs teleport_id") {
 		t.Fatalf("incomplete request = %v", err)
 	}
 }

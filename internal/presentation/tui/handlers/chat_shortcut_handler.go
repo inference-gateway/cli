@@ -278,8 +278,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowAgentsSideEffect()
 	case shortcuts.SideEffectShowEnvironments:
 		return tui.ShowEnvironmentsEvent{}
-	case shortcuts.SideEffectTransferSession:
-		if request, ok := data.(tui.TransferRequestedEvent); ok {
+	case shortcuts.SideEffectTeleportSession:
+		if request, ok := data.(tui.TeleportRequestedEvent); ok {
 			return request
 		}
 		return nil

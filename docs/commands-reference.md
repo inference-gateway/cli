@@ -454,7 +454,7 @@ select models and have conversations.
 - `--ssh-command <path>`: Path to the infer binary on the remote host (default infer)
 - `--session-id <id>`: Resume an existing chat session by conversation ID. With `--daemon` it attaches to the
   session wherever it runs
-- `--daemon`: Run every turn through the local infer daemon, started when needed, so the session can move between
+- `--daemon`: Run every turn through the local infer daemon, started when needed, so the session can teleport between
   environments and keeps running after the TUI exits (`chat.daemon`, `INFER_CHAT_DAEMON`). See
   [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
 
@@ -665,8 +665,8 @@ or a client-certificate TLS mode in `~/.infer/daemon.yaml`:
 
 ```bash
 infer daemon environments                                         # every environment in daemon.yaml and whether it is reachable
-infer daemon transfer <conversation-id> --to k8s-dev              # move the session, printing each stage until ready
-infer daemon transfer <conversation-id> --to k8s-dev --file build/out.bin --transfer-id <uuid>
+infer daemon teleport <conversation-id> --to k8s-dev              # teleport the session, printing each stage until ready
+infer daemon teleport <conversation-id> --to k8s-dev --file build/out.bin --teleport-id <uuid>
 infer daemon run <conversation-id> "continue please"              # one turn through the daemon, wherever the session runs
 infer daemon run <conversation-id>                                # print the conversation instead of running a turn
 infer daemon stop <conversation-id>                               # stop the agent, delete its Sandbox and volumes on the owner
@@ -674,12 +674,12 @@ infer daemon stop <conversation-id>                               # stop the age
 
 - `--project-dir` names the conversation's project, the current directory by default.
 - `--file` adds files git does not track to the checkpoint, relative to the project, and may repeat.
-- `--transfer-id` retries one transfer idempotently: a transfer that already succeeded answers `ready` at once.
-- `transfer` exits non-zero when the transfer fails, and the session stays where it was.
+- `--teleport-id` retries one teleport idempotently: a teleport that already succeeded answers `ready` at once.
+- `teleport` exits non-zero when the teleport fails, and the session stays where it was.
 - `stop` deletes the session's runtime on the remote environment that owns it, volumes included, and releases the
   lease, so the session continues from this machine's copy. A session this daemon owns only has its worker stopped.
 
-See [Environments and transfers](daemon.md#environments-and-transfers) for the environments and the lease model.
+See [Environments and teleports](daemon.md#environments-and-teleports) for the environments and the lease model.
 
 ---
 

@@ -53,7 +53,7 @@ func TestPKIIssuesVerifiablePairsAndPersists(t *testing.T) {
 	}
 }
 
-func TestSealedEnvOpensOnlyForTheRightKeyAndTransfer(t *testing.T) {
+func TestSealedEnvOpensOnlyForTheRightKeyAndTeleport(t *testing.T) {
 	pki, err := LoadOrCreatePKI(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestSealedEnvOpensOnlyForTheRightKeyAndTransfer(t *testing.T) {
 		t.Fatalf("Open = %v, %v", opened, err)
 	}
 	if _, err := ring.Open(sealed, "t-2"); err == nil {
-		t.Fatal("a blob opened under another transfer id")
+		t.Fatal("a blob opened under another teleport id")
 	}
 
 	other, _ := pki.IssueServer("other")

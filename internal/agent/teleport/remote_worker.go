@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"bytes"
@@ -42,7 +42,7 @@ func (p *peerFrames) Handle(_ *agui.Conn, frame []byte) {
 	select {
 	case p.frames <- append([]byte(nil), frame...):
 	default:
-		logger.Warn("transfer dropped a peer frame the relay could not keep up with")
+		logger.Warn("teleport dropped a peer frame the relay could not keep up with")
 	}
 }
 
@@ -132,7 +132,7 @@ func (s *Service) refreshRemote(ctx context.Context, conversationID, environment
 		}
 		err := s.leases.RenewLease(ctx, conversationID, environment, time.Now().Add(ttl))
 		if errors.Is(err, agentdomain.ErrLeaseLost) {
-			logger.Info("transfer drops a relay whose session changed hands", "conversation_id", conversationID, "environment", environment)
+			logger.Info("teleport drops a relay whose session changed hands", "conversation_id", conversationID, "environment", environment)
 			w.Stop()
 			return
 		}

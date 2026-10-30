@@ -11,7 +11,7 @@ import (
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-// The panel frames a session transfer uses to move a conversation between
+// The panel frames a session teleport uses to teleport a conversation between
 // storage backends: the worker exports from and imports into the store of the
 // project it runs in, so per-project storage layouts resolve.
 const (
@@ -52,15 +52,15 @@ type conversationImportedFrame struct {
 	Error        string `json:"error,omitempty"`
 }
 
-// transfers answers the conversation export and import frames from the
+// teleports answers the conversation export and import frames from the
 // worker's conversation storage.
-type transfers struct {
+type teleports struct {
 	write frameWriter
 	store storage.ConversationStorage
 }
 
 // export answers export_conversation with the conversation as stored.
-func (t *transfers) export(id string) {
+func (t *teleports) export(id string) {
 	if t.store == nil {
 		t.write(conversationExportFrame{Type: outboundConversationExport, ID: id, Error: errNoConversationStorage.Error()})
 		return
@@ -79,7 +79,7 @@ func (t *transfers) export(id string) {
 
 // importFrom stores the conversation an import_conversation line carries under
 // this worker's project, so the project's listings include it.
-func (t *transfers) importFrom(line []byte) {
+func (t *teleports) importFrom(line []byte) {
 	var frame importConversationFrame
 	if err := json.Unmarshal(line, &frame); err != nil {
 		t.write(conversationImportedFrame{Type: outboundConversationImported, Error: err.Error()})

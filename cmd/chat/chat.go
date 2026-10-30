@@ -96,7 +96,7 @@ and have a conversational interface with the inference gateway.`,
 	command.Flags().Bool("ssh-no-install", false, "Disable auto-installation of infer on remote")
 	command.Flags().String("ssh-command", "infer", "Path to infer binary on remote")
 	command.Flags().String("session-id", "", "Resume an existing chat session by conversation ID")
-	command.Flags().Bool("daemon", false, "Run every turn through the local infer daemon (started when needed), so the session can move between environments and outlive this terminal")
+	command.Flags().Bool("daemon", false, "Run every turn through the local infer daemon (started when needed), so the session can teleport between environments and outlive this terminal")
 	return command
 }
 

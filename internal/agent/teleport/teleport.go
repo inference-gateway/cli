@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"context"
@@ -18,90 +18,90 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// The transfer's time budgets: the whole saga, one peer reply, the quiesce of
+// The teleport's time budgets: the whole saga, one peer reply, the quiesce of
 // the source worker, and the cleanup of a failed target.
 const (
-	transferTimeout = 30 * time.Minute
+	teleportTimeout = 30 * time.Minute
 	replyTimeout    = 5 * time.Minute
 	quiesceTimeout  = 2 * time.Minute
 	discardTimeout  = time.Minute
 	chunkBytes      = 4 << 20
 )
 
-// requester is the connection a transfer reports to.
+// requester is the connection a teleport reports to.
 type requester interface {
 	Deliver(frame []byte)
 }
 
-// startTransfer validates a transfer_session frame and runs the saga under a
-// cancellable context registered by transfer id.
-func (s *Service) startTransfer(to requester, f clientFrame) {
-	if f.TransferID == "" || f.ProjectDir == "" || f.ID == "" || f.Target == "" {
-		to.Deliver(runError("transfer_session needs transfer_id, project_dir, id and target"))
+// startTeleport validates a teleport_session frame and runs the saga under a
+// cancellable context registered by teleport id.
+func (s *Service) startTeleport(to requester, f clientFrame) {
+	if f.TeleportID == "" || f.ProjectDir == "" || f.ID == "" || f.Target == "" {
+		to.Deliver(runError("teleport_session needs teleport_id, project_dir, id and target"))
 		return
 	}
 	session := s.session(sessionsdomain.ThreadKey{ProjectDir: f.ProjectDir, ConversationID: f.ID})
 	if err := session.Validate(); err != nil {
-		refuseTransfer(to, f.TransferID, err.Error())
+		refuseTeleport(to, f.TeleportID, err.Error())
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), teleportTimeout)
 	s.mu.Lock()
-	if _, running := s.transfers[f.TransferID]; running {
+	if _, running := s.teleports[f.TeleportID]; running {
 		s.mu.Unlock()
 		cancel()
-		refuseTransfer(to, f.TransferID, "a transfer with this id is already running")
+		refuseTeleport(to, f.TeleportID, "a teleport with this id is already running")
 		return
 	}
 	if s.conversations[f.ID] != "" {
 		s.mu.Unlock()
 		cancel()
-		refuseTransfer(to, f.TransferID, "a transfer of this session is already running")
+		refuseTeleport(to, f.TeleportID, "a teleport of this session is already running")
 		return
 	}
-	s.transfers[f.TransferID] = cancel
-	s.conversations[f.ID] = f.TransferID
+	s.teleports[f.TeleportID] = cancel
+	s.conversations[f.ID] = f.TeleportID
 	s.mu.Unlock()
 	defer func() {
 		cancel()
 		s.mu.Lock()
-		delete(s.transfers, f.TransferID)
+		delete(s.teleports, f.TeleportID)
 		delete(s.conversations, f.ID)
 		s.mu.Unlock()
 	}()
-	req := agentdomain.TransferRequest{
-		TransferID: f.TransferID,
+	req := agentdomain.TeleportRequest{
+		TeleportID: f.TeleportID,
 		Session:    session,
 		Target:     f.Target,
 		Files:      f.Files,
 	}
-	s.transfer(ctx, to, req)
+	s.teleport(ctx, to, req)
 }
 
-func (s *Service) cancelTransfer(transferID string) {
+func (s *Service) cancelTeleport(teleportID string) {
 	s.mu.Lock()
-	cancel := s.transfers[transferID]
+	cancel := s.teleports[teleportID]
 	s.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
 }
 
-// refuseTransfer answers a transfer request the service will not run.
-func refuseTransfer(to requester, transferID, reason string) {
-	to.Deliver(encode(progressFrame{Type: frameTransferProgress, TransferProgress: agentdomain.TransferProgress{
-		TransferID: transferID, Stage: agentdomain.TransferFailed, Message: reason,
+// refuseTeleport answers a teleport request the service will not run.
+func refuseTeleport(to requester, teleportID, reason string) {
+	to.Deliver(encode(progressFrame{Type: frameTeleportProgress, TeleportProgress: agentdomain.TeleportProgress{
+		TeleportID: teleportID, Stage: agentdomain.TeleportFailed, Message: reason,
 	}}))
 }
 
-// transfer is the saga: precondition, provisioning, checkpointing, restoring,
+// teleport is the saga: precondition, provisioning, checkpointing, restoring,
 // ready. Any failure before ready leaves the session here.
-func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.TransferRequest) {
+func (s *Service) teleport(ctx context.Context, to requester, req agentdomain.TeleportRequest) {
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
-	report := func(stage agentdomain.TransferStage, message string) { s.report(to, req, stage, message) }
-	fail := func(err error) { s.failTransfer(to, req, err) }
+	report := func(stage agentdomain.TeleportStage, message string) { s.report(to, req, stage, message) }
+	fail := func(err error) { s.failTeleport(to, req, err) }
 	if req.Target == s.me {
-		s.bringBack(ctx, to, req)
+		s.teleportBack(ctx, to, req)
 		return
 	}
 
@@ -111,7 +111,7 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		return
 	}
 	if backend := s.cfg.LeaseBackend; backend == config.StorageTypeJsonl || backend == config.StorageTypeMemory {
-		logger.Warn("transfer runs on per-machine lease storage - a crash mid-saga can leave both daemons believing they own the session, point storage.type at a shared backend to close the window", "backend", backend, "target", req.Target, "conversation_id", req.Session.ConversationID)
+		logger.Warn("teleport runs on per-machine lease storage - a crash mid-saga can leave both daemons believing they own the session, point storage.type at a shared backend to close the window", "backend", backend, "target", req.Target, "conversation_id", req.Session.ConversationID)
 	}
 	done, err := s.precondition(ctx, req)
 	if err != nil {
@@ -119,21 +119,21 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		return
 	}
 	if done != nil {
-		report(agentdomain.TransferReady, "the session already lives on "+req.Target)
+		report(agentdomain.TeleportReady, "the session already lives on "+req.Target)
 		s.announce(to, key, req, *done, "", nil)
 		return
 	}
 
-	report(agentdomain.TransferProvisioning, "")
+	report(agentdomain.TeleportProvisioning, "")
 	endpoint, err := environment.Ensure(ctx, req.Session)
 	if err != nil {
 		fail(describe(err, "provisioning %s", req.Target))
 		return
 	}
 	defer endpoint.Release()
-	moved := false
+	teleported := false
 	defer func() {
-		if !moved {
+		if !teleported {
 			s.discard(ctx, environment, req)
 		}
 	}()
@@ -149,7 +149,7 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		return
 	}
 
-	report(agentdomain.TransferCheckpointing, "")
+	report(agentdomain.TeleportCheckpointing, "")
 	checkpoint, err := s.checkpoint(ctx, req, info, conn)
 	if err != nil {
 		fail(err)
@@ -157,81 +157,81 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 	}
 	fingerprint, _, err := agentinfra.CheckoutState(ctx, req.Session.ProjectDir, s.excludes(req.Session.ProjectDir))
 	if err != nil {
-		logger.Warn("transfer could not fingerprint the checkout the session leaves", "conversation_id", req.Session.ConversationID, "error", err)
+		logger.Warn("teleport could not fingerprint the checkout the session leaves", "conversation_id", req.Session.ConversationID, "error", err)
 	}
 
-	report(agentdomain.TransferRestoring, "")
+	report(agentdomain.TeleportRestoring, "")
 	workspace, err := s.restore(ctx, conn, frames, req, checkpoint)
 	if err != nil {
-		_ = conn.Send(encode(abortFrame{Type: frameTransferAbort, TransferID: req.TransferID}))
+		_ = conn.Send(encode(abortFrame{Type: frameTeleportAbort, TeleportID: req.TeleportID}))
 		fail(err)
 		return
 	}
 
 	lease := agentdomain.Lease{
 		ConversationID: req.Session.ConversationID, Environment: req.Target, Workspace: workspace,
-		TransferID: req.TransferID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
+		TeleportID: req.TeleportID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
 	}
-	moved = s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts)
-	if moved && fingerprint != "" {
+	teleported = s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts)
+	if teleported && fingerprint != "" {
 		s.rememberOrigin(req.Session.ConversationID, req.Session.ProjectDir, fingerprint)
 	}
 }
 
-// discard removes what a failed transfer left on its target: the runtime it
+// discard removes what a failed teleport left on its target: the runtime it
 // provisioned and any claim the target holds on the session, so the next
-// transfer starts clean. It outlives a cancelled transfer.
-func (s *Service) discard(ctx context.Context, environment agentdomain.Environment, req agentdomain.TransferRequest) {
+// teleport starts clean. It outlives a cancelled teleport.
+func (s *Service) discard(ctx context.Context, environment agentdomain.Environment, req agentdomain.TeleportRequest) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discardTimeout)
 	defer cancel()
 	if err := environment.Delete(ctx, req.Session); err != nil {
-		logger.Warn("transfer could not delete the runtime a failed transfer left", "transfer_id", req.TransferID, "target", req.Target, "error", err)
+		logger.Warn("teleport could not delete the runtime a failed teleport left", "teleport_id", req.TeleportID, "target", req.Target, "error", err)
 	}
 	if err := s.leases.ReleaseLease(ctx, req.Session.ConversationID, req.Target); err != nil {
-		logger.Warn("transfer could not release the target's claim after a failed transfer", "transfer_id", req.TransferID, "target", req.Target, "error", err)
+		logger.Warn("teleport could not release the target's claim after a failed teleport", "teleport_id", req.TeleportID, "target", req.Target, "error", err)
 	}
 }
 
-// handOver writes the target's lease row and announces the move, or aborts
+// handOver writes the target's lease row and announces the teleport, or aborts
 // the restore there when the row will not yield. It reports whether the
-// session moved.
-func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) bool {
+// session teleported.
+func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, req agentdomain.TeleportRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) bool {
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err == nil && !ok {
 		err = fmt.Errorf("environment %s holds the session's lease", holder.Environment)
 	}
 	if err != nil {
-		_ = peer.Send(encode(abortFrame{Type: frameTransferAbort, TransferID: req.TransferID}))
-		s.failTransfer(to, req, describe(err, "recording the new owner"))
+		_ = peer.Send(encode(abortFrame{Type: frameTeleportAbort, TeleportID: req.TeleportID}))
+		s.failTeleport(to, req, describe(err, "recording the new owner"))
 		return false
 	}
-	s.report(to, req, agentdomain.TransferReady, "")
+	s.report(to, req, agentdomain.TeleportReady, "")
 	s.announce(to, sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}, req, lease, addr, interrupts)
 	return true
 }
 
-// report hands the requester one progress frame of the transfer.
-func (s *Service) report(to requester, req agentdomain.TransferRequest, stage agentdomain.TransferStage, message string) {
-	to.Deliver(encode(progressFrame{Type: frameTransferProgress, TransferProgress: agentdomain.TransferProgress{
-		TransferID: req.TransferID, Stage: stage, Message: message,
+// report hands the requester one progress frame of the teleport.
+func (s *Service) report(to requester, req agentdomain.TeleportRequest, stage agentdomain.TeleportStage, message string) {
+	to.Deliver(encode(progressFrame{Type: frameTeleportProgress, TeleportProgress: agentdomain.TeleportProgress{
+		TeleportID: req.TeleportID, Stage: stage, Message: message,
 	}}))
 }
 
-// failTransfer logs why the transfer failed and reports it to the requester.
-func (s *Service) failTransfer(to requester, req agentdomain.TransferRequest, err error) {
-	logger.Warn("transfer failed", "transfer_id", req.TransferID, "conversation_id", req.Session.ConversationID, "target", req.Target, "error", err)
-	s.report(to, req, agentdomain.TransferFailed, err.Error())
+// failTeleport logs why the teleport failed and reports it to the requester.
+func (s *Service) failTeleport(to requester, req agentdomain.TeleportRequest, err error) {
+	logger.Warn("teleport failed", "teleport_id", req.TeleportID, "conversation_id", req.Session.ConversationID, "target", req.Target, "error", err)
+	s.report(to, req, agentdomain.TeleportFailed, err.Error())
 }
 
 // precondition refuses a session another environment owns, answers a completed
-// transfer idempotently, and stamps this daemon's own row with the transfer
+// teleport idempotently, and stamps this daemon's own row with the teleport
 // id so the target's claim matches it.
-func (s *Service) precondition(ctx context.Context, req agentdomain.TransferRequest) (*agentdomain.Lease, error) {
+func (s *Service) precondition(ctx context.Context, req agentdomain.TeleportRequest) (*agentdomain.Lease, error) {
 	lease, found, err := s.leases.GetLease(ctx, req.Session.ConversationID)
 	if err != nil {
 		return nil, describe(err, "reading the session's lease")
 	}
-	if found && lease.Environment == req.Target && lease.TransferID == req.TransferID {
+	if found && lease.Environment == req.Target && lease.TeleportID == req.TeleportID {
 		return &lease, nil
 	}
 	if found && lease.Environment != s.me && lease.Live(time.Now()) {
@@ -239,13 +239,13 @@ func (s *Service) precondition(ctx context.Context, req agentdomain.TransferRequ
 	}
 	own := agentdomain.Lease{
 		ConversationID: req.Session.ConversationID, Environment: s.me, Workspace: req.Session.ProjectDir,
-		TransferID: req.TransferID, Until: time.Now().Add(s.ownedTTL()),
+		TeleportID: req.TeleportID, Until: time.Now().Add(s.ownedTTL()),
 	}
 	if _, ok, err := s.leases.ClaimLease(ctx, own); err != nil || !ok {
 		if err == nil {
 			err = errors.New("another environment claimed the session first")
 		}
-		return nil, describe(err, "claiming the session for the transfer")
+		return nil, describe(err, "claiming the session for the teleport")
 	}
 	return nil, nil
 }
@@ -253,7 +253,7 @@ func (s *Service) precondition(ctx context.Context, req agentdomain.TransferRequ
 // checkpoint quiesces the source worker and captures the session: its
 // conversation unless the target shares this daemon's storage, its open
 // interrupts, its workspace and its sealed credentials.
-func (s *Service) checkpoint(ctx context.Context, req agentdomain.TransferRequest, peer agentinfra.PeerInfo, conn *agui.Conn) (agentdomain.Checkpoint, error) {
+func (s *Service) checkpoint(ctx context.Context, req agentdomain.TeleportRequest, peer agentinfra.PeerInfo, conn *agui.Conn) (agentdomain.Checkpoint, error) {
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
 	defer cancel()
@@ -307,7 +307,7 @@ func (s *Service) export(ctx context.Context, session agentdomain.Session) (expo
 
 // sealCredentials encrypts the environment's forward_env values to the peer's
 // certificate, so they travel only to the daemon that presented it.
-func (s *Service) sealCredentials(req agentdomain.TransferRequest, conn *agui.Conn) ([]byte, error) {
+func (s *Service) sealCredentials(req agentdomain.TeleportRequest, conn *agui.Conn) ([]byte, error) {
 	names := s.entries[req.Target].ForwardEnv
 	if len(names) == 0 {
 		return nil, nil
@@ -322,7 +322,7 @@ func (s *Service) sealCredentials(req agentdomain.TransferRequest, conn *agui.Co
 			env[name] = value
 		}
 	}
-	sealed, err := agentinfra.SealEnv(certs[0], env, req.TransferID)
+	sealed, err := agentinfra.SealEnv(certs[0], env, req.TeleportID)
 	if err != nil {
 		return nil, describe(err, "sealing the credentials")
 	}
@@ -331,13 +331,13 @@ func (s *Service) sealCredentials(req agentdomain.TransferRequest, conn *agui.Co
 
 // restore streams the checkpoint to the peer, waits for it to import, then
 // resumes the conversation there and checks the snapshot matches.
-func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TransferRequest, checkpoint agentdomain.Checkpoint) (string, error) {
-	if err := sendCheckpoint(conn, req.TransferID, req.Target, checkpoint); err != nil {
+func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TeleportRequest, checkpoint agentdomain.Checkpoint) (string, error) {
+	if err := sendCheckpoint(conn, req.TeleportID, req.Target, checkpoint); err != nil {
 		return "", err
 	}
 	replyCtx, cancel := context.WithTimeout(ctx, replyTimeout)
 	defer cancel()
-	reply, err := frames.await(replyCtx, frameTransferImported)
+	reply, err := frames.await(replyCtx, frameTeleportImported)
 	if err != nil {
 		return "", describe(err, "waiting for %s to restore the session", req.Target)
 	}
@@ -365,18 +365,18 @@ func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFram
 
 // sendCheckpoint streams a checkpoint to conn in chunks and closes it with the
 // import frame naming the environment it is meant for.
-func sendCheckpoint(conn *agui.Conn, transferID, environment string, checkpoint agentdomain.Checkpoint) error {
+func sendCheckpoint(conn *agui.Conn, teleportID, environment string, checkpoint agentdomain.Checkpoint) error {
 	payload := encode(checkpoint)
 	sum := sha256.Sum256(payload)
 	chunks := 0
 	for start := 0; start < len(payload); start += chunkBytes {
 		end := min(start+chunkBytes, len(payload))
-		if err := conn.Send(encode(chunkFrame{Type: frameTransferChunk, TransferID: transferID, Seq: chunks, Data: payload[start:end]})); err != nil {
+		if err := conn.Send(encode(chunkFrame{Type: frameTeleportChunk, TeleportID: teleportID, Seq: chunks, Data: payload[start:end]})); err != nil {
 			return describe(err, "sending the checkpoint")
 		}
 		chunks++
 	}
-	if err := conn.Send(encode(importFrame{Type: frameTransferImport, TransferID: transferID, Environment: environment, Chunks: chunks, SHA256: hex.EncodeToString(sum[:])})); err != nil {
+	if err := conn.Send(encode(importFrame{Type: frameTeleportImport, TeleportID: teleportID, Environment: environment, Chunks: chunks, SHA256: hex.EncodeToString(sum[:])})); err != nil {
 		return describe(err, "sending the checkpoint")
 	}
 	return nil
@@ -392,15 +392,15 @@ func snapshotDigest(frame []byte) string {
 }
 
 // announce tells the requester and the thread's followers where the session
-// lives now and which interrupts the move cancelled, and frees the thread's
+// lives now and which interrupts the teleport cancelled, and frees the thread's
 // last run here from holding back this daemon's Sandbox retention.
-func (s *Service) announce(to requester, key sessionsdomain.ThreadKey, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
-	moved := encode(sessionMovedFrame{Type: frameSessionMoved, SessionMoved: agentdomain.SessionMoved{
+func (s *Service) announce(to requester, key sessionsdomain.ThreadKey, req agentdomain.TeleportRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
+	teleported := encode(sessionTeleportedFrame{Type: frameSessionTeleported, SessionTeleported: agentdomain.SessionTeleported{
 		Session: req.Session, Environment: lease.Environment, Addr: addr, Workspace: lease.Workspace, CancelledInterrupts: interrupts,
 	}})
-	to.Deliver(moved)
+	to.Deliver(teleported)
 	if s.registry != nil {
-		s.registry.MovedAway(key)
-		s.registry.Deliver(key, moved)
+		s.registry.TeleportedAway(key)
+		s.registry.Deliver(key, teleported)
 	}
 }
