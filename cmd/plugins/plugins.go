@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -85,7 +84,7 @@ when both the master switch and the per-plugin flag are true.`,
 	pluginsInstallCmd.Flags().String("ref", "", "Git ref (branch, tag, or commit) to install from")
 	pluginsInstallCmd.Flags().BoolP("yes", "y", false, "Skip the confirmation prompt")
 	pluginsInstallCmd.Flags().Bool("overwrite", false, "Replace an already-installed plugin with the same name")
-	pluginsListCmd.Flags().StringP("format", "f", "text", "Output format (text|json)")
+	output.AddFormatFlag(pluginsListCmd, "text", "json")
 
 	return pluginsCmd
 }
@@ -296,12 +295,7 @@ func (c *command) listPlugins(cmd *cobra.Command, _ []string) error {
 
 	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
-		data, err := json.MarshalIndent(map[string]any{"enabled": registry.Enabled, "dir": root, "plugins": registry.Plugins}, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal plugins: %w", err)
-		}
-		fmt.Println(string(data))
-		return nil
+		return output.PrintJSON(cmd.OutOrStdout(), map[string]any{"enabled": registry.Enabled, "dir": root, "plugins": registry.Plugins})
 	}
 
 	if len(registry.Plugins) == 0 {

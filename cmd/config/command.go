@@ -57,9 +57,9 @@ func initialize(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
-	fmt.Printf("Successfully created userspace configuration: %s\n", configPath)
-	fmt.Println("This userspace configuration is the shared baseline for all your projects.")
-	fmt.Println("To override a setting for one project: infer config set --project <key> <value>")
-	fmt.Println("Tip: Use 'infer init' for complete initialization including additional setup files.")
+	fmt.Fprintf(cmd.OutOrStdout(), "Successfully created userspace configuration: %s\n", configPath)
+	fmt.Fprintln(cmd.OutOrStdout(), "This userspace configuration is the shared baseline for all your projects.")
+	fmt.Fprintln(cmd.OutOrStdout(), "To override a setting for one project: infer config set --project <key> <value>")
+	fmt.Fprintln(cmd.OutOrStdout(), "Tip: Use 'infer init' for complete initialization including additional setup files.")
 	return nil
 }

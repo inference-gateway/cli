@@ -1,11 +1,11 @@
 package shortcuts
 
 import (
-	"encoding/json"
 	"fmt"
 
 	cobra "github.com/spf13/cobra"
 
+	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
@@ -35,7 +35,7 @@ shortcuts from .infer/shortcuts/*.yaml and ~/.infer/shortcuts/*.yaml.`,
 			return list(cmd, state.Config(), format)
 		},
 	}
-	listCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(listCmd, "text", "json")
 	shortcutsCmd.AddCommand(listCmd)
 	return shortcutsCmd
 }
@@ -56,12 +56,7 @@ func list(cmd *cobra.Command, cfg *config.Config, format string) error {
 	}
 	if format == "json" {
 		entries := Entries(cfg)
-		data, err := json.MarshalIndent(map[string]any{"shortcuts": entries, "total": len(entries)}, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal shortcuts: %w", err)
-		}
-		_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
-		return err
+		return output.PrintJSON(cmd.OutOrStdout(), map[string]any{"shortcuts": entries, "total": len(entries)})
 	}
 	_, err := fmt.Fprintln(cmd.OutOrStdout(), shortcuts.HelpText(shortcuts.NewMetadataRegistry(cfg)))
 	return err
