@@ -3,6 +3,8 @@ package headless
 import (
 	"encoding/json"
 	"strings"
+
+	render "github.com/inference-gateway/cli/internal/platform/render"
 )
 
 // FormatAgentMessage parses a JSON line from the agent's stdout and returns
@@ -37,33 +39,15 @@ func FormatAgentMessage(line []byte) string {
 	case "assistant":
 		return content
 	case "tool":
-		result := strings.TrimSpace(content)
+		result := render.CapRunes(strings.TrimSpace(content))
 		if result == "" {
 			return ""
 		}
-		if r := []rune(result); len(r) > maxToolResultLen {
-			result = string(r[:maxToolResultLen]) + "…"
-		}
 		if failed, _ := msg["failed"].(bool); failed {
-			return quoteBlock("Tool failed - retrying may follow:\n```\n" + result + "\n```")
+			return render.QuoteBlock("Tool failed - retrying may follow:\n```\n" + result + "\n```")
 		}
-		return quoteBlock("```\n" + result + "\n```")
+		return render.QuoteBlock("```\n" + result + "\n```")
 	}
 
 	return ""
-}
-
-// maxToolResultLen caps how much of a tool result is forwarded to the channel
-// so a large file read or command output doesn't flood the chat.
-const maxToolResultLen = 1000
-
-// quoteBlock prefixes every line with "> " so tool traffic arrives as a
-// markdown blockquote. Channels render quotes as collapsed/secondary content
-// (Telegram: <blockquote expandable>).
-func quoteBlock(s string) string {
-	lines := strings.Split(s, "\n")
-	for i := range lines {
-		lines[i] = "> " + lines[i]
-	}
-	return strings.Join(lines, "\n")
 }

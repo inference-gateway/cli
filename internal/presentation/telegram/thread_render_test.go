@@ -10,6 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	channels "github.com/inference-gateway/cli/internal/channels"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -117,7 +118,7 @@ func TestToolLine(t *testing.T) {
 		t.Errorf("expected a compact single line, got %q", got)
 	}
 
-	got := toolLine("Read", strings.Repeat("x", maxToolResultLen+1))
+	got := toolLine("Read", strings.Repeat("x", render.MaxToolResultLen+1))
 	if !strings.HasSuffix(got, "…`") {
 		t.Errorf("expected the long call capped with the ellipsis, got %d runes", len([]rune(got)))
 	}
@@ -136,16 +137,16 @@ func TestQuotedToolResult(t *testing.T) {
 		t.Errorf("expected an empty result to stay off the chat, got %q", got)
 	}
 
-	got := quotedToolResult(`{"success":true,"result":"` + strings.Repeat("a", maxToolResultLen+1) + `"}`)
-	if strings.Contains(got, strings.Repeat("a", maxToolResultLen+1)) || !strings.Contains(got, strings.Repeat("a", maxToolResultLen)) || !strings.Contains(got, "…") {
-		t.Errorf("expected the long result capped at %d runes with the ellipsis, got %q", maxToolResultLen, got)
+	got := quotedToolResult(`{"success":true,"result":"` + strings.Repeat("a", render.MaxToolResultLen+1) + `"}`)
+	if strings.Contains(got, strings.Repeat("a", render.MaxToolResultLen+1)) || !strings.Contains(got, strings.Repeat("a", render.MaxToolResultLen)) || !strings.Contains(got, "…") {
+		t.Errorf("expected the long result capped at %d runes with the ellipsis, got %q", render.MaxToolResultLen, got)
 	}
 }
 
 // QuoteBlock prefixes every line so tool traffic arrives collapsed as a
 // blockquote.
 func TestQuoteBlock(t *testing.T) {
-	if got := quoteBlock("one\ntwo"); got != "> one\n> two" {
+	if got := render.QuoteBlock("one\ntwo"); got != "> one\n> two" {
 		t.Errorf("got %q", got)
 	}
 }

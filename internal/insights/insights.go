@@ -587,10 +587,11 @@ func firstNonEmpty(values ...string) string {
 }
 
 func truncate(s string, limit int) string {
-	if len(s) <= limit {
+	runes := []rune(s)
+	if len(runes) <= limit {
 		return s
 	}
-	return s[:limit] + "..."
+	return string(runes[:limit]) + "..."
 }
 
 // oneLine collapses a message to a single truncated line; a failed shell command

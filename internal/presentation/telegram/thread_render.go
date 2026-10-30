@@ -11,11 +11,8 @@ import (
 	"strings"
 
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 )
-
-// maxToolResultLen caps how much of one tool result the chat render
-// forwards so a large file read or command output cannot flood the chat.
-const maxToolResultLen = 1000
 
 // onTextStart opens or reopens the streamed message the deltas build. The
 // worker echoes inbound messages; the chat never re-renders those.
@@ -143,7 +140,7 @@ func (t *threadChat) flushTools() string {
 	if len(t.tools) == 0 {
 		return ""
 	}
-	quote := quoteBlock(strings.Join(t.tools, "\n"))
+	quote := render.QuoteBlock(strings.Join(t.tools, "\n"))
 	t.tools = nil
 	return quote
 }
@@ -155,10 +152,7 @@ func toolLine(name, args string) string {
 	if args == "" {
 		return name
 	}
-	if r := []rune(args); len(r) > maxToolResultLen {
-		args = string(r[:maxToolResultLen]) + "…"
-	}
-	return fmt.Sprintf("%s: `%s`", name, args)
+	return fmt.Sprintf("%s: `%s`", name, render.CapRunes(args))
 }
 
 // quotedToolResult renders one TOOL_CALL_RESULT's content, the marshaled
@@ -172,8 +166,8 @@ func quotedToolResult(content string) string {
 	}
 	failed := json.Unmarshal([]byte(content), &result) == nil && !result.Success
 	if failed {
-		fenced := fmt.Sprintf("Tool failed - retrying may follow:\n\"\"\n%s\n\"\"", capRunes(strings.TrimSpace(result.Error)))
-		return quoteBlock(fenced)
+		fenced := fmt.Sprintf("Tool failed - retrying may follow:\n\"\"\n%s\n\"\"", render.CapRunes(strings.TrimSpace(result.Error)))
+		return render.QuoteBlock(fenced)
 	}
 	body := strings.TrimSpace(result.Result)
 	if body == "" {
@@ -182,24 +176,5 @@ func quotedToolResult(content string) string {
 	if body == "" {
 		return ""
 	}
-	return quoteBlock("\"\"\n" + capRunes(body) + "\n\"\"")
-}
-
-// capRunes caps a value at maxToolResultLen runes with an ellipsis.
-func capRunes(s string) string {
-	if r := []rune(s); len(r) > maxToolResultLen {
-		return string(r[:maxToolResultLen]) + "…"
-	}
-	return s
-}
-
-// quoteBlock prefixes every line with "> " so tool traffic arrives as a
-// markdown blockquote - channels render quotes as collapsed or secondary
-// content (Telegram: an expandable blockquote).
-func quoteBlock(s string) string {
-	lines := strings.Split(s, "\n")
-	for i := range lines {
-		lines[i] = "> " + lines[i]
-	}
-	return strings.Join(lines, "\n")
+	return render.QuoteBlock("\"\"\n" + render.CapRunes(body) + "\n\"\"")
 }
