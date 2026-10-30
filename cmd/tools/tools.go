@@ -3,8 +3,9 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -69,31 +71,33 @@ Examples:
 			format, _ := cmd.Flags().GetString("format")
 			sessionID, _ := cmd.Flags().GetString("session-id")
 			approved, _ := cmd.Flags().GetBool("approved")
-			return ExecTool(state.Config(), args, format, sessionID, approved)
+			return ExecTool(cmd.OutOrStdout(), state.Config(), args, format, sessionID, approved)
 		},
 	}
 	validateCommand := &cobra.Command{
 		Use:   "validate <command>",
 		Short: "Validate if a bash command is allowed",
-		Long:  `Check whether a specific bash command would be allowed to execute, without actually running it.`,
+		Long:  `Check whether a specific bash command would be allowed to execute, without actually running it. A disallowed command, or disabled tools, exit non-zero so validate can gate a shell conditional.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ValidateTool(state.Config(), args[0])
+			return ValidateTool(cmd.OutOrStdout(), state.Config(), args[0])
 		},
 	}
 
-	executeCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(executeCommand, "text", "json")
 	executeCommand.Flags().Bool("approved", false, "Treat the call as user-approved: skip the approval check and the Bash allow-list")
 	executeCommand.Flags().String("session-id", "", "Record the call and its result in this conversation so later turns (e.g. infer headless --session-id) see it")
 	command.AddCommand(executeCommand, validateCommand)
 	return command
 }
 
-// ValidateTool validates if a command is allowed for execution
-func ValidateTool(cfg *config.Config, command string) error {
+// ValidateTool validates if a command is allowed for execution. A disallowed
+// command, or disabled tools, returns an error so the exit code gates a shell
+// conditional like `infer tools validate "$cmd" && eval "$cmd"`.
+func ValidateTool(w io.Writer, cfg *config.Config, command string) error {
 	if !cfg.Tools.Enabled {
-		fmt.Printf("%s\n", formatting.FormatErrorCLI("Tools are disabled"))
-		return nil
+		fmt.Fprintf(w, "%s\n", formatting.FormatErrorCLI("Tools are disabled"))
+		return errors.New("tools are disabled")
 	}
 
 	services := container.NewServiceContainer(cfg)
@@ -104,12 +108,12 @@ func ValidateTool(cfg *config.Config, command string) error {
 
 	err := toolService.ValidateTool(agenttools.ToolBash, toolArgs)
 	if err != nil {
-		fmt.Printf("%s\n", formatting.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
-		fmt.Printf("Reason: %s\n", err.Error())
-		return nil
+		fmt.Fprintf(w, "%s\n", formatting.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
+		fmt.Fprintf(w, "Reason: %s\n", err.Error())
+		return fmt.Errorf("command not allowed: %s", command)
 	}
 
-	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Command is allowed: %s", command)))
+	fmt.Fprintf(w, "%s\n", formatting.FormatSuccess(fmt.Sprintf("Command is allowed: %s", command)))
 	return nil
 }
 
@@ -125,7 +129,7 @@ type execResult struct {
 // user-approved (like the extension bridge after an approval); otherwise
 // --format json reports approval_required instead of running a call the
 // approval policy would gate.
-func ExecTool(cfg *config.Config, args []string, format, sessionID string, approved bool) error {
+func ExecTool(w io.Writer, cfg *config.Config, args []string, format, sessionID string, approved bool) error {
 	if !cfg.Tools.Enabled {
 		return fmt.Errorf("tools are not enabled")
 	}
@@ -133,10 +137,6 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	serviceContainer := container.NewServiceContainer(cfg)
 	toolService := serviceContainer.GetToolService()
 	toolRegistry := serviceContainer.GetToolRegistry()
-
-	if len(args) == 0 {
-		return fmt.Errorf("tool name is required")
-	}
 
 	toolName := canonicalToolName(toolRegistry.ListAvailableTools(), args[0])
 	toolArgs := make(map[string]any)
@@ -166,7 +166,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 		policy := serviceContainer.GetApprovalPolicy()
 		call := &sdk.ChatCompletionMessageToolCall{Type: sdk.Function, Function: toolCall}
 		if policy.ShouldRequireApproval(context.Background(), call, true) {
-			return printJSON(execResult{ApprovalRequired: true})
+			return printJSON(w, execResult{ApprovalRequired: true})
 		}
 	}
 
@@ -180,7 +180,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	}
 	if err != nil {
 		if jsonOut {
-			return printJSON(execResult{Error: err.Error()})
+			return printJSON(w, execResult{Error: err.Error()})
 		}
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
@@ -192,7 +192,7 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	}
 
 	if jsonOut {
-		return printJSON(execResult{
+		return printJSON(w, execResult{
 			Success: result.Success,
 			Output:  convdomain.ToolResultOutput(result, repo.FormatToolResultForLLM),
 			Error:   result.Error,
@@ -202,12 +202,12 @@ func ExecTool(cfg *config.Config, args []string, format, sessionID string, appro
 	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
 	formatterService := toolformatter.NewToolFormatterService(toolRegistry, styleProvider)
 
-	fmt.Print(renderToolResult(formatterService.FormatToolResultExpanded(result, 80)))
+	fmt.Fprint(w, renderToolResult(formatterService.FormatToolResultExpanded(result, 80)))
 	return nil
 }
 
-func printJSON(v any) error {
-	return json.NewEncoder(os.Stdout).Encode(v)
+func printJSON(w io.Writer, v any) error {
+	return json.NewEncoder(w).Encode(v)
 }
 
 // renderToolResult honors --no-colors / NO_COLOR / non-TTY stdout, which the

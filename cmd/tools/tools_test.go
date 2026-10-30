@@ -1,9 +1,9 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -96,20 +96,12 @@ func execJSON(t *testing.T, args []string, approved bool) execResult {
 	cfg.Tools.Enabled = true
 	cfg.Tools.Bash.Enabled = true
 
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stdout := os.Stdout
-	os.Stdout = w
-	execErr := ExecTool(cfg, args, "json", "", approved)
-	os.Stdout = stdout
-	_ = w.Close()
-	if execErr != nil {
-		t.Fatalf("ExecTool: %v", execErr)
+	var stdout bytes.Buffer
+	if err := ExecTool(&stdout, cfg, args, "json", "", approved); err != nil {
+		t.Fatalf("ExecTool: %v", err)
 	}
 	var got execResult
-	if err := json.NewDecoder(r).Decode(&got); err != nil {
+	if err := json.NewDecoder(&stdout).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	return got

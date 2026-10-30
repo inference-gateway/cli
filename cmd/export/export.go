@@ -3,6 +3,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,20 +26,17 @@ func NewCommand(state *runtime.State) *cobra.Command {
 		Use:   "export <session-id>",
 		Short: "Export conversation to markdown",
 		Long:  `Export a conversation session to a markdown file.`,
-		Args:  cobra.RangeArgs(0, 1),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return fmt.Errorf("session ID required. Provide as argument: infer export <session-id>")
-			}
 			if args[0] == "" {
 				return fmt.Errorf("no conversation to export. Send at least one message first, then use /export")
 			}
-			return runExport(state, args[0])
+			return runExport(cmd.OutOrStdout(), state, args[0])
 		},
 	}
 }
 
-func runExport(state *runtime.State, sessionID string) error {
+func runExport(w io.Writer, state *runtime.State, sessionID string) error {
 	cfg := state.Config()
 
 	storageConfig := storage.NewStorageFromConfig(cfg)
@@ -81,7 +79,7 @@ func runExport(state *runtime.State, sessionID string) error {
 		return fmt.Errorf("failed to write export file: %w", err)
 	}
 
-	fmt.Printf("• Conversation exported to: %s\n", filePath)
+	fmt.Fprintf(w, "• Conversation exported to: %s\n", filePath)
 	return nil
 }
 
