@@ -195,9 +195,7 @@ func (c *ConversationSelector) handleConversationsLoaded(msg tui.ConversationsLo
 
 	if msg.Error == nil {
 		c.conversations = msg.Conversations
-
-		c.filteredConversations = make([]convdomain.ConversationSummary, len(msg.Conversations))
-		copy(c.filteredConversations, msg.Conversations)
+		c.filteredConversations = slices.Clone(msg.Conversations)
 		c.syncTable()
 		c.table.GotoTop()
 	} else {
@@ -387,9 +385,9 @@ type conversationDeletedMsg struct {
 }
 
 func (c *ConversationSelector) performDelete() (tea.Model, tea.Cmd) {
+	c.confirmDelete = false
 	cursor := c.table.Cursor()
 	if cursor >= len(c.filteredConversations) {
-		c.confirmDelete = false
 		return c, nil
 	}
 
@@ -403,8 +401,6 @@ func (c *ConversationSelector) performDelete() (tea.Model, tea.Cmd) {
 }
 
 func (c *ConversationSelector) handleConversationDeleted(msg conversationDeletedMsg) (tea.Model, tea.Cmd) {
-	c.confirmDelete = false
-
 	if msg.err != nil {
 		c.deleteError = msg.err
 		logger.Error("failed to delete conversation", "error", msg.err, "id", msg.id)
@@ -412,18 +408,9 @@ func (c *ConversationSelector) handleConversationDeleted(msg conversationDeleted
 	}
 
 	c.deleteError = nil
-	for i, conv := range c.conversations {
-		if conv.ID == msg.id {
-			c.conversations = append(c.conversations[:i], c.conversations[i+1:]...)
-			break
-		}
-	}
-	for i, conv := range c.filteredConversations {
-		if conv.ID == msg.id {
-			c.filteredConversations = append(c.filteredConversations[:i], c.filteredConversations[i+1:]...)
-			break
-		}
-	}
+	deleted := func(conv convdomain.ConversationSummary) bool { return conv.ID == msg.id }
+	c.conversations = slices.DeleteFunc(c.conversations, deleted)
+	c.filteredConversations = slices.DeleteFunc(c.filteredConversations, deleted)
 	c.syncTable()
 	return c, nil
 }
