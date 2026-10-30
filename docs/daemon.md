@@ -71,11 +71,15 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `off` | plain `ws://`, loopback only | the token |
 | `files` | `cert_file` and `key_file` | the token, or client certificates signed by `ca_file` when `client_auth: true` |
 | `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
-| `spiffe` | the SVID the SPIRE Workload API serves on `spiffe.socket` | SVIDs of `spiffe.allowed_ids`, else any member of `spiffe.trust_domain` |
 
-With `ca` or `spiffe` the token may be empty, since every connection carries a verified certificate.
+With `ca` the token may be empty, since every connection carries a verified certificate.
 The `infer daemon environments`, `transfer`, `run` and `stop` commands dial the local binding over whichever
 mode it serves, with the token or, when it requires them, a client certificate.
+
+An enabled binding with neither a token nor a client-certificate mode uses this machine's local token: the
+daemon and its local clients share one generated into `~/.infer/daemon/binding.token`, readable only by its
+owner, on first use. `infer chat --daemon` turns the binding on whatever `daemon.yaml` says, and a daemon a
+client starts on demand serves it too, so daemon mode needs no `daemon.yaml` at all.
 
 ## Environments and transfers
 
@@ -98,7 +102,6 @@ environments:
     storage: 5Gi
     idle_ttl: 2h
     retention: 168h
-    auth: ca
     env:
       INFER_GATEWAY_URL: http://inference-gateway:8080
     forward_env:
@@ -111,14 +114,14 @@ environments:
       ca_file: ~/.infer/daemon/workstation-ca.crt
 ```
 
-- `kind: daemon` is a standalone `infer daemon` whose binding serves TLS. `tls.ca_file` pins it, and
-  `tls.cert_file` with `tls.key_file` present a client certificate when it requires one.
+- `kind: daemon` is a standalone `infer daemon` reached over TLS. `tls.ca_file` pins its certificate,
+  without one the system roots verify it, and `tls.cert_file` with `tls.key_file` present a client
+  certificate when it requires one. Its `environment` must match the entry's `name`.
 - `kind: kubernetes` runs one agent-sandbox `Sandbox` per session in `namespace`, from `image`, as an
   `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
-  volume of `storage` each, so a session survives its pod. `auth: ca` has this daemon's CA issue the
-  pod's server certificate and a client certificate into a Secret, and `auth: spiffe` mounts the SPIRE
-  Workload API and expects `spiffe.server_id` or any member of `spiffe.trust_domain`. The pod daemon
-  idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
+  volume of `storage` each, so a session survives its pod. This daemon's CA issues the pod's server
+  certificate and a client certificate into a Secret, and the pod daemon's binding requires them. The pod
+  daemon idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
   is the pod daemon's non-secret environment, such as the gateway URL. `address` replaces the
   port-forward when an Ingress or Gateway exposes the pods.
 - `retention` deletes a suspended Sandbox, its volumes and its Secret once it sat suspended that long,
@@ -132,7 +135,8 @@ environments:
 - `forward_env` names variables of this daemon's environment that a transfer seals to the target's
   certificate for its workers. They never land in a Kubernetes object.
 - `workspace_root` is where a daemon restores transferred projects: `<root>/<project slug>/<conversation id>`.
-- `idle_exit` stops a daemon that had no thread and no client for that long. Pod daemons get `idle_ttl`.
+- `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
+  except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
 
 A transfer moves a session between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
@@ -173,8 +177,44 @@ infer daemon stop <conversation-id>                       # stop the agent and d
 ```
 
 A transfer starts on the daemon that owns the session. A daemon that only relays a session refuses to
-move it with `session <id> is owned by environment <name>`, so a session on a remote environment moves
-again only from that environment's own daemon.
+move it with `session <id> is owned by environment <name>`, with one exception: it brings back a session
+that left it. `infer daemon transfer <conversation-id> --to <this daemon>` asks the owner to quiesce the
+worker and pack the conversation and the workspace, and streams that checkpoint back over the connection
+the daemon opened. The workspace lands on the checkout the session left: the pod's commits fast-forward its
+branch, then the pod's uncommitted patch and untracked files apply.
+
+A move back lands only while the checkout is clean or unchanged since the session left, which the daemon
+fingerprints into `~/.infer/daemon/origins/` when a session moves away. A changed checkout is refused with
+`changed since the session left it`, so stash those changes (`git stash -u`), move back, then
+`git stash pop`. The checkout's own changes wait in a stash until the landing, the lease and the
+conversation import all succeed, and any failure undoes all three, so the session stays with its owner.
+Untracked files the sandbox policy denies are never touched. The remote runtime stays behind and suspends
+after its `idle_ttl`. A pod that runs an infer too old to send sessions back fails the move within 15
+seconds.
+
+### Daemons on other machines
+
+A VPN such as [Tailscale](https://tailscale.com/) gives two machines network identity and encryption, so
+the daemons need no identity system of their own. On the remote machine, keep the binding on loopback
+with a token and let [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve) publish it under
+the machine's `*.ts.net` name with a certificate the system roots trust:
+
+```bash
+tailscale serve --bg --https=443 http://127.0.0.1:52789
+```
+
+Register it with that name and no `tls`:
+
+```yaml
+  - name: workstation
+    kind: daemon
+    address: workstation.example.ts.net:443
+    token: ${WORKSTATION_TOKEN}
+```
+
+A grant in the tailnet policy decides which machines reach it. `forward_env` needs the remote daemon to
+serve TLS itself (`files` or `ca`): a transfer seals the variables to the certificate the peer presents,
+and behind Serve the key of that certificate belongs to Tailscale, not to the daemon.
 
 ## Session workers
 
@@ -202,6 +242,44 @@ owning environment's daemon instead, see [Environments and transfers](#environme
 Scheduled jobs and heartbeat wake-ups do not use workers. Each runs as a one-shot `infer headless`
 inside the daemon, one process per run, and no client follows it.
 
+## The chat TUI: infer chat --daemon
+
+`infer chat --daemon`, or `chat.daemon: true` (`INFER_CHAT_DAEMON`), runs the chat TUI as a client of the
+local daemon instead of its own agent loop. Every turn runs on the daemon's thread for the project, in a
+worker on this machine or relayed to the environment that owns the session, so the TUI follows a session
+wherever it lives and the session keeps running when the TUI exits. The exit line prints how to come back:
+`infer chat --daemon --session-id <id>` reattaches from any machine whose daemon reaches the owner, and an
+approval or a question left open is asked again on reattach. The in-process chat stays the default.
+
+A fresh session opens the model picker unless `agent.model` is set, and a reattached one keeps its model.
+The status bar shows where the session runs: `⌂ laptop` on this machine's daemon, `⇄ k8s-dev` on another
+environment, `⇢ k8s-dev` while it moves and `· offline` while the daemon is unreachable, which the TUI
+reconnects to with backoff. Selecting that indicator, `/environments`, or `/transfer` without a target opens
+a picker of every environment with its reachability and details, and `enter` moves the session there.
+`/transfer <environment> [file...]` moves it directly, carrying the files git does not track. A move is
+refused while a turn runs, `esc` cancels a running one, and from a remote environment the session moves
+only back to this machine.
+
+| Feature | In a daemon chat |
+| --- | --- |
+| Turns, streaming, reasoning and tool cards | Run on the worker |
+| Approvals, questions, plan approval, `esc`, the queue, model switch, agent mode, pasted images, skills | Run on the worker |
+| `!cmd` and `!!Tool(...)` | Run on the worker as a turn of their own |
+| `/new`, `/clear`, `ctrl+n` | Start a new thread on this machine's daemon |
+| `/conversations` | Lists the sessions where the current one runs, with the environment each one runs on now |
+| `@file` | Inlines this machine's file on a local session. On a remote one `@` lists no files and the reference goes to the agent's workspace |
+| `/diff`, `/explorer`, the git branch label | Read this machine's checkout, so they are off while the session runs on another environment |
+| `/compact` | Off, the worker compacts the session itself at `compact.auto_at` |
+| `/effort` | Off, the worker's config sets the reasoning effort |
+| `/tasks`, `ctrl+b` and rewinding or editing the history | Off, the conversation and its commands live on the worker |
+| Model-backed custom shortcuts and next-step suggestions | Off, the TUI runs no model of its own |
+| `/copy`, `/context`, `/cost`, `/help`, `/theme`, `/stats`, `/traces`, `/tools`, `/agents`, `#issue` | Work in the TUI |
+
+An unavailable feature says why in the status line. The TUI's `INFER_` overrides reach the worker only as its
+model and agent mode, and notes only the TUI shows, such as `/cost` output, are gone after the next turn,
+when the TUI reloads the conversation the worker stored. A pod image older than the daemon may lack the
+richer interrupts, tool progress and plan approval, and cannot send a session back.
+
 ## Starting it
 
 Run it in the foreground from the directory whose config it should load:
@@ -211,13 +289,21 @@ infer daemon
 ```
 
 With `browser_use.backend: extension`, `infer chat` and a one-shot `infer headless` start the daemon
-on demand on their first browser tool call when nothing listens on the binding's port. A daemon
-started this way runs in the background with the starting process's config and shares its terminal:
-closing the terminal stops it, and the next browser call starts another.
+on demand on their first browser tool call when nothing listens on the binding's port, and the Agent
+tool and `infer chat --daemon` do the same for their threads. A daemon started this way runs in the
+background with the starting process's config, in a session of its own, so it and the threads it runs
+survive closing the terminal. It stops after 30 minutes with no thread and no client, unless
+`idle_exit` sets its own idle time. `infer daemon --idle-exit <duration>` gives a daemon you start by
+hand the same fallback.
 
-The pid file is `~/.infer/run/daemon.pid`. A second `infer daemon` exits with
-`daemon already running (pid N)` while that pid is alive, and a stale file is overwritten. Stop the
-daemon by signalling that pid. There is no `stop` or `status` subcommand.
+A daemon starts its session workers from its own binary, so it stops once that binary is gone, as a
+`go run` build is when its run ends. The next client then starts one from its own binary, and the
+sessions resume where they left off.
+
+The pid file is `~/.infer/run/daemon.pid`, and the daemon holds an OS lock on it while it runs. A
+second `infer daemon` exits with `daemon already running (pid N)` while that lock is held, also when
+two start at once, and a file a crashed daemon left behind is taken over. Stop the daemon by
+signalling that pid. There is no `stop` or `status` subcommand.
 
 ## Logs
 

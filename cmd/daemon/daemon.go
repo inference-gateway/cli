@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -29,11 +30,12 @@ import (
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	process "github.com/inference-gateway/cli/internal/platform/process"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
-	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
@@ -86,9 +88,16 @@ Examples:
   infer daemon`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			state.ConfigureDaemonLogging()
-			return RunDaemonCommand(state.Config())
+			cfg := state.Config()
+			fallback, err := cmd.Flags().GetDuration("idle-exit")
+			if err != nil {
+				return err
+			}
+			cfg.Daemon.IdleExit = cmp.Or(cfg.Daemon.IdleExit, fallback)
+			return RunDaemonCommand(cfg)
 		},
 	}
+	command.Flags().Duration("idle-exit", 0, "Stop after this long with no threads and no clients, unless daemon.yaml sets idle_exit (a daemon a client starts on demand passes 30m)")
 	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state), newStopCommand(state))
 	return command
 }
@@ -98,6 +107,9 @@ Examples:
 // starts whichever are enabled. At least one must be enabled or the daemon refuses to boot
 // (otherwise it would just sleep forever).
 func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
+	if err := daemonhost.FillBindingToken(cfg); err != nil {
+		return err
+	}
 	if !cfg.Channels.Enabled && !cfg.Tools.Schedule.Enabled && !cfg.Heartbeat.Enabled && !cfg.Binding().Enabled && !cfg.A2A.Server.Enabled {
 		return fmt.Errorf("nothing to run: enable at least one of channels, scheduler, heartbeat, the AG-UI binding (browser_use with backend: extension), or the A2A server (a2a.server) in .infer/")
 	}
@@ -195,10 +207,13 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 
 	logger.Info("daemon ready. Press Ctrl+C to stop.")
 
+	exe, _ := os.Executable()
 	select {
 	case <-sigChan:
 	case <-threads.idle:
 		logger.Info("the daemon idled out", "idle_exit", cfg.Daemon.IdleExit)
+	case <-watchExecutable(ctx, exe):
+		logger.Warn("the daemon's binary is gone, stopping so the next client starts a current one", "executable", exe)
 	}
 	logger.Info("shutting down...")
 	cancel()
@@ -366,10 +381,10 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {
-		if b.Token == "" && !b.TLS.RequiresClientAuth() {
+		if !b.Dialable() {
 			return threadHost{}, errors.New("the AG-UI binding token is empty - set daemon.binding.token, or browser_use.extension.token as the fallback in browser_use.yaml, or require TLS client certificates")
 		}
-		serverTLS, err := tlsProvider.Server(ctx, b.TLS)
+		serverTLS, err := tlsProvider.Server(b.TLS)
 		if err != nil {
 			return threadHost{}, fmt.Errorf("configuring the AG-UI binding's TLS: %w", err)
 		}
@@ -400,7 +415,6 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 				binding.Close()
 			}
 			<-stopped
-			tlsProvider.Close()
 		},
 		idle: idle,
 	}, nil
@@ -436,6 +450,36 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 	return idle
 }
 
+// executableCheck is how often the daemon looks for the binary it runs.
+const executableCheck = 500 * time.Millisecond
+
+// watchExecutable closes the returned channel once exe is gone, as a go run
+// build is when its run ends. The daemon starts its workers from that binary,
+// so without it no session opens, and the daemon stops to let the next client
+// start one from its own binary. An empty exe is never watched.
+func watchExecutable(ctx context.Context, exe string) <-chan struct{} {
+	gone := make(chan struct{})
+	if exe == "" {
+		return gone
+	}
+	go func() {
+		ticker := time.NewTicker(executableCheck)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			if _, err := os.Stat(exe); errors.Is(err, os.ErrNotExist) {
+				close(gone)
+				return
+			}
+		}
+	}()
+	return gone
+}
+
 // buildTransfers wires the transfer service: the lease store on the
 // configured storage, the daemon CA when a mode needs it, the TLS provider,
 // and one environment per daemon.yaml entry plus this daemon itself.
@@ -452,7 +496,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 			return nil, nil, fmt.Errorf("opening the daemon CA: %w", err)
 		}
 	}
-	tlsProvider := agentinfra.NewTLSProvider(identity, pki, cfg.Daemon.Binding.TLS.SPIFFE)
+	tlsProvider := agentinfra.NewTLSProvider(identity, pki)
 	dial := agentinfra.PeerDialer{Me: identity, Handshake: browserinfra.BindingHandshake}
 	environments := []agentdomain.Environment{agentinfra.NewLocalEnvironment(identity, map[string]string{
 		agentinfra.AttrVersion: version.Value(), "storage": string(storageConfig.Type),
@@ -475,6 +519,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 		LeaseBackend:  storageConfig.Type,
 		Handshake:     browserinfra.BindingHandshake,
 		Entries:       cfg.Daemon.Environments,
+		StateDir:      filepath.Join(config.UserSpaceConfigDir(), "daemon"),
 		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
 	}, agenttransfer.Deps{
 		Leases:       stores.Leases,
@@ -511,7 +556,7 @@ func needsPKI(cfg *config.Config) bool {
 		return true
 	}
 	for _, entry := range cfg.Daemon.Environments {
-		if entry.Kind == config.EnvironmentKindKubernetes && entry.EffectiveAuth() == config.EnvironmentAuthCA {
+		if entry.Kind == config.EnvironmentKindKubernetes {
 			return true
 		}
 	}
@@ -551,28 +596,40 @@ func storageIdentity(cfg storage.StorageConfig) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// acquireDaemonLock enforces one daemon per machine via a PID file in
-// ~/.infer/run/daemon.pid (next to gateway.pid). Stale files (dead PID) are
-// overwritten. The returned release func removes the file.
-// ponytail: check-then-write race; flock if two daemons ever start in the same instant.
+// acquireDaemonLock enforces one daemon per user via an OS lock on
+// ~/.infer/run/daemon.pid (next to gateway.pid), which holds the daemon's pid.
+// The lock dies with the process, so two daemons starting at once cannot both
+// win, and a file a crashed daemon left behind is taken over. The returned
+// release removes the file and lets go of the lock.
 func acquireDaemonLock() (func(), error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return func() {}, nil
 	}
 	pidPath := filepath.Join(home, config.ConfigDirName, "run", "daemon.pid")
-	if data, err := os.ReadFile(pidPath); err == nil {
-		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid != os.Getpid() && utils.ProcessAlive(pid) {
-			return nil, fmt.Errorf("daemon already running (pid %d); stop it or remove %s", pid, pidPath)
-		}
-	}
 	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+	lock, err := process.LockFile(pidPath)
+	if errors.Is(err, process.ErrLocked) {
+		holder, _ := os.ReadFile(pidPath)
+		return nil, fmt.Errorf("daemon already running (pid %s), stop it first", strings.TrimSpace(string(holder)))
+	}
+	if err != nil {
 		return nil, err
 	}
-	return func() { _ = os.Remove(pidPath) }, nil
+	if err := lock.Truncate(0); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	if _, err := lock.WriteAt([]byte(strconv.Itoa(os.Getpid())), 0); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	return func() {
+		_ = os.Remove(pidPath)
+		_ = lock.Close()
+	}, nil
 }
 
 // startScheduler initialises the schedule scheduler service when the schedule

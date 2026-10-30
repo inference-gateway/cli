@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -73,16 +75,24 @@ type toolResultFrame struct {
 }
 
 type modelsFrame struct {
-	Type    string   `json:"type"`
-	Models  []string `json:"models"`
-	Current string   `json:"current,omitempty"`
+	Type    string      `json:"type"`
+	Models  []string    `json:"models"`
+	Current string      `json:"current,omitempty"`
+	Catalog []sdk.Model `json:"catalog,omitempty"`
+}
+
+// modelCatalog is a model service that keeps the gateway's model entries.
+type modelCatalog interface {
+	Catalog() []sdk.Model
 }
 
 type conversationSummary struct {
-	ID           string    `json:"id"`
-	Title        string    `json:"title"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	MessageCount int       `json:"message_count"`
+	ID           string                       `json:"id"`
+	Title        string                       `json:"title"`
+	UpdatedAt    time.Time                    `json:"updated_at"`
+	MessageCount int                          `json:"message_count"`
+	TokenStats   convdomain.SessionTokenStats `json:"token_stats"`
+	CostStats    convdomain.SessionCostStats  `json:"cost_stats"`
 }
 
 type conversationsFrame struct {
@@ -258,6 +268,8 @@ func (c *conversations) list() {
 			Title:        s.Title,
 			UpdatedAt:    s.UpdatedAt,
 			MessageCount: s.MessageCount,
+			TokenStats:   s.TokenStats,
+			CostStats:    s.CostStats,
 		})
 	}
 	c.write(conversationsFrame{Type: outboundConversations, Conversations: out})
@@ -341,7 +353,8 @@ type modelPicker struct {
 }
 
 // list answers list_models with the models the gateway serves, the configured
-// default model first, so the panel's pickers mirror the CLI.
+// default model first, so the panel's pickers mirror the CLI. The catalog
+// carries their context windows, prices and modalities.
 func (m *modelPicker) list() {
 	out := []string{}
 	listed, err := m.service.ListModels(context.Background())
@@ -356,7 +369,11 @@ func (m *modelPicker) list() {
 			out = append(out, name)
 		}
 	}
-	m.write(modelsFrame{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()})
+	frame := modelsFrame{Type: outboundModels, Models: out, Current: m.service.GetCurrentModel()}
+	if catalog, ok := m.service.(modelCatalog); ok {
+		frame.Catalog = catalog.Catalog()
+	}
+	m.write(frame)
 }
 
 // selectModel switches the worker's model for its next turns and re-sends the

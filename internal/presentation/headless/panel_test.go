@@ -9,6 +9,7 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -201,6 +202,28 @@ func TestPanelListModelsDefaultFirstAndSelect(t *testing.T) {
 		t.Fatalf("expected SelectModel(a/x) and current a/x, got calls=%d current=%v", models.SelectModelCallCount(), frame["current"])
 	}
 	readFrame(t, sink, "mode")
+}
+
+func TestPanelListModelsCarriesTheGatewaysCatalog(t *testing.T) {
+	gateway := &sdkmocks.FakeClient{}
+	chat := sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage}, Output: []sdk.Modality{sdk.ModalityText}}
+	gateway.ListModelsReturns(&sdk.ListModelsResponse{Data: []sdk.Model{
+		{ID: "a/x", Modalities: &chat, ContextWindow: &sdk.ContextWindow{Tokens: 128000}, Pricing: &sdk.Pricing{InputPerToken: "0.000001", OutputPerToken: "0.000002"}},
+	}}, nil)
+	deps := panelDeps()
+	deps.Models = conversation.NewHTTPModelService(gateway)
+	p, sink := startPanel(deps)
+
+	handle(t, p, map[string]any{"type": "list_models"})
+
+	catalog, _ := readFrame(t, sink, "models")["catalog"].([]any)
+	if len(catalog) != 1 {
+		t.Fatalf("catalog = %v, want the gateway's model with its metadata", catalog)
+	}
+	entry, _ := catalog[0].(map[string]any)
+	if entry["id"] != "a/x" || entry["context_window"] == nil || entry["pricing"] == nil || entry["modalities"] == nil {
+		t.Errorf("catalog entry = %v, want its context window, pricing and modalities", entry)
+	}
 }
 
 func TestPanelSetMode(t *testing.T) {

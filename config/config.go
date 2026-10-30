@@ -866,6 +866,9 @@ type ChatConfig struct {
 	StatusBar     StatusBarConfig       `yaml:"status_bar" mapstructure:"status_bar"`
 	InputMaxLines int                   `yaml:"input_max_lines" mapstructure:"input_max_lines"`
 	Suggestions   ChatSuggestionsConfig `yaml:"suggestions" mapstructure:"suggestions"`
+	// Daemon runs every turn through the local daemon's thread instead of an
+	// in-process agent, the way infer chat --daemon does.
+	Daemon bool `yaml:"daemon" mapstructure:"daemon"`
 }
 
 // ChatSuggestionsConfig contains settings for the one-line next-step suggestion
@@ -926,6 +929,7 @@ type StatusBarIndicators struct {
 	GitBranch     bool `yaml:"git_branch" mapstructure:"git_branch"`
 	GitPR         bool `yaml:"git_pr" mapstructure:"git_pr"`
 	Subagents     bool `yaml:"subagents" mapstructure:"subagents"`
+	Environment   bool `yaml:"environment" mapstructure:"environment"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -1192,6 +1196,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			GitBranch:     true,
 			GitPR:         true,
 			Subagents:     true,
+			Environment:   true,
 		},
 	}
 }
@@ -1385,6 +1390,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxTokens:       512,
 				Timeout:         10,
 			},
+			Daemon: false,
 		},
 		A2A: A2AConfig{
 			Enabled:               true,

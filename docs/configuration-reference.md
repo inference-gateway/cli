@@ -133,6 +133,7 @@ agent:
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
   theme: "" # "" applies the built-in default, tokyo-night
+  daemon: false # Run every turn through the local infer daemon, like infer chat --daemon
   suggestions: # Opt-in one-line next-step suggestion as ghost text after an assistant turn
     enabled: false # Each completed assistant turn can spend one small LLM call
     model: "" # Suggestion model, empty falls back to the active chat model
@@ -157,6 +158,7 @@ chat:
       git_branch: true
       git_pr: true
       subagents: true
+      environment: true
 compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (1-80)
@@ -804,6 +806,12 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
     - **subagents**: The stacked list of background jobs, one row per subagent, A2A task, shell or
       recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
       how long a finished row lingers before it drops off
+    - **environment**: Where a daemon chat's session runs (default: `true`): `⌂ laptop` on this machine's
+      daemon, `⇄ k8s-dev` on another environment, `⇢ k8s-dev` while it moves and `· offline` while the
+      daemon is unreachable. Selecting it opens `/environments`. An in-process chat shows none
+
+- **chat.daemon**: Run the chat TUI as a client of the local infer daemon, the way `infer chat --daemon` does
+  (default: `false`, env `INFER_CHAT_DAEMON`). See [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
 
 - **chat.suggestions.enabled**: Show a one-line next-step suggestion as dim ghost text in the empty
   chat input after an assistant turn completes (default: `false`). The request is sent about two
@@ -1080,12 +1088,11 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
 - **`daemon.yaml`** - `environment` (this daemon's name in session leases, default the hostname), `workspace_root`,
   `idle_exit`, `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
-  with client certificates), `binding.tls` (`mode` off|files|ca|spiffe, `cert_file`, `key_file`, `ca_file`,
-  `client_auth`, `spiffe.socket`, `spiffe.trust_domain`, `spiffe.allowed_ids`) and `environments`, a list of
-  `name` and `kind` (local|daemon|kubernetes) entries with `address`, `token`, `tls.ca_file`, `tls.cert_file`,
-  `tls.key_file` for a daemon and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`,
-  `retention`, `lease_ttl`, `auth` (ca|spiffe), `spiffe.trust_domain`, `spiffe.server_id`, `env`, `forward_env` for a
-  Kubernetes environment. See [infer daemon](daemon.md#environments-and-transfers).
+  with client certificates), `binding.tls` (`mode` off|files|ca, `cert_file`, `key_file`, `ca_file`,
+  `client_auth`) and `environments`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
+  `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
+  and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
+  `forward_env` for a Kubernetes environment. See [infer daemon](daemon.md#environments-and-transfers).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).
 

@@ -109,14 +109,6 @@ linters:
               desc: "client-go is confined to the agent context's kubernetes environment"
             - pkg: sigs.k8s.io
               desc: "client-go is confined to the agent context's kubernetes environment"
-        spiffe-only-in-agent-infrastructure:
-          list-mode: lax
-          files:
-            - "**"
-            - "!**/internal/agent/infrastructure/**"
-          deny:
-            - pkg: github.com/spiffe/go-spiffe
-              desc: "go-spiffe is confined to the agent context's TLS adapter"
         robotgo-only-in-computer:
           list-mode: lax
           files:

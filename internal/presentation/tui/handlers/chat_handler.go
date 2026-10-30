@@ -22,6 +22,10 @@ import (
 // completed turn before the one next-step suggestion request is sent.
 const suggestionQuietPeriod = 2 * time.Second
 
+// followRetry paces asking again to follow a daemon run while the chat is in a
+// turn, which the run's own start may have raced.
+const followRetry = 250 * time.Millisecond
+
 // stateStore is the narrow slice of the app state manager the chat handler
 // and its sub-handlers need: chat-session lifecycle, view transitions, the
 // plan-approval overlay, the todo list, and event broadcast to external
@@ -32,6 +36,7 @@ type stateStore interface {
 	tui.PlanApprovalPrompt
 	agentdomain.TodoList
 	BroadcastEvent(event agentdomain.ChatEvent)
+	GetSessionPlacement() tui.SessionPlacement
 }
 
 type ChatHandler struct {
@@ -181,6 +186,11 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return h.handleChatStreamOpened(m)
 	case agentdomain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
+	case tui.FollowRunEvent:
+		if h.stateManager.IsAgentBusy() {
+			return tea.Tick(followRetry, func(time.Time) tea.Msg { return tui.FollowRunEvent{} })
+		}
+		return h.startChatCompletion()
 	case tui.RolloverCompletedEvent:
 		return h.HandleRolloverCompletedEvent(m)
 	case tui.ConversationSelectedEvent:
@@ -682,7 +692,17 @@ func (h *ChatHandler) HandleToolCommand(commandText string) tea.Cmd {
 // HandleBackgroundShellRequest signals the currently-running bash command to
 // detach to the background. Delegates to DirectExecutionService.
 func (h *ChatHandler) HandleBackgroundShellRequest() tea.Cmd {
+	if reason := h.stateManager.GetSessionPlacement().Unavailable(tui.FeatureBackgroundShell); reason != "" {
+		return unavailable("Moving a command to the background", reason)
+	}
 	return h.directExec.HandleBackgroundShellRequest()
+}
+
+// unavailable tells the user a feature does not apply to this session, and why.
+func unavailable(feature, reason string) tea.Cmd {
+	return func() tea.Msg {
+		return tui.SetStatusEvent{Message: feature + " is unavailable: " + reason, StatusType: tui.StatusDefault}
+	}
 }
 
 // ParseToolCall satisfies the legacy tui.ChatHandler interface by

@@ -47,4 +47,7 @@ const (
 	SideEffectShowExplorer
 	SideEffectShowToolsList
 	SideEffectShowAgents
+	SideEffectShowEnvironments
+	// SideEffectTransferSession moves the session, Data is a tui.TransferRequestedEvent.
+	SideEffectTransferSession
 )

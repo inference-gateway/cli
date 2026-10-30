@@ -10,22 +10,6 @@ environments:
     storage: 1Gi
     idle_ttl: 30m
     retention: 24h
-    auth: ca
-    env:
-      INFER_GATEWAY_MOCK: "true"
-      INFER_AGENT_MODEL: mock/openai/gpt-4o
-  - name: k8s-spiffe
-    kind: kubernetes
-    context: k3d-infer-environments
-    namespace: infer-environments
-    image: ghcr.io/inference-gateway/cli:0.239.0-rc.3
-    storage: 1Gi
-    idle_ttl: 30m
-    retention: 24h
-    auth: spiffe
-    spiffe:
-      trust_domain: infer.local
-      server_id: spiffe://infer.local/ns/infer-environments/sa/infer-environment
     env:
       INFER_GATEWAY_MOCK: "true"
       INFER_AGENT_MODEL: mock/openai/gpt-4o
@@ -37,7 +21,6 @@ environments:
     storage: 1Gi
     idle_ttl: 30m
     retention: 24h
-    auth: ca
     env:
       INFER_GATEWAY_MOCK: "true"
       INFER_GATEWAY_MOCK_SCENARIOS: /opt/infer-desktop/scenarios.yaml
@@ -53,5 +36,5 @@ environments:
       AWS_SECRET_ACCESS_KEY: rustfsadmin
 binding:
   enabled: true
-  port: 52789
+  port: 52790
   token: session-transfer-demo

@@ -114,6 +114,12 @@ func (s *Service) HandlePlanApprovalResponse(msg tui.PlanApprovalResponseEvent) 
 		return nil, false
 	}
 
+	if planApprovalState.ResponseChan != nil {
+		cmd := s.answerPlan(planApprovalState.ResponseChan, msg.Action)
+		s.stateManager.ClearPlanApprovalUIState()
+		return cmd, false
+	}
+
 	logger.Info("clearing plan approval UI state to prevent re-entry")
 	s.stateManager.ClearPlanApprovalUIState()
 
@@ -138,6 +144,30 @@ func (s *Service) HandlePlanApprovalResponse(msg tui.PlanApprovalResponseEvent) 
 	}
 
 	return tea.Batch(cmds...), restart
+}
+
+// answerPlan hands a plan decision to the daemon worker that asked for it,
+// which records it and runs the accepted plan itself. It goes out before the
+// prompt clears, which closes the channel. The TUI marks its copy of the plan
+// and takes on the agent mode the decision sets, so its next turn keeps it.
+func (s *Service) answerPlan(answer chan<- agentdomain.PlanApprovalAction, action agentdomain.PlanApprovalAction) tea.Cmd {
+	message := "Plan rejected - you can provide feedback or changes"
+	switch action {
+	case agentdomain.PlanApprovalAccept:
+		s.stateManager.SetAgentMode(agentdomain.AgentModeAutoAccept)
+		message = "Plan accepted - Auto-Approve mode enabled, executing plan..."
+	case agentdomain.PlanApprovalAcceptStandard:
+		s.stateManager.SetAgentMode(agentdomain.AgentModeStandard)
+		message = "Plan accepted - executing plan (approving each step)..."
+	}
+	answer <- action
+	s.updatePlanStatus(action)
+	return tea.Batch(
+		func() tea.Msg { return tui.UpdateHistoryEvent{History: s.conversationRepo.GetMessages()} },
+		func() tea.Msg {
+			return tui.SetStatusEvent{Message: message, Spinner: action != agentdomain.PlanApprovalReject, StatusType: tui.StatusDefault}
+		},
+	)
 }
 
 // applyPlanDecision performs the agent-mode + session-state side effects for

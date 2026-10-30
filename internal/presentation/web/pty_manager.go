@@ -171,7 +171,8 @@ func NewLocalPTYSession(cfg *config.Config) *LocalPTYSession {
 // web.tmux is enabled and tmux is installed, the chat is hosted inside an
 // isolated tmux server (-L infer-web, so the user's own tmux is untouched) in a
 // fresh session, which lets interactive subagents open visible panes via
-// `tmux split-window`. Otherwise it runs `infer chat` directly.
+// `tmux split-window`. Otherwise it runs `infer chat` directly. A daemon chat
+// starts its sessions in daemon mode too.
 //
 // destroy-unattached makes the tmux server reap the session the moment the PTY
 // client dies. Without it the chat survives as a child of the tmux daemon,
@@ -180,14 +181,18 @@ func NewLocalPTYSession(cfg *config.Config) *LocalPTYSession {
 // session is never briefly unprotected, and -g is safe because the
 // -L infer-web server is ours alone.
 func buildLocalSessionCommand(cfg *config.Config, execPath string) *exec.Cmd {
+	args := []string{"chat"}
+	if cfg != nil && cfg.Chat.Daemon {
+		args = append(args, "--daemon")
+	}
 	if cfg != nil && cfg.Web.Tmux && tmuxInstalled() {
 		sessionName := fmt.Sprintf("infer-web-%d", time.Now().UnixNano())
-		inner := fmt.Sprintf("'%s' chat", strings.ReplaceAll(execPath, "'", `'\''`))
+		inner := fmt.Sprintf("'%s' %s", strings.ReplaceAll(execPath, "'", `'\''`), strings.Join(args, " "))
 		return exec.Command("tmux", "-L", "infer-web",
 			"set-option", "-g", "destroy-unattached", "on", ";",
 			"new-session", "-s", sessionName, inner)
 	}
-	return exec.Command(execPath, "chat")
+	return exec.Command(execPath, args...)
 }
 
 // tmuxInstalled reports whether the tmux binary is on PATH.

@@ -275,6 +275,7 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	autocomplete := app.GetAutocomplete()
+	syncAutocomplete(autocomplete, inputView)
 	if autocomplete != nil && autocomplete.IsVisible() {
 		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
 			if completion != "" {
@@ -311,10 +312,21 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return app.SendMessage()
 }
 
+// syncAutocomplete brings a visible autocomplete up to the input as it is now.
+// Its updates arrive as messages, so keys typed in the same burst as enter or
+// tab may not have reached it, and a stale suggestion would replace them. A
+// dismissed autocomplete stays dismissed.
+func syncAutocomplete(autocomplete tui.AutocompleteComponent, input tui.InputComponent) {
+	if autocomplete != nil && input != nil && autocomplete.IsVisible() {
+		autocomplete.Update(input.GetInput(), input.GetCursor())
+	}
+}
+
 // handleTabKey handles Tab key press: routes to autocomplete when visible,
 // otherwise delegates to input view for history suggestion cycling.
 func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	autocomplete := app.GetAutocomplete()
+	syncAutocomplete(autocomplete, app.GetInputView())
 	if autocomplete != nil && autocomplete.IsVisible() {
 		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
 			if completion != "" {

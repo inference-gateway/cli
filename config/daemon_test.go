@@ -55,7 +55,7 @@ func TestBindingResolution(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("Binding() = %+v, want %+v", got, tt.want)
 			}
-			if got.Dialable() != (tt.want.Enabled && tt.want.Token != "") {
+			if got.Dialable() != (tt.want.Enabled && (tt.want.Token != "" || tt.want.TLS.RequiresClientAuth())) {
 				t.Fatalf("Dialable() = %v for %+v", got.Dialable(), got)
 			}
 		})
@@ -92,7 +92,6 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"valid environments", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "laptop", Kind: EnvironmentKindLocal}, kubernetes, daemon}}, ""},
 		{"unknown tls mode", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: "pem"}}}, "binding.tls.mode"},
 		{"files mode needs files", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeFiles}}}, "cert_file and key_file"},
-		{"spiffe mode needs a trust domain", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeSPIFFE}}}, "trust_domain"},
 		{"remote host needs tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0"}}, "must not be off"},
 		{"remote host with tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0", TLS: BindingTLSConfig{Mode: TLSModeCA}}}, ""},
 		{"duplicate names", DaemonConfig{Environments: []EnvironmentEntry{kubernetes, kubernetes}}, "twice"},
@@ -101,10 +100,8 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"two locals", DaemonConfig{Environments: []EnvironmentEntry{{Name: "a", Kind: EnvironmentKindLocal}, {Name: "b", Kind: EnvironmentKindLocal}}}, "only one environment"},
 		{"local named after the identity", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "other", Kind: EnvironmentKindLocal}}}, "named after daemon.environment"},
 		{"daemon kind needs an address", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
-		{"daemon kind needs tls", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, "require TLS"},
+		{"daemon kind trusts the system roots without a ca_file", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, ""},
 		{"kubernetes needs namespace and image", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes}}}, "namespace and an image"},
-		{"kubernetes spiffe needs a trust domain", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "n", Image: "i", Auth: EnvironmentAuthSPIFFE}}}, "spiffe.trust_domain"},
-		{"kubernetes unknown auth", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "n", Image: "i", Auth: "token"}}}, "invalid auth"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -147,7 +144,26 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	if got := (EnvironmentEntry{Kind: EnvironmentKindDaemon, LeaseTTL: time.Minute}).EffectiveLeaseTTL(); got != time.Minute {
 		t.Fatalf("configured lease ttl wins: %v", got)
 	}
-	if got := k8s.EffectiveAuth(); got != EnvironmentAuthCA {
-		t.Fatalf("default auth = %q", got)
+}
+
+func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
+	tests := []struct {
+		name    string
+		binding Binding
+		want    bool
+	}{
+		{"off", Binding{Token: "secret"}, false},
+		{"on without a token or certificates", Binding{Enabled: true}, false},
+		{"on with a token", Binding{Enabled: true, Token: "secret"}, true},
+		{"on with the ca mode and no token", Binding{Enabled: true, TLS: BindingTLSConfig{Mode: TLSModeCA}}, true},
+		{"on with files and client auth", Binding{Enabled: true, TLS: BindingTLSConfig{Mode: TLSModeFiles, ClientAuth: true}}, true},
+		{"on with files and no client auth", Binding{Enabled: true, TLS: BindingTLSConfig{Mode: TLSModeFiles}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.binding.Dialable(); got != tt.want {
+				t.Fatalf("Dialable() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

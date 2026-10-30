@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -13,27 +12,35 @@ import (
 )
 
 // bootWait bounds how long EnsureRunning waits for a daemon it just started to
-// bind its port.
-const bootWait = 15 * time.Second
+// bind its port, and restartEvery paces the starts it retries meanwhile.
+const (
+	bootWait     = 15 * time.Second
+	restartEvery = 2 * time.Second
+)
 
-// EnsureRunning makes an infer daemon listen on port, starting one in the
-// background when nothing does. The daemon's own pid lock makes a redundant
-// start exit, so callers never coordinate, and the wait covers a daemon already
-// on its way.
+// EnsureRunning makes an infer daemon serve its binding on port, starting one
+// in the background when nothing listens there. The daemon's own pid lock makes
+// a redundant start exit, so callers never coordinate, and the wait covers a
+// daemon already on its way. A daemon still shutting down holds that lock, so
+// the start is retried until it is gone.
 func EnsureRunning(ctx context.Context, port int) error {
 	if reachable(port) {
 		return nil
 	}
-	if err := start(); err != nil {
-		return fmt.Errorf("starting the infer daemon failed: %w", err)
-	}
 	deadline := time.Now().Add(bootWait)
+	var nextStart time.Time
 	for {
+		if !time.Now().Before(nextStart) {
+			if err := start(); err != nil {
+				return fmt.Errorf("starting the infer daemon failed: %w", err)
+			}
+			nextStart = time.Now().Add(restartEvery)
+		}
 		if reachable(port) {
 			return nil
 		}
 		if !time.Now().Before(deadline) {
-			return errors.New("the infer daemon did not bind its binding port in time")
+			return fmt.Errorf("the infer daemon did not open its binding on port %d in time (an infer daemon already running without its binding has to be restarted)", port)
 		}
 		select {
 		case <-ctx.Done():
@@ -43,17 +50,23 @@ func EnsureRunning(ctx context.Context, port int) error {
 	}
 }
 
-// start runs this binary as a background daemon that outlives the caller.
-// A package var, so tests stub the boot instead of spawning the test binary.
-// ponytail: no new session, so closing the caller's terminal stops the daemon
-// too and the next Browser call starts another. Run it as a service if it must
-// survive that. It inherits the caller's env and working directory, so its config.
+// autoStartIdleExit is how long a daemon started on demand idles before it
+// stops, unless daemon.yaml sets its own idle_exit.
+const autoStartIdleExit = 30 * time.Minute
+
+// start runs this binary as a background daemon in a session of its own, so
+// it and the threads it runs outlive the caller's terminal, and it stops once
+// idle for autoStartIdleExit. Its callers dial its binding, so it serves one
+// whatever daemon.yaml says. A package var, so tests stub the boot. It
+// inherits the caller's env and working directory, so its config.
 var start = func() error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := process.Command(exe, "daemon")
+	cmd := process.Command(exe, "daemon", "--idle-exit", autoStartIdleExit.String())
+	cmd.Env = append(os.Environ(), "INFER_DAEMON_BINDING_ENABLED=true")
+	process.Detach(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}

@@ -20,8 +20,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
+	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
@@ -51,37 +50,17 @@ func (c *daemonClient) Detach(*agui.Conn) {
 // dialLocal connects to the daemon this config describes, over its TLS when
 // it serves any.
 func dialLocal(ctx context.Context, cfg *config.Config) (*daemonClient, error) {
-	binding := cfg.Binding()
-	if !authenticates(binding) {
-		return nil, errors.New("the daemon binding is off or has neither a token nor TLS client certificates: enable daemon.binding in daemon.yaml with a token or a client-certificate TLS mode, and start infer daemon")
-	}
-	var pki *agentinfra.PKI
-	if binding.TLS.Mode == config.TLSModeCA {
-		var err error
-		if pki, err = agentinfra.LoadOrCreatePKI(filepath.Join(config.UserSpaceConfigDir(), "daemon", "pki")); err != nil {
-			return nil, err
-		}
-	}
-	provider := agentinfra.NewTLSProvider(clientKind, pki, binding.TLS.SPIFFE)
-	tlsConfig, err := provider.ClientForBinding(ctx, binding.TLS)
+	dial, err := daemonhost.LocalDialConfig(ctx, cfg, clientKind)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w, and start infer daemon", err)
 	}
 	client := &daemonClient{frames: make(chan []byte, 256)}
-	conn, err := agui.Dial(ctx, agui.DialConfig{
-		Addr: binding.Addr(), Token: binding.Token, Kind: clientKind, Handshake: browserinfra.BindingHandshake, TLS: tlsConfig,
-	}, client)
+	conn, err := agui.Dial(ctx, dial, client)
 	if err != nil {
 		return nil, fmt.Errorf("is infer daemon running? %w", err)
 	}
 	client.conn = conn
 	return client, nil
-}
-
-// authenticates reports whether these commands can dial the binding: it is on
-// and a token or a client certificate proves who they are.
-func authenticates(binding config.Binding) bool {
-	return binding.Enabled && (binding.Token != "" || binding.TLS.RequiresClientAuth())
 }
 
 func (c *daemonClient) close() {

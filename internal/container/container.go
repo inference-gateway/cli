@@ -51,6 +51,7 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	approvalcoord "github.com/inference-gateway/cli/internal/presentation/tui/approvalcoord"
 	chatcompletion "github.com/inference-gateway/cli/internal/presentation/tui/chatcompletion"
+	daemonthread "github.com/inference-gateway/cli/internal/presentation/tui/daemonthread"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -97,6 +98,8 @@ type ServiceContainer struct {
 	sessionRolloverManager *conversation.SessionRollover
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
+	daemonOpts             *daemonthread.Options
+	daemonThread           *daemonthread.Thread
 	toolService            agentdomain.ToolService
 	approvalPolicy         agentdomain.ApprovalPolicy
 	fileService            agentdomain.FileService
@@ -196,6 +199,18 @@ func (h *uiNotifierHolder) set(n agentdomain.UINotifier) {
 
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config) *ServiceContainer {
+	return newServiceContainer(cfg, nil)
+}
+
+// NewDaemonChatContainer builds the container of an infer chat --daemon
+// session: its agent, models and conversations live on a thread of the local
+// daemon in opts' project, so the chat starts no agent, gateway, MCP server or
+// A2A agent of its own.
+func NewDaemonChatContainer(cfg *config.Config, opts daemonthread.Options) *ServiceContainer {
+	return newServiceContainer(cfg, &opts)
+}
+
+func newServiceContainer(cfg *config.Config, daemonOpts *daemonthread.Options) *ServiceContainer {
 	sessionID := convdomain.GenerateSessionID()
 
 	containerRuntime, err := containerruntime.NewContainerRuntime(
@@ -211,13 +226,14 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		config:           cfg,
 		containerRuntime: containerRuntime,
 		uiNotifier:       newUINotifierHolder(),
+		daemonOpts:       daemonOpts,
 	}
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
 
 	a2ainfra.UseGatewayCredential(cfg.Gateway.URL, cfg.Gateway.APIKey)
 
-	if cfg.Gateway.Mock {
+	if cfg.Gateway.Mock && daemonOpts == nil {
 		container.startMockGateway()
 	}
 
@@ -323,7 +339,7 @@ func (c *ServiceContainer) startMockGateway() {
 
 // initializeAgentSupervisor creates the A2A agent supervisor if A2A is enabled
 func (c *ServiceContainer) initializeAgentSupervisor() {
-	if !c.config.IsA2AToolsEnabled() {
+	if !c.config.IsA2AToolsEnabled() || c.daemonOpts != nil {
 		return
 	}
 
@@ -382,7 +398,7 @@ func (c *ServiceContainer) registerCustomTools() {
 
 // initializeMCPSupervisor creates the MCP supervisor and starts its servers if enabled
 func (c *ServiceContainer) initializeMCPSupervisor() {
-	if !c.config.MCP.Enabled {
+	if !c.config.MCP.Enabled || c.daemonOpts != nil {
 		return
 	}
 
@@ -415,6 +431,20 @@ func (c *ServiceContainer) hasAutoStartMCPServers() bool {
 	return false
 }
 
+// openDaemonThread opens the daemon chat's thread, whose session leases tell
+// it where the session runs. An in-process chat has none.
+func (c *ServiceContainer) openDaemonThread(stores *storage.Stores) {
+	if c.daemonOpts == nil {
+		return
+	}
+	var leases agentdomain.LeaseStore
+	if stores != nil {
+		leases = stores.Leases
+	}
+	c.daemonThread = daemonthread.New(c.config, *c.daemonOpts, leases)
+	c.daemonThread.SetNotifier(c.uiNotifier)
+}
+
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = agentinfra.NewFileService()
@@ -437,6 +467,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		stores.ScheduledJobs = githubscheduler.NewStore(stores.ScheduledJobs, &githubsetup.RealRunner{}, c.config.Scheduler.GitHub, c.config.Agent.Model)
 	}
 	c.stores = stores
+	c.openDaemonThread(stores)
 
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
@@ -455,7 +486,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	toolFormatterService := toolformatter.NewToolFormatterService(c.toolRegistry, styleProvider)
 	toolFormatterService.SetMaxResultBytes(c.config.Tools.MaxResultBytes)
 
-	groupStore := c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
+	groupStore := c.initializeConversationRepository(stores, storageConfig, toolFormatterService, err)
 
 	if c.jobSupervisor != nil {
 		c.jobSupervisor.SetConversationRepo(c.conversationRepo)
@@ -468,8 +499,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.skillsService = skillsSvc
 	c.toolRegistry.SetSkillsService(skillsSvc)
 
-	modelClient := c.createRawSDKClient()
-	c.modelService = conversation.NewHTTPModelService(modelClient)
+	if c.daemonThread != nil {
+		c.modelService = daemonthread.NewModels(c.daemonThread)
+	} else {
+		c.modelService = conversation.NewHTTPModelService(c.createRawSDKClient())
+	}
 
 	c.telemetryRecorder = telemetry.New(telemetry.Options{
 		Enabled:           c.config.Telemetry.Enabled,
@@ -513,7 +547,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		RestoreContext:    agentloop.SkillRestorer(c.skillsService),
 	})
 
-	if c.config.Compact.Enabled {
+	if c.config.Compact.Enabled && c.daemonThread == nil {
 		if persistentRepo, ok := c.conversationRepo.(*conversation.PersistentConversationRepository); ok {
 			c.sessionRolloverManager = conversation.NewSessionRollover(
 				c.config,
@@ -526,6 +560,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	c.githubIssueService = githubissues.New()
+
+	if c.daemonThread != nil {
+		c.agent = daemonthread.NewAgent(c.daemonThread, c.conversationRepo, c.messageQueue, c.stateManager, c.modelService)
+		c.initializeBrowserTools()
+		return
+	}
 
 	agentClient := adapters.NewAnthropicMessages(c.createAgentSDKClient())
 	agentImpl := agentloop.NewAgent(
@@ -551,6 +591,24 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.agent = agentImpl
 
 	c.initializeBrowserTools()
+}
+
+// initializeConversationRepository wires the conversation repository: over
+// the daemon thread's storage in a daemon chat, else over the configured
+// storage backend. It returns the SessionGroupStorage rollover uses.
+func (c *ServiceContainer) initializeConversationRepository(
+	stores *storage.Stores,
+	storageConfig storage.StorageConfig,
+	toolFormatterService *toolformatter.ToolFormatterService,
+	err error,
+) storage.SessionGroupStorage {
+	if c.daemonThread == nil {
+		return c.initializeStorageBackend(stores, storageConfig, toolFormatterService, err)
+	}
+	daemonStorage := daemonthread.NewStorage(c.daemonThread)
+	c.storage = daemonStorage
+	c.conversationRepo = conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), daemonStorage)
+	return storage.NewMemorySessionGroupStorage()
 }
 
 // initializeStorageBackend wires the conversation repository for the configured
@@ -760,6 +818,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewDiffShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewExplorerShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewEnvironmentsShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewTransferShortcut(c.config.Daemon.Environments))
 	c.shortcutRegistry.Register(shortcuts.NewReleaseNotesShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
@@ -789,8 +849,12 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		))
 	}
 
+	var completer llm.Completer
+	if c.daemonThread == nil {
+		completer = llm.New(c.createRawSDKClient())
+	}
 	configDirs := config.ConfigLookupDirs()
-	if err := c.shortcutRegistry.LoadCustomShortcuts(configDirs, llm.New(c.createRawSDKClient()), c.modelService, c.imageService, c.toolService); err != nil {
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDirs, completer, c.modelService, c.imageService, c.toolService); err != nil {
 		logger.Error("failed to load custom shortcuts", "error", err, "config_dirs", configDirs)
 	}
 }
@@ -989,6 +1053,9 @@ func (c *ServiceContainer) GetToolExecutionCoordinator() tui.ToolExecutionCoordi
 // generator for the chat input's ghost text, built lazily here so both the
 // persistent and the in-memory conversation path share it.
 func (c *ServiceContainer) GetNextStepSuggestionRunner() tui.NextStepSuggestionRunner {
+	if c.daemonThread != nil {
+		return nil
+	}
 	if c.suggestionRunner == nil {
 		var recorder conversation.SuggestionTelemetryRecorder
 		if c.telemetryRecorder != nil {
@@ -1088,6 +1155,20 @@ func (c *ServiceContainer) GetTitleBackfill() *scheduler.TitleBackfill {
 	return c.backgroundJobManager
 }
 
+// GetDaemonThread is the daemon chat's thread, nil for an in-process chat.
+func (c *ServiceContainer) GetDaemonThread() *daemonthread.Thread {
+	return c.daemonThread
+}
+
+// GetSessionMover moves a daemon chat's session between environments, and is
+// nil for an in-process chat.
+func (c *ServiceContainer) GetSessionMover() tui.SessionMover {
+	if c.daemonThread == nil {
+		return nil
+	}
+	return c.daemonThread
+}
+
 // GetStorage returns the conversation storage
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
@@ -1151,6 +1232,9 @@ func (c *ServiceContainer) ensureBackgroundTaskRegistry() {
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	if c.screenRecorder != nil {
 		c.screenRecorder.Close()
+	}
+	if c.daemonThread != nil {
+		c.daemonThread.Close()
 	}
 
 	c.telemetryRecorder.Shutdown(ctx)

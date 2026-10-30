@@ -85,13 +85,13 @@ func TestResumeChatSession(t *testing.T) {
 			name:    "refuses a session another environment owns",
 			lease:   agentdomain.Lease{Environment: "k8s-dev", Until: time.Now().Add(time.Hour)},
 			found:   true,
-			wantErr: "session abc-123-def is owned by environment k8s-dev",
+			wantErr: "session abc-123-def runs on environment k8s-dev",
 		},
 		{
 			name:    "refuses a session whose lease another environment let lapse",
 			lease:   agentdomain.Lease{Environment: "k8s-dev", Until: time.Now().Add(-time.Hour)},
 			found:   true,
-			wantErr: "infer daemon run abc-123-def",
+			wantErr: "infer chat --daemon --session-id abc-123-def",
 		},
 		{
 			name:     "refuses when the lease cannot be read",

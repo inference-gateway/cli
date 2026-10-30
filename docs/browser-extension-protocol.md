@@ -71,8 +71,10 @@ Client → CLI, first frame, within 5 seconds of connecting:
 {"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 2, "extension_version": "1.9.2"}
 ```
 
-- `client` is `extension`, `desktop` or `browser`. An absent or unknown value counts as
-  `extension`.
+- `client` names the kind of client: `extension`, `desktop`, `browser`, `tui` (`infer chat --daemon`),
+  `cli` (`infer daemon` subcommands), `subagent-parent` or `daemon` (a peer daemon). Only `extension`, or
+  an absent value, is the browser extension. Every other value is a client and never takes the
+  extension's place.
 - The handshake is lenient: any hello with a valid token is accepted. A hello
   without `protocol_version` is logged as a warning.
 
@@ -181,6 +183,12 @@ Both make the connection follow that thread:
   paths added to the user's `sandbox.yaml` allowed list), `max_turns` and
   `subagent` (`{"parent": "<conversation id>", "depth": 1, "tools": [...]}`,
   set by a worker's Agent tool when the thread is a subagent it spawned).
+- `environment` and `workspace` place a thread whose conversation no lease
+  places: the registered environment that holds it and its project dir there.
+  A client sends them when it opens a session it listed on a remote
+  environment (`list_conversations` on a relayed thread). The daemon relays the
+  thread there and never starts it locally, even when the environment cannot
+  be reached.
 - `resume_conversation` requires `id`. A worker that resumes a long-idle
   conversation can roll it over to a new id, so resume with the last `threadId`
   you saw.
@@ -292,10 +300,18 @@ thread receives it:
 ]}}
 ```
 
-- `reason` is `tool_call` for an approval, with the `toolCallId` of the call the
-  run streamed before it suspended (`TOOL_CALL_START` carries its name and
-  `TOOL_CALL_ARGS` its arguments), or `input_required` for a question, with a
-  `responseSchema` describing the answer's `payload`.
+- `reason` is `tool_call` for an approval, with the `toolCallId` of the call
+  and `metadata` naming it (`toolName`, `arguments`), plus a `message` with the
+  approval's context when there is one. A `SandboxAccess` grant is never
+  streamed as a tool call, so the interrupt is all a client sees of it.
+- `reason` is `input_required` for a question, with a `responseSchema`
+  describing the answer's `payload` and `metadata.questions` listing the
+  questions.
+- `reason` is `plan_approval` for a plan the agent asks to execute, with the
+  plan in `metadata` (`planId`, `plan`). The answer's `payload` is
+  `{"action": "accept" | "accept_standard" | "reject"}`, and an accepted plan
+  runs as the next turn in a new conversation, whose id the `RUN_STARTED`
+  that follows carries as `threadId`.
 
 Client → CLI, the user's decision, as a `run_agent_input` carrying resume
 entries and no messages:
@@ -308,6 +324,11 @@ entries and no messages:
   A question's answer travels in the entry's `payload`.
 - A resume answers every open interrupt of the run. The daemon refuses one that
   misses an interrupt with a `RUN_ERROR` naming the missing ids.
+- A client that starts following the thread while its run is suspended gets
+  the suspended `RUN_FINISHED` again right after its `MESSAGES_SNAPSHOT`. A
+  worker whose run waits on an open interrupt is kept for at least the
+  5 minute approval timeout after its last client left, so a reattaching
+  client can still answer.
 - The first resume wins. The daemon drops the later ones for the same
   interrupts, and the thread's other clients learn the decision from the
   `RUN_STARTED` of the continuation run that follows, whose `STATE_SNAPSHOT`
@@ -332,6 +353,9 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 - `title` is the conversation's title (an auto-derived first-message preview
   until a better one is generated); `updated_at` is RFC 3339; `message_count`
   is the number of stored messages.
+- `token_stats` (`request_count`, `total_input_tokens`, `total_output_tokens`, …)
+  and `cost_stats` (`TotalCost`, `Currency`, …) carry the session's usage, the
+  columns of the chat TUI's conversation picker.
 - The list is capped at 50 conversations, the 50 most recently updated.
 - The array is empty when the project runs without conversation persistence
   (`storage.enabled: false`).
@@ -410,6 +434,9 @@ CLI → client, the configured model ids (empty when unavailable):
 
 - Each entry is a `provider/model` id exactly as the CLI would accept it.
 - The first entry is the CLI's default model.
+- `catalog`, when the worker fetched the gateway's models, holds their gateway
+  entries (`id`, `context_window`, `pricing`, `modalities`), the details the
+  chat TUI's model picker shows.
 
 Client → CLI, switch the thread's model for its next turns (same effect as
 `/model` in the TUI). The CLI answers with a fresh `models` frame, where
@@ -588,7 +615,8 @@ CLI → client, only the requesting client receives it, once per stage:
   carries `message` and leaves the session on the source with its lease intact.
 - `transfer_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
   at once and moves nothing twice.
-- A session another live environment owns is refused with `failed`.
+- A session another live environment owns is refused with `failed`, unless `target` names the daemon it
+  left, which brings it back (see [Daemon to daemon](#daemon-to-daemon)).
 - `files` are extra files relative to the project that travel although git does not track them. A file
   outside the project, or one `sandbox.yaml` denies, fails the transfer.
 
@@ -640,6 +668,19 @@ then sends `resume_conversation` on the same connection and reports `ready` only
 `MESSAGES_SNAPSHOT` renders to the checkpoint's digest. `transfer_abort` with the `transfer_id` undoes an
 import whose verification failed. A daemon accepts these frames only from connections of kind `daemon`
 and only when `environment` names itself.
+
+A session comes back the other way over a connection the daemon it left opens to its owner. That daemon
+sends `transfer_return` with the workspace its lease names, the owner answers `transfer_returning` at once,
+quiesces the worker, then streams the checkpoint back as `transfer_chunk` frames closed by `transfer_import`
+naming the requester. The checkpoint always carries the conversation. Once the workspace landed, the lease
+moved and the conversation imported, the requester sends `transfer_returned` and the owner releases its row.
+An owner packs only a workspace under its own workspace root and refuses a session another environment owns.
+
+```json
+{"type": "transfer_return", "transfer_id": "<uuid>", "id": "<conversation id>", "workspace": "/workspace/project/<conversation id>", "environment": "laptop"}
+{"type": "transfer_returning", "transfer_id": "<uuid>", "id": "<conversation id>"}
+{"type": "transfer_returned", "transfer_id": "<uuid>"}
+```
 
 ### Conversation export and import
 

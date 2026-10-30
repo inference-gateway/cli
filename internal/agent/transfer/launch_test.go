@@ -217,3 +217,28 @@ func TestLaunchRefusesAnUnknownOwner(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestLaunchRelaysAnUnplacedThreadToTheEnvironmentItNames(t *testing.T) {
+	l := &launcher{}
+	workstation := fakeEnvironment("workstation", agentdomain.EnvironmentKindDaemon)
+	workstation.ReachReturns(agentdomain.Endpoint{}, errors.New("asleep"))
+	s, _ := newService(t, l, workstation)
+
+	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Environment: "workstation", Workspace: "/home/me/proj"})
+	got := firstLine(t, w)
+	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "on environment workstation") || !strings.Contains(got, "asleep") {
+		t.Fatalf("got %q", got)
+	}
+	if workstation.ReachCallCount() != 1 || l.count() != 0 {
+		t.Fatalf("reached %d times and launched %d local workers, want the named environment reached and nothing local", workstation.ReachCallCount(), l.count())
+	}
+}
+
+func TestLaunchRunsLocallyWhenTheNamedEnvironmentIsThisDaemon(t *testing.T) {
+	l := &launcher{}
+	s, _ := newService(t, l)
+
+	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Environment: "laptop"})
+	eventually(t, "the process worker to launch", func() bool { return l.count() == 1 })
+	w.Stop()
+}

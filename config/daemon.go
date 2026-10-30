@@ -14,10 +14,6 @@ const (
 	DaemonFileName   = "daemon.yaml"
 	DefaultDaemonDir = ConfigDirName + "/" + DaemonFileName
 
-	// DefaultSPIFFESocket is where the SPIFFE CSI driver mounts the SPIRE
-	// agent's Workload API inside a pod.
-	DefaultSPIFFESocket = "unix:///spiffe-workload-api/spire-agent.sock"
-
 	// WorkspacesDirName is the userspace directory a receiving daemon restores
 	// transferred projects into.
 	WorkspacesDirName = "workspaces"
@@ -27,15 +23,14 @@ const (
 	remoteLeaseGrace         = 5 * time.Minute
 )
 
-// TLSMode is how the binding serves TLS: off, from certificate files, from
-// the daemon-managed CA, or with SPIFFE SVIDs from the SPIRE Workload API.
+// TLSMode is how the binding serves TLS: off, from certificate files, or from
+// the daemon-managed CA.
 type TLSMode string
 
 const (
-	TLSModeOff    TLSMode = "off"
-	TLSModeFiles  TLSMode = "files"
-	TLSModeCA     TLSMode = "ca"
-	TLSModeSPIFFE TLSMode = "spiffe"
+	TLSModeOff   TLSMode = "off"
+	TLSModeFiles TLSMode = "files"
+	TLSModeCA    TLSMode = "ca"
 )
 
 // EnvironmentKind names where an agent runs: this daemon, a standalone daemon
@@ -46,15 +41,6 @@ const (
 	EnvironmentKindLocal      EnvironmentKind = "local"
 	EnvironmentKindDaemon     EnvironmentKind = "daemon"
 	EnvironmentKindKubernetes EnvironmentKind = "kubernetes"
-)
-
-// EnvironmentAuth is how a Kubernetes environment's pod daemon authenticates: a
-// certificate the daemon-managed CA issues, or a SPIFFE SVID.
-type EnvironmentAuth string
-
-const (
-	EnvironmentAuthCA     EnvironmentAuth = "ca"
-	EnvironmentAuthSPIFFE EnvironmentAuth = "spiffe"
 )
 
 // DaemonConfig contains settings for the `infer daemon` command itself, the
@@ -97,36 +83,20 @@ type BindingConfig struct {
 
 // BindingTLSConfig is the TLS the binding serves, if any.
 type BindingTLSConfig struct {
-	Mode       TLSMode      `yaml:"mode" mapstructure:"mode"`
-	CertFile   string       `yaml:"cert_file,omitempty" mapstructure:"cert_file"`
-	KeyFile    string       `yaml:"key_file,omitempty" mapstructure:"key_file"`
-	CAFile     string       `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
-	ClientAuth bool         `yaml:"client_auth" mapstructure:"client_auth"`
-	SPIFFE     SPIFFEConfig `yaml:"spiffe" mapstructure:"spiffe"`
-}
-
-// SPIFFEConfig reaches the SPIRE Workload API for the binding's own SVID and
-// names which peers it trusts.
-type SPIFFEConfig struct {
-	Socket      string   `yaml:"socket,omitempty" mapstructure:"socket"`
-	TrustDomain string   `yaml:"trust_domain,omitempty" mapstructure:"trust_domain"`
-	AllowedIDs  []string `yaml:"allowed_ids,omitempty" mapstructure:"allowed_ids"`
+	Mode       TLSMode `yaml:"mode" mapstructure:"mode"`
+	CertFile   string  `yaml:"cert_file,omitempty" mapstructure:"cert_file"`
+	KeyFile    string  `yaml:"key_file,omitempty" mapstructure:"key_file"`
+	CAFile     string  `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
+	ClientAuth bool    `yaml:"client_auth" mapstructure:"client_auth"`
 }
 
 // PeerTLSConfig is how this daemon reaches a daemon-kind environment over TLS:
-// the CA that signed its certificate, and a client certificate when the
-// peer requires one.
+// the CA that signed its certificate, else the system roots, and a client
+// certificate when the peer requires one.
 type PeerTLSConfig struct {
 	CAFile   string `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
 	CertFile string `yaml:"cert_file,omitempty" mapstructure:"cert_file"`
 	KeyFile  string `yaml:"key_file,omitempty" mapstructure:"key_file"`
-}
-
-// EnvironmentSPIFFEConfig names the SVID a Kubernetes environment's pod daemon
-// presents, so this daemon knows which identity to expect.
-type EnvironmentSPIFFEConfig struct {
-	TrustDomain string `yaml:"trust_domain,omitempty" mapstructure:"trust_domain"`
-	ServerID    string `yaml:"server_id,omitempty" mapstructure:"server_id"`
 }
 
 // EnvironmentEntry registers one environment sessions can move to. The daemon kind
@@ -139,15 +109,13 @@ type EnvironmentEntry struct {
 	Token   string          `yaml:"token,omitempty" mapstructure:"token"`
 	TLS     PeerTLSConfig   `yaml:"tls,omitempty" mapstructure:"tls"`
 
-	Kubeconfig string                  `yaml:"kubeconfig,omitempty" mapstructure:"kubeconfig"`
-	Context    string                  `yaml:"context,omitempty" mapstructure:"context"`
-	Namespace  string                  `yaml:"namespace,omitempty" mapstructure:"namespace"`
-	Image      string                  `yaml:"image,omitempty" mapstructure:"image"`
-	Storage    string                  `yaml:"storage,omitempty" mapstructure:"storage"`
-	IdleTTL    time.Duration           `yaml:"idle_ttl,omitempty" mapstructure:"idle_ttl"`
-	Auth       EnvironmentAuth         `yaml:"auth,omitempty" mapstructure:"auth"`
-	SPIFFE     EnvironmentSPIFFEConfig `yaml:"spiffe,omitempty" mapstructure:"spiffe"`
-	Env        map[string]string       `yaml:"env,omitempty" mapstructure:"env"`
+	Kubeconfig string            `yaml:"kubeconfig,omitempty" mapstructure:"kubeconfig"`
+	Context    string            `yaml:"context,omitempty" mapstructure:"context"`
+	Namespace  string            `yaml:"namespace,omitempty" mapstructure:"namespace"`
+	Image      string            `yaml:"image,omitempty" mapstructure:"image"`
+	Storage    string            `yaml:"storage,omitempty" mapstructure:"storage"`
+	IdleTTL    time.Duration     `yaml:"idle_ttl,omitempty" mapstructure:"idle_ttl"`
+	Env        map[string]string `yaml:"env,omitempty" mapstructure:"env"`
 
 	// Retention is how long a Sandbox stays suspended once every agent on it is
 	// done before agent-sandbox deletes it with its volumes. Zero keeps it until
@@ -180,14 +148,6 @@ func (e EnvironmentEntry) EffectiveLeaseTTL() time.Duration {
 		return e.EffectiveIdleTTL() + remoteLeaseGrace
 	}
 	return defaultDaemonLeaseTTL
-}
-
-// EffectiveAuth is the configured pod authentication, CA by default.
-func (e EnvironmentEntry) EffectiveAuth() EnvironmentAuth {
-	if e.Auth == "" {
-		return EnvironmentAuthCA
-	}
-	return e.Auth
 }
 
 // Identity is this daemon's name in session leases: the configured environment,
@@ -232,9 +192,9 @@ func (d DaemonConfig) Remote(name string) (EnvironmentEntry, bool) {
 }
 
 // RequiresClientAuth reports whether the binding authenticates peers with
-// client certificates, which the ca and spiffe modes always do.
+// client certificates, which the ca mode always does.
 func (t BindingTLSConfig) RequiresClientAuth() bool {
-	return t.ClientAuth || t.Mode == TLSModeCA || t.Mode == TLSModeSPIFFE
+	return t.ClientAuth || t.Mode == TLSModeCA
 }
 
 // Validate checks daemon.yaml: the TLS mode, that a non-loopback binding
@@ -268,16 +228,13 @@ func (d DaemonConfig) Validate() error {
 
 func (b BindingConfig) validate() error {
 	switch b.TLS.Mode {
-	case "", TLSModeOff, TLSModeFiles, TLSModeCA, TLSModeSPIFFE:
+	case "", TLSModeOff, TLSModeFiles, TLSModeCA:
 	default:
-		return fmt.Errorf("invalid binding.tls.mode %q: must be one of %q, %q, %q, or %q",
-			b.TLS.Mode, TLSModeOff, TLSModeFiles, TLSModeCA, TLSModeSPIFFE)
+		return fmt.Errorf("invalid binding.tls.mode %q: must be one of %q, %q, or %q",
+			b.TLS.Mode, TLSModeOff, TLSModeFiles, TLSModeCA)
 	}
 	if b.TLS.Mode == TLSModeFiles && (b.TLS.CertFile == "" || b.TLS.KeyFile == "") {
 		return fmt.Errorf("binding.tls.mode %q needs cert_file and key_file", TLSModeFiles)
-	}
-	if b.TLS.Mode == TLSModeSPIFFE && b.TLS.SPIFFE.TrustDomain == "" {
-		return fmt.Errorf("binding.tls.mode %q needs spiffe.trust_domain", TLSModeSPIFFE)
 	}
 	if !isLoopbackHost(b.Host) && b.TLS.Mode.off() {
 		return fmt.Errorf("binding.host %q is not loopback, so binding.tls.mode must not be off", b.Host)
@@ -295,21 +252,9 @@ func (e EnvironmentEntry) validate(identity string) error {
 		if e.Address == "" {
 			return fmt.Errorf("environment %q of kind daemon needs an address", e.Name)
 		}
-		if e.TLS.CAFile == "" {
-			return fmt.Errorf("environment %q of kind daemon needs tls.ca_file, remote bindings require TLS", e.Name)
-		}
 	case EnvironmentKindKubernetes:
 		if e.Namespace == "" || e.Image == "" {
 			return fmt.Errorf("environment %q of kind kubernetes needs a namespace and an image", e.Name)
-		}
-		switch e.EffectiveAuth() {
-		case EnvironmentAuthCA:
-		case EnvironmentAuthSPIFFE:
-			if e.SPIFFE.TrustDomain == "" {
-				return fmt.Errorf("environment %q with auth spiffe needs spiffe.trust_domain", e.Name)
-			}
-		default:
-			return fmt.Errorf("invalid auth %q for environment %q: must be %q or %q", e.Auth, e.Name, EnvironmentAuthCA, EnvironmentAuthSPIFFE)
 		}
 	default:
 		return fmt.Errorf("invalid kind %q for environment %q: must be one of %q, %q, or %q",
@@ -359,10 +304,10 @@ func (b Binding) ListenHost() string {
 	return b.Host
 }
 
-// Dialable reports whether a client can reach the binding: it is on and has
-// a token to present.
+// Dialable reports whether a client can reach the binding: it is on and a
+// token or a client certificate proves who the client is.
 func (b Binding) Dialable() bool {
-	return b.Enabled && b.Token != ""
+	return b.Enabled && (b.Token != "" || b.TLS.RequiresClientAuth())
 }
 
 // Binding resolves the AG-UI binding from daemon.yaml and browser_use.yaml.
@@ -389,7 +334,7 @@ func (c *Config) Binding() Binding {
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
 		Binding: BindingConfig{
-			TLS: BindingTLSConfig{Mode: TLSModeOff, SPIFFE: SPIFFEConfig{Socket: DefaultSPIFFESocket}},
+			TLS: BindingTLSConfig{Mode: TLSModeOff},
 		},
 		Environments: []EnvironmentEntry{},
 	}

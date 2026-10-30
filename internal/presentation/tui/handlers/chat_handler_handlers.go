@@ -60,9 +60,9 @@ func (h *ChatHandler) ExtractMarkdownSummary(content string) (string, bool) {
 	return h.messageProcessor.ExtractMarkdownSummary(content)
 }
 
-// handleConversationSelected loads a persisted conversation from disk and
-// refreshes the UI. Requires the conversation repo to be persistent; falls
-// back with an error if it isn't.
+// handleConversationSelected loads a persisted conversation and refreshes the
+// UI. The load runs off the update loop, since a daemon chat fetches it from
+// the worker. A repo that does not persist answers with an error.
 func (h *ChatHandler) handleConversationSelected(
 	msg tui.ConversationSelectedEvent,
 ) tea.Cmd {
@@ -76,33 +76,31 @@ func (h *ChatHandler) handleConversationSelected(
 		}
 	}
 
-	ctx := context.Background()
-	if err := persistentRepo.LoadConversation(ctx, msg.ConversationID); err != nil {
-		return func() tea.Msg {
+	return func() tea.Msg {
+		if err := persistentRepo.LoadConversation(context.Background(), msg.ConversationID); err != nil {
 			return tui.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to load conversation: %v", err),
 				Sticky: false,
 			}
 		}
+		metadata := persistentRepo.GetCurrentConversationMetadata()
+		return tea.Batch(
+			func() tea.Msg {
+				return tui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
+			},
+			func() tea.Msg {
+				return tui.TodoUpdateEvent{Todos: nil}
+			},
+			func() tea.Msg {
+				return tui.SetStatusEvent{
+					Message: fmt.Sprintf("Loaded conversation: %s (%d messages)",
+						metadata.Title, metadata.MessageCount),
+					Spinner:    false,
+					StatusType: tui.StatusDefault,
+				}
+			},
+		)()
 	}
-
-	return tea.Batch(
-		func() tea.Msg {
-			return tui.UpdateHistoryEvent{History: h.conversationRepo.GetMessages()}
-		},
-		func() tea.Msg {
-			return tui.TodoUpdateEvent{Todos: nil}
-		},
-		func() tea.Msg {
-			metadata := persistentRepo.GetCurrentConversationMetadata()
-			return tui.SetStatusEvent{
-				Message: fmt.Sprintf("Loaded conversation: %s (%d messages)",
-					metadata.Title, metadata.MessageCount),
-				Spinner:    false,
-				StatusType: tui.StatusDefault,
-			}
-		},
-	)
 }
 
 // handleMessageQueued refreshes history and emits a "Processing queued

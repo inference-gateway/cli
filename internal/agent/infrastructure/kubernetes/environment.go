@@ -49,7 +49,6 @@ const (
 	workspaceMount   = "/workspace"
 	stateMount       = "/home/infer/.infer/projects"
 	tlsMount         = "/etc/infer/tls"
-	spiffeMount      = "/spiffe-workload-api"
 	serviceAccount   = "infer-environment"
 	defaultStorage   = "5Gi"
 	tlsSecretSuffix  = "-tls"
@@ -158,7 +157,7 @@ func (e *Environment) reach(ctx context.Context, session agentdomain.Session, cr
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
-	tlsConfig, err := e.tls.ClientForKubernetes(ctx, e.entry, name)
+	tlsConfig, err := e.tls.ClientForKubernetes(name)
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
@@ -173,7 +172,7 @@ func (e *Environment) reach(ctx context.Context, session agentdomain.Session, cr
 }
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
-// always, plus the certificates the daemon CA issued when auth is ca.
+// and the certificates the daemon CA issued.
 func (e *Environment) ensureSecret(ctx context.Context, name string) (string, error) {
 	secrets := e.typed.CoreV1().Secrets(e.entry.Namespace)
 	existing, err := secrets.Get(ctx, name+tlsSecretSuffix, metav1.GetOptions{})
@@ -187,21 +186,24 @@ func (e *Environment) ensureSecret(ctx context.Context, name string) (string, er
 	if err != nil {
 		return "", err
 	}
-	data := map[string][]byte{secretTokenKey: []byte(token)}
-	if e.entry.EffectiveAuth() == config.EnvironmentAuthCA {
-		if e.pki == nil {
-			return "", errors.New("environment auth ca needs the daemon CA")
-		}
-		server, err := e.pki.IssueServer(name, name+"."+e.entry.Namespace, name+"."+e.entry.Namespace+".svc")
-		if err != nil {
-			return "", err
-		}
-		client, err := e.pki.IssueClient(name)
-		if err != nil {
-			return "", err
-		}
-		data[secretCertKey], data[secretKeyKey], data[secretCAKey] = server.CertPEM, server.KeyPEM, server.CAPEM
-		data[secretClientCert], data[secretClientKey] = client.CertPEM, client.KeyPEM
+	if e.pki == nil {
+		return "", errors.New("a kubernetes environment needs the daemon CA")
+	}
+	server, err := e.pki.IssueServer(name, name+"."+e.entry.Namespace, name+"."+e.entry.Namespace+".svc")
+	if err != nil {
+		return "", err
+	}
+	client, err := e.pki.IssueClient(name)
+	if err != nil {
+		return "", err
+	}
+	data := map[string][]byte{
+		secretTokenKey:   []byte(token),
+		secretCertKey:    server.CertPEM,
+		secretKeyKey:     server.KeyPEM,
+		secretCAKey:      server.CAPEM,
+		secretClientCert: client.CertPEM,
+		secretClientKey:  client.KeyPEM,
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelEnvironment: e.entry.Name}},
@@ -352,7 +354,7 @@ func conditionMessage(sandbox *k8sunstructured.Unstructured, name string) string
 // CRD or an unreachable cluster is the error.
 func (e *Environment) Probe(ctx context.Context) agentdomain.EnvironmentStatus {
 	status := agentdomain.EnvironmentStatus{Name: e.entry.Name, Kind: agentdomain.EnvironmentKindKubernetes, Capabilities: map[string]string{
-		"namespace": e.entry.Namespace, "image": e.entry.Image, "auth": string(e.entry.EffectiveAuth()),
+		"namespace": e.entry.Namespace, "image": e.entry.Image,
 	}}
 	list, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelEnvironment + "=" + e.entry.Name})
 	if err != nil {
@@ -394,7 +396,7 @@ func (e *Environment) Delete(ctx context.Context, session agentdomain.Session) e
 
 // sandbox is the Sandbox object for a session: the infer image as a daemon
 // with its binding on the pod network, a workspace and a state volume, and
-// the authentication the entry chose.
+// the daemon CA's certificates.
 func (e *Environment) sandbox(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	podSpec := e.podSpec(name)
 	spec, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(&podSpec)
@@ -452,45 +454,31 @@ func (e *Environment) podSpec(name string) corev1.PodSpec {
 	for key, value := range e.entry.Env {
 		env = append(env, corev1.EnvVar{Name: key, Value: value})
 	}
-	volumes := []corev1.Volume{}
-	mounts := []corev1.VolumeMount{{Name: "workspace", MountPath: workspaceMount}, {Name: "state", MountPath: stateMount}}
-	switch e.entry.EffectiveAuth() {
-	case config.EnvironmentAuthSPIFFE:
-		env = append(env,
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_MODE", Value: string(config.TLSModeSPIFFE)},
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_SPIFFE_TRUST_DOMAIN", Value: e.entry.SPIFFE.TrustDomain},
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_SPIFFE_SOCKET", Value: "unix://" + spiffeMount + "/spire-agent.sock"},
-		)
-		readOnly := true
-		volumes = append(volumes, corev1.Volume{Name: "spiffe-workload-api", VolumeSource: corev1.VolumeSource{
-			CSI: &corev1.CSIVolumeSource{Driver: "csi.spiffe.io", ReadOnly: &readOnly},
-		}})
-		mounts = append(mounts, corev1.VolumeMount{Name: "spiffe-workload-api", MountPath: spiffeMount, ReadOnly: true})
-	default:
-		env = append(env,
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_MODE", Value: string(config.TLSModeFiles)},
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CERT_FILE", Value: tlsMount + "/" + secretCertKey},
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_KEY_FILE", Value: tlsMount + "/" + secretKeyKey},
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CA_FILE", Value: tlsMount + "/" + secretCAKey},
-			corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CLIENT_AUTH", Value: "true"},
-		)
-		volumes = append(volumes, corev1.Volume{Name: "tls", VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{SecretName: name + tlsSecretSuffix},
-		}})
-		mounts = append(mounts, corev1.VolumeMount{Name: "tls", MountPath: tlsMount, ReadOnly: true})
-	}
+	env = append(env,
+		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_MODE", Value: string(config.TLSModeFiles)},
+		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CERT_FILE", Value: tlsMount + "/" + secretCertKey},
+		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_KEY_FILE", Value: tlsMount + "/" + secretKeyKey},
+		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CA_FILE", Value: tlsMount + "/" + secretCAKey},
+		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CLIENT_AUTH", Value: "true"},
+	)
 	return corev1.PodSpec{
 		ServiceAccountName: serviceAccount,
 		RestartPolicy:      corev1.RestartPolicyOnFailure,
 		SecurityContext:    &corev1.PodSecurityContext{FSGroup: &fsGroup},
-		Volumes:            volumes,
+		Volumes: []corev1.Volume{{Name: "tls", VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{SecretName: name + tlsSecretSuffix},
+		}}},
 		Containers: []corev1.Container{{
-			Name:         containerName,
-			Image:        e.entry.Image,
-			Args:         []string{"daemon"},
-			Env:          env,
-			Ports:        []corev1.ContainerPort{{Name: "binding", ContainerPort: bindingPort}},
-			VolumeMounts: mounts,
+			Name:  containerName,
+			Image: e.entry.Image,
+			Args:  []string{"daemon"},
+			Env:   env,
+			Ports: []corev1.ContainerPort{{Name: "binding", ContainerPort: bindingPort}},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "workspace", MountPath: workspaceMount},
+				{Name: "state", MountPath: stateMount},
+				{Name: "tls", MountPath: tlsMount, ReadOnly: true},
+			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler:        corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrPort(bindingPort)}},
 				InitialDelaySeconds: 2,

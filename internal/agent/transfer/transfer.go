@@ -39,6 +39,11 @@ func (s *Service) startTransfer(to requester, f clientFrame) {
 		to.Deliver(runError("transfer_session needs transfer_id, project_dir, id and target"))
 		return
 	}
+	session := s.session(sessionsdomain.ThreadKey{ProjectDir: f.ProjectDir, ConversationID: f.ID})
+	if err := session.Validate(); err != nil {
+		refuseTransfer(to, f.TransferID, err.Error())
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 	s.mu.Lock()
 	if _, running := s.transfers[f.TransferID]; running {
@@ -65,7 +70,7 @@ func (s *Service) startTransfer(to requester, f clientFrame) {
 	}()
 	req := agentdomain.TransferRequest{
 		TransferID: f.TransferID,
-		Session:    s.session(sessionsdomain.ThreadKey{ProjectDir: f.ProjectDir, ConversationID: f.ID}),
+		Session:    session,
 		Target:     f.Target,
 		Files:      f.Files,
 	}
@@ -94,6 +99,10 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
 	report := func(stage agentdomain.TransferStage, message string) { s.report(to, req, stage, message) }
 	fail := func(err error) { s.failTransfer(to, req, err) }
+	if req.Target == s.me {
+		s.bringBack(ctx, to, req)
+		return
+	}
 
 	environment, ok := s.environments[req.Target]
 	if !ok || environment.Kind() == agentdomain.EnvironmentKindLocal {
@@ -139,6 +148,10 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		fail(err)
 		return
 	}
+	fingerprint, _, err := agentinfra.CheckoutState(ctx, req.Session.ProjectDir, s.excludes(req.Session.ProjectDir))
+	if err != nil {
+		logger.Warn("transfer could not fingerprint the checkout the session leaves", "conversation_id", req.Session.ConversationID, "error", err)
+	}
 
 	report(agentdomain.TransferRestoring, "")
 	workspace, err := s.restore(ctx, conn, frames, req, checkpoint)
@@ -152,12 +165,15 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		ConversationID: req.Session.ConversationID, Environment: req.Target, Workspace: workspace,
 		TransferID: req.TransferID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
 	}
-	s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts)
+	if s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts) && fingerprint != "" {
+		s.rememberOrigin(req.Session.ConversationID, req.Session.ProjectDir, fingerprint)
+	}
 }
 
 // handOver writes the target's lease row and announces the move, or aborts
-// the restore there when the row will not yield.
-func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
+// the restore there when the row will not yield. It reports whether the
+// session moved.
+func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, req agentdomain.TransferRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) bool {
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err == nil && !ok {
 		err = fmt.Errorf("environment %s holds the session's lease", holder.Environment)
@@ -165,10 +181,11 @@ func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, r
 	if err != nil {
 		_ = peer.Send(encode(abortFrame{Type: frameTransferAbort, TransferID: req.TransferID}))
 		s.failTransfer(to, req, describe(err, "recording the new owner"))
-		return
+		return false
 	}
 	s.report(to, req, agentdomain.TransferReady, "")
 	s.announce(to, sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}, req, lease, addr, interrupts)
+	return true
 }
 
 // report hands the requester one progress frame of the transfer.
@@ -236,8 +253,7 @@ func (s *Service) checkpoint(ctx context.Context, req agentdomain.TransferReques
 	if peer.StorageID == "" || peer.StorageID != s.cfg.StorageID {
 		checkpoint.Conversation = encode(map[string]json.RawMessage{"entries": exported.Entries, "metadata": exported.Metadata})
 	}
-	denies := func(abs string) bool { return s.cfg.Denies != nil && s.cfg.Denies(req.Session.ProjectDir, abs) }
-	checkpoint.Workspace, err = agentinfra.PackWorkspace(ctx, req.Session.ProjectDir, req.Files, denies)
+	checkpoint.Workspace, err = agentinfra.PackWorkspace(ctx, req.Session.ProjectDir, req.Files, s.excludes(req.Session.ProjectDir))
 	if err != nil {
 		return agentdomain.Checkpoint{}, describe(err, "packing the workspace")
 	}
@@ -294,18 +310,8 @@ func (s *Service) sealCredentials(req agentdomain.TransferRequest, conn *agui.Co
 // restore streams the checkpoint to the peer, waits for it to import, then
 // resumes the conversation there and checks the snapshot matches.
 func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TransferRequest, checkpoint agentdomain.Checkpoint) (string, error) {
-	payload := encode(checkpoint)
-	sum := sha256.Sum256(payload)
-	chunks := 0
-	for start := 0; start < len(payload); start += chunkBytes {
-		end := min(start+chunkBytes, len(payload))
-		if err := conn.Send(encode(chunkFrame{Type: frameTransferChunk, TransferID: req.TransferID, Seq: chunks, Data: payload[start:end]})); err != nil {
-			return "", describe(err, "sending the checkpoint")
-		}
-		chunks++
-	}
-	if err := conn.Send(encode(importFrame{Type: frameTransferImport, TransferID: req.TransferID, Environment: req.Target, Chunks: chunks, SHA256: hex.EncodeToString(sum[:])})); err != nil {
-		return "", describe(err, "sending the checkpoint")
+	if err := sendCheckpoint(conn, req.TransferID, req.Target, checkpoint); err != nil {
+		return "", err
 	}
 	replyCtx, cancel := context.WithTimeout(ctx, replyTimeout)
 	defer cancel()
@@ -333,6 +339,25 @@ func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFram
 		return "", fmt.Errorf("the conversation on %s renders to digest %s, not the checkpoint's %s", req.Target, digest, checkpoint.Digest)
 	}
 	return imported.Workspace, nil
+}
+
+// sendCheckpoint streams a checkpoint to conn in chunks and closes it with the
+// import frame naming the environment it is meant for.
+func sendCheckpoint(conn *agui.Conn, transferID, environment string, checkpoint agentdomain.Checkpoint) error {
+	payload := encode(checkpoint)
+	sum := sha256.Sum256(payload)
+	chunks := 0
+	for start := 0; start < len(payload); start += chunkBytes {
+		end := min(start+chunkBytes, len(payload))
+		if err := conn.Send(encode(chunkFrame{Type: frameTransferChunk, TransferID: transferID, Seq: chunks, Data: payload[start:end]})); err != nil {
+			return describe(err, "sending the checkpoint")
+		}
+		chunks++
+	}
+	if err := conn.Send(encode(importFrame{Type: frameTransferImport, TransferID: transferID, Environment: environment, Chunks: chunks, SHA256: hex.EncodeToString(sum[:])})); err != nil {
+		return describe(err, "sending the checkpoint")
+	}
+	return nil
 }
 
 // snapshotDigest fingerprints a MESSAGES_SNAPSHOT the way the worker does.

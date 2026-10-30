@@ -20,7 +20,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
-	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	daemon "github.com/inference-gateway/cli/internal/daemon"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
@@ -337,16 +336,10 @@ func (t *AgentTool) threadRouted() bool {
 // dialDaemonBinding resolves the binding to dial, starting the daemon when
 // none listens, the way the browser tools reach it.
 func (t *AgentTool) dialDaemonBinding(ctx context.Context) (agui.DialConfig, error) {
-	binding := t.config.Binding()
-	if err := daemon.EnsureRunning(ctx, binding.Port); err != nil {
+	if err := daemon.EnsureRunning(ctx, t.config.Binding().Port); err != nil {
 		return agui.DialConfig{}, err
 	}
-	return agui.DialConfig{
-		Addr:      binding.Addr(),
-		Token:     binding.Token,
-		Kind:      subagentClientKind,
-		Handshake: browserinfra.BindingHandshake,
-	}, nil
+	return daemon.LocalDialConfig(ctx, t.config, subagentClientKind)
 }
 
 // openThread opens the subagent's thread on the daemon in the parent's project

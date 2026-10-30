@@ -2,6 +2,8 @@ package process
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
 
 	psutil "github.com/shirou/gopsutil/v4/process"
@@ -22,6 +24,32 @@ func CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd 
 	cmd := exec.CommandContext(ctx, name, args...)
 	hideConsole(cmd)
 	return cmd
+}
+
+// ErrLocked is LockFile's answer while another holder has the file locked.
+var ErrLocked = errors.New("locked by another process")
+
+// LockFile opens the file at path, creating it, and locks it for this process
+// without waiting, or returns ErrLocked. Closing the file releases the lock,
+// and so does the process exiting, however it exits, so a lock never outlives
+// its holder.
+func LockFile(path string) (*os.File, error) {
+	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockFile(file); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return file, nil
+}
+
+// Detach makes cmd's process outlive the caller's terminal: it starts in a
+// session (a process group on windows) of its own, so closing the terminal or
+// its Ctrl+C never reaches it.
+func Detach(cmd *exec.Cmd) {
+	detach(cmd)
 }
 
 // KillTreeOnCancel kills the command and every process it started on timeout

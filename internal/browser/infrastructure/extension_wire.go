@@ -25,8 +25,8 @@ const statusProtocolVersion = 1
 // Client kinds a hello declares. A browser client only speaks browser frames:
 // it reaches the extension through the host of the binding.
 const (
-	clientDesktop = "desktop"
-	clientBrowser = "browser"
+	clientExtension = "extension"
+	clientBrowser   = "browser"
 )
 
 // commandReplyMargin is added to a command's own budget, which the extension
@@ -44,10 +44,11 @@ func AllowExtensionOrigin(origin string) bool {
 		strings.HasPrefix(origin, "safari-web-extension://")
 }
 
-// isExtension reports whether a client kind is the extension, which is what
-// hellos without a known kind come from.
+// isExtension reports whether a client kind is the extension, which is also
+// what a hello without a kind comes from. Every other kind is a client, so a
+// CLI, a TUI or a peer daemon never takes the extension's place.
 func isExtension(kind string) bool {
-	return kind != clientDesktop && kind != clientBrowser
+	return kind == "" || kind == clientExtension
 }
 
 // browserExtensionStatusFrame builds the status frame a host reports to every

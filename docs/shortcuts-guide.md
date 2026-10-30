@@ -54,7 +54,12 @@ These shortcuts are available out of the box:
   Vendored as `~/.infer/shortcuts/reset.yaml`, wrapping `infer reset` - edit or delete it like any other shortcut.
   A chat session running during the wipe keeps the conversation it already has in memory; run `/new` or restart to be fully fresh.
 - `/compact` - Save the conversation and start a new session seeded with a summary
-- `/conversations` - Open the conversation selection dropdown
+- `/conversations` - Open the conversation selection dropdown. In a daemon chat it lists the sessions where the current one runs,
+  with an Environment column naming where each session runs now
+- `/environments` - Show where a daemon chat's session runs and every environment it can move to, with their reachability and details.
+  `enter` moves the session to the selected one. Selecting the status bar's environment indicator opens the same picker
+- `/transfer [environment] [file...]` - Move a daemon chat's session to an environment, carrying the listed files git does not track.
+  Without an environment it opens the `/environments` picker. A remote session moves only back to this machine
 - `/context` - Show context-window usage
 - `/cost` - Show session cost breakdown with per-model details
 - `/effort [level]` - Show or set the reasoning effort level applied to Anthropic models
@@ -84,6 +89,10 @@ These shortcuts are available out of the box:
 **Project setup:**
 
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
+
+In a daemon chat (`infer chat --daemon`) `/compact`, `/effort` and `/tasks` are off, and `/diff` and `/explorer`
+are off while the session runs on another environment. Each says why in the status line, see
+[the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon).
 
 A `/name` no shortcut answers for (a skill mention such as `/opentask`, or a typo) is sent to the agent as a regular message.
 

@@ -2,6 +2,7 @@ package headless
 
 import (
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
@@ -104,6 +106,67 @@ func TestHeadlessControl_RunInputMessages(t *testing.T) {
 	}
 }
 
+func TestHeadlessControl_RunInputResumeAnswersTheQuestion(t *testing.T) {
+	tests := []struct {
+		name    string
+		resume  string
+		want    []string
+		dismiss bool
+	}{
+		{name: "schema payload", resume: `{"interruptId":"q1","status":"resolved","payload":{"answers":[{"header":"Lang","selectedLabels":["Go"]}]}}`, want: []string{"Go"}},
+		{name: "bare answers", resume: `{"interruptId":"q1","status":"resolved","payload":[{"header":"Lang","selectedLabels":["Go"]}]}`, want: []string{"Go"}},
+		{name: "cancelled", resume: `{"interruptId":"q1","status":"cancelled"}`, dismiss: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctl, _, _ := newTestControl()
+			ctl.Note("q1", agui.InterruptInputRequired)
+			ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[` + tt.resume + `]}}`))
+			close(ctl.questions)
+
+			answered := make(chan []agentdomain.UserQuestionAnswer, 1)
+			render.AnswerQuestions(agentdomain.UserQuestionRequestedEvent{ToolCallID: "q1", ResponseChan: answered}, ctl.questions)
+			answers, ok := <-answered
+			if tt.dismiss {
+				if ok {
+					t.Fatalf("a cancelled resume answered the form: %+v", answers)
+				}
+				return
+			}
+			if !ok || len(answers) != 1 || !slices.Equal(answers[0].SelectedLabels, tt.want) {
+				t.Fatalf("answers = %+v (answered %v), want one answer selecting %v", answers, ok, tt.want)
+			}
+		})
+	}
+}
+
+func TestHeadlessControl_PlanDecisionsReachThePlanBroker(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want string
+	}{
+		{name: "resume accepts", line: `{"type":"run_agent_input","input":{"resume":[{"interruptId":"plan-1","status":"resolved","payload":{"action":"accept"}}]}}`, want: ipc.PlanAccept},
+		{name: "cancelled resume keeps planning", line: `{"type":"run_agent_input","input":{"resume":[{"interruptId":"plan-1","status":"cancelled"}]}}`, want: ipc.PlanReject},
+		{name: "stdin frame", line: `{"type":"plan_approval_response","plan_id":"plan-1","action":"accept_standard"}`, want: ipc.PlanAcceptStandard},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctl, _, _ := newTestControl()
+			ctl.Note("plan-1", interruptPlanApproval)
+			ctl.dispatchLine([]byte(tt.line))
+			select {
+			case resp := <-ctl.plans:
+				if resp.PlanID != "plan-1" || resp.Action != tt.want {
+					t.Fatalf("plan decision = %+v, want plan-1 %s", resp, tt.want)
+				}
+			default:
+				t.Fatal("the decision did not reach the plan broker")
+			}
+		})
+	}
+}
+
 func TestHeadlessControl_RunInputResumeRoutesToTheBrokers(t *testing.T) {
 	ctl, _, _ := newTestControl()
 	ctl.Note("tc1", agui.InterruptToolCall)
@@ -119,16 +182,6 @@ func TestHeadlessControl_RunInputResumeRoutesToTheBrokers(t *testing.T) {
 		}
 	default:
 		t.Fatal("the resume entry did not reach the approval broker")
-	}
-
-	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[{"interruptId":"q1","status":"resolved","payload":{"answers":[{"header":"Lang","selectedLabels":["Go"]}]}}]}}`))
-	select {
-	case resp := <-ctl.questions:
-		if resp.ToolCallID != "q1" || resp.Cancelled || !strings.Contains(string(resp.Answers), `"Go"`) {
-			t.Fatalf("resume question = %+v, want q1 with the payload answers", resp)
-		}
-	default:
-		t.Fatal("the resume entry did not reach the question broker")
 	}
 
 	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[{"interruptId":"gone","status":"resolved"}]}}`))

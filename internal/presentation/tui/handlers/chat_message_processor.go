@@ -58,6 +58,11 @@ func (p *ChatMessageProcessor) handleUserInput(
 		return p.handler.HandleCommand(msg.Content)
 	}
 
+	placement := p.handler.stateManager.GetSessionPlacement()
+	if strings.HasPrefix(msg.Content, "!") && placement.Daemon {
+		return p.processChatMessage(msg.Content, msg.Images)
+	}
+
 	if strings.HasPrefix(msg.Content, "!!") {
 		return p.handler.HandleToolCommand(msg.Content)
 	}
@@ -66,14 +71,18 @@ func (p *ChatMessageProcessor) handleUserInput(
 		return p.handler.HandleBashCommand(msg.Content)
 	}
 
-	content, err := p.expandFileReferences(msg.Content)
-	if err != nil {
-		return func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
-				Sticky: false,
+	content := msg.Content
+	if placement.Unavailable(tui.FeatureLocalFiles) == "" {
+		expanded, err := p.expandFileReferences(content)
+		if err != nil {
+			return func() tea.Msg {
+				return tui.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to expand file references: %v", err),
+					Sticky: false,
+				}
 			}
 		}
+		content = expanded
 	}
 
 	content = p.expandIssueReferences(context.Background(), content)

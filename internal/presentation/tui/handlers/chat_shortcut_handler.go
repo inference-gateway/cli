@@ -99,10 +99,24 @@ func (s *ChatShortcutHandler) executeShortcut(
 	}
 }
 
+// placedShortcuts are the shortcuts that act in the TUI's own process, by the
+// feature that says whether they apply to the session.
+var placedShortcuts = map[string]tui.Feature{
+	"diff":     tui.FeatureLocalFiles,
+	"explorer": tui.FeatureLocalFiles,
+	"compact":  tui.FeatureCompaction,
+	"tasks":    tui.FeatureTasks,
+}
+
 // tryExecuteFromRegistry attempts to execute shortcut from the shortcut registry
 func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []string) tea.Msg {
 	if s.handler.shortcutRegistry == nil {
 		return nil
+	}
+	if feature, placed := placedShortcuts[shortcut]; placed {
+		if reason := s.handler.stateManager.GetSessionPlacement().Unavailable(feature); reason != "" {
+			return unavailable("/"+shortcut, reason)()
+		}
 	}
 
 	shortcutInstance, exists := s.handler.shortcutRegistry.Get(shortcut)
@@ -232,7 +246,7 @@ func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcut
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution
-func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any) tea.Msg { //nolint:cyclop
+func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any) tea.Msg { //nolint:cyclop,gocyclo
 	switch sideEffect {
 	case shortcuts.SideEffectSwitchModel:
 		return s.handleSwitchModelSideEffect()
@@ -262,6 +276,13 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowToolsListSideEffect()
 	case shortcuts.SideEffectShowAgents:
 		return s.handleShowAgentsSideEffect()
+	case shortcuts.SideEffectShowEnvironments:
+		return tui.ShowEnvironmentsEvent{}
+	case shortcuts.SideEffectTransferSession:
+		if request, ok := data.(tui.TransferRequestedEvent); ok {
+			return request
+		}
+		return nil
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGenerateSnippet:

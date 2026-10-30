@@ -4,9 +4,7 @@ vars:
   CLUSTER: infer-environments
   NAMESPACE: infer-environments
   AGENT_SANDBOX_VERSION: v1.0.8
-  SPIRE_VERSION: 1.15.5
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
-  SPIRE_SOCKET: /tmp/infer-spire-agent.sock
   INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
 
 env:
@@ -90,12 +88,13 @@ tasks:
     cmds:
       - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} daemon
 
-  daemon:start:spiffe:
-    desc: Run the laptop daemon with its SVID from the spire-agent started by spire:agent (foreground)
+  chat:
+    desc: Chat in the demo project through the laptop daemon (started when needed), and move the session with /environments or /transfer
     deps:
       - home
+    interactive: true
     cmds:
-      - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) INFER_DAEMON_BINDING_TLS_SPIFFE_SOCKET=unix://{{.SPIRE_SOCKET}} {{.INFER}} daemon
+      - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} chat --daemon
 
   environments:
     desc: List the environments and their reachability
@@ -116,31 +115,6 @@ tasks:
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
       - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project
       - echo "conversation {{.ID}} now lives on {{.TARGET}}"
-
-  spire:install:
-    desc: Install SPIRE (server, agent, CSI driver) into the cluster
-    cmds:
-      - helm --kube-context k3d-{{.CLUSTER}} upgrade --install -n spire-mgmt spire-crds spire-crds --repo https://spiffe.github.io/helm-charts-hardened/ --create-namespace
-      - helm --kube-context k3d-{{.CLUSTER}} upgrade --install -n spire-mgmt spire spire --repo https://spiffe.github.io/helm-charts-hardened/ -f k8s/spire-values.yaml --wait --timeout 10m
-
-  spire:agent:
-    desc: Build spire-agent for this machine, register the laptop daemon and run the agent (foreground)
-    cmds:
-      - GOBIN={{.HOME_DIR}}/bin go install github.com/spiffe/spire/cmd/spire-agent@v{{.SPIRE_VERSION}}
-      - rm -rf {{.HOME_DIR}}/spire && mkdir -p {{.HOME_DIR}}/spire/data
-      - |
-        set -e
-        spire() { kubectl --context k3d-{{.CLUSTER}} -n spire-server exec spire-server-0 -c spire-server -- spire-server "$@"; }
-        TOKEN=$(spire token generate -spiffeID spiffe://infer.local/environment/laptop | awk '{print $2}')
-        spire entry create -parentID spiffe://infer.local/environment/laptop \
-          -spiffeID spiffe://infer.local/environment/laptop/daemon -selector unix:uid:$(id -u) || true
-        spire bundle show > {{.HOME_DIR}}/spire/bundle.pem
-        sed -e "s|DATA_DIR|{{.HOME_DIR}}/spire/data|g" -e "s|SOCKET_PATH|{{.SPIRE_SOCKET}}|g" \
-          -e "s|BUNDLE_PATH|{{.HOME_DIR}}/spire/bundle.pem|g" -e "s|JOIN_TOKEN|$TOKEN|g" spire/agent.conf.tmpl > {{.HOME_DIR}}/spire/agent.conf
-        kubectl --context k3d-{{.CLUSTER}} -n spire-server port-forward svc/spire-server 8081:443 &
-        trap 'kill %1' EXIT
-        sleep 2
-        {{.HOME_DIR}}/bin/spire-agent run -config {{.HOME_DIR}}/spire/agent.conf
 
   cleanup:
     desc: Delete the cluster and the demo HOME

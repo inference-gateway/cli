@@ -76,6 +76,20 @@ func (sm *Store) SetAgentMode(mode agentdomain.AgentMode) {
 	sm.state.SetAgentMode(mode)
 }
 
+// GetSessionPlacement is where a daemon chat's session runs.
+func (sm *Store) GetSessionPlacement() tui.SessionPlacement {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetSessionPlacement()
+}
+
+// SetSessionPlacement records where a daemon chat's session runs.
+func (sm *Store) SetSessionPlacement(placement tui.SessionPlacement) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetSessionPlacement(placement)
+}
+
 // CycleAgentMode cycles to the next agent mode
 func (sm *Store) CycleAgentMode() agentdomain.AgentMode {
 	sm.mutex.Lock()

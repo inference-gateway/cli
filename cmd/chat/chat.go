@@ -25,14 +25,12 @@ import (
 	clipboard "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	render "github.com/inference-gateway/cli/internal/platform/render"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
-	app "github.com/inference-gateway/cli/internal/presentation/tui/app"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/presentation/web"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -55,6 +53,11 @@ and have a conversational interface with the inference gateway.`,
 				state.Viper().Set("web.enabled", true)
 			}
 
+			if daemonMode, _ := cmd.Flags().GetBool("daemon"); daemonMode {
+				cfg.Chat.Daemon = true
+				state.Viper().Set("chat.daemon", true)
+			}
+
 			webMode, _ := cmd.Flags().GetBool("web")
 			if webMode {
 				cfg.Web.Enabled = true
@@ -71,9 +74,15 @@ and have a conversational interface with the inference gateway.`,
 				if sessionID != "" {
 					fmt.Println(colors.CreateColoredText("--session-id is not supported in non-interactive mode; ignoring.", colors.DimColor))
 				}
+				if cfg.Chat.Daemon {
+					fmt.Println(colors.CreateColoredText("--daemon is not supported in non-interactive mode; ignoring.", colors.DimColor))
+				}
 				return runNonInteractiveChat(cfg)
 			}
 
+			if cfg.Chat.Daemon {
+				return startDaemonChatSession(cfg, sessionID, state.LoadConfig)
+			}
 			return StartChatSession(cfg, sessionID, state.LoadConfig)
 		},
 	}
@@ -87,10 +96,12 @@ and have a conversational interface with the inference gateway.`,
 	command.Flags().Bool("ssh-no-install", false, "Disable auto-installation of infer on remote")
 	command.Flags().String("ssh-command", "infer", "Path to infer binary on remote")
 	command.Flags().String("session-id", "", "Resume an existing chat session by conversation ID")
+	command.Flags().Bool("daemon", false, "Run every turn through the local infer daemon (started when needed), so the session can move between environments and outlive this terminal")
 	return command
 }
 
 func applyWebFlags(cmd *cobra.Command, cfg *config.Config) {
+	defer passDaemonMode(cfg)
 	if cmd.Flags().Changed("port") {
 		cfg.Web.Port, _ = cmd.Flags().GetInt("port")
 	}
@@ -118,6 +129,19 @@ func applyWebFlags(cmd *cobra.Command, cfg *config.Config) {
 			AutoInstall: func() *bool { b := !noInstall; return &b }(),
 			Description: "Remote server configured via CLI flags",
 		},
+	}
+}
+
+// passDaemonMode has every SSH server start its infer chat in daemon mode when
+// this one runs in it.
+func passDaemonMode(cfg *config.Config) {
+	if !cfg.Chat.Daemon {
+		return
+	}
+	for i, server := range cfg.Web.Servers {
+		if !slices.Contains(server.CommandArgs, "--daemon") {
+			cfg.Web.Servers[i].CommandArgs = append(server.CommandArgs, "--daemon")
+		}
 	}
 }
 
@@ -178,35 +202,14 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 		defaultModel = validateAndSetDefaultModel(services.GetModelService(), models, defaultModel)
 	}
 
-	agentService := services.GetAgentService()
-	conversationRepo := services.GetConversationRepository()
-	modelService := services.GetModelService()
-	toolService := services.GetToolService()
-	fileService := services.GetFileService()
-	imageService := services.GetImageService()
-	skillsService := services.GetSkillsService()
-	githubIssueService := services.GetGitHubIssueService()
-	pricingService := services.GetPricingService()
-	shortcutRegistry := services.GetShortcutRegistry()
-	stateManager := services.GetStateStore()
-	messageQueue := services.GetMessageQueue()
-	themeService := services.GetThemeService()
-	toolRegistry := services.GetToolRegistry()
-	mcpSupervisor := services.GetMCPSupervisor()
-	taskRetentionService := services.GetTaskRetentionService()
-	backgroundTaskService := services.GetBackgroundTaskService()
-	agentSupervisor := services.GetAgentSupervisor()
-	conversationOptimizer := services.GetConversationOptimizer()
-	sessionRolloverManager := services.GetSessionRollover()
-
 	if sessionID != "" {
-		if err := resumeChatSession(conversationRepo, sessionRolloverManager, services.GetLeaseStore(), cfg.Daemon.Identity(), sessionID); err != nil {
+		if err := resumeChatSession(services.GetConversationRepository(), services.GetSessionRollover(), services.GetLeaseStore(), cfg.Daemon.Identity(), sessionID); err != nil {
 			return err
 		}
 	}
 
 	if mode := scheddomain.InheritedAgentMode(); mode != agentdomain.AgentModeStandard {
-		stateManager.SetAgentMode(mode)
+		services.GetStateStore().SetAgentMode(mode)
 	}
 
 	if screenshotServer := services.StartScreenshotServer(fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])); screenshotServer != nil {
@@ -219,61 +222,7 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 		}()
 	}
 
-	application := app.NewChatApplication(
-		cfg,
-		models,
-		defaultModel,
-		versionInfo,
-		agentSupervisor,
-		agentService,
-		backgroundTaskService,
-		services.GetBackgroundTaskRegistry(),
-		conversationOptimizer,
-		conversationRepo,
-		fileService,
-		imageService,
-		skillsService,
-		githubIssueService,
-		mcpSupervisor,
-		messageQueue,
-		modelService,
-		pricingService,
-		sessionRolloverManager,
-		stateManager,
-		taskRetentionService,
-		themeService,
-		toolService,
-		shortcutRegistry,
-		toolRegistry,
-		services.GetApprovalCoordinator(),
-		services.GetChatCompletionRunner(),
-		services.GetDirectExecutionService(),
-		services.GetToolExecutionCoordinator(),
-		services.GetShellHistoryStorage(),
-		services.GetTokenEstimator(),
-		services.GetNextStepSuggestionRunner(),
-	)
-	application.SetTranscriptStore(services.GetStorage())
-	program := tea.NewProgram(application)
-	notifier := programNotifier{program: program}
-	services.SetUINotifier(notifier)
-
-	heartbeatCtx, stopHeartbeat := context.WithCancel(context.Background())
-	defer stopHeartbeat()
-	go runUIHeartbeat(heartbeatCtx, notifier, constants.UIHeartbeatInterval)
-
-	if _, err := program.Run(); err != nil {
-		return fmt.Errorf("error running chat interface: %w", err)
-	}
-
-	application.PrintConversationHistory()
-
-	endedSessionID := application.GetCurrentConversationID()
-	if endedSessionID != "" {
-		fmt.Println()
-	}
-	fmt.Println(colors.CreateColoredText(chatExitMessage(endedSessionID), colors.DimColor))
-	return nil
+	return runChatProgram(services, cfg, models, defaultModel, versionInfo, chatExitMessage)
 }
 
 // chatExitMessage builds the message printed when a chat session ends.
@@ -318,8 +267,8 @@ func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager c
 }
 
 // refuseForeignSession fails when another environment holds the session's
-// lease, lapsed or not: chat cannot relay to the owner or probe it before a
-// reclaim, so only the daemon may continue such a session.
+// lease, lapsed or not: in-process chat cannot relay to the owner or probe it
+// before a reclaim, so only daemon mode may continue such a session.
 func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, environment, sessionID string) error {
 	if leases == nil {
 		return nil
@@ -331,7 +280,7 @@ func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, en
 	if !found || lease.Environment == environment {
 		return nil
 	}
-	return fmt.Errorf("session %s is owned by environment %s, continue it through the daemon with: infer daemon run %s \"<prompt>\"",
+	return fmt.Errorf("session %s runs on environment %s, attach to it with: infer chat --daemon --session-id %s",
 		sessionID, lease.Environment, sessionID)
 }
 

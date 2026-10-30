@@ -15,7 +15,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
   (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`, `subagent`)
   apply when the worker launches. `subagent` names the parent thread that spawned this one, its depth and its
-  tool allowlist, which the worker gets as its subagent env.
+  tool allowlist, which the worker gets as its subagent env. `environment` and `workspace` place a thread no lease places on a
+  remote environment, which the launch seam relays it to.
 - **Forwarded frames** - `run_agent_input`, `interrupt` and `user_question_response` go to the client's
   thread unchanged. A `run_agent_input` relaunches a thread whose worker exited.
 - **Resumes** - a run that ends with the `interrupt` outcome leaves its interrupts open on the thread. The
@@ -23,6 +24,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   the decision from the continuation run's `RUN_STARTED`. A resume that misses an open interrupt is refused
   with `RUN_ERROR`, and a later resume for interrupts no longer open is dropped together with any messages it
   carries, so new messages travel in their own `run_agent_input`.
+  A client that starts following a thread while its run is suspended gets that `RUN_FINISHED` again
+  right after its `MESSAGES_SNAPSHOT`, so it can answer what is still open.
 - **Browser commands** - a `browser_command` line on a worker's stdout routes through the `BrowserRelay`
   (`RouteBrowser`, which the daemon wires to the browser context's extension relay) and the `browser_result` carrying the command's `id` goes
   back to that worker's stdin, so the worker's Browser tools resolve without binding a port. Commands serialize
@@ -42,7 +45,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 - **Crashes and idling** - a worker that exits mid-turn ends its open run with a synthesized `RUN_ERROR`. A
   worker nobody follows is stopped once it sat on the user's turn for the idle timeout with no open run,
   no pending reply and no background job (tracked from its `backgroundTasks` state), and daemon shutdown
-  stops every worker.
+  stops every worker. A run suspended on an open interrupt waits at least as long as an approval does
+  (`constants.ApprovalTimeout`), so a client that reattaches within it can still answer.
 
 ## How it plugs in
 

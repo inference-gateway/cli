@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ type HTTPModelService struct {
 	client    sdk.Client
 	current   string
 	models    []string
+	catalog   []sdk.Model
 	modelsMux sync.RWMutex
 	lastFetch time.Time
 	cacheTTL  time.Duration
@@ -53,12 +55,37 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("empty response from models API")
 	}
 
-	ids := make([]string, 0, len(resp.Data))
-	nonChat := make([]string, 0, len(resp.Data))
-	windows := make(map[string]int, len(resp.Data))
-	prices := make(map[string]gatewayPrice, len(resp.Data))
-	modalities := make(map[string]sdk.ModelModalities, len(resp.Data))
-	for _, model := range resp.Data {
+	ids := RecordModels(resp.Data)
+
+	s.modelsMux.Lock()
+	s.models = ids
+	s.catalog = resp.Data
+	s.lastFetch = time.Now()
+	s.modelsMux.Unlock()
+
+	result := make([]string, len(ids))
+	copy(result, ids)
+	return result, nil
+}
+
+// Catalog is the gateway's models as last fetched, with their context
+// windows, prices and modalities, for a client that reads them over a daemon.
+func (s *HTTPModelService) Catalog() []sdk.Model {
+	s.modelsMux.RLock()
+	defer s.modelsMux.RUnlock()
+	return slices.Clone(s.catalog)
+}
+
+// RecordModels publishes the context windows, prices and modalities of the
+// gateway's models to this process and returns the ids of the chat models.
+// Models whose modalities the gateway does not report are left out.
+func RecordModels(catalog []sdk.Model) []string {
+	ids := make([]string, 0, len(catalog))
+	nonChat := make([]string, 0, len(catalog))
+	windows := make(map[string]int, len(catalog))
+	prices := make(map[string]gatewayPrice, len(catalog))
+	modalities := make(map[string]sdk.ModelModalities, len(catalog))
+	for _, model := range catalog {
 		if model.Modalities == nil {
 			continue
 		}
@@ -76,11 +103,6 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		}
 	}
 
-	s.modelsMux.Lock()
-	s.models = ids
-	s.lastFetch = time.Now()
-	s.modelsMux.Unlock()
-
 	if len(windows) > 0 {
 		models.SetGatewayContextWindows(windows)
 	}
@@ -91,10 +113,7 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		models.SetGatewayModalities(modalities)
 	}
 	models.SetNonChatModels(nonChat)
-
-	result := make([]string, len(ids))
-	copy(result, ids)
-	return result, nil
+	return ids
 }
 
 func (s *HTTPModelService) SelectModel(modelID string) error {

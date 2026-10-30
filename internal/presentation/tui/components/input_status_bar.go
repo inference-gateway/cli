@@ -102,6 +102,7 @@ func (isb *InputStatusBar) SetThemeService(themeService tui.ThemeService) {
 type statusBarState interface {
 	agentdomain.AgentModeState
 	AgentReadiness
+	GetSessionPlacement() tui.SessionPlacement
 }
 
 // SetStateManager sets the state manager
@@ -475,6 +476,12 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		parts = append(parts, indicatorPart{text: currentModel, action: tui.StatusIndicatorActionModelSelection})
 	}
 
+	if isb.shouldShowIndicator("environment") {
+		if text, color := isb.buildEnvironmentIndicator(); text != "" {
+			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionEnvironments, color: color})
+		}
+	}
+
 	if isb.shouldShowIndicator("effort") {
 		if effortPart := isb.buildEffortIndicator(); effortPart != "" {
 			parts = append(parts, indicatorPart{text: effortPart})
@@ -721,6 +728,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.GitBranch
 	case "git_pr":
 		return indicators.GitPR
+	case "environment":
+		return indicators.Environment
 	default:
 		return true
 	}
@@ -774,6 +783,30 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 		return fmt.Sprintf("A2A: %d/%d", readiness.ReadyAgents, readiness.TotalAgents)
 	}
 	return ""
+}
+
+// buildEnvironmentIndicator names where a daemon chat's session runs: on the
+// daemon the TUI talks to, relayed to another environment, moving to one, or
+// unreachable while the connection is down. An in-process chat shows none.
+func (isb *InputStatusBar) buildEnvironmentIndicator() (string, string) {
+	if isb.stateManager == nil || isb.styleProvider == nil {
+		return "", ""
+	}
+	placement := isb.stateManager.GetSessionPlacement()
+	if !placement.Daemon || placement.Where() == "" {
+		return "", ""
+	}
+	glyph, color := icons.LocalSession, isb.styleProvider.GetThemeColor("dim")
+	if placement.Remote() {
+		glyph, color = icons.RemoteSession, isb.styleProvider.GetThemeColor("accent")
+	}
+	switch {
+	case placement.Offline:
+		return glyph + " " + placement.Where() + " · offline", isb.styleProvider.GetThemeColor("error")
+	case placement.Transferring != "":
+		return icons.MovingSession + " " + placement.Transferring, isb.styleProvider.GetThemeColor("warning")
+	}
+	return glyph + " " + placement.Where(), color
 }
 
 // a2aIndicatorColor color-codes the A2A segment: green once all agents are

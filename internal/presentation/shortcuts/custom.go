@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -544,8 +545,15 @@ func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string
 	return finalSnippet, nil
 }
 
+// errNoLLM refuses a shortcut that asks a model where the chat runs none
+// locally, as in a daemon chat whose agent runs on the daemon's worker.
+var errNoLLM = errors.New("this shortcut asks a model, which this chat does not run locally")
+
 // callLLM sends a prompt to the LLM and returns the response
 func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, error) {
+	if c.llm == nil {
+		return "", errNoLLM
+	}
 	var model string
 	if c.modelService != nil {
 		model = c.modelService.GetCurrentModel()

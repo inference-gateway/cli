@@ -452,9 +452,14 @@ select models and have conversations.
 - `--ssh-port <port>`: Remote SSH port (default 22)
 - `--ssh-no-install`: Disable auto-installation of infer on the remote host
 - `--ssh-command <path>`: Path to the infer binary on the remote host (default infer)
-- `--session-id <id>`: Resume an existing chat session by conversation ID
+- `--session-id <id>`: Resume an existing chat session by conversation ID. With `--daemon` it attaches to the
+  session wherever it runs
+- `--daemon`: Run every turn through the local infer daemon, started when needed, so the session can move between
+  environments and keeps running after the TUI exits (`chat.daemon`, `INFER_CHAT_DAEMON`). See
+  [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
 
-The web terminal flags are covered in [Web Terminal](web-terminal.md).
+The web terminal flags are covered in [Web Terminal](web-terminal.md). With `--daemon` the chat it starts runs in
+daemon mode too, on this machine or over SSH.
 
 The chat interface supports four operational modes that can be toggled with **shift+tab**:
 
@@ -647,12 +652,16 @@ Run the long-lived hub. It hosts whichever subsystems are enabled and refuses to
 INFER_DAEMON_BINDING_ENABLED=true INFER_DAEMON_BINDING_TOKEN=<secret> infer daemon
 ```
 
+`--idle-exit <duration>` stops the daemon after that long with no thread and no client, unless `daemon.yaml` sets
+`idle_exit`. A daemon a client starts on demand runs in its own session, so it outlives the terminal, and passes
+`--idle-exit 30m`.
+
 The pid file is `~/.infer/run/daemon.pid` and the log is `~/.infer/logs/daemon-<date>.log`, where the session
 workers' and job runs' stderr lands too. [infer daemon](daemon.md) covers the workers, the on-demand start, the
 pid file and the logs.
 
 Four subcommands talk to the running daemon over its binding, so they need `daemon.binding.enabled` and a token
-in `~/.infer/daemon.yaml`:
+or a client-certificate TLS mode in `~/.infer/daemon.yaml`:
 
 ```bash
 infer daemon environments                                         # every environment in daemon.yaml and whether it is reachable

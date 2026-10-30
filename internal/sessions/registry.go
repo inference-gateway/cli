@@ -15,6 +15,7 @@ import (
 
 	uuid "github.com/google/uuid"
 
+	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
@@ -152,9 +153,12 @@ type thread struct {
 	// interruptsRaw is the interrupts array of the suspended run's terminal
 	// line as the worker wrote it, so a checkpoint carries every field.
 	interruptsRaw json.RawMessage
-	jobs          int
-	active        time.Time
-	launchErr     error
+	// suspended is the terminal line the run suspended on, replayed to a client
+	// that starts following while its interrupts are open.
+	suspended []byte
+	jobs      int
+	active    time.Time
+	launchErr error
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
@@ -502,9 +506,12 @@ func (r *Registry) pump(t *thread, w sessionsdomain.Worker) {
 			go r.relayBrowserCommand(t, w, line)
 			continue
 		}
-		targets, activity := r.targets(t, line)
+		targets, activity, replay := r.targets(t, line)
 		for _, c := range targets {
 			c.Deliver(line)
+			if replay != nil {
+				c.Deliver(replay)
+			}
 		}
 		r.deliver(activity)
 	}
@@ -603,11 +610,11 @@ func isBrowserCommand(line []byte) bool {
 // open-run state changed. A reply goes to the oldest client waiting for it, a
 // failure before any run to everyone concerned, and the rest to all clients of
 // the thread.
-func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []byte) {
+func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []byte, []byte) {
 	var l workerLine
 	if err := json.Unmarshal(line, &l); err != nil {
 		logger.Debug("sessions dropped an undecodable worker line", "error", err)
-		return nil, nil
+		return nil, nil, nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -617,14 +624,15 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 	switch l.Type {
 	case "RUN_STARTED":
 		t.runID = l.RunID
-		t.interrupts, t.interruptsRaw = nil, nil
+		t.interrupts, t.interruptsRaw, t.suspended = nil, nil, nil
 		r.recordRun(t, false)
 		activity = r.activityFrame()
 	case "RUN_FINISHED":
 		t.runID = ""
 		t.interrupts = openInterrupts(l)
+		t.interruptsRaw, t.suspended = nil, nil
 		if t.interrupts != nil {
-			t.interruptsRaw = l.Outcome.Interrupts
+			t.interruptsRaw, t.suspended = l.Outcome.Interrupts, slices.Clone(line)
 		}
 		r.recordRun(t, t.interrupts == nil)
 		activity = r.activityFrame()
@@ -635,11 +643,11 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 			t.jobs = *jobs
 		}
 	case "RUN_ERROR":
-		t.interrupts, t.interruptsRaw = nil, nil
+		t.interrupts, t.interruptsRaw, t.suspended = nil, nil, nil
 		if t.runID == "" {
 			concerned := t.takeWaiters()
 			maps.Copy(concerned, t.clients)
-			return slices.Collect(maps.Keys(concerned)), nil
+			return slices.Collect(maps.Keys(concerned)), nil, nil
 		}
 		t.runID = ""
 		activity = r.activityFrame()
@@ -651,14 +659,18 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 			id := approvalToolCallID(l.Value)
 			r.approvals[id] = t
 			if requester := t.peek(replyKey(frameToolResult, id)); requester != nil {
-				return []sessionsdomain.Client{requester}, nil
+				return []sessionsdomain.Client{requester}, nil, nil
 			}
 		}
 	}
 	if requester := t.pop(key); requester != nil {
-		return []sessionsdomain.Client{requester}, activity
+		var replay []byte
+		if key == frameMessagesSnapshot {
+			replay = t.suspended
+		}
+		return []sessionsdomain.Client{requester}, activity, replay
 	}
-	return slices.Collect(maps.Keys(t.clients)), activity
+	return slices.Collect(maps.Keys(t.clients)), activity, nil
 }
 
 // recordRun notes for AgentsDone how the run of a thread stands. A worker the
@@ -679,7 +691,7 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 		return
 	}
 	t.worker = nil
-	t.interrupts, t.interruptsRaw = nil, nil
+	t.interrupts, t.interruptsRaw, t.suspended = nil, nil, nil
 	r.lastActive = time.Now()
 	for id, owner := range r.approvals {
 		if owner == t {
@@ -709,12 +721,14 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 
 // reap stops the workers of threads nobody follows that are on the user's
 // turn, with no open run, no pending reply and no background job, and sat
-// idle for the registry's idle timeout.
+// idle for the registry's idle timeout. A run suspended on an open interrupt
+// waits as long as an approval does, so a client that reattaches can still
+// answer it.
 func (r *Registry) reap(now time.Time) {
 	r.mu.Lock()
 	var idle []sessionsdomain.Worker
 	for key, t := range r.threads {
-		if len(t.clients) > 0 || t.runID != "" || len(t.waiting) > 0 || t.jobs > 0 || now.Sub(t.active) < r.idle {
+		if len(t.clients) > 0 || t.runID != "" || len(t.waiting) > 0 || t.jobs > 0 || now.Sub(t.active) < r.idleFor(t) {
 			continue
 		}
 		if t.worker != nil {
@@ -728,6 +742,14 @@ func (r *Registry) reap(now time.Time) {
 	for _, w := range idle {
 		go w.Stop()
 	}
+}
+
+// idleFor is how long a thread nobody follows may sit before reap stops it.
+func (r *Registry) idleFor(t *thread) time.Duration {
+	if len(t.interrupts) > 0 {
+		return max(r.idle, constants.ApprovalTimeout)
+	}
+	return r.idle
 }
 
 // stopThread stops the worker of the thread a stop_thread frame names, the way

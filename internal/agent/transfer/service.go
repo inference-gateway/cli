@@ -42,6 +42,9 @@ type Config struct {
 	LeaseBackend config.StorageType
 	Handshake    agui.Handshake
 	Entries      []config.EnvironmentEntry
+	// StateDir keeps what the daemon remembers about the sessions it moved
+	// away, such as the checkout each one left. Empty remembers nothing.
+	StateDir string
 	// Denies reports whether the sandbox policy keeps a project file out of a
 	// checkpoint.
 	Denies func(projectDir, absPath string) bool
@@ -78,6 +81,7 @@ type Service struct {
 	conversations map[string]string
 	imports       map[string]*pendingImport
 	installed     map[string]agentdomain.Lease
+	returns       map[string]sessionsdomain.ThreadKey
 	credentials   map[string][]string
 }
 
@@ -98,6 +102,7 @@ func New(cfg Config, deps Deps) *Service {
 		conversations: make(map[string]string),
 		imports:       make(map[string]*pendingImport),
 		installed:     make(map[string]agentdomain.Lease),
+		returns:       make(map[string]sessionsdomain.ThreadKey),
 		credentials:   make(map[string][]string),
 	}
 	for _, environment := range deps.Environments {
@@ -138,7 +143,7 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 		go s.startTransfer(conn, f)
 	case frameTransferCancel:
 		s.cancelTransfer(f.TransferID)
-	case frameTransferChunk, frameTransferImport, frameTransferAbort:
+	case frameTransferChunk, frameTransferImport, frameTransferAbort, frameTransferReturn, frameTransferReturned:
 		if conn.Kind() != agentinfra.PeerClientKind {
 			logger.Warn("transfer refused a peer frame from a client that is not a daemon", "client", conn.Kind(), "frame", f.Type)
 			return true

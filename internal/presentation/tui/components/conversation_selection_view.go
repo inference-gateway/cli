@@ -1,8 +1,10 @@
 package components
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,15 +60,7 @@ func NewConversationSelector(repo convdomain.PersistentConversationRepository, s
 
 	c.spinner = newModernSpinner()
 	c.table = table.New(
-		table.WithColumns([]table.Column{
-			{Title: "ID", Width: 38},
-			{Title: "Summary", Width: 25},
-			{Title: "Messages", Width: 10},
-			{Title: "Requests", Width: 8},
-			{Title: "Input Tokens", Width: 12},
-			{Title: "Output Tokens", Width: 13},
-			{Title: "Cost", Width: 10},
-		}),
+		table.WithColumns(conversationColumns(false)),
 		table.WithFocused(true),
 		table.WithHeight(c.tableHeight()),
 		table.WithWidth(c.width),
@@ -93,22 +87,41 @@ func (c *ConversationSelector) tableHeight() int {
 	return h
 }
 
+// conversationColumns are the table's columns, with where each session runs
+// when the listing names it.
+func conversationColumns(located bool) []table.Column {
+	columns := []table.Column{{Title: "ID", Width: 38}, {Title: "Summary", Width: 25}}
+	if located {
+		columns = append(columns, table.Column{Title: "Environment", Width: 14})
+	}
+	return append(columns,
+		table.Column{Title: "Messages", Width: 10},
+		table.Column{Title: "Requests", Width: 8},
+		table.Column{Title: "Input Tokens", Width: 12},
+		table.Column{Title: "Output Tokens", Width: 13},
+		table.Column{Title: "Cost", Width: 10},
+	)
+}
+
 // syncTable refreshes the table rows from the filtered conversations, keeping
-// the cursor in range.
+// the cursor in range. The rows clear before the columns change, since the
+// table renders each row's cells against the columns.
 func (c *ConversationSelector) syncTable() {
+	located := slices.ContainsFunc(c.conversations, func(conv convdomain.ConversationSummary) bool { return conv.Environment != "" })
 	rows := make([]table.Row, 0, len(c.filteredConversations))
 	for _, conv := range c.filteredConversations {
-		rows = append(rows, conversationRow(conv))
+		rows = append(rows, conversationRow(conv, located))
 	}
+	cursor := c.table.Cursor()
+	c.table.SetRows(nil)
+	c.table.SetColumns(conversationColumns(located))
 	c.table.SetRows(rows)
-	if c.table.Cursor() >= len(rows) {
-		c.table.SetCursor(max(len(rows)-1, 0))
-	}
+	c.table.SetCursor(cursor)
 }
 
 // conversationRow renders one conversation as table cells, keeping the
 // cost-tier precision of the previous hand-built table.
-func conversationRow(conv convdomain.ConversationSummary) table.Row {
+func conversationRow(conv convdomain.ConversationSummary, located bool) table.Row {
 	costStr := "-"
 	switch cost := conv.CostStats.TotalCost; {
 	case cost > 0 && cost < 0.01:
@@ -119,15 +132,17 @@ func conversationRow(conv convdomain.ConversationSummary) table.Row {
 		costStr = fmt.Sprintf("$%.2f", cost)
 	}
 
-	return table.Row{
-		conv.ID,
-		formatting.TruncateText(conv.Title, 25),
+	row := table.Row{conv.ID, formatting.TruncateText(conv.Title, 25)}
+	if located {
+		row = append(row, cmp.Or(conv.Environment, "-"))
+	}
+	return append(row,
 		fmt.Sprintf("%d", conv.MessageCount),
 		fmt.Sprintf("%d", conv.TokenStats.RequestCount),
 		fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens),
 		fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens),
 		costStr,
-	}
+	)
 }
 
 func (c *ConversationSelector) Init() tea.Cmd {
