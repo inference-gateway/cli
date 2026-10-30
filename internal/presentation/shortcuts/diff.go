@@ -5,6 +5,6 @@ package shortcuts
 // diff viewer, which loads working-tree changes itself. The viewer has two tabs
 // (Local working-tree changes and the current branch's PR diff), switched with
 // Tab; the PR tab is read-only.
-func NewDiffShortcut() *panelShortcut {
-	return newPanelShortcut("diff", "Open the changes panel (interactive diff viewer)", SideEffectShowDiffViewer)
+func NewDiffShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "diff", description: "Open the changes panel (interactive diff viewer)", sideEffect: SideEffectShowDiffViewer}
 }

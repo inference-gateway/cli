@@ -520,14 +520,14 @@ func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 }
 
 // NewToolsShortcut shows the tools currently available to the agent.
-func NewToolsShortcut() *panelShortcut {
-	return newPanelShortcut("tools", "Show the tools available to the agent", SideEffectShowToolsList)
+func NewToolsShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "tools", description: "Show the tools available to the agent", sideEffect: SideEffectShowToolsList}
 }
 
 // NewAgentsShortcut shows every agent the chat can use: local Markdown subagent
 // presets (.infer/agents/*.md) and remote A2A agents.
-func NewAgentsShortcut() *panelShortcut {
-	return newPanelShortcut("agents", "Show configured agents (local presets and remote A2A)", SideEffectShowAgents)
+func NewAgentsShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "agents", description: "Show configured agents (local presets and remote A2A)", sideEffect: SideEffectShowAgents}
 }
 
 // EffortShortcut shows or sets the reasoning effort level applied to

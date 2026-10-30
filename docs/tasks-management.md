@@ -126,7 +126,7 @@ A2A rows appear only when A2A is enabled. The view itself always opens.
 ### Architecture
 
 - **Task Manager**: `TaskView` (`internal/presentation/tui/components/task_management_view.go`) - Main UI component for task management
-- **Task Shortcut**: `panelShortcut` (`internal/presentation/shortcuts/task_management.go`) - Handles the `/tasks` command
+- **Task Shortcut**: `NewA2ATaskManagementShortcut` (`internal/presentation/shortcuts/task_management.go`) - Handles the `/tasks` command
 - **Retention**: `TaskRetentionService` (`internal/protocols/a2a/retention.go`) retains terminal tasks as `TaskInfo` (`internal/protocols/a2a/domain/tasks.go`)
 - **Events**: Uses `TasksLoadedEvent` and `TaskCancelledEvent` for state management
 

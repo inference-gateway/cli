@@ -9,8 +9,8 @@ import (
 
 // NewEnvironmentsShortcut opens the picker of the environments a daemon chat's
 // session can run on.
-func NewEnvironmentsShortcut() *panelShortcut {
-	return newPanelShortcut("environments", "Show where this session runs and the environments it can teleport to", SideEffectShowEnvironments)
+func NewEnvironmentsShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "environments", description: "Show where this session runs and the environments it can teleport to", sideEffect: SideEffectShowEnvironments}
 }
 
 // TeleportShortcut teleports a daemon chat's session to another environment, with
