@@ -287,7 +287,7 @@ func (c *command) newInitCommand() *cobra.Command {
 // target the userspace baseline (~/.infer/) by default; --project targets the
 // project .infer/agents.yaml instead.
 func agentsConfigPath(cmd *cobra.Command) (string, error) {
-	return runtime.WritePath(runtime.ProjectFlag(cmd), config.AgentsFileName)
+	return runtime.ConfigPath(runtime.ProjectFlag(cmd), config.AgentsFileName)
 }
 
 // ExternalAgent represents an agent configured via INFER_A2A_AGENTS
@@ -633,7 +633,7 @@ func (c *command) startAgents(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := runtime.SharedContainerRuntime(c.state.Config())
+	rt, err := containerruntime.NewSharedRuntime(containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
 	if err != nil {
 		return err
 	}
@@ -660,7 +660,7 @@ func (c *command) stopAgents(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := runtime.SharedContainerRuntime(c.state.Config())
+	rt, err := containerruntime.NewSharedRuntime(containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
 	if err != nil {
 		return err
 	}

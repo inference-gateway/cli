@@ -183,7 +183,8 @@ validation path as the agent.
 **Subcommands:**
 
 - `execute <tool> [json-args] [--format text|json]`: Execute any enabled tool directly
-- `validate <command>`: Check whether a bash command would be allowed, without running it
+- `validate <command>`: Check whether a bash command would be allowed, without running it. A
+  disallowed command, or disabled tools, exits non-zero with the reason on stderr
 
 **`execute` flags:**
 
@@ -206,6 +207,9 @@ infer tools execute Bash '{"command":"gh api user"}' --format json --approved
 
 # Validate a bash command against the allowed list
 infer tools validate "git status"
+
+# Run a command only when the allow-list permits it
+infer tools validate "$cmd" && eval "$cmd"
 ```
 
 ### `infer mcp`
@@ -341,7 +345,8 @@ A running `infer chat` applies `add`, `update` and `remove` when you type `/relo
 - `--oci <image>`: Update OCI image reference
 - `--tag <tag>`: Replace the tag of the agent's default image (known agents only, mutually exclusive with `--oci`)
 - `--artifacts-url <url>`: Update artifacts server URL
-- `--environment <KEY=VALUE>`: Set environment variables
+- `--environment <KEY=VALUE>`: Replace the environment variables. Pass several as
+  `KEY=VALUE,KEY=VALUE` or repeat the flag
 - `--run`: Enable local execution with Docker
 
 **Examples:**
@@ -717,10 +722,15 @@ Check the status of the inference gateway including health checks and resource u
 
 - `-f, --format <text|json|yaml>`: Output format (default `text`)
 
+`--format json` and `--format yaml` print one object with `url`, `status` (`running` or
+`unreachable`), `version`, `source`, `models` (the active model count) and, when the gateway is
+unreachable, `error`. An unreachable gateway is reported, not a failure, so the exit code stays 0.
+
 **Examples:**
 
 ```bash
 infer status
+infer status --format json | jq -r .status
 ```
 
 ### `infer conversations`

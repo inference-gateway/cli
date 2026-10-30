@@ -3,6 +3,7 @@ package avatarscmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"sync"
@@ -64,7 +65,8 @@ default) for every generated angle.
 		Short: "List avatars",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return listAvatars(cmd, renderer)
+			format, _ := cmd.Flags().GetString("format")
+			return listAvatars(cmd.OutOrStdout(), renderer, format)
 		},
 	}
 	deleteCmd := &cobra.Command{
@@ -109,7 +111,7 @@ func createAvatar(cmd *cobra.Command, state *runtime.State, renderer *output.Ren
 			return fmt.Errorf("generating angles uses the ImageEdit model: set tools.image_edit.enabled and tools.image_edit.model, or pass --angles \"\" to only copy the photo")
 		}
 		imageService := sync.OnceValues(func() (agentdomain.ImageService, error) {
-			fmt.Printf("Generating %d angle(s) with %s (%s quality, %s)...\n", len(angles), model, quality, size)
+			fmt.Fprintf(cmd.OutOrStdout(), "Generating %d angle(s) with %s (%s quality, %s)...\n", len(angles), model, quality, size)
 			services := container.NewServiceContainer(cfg)
 			if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 				return nil, fmt.Errorf("failed to start inference gateway: %w", err)
@@ -137,9 +139,7 @@ func createAvatar(cmd *cobra.Command, state *runtime.State, renderer *output.Ren
 	return nil
 }
 
-func listAvatars(cmd *cobra.Command, renderer *output.Renderer) error {
-	w := cmd.OutOrStdout()
-	format, _ := cmd.Flags().GetString("format")
+func listAvatars(w io.Writer, renderer *output.Renderer, format string) error {
 	dir := avatars.Dir()
 	list, err := avatars.List(dir)
 	if err != nil {

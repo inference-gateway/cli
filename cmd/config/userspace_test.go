@@ -68,6 +68,16 @@ func TestConfigSetProjectWritesSparseOverride(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName))
 }
 
+// An empty list value must reach the project file as an empty sequence, not be
+// dropped or written as null, so the override still clears the baseline list.
+func TestConfigSetProjectEmptyListWritesEmptySequence(t *testing.T) {
+	_, projectDir := splitHomeProjectEnv(t)
+	require.NoError(t, setConfigValue(newProjectFlagCommand(true), []string{"gateway.include_models", ""}, acceptConfig))
+	data, err := os.ReadFile(filepath.Join(projectDir, config.DefaultConfigPath))
+	require.NoError(t, err)
+	require.Contains(t, string(data), "include_models: []")
+}
+
 func acceptConfig() (*config.Config, error) { return config.DefaultConfig(), nil }
 
 func rejectConfig() (*config.Config, error) { return nil, errors.New("invalid agent.reasoning_effort") }

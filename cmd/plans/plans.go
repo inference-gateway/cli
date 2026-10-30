@@ -61,7 +61,8 @@ Examples:
   # Output as JSON
   infer plans list --format json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listPlans(cmd.OutOrStdout(), state, renderer, cmd)
+			format, _ := cmd.Flags().GetString("format")
+			return listPlans(cmd.OutOrStdout(), state, renderer, format)
 		},
 	}
 	output.AddFormatFlag(listCommand, "text", "json")
@@ -101,7 +102,7 @@ func showPlan(w io.Writer, state *runtime.State, renderer *output.Renderer, rawI
 	return nil
 }
 
-func listPlans(w io.Writer, state *runtime.State, renderer *output.Renderer, cmd *cobra.Command) error {
+func listPlans(w io.Writer, state *runtime.State, renderer *output.Renderer, format string) error {
 	storageConfig := storage.NewStorageFromConfig(state.Config())
 	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
@@ -118,7 +119,6 @@ func listPlans(w io.Writer, state *runtime.State, renderer *output.Renderer, cmd
 		return fmt.Errorf("failed to list plans: %w", err)
 	}
 
-	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
 		return renderPlansJSON(w, plans)
 	}

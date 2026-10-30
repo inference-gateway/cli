@@ -149,7 +149,7 @@ func FileExists(path string) bool {
 // ConfigWriteTarget returns a fresh Viper instance for a userspace baseline or
 // sparse project override without writing the fully merged runtime config.
 func ConfigWriteTarget(toProject bool) (*viper.Viper, string, error) {
-	path, err := WritePath(toProject, config.ConfigFileName)
+	path, err := ConfigPath(toProject, config.ConfigFileName)
 	if err != nil {
 		return nil, "", err
 	}

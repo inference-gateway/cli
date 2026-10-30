@@ -400,12 +400,13 @@ func (c *command) installSkill(cmd *cobra.Command, args []string) error {
 }
 
 func resolveSkillsDest(userScope bool) (string, error) {
-	if !userScope {
-		if _, err := os.Stat(config.ConfigDirName); os.IsNotExist(err) {
-			return "", fmt.Errorf("%s/ not found in current directory; run `infer init` first or pass --user", config.ConfigDirName)
-		}
+	if userScope {
+		return runtime.UserConfigPath("skills")
 	}
-	return runtime.WritePath(!userScope, "skills")
+	if _, err := os.Stat(config.ConfigDirName); os.IsNotExist(err) {
+		return "", fmt.Errorf("%s/ not found in current directory; run `infer init` first or pass --user", config.ConfigDirName)
+	}
+	return filepath.Join(config.ConfigDirName, "skills"), nil
 }
 
 func uninstallSkill(cmd *cobra.Command, args []string) error {

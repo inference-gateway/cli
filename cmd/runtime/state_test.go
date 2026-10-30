@@ -245,3 +245,8 @@ func TestDisableStdoutLogging(t *testing.T) {
 	assert.False(t, loggerCfg.Stdout)
 	assert.False(t, loggerCfg.ArchiveEnabled, "archiving already ran during initConfig")
 }
+
+func TestParseDelimitedList(t *testing.T) {
+	assert.Equal(t, []string{"a", "b", "c", "d"}, ParseDelimitedList("a, b ,,c\nd"))
+	assert.Empty(t, ParseDelimitedList("  "))
+}

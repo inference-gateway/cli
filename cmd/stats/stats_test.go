@@ -22,7 +22,7 @@ import (
 // the command prints must route through.
 func runStats(t *testing.T, args ...string) string {
 	t.Helper()
-	splitHomeProjectEnv(t)
+	isolateEnv(t)
 
 	state := runtime.NewState()
 	require.NoError(t, state.Initialize(&cobra.Command{}))
@@ -36,7 +36,7 @@ func runStats(t *testing.T, args ...string) string {
 	return stdout.String()
 }
 
-func splitHomeProjectEnv(t *testing.T) {
+func isolateEnv(t *testing.T) {
 	t.Helper()
 	for _, env := range os.Environ() {
 		key, _, ok := strings.Cut(env, "=")
@@ -59,7 +59,7 @@ func TestStatsEmptyTelemetryCapturesThroughSetOut(t *testing.T) {
 func TestStatsJSONCapturesThroughSetOut(t *testing.T) {
 	var stats telemetry.Stats
 	require.NoError(t, json.Unmarshal([]byte(runStats(t, "--format", "json")), &stats))
-	require.Nil(t, stats.Tools, "an empty telemetry store must aggregate to no tools")
-	require.Nil(t, stats.Models)
-	require.Nil(t, stats.Sessions)
+	require.Empty(t, stats.Tools, "an empty telemetry store must aggregate to no tools")
+	require.Empty(t, stats.Models)
+	require.Empty(t, stats.Sessions)
 }

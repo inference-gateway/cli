@@ -95,7 +95,7 @@ Example:
 		Long:  `Enable a specific MCP server.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.setMCPServerEnabled(cmd, args, true)
+			return c.setMCPServerEnabled(cmd, args[0], true)
 		},
 	}
 	mcpDisableCmd := &cobra.Command{
@@ -104,7 +104,7 @@ Example:
 		Long:  `Disable a specific MCP server.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.setMCPServerEnabled(cmd, args, false)
+			return c.setMCPServerEnabled(cmd, args[0], false)
 		},
 	}
 	mcpEnableGlobalCmd := &cobra.Command{
@@ -112,8 +112,8 @@ Example:
 		Short: "Enable MCP globally",
 		Long:  `Enable the MCP feature globally. This allows MCP servers to be used.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.setMCPGlobalEnabled(cmd, args, true)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return c.setMCPGlobalEnabled(cmd, true)
 		},
 	}
 	mcpDisableGlobalCmd := &cobra.Command{
@@ -121,8 +121,8 @@ Example:
 		Short: "Disable MCP globally",
 		Long:  `Disable the MCP feature globally. This prevents all MCP servers from being used.`,
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.setMCPGlobalEnabled(cmd, args, false)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return c.setMCPGlobalEnabled(cmd, false)
 		},
 	}
 
@@ -157,7 +157,7 @@ Example:
 // .infer/mcp.yaml instead. A missing home directory is an error like the
 // other write-path lookups.
 func getMCPConfigPath(cmd *cobra.Command) (string, error) {
-	return runtime.WritePath(runtime.ProjectFlag(cmd), config.MCPFileName)
+	return runtime.ConfigPath(runtime.ProjectFlag(cmd), config.MCPFileName)
 }
 
 func (c *command) listMCPServers(cmd *cobra.Command, _ []string) error {
@@ -280,7 +280,7 @@ func (c *command) startMCPServers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := runtime.SharedContainerRuntime(c.state.Config())
+	rt, err := containerruntime.NewSharedRuntime(containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
 	if err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func (c *command) stopMCPServers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := runtime.SharedContainerRuntime(c.state.Config())
+	rt, err := containerruntime.NewSharedRuntime(containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
 	if err != nil {
 		return err
 	}
@@ -458,15 +458,15 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(w, "  Auto-start: %s (OCI: %s)\n", enabledText(true), oci)
 	}
 	fmt.Fprintf(w, "  Status: %s\n", enabledText(enabled))
-	fmt.Fprintf(w, "\n")
-	saved(w, configPath)
+	fmt.Fprintln(w)
+	printSavedNote(w, configPath)
 
 	return nil
 }
 
-// saved prints the write trailer shared by every command that rewrites
+// printSavedNote prints the trailer shared by every command that rewrites
 // mcp.yaml: where it landed and that a running chat session must restart.
-func saved(w io.Writer, path string) {
+func printSavedNote(w io.Writer, path string) {
 	fmt.Fprintf(w, "Configuration saved to %s\n", path)
 	fmt.Fprintln(w, "Note: If using chat mode, restart the chat session to apply changes.")
 }
@@ -489,7 +489,7 @@ func (c *command) removeMCPServer(cmd *cobra.Command, args []string) error {
 
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "%s MCP server removed: %s\n", c.renderer.StatusIcon(true), name)
-	saved(w, configPath)
+	printSavedNote(w, configPath)
 
 	return nil
 }
@@ -553,14 +553,12 @@ func (c *command) updateMCPServer(cmd *cobra.Command, args []string) error {
 
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "%s MCP server updated: %s\n", c.renderer.StatusIcon(true), name)
-	saved(w, configPath)
+	printSavedNote(w, configPath)
 
 	return nil
 }
 
-func (c *command) setMCPServerEnabled(cmd *cobra.Command, args []string, enable bool) error {
-	name := args[0]
-
+func (c *command) setMCPServerEnabled(cmd *cobra.Command, name string, enable bool) error {
 	configPath, err := getMCPConfigPath(cmd)
 	if err != nil {
 		return err
@@ -576,23 +574,18 @@ func (c *command) setMCPServerEnabled(cmd *cobra.Command, args []string, enable 
 	}
 
 	server.Enabled = enable
-
-	action := "enable"
-	if !enable {
-		action = "disable"
-	}
 	if err := cfg.UpdateEntry(*server); err != nil {
-		return fmt.Errorf("failed to %s MCP server: %w", action, err)
+		return fmt.Errorf("failed to save MCP server %s: %w", name, err)
 	}
 
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "%s MCP server %s: %s\n", c.renderer.StatusIcon(enable), name, enabledText(enable))
-	saved(w, configPath)
+	printSavedNote(w, configPath)
 
 	return nil
 }
 
-func (c *command) setMCPGlobalEnabled(cmd *cobra.Command, _ []string, enable bool) error {
+func (c *command) setMCPGlobalEnabled(cmd *cobra.Command, enable bool) error {
 	configPath, err := getMCPConfigPath(cmd)
 	if err != nil {
 		return err
@@ -604,18 +597,13 @@ func (c *command) setMCPGlobalEnabled(cmd *cobra.Command, _ []string, enable boo
 	}
 
 	cfg.Enabled = enable
-
-	action := "enable"
-	if !enable {
-		action = "disable"
-	}
 	if err := config.SaveMCP(configPath, cfg); err != nil {
-		return fmt.Errorf("failed to %s MCP globally: %w", action, err)
+		return fmt.Errorf("failed to save MCP config: %w", err)
 	}
 
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "%s MCP %s globally\n", c.renderer.StatusIcon(enable), enabledText(enable))
-	saved(w, configPath)
+	printSavedNote(w, configPath)
 
 	return nil
 }

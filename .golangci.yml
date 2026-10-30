@@ -166,17 +166,16 @@ linters:
         - github.com/inference-gateway/cli/internal/platform/logger.Error
         - github.com/inference-gateway/cli/internal/platform/logger.WarnCtx
         - github.com/inference-gateway/cli/internal/platform/logger.ErrorCtx
-    errcheck:
-      exclude-functions:
-        - fmt.Fprint
-        - fmt.Fprintf
-        - fmt.Fprintln
   exclusions:
     rules:
       - linters:
           - staticcheck
         text: "SA5011"
         path: _test\.go
+      - linters:
+          - errcheck
+        text: "fmt\\.Fprint"
+        path: ^cmd/
 
 issues:
   max-issues-per-linter: 0

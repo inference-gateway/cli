@@ -96,7 +96,6 @@ Examples:
 // conditional like `infer tools validate "$cmd" && eval "$cmd"`.
 func ValidateTool(w io.Writer, cfg *config.Config, command string) error {
 	if !cfg.Tools.Enabled {
-		fmt.Fprintf(w, "%s\n", formatting.FormatErrorCLI("Tools are disabled"))
 		return errors.New("tools are disabled")
 	}
 
@@ -106,11 +105,8 @@ func ValidateTool(w io.Writer, cfg *config.Config, command string) error {
 		"command": command,
 	}
 
-	err := toolService.ValidateTool(agenttools.ToolBash, toolArgs)
-	if err != nil {
-		fmt.Fprintf(w, "%s\n", formatting.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
-		fmt.Fprintf(w, "Reason: %s\n", err.Error())
-		return fmt.Errorf("command not allowed: %s", command)
+	if err := toolService.ValidateTool(agenttools.ToolBash, toolArgs); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(w, "%s\n", formatting.FormatSuccess(fmt.Sprintf("Command is allowed: %s", command)))
@@ -166,7 +162,7 @@ func ExecTool(w io.Writer, cfg *config.Config, args []string, format, sessionID 
 		policy := serviceContainer.GetApprovalPolicy()
 		call := &sdk.ChatCompletionMessageToolCall{Type: sdk.Function, Function: toolCall}
 		if policy.ShouldRequireApproval(context.Background(), call, true) {
-			return printJSON(w, execResult{ApprovalRequired: true})
+			return printCompactJSON(w, execResult{ApprovalRequired: true})
 		}
 	}
 
@@ -180,7 +176,7 @@ func ExecTool(w io.Writer, cfg *config.Config, args []string, format, sessionID 
 	}
 	if err != nil {
 		if jsonOut {
-			return printJSON(w, execResult{Error: err.Error()})
+			return printCompactJSON(w, execResult{Error: err.Error()})
 		}
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
@@ -192,7 +188,7 @@ func ExecTool(w io.Writer, cfg *config.Config, args []string, format, sessionID 
 	}
 
 	if jsonOut {
-		return printJSON(w, execResult{
+		return printCompactJSON(w, execResult{
 			Success: result.Success,
 			Output:  convdomain.ToolResultOutput(result, repo.FormatToolResultForLLM),
 			Error:   result.Error,
@@ -206,7 +202,9 @@ func ExecTool(w io.Writer, cfg *config.Config, args []string, format, sessionID 
 	return nil
 }
 
-func printJSON(w io.Writer, v any) error {
+// printCompactJSON writes v as one line of JSON, the shape the approval bridge
+// reads back, unlike the indented output.PrintJSON.
+func printCompactJSON(w io.Writer, v any) error {
 	return json.NewEncoder(w).Encode(v)
 }
 

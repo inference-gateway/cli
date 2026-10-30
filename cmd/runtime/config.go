@@ -16,7 +16,6 @@ import (
 	yaml "gopkg.in/yaml.v3"
 
 	config "github.com/inference-gateway/cli/config"
-	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
@@ -369,18 +368,22 @@ func resolveFlagEnvOverride(v *viper.Viper, root *cobra.Command, flagName, key s
 	return ""
 }
 
-// WritePath resolves a file under the .infer configuration tree: the userspace
-// baseline (~/.infer/) by default, or the project .infer/ override when
-// toProject is set.
-func WritePath(toProject bool, fileName string) (string, error) {
+// ConfigPath resolves name under the project .infer/ override when toProject
+// is set, and under the userspace baseline (~/.infer/) otherwise.
+func ConfigPath(toProject bool, name string) (string, error) {
 	if toProject {
-		return filepath.Join(config.ConfigDirName, fileName), nil
+		return filepath.Join(config.ConfigDirName, name), nil
 	}
+	return UserConfigPath(name)
+}
+
+// UserConfigPath resolves name under the userspace baseline (~/.infer/).
+func UserConfigPath(name string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve user home directory: %w", err)
 	}
-	return filepath.Join(homeDir, config.ConfigDirName, fileName), nil
+	return filepath.Join(homeDir, config.ConfigDirName, name), nil
 }
 
 // AddProjectFlag registers the --project flag that flips a write command from
@@ -388,19 +391,6 @@ func WritePath(toProject bool, fileName string) (string, error) {
 func AddProjectFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().Bool("project", false,
 		"Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
-}
-
-// SharedContainerRuntime builds the container runtime the commands that start or
-// stop agents and MCP servers share, from the configured type.
-func SharedContainerRuntime(cfg *config.Config) (containerruntime.ContainerRuntime, error) {
-	rt, err := containerruntime.NewContainerRuntime(containerruntime.SharedSessionID, containerruntime.RuntimeType(cfg.ContainerRuntime.Type))
-	if err != nil {
-		return nil, err
-	}
-	if rt == nil {
-		return nil, fmt.Errorf("no container runtime configured (set container_runtime.type to docker or podman)")
-	}
-	return rt, nil
 }
 
 // pruneMemoryRemindersIfDisabled drops the built-in memory reminders (see

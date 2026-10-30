@@ -41,7 +41,7 @@ and is shown here too.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error { return getConfigValue(state, cmd, args) },
 	}
-	command.Flags().StringP("format", "f", "yaml", "Output format (yaml, json)")
+	output.AddFormatFlag(command, "yaml", "json")
 	return command
 }
 

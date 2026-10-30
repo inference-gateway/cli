@@ -649,8 +649,11 @@ func TestConversationsListJSONCapturesThroughSetOut(t *testing.T) {
 	if err := json.Unmarshal([]byte(runConversations(t, "list", "--format", "json")), &decoded); err != nil {
 		t.Fatalf("json list output not valid JSON: %v", err)
 	}
-	if decoded.Count != 0 || decoded.Conversations == nil {
-		t.Errorf("expected an empty conversation list, got count %d", decoded.Count)
+	if decoded.Count != 0 {
+		t.Errorf("expected count 0, got %d", decoded.Count)
+	}
+	if decoded.Conversations == nil {
+		t.Error("expected conversations to be an empty array, got null")
 	}
 }
 

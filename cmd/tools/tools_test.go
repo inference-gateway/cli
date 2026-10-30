@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -86,6 +87,46 @@ func TestRecordToolCallRejectsNonPersistentRepo(t *testing.T) {
 	err := recordToolCall(context.Background(), repo, "sess-1", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"}, &agentdomain.ToolExecutionResult{})
 	if err == nil {
 		t.Fatal("expected an error when storage is disabled")
+	}
+}
+
+func TestValidateTool(t *testing.T) {
+	tests := []struct {
+		name         string
+		toolsEnabled bool
+		command      string
+		wantErr      string
+	}{
+		{"allowed command passes", true, "git status", ""},
+		{"disallowed command fails", true, "rm -rf /", "command not allowed: rm -rf /"},
+		{"disabled tools fail", false, "git status", "tools are disabled"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			cfg := config.DefaultConfig()
+			cfg.Tools.Enabled = tt.toolsEnabled
+			cfg.Tools.Bash.Enabled = true
+
+			var stdout bytes.Buffer
+			err := ValidateTool(&stdout, cfg, tt.command)
+
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTool(%q) = %v, want nil", tt.command, err)
+				}
+				if !strings.Contains(stdout.String(), "Command is allowed") {
+					t.Errorf("expected the allowed confirmation on stdout, got %q", stdout.String())
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("ValidateTool(%q) = %v, want an error containing %q", tt.command, err, tt.wantErr)
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("a failed validation reports through the error only, stdout got %q", stdout.String())
+			}
+		})
 	}
 }
 

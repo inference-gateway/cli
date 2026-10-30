@@ -130,7 +130,8 @@ func (r *Renderer) RenderMarkdown(markdown string) (string, error) {
 // AddFormatFlag registers the standard --format flag shared by commands that
 // can emit structured output, so every command documents its formats alike.
 func AddFormatFlag(cmd *cobra.Command, def string, allowed ...string) {
-	cmd.Flags().StringP("format", "f", def, "Output format ("+strings.Join(allowed, ", ")+")")
+	formats := append([]string{def}, allowed...)
+	cmd.Flags().StringP("format", "f", def, "Output format ("+strings.Join(formats, ", ")+")")
 }
 
 // PrintJSON writes v as two-space indented JSON terminated by a newline.
