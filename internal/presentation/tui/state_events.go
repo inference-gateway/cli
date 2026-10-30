@@ -154,7 +154,7 @@ type HideHelpBarEvent struct{}
 
 // ConversationsLoadedEvent indicates conversations have been loaded
 type ConversationsLoadedEvent struct {
-	Conversations []any
+	Conversations []convdomain.ConversationSummary
 	Error         error
 }
 

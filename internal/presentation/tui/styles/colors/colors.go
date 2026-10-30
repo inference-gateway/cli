@@ -2,7 +2,6 @@ package colors
 
 import (
 	"image/color"
-	"strings"
 
 	lipgloss "charm.land/lipgloss/v2"
 )
@@ -20,11 +19,8 @@ const (
 	Gray          = "\033[38;2;122;127;154m" // #7a7f9a - dim gray
 	LightGray     = "\033[38;2;102;102;102m" // #666666 - light gray
 	Amber         = "\033[38;2;224;175;104m" // #e0af68 - amber for warnings
-	BrightRed     = "\033[38;2;247;118;142m" // Same as Red
 	Strikethrough = "\033[9m"
 	Dim           = "\033[2m"
-	LightGreenBg  = "\033[48;2;34;139;34m" // More vibrant green background for diff overlays
-	LightRedBg    = "\033[48;2;220;20;60m" // More vibrant red background for diff overlays
 )
 
 // Lipgloss Color Names - Tokyo Night Theme Hex Values
@@ -38,8 +34,6 @@ const (
 	LipglossGray      = "#7a7f9a"
 	LipglossLightGray = "#666666"
 	LipglossAmber     = "#e0af68"
-	LipglossBlack     = "#000000"
-	LipglossWhiteBg   = "#FFFFFF"
 
 	// GitHub Light Theme Colors
 	GithubBlue      = "#0366d6"
@@ -122,19 +116,9 @@ func (c Color) GetLipglossColor() color.Color {
 
 // Helper functions for common styling patterns
 
-// CreateSeparator creates a separator line with the given width and character
-func CreateSeparator(width int, char string) string {
-	return DimColor.ANSI + strings.Repeat(char, width) + Reset
-}
-
 // CreateColoredText creates colored text with automatic reset
 func CreateColoredText(text string, color Color) string {
 	return color.ANSI + text + Reset
-}
-
-// CreateStyledText creates text with color and reset, commonly used pattern
-func CreateStyledText(text, colorCode string) string {
-	return colorCode + text + Reset
 }
 
 // CreateStrikethroughText creates text with strikethrough styling

@@ -11,14 +11,28 @@ const (
 	DefaultChannelsPath = ConfigDirName + "/" + ChannelsFileName
 )
 
+// defaultMaxToolResultLen caps a forwarded tool result when max_tool_result_len
+// is unset or not positive.
+const defaultMaxToolResultLen = 1000
+
 // ChannelsConfig contains configuration for external messaging channels
 type ChannelsConfig struct {
-	Enabled         bool                  `yaml:"enabled" mapstructure:"enabled"`
-	MaxWorkers      int                   `yaml:"max_workers" mapstructure:"max_workers"`
-	ImageRetention  int                   `yaml:"image_retention" mapstructure:"image_retention"`
-	RequireApproval bool                  `yaml:"require_approval" mapstructure:"require_approval"`
-	Telegram        TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
-	WhatsApp        WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+	Enabled          bool                  `yaml:"enabled" mapstructure:"enabled"`
+	MaxWorkers       int                   `yaml:"max_workers" mapstructure:"max_workers"`
+	ImageRetention   int                   `yaml:"image_retention" mapstructure:"image_retention"`
+	RequireApproval  bool                  `yaml:"require_approval" mapstructure:"require_approval"`
+	MaxToolResultLen int                   `yaml:"max_tool_result_len" mapstructure:"max_tool_result_len"`
+	Telegram         TelegramChannelConfig `yaml:"telegram" mapstructure:"telegram"`
+	WhatsApp         WhatsAppChannelConfig `yaml:"whatsapp" mapstructure:"whatsapp"`
+}
+
+// ToolResultLimit returns how many runes of one tool result a channel
+// forwards, so a large file read or command output cannot flood the chat.
+func (c ChannelsConfig) ToolResultLimit() int {
+	if c.MaxToolResultLen > 0 {
+		return c.MaxToolResultLen
+	}
+	return defaultMaxToolResultLen
 }
 
 // TelegramChannelConfig contains Telegram bot settings
@@ -64,10 +78,11 @@ type WhatsAppChannelConfig struct {
 // this and the runtime falls back to it when the file is absent.
 func DefaultChannelsConfig() *ChannelsConfig {
 	return &ChannelsConfig{
-		Enabled:         false,
-		MaxWorkers:      5,
-		ImageRetention:  5,
-		RequireApproval: true,
+		Enabled:          false,
+		MaxWorkers:       5,
+		ImageRetention:   5,
+		RequireApproval:  true,
+		MaxToolResultLen: defaultMaxToolResultLen,
 		Telegram: TelegramChannelConfig{
 			Enabled:      false,
 			BotToken:     "",

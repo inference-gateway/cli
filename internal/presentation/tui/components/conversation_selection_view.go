@@ -15,10 +15,10 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
@@ -154,17 +154,10 @@ func (c *ConversationSelector) loadConversationsCmd() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		time.Sleep(constants.TestSleepDelay / 10)
-
 		conversations, err := c.repo.ListSavedConversations(ctx, 50, 0)
 
-		interfaceConversations := make([]any, len(conversations))
-		for i, conv := range conversations {
-			interfaceConversations[i] = conv
-		}
-
 		return tui.ConversationsLoadedEvent{
-			Conversations: interfaceConversations,
+			Conversations: conversations,
 			Error:         err,
 		}
 	}
@@ -174,6 +167,8 @@ func (c *ConversationSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tui.ConversationsLoadedEvent:
 		return c.handleConversationsLoaded(msg)
+	case conversationDeletedMsg:
+		return c.handleConversationDeleted(msg)
 	case tea.WindowSizeMsg:
 		return c.handleWindowResize(msg)
 	case tea.KeyPressMsg:
@@ -199,16 +194,8 @@ func (c *ConversationSelector) handleConversationsLoaded(msg tui.ConversationsLo
 	c.dataLoaded = true
 
 	if msg.Error == nil {
-		conversations := make([]convdomain.ConversationSummary, len(msg.Conversations))
-		for i, conv := range msg.Conversations {
-			if summary, ok := conv.(convdomain.ConversationSummary); ok {
-				conversations[i] = summary
-			}
-		}
-
-		c.conversations = conversations
-		c.filteredConversations = make([]convdomain.ConversationSummary, len(conversations))
-		copy(c.filteredConversations, conversations)
+		c.conversations = msg.Conversations
+		c.filteredConversations = slices.Clone(msg.Conversations)
 		c.syncTable()
 		c.table.GotoTop()
 	} else {
@@ -287,17 +274,20 @@ func (c *ConversationSelector) handleSearchClear() (tea.Model, tea.Cmd) {
 }
 
 func (c *ConversationSelector) handleBackspace() (tea.Model, tea.Cmd) {
-	if c.searchMode && len(c.searchQuery) > 0 {
-		c.searchQuery = c.searchQuery[:len(c.searchQuery)-1]
+	runes := []rune(c.searchQuery)
+	if c.searchMode && len(runes) > 0 {
+		c.searchQuery = string(runes[:len(runes)-1])
 		c.updateSearch()
 	}
 	return c, nil
 }
 
 func (c *ConversationSelector) handleCharacterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if c.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
-		c.searchQuery += msg.String()
-		c.updateSearch()
+	if c.searchMode {
+		if text := keys.PrintableText(msg); text != "" {
+			c.searchQuery += text
+			c.updateSearch()
+		}
 	}
 	return c, nil
 }
@@ -387,37 +377,41 @@ func (c *ConversationSelector) handleDeleteConfirmation(msg tea.KeyPressMsg) (te
 	}
 }
 
+// conversationDeletedMsg reports the result of one delete issued from the
+// confirmation dialog.
+type conversationDeletedMsg struct {
+	id  string
+	err error
+}
+
 func (c *ConversationSelector) performDelete() (tea.Model, tea.Cmd) {
+	c.confirmDelete = false
 	cursor := c.table.Cursor()
 	if cursor >= len(c.filteredConversations) {
-		c.confirmDelete = false
 		return c, nil
 	}
 
-	conv := c.filteredConversations[cursor]
+	id := c.filteredConversations[cursor].ID
+	repo := c.repo
+	return c, func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return conversationDeletedMsg{id: id, err: repo.DeleteSavedConversation(ctx, id)}
+	}
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := c.repo.DeleteSavedConversation(ctx, conv.ID); err != nil {
-		c.deleteError = err
-		c.confirmDelete = false
-		logger.Error("failed to delete conversation", "error", err, "id", conv.ID)
+func (c *ConversationSelector) handleConversationDeleted(msg conversationDeletedMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		c.deleteError = msg.err
+		logger.Error("failed to delete conversation", "error", msg.err, "id", msg.id)
 		return c, nil
 	}
 
-	for i, origConv := range c.conversations {
-		if origConv.ID == conv.ID {
-			c.conversations = append(c.conversations[:i], c.conversations[i+1:]...)
-			break
-		}
-	}
-
-	c.filteredConversations = append(c.filteredConversations[:cursor], c.filteredConversations[cursor+1:]...)
-	c.syncTable()
-
-	c.confirmDelete = false
 	c.deleteError = nil
+	deleted := func(conv convdomain.ConversationSummary) bool { return conv.ID == msg.id }
+	c.conversations = slices.DeleteFunc(c.conversations, deleted)
+	c.filteredConversations = slices.DeleteFunc(c.filteredConversations, deleted)
+	c.syncTable()
 	return c, nil
 }
 
@@ -522,7 +516,7 @@ func (c *ConversationSelector) writeConversationList(b *strings.Builder) {
 // writeFooter writes the footer section
 func (c *ConversationSelector) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", c.width))
+	b.WriteString(c.styleProvider.RenderSeparator(c.width, "─"))
 	b.WriteString("\n")
 
 	if c.searchMode {
@@ -546,7 +540,7 @@ func (c *ConversationSelector) writeDeleteConfirmation(b *strings.Builder) strin
 	c.writeConversationList(b)
 
 	b.WriteString("\n")
-	b.WriteString(strings.Repeat("─", c.width))
+	b.WriteString(c.styleProvider.RenderSeparator(c.width, "─"))
 	b.WriteString("\n\n")
 
 	errorColor := c.styleProvider.GetThemeColor("error")

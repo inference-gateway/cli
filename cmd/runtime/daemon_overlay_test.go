@@ -72,6 +72,7 @@ func TestLoadConfigFromViper_ChannelsEnvOverridesFile(t *testing.T) {
 	t.Setenv("INFER_CHANNELS_TELEGRAM_ALLOWED_USERS", "111, 222")
 	t.Setenv("INFER_CHANNELS_MAX_WORKERS", "9")
 	t.Setenv("INFER_CHANNELS_REQUIRE_APPROVAL", "false")
+	t.Setenv("INFER_CHANNELS_MAX_TOOL_RESULT_LEN", "50")
 
 	initConfig()
 
@@ -81,6 +82,7 @@ func TestLoadConfigFromViper_ChannelsEnvOverridesFile(t *testing.T) {
 	require.Equal(t, []string{"111", "222"}, Cfg.Channels.Telegram.AllowedUsers)
 	require.Equal(t, 9, Cfg.Channels.MaxWorkers)
 	require.False(t, Cfg.Channels.RequireApproval)
+	require.Equal(t, 50, Cfg.Channels.ToolResultLimit())
 }
 
 // TestLoadConfigFromViper_ChannelsBlockInConfigYAMLIsIgnored asserts the

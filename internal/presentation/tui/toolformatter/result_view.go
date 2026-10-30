@@ -171,7 +171,7 @@ func (s *ToolFormatterService) insertHeaderRule(themed, rawTree string, width in
 	if end >= len(rawLines) {
 		return themed
 	}
-	rule := s.styleProvider.RenderWithColor(strings.Repeat("─", width), s.styleProvider.GetThemeColor("dim"))
+	rule := s.styleProvider.RenderSeparator(width, "─")
 	themedLines := strings.Split(themed, "\n")
 	return strings.Join(append(themedLines[:end], append([]string{rule}, themedLines[end:]...)...), "\n")
 }

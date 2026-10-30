@@ -32,12 +32,26 @@ func emitJSON(w io.Writer, msg any, pretty bool) {
 	_, _ = w.Write(append(data, '\n'))
 }
 
-// Truncate caps s at maxLen characters, marking the cut with an ellipsis.
+// Truncate caps s at maxLen runes, never splitting a UTF-8 rune, marking the
+// cut with an ellipsis. It caps non-display text, so the width-aware
+// formatting.TruncateText does not fit.
 func Truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "…"
+	return string(runes[:maxLen]) + "…"
+}
+
+// QuoteBlock prefixes every line with "> " so tool traffic arrives as a
+// markdown blockquote - channels render quotes as collapsed or secondary
+// content (Telegram: an expandable blockquote).
+func QuoteBlock(s string) string {
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = "> " + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // assistantMessage builds the JSON line for a completed assistant turn, or

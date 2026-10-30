@@ -313,7 +313,7 @@ func (m *ModelSelector) viewContent() string {
 	b.WriteString(m.form.View())
 
 	b.WriteString("\n")
-	b.WriteString(m.styleProvider.RenderDimText(strings.Repeat("─", max(m.width, 1))))
+	b.WriteString(m.styleProvider.RenderSeparator(max(m.width, 1), "─"))
 	b.WriteString("\n")
 	b.WriteString(m.styleProvider.RenderDimText("↑↓ navigate · Enter select · / search · esc clear · 1-4 pricing · 5-8 capability · Ctrl+C cancel"))
 
@@ -490,7 +490,7 @@ func (m *ModelSelector) writeViewTabs(b *strings.Builder) {
 	b.WriteString(m.renderTabRow(capabilityTabs, int(m.capability)))
 	b.WriteString("\n")
 
-	separator := m.styleProvider.RenderDimText(strings.Repeat("─", max(m.width, 1)))
+	separator := m.styleProvider.RenderSeparator(max(m.width, 1), "─")
 	fmt.Fprintf(b, "%s\n\n", separator)
 }
 

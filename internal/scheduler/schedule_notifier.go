@@ -16,13 +16,15 @@ import (
 // jobs without a delivery target are record-only, so their events are ignored
 // here and their output lives in storage.
 type ScheduleNotifier struct {
-	lookup func(name string) channels.Channel
+	lookup        func(name string) channels.Channel
+	maxToolResult int
 }
 
 // NewScheduleNotifier constructs a notifier resolving channels through lookup
-// (typically ChannelManagerService.GetChannel).
-func NewScheduleNotifier(lookup func(name string) channels.Channel) *ScheduleNotifier {
-	return &ScheduleNotifier{lookup: lookup}
+// (typically ChannelManagerService.GetChannel) and capping each forwarded tool
+// result at maxToolResult runes.
+func NewScheduleNotifier(lookup func(name string) channels.Channel, maxToolResult int) *ScheduleNotifier {
+	return &ScheduleNotifier{lookup: lookup, maxToolResult: maxToolResult}
 }
 
 // Notify implements the scheduler's OnRunEvent hook.
@@ -39,7 +41,7 @@ func (n *ScheduleNotifier) Notify(job scheddomain.ScheduledJob, e scheddomain.Ru
 	var content string
 	switch {
 	case e.Line != nil:
-		content = agentheadless.FormatAgentMessage(e.Line)
+		content = agentheadless.FormatAgentMessage(e.Line, n.maxToolResult)
 	case e.Done && e.Err != nil:
 		name := job.Name
 		if name == "" {

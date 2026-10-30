@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
-
 	config "github.com/inference-gateway/cli/config"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -65,18 +63,8 @@ func (l *SubagentList) SetRegistry(registry scheddomain.BackgroundTaskRegistry) 
 // read live at render time.
 func (l *SubagentList) SetConfig(cfg *config.Config) { l.config = cfg }
 
-// Init implements tea.Model.
-func (l *SubagentList) Init() tea.Cmd { return nil }
-
-// View renders the list wrapped in a tea.View.
-func (l *SubagentList) View() tea.View { return tea.NewView(l.Render()) }
-
-func (l *SubagentList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if size, ok := msg.(tea.WindowSizeMsg); ok {
-		l.width = size.Width
-	}
-	return l, nil
-}
+// SetWidth sizes the rows to the container width.
+func (l *SubagentList) SetWidth(width int) { l.width = width }
 
 // HasRows reports whether any row, running or lingering, is on screen. The
 // chat's live clock ticks once a second while it holds, which advances the

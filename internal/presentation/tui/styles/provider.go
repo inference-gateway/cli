@@ -558,11 +558,6 @@ func (p *Provider) PlaceCenter(width, height int, content string) string {
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)
 }
 
-// PlaceCenterTop places content in the center-top of the given dimensions
-func (p *Provider) PlaceCenterTop(width, height int, content string) string {
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Top, content)
-}
-
 // GetHeight returns the rendered height of a string
 func (p *Provider) GetHeight(s string) int {
 	return lipgloss.Height(s)
@@ -593,11 +588,6 @@ func (p *Provider) RenderWithColor(text, hexColor string) string {
 // RenderWithColorAndBold renders text with color and bold
 func (p *Provider) RenderWithColorAndBold(text, hexColor string) string {
 	return boldStyle.Foreground(lipgloss.Color(hexColor)).Render(text)
-}
-
-// RenderBold renders text with bold styling
-func (p *Provider) RenderBold(text string) string {
-	return boldStyle.Render(text)
 }
 
 // RenderStyledText renders text with custom Lipgloss-compatible styling
@@ -761,9 +751,4 @@ func (p *Provider) GetSpinnerStyle() lipgloss.Style {
 // This is needed for components like the markdown renderer that need direct theme access
 func (p *Provider) GetThemeService() tui.ThemeService {
 	return p.themeService
-}
-
-// RenderStatusLine renders a status line with no padding
-func (p *Provider) RenderStatusLine(content string) string {
-	return content
 }

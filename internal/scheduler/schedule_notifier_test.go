@@ -43,7 +43,7 @@ func newNotifierWithChannel(ch *notifierFakeChannel) *ScheduleNotifier {
 			return ch
 		}
 		return nil
-	})
+	}, 1000)
 }
 
 func TestScheduleNotifier_DeliversAssistantLines(t *testing.T) {

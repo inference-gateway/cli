@@ -295,26 +295,6 @@ func (tv *TodoBoxView) getInProgressTask() string {
 	return ""
 }
 
-// Bubble Tea interface
-
-// Init initializes the component
-func (tv *TodoBoxView) Init() tea.Cmd {
-	return nil
-}
-
-// View returns the rendered view
-func (tv *TodoBoxView) View() tea.View {
-	return tea.NewView(tv.Render())
-}
-
-// Update handles messages
-func (tv *TodoBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		tv.SetWidth(windowMsg.Width)
-	}
-	return tv, nil
-}
-
 // AutoCollapseTickMsg is sent to trigger auto-collapse check
 type AutoCollapseTickMsg struct{}
 

@@ -83,14 +83,6 @@ func (r *Registry) Register(shortcut Shortcut) {
 	r.shortcuts[shortcut.GetName()] = shortcut
 }
 
-// Unregister removes a shortcut from the registry
-func (r *Registry) Unregister(name string) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	delete(r.shortcuts, name)
-}
-
 // Get retrieves a shortcut by name
 func (r *Registry) Get(name string) (Shortcut, bool) {
 	r.mutex.RLock()
@@ -219,33 +211,4 @@ func parseShortcutLine(input string) ([]string, error) {
 	}
 
 	return args, nil
-}
-
-// GetShortcuts returns a map of shortcut names to descriptions
-func (r *Registry) GetShortcuts() map[string]string {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	shortcuts := make(map[string]string)
-	for name, shortcut := range r.shortcuts {
-		shortcuts[name] = shortcut.GetDescription()
-	}
-
-	return shortcuts
-}
-
-// GetShortcutsStartingWith returns shortcuts that start with the given prefix
-func (r *Registry) GetShortcutsStartingWith(prefix string) []string {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	var matches []string
-	for name := range r.shortcuts {
-		if strings.HasPrefix(name, prefix) {
-			matches = append(matches, name)
-		}
-	}
-
-	slices.Sort(matches)
-	return matches
 }

@@ -190,6 +190,11 @@ image_retention: 5
 # --require-approval regardless of this key.
 require_approval: true
 
+# Runes of one tool call or tool result forwarded to the chat before it is cut
+# with an ellipsis, so a large file read or command output cannot flood it
+# (default: 1000, values of 0 or below fall back to the default)
+max_tool_result_len: 1000
+
 # Telegram Bot API channel
 telegram:
   enabled: false
@@ -244,6 +249,7 @@ All channel settings can be configured via environment variables with the
 |---------------------------------------|---------------------------------------------|
 | `channels.enabled`                    | `INFER_CHANNELS_ENABLED`                    |
 | `channels.require_approval`           | `INFER_CHANNELS_REQUIRE_APPROVAL`           |
+| `channels.max_tool_result_len`        | `INFER_CHANNELS_MAX_TOOL_RESULT_LEN`        |
 | `channels.telegram.enabled`           | `INFER_CHANNELS_TELEGRAM_ENABLED`           |
 | `channels.telegram.bot_token`         | `INFER_CHANNELS_TELEGRAM_BOT_TOKEN`         |
 | `channels.telegram.allowed_users`     | `INFER_CHANNELS_TELEGRAM_ALLOWED_USERS`     |

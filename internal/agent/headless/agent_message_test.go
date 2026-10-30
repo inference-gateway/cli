@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -24,6 +25,11 @@ func TestFormatAgentMessage(t *testing.T) {
 			name: "failed tool result is flagged",
 			line: `{"role":"tool","content":"Tool execution failed: 502","tool_call_id":"123","failed":true}`,
 			want: "> Tool failed - retrying may follow:\n> ```\n> Tool execution failed: 502\n> ```",
+		},
+		{
+			name: "long tool result is capped with an ellipsis",
+			line: `{"role":"tool","content":"` + strings.Repeat("a", 31) + `","tool_call_id":"123"}`,
+			want: "> ```\n> " + strings.Repeat("a", 30) + "…\n> ```",
 		},
 		{
 			name: "empty tool result is skipped",
@@ -79,7 +85,7 @@ func TestFormatAgentMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatAgentMessage([]byte(tt.line))
+			got := FormatAgentMessage([]byte(tt.line), 30)
 			if got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}

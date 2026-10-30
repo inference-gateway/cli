@@ -31,7 +31,7 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg.Register(NewReleaseNotesShortcut())
 	reg.Register(NewStatsShortcut())
 	reg.Register(NewTracesShortcut())
-	reg.Register(NewConversationSelectShortcut(nil))
+	reg.Register(NewConversationSelectShortcut())
 	reg.Register(NewNewShortcut(nil, nil))
 	reg.Register(NewInitShortcut(cfg))
 	if cfg.IsAgentToolEnabled() {

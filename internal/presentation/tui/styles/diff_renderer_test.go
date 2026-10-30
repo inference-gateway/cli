@@ -256,11 +256,8 @@ func TestDiffRenderer_Construction(t *testing.T) {
 	if NewDiffRenderer(styleProvider) == nil {
 		t.Fatal("NewDiffRenderer returned nil")
 	}
-	if NewToolDiffRenderer(styleProvider) == nil {
-		t.Fatal("NewToolDiffRenderer returned nil")
-	}
 
-	out := NewToolDiffRenderer(styleProvider).RenderDiff(DiffInfo{
+	out := NewDiffRenderer(styleProvider).RenderDiff(DiffInfo{
 		FilePath:   "test.go",
 		OldContent: "old\n",
 		NewContent: "new\n",

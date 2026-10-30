@@ -592,6 +592,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case tui.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
 
+	case keybinding.PasteResultMsg:
+		return keybinding.HandlePasteResult(app, m)
+
 	case tea.BackgroundColorMsg:
 		app.handleBackgroundColorDetected(m)
 
@@ -1880,8 +1883,8 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView tui.V
 		}
 	}
 
-	if _, cmd := app.subagentList.Update(msg); cmd != nil {
-		*cmds = append(*cmds, cmd)
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		app.subagentList.SetWidth(size.Width)
 	}
 }
 
