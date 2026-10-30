@@ -604,36 +604,16 @@ func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 // Text editing handlers
 func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateStore()
-
-	planApprovalState := stateManager.GetPlanApprovalUIState()
-	if planApprovalState != nil {
-		newIndex := planApprovalState.SelectedIndex - 1
-		if newIndex < 0 {
-			newIndex = int(agentdomain.PlanApprovalAcceptStandard)
-		}
-		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return func() tea.Msg {
-			return tui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
-		}
+	if cmd := movePlanSelection(app.GetStateStore(), -1); cmd != nil {
+		return cmd
 	}
 
 	return handleInputChangedAfterTextarea(app)
 }
 
 func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateStore()
-
-	planApprovalState := stateManager.GetPlanApprovalUIState()
-	if planApprovalState != nil {
-		newIndex := planApprovalState.SelectedIndex + 1
-		if newIndex > int(agentdomain.PlanApprovalAcceptStandard) {
-			newIndex = 0
-		}
-		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return func() tea.Msg {
-			return tui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
-		}
+	if cmd := movePlanSelection(app.GetStateStore(), 1); cmd != nil {
+		return cmd
 	}
 
 	inputView := app.GetInputView()
@@ -1099,16 +1079,22 @@ func HandlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 // Approval handlers
 // Plan Approval handlers
 
-func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateStore()
+// movePlanSelection moves the plan-approval cursor by delta, wrapping at the
+// ends, and delivers the selection-changed event. It returns nil when no plan
+// approval is on screen.
+func movePlanSelection(stateManager StateStore, delta int) tea.Cmd {
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState == nil {
 		return nil
 	}
 
-	newIndex := planApprovalState.SelectedIndex - 1
+	last := int(agentdomain.PlanApprovalAcceptStandard)
+	newIndex := planApprovalState.SelectedIndex + delta
 	if newIndex < 0 {
-		newIndex = int(agentdomain.PlanApprovalAcceptStandard)
+		newIndex = last
+	}
+	if newIndex > last {
+		newIndex = 0
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 
@@ -1117,22 +1103,12 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.C
 	}
 }
 
+func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
+	return movePlanSelection(app.GetStateStore(), -1)
+}
+
 func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
-	stateManager := app.GetStateStore()
-	planApprovalState := stateManager.GetPlanApprovalUIState()
-	if planApprovalState == nil {
-		return nil
-	}
-
-	newIndex := planApprovalState.SelectedIndex + 1
-	if newIndex > int(agentdomain.PlanApprovalAcceptStandard) {
-		newIndex = 0
-	}
-	stateManager.SetPlanApprovalSelectedIndex(newIndex)
-
-	return func() tea.Msg {
-		return tui.PlanApprovalSelectionChangedEvent{NewIndex: newIndex}
-	}
+	return movePlanSelection(app.GetStateStore(), 1)
 }
 
 func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
