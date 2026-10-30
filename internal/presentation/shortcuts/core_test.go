@@ -179,7 +179,6 @@ func TestHelpShortcut_Execute_UnknownShortcut(t *testing.T) {
 
 func TestToolsShortcut_Execute_OpensToolsList(t *testing.T) {
 	tools := NewToolsShortcut()
-
 	if !tools.CanExecute(nil) {
 		t.Error("expected /tools to accept no arguments")
 	}

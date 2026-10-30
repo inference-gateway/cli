@@ -77,7 +77,7 @@ func TestLoadCustomShortcutsBuiltinsWin(t *testing.T) {
 
 	agents, ok := registry.Get("agents")
 	require.True(t, ok)
-	_, isBuiltin := agents.(*AgentsShortcut)
+	_, isBuiltin := agents.(*panelShortcut)
 	require.True(t, isBuiltin, "built-in /agents must win over the custom a2a.yaml shortcut")
 
 	_, ok = registry.Get("a2a")
