@@ -1,8 +1,8 @@
 package stats
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"time"
 
@@ -46,7 +46,7 @@ Examples:
 		RunE: c.runStats,
 	}
 	cmd.Flags().String("since", "", "Only include telemetry newer than this window (e.g. 7d, 24h, 30m); default all time")
-	cmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(cmd, "text", "json")
 	return cmd
 }
 
@@ -70,40 +70,31 @@ func (c *command) runStats(cmd *cobra.Command, _ []string) error {
 	}
 
 	if format == "json" {
-		return renderStatsJSON(stats)
+		return output.PrintJSON(cmd.OutOrStdout(), stats)
 	}
-	return c.renderStatsText(stats)
+	return c.renderStatsText(cmd.OutOrStdout(), stats)
 }
 
-func renderStatsJSON(stats telemetry.Stats) error {
-	out, err := json.MarshalIndent(stats, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal stats: %w", err)
-	}
-	fmt.Println(string(out))
-	return nil
-}
-
-func (c *command) renderStatsText(stats telemetry.Stats) error {
+func (c *command) renderStatsText(w io.Writer, stats telemetry.Stats) error {
 	if stats.Empty {
-		fmt.Println("No telemetry recorded yet.")
-		fmt.Println()
-		fmt.Println(c.renderer.Hint("Telemetry accumulates as you use `infer chat` / `infer headless` (when telemetry.enabled)."))
+		fmt.Fprintln(w, "No telemetry recorded yet.")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, c.renderer.Hint("Telemetry accumulates as you use `infer chat` / `infer headless` (when telemetry.enabled)."))
 		return nil
 	}
 
-	c.renderToolStats(stats.Tools)
-	c.renderModelStats(stats.Models)
-	c.renderSessionStats(stats.Sessions)
+	c.renderToolStats(w, stats.Tools)
+	c.renderModelStats(w, stats.Models)
+	c.renderSessionStats(w, stats.Sessions)
 	return nil
 }
 
-func (c *command) renderToolStats(tools []telemetry.ToolStat) {
+func (c *command) renderToolStats(w io.Writer, tools []telemetry.ToolStat) {
 	if len(tools) == 0 {
 		return
 	}
-	fmt.Println(c.renderer.Title("Tool Calls"))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Title("Tool Calls"))
+	fmt.Fprintln(w)
 	t := c.renderer.NewListTable("Tool", "Calls", "Fail%", "Avg")
 	for _, s := range tools {
 		t.Row(
@@ -113,16 +104,16 @@ func (c *command) renderToolStats(tools []telemetry.ToolStat) {
 			telemetry.FormatAvg(s.AvgMs),
 		)
 	}
-	fmt.Println(t.Render())
-	fmt.Println()
+	fmt.Fprintln(w, t.Render())
+	fmt.Fprintln(w)
 }
 
-func (c *command) renderModelStats(models []telemetry.ModelStat) {
+func (c *command) renderModelStats(w io.Writer, models []telemetry.ModelStat) {
 	if len(models) == 0 {
 		return
 	}
-	fmt.Println(c.renderer.Title("Token Usage"))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Title("Token Usage"))
+	fmt.Fprintln(w)
 	t := c.renderer.NewListTable("Model", "Prompt", "Cached", "Completion", "Total", "Cost")
 	for _, m := range models {
 		t.Row(
@@ -134,20 +125,20 @@ func (c *command) renderModelStats(models []telemetry.ModelStat) {
 			formatting.FormatCost(m.Cost),
 		)
 	}
-	fmt.Println(t.Render())
-	fmt.Println()
+	fmt.Fprintln(w, t.Render())
+	fmt.Fprintln(w)
 }
 
-func (c *command) renderSessionStats(sessions []telemetry.SessionStat) {
+func (c *command) renderSessionStats(w io.Writer, sessions []telemetry.SessionStat) {
 	if len(sessions) == 0 {
 		return
 	}
-	fmt.Println(c.renderer.Title("Sessions"))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Title("Sessions"))
+	fmt.Fprintln(w)
 	t := c.renderer.NewListTable("Execution", "Mode", "Sessions")
 	for _, s := range sessions {
 		t.Row(s.Execution, s.Mode, strconv.Itoa(s.Count))
 	}
-	fmt.Println(t.Render())
-	fmt.Println()
+	fmt.Fprintln(w, t.Render())
+	fmt.Fprintln(w)
 }
