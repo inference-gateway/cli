@@ -15,7 +15,6 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -154,8 +153,6 @@ func (c *ConversationSelector) loadConversationsCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		time.Sleep(constants.TestSleepDelay / 10)
 
 		conversations, err := c.repo.ListSavedConversations(ctx, 50, 0)
 
