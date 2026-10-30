@@ -31,9 +31,9 @@ on another environment.
   unless storage is shared, open interrupts, a git bundle plus patch, allowlisted files, credentials sealed with HPKE to
   the target's certificate), streams it to the peer, verifies the restored snapshot and hands the lease over. The
   receiving side restores into `workspace_root`, imports the conversation through a worker there and claims the lease.
-  `infrastructure/` also holds the daemon CA, the TLS provider for the `files`, `ca` and `spiffe` modes, and the peer
+  `infrastructure/` also holds the daemon CA, the TLS provider for the `files` and `ca` modes, and the peer
   dialer.
-- client-go stays in `infrastructure/kubernetes/` and go-spiffe in `infrastructure/`. depguard enforces both.
+- client-go stays in `infrastructure/kubernetes/`. depguard enforces it.
 - The tools context never imports `loop/`. depguard enforces it, because the loop consumes tools.
 - `internal/container/container.go` builds the loop and wires every port.
 

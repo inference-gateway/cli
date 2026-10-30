@@ -30,7 +30,7 @@ func LocalDialConfig(ctx context.Context, cfg *config.Config, kind string) (agui
 			return agui.DialConfig{}, err
 		}
 	}
-	tlsConfig, err := agentinfra.NewTLSProvider(kind, pki, binding.TLS.SPIFFE).ClientForBinding(ctx, binding.TLS)
+	tlsConfig, err := agentinfra.NewTLSProvider(kind, pki).ClientForBinding(binding.TLS)
 	if err != nil {
 		return agui.DialConfig{}, err
 	}

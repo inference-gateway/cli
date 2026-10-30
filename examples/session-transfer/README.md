@@ -10,9 +10,8 @@ The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declared i
 [ctlptl](https://github.com/tilt-dev/ctlptl), running the
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller, which gives every session
 a `Sandbox`: a stable pod with two persistent volumes (the workspace and the conversation store) that the
-pod daemon suspends when idle and the next transfer resumes. Two environments are configured: `k8s-dev`
-authenticates the pod with mTLS from the daemon's own CA, `k8s-spiffe` with SPIFFE SVIDs issued by SPIRE
-inside the cluster and rotated by the SPIRE agents.
+pod daemon suspends when idle and the next transfer resumes. Both environments authenticate the pod with mTLS
+from the daemon's own CA: `k8s-dev` runs the plain image, `k8s-desktop` adds a Linux desktop of its own.
 
 Everything runs against the built-in mock model, so no API key is needed. See [infer daemon](../../docs/daemon.md#environments-and-transfers)
 for the environment model and the [Daemon Binding Protocol](../../docs/browser-extension-protocol.md#environments)
@@ -21,9 +20,9 @@ for the wire frames.
 ## Prerequisites
 
 - [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5 (ctlptl drives k3d)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/), [helm](https://helm.sh/) (SPIFFE only)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [docker](https://docs.docker.com/get-docker/) (k3d runs on it, `task image:import` builds with it)
-- [task](https://taskfile.dev/) and Go 1.26 (the image build and, for SPIFFE, the `spire-agent` build)
+- [task](https://taskfile.dev/) and Go 1.26 (the image build)
 - `task build` at the repository root: the tasks run that `infer` binary (`INFER=<path>` overrides it)
 
 ## Layout
@@ -31,14 +30,12 @@ for the wire frames.
 | File | Purpose |
 | --- | --- |
 | `Cluster.yaml` | The ctlptl cluster: k3d `infer-environments` with one agent node, pinned to k3s v1.37.1 |
-| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` (CA), `k8s-spiffe` (SPIFFE) and `k8s-desktop` environments |
+| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` and `k8s-desktop` environments |
 | `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
 | `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
 | `k8s/namespace.yaml` | The `infer-environments` namespace, the `infer-environment` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
-| `k8s/spire-values.yaml` | Helm values for SPIRE: trust domain `infer.local`, join-token node attestation, the default SPIFFE ID per ServiceAccount |
-| `spire/agent.conf.tmpl` | The laptop `spire-agent` config, filled in by `task spire:agent` |
 | `Taskfile.yml` | Every step below |
-| `.home/` | Created by the tasks: a throwaway `HOME` with the daemon config, the demo project and the SPIRE agent state |
+| `.home/` | Created by the tasks: a throwaway `HOME` with the daemon config and the demo project |
 
 The tasks run the daemon under `.home/` as `HOME`, so your own `~/.infer` stays untouched.
 
@@ -56,7 +53,7 @@ task demo
 ```
 
 The environments run the release candidate image `ghcr.io/inference-gateway/cli:0.239.0-rc.3`, which the pod
-pulls from GHCR. To run this checkout on the pod instead, set both environments' `image` in `daemon.yaml` to
+pulls from GHCR. To run this checkout on the pod instead, set `k8s-dev`'s `image` in `daemon.yaml` to
 `ghcr.io/inference-gateway/cli:local` and run `task image:import` before `task daemon:start`.
 
 `task demo` prints the environments first, then the transfer's stages, the Sandbox and its pod, and the
@@ -65,9 +62,8 @@ reply of a turn that ran on the pod:
 ```text
 NAME         KIND        REACHABLE  DETAILS
 laptop       local       true       storage=jsonl version=v0.239.0-rc.3
-k8s-desktop  kubernetes  true       auth=ca image=infer-desktop:local ...
-k8s-dev      kubernetes  true       auth=ca image=ghcr.io/inference-gateway/cli:0.239.0-rc.3 kubernetes=v1.37.1+k3s1 namespace=infer-environments sandboxes=0
-k8s-spiffe   kubernetes  true       auth=spiffe ...
+k8s-desktop  kubernetes  true       image=infer-desktop:local ...
+k8s-dev      kubernetes  true       image=ghcr.io/inference-gateway/cli:0.239.0-rc.3 kubernetes=v1.37.1+k3s1 namespace=infer-environments sandboxes=0
 provisioning
 checkpointing
 restoring
@@ -99,7 +95,7 @@ POD=$(kubectl -n infer-environments get pods -o jsonpath='{.items[0].metadata.na
 kubectl -n infer-environments exec $POD -- sh -c 'ls /workspace/project/*/ && ls /home/infer/.infer/projects/*/conversations'
 
 # A second transfer of the same session is refused: k8s-dev owns it now
-HOME=$PWD/.home ../../infer daemon transfer <conversation id> --to k8s-spiffe --project-dir $PWD/.home/project
+HOME=$PWD/.home ../../infer daemon transfer <conversation id> --to k8s-desktop --project-dir $PWD/.home/project
 
 # Stop the laptop daemon (Ctrl+C in its shell), start it again, and the session is still on the pod
 task daemon:start
@@ -124,35 +120,6 @@ HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.ho
 ```
 
 `stop` releases the lease too, so the session continues from the laptop's copy, as it was before the transfer.
-
-## SPIFFE: SVIDs from SPIRE instead of the daemon CA
-
-The `k8s-spiffe` environment authenticates both ends with SPIFFE X.509 SVIDs. The pod gets its SVID
-(`spiffe://infer.local/ns/infer-environments/sa/infer-environment`) from the SPIRE agent on its node through the
-SPIFFE CSI driver, and the laptop daemon gets its own
-(`spiffe://infer.local/environment/laptop/daemon`) from a `spire-agent` running on the laptop, attested to the
-in-cluster SPIRE server with a join token. SPIRE rotates both.
-
-```bash
-# 1. SPIRE server, agents and CSI driver in the cluster (two helm releases in spire-mgmt)
-task spire:install
-
-# 2. In its own shell: build spire-agent for this machine (SPIRE publishes Linux binaries only),
-#    register the laptop daemon, port-forward the SPIRE server and run the agent
-task spire:agent
-
-# 3. Restart the laptop daemon with the agent's Workload API socket
-task daemon:start:spiffe
-
-# 4. Move a fresh conversation to the SPIFFE environment
-task demo TARGET=k8s-spiffe
-```
-
-`task spire:agent` creates a registration entry whose selector is your unix uid, so any process you run,
-the daemon included, may fetch the laptop's SVID. The agent's Workload API socket is
-`/tmp/infer-spire-agent.sock`, because macOS caps unix socket paths at 104 bytes and a path under `.home/`
-easily exceeds that. The pod daemon trusts any member of `infer.local`, and
-the laptop daemon trusts only the pod's SPIFFE ID, both set in `daemon.yaml`.
 
 ## A computer of its own: the desktop environment
 
@@ -279,8 +246,6 @@ task cleanup
 | Moving back fails with `changed since the session left it` | Stash the checkout's changes (`git stash -u`), move back, then `git stash pop` |
 | `checkpointing` fails with `not a git checkout with a commit` | A transfer bundles `HEAD`, so the project needs at least one commit |
 | The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer daemon run` opens a new one |
-| SPIFFE: `fetching an SVID from the SPIRE Workload API` | Keep `task spire:agent` running and start the daemon with `task daemon:start:spiffe` |
-| SPIFFE: the pod stays `ContainerCreating` | The CSI driver and SPIRE agent must run on the node: `kubectl get pods -n spire-system` |
 
 Two things to know. The lease a relaying daemon keeps for a remote owner lapses after `lease_ttl` (the
 environment's `idle_ttl` plus five minutes by default): a laptop that cannot reach the pod after that may
