@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
@@ -80,6 +81,37 @@ func TestHandOverAnnouncesAMoveItWon(t *testing.T) {
 	if err := json.Unmarshal(client.DeliverArgsForCall(1), &moved); err != nil ||
 		moved.Type != frameSessionMoved || moved.Environment != "remote" || moved.Workspace != "/w" {
 		t.Fatalf("the second frame = %+v, want the move to remote", moved)
+	}
+}
+
+func TestTransferFailingAfterProvisioningDiscardsTheTarget(t *testing.T) {
+	peer := startPeer(t, "k8s-desktop", nil)
+	target := fakeEnvironment("k8s-dev", agentdomain.EnvironmentKindKubernetes)
+	s, store := newService(t, &launcher{}, target)
+	s.dial.Handshake = testHandshake
+	req, _ := handOverRequest()
+	req.Target = "k8s-dev"
+	target.EnsureCalls(func(ctx context.Context, _ agentdomain.Session) (agentdomain.Endpoint, error) {
+		claim := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s-dev", TransferID: req.TransferID, Until: time.Now().Add(time.Hour)}
+		if _, ok, err := store.ClaimLease(ctx, claim); err != nil || !ok {
+			t.Errorf("the target's claim = %v, %v", ok, err)
+		}
+		return peer.endpoint(), nil
+	})
+	client := &sessionsmocks.FakeClient{}
+
+	s.transfer(t.Context(), client, req)
+
+	var last progressFrame
+	if err := json.Unmarshal(client.DeliverArgsForCall(client.DeliverCallCount()-1), &last); err != nil ||
+		last.Stage != agentdomain.TransferFailed || !strings.Contains(last.Message, "identifies as") {
+		t.Fatalf("last frame = %+v, want the identity failure", last)
+	}
+	if target.DeleteCallCount() != 1 {
+		t.Fatalf("the target's runtime was deleted %d times, want once", target.DeleteCallCount())
+	}
+	if lease, found, _ := store.GetLease(t.Context(), "conv-1"); found && lease.Environment == "k8s-dev" {
+		t.Fatalf("the failed target still holds the lease: %+v", lease)
 	}
 }
 
