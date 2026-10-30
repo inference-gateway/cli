@@ -8,8 +8,6 @@ import (
 
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
-	tea "charm.land/bubbletea/v2"
-
 	config "github.com/inference-gateway/cli/config"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
@@ -101,7 +99,7 @@ func TestSubagentListTagsEveryJobKind(t *testing.T) {
 		subagentJob("reviewer", scheddomain.JobRunning, now.Add(-5*time.Second), nil),
 		external,
 	}})
-	list.Update(tea.WindowSizeMsg{Width: 120, Height: 10})
+	list.SetWidth(120)
 	rows := list.snapshotRows()
 
 	want := []subagentRow{
@@ -308,9 +306,7 @@ func TestSubagentListStretchesWithinWidth(t *testing.T) {
 	}
 
 	list := newList(listOpts{jobs: jobs, linger: 5, indicator: true})
-	if _, cmd := list.Update(tea.WindowSizeMsg{Width: 40, Height: 10}); cmd != nil {
-		t.Error("expected no command from a plain resize")
-	}
+	list.SetWidth(40)
 	wantWidth := 40 - versionRightInset
 	for i, line := range strings.Split(plain(list.Render()), "\n") {
 		if visibleWidth(line) != wantWidth {
@@ -335,9 +331,7 @@ func TestSubagentListRowsAlignInColumns(t *testing.T) {
 	}
 
 	list := newList(listOpts{jobs: jobs, linger: 5, indicator: true})
-	if _, cmd := list.Update(tea.WindowSizeMsg{Width: 40, Height: 10}); cmd != nil {
-		t.Error("expected no command from a plain resize")
-	}
+	list.SetWidth(40)
 
 	lines := strings.Split(plain(list.Render()), "\n")
 	if len(lines) != len(jobs) {
@@ -379,7 +373,7 @@ func TestSubagentListFitsLabelColumnToWidestName(t *testing.T) {
 		linger:    5,
 		indicator: true,
 	})
-	list.Update(tea.WindowSizeMsg{Width: 40, Height: 10})
+	list.SetWidth(40)
 	got = plain(list.Render())
 	if strings.Contains(got, long) {
 		t.Errorf("expected the label to stay within the block width, got %q", got)
@@ -415,7 +409,7 @@ func TestSubagentListShowsRunStatsUnderRows(t *testing.T) {
 	silent := subagentJob("pane", scheddomain.JobRunning, now.Add(-time.Second), nil)
 
 	list := newList(listOpts{jobs: []scheddomain.TrackedJob{silent, running, finished}, linger: 5, indicator: true})
-	list.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	list.SetWidth(80)
 	lines := strings.Split(plain(list.Render()), "\n")
 	if len(lines) != 5 {
 		t.Fatalf("expected three rows and two stats lines, got %q", lines)

@@ -9,8 +9,6 @@ import (
 
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
-	tea "charm.land/bubbletea/v2"
-
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -175,9 +173,7 @@ func TestSubagentRowsRenderBelowTheStatusBar(t *testing.T) {
 		linger:    5,
 		indicator: true,
 	})
-	if _, cmd := list.Update(tea.WindowSizeMsg{Width: width, Height: 24}); cmd != nil {
-		t.Fatal("expected no command from a plain resize")
-	}
+	list.SetWidth(width)
 
 	rows := renderer.assembleComponents(
 		ChatInterfaceData{Width: width, Height: 24},
@@ -229,7 +225,7 @@ func TestLayoutFillsTheTerminalHeight(t *testing.T) {
 				var list *SubagentList
 				if withList {
 					list = newList(listOpts{jobs: jobs, linger: 5, indicator: true})
-					list.Update(tea.WindowSizeMsg{Width: width, Height: height})
+					list.SetWidth(width)
 				}
 
 				renderer.Layout(data, conversation, input, nil, statusBar, status, nil, helpBar, nil, nil, nil, nil, nil, nil, list)

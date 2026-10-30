@@ -1883,8 +1883,8 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView tui.V
 		}
 	}
 
-	if _, cmd := app.subagentList.Update(msg); cmd != nil {
-		*cmds = append(*cmds, cmd)
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		app.subagentList.SetWidth(size.Width)
 	}
 }
 
