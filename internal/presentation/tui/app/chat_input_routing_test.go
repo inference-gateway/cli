@@ -163,9 +163,6 @@ func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
 	})
 	app.conversationSelector = model.(*components.ConversationSelector)
 
-	// The delete runs on a returned Cmd, so pump each key's commands like
-	// the Bubble Tea runtime would - otherwise the confirm dialog latches
-	// open and swallows the Escape that asserts the status clear below.
 	for _, key := range []tea.KeyPressMsg{
 		printableKey("d"),
 		printableKey("y"),
