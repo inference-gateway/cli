@@ -3,6 +3,7 @@ package plugins
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,11 +59,11 @@ content, so the install summary asks for confirmation (skip with --yes).`,
 	pluginsUpdateCmd := &cobra.Command{Use: "update [<name>]", Short: "Re-fetch one or all plugins from their install source", Args: cobra.MaximumNArgs(1), RunE: c.updatePlugins}
 	pluginsEnableCmd := &cobra.Command{
 		Use: "enable <name>", Short: "Enable an installed plugin", Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error { return c.setPluginEnabled(args[0], true) },
+		RunE: func(cmd *cobra.Command, args []string) error { return c.setPluginEnabled(cmd, args[0], true) },
 	}
 	pluginsDisableCmd := &cobra.Command{
 		Use: "disable <name>", Short: "Disable an installed plugin (skills unloaded, instructions removed)", Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error { return c.setPluginEnabled(args[0], false) },
+		RunE: func(cmd *cobra.Command, args []string) error { return c.setPluginEnabled(cmd, args[0], false) },
 	}
 	pluginsEnableHooksCmd := &cobra.Command{
 		Use:   "enable-hooks <name>",
@@ -72,11 +73,11 @@ default and must be explicitly enabled per plugin. The master hooks.enabled
 switch (or INFER_HOOKS_ENABLED) still applies on top: plugin hooks only run
 when both the master switch and the per-plugin flag are true.`,
 		Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error { return c.setPluginHooksEnabled(args[0], true) },
+		RunE: func(cmd *cobra.Command, args []string) error { return c.setPluginHooksEnabled(cmd, args[0], true) },
 	}
 	pluginsDisableHooksCmd := &cobra.Command{
 		Use: "disable-hooks <name>", Short: "Disable command hooks for a plugin", Args: cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error { return c.setPluginHooksEnabled(args[0], false) },
+		RunE: func(cmd *cobra.Command, args []string) error { return c.setPluginHooksEnabled(cmd, args[0], false) },
 	}
 
 	pluginsCmd.AddCommand(pluginsInstallCmd, pluginsListCmd, pluginsRemoveCmd, pluginsUpdateCmd, pluginsEnableCmd, pluginsDisableCmd, pluginsEnableHooksCmd, pluginsDisableHooksCmd)
@@ -158,7 +159,7 @@ func (c *command) installPlugin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("plugin %q is already installed (use --overwrite to replace)", res.Name)
 	}
 
-	c.printInstallSummary(res, src)
+	c.printInstallSummary(cmd.OutOrStdout(), res, src)
 	if err := confirmInstall(yes); err != nil {
 		return err
 	}
@@ -178,49 +179,49 @@ func (c *command) installPlugin(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("plugin files installed to %s but registering failed: %w (re-run with --overwrite to retry)", finalDir, err)
 	}
 
-	fmt.Printf("%s Installed plugin %s to %s\n", c.renderer.StatusIcon(true), res.Name, finalDir)
-	c.printPostInstallNotes()
+	fmt.Fprintf(cmd.OutOrStdout(), "%s Installed plugin %s to %s\n", c.renderer.StatusIcon(true), res.Name, finalDir)
+	c.printPostInstallNotes(cmd.OutOrStdout())
 	return nil
 }
 
 // printInstallSummary tells the user what the plugin will activate before they confirm.
-func (c *command) printInstallSummary(res *plugins.InstallResult, src plugins.Source) {
-	fmt.Println(c.renderer.Title(fmt.Sprintf("Plugin: %s", res.Name)))
+func (c *command) printInstallSummary(w io.Writer, res *plugins.InstallResult, src plugins.Source) {
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Plugin: %s", res.Name)))
 	if res.Version != "" {
-		fmt.Println(c.renderer.Field("Version", res.Version))
+		fmt.Fprintln(w, c.renderer.Field("Version", res.Version))
 	}
 	if res.Description != "" {
-		fmt.Println(c.renderer.Field("Description", res.Description))
+		fmt.Fprintln(w, c.renderer.Field("Description", res.Description))
 	}
-	fmt.Println(c.renderer.Field("Source", src.Raw))
+	fmt.Fprintln(w, c.renderer.Field("Source", src.Raw))
 
 	if len(res.Skills) > 0 {
 		names := make([]string, 0, len(res.Skills))
 		for _, sk := range res.Skills {
 			names = append(names, sk.Name)
 		}
-		fmt.Println(c.renderer.Field(fmt.Sprintf("Skills (%d)", len(res.Skills)), strings.Join(names, ", ")))
+		fmt.Fprintln(w, c.renderer.Field(fmt.Sprintf("Skills (%d)", len(res.Skills)), strings.Join(names, ", ")))
 	}
 	for _, skErr := range res.SkillErrors {
-		fmt.Println(c.renderer.Hint(fmt.Sprintf("skipped invalid skill %s: %s", skErr.Path, skErr.Reason)))
+		fmt.Fprintln(w, c.renderer.Hint(fmt.Sprintf("skipped invalid skill %s: %s", skErr.Path, skErr.Reason)))
 	}
 	if res.HasInstructions {
-		fmt.Println(c.renderer.Field("Instructions", fmt.Sprintf("AGENTS.md (%d chars) - injected into EVERY system prompt while enabled", res.InstructionsLen)))
+		fmt.Fprintln(w, c.renderer.Field("Instructions", fmt.Sprintf("AGENTS.md (%d chars) - injected into EVERY system prompt while enabled", res.InstructionsLen)))
 	}
 	if res.HasHooks {
 		parts := make([]string, 0, len(res.Hooks))
 		for _, h := range res.Hooks {
 			parts = append(parts, fmt.Sprintf("%s (%s)", h.Name, h.Hook))
 		}
-		fmt.Println(c.renderer.Field(fmt.Sprintf("Hooks (%d)", len(res.Hooks)), strings.Join(parts, ", ")))
-		fmt.Println(c.renderer.Hint("hooks are disabled by default - use `infer plugins enable-hooks <name>` to opt in"))
+		fmt.Fprintln(w, c.renderer.Field(fmt.Sprintf("Hooks (%d)", len(res.Hooks)), strings.Join(parts, ", ")))
+		fmt.Fprintln(w, c.renderer.Hint("hooks are disabled by default - use `infer plugins enable-hooks <name>` to opt in"))
 	}
 	if len(res.Unsupported) > 0 {
 		parts := make([]string, 0, len(res.Unsupported))
 		for label, n := range res.Unsupported {
 			parts = append(parts, fmt.Sprintf("%s/ (%d files)", label, n))
 		}
-		fmt.Println(c.renderer.Hint(fmt.Sprintf("detected but ignored: %s - infer does not execute plugin code", strings.Join(parts, ", "))))
+		fmt.Fprintln(w, c.renderer.Hint(fmt.Sprintf("detected but ignored: %s - infer does not execute plugin code", strings.Join(parts, ", "))))
 	}
 }
 
@@ -240,16 +241,17 @@ func confirmInstall(yes bool) error {
 	return nil
 }
 
-func (c *command) printPostInstallNotes() {
+// printPostInstallNotes warns when the fresh install will not activate yet.
+func (c *command) printPostInstallNotes(w io.Writer) {
 	cfg := c.state.Config()
 	if cfg == nil {
 		return
 	}
 	if !cfg.Plugins.Enabled {
-		fmt.Println(c.renderer.Hint("note: plugins are globally disabled (plugins.enabled: false / INFER_PLUGINS_ENABLED=false)"))
+		fmt.Fprintln(w, c.renderer.Hint("note: plugins are globally disabled (plugins.enabled: false / INFER_PLUGINS_ENABLED=false)"))
 	}
 	if !cfg.Agent.Skills.Enabled {
-		fmt.Println(c.renderer.Hint("note: agent.skills.enabled is false - plugin skills will not load (instructions still inject)"))
+		fmt.Fprintln(w, c.renderer.Hint("note: agent.skills.enabled is false - plugin skills will not load (instructions still inject)"))
 	}
 }
 
@@ -328,7 +330,7 @@ func (c *command) listPlugins(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (c *command) removePlugin(_ *cobra.Command, args []string) error {
+func (c *command) removePlugin(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	registry, err := loadPluginsRegistry()
 	if err != nil {
@@ -346,11 +348,11 @@ func (c *command) removePlugin(_ *cobra.Command, args []string) error {
 	if err := registry.DeleteEntry(name); err != nil {
 		return err
 	}
-	fmt.Printf("%s Removed plugin %s (%s)\n", c.renderer.StatusIcon(true), name, dir)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s Removed plugin %s (%s)\n", c.renderer.StatusIcon(true), name, dir)
 	return nil
 }
 
-func (c *command) updatePlugins(_ *cobra.Command, args []string) error {
+func (c *command) updatePlugins(cmd *cobra.Command, args []string) error {
 	registry, err := loadPluginsRegistry()
 	if err != nil {
 		return err
@@ -369,20 +371,20 @@ func (c *command) updatePlugins(_ *cobra.Command, args []string) error {
 		targets = []config.PluginEntry{*entry}
 	}
 	if len(targets) == 0 {
-		fmt.Println("No plugins installed.")
+		fmt.Fprintln(cmd.OutOrStdout(), "No plugins installed.")
 		return nil
 	}
 
 	installer := plugins.NewInstaller()
 	for _, entry := range targets {
-		if err := c.updateOnePlugin(installer, registry, root, entry); err != nil {
+		if err := c.updateOnePlugin(installer, registry, root, entry, cmd.OutOrStdout()); err != nil {
 			return fmt.Errorf("updating %s: %w", entry.Name, err)
 		}
 	}
 	return nil
 }
 
-func (c *command) updateOnePlugin(installer *plugins.Installer, registry *config.PluginsConfig, root string, entry config.PluginEntry) error {
+func (c *command) updateOnePlugin(installer *plugins.Installer, registry *config.PluginsConfig, root string, entry config.PluginEntry, w io.Writer) error {
 	src, err := plugins.ParseSource(entry.Source)
 	if err != nil {
 		return err
@@ -414,14 +416,14 @@ func (c *command) updateOnePlugin(installer *plugins.Installer, registry *config
 		return err
 	}
 	if oldVersion != res.Version && res.Version != "" {
-		fmt.Printf("%s Updated %s %s → %s\n", c.renderer.StatusIcon(true), entry.Name, oldVersion, res.Version)
+		fmt.Fprintf(w, "%s Updated %s %s → %s\n", c.renderer.StatusIcon(true), entry.Name, oldVersion, res.Version)
 	} else {
-		fmt.Printf("%s Updated %s\n", c.renderer.StatusIcon(true), entry.Name)
+		fmt.Fprintf(w, "%s Updated %s\n", c.renderer.StatusIcon(true), entry.Name)
 	}
 	return nil
 }
 
-func (c *command) setPluginField(name string, enabled bool, fieldFn func(*config.PluginEntry, bool), label string) error {
+func (c *command) setPluginField(w io.Writer, name string, enabled bool, fieldFn func(*config.PluginEntry, bool), label string) error {
 	registry, err := loadPluginsRegistry()
 	if err != nil {
 		return err
@@ -438,14 +440,14 @@ func (c *command) setPluginField(name string, enabled bool, fieldFn func(*config
 	if !enabled {
 		state = "disabled"
 	}
-	fmt.Printf("%s %s %s\n", c.renderer.StatusIcon(true), label, state)
+	fmt.Fprintf(w, "%s %s %s\n", c.renderer.StatusIcon(true), label, state)
 	return nil
 }
 
-func (c *command) setPluginEnabled(name string, enabled bool) error {
-	return c.setPluginField(name, enabled, func(e *config.PluginEntry, v bool) { e.Enabled = v }, "Plugin "+name)
+func (c *command) setPluginEnabled(cmd *cobra.Command, name string, enabled bool) error {
+	return c.setPluginField(cmd.OutOrStdout(), name, enabled, func(e *config.PluginEntry, v bool) { e.Enabled = v }, "Plugin "+name)
 }
 
-func (c *command) setPluginHooksEnabled(name string, enabled bool) error {
-	return c.setPluginField(name, enabled, func(e *config.PluginEntry, v bool) { e.HooksEnabled = v }, "Plugin hooks for "+name)
+func (c *command) setPluginHooksEnabled(cmd *cobra.Command, name string, enabled bool) error {
+	return c.setPluginField(cmd.OutOrStdout(), name, enabled, func(e *config.PluginEntry, v bool) { e.HooksEnabled = v }, "Plugin hooks for "+name)
 }
