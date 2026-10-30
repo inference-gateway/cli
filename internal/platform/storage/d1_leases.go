@@ -21,14 +21,14 @@ func (s *D1Storage) GetLease(ctx context.Context, conversationID string) (agentd
 		ConversationID: conversationID,
 		Environment:    asString(row["environment"]),
 		Workspace:      asString(row["workspace"]),
-		TransferID:     asString(row["transfer_id"]),
+		TeleportID:     asString(row["teleport_id"]),
 		Until:          time.Unix(int64(asInt(row["until_unix"])), 0).UTC(),
 	}, true, nil
 }
 
 func (s *D1Storage) ClaimLease(ctx context.Context, lease agentdomain.Lease) (agentdomain.Lease, bool, error) {
 	changes, err := s.exec(ctx, claimLeaseSQL,
-		lease.ConversationID, lease.Environment, lease.Workspace, lease.TransferID, lease.Until.Unix(), time.Now().Unix())
+		lease.ConversationID, lease.Environment, lease.Workspace, lease.TeleportID, lease.Until.Unix(), time.Now().Unix())
 	if err != nil {
 		return agentdomain.Lease{}, false, fmt.Errorf("claiming the session lease: %w", err)
 	}

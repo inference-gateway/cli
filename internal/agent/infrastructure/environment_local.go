@@ -25,7 +25,7 @@ func (e *LocalEnvironment) Kind() agentdomain.EnvironmentKind {
 }
 
 func (e *LocalEnvironment) Ensure(context.Context, agentdomain.Session) (agentdomain.Endpoint, error) {
-	return agentdomain.Endpoint{}, errors.New("a session cannot be transferred to the daemon it already runs on")
+	return agentdomain.Endpoint{}, errors.New("a session cannot be teleported to the daemon it already runs on")
 }
 
 func (e *LocalEnvironment) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {

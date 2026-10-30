@@ -29,7 +29,7 @@ type ThreadOptions struct {
 	Environment string `json:"environment,omitempty"`
 	Workspace   string `json:"workspace,omitempty"`
 	// Env is extra environment the worker starts with, such as credentials a
-	// transfer handed over. It never travels on the wire.
+	// teleport handed over. It never travels on the wire.
 	Env []string `json:"-"`
 }
 

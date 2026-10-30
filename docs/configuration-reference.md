@@ -807,7 +807,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
       recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
       how long a finished row lingers before it drops off
     - **environment**: Where a daemon chat's session runs (default: `true`): `⌂ laptop` on this machine's
-      daemon, `⇄ k8s-dev` on another environment, `⇢ k8s-dev` while it moves and `· offline` while the
+      daemon, `⇄ k8s-dev` on another environment, `⇢ k8s-dev` while it teleports and `· offline` while the
       daemon is unreachable. Selecting it opens `/environments`. An in-process chat shows none
 
 - **chat.daemon**: Run the chat TUI as a client of the local infer daemon, the way `infer chat --daemon` does
@@ -1092,7 +1092,7 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   `client_auth`) and `environments`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
   `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
   and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
-  `forward_env` for a Kubernetes environment. See [infer daemon](daemon.md#environments-and-transfers).
+  `forward_env` for a Kubernetes environment. See [infer daemon](daemon.md#environments-and-teleports).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).
 

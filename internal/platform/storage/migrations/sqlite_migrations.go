@@ -190,5 +190,15 @@ func GetSQLiteMigrations() []Migration {
 				ALTER TABLE session_leases RENAME COLUMN environment TO executor;
 			`,
 		},
+		{
+			Version:     "012",
+			Description: "Session leases name the teleport that wrote them",
+			UpSQL: `
+				ALTER TABLE session_leases RENAME COLUMN transfer_id TO teleport_id;
+			`,
+			DownSQL: `
+				ALTER TABLE session_leases RENAME COLUMN teleport_id TO transfer_id;
+			`,
+		},
 	}
 }

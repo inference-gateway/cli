@@ -116,69 +116,69 @@ func TestThreadLeavesNoMarkersForTheNextTurnAfterAnIdleReconnect(t *testing.T) {
 	}
 }
 
-func TestThreadTransfersAndFollowsTheMovedSession(t *testing.T) {
+func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, notifier := connected(t, d)
 
-	if err := thread.Transfer("k8s-dev", []string{"build/out.bin"}); err != nil {
-		t.Fatalf("Transfer: %v", err)
+	if err := thread.Teleport("k8s-dev", []string{"build/out.bin"}); err != nil {
+		t.Fatalf("Teleport: %v", err)
 	}
-	eventually(t, "the transfer request", func() bool { return len(d.frames("transfer_session")) == 1 })
-	request := d.frames("transfer_session")[0]
+	eventually(t, "the teleport request", func() bool { return len(d.frames("teleport_session")) == 1 })
+	request := d.frames("teleport_session")[0]
 	if request["target"] != "k8s-dev" || request["id"] != "conv-1" || request["project_dir"] != "/proj" {
-		t.Fatalf("transfer request = %v", request)
+		t.Fatalf("teleport request = %v", request)
 	}
-	if err := thread.Transfer("k8s-dev", nil); err == nil {
-		t.Fatal("a second transfer started while one runs")
+	if err := thread.Teleport("k8s-dev", nil); err == nil {
+		t.Fatal("a second teleport started while one runs")
 	}
-	id := request["transfer_id"].(string)
-	send(d.conn(), `{"type":"transfer_progress","transfer_id":"`+id+`","stage":"checkpointing"}`)
-	send(d.conn(), `{"type":"transfer_progress","transfer_id":"other","stage":"failed"}`)
-	moved := `{"type":"session_moved","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/workspace/proj","cancelled_interrupts":[{"id":"tc1"}]}`
-	send(d.conn(), moved)
-	send(d.conn(), moved)
+	id := request["teleport_id"].(string)
+	send(d.conn(), `{"type":"teleport_progress","teleport_id":"`+id+`","stage":"checkpointing"}`)
+	send(d.conn(), `{"type":"teleport_progress","teleport_id":"other","stage":"failed"}`)
+	teleported := `{"type":"session_teleported","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/workspace/proj","cancelled_interrupts":[{"id":"tc1"}]}`
+	send(d.conn(), teleported)
+	send(d.conn(), teleported)
 
-	eventually(t, "the move", func() bool {
+	eventually(t, "the teleport", func() bool {
 		changes := notified[tui.SessionPlacementChangedEvent](notifier)
-		return len(changes) > 0 && changes[len(changes)-1].Moved
+		return len(changes) > 0 && changes[len(changes)-1].Teleported
 	})
 	changes := notified[tui.SessionPlacementChangedEvent](notifier)
 	last := changes[len(changes)-1]
 	if last.Placement.Environment != "k8s-dev" || last.Placement.Workspace != "/workspace/proj" || !last.Placement.Remote() || last.CancelledInterrupts != 1 {
-		t.Fatalf("moved placement = %+v", last)
+		t.Fatalf("teleported placement = %+v", last)
 	}
-	progress := notified[tui.TransferProgressEvent](notifier)
-	if len(progress) != 1 || progress[0].Progress.Stage != agentdomain.TransferCheckpointing {
-		t.Fatalf("progress = %+v, want this transfer's one stage", progress)
+	progress := notified[tui.TeleportProgressEvent](notifier)
+	if len(progress) != 1 || progress[0].Progress.Stage != agentdomain.TeleportCheckpointing {
+		t.Fatalf("progress = %+v, want this teleport's one stage", progress)
 	}
-	eventually(t, "the follow after the move", func() bool { return len(d.frames("resume_conversation")) == 2 })
+	eventually(t, "the follow after the teleport", func() bool { return len(d.frames("resume_conversation")) == 2 })
 	refollow := d.frames("resume_conversation")[1]
 	if refollow["environment"] != "k8s-dev" || refollow["workspace"] != "/workspace/proj" {
-		t.Errorf("refollow = %v, want it placed on the environment it moved to", refollow)
+		t.Errorf("refollow = %v, want it placed on the environment it teleported to", refollow)
 	}
-	if moves := len(d.frames("resume_conversation")); moves != 2 {
-		t.Errorf("follows = %d, the duplicate session_moved followed again", moves)
+	if teleports := len(d.frames("resume_conversation")); teleports != 2 {
+		t.Errorf("follows = %d, the duplicate session_teleported followed again", teleports)
 	}
 }
 
-func TestThreadMovesARemoteSessionOnlyBackHome(t *testing.T) {
+func TestThreadTeleportsARemoteSessionOnlyBackHome(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, _ := connected(t, d)
-	send(d.conn(), `{"type":"session_moved","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/w"}`)
-	eventually(t, "the move", func() bool { return thread.Placement().Remote() })
+	send(d.conn(), `{"type":"session_teleported","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/w"}`)
+	eventually(t, "the teleport", func() bool { return thread.Placement().Remote() })
 
-	err := thread.Transfer("workstation", nil)
+	err := thread.Teleport("workstation", nil)
 	if err == nil || !strings.Contains(err.Error(), "only back to laptop") {
 		t.Fatalf("err = %v, want the refusal naming the way back", err)
 	}
-	if len(d.frames("transfer_session")) != 0 {
-		t.Fatal("the refused transfer reached the daemon")
+	if len(d.frames("teleport_session")) != 0 {
+		t.Fatal("the refused teleport reached the daemon")
 	}
-	if err := thread.Transfer("laptop", nil); err != nil {
-		t.Fatalf("moving back home: %v", err)
+	if err := thread.Teleport("laptop", nil); err != nil {
+		t.Fatalf("teleporting back home: %v", err)
 	}
-	eventually(t, "the move back to reach the daemon", func() bool { return len(d.frames("transfer_session")) == 1 })
-	if target := d.frames("transfer_session")[0]["target"]; target != "laptop" {
+	eventually(t, "the teleport back to reach the daemon", func() bool { return len(d.frames("teleport_session")) == 1 })
+	if target := d.frames("teleport_session")[0]["target"]; target != "laptop" {
 		t.Errorf("target = %v, want laptop", target)
 	}
 }

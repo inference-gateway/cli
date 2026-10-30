@@ -10,12 +10,12 @@ import (
 // environment of the daemon the TUI talks to and Environment the one the
 // session lives on. The zero value is an in-process chat.
 type SessionPlacement struct {
-	Daemon       bool
-	Local        string
-	Environment  string
-	Workspace    string
-	Transferring string
-	Offline      bool
+	Daemon      bool
+	Local       string
+	Environment string
+	Workspace   string
+	Teleporting string
+	Offline     bool
 }
 
 // Remote reports whether the session runs on an environment other than the
@@ -73,20 +73,20 @@ func (p SessionPlacement) Unavailable(feature Feature) string {
 	return ""
 }
 
-// SessionMover lists the environments a daemon chat's session can move to and
-// moves it there, for /environments and /transfer.
-type SessionMover interface {
+// SessionTeleporter lists the environments a daemon chat's session can teleport to and
+// teleports it there, for /environments and /teleport.
+type SessionTeleporter interface {
 	Placement() SessionPlacement
 	ListEnvironments(ctx context.Context) ([]agentdomain.EnvironmentStatus, error)
-	Transfer(target string, files []string) error
-	CancelTransfer() error
+	Teleport(target string, files []string) error
+	CancelTeleport() error
 }
 
-// SessionPlacementChangedEvent reports where the session runs now. Moved is
-// set once a transfer landed, with the interrupts the move cancelled.
+// SessionPlacementChangedEvent reports where the session runs now. Teleported is
+// set once a teleport landed, with the interrupts the teleport cancelled.
 type SessionPlacementChangedEvent struct {
 	Placement           SessionPlacement
-	Moved               bool
+	Teleported          bool
 	CancelledInterrupts int
 }
 
@@ -97,21 +97,21 @@ type FollowRunEvent struct{}
 // ShowEnvironmentsEvent opens the environments picker.
 type ShowEnvironmentsEvent struct{}
 
-// EnvironmentsLoadedEvent carries the environments the session can move to,
+// EnvironmentsLoadedEvent carries the environments the session can teleport to,
 // or why they could not be listed.
 type EnvironmentsLoadedEvent struct {
 	Environments []agentdomain.EnvironmentStatus
 	Err          error
 }
 
-// TransferRequestedEvent asks to move the session to Target, with Files
+// TeleportRequestedEvent asks to teleport the session to Target, with Files
 // git does not track carried along.
-type TransferRequestedEvent struct {
+type TeleportRequestedEvent struct {
 	Target string
 	Files  []string
 }
 
-// TransferProgressEvent reports one stage of the session's running transfer.
-type TransferProgressEvent struct {
-	Progress agentdomain.TransferProgress
+// TeleportProgressEvent reports one stage of the session's running teleport.
+type TeleportProgressEvent struct {
+	Progress agentdomain.TeleportProgress
 }

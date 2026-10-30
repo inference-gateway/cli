@@ -27,7 +27,7 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
 | AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peer daemons and `/artifacts/` |
-| Environments | `daemon.environments` | Where sessions can be transferred to, see [Environments and transfers](#environments-and-transfers) |
+| Environments | `daemon.environments` | Where sessions can be teleported to, see [Environments and teleports](#environments-and-teleports) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
 Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then
@@ -73,7 +73,7 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
 
 With `ca` the token may be empty, since every connection carries a verified certificate.
-The `infer daemon environments`, `transfer`, `run` and `stop` commands dial the local binding over whichever
+The `infer daemon environments`, `teleport`, `run` and `stop` commands dial the local binding over whichever
 mode it serves, with the token or, when it requires them, a client certificate.
 
 An enabled binding with neither a token nor a client-certificate mode uses this machine's local token: the
@@ -81,7 +81,7 @@ daemon and its local clients share one generated into `~/.infer/daemon/binding.t
 owner, on first use. `infer chat --daemon` turns the binding on whatever `daemon.yaml` says, and a daemon a
 client starts on demand serves it too, so daemon mode needs no `daemon.yaml` at all.
 
-## Environments and transfers
+## Environments and teleports
 
 An environment is where a session's agent runs. This daemon is one, named by `environment` (default the
 hostname), and `daemon.yaml` registers the others:
@@ -121,7 +121,7 @@ environments:
   `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
   volume of `storage` each, so a session survives its pod. This daemon's CA issues the pod's server
   certificate and a client certificate into a Secret, and the pod daemon's binding requires them. The pod
-  daemon idles out after `idle_ttl`, suspends its own Sandbox first, and the next transfer resumes it. `env`
+  daemon idles out after `idle_ttl`, suspends its own Sandbox first, and the next teleport resumes it. `env`
   is the pod daemon's non-secret environment, such as the gateway URL. `address` replaces the
   port-forward when an Ingress or Gateway exposes the pods.
 - `retention` deletes a suspended Sandbox, its volumes and its Secret once it sat suspended that long,
@@ -132,13 +132,13 @@ environments:
   `inference-gateway.com/agents-done` annotation, so a later pod that ran nothing keeps it. Without a
   `retention` a suspended Sandbox stays until the session is stopped. A relay never recreates a Sandbox
   its retention deleted: the session falls back to this machine's copy once its lease lapsed.
-- `forward_env` names variables of this daemon's environment that a transfer seals to the target's
+- `forward_env` names variables of this daemon's environment that a teleport seals to the target's
   certificate for its workers. They never land in a Kubernetes object.
-- `workspace_root` is where a daemon restores transferred projects: `<root>/<project slug>/<conversation id>`.
+- `workspace_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
 
-A transfer moves a session between turns: the source daemon interrupts an open run, stops the worker so
+A teleport sends a session to another environment between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
 project's `HEAD` with a patch of the uncommitted and untracked changes (minus what `sandbox.yaml`
 denies) and the files the request lists, and streams that checkpoint to the target. The target restores
@@ -152,44 +152,44 @@ The restored clone keeps the source's `origin`, minus any credentials an http(s)
 on the target can push to the same remote. Credentials never travel in that URL, so forward a token
 through `forward_env` instead.
 
-Ownership is a lease stored next to the conversations: `environment`, `workspace`, `transfer_id` and when
+Ownership is a lease stored next to the conversations: `environment`, `workspace`, `teleport_id` and when
 it lapses. A worker starts only on a session this daemon owns or nobody does, relays to the owner
 otherwise, and reclaims a lapsed lease whose owner cannot be reached. The owner renews its lease every
 30 seconds while a worker runs, a relaying daemon refreshes its own row for the owner for the
-environment's `lease_ttl`, and a transfer is a compare-and-swap keyed by `transfer_id`, so a retry is a
+environment's `lease_ttl`, and a teleport is a compare-and-swap keyed by `teleport_id`, so a retry is a
 no-op once it succeeded. With `storage.type` jsonl the leases are machine-local
 (`~/.infer/leases.json`), with a shared Postgres or Redis every daemon sees them. The wire frames are in
 the [Daemon Binding Protocol](browser-extension-protocol.md#environments).
 
-Two daemons that transfer sessions between them should point `storage.type` at a backend they share -
+Two daemons that teleport sessions between them should point `storage.type` at a backend they share -
 Postgres, Redis or D1. On jsonl or memory each machine keeps its own lease rows, so the one-owner
-guarantee holds only through the source daemon's final claim and a crash mid-transfer can leave both
-daemons believing they own the session. A transfer on a per-machine backend still runs, with a warning
+guarantee holds only through the source daemon's final claim and a crash mid-teleport can leave both
+daemons believing they own the session. A teleport on a per-machine backend still runs, with a warning
 in the daemon's log.
 
 The daemon's subcommands drive this from a shell:
 
 ```bash
 infer daemon environments                                 # who is reachable
-infer daemon transfer <conversation-id> --to k8s-dev      # move a session, follow the stages
+infer daemon teleport <conversation-id> --to k8s-dev      # teleport a session, follow the stages
 infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
 infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
 ```
 
-A transfer starts on the daemon that owns the session. A daemon that only relays a session refuses to
-move it with `session <id> is owned by environment <name>`, with one exception: it brings back a session
-that left it. `infer daemon transfer <conversation-id> --to <this daemon>` asks the owner to quiesce the
+A teleport starts on the daemon that owns the session. A daemon that only relays a session refuses to
+teleport it with `session <id> is owned by environment <name>`, with one exception: it brings back a session
+that left it. `infer daemon teleport <conversation-id> --to <this daemon>` asks the owner to quiesce the
 worker and pack the conversation and the workspace, and streams that checkpoint back over the connection
 the daemon opened. The workspace lands on the checkout the session left: the pod's commits fast-forward its
 branch, then the pod's uncommitted patch and untracked files apply.
 
-A move back lands only while the checkout is clean or unchanged since the session left, which the daemon
-fingerprints into `~/.infer/daemon/origins/` when a session moves away. A changed checkout is refused with
-`changed since the session left it`, so stash those changes (`git stash -u`), move back, then
+A teleport back lands only while the checkout is clean or unchanged since the session left, which the daemon
+fingerprints into `~/.infer/daemon/origins/` when a session teleports away. A changed checkout is refused with
+`changed since the session left it`, so stash those changes (`git stash -u`), teleport back, then
 `git stash pop`. The checkout's own changes wait in a stash until the landing, the lease and the
 conversation import all succeed, and any failure undoes all three, so the session stays with its owner.
 Untracked files the sandbox policy denies are never touched. The remote runtime stays behind and suspends
-after its `idle_ttl`. A pod that runs an infer too old to send sessions back fails the move within 15
+after its `idle_ttl`. A pod that runs an infer too old to send sessions back fails the teleport within 15
 seconds.
 
 ### Daemons on other machines
@@ -213,7 +213,7 @@ Register it with that name and no `tls`:
 ```
 
 A grant in the tailnet policy decides which machines reach it. `forward_env` needs the remote daemon to
-serve TLS itself (`files` or `ca`): a transfer seals the variables to the certificate the peer presents,
+serve TLS itself (`files` or `ca`): a teleport seals the variables to the certificate the peer presents,
 and behind Serve the key of that certificate belongs to Tailscale, not to the daemon.
 
 ## Session workers
@@ -237,7 +237,7 @@ a worker of its own and the desktop can follow it live. Without a configured bin
 spawns the subagent itself instead.
 
 A thread whose session another environment owns gets no local worker: the daemon relays its frames to the
-owning environment's daemon instead, see [Environments and transfers](#environments-and-transfers).
+owning environment's daemon instead, see [Environments and teleports](#environments-and-teleports).
 
 Scheduled jobs and heartbeat wake-ups do not use workers. Each runs as a one-shot `infer headless`
 inside the daemon, one process per run, and no client follows it.
@@ -253,11 +253,11 @@ approval or a question left open is asked again on reattach. The in-process chat
 
 A fresh session opens the model picker unless `agent.model` is set, and a reattached one keeps its model.
 The status bar shows where the session runs: `⌂ laptop` on this machine's daemon, `⇄ k8s-dev` on another
-environment, `⇢ k8s-dev` while it moves and `· offline` while the daemon is unreachable, which the TUI
-reconnects to with backoff. Selecting that indicator, `/environments`, or `/transfer` without a target opens
-a picker of every environment with its reachability and details, and `enter` moves the session there.
-`/transfer <environment> [file...]` moves it directly, carrying the files git does not track. A move is
-refused while a turn runs, `esc` cancels a running one, and from a remote environment the session moves
+environment, `⇢ k8s-dev` while it teleports and `· offline` while the daemon is unreachable, which the TUI
+reconnects to with backoff. Selecting that indicator, `/environments`, or `/teleport` without a target opens
+a picker of every environment with its reachability and details, and `enter` teleports the session there.
+`/teleport <environment> [file...]` teleports it directly, carrying the files git does not track. A teleport is
+refused while a turn runs, `esc` cancels a running one, and from a remote environment the session teleports
 only back to this machine.
 
 | Feature | In a daemon chat |

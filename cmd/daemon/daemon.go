@@ -25,7 +25,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	k8senvironment "github.com/inference-gateway/cli/internal/agent/infrastructure/kubernetes"
-	agenttransfer "github.com/inference-gateway/cli/internal/agent/transfer"
+	agentteleport "github.com/inference-gateway/cli/internal/agent/teleport"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
@@ -98,7 +98,7 @@ Examples:
 		},
 	}
 	command.Flags().Duration("idle-exit", 0, "Stop after this long with no threads and no clients, unless daemon.yaml sets idle_exit (a daemon a client starts on demand passes 30m)")
-	command.AddCommand(newEnvironmentsCommand(state), newTransferCommand(state), newRunCommand(state), newStopCommand(state))
+	command.AddCommand(newEnvironmentsCommand(state), newTeleportCommand(state), newRunCommand(state), newStopCommand(state))
 	return command
 }
 
@@ -278,11 +278,11 @@ func threadsEnabled(cfg *config.Config) bool {
 }
 
 // bindingHandler puts the binding's consumers behind its one handler. The
-// extension relay claims the browser frames, the transfer service the
-// environments and transfer frames, and the thread registry gets the rest.
+// extension relay claims the browser frames, the teleport service the
+// environments and teleport frames, and the thread registry gets the rest.
 type bindingHandler struct {
 	relay     *browserinfra.ExtensionRelay
-	transfers *agenttransfer.Service
+	teleports *agentteleport.Service
 	registry  *sessions.Registry
 }
 
@@ -297,7 +297,7 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 	if h.relay != nil && h.relay.Handle(conn, frame) {
 		return
 	}
-	if h.transfers.Handle(conn, frame) {
+	if h.teleports.Handle(conn, frame) {
 		return
 	}
 	if key, ok := stoppedThread(frame); ok {
@@ -312,7 +312,7 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 func (h bindingHandler) stopSession(conn *agui.Conn, key sessionsdomain.ThreadKey) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	h.transfers.StopSession(ctx, conn, key)
+	h.teleports.StopSession(ctx, conn, key)
 }
 
 // stoppedThread reads the thread a stop_thread frame names.
@@ -346,7 +346,7 @@ type threadHost struct {
 // it hosts, and serves the AG-UI WebSocket binding on its own switch, host,
 // port, token and TLS. The browser extension relay attaches only with the
 // extension backend, the channels drive their chats as clients of the
-// registry, and the transfer service decides where each thread runs. stop,
+// registry, and the teleport service decides where each thread runs. stop,
 // called after ctx ends, closes the binding and waits for every session
 // worker to exit. The daemon is the only infer process that binds the binding
 // port, so a port that is already held fails the boot.
@@ -360,12 +360,12 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		relay = browserinfra.NewExtensionRelay(cfg.BrowserUse.Extension, nil)
 	}
 
-	transfers, tlsProvider, err := buildTransfers(cfg)
+	teleports, tlsProvider, err := buildTeleports(cfg)
 	if err != nil {
 		return threadHost{}, err
 	}
-	registry := sessions.NewRegistry(transfers.LaunchWorker, workerIdleTimeout)
-	transfers.AttachRegistry(registry)
+	registry := sessions.NewRegistry(teleports.LaunchWorker, workerIdleTimeout)
+	teleports.AttachRegistry(registry)
 	if relay != nil {
 		registry.RouteBrowser(relay.Relay)
 	}
@@ -393,11 +393,11 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 			Port:        b.Port,
 			Token:       b.Token,
 			TLS:         serverTLS,
-			AckAttrs:    transfers.AckAttrs(),
+			AckAttrs:    teleports.AckAttrs(),
 			Handshake:   browserinfra.BindingHandshake,
 			AllowOrigin: browserinfra.AllowExtensionOrigin,
 			Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
-		}, bindingHandler{relay: relay, transfers: transfers, registry: registry})
+		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
 		if err := binding.Start(); err != nil {
 			return threadHost{}, fmt.Errorf("failed to start the AG-UI binding: %w", err)
 		}
@@ -408,7 +408,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		defer close(stopped)
 		registry.Run(ctx)
 	}()
-	idle := watchIdle(ctx, cfg.Daemon.IdleExit, registry, transfers)
+	idle := watchIdle(ctx, cfg.Daemon.IdleExit, registry, teleports)
 	return threadHost{
 		stop: func() {
 			if binding != nil {
@@ -426,7 +426,7 @@ const idleCheck = 30 * time.Second
 // watchIdle closes the returned channel once the registry has had no thread
 // and no client for idleExit, after parking this daemon's own runtime. A zero
 // idleExit never closes it.
-func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.Registry, transfers *agenttransfer.Service) <-chan struct{} {
+func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.Registry, teleports *agentteleport.Service) <-chan struct{} {
 	idle := make(chan struct{})
 	if idleExit <= 0 {
 		return idle
@@ -441,7 +441,7 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 			case <-ticker.C:
 			}
 			if since, isIdle := registry.Idle(); isIdle && time.Since(since) >= idleExit {
-				transfers.Suspend(ctx)
+				teleports.Suspend(ctx)
 				close(idle)
 				return
 			}
@@ -480,10 +480,10 @@ func watchExecutable(ctx context.Context, exe string) <-chan struct{} {
 	return gone
 }
 
-// buildTransfers wires the transfer service: the lease store on the
+// buildTeleports wires the teleport service: the lease store on the
 // configured storage, the daemon CA when a mode needs it, the TLS provider,
 // and one environment per daemon.yaml entry plus this daemon itself.
-func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLSProvider, error) {
+func buildTeleports(cfg *config.Config) (*agentteleport.Service, *agentinfra.TLSProvider, error) {
 	identity := cfg.Daemon.Identity()
 	storageConfig := storage.NewStorageFromConfig(cfg)
 	stores, err := storage.NewStorage(storageConfig)
@@ -510,7 +510,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 			environments = append(environments, environment)
 		}
 	}
-	service := agenttransfer.New(agenttransfer.Config{
+	service := agentteleport.New(agentteleport.Config{
 		Identity:      identity,
 		WorkspaceRoot: cfg.Daemon.WorkspaceDir(),
 		IdleExit:      cfg.Daemon.IdleExit,
@@ -521,7 +521,7 @@ func buildTransfers(cfg *config.Config) (*agenttransfer.Service, *agentinfra.TLS
 		Entries:       cfg.Daemon.Environments,
 		StateDir:      filepath.Join(config.UserSpaceConfigDir(), "daemon"),
 		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
-	}, agenttransfer.Deps{
+	}, agentteleport.Deps{
 		Leases:       stores.Leases,
 		Environments: environments,
 		Keyring:      tlsProvider.Keyring(),

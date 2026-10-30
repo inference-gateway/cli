@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"context"
@@ -42,7 +42,7 @@ type Config struct {
 	LeaseBackend config.StorageType
 	Handshake    agui.Handshake
 	Entries      []config.EnvironmentEntry
-	// StateDir keeps what the daemon remembers about the sessions it moved
+	// StateDir keeps what the daemon remembers about the sessions it teleported
 	// away, such as the checkout each one left. Empty remembers nothing.
 	StateDir string
 	// Denies reports whether the sandbox policy keeps a project file out of a
@@ -62,8 +62,8 @@ type Deps struct {
 }
 
 // Service runs agents on environments: it decides where a thread's worker runs
-// (the launch seam the registry calls), moves sessions between environments, and
-// receives the sessions other daemons move here.
+// (the launch seam the registry calls), teleports sessions between environments, and
+// receives the sessions other daemons teleport here.
 type Service struct {
 	cfg          Config
 	me           string
@@ -77,7 +77,7 @@ type Service struct {
 	selfSuspend  func(ctx context.Context, done, known bool) error
 
 	mu            sync.Mutex
-	transfers     map[string]context.CancelFunc
+	teleports     map[string]context.CancelFunc
 	conversations map[string]string
 	imports       map[string]*pendingImport
 	installed     map[string]agentdomain.Lease
@@ -98,7 +98,7 @@ func New(cfg Config, deps Deps) *Service {
 		launch:        deps.Launch,
 		selfSuspend:   deps.SelfSuspend,
 		dial:          agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
-		transfers:     make(map[string]context.CancelFunc),
+		teleports:     make(map[string]context.CancelFunc),
 		conversations: make(map[string]string),
 		imports:       make(map[string]*pendingImport),
 		installed:     make(map[string]agentdomain.Lease),
@@ -114,7 +114,7 @@ func New(cfg Config, deps Deps) *Service {
 	return s
 }
 
-// AttachRegistry hands the service the thread registry its transfers quiesce,
+// AttachRegistry hands the service the thread registry its teleports quiesce,
 // ask and notify.
 func (s *Service) AttachRegistry(registry *sessions.Registry) {
 	s.registry = registry
@@ -129,7 +129,7 @@ func (s *Service) AckAttrs() map[string]any {
 	}
 }
 
-// Handle claims the environments and transfers frames: the client requests, and
+// Handle claims the environments and teleports frames: the client requests, and
 // the peer frames when the connection is another daemon's.
 func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 	var f clientFrame
@@ -139,13 +139,13 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 	switch f.Type {
 	case frameListEnvironments:
 		go s.listEnvironments(conn)
-	case frameTransferSession:
-		go s.startTransfer(conn, f)
-	case frameTransferCancel:
-		s.cancelTransfer(f.TransferID)
-	case frameTransferChunk, frameTransferImport, frameTransferAbort, frameTransferReturn, frameTransferReturned:
+	case frameTeleportSession:
+		go s.startTeleport(conn, f)
+	case frameTeleportCancel:
+		s.cancelTeleport(f.TeleportID)
+	case frameTeleportChunk, frameTeleportImport, frameTeleportAbort, frameTeleportReturn, frameTeleportReturned:
 		if conn.Kind() != agentinfra.PeerClientKind {
-			logger.Warn("transfer refused a peer frame from a client that is not a daemon", "client", conn.Kind(), "frame", f.Type)
+			logger.Warn("teleport refused a peer frame from a client that is not a daemon", "client", conn.Kind(), "frame", f.Type)
 			return true
 		}
 		s.receive(conn, f.Type, frame)
@@ -189,7 +189,7 @@ func (s *Service) StopSession(ctx context.Context, to requester, key sessionsdom
 	environment, err := s.deleteRemote(ctx, key)
 	stopped.Environment = environment
 	if err != nil {
-		logger.Warn("transfer could not delete the session's runtime on its environment", "conversation_id", key.ConversationID, "error", err)
+		logger.Warn("teleport could not delete the session's runtime on its environment", "conversation_id", key.ConversationID, "error", err)
 		stopped.Error = err.Error()
 	}
 	to.Deliver(encode(stopped))
@@ -228,7 +228,7 @@ func (s *Service) Suspend(ctx context.Context) {
 	}
 	done, known := s.registry.AgentsDone()
 	if err := s.selfSuspend(ctx, done, known); err != nil {
-		logger.Warn("transfer could not suspend this daemon's runtime", "error", err)
+		logger.Warn("teleport could not suspend this daemon's runtime", "error", err)
 	}
 }
 

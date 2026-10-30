@@ -18,7 +18,7 @@ import (
 )
 
 // MaxWorkspaceBytes caps one checkpoint's workspace payload. A workspace
-// beyond it fails the transfer with a clear message instead of a stalled
+// beyond it fails the teleport with a clear message instead of a stalled
 // upload.
 // ponytail: one size cap, resumable uploads when a workspace outgrows it.
 const MaxWorkspaceBytes = 256 << 20

@@ -23,7 +23,7 @@ var (
 	_ agentdomain.AgentService    = (*Agent)(nil)
 	_ convdomain.ModelService     = (*Models)(nil)
 	_ storage.ConversationStorage = (*Storage)(nil)
-	_ tui.SessionMover            = (*Thread)(nil)
+	_ tui.SessionTeleporter       = (*Thread)(nil)
 	_ agui.Handler                = (*Thread)(nil)
 )
 

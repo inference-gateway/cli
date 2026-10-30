@@ -558,7 +558,7 @@ CLI → client, exactly one result per request id:
 
 An environment is where a session's agent runs: this daemon, a standalone daemon reachable over TLS, or a
 Kubernetes `Sandbox` per session. `~/.infer/daemon.yaml` registers them by name, see
-[infer daemon](daemon.md#environments-and-transfers).
+[infer daemon](daemon.md#environments-and-teleports).
 
 Client → CLI:
 
@@ -581,23 +581,23 @@ CLI → client, only the requesting client receives it:
 - The local environment comes first. An unreachable environment is reported with its `error`, never hidden.
 - `capabilities` is what the environment declared about itself: version, storage id, sandbox count, image, auth.
 
-## Transfers
+## Teleports
 
-A transfer moves a session to another environment. The source daemon quiesces the thread's worker, packs a
+A teleport sends a session to another environment. The source daemon quiesces the thread's worker, packs a
 checkpoint and streams it to the target's daemon, the target restores it and claims the session's lease,
 and the source tells the thread's clients where the session lives now. The checkpoint carries the
 conversation unless both daemons share one storage backend, the interrupts the last run was suspended
 on, a git bundle of `HEAD` with the credential-free `origin` URL and a patch of the uncommitted and
 untracked changes (minus what `sandbox.yaml` denies), the listed extra files, and the environment's
-`forward_env` values sealed to the target's certificate. A transfer happens between turns: an open run
+`forward_env` values sealed to the target's certificate. A teleport happens between turns: an open run
 is interrupted first.
 
 Client → CLI:
 
 ```json
 {
-  "type": "transfer_session",
-  "transfer_id": "<uuid>",
+  "type": "teleport_session",
+  "teleport_id": "<uuid>",
   "project_dir": "/abs/path/to/project",
   "id": "<conversation id>",
   "target": "k8s-dev",
@@ -608,30 +608,30 @@ Client → CLI:
 CLI → client, only the requesting client receives it, once per stage:
 
 ```json
-{"type": "transfer_progress", "transfer_id": "<uuid>", "stage": "provisioning"}
+{"type": "teleport_progress", "teleport_id": "<uuid>", "stage": "provisioning"}
 ```
 
 - `stage` is one of `provisioning`, `checkpointing`, `restoring`, `ready` and `failed`. A `failed` stage
   carries `message` and leaves the session on the source with its lease intact.
-- `transfer_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
-  at once and moves nothing twice.
+- `teleport_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
+  at once and teleports nothing twice.
 - A session another live environment owns is refused with `failed`, unless `target` names the daemon it
   left, which brings it back (see [Daemon to daemon](#daemon-to-daemon)).
 - `files` are extra files relative to the project that travel although git does not track them. A file
-  outside the project, or one `sandbox.yaml` denies, fails the transfer.
+  outside the project, or one `sandbox.yaml` denies, fails the teleport.
 
 ```json
-{"type": "transfer_cancel", "transfer_id": "<uuid>"}
+{"type": "teleport_cancel", "teleport_id": "<uuid>"}
 ```
 
-Cancels a transfer before `ready`. The session stays on the source, which relaunches its worker on the
+Cancels a teleport before `ready`. The session stays on the source, which relaunches its worker on the
 next frame.
 
 CLI → the requesting client and every client of the thread, after `ready`:
 
 ```json
 {
-  "type": "session_moved",
+  "type": "session_teleported",
   "session": {"project_dir": "/abs/path/to/project", "conversation_id": "<conversation id>", "slug": "project"},
   "environment": "k8s-dev",
   "addr": "",
@@ -654,37 +654,37 @@ CLI → the requesting client and every client of the thread, after `ready`:
 A daemon dials another daemon's binding with `client: "daemon"` and an `environment` hello field naming
 itself. The ack carries `environment`, `version` and `storage_id`, so the dialer checks it reached the
 environment it meant and whether the two share a storage backend. The checkpoint streams as
-`transfer_chunk` frames of at most 4 MiB and is closed by `transfer_import`:
+`teleport_chunk` frames of at most 4 MiB and is closed by `teleport_import`:
 
 ```json
-{"type": "transfer_chunk", "transfer_id": "<uuid>", "seq": 0, "data": "<base64>"}
-{"type": "transfer_import", "transfer_id": "<uuid>", "environment": "k8s-dev", "chunks": 3, "sha256": "<hex>"}
-{"type": "transfer_imported", "transfer_id": "<uuid>", "ok": true, "workspace": "/workspace/project/<conversation id>"}
+{"type": "teleport_chunk", "teleport_id": "<uuid>", "seq": 0, "data": "<base64>"}
+{"type": "teleport_import", "teleport_id": "<uuid>", "environment": "k8s-dev", "chunks": 3, "sha256": "<hex>"}
+{"type": "teleport_imported", "teleport_id": "<uuid>", "ok": true, "workspace": "/workspace/project/<conversation id>"}
 ```
 
 The target validates the checkpoint (schema version, digest, the patch applies cleanly) before it
 restores the workspace, imports the conversation through a worker there and claims the lease. The source
 then sends `resume_conversation` on the same connection and reports `ready` only when the
-`MESSAGES_SNAPSHOT` renders to the checkpoint's digest. `transfer_abort` with the `transfer_id` undoes an
+`MESSAGES_SNAPSHOT` renders to the checkpoint's digest. `teleport_abort` with the `teleport_id` undoes an
 import whose verification failed. A daemon accepts these frames only from connections of kind `daemon`
 and only when `environment` names itself.
 
 A session comes back the other way over a connection the daemon it left opens to its owner. That daemon
-sends `transfer_return` with the workspace its lease names, the owner answers `transfer_returning` at once,
-quiesces the worker, then streams the checkpoint back as `transfer_chunk` frames closed by `transfer_import`
+sends `teleport_return` with the workspace its lease names, the owner answers `teleport_returning` at once,
+quiesces the worker, then streams the checkpoint back as `teleport_chunk` frames closed by `teleport_import`
 naming the requester. The checkpoint always carries the conversation. Once the workspace landed, the lease
-moved and the conversation imported, the requester sends `transfer_returned` and the owner releases its row.
+teleported and the conversation imported, the requester sends `teleport_returned` and the owner releases its row.
 An owner packs only a workspace under its own workspace root and refuses a session another environment owns.
 
 ```json
-{"type": "transfer_return", "transfer_id": "<uuid>", "id": "<conversation id>", "workspace": "/workspace/project/<conversation id>", "environment": "laptop"}
-{"type": "transfer_returning", "transfer_id": "<uuid>", "id": "<conversation id>"}
-{"type": "transfer_returned", "transfer_id": "<uuid>"}
+{"type": "teleport_return", "teleport_id": "<uuid>", "id": "<conversation id>", "workspace": "/workspace/project/<conversation id>", "environment": "laptop"}
+{"type": "teleport_returning", "teleport_id": "<uuid>", "id": "<conversation id>"}
+{"type": "teleport_returned", "teleport_id": "<uuid>"}
 ```
 
 ### Conversation export and import
 
-Workers answer two panel frames the daemon uses to move a conversation between storage backends, since the
+Workers answer two panel frames the daemon uses to teleport a conversation between storage backends, since the
 worker runs in the project dir whose storage layout the conversation lives in:
 
 ```json

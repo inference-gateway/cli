@@ -1353,7 +1353,7 @@ func TestInputStatusBar_BuildEnvironmentIndicator(t *testing.T) {
 		{name: "in process", placement: tui.SessionPlacement{}},
 		{name: "on the local daemon", placement: tui.SessionPlacement{Daemon: true, Local: "laptop"}, text: icons.LocalSession + " laptop", color: "dim"},
 		{name: "on another environment", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}, text: icons.RemoteSession + " k8s-dev", color: "accent"},
-		{name: "moving", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Transferring: "k8s-dev"}, text: icons.MovingSession + " k8s-dev", color: "warning"},
+		{name: "teleporting", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev"}, text: icons.TeleportingSession + " k8s-dev", color: "warning"},
 		{name: "offline", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Offline: true}, text: icons.LocalSession + " laptop · offline", color: "error"},
 	}
 	for _, tt := range tests {

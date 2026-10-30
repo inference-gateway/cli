@@ -317,7 +317,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ChatCompletionRunner
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui DirectExecutionService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui ToolExecutionCoordinator
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui SessionMover
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/tui internal/presentation/tui SessionTeleporter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain SystemReminderProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain HookCommandProvider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain Environment

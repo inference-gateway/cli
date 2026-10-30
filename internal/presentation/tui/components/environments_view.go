@@ -24,9 +24,9 @@ var environmentReloadKey = key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "
 
 // environmentItem is one environment the session can run on.
 type environmentItem struct {
-	status  agentdomain.EnvironmentStatus
-	current bool
-	moving  bool
+	status      agentdomain.EnvironmentStatus
+	current     bool
+	teleporting bool
 }
 
 // FilterValue lets the user filter by name or kind (/).
@@ -59,8 +59,8 @@ func (d environmentDelegate) Render(w io.Writer, m list.Model, index int, item l
 	}
 	row := name + " " + kind + " " + reach
 	switch {
-	case it.moving:
-		row += " " + d.styleProvider.RenderWithColor(icons.MovingSession+" moving", color("warning"))
+	case it.teleporting:
+		row += " " + d.styleProvider.RenderWithColor(icons.TeleportingSession+" teleporting", color("warning"))
 	case it.current:
 		row += " " + d.styleProvider.RenderWithColor("● here", color("success"))
 	}
@@ -87,7 +87,7 @@ func environmentDetail(status agentdomain.EnvironmentStatus) string {
 
 // EnvironmentsView picks the environment a daemon chat's session runs on:
 // every environment the daemon knows with whether it is reachable and where
-// the session is. Enter on another reachable one moves the session there.
+// the session is. Enter on another reachable one teleports the session there.
 type EnvironmentsView struct {
 	list          list.Model
 	width         int
@@ -170,7 +170,7 @@ func (m *EnvironmentsView) loaded(event tui.EnvironmentsLoadedEvent) tea.Cmd {
 	return tea.Batch(cmd, refresh)
 }
 
-// refreshItems marks where the session runs and where it moves to.
+// refreshItems marks where the session runs and where it teleports to.
 func (m *EnvironmentsView) refreshItems() tea.Cmd {
 	items := m.list.Items()
 	for i, item := range items {
@@ -179,7 +179,7 @@ func (m *EnvironmentsView) refreshItems() tea.Cmd {
 			continue
 		}
 		it.current = it.status.Name == m.placement.Where()
-		it.moving = it.status.Name == m.placement.Transferring
+		it.teleporting = it.status.Name == m.placement.Teleporting
 		items[i] = it
 	}
 	m.list.Title = m.title()
@@ -198,7 +198,7 @@ func (m *EnvironmentsView) title() string {
 	return fmt.Sprintf("Environments (%d) · session on %s", len(m.list.Items()), m.placement.Where())
 }
 
-// handleKey owns the picker's keys unless the list is filtering: enter moves
+// handleKey owns the picker's keys unless the list is filtering: enter teleports
 // the session, r reprobes, esc and ctrl+c close. A refusal shows in the title
 // until the next key.
 func (m *EnvironmentsView) handleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
@@ -227,7 +227,7 @@ func (m *EnvironmentsView) handleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	return false, nil
 }
 
-// choose moves the session to the selected environment, or says why it
+// choose teleports the session to the selected environment, or says why it
 // cannot go there.
 func (m *EnvironmentsView) choose() tea.Cmd {
 	it, ok := m.list.SelectedItem().(environmentItem)
@@ -241,18 +241,18 @@ func (m *EnvironmentsView) choose() tea.Cmd {
 	}
 	m.cancelled = true
 	target := it.status.Name
-	return func() tea.Msg { return tui.TransferRequestedEvent{Target: target} }
+	return func() tea.Msg { return tui.TeleportRequestedEvent{Target: target} }
 }
 
-// refusal is why the session cannot move to it, or "".
+// refusal is why the session cannot teleport to it, or "".
 func (m *EnvironmentsView) refusal(it environmentItem) string {
 	switch {
-	case m.placement.Transferring != "":
-		return "A transfer to " + m.placement.Transferring + " is already running · esc in the chat cancels it"
+	case m.placement.Teleporting != "":
+		return "A teleport to " + m.placement.Teleporting + " is already running · esc in the chat cancels it"
 	case it.current:
 		return "The session already runs on " + it.status.Name
 	case m.placement.Remote() && it.status.Name != m.placement.Local:
-		return "From " + m.placement.Environment + " the session moves only back to " + m.placement.Local
+		return "From " + m.placement.Environment + " the session teleports only back to " + m.placement.Local
 	case !it.status.Reachable:
 		return it.status.Name + " is unreachable · r reprobes"
 	}

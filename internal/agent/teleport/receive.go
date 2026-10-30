@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"context"
@@ -79,35 +79,35 @@ func decodeCheckpoint(payload []byte) (agentdomain.Checkpoint, error) {
 	return checkpoint, nil
 }
 
-// receive handles the peer frames of an incoming transfer.
+// receive handles the peer frames of an incoming teleport.
 func (s *Service) receive(conn *agui.Conn, typ string, frame []byte) {
 	switch typ {
-	case frameTransferChunk:
+	case frameTeleportChunk:
 		s.receiveChunk(conn, frame)
-	case frameTransferImport:
+	case frameTeleportImport:
 		var f importFrame
 		if json.Unmarshal(frame, &f) != nil {
 			return
 		}
 		go s.receiveImport(conn, f)
-	case frameTransferAbort:
+	case frameTeleportAbort:
 		var f abortFrame
 		if json.Unmarshal(frame, &f) != nil {
 			return
 		}
-		go s.abort(f.TransferID)
-	case frameTransferReturn:
+		go s.abort(f.TeleportID)
+	case frameTeleportReturn:
 		var f returnFrame
 		if json.Unmarshal(frame, &f) != nil {
 			return
 		}
 		go s.packForReturn(conn, f)
-	case frameTransferReturned:
+	case frameTeleportReturned:
 		var f returnFrame
 		if json.Unmarshal(frame, &f) != nil {
 			return
 		}
-		go s.returned(f.TransferID)
+		go s.returned(f.TeleportID)
 	}
 }
 
@@ -118,14 +118,14 @@ func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	pending := s.imports[chunk.TransferID]
+	pending := s.imports[chunk.TeleportID]
 	if pending == nil {
 		pending = newPendingImport()
-		s.imports[chunk.TransferID] = pending
+		s.imports[chunk.TeleportID] = pending
 	}
 	if err := pending.add(chunk); err != nil {
-		delete(s.imports, chunk.TransferID)
-		conn.Deliver(encode(importedFrame{Type: frameTransferImported, TransferID: chunk.TransferID, Error: err.Error()}))
+		delete(s.imports, chunk.TeleportID)
+		conn.Deliver(encode(importedFrame{Type: frameTeleportImported, TeleportID: chunk.TeleportID, Error: err.Error()}))
 	}
 }
 
@@ -133,16 +133,16 @@ func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
 // workspace and the conversation, claims the lease and answers.
 func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 	reply := func(workspace string, err error) {
-		frame := importedFrame{Type: frameTransferImported, TransferID: f.TransferID, OK: err == nil, Workspace: workspace}
+		frame := importedFrame{Type: frameTeleportImported, TeleportID: f.TeleportID, OK: err == nil, Workspace: workspace}
 		if err != nil {
-			logger.Warn("transfer refused an incoming session", "transfer_id", f.TransferID, "error", err)
+			logger.Warn("teleport refused an incoming session", "teleport_id", f.TeleportID, "error", err)
 			frame.Error = err.Error()
 		}
 		conn.Deliver(encode(frame))
 	}
 	s.mu.Lock()
-	pending := s.imports[f.TransferID]
-	delete(s.imports, f.TransferID)
+	pending := s.imports[f.TeleportID]
+	delete(s.imports, f.TeleportID)
 	s.mu.Unlock()
 	payload, err := pending.payload(f)
 	if err != nil {
@@ -160,14 +160,14 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
-	workspace, err := s.install(ctx, f.TransferID, checkpoint)
+	workspace, err := s.install(ctx, f.TeleportID, checkpoint)
 	reply(workspace, err)
 }
 
 // install restores the checkpoint into a fresh workspace, imports its
 // conversation through a worker there, opens its credentials and claims the
 // lease. A failure undoes what it did.
-func (s *Service) install(ctx context.Context, transferID string, checkpoint agentdomain.Checkpoint) (string, error) {
+func (s *Service) install(ctx context.Context, teleportID string, checkpoint agentdomain.Checkpoint) (string, error) {
 	session := checkpoint.Session
 	workspace := s.workspaceFor(session)
 	if err := os.RemoveAll(workspace); err != nil {
@@ -187,14 +187,14 @@ func (s *Service) install(ctx context.Context, transferID string, checkpoint age
 		}
 	}
 	if len(checkpoint.SealedEnv) > 0 {
-		env, err := s.keyring.Open(checkpoint.SealedEnv, transferID)
+		env, err := s.keyring.Open(checkpoint.SealedEnv, teleportID)
 		if err != nil {
 			_ = os.RemoveAll(workspace)
 			return "", describe(err, "opening the credentials")
 		}
 		s.remember(session.ConversationID, env)
 	}
-	lease := agentdomain.Lease{ConversationID: session.ConversationID, Environment: s.me, Workspace: workspace, TransferID: transferID, Until: time.Now().Add(s.ownedTTL())}
+	lease := agentdomain.Lease{ConversationID: session.ConversationID, Environment: s.me, Workspace: workspace, TeleportID: teleportID, Until: time.Now().Add(s.ownedTTL())}
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err != nil {
 		_ = os.RemoveAll(workspace)
@@ -205,7 +205,7 @@ func (s *Service) install(ctx context.Context, transferID string, checkpoint age
 		return "", fmt.Errorf("the session is owned by environment %s", holder.Environment)
 	}
 	s.mu.Lock()
-	s.installed[transferID] = lease
+	s.installed[teleportID] = lease
 	s.mu.Unlock()
 	return workspace, nil
 }
@@ -235,14 +235,14 @@ func (s *Service) importConversation(ctx context.Context, workspace, conversatio
 	return nil
 }
 
-// abort undoes an import whose transfer failed afterwards.
-func (s *Service) abort(transferID string) {
+// abort undoes an import whose teleport failed afterwards.
+func (s *Service) abort(teleportID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	s.mu.Lock()
-	delete(s.imports, transferID)
-	lease, installed := s.installed[transferID]
-	delete(s.installed, transferID)
+	delete(s.imports, teleportID)
+	lease, installed := s.installed[teleportID]
+	delete(s.installed, teleportID)
 	s.mu.Unlock()
 	if !installed {
 		return

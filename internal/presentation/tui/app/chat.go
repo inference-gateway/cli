@@ -103,7 +103,7 @@ type ChatApplication struct {
 	toolsView            *components.ToolsView
 	agentsView           *components.AgentsView
 	environmentsView     *components.EnvironmentsView
-	sessionMover         tui.SessionMover
+	sessionTeleporter    tui.SessionTeleporter
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -719,7 +719,7 @@ func (app *ChatApplication) isInputBlocked(currentView tui.ViewState) bool {
 		app.stateManager.GetPlanApprovalUIState() != nil ||
 		app.stateManager.GetUserQuestionUIState() != nil ||
 		app.stateManager.GetRetryStatus() != nil ||
-		app.transferring() ||
+		app.teleporting() ||
 		inHistoryMode ||
 		currentView == tui.ViewStateDiffViewer ||
 		currentView == tui.ViewStateExplorer ||
@@ -823,8 +823,8 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if app.transferring() && key.Matches(keyMsg, guardKeys.cancel) {
-		return app.cancelTransfer()
+	if app.teleporting() && key.Matches(keyMsg, guardKeys.cancel) {
+		return app.cancelTeleport()
 	}
 
 	if app.stateManager.GetUserQuestionUIState() != nil && !key.Matches(keyMsg, guardKeys.interrupt) {

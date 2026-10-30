@@ -21,23 +21,23 @@ func TestEnvironmentsShortcutOpensThePicker(t *testing.T) {
 	}
 }
 
-func TestTransferShortcutMovesTheSessionOrOpensThePicker(t *testing.T) {
-	shortcut := NewTransferShortcut(nil)
+func TestTeleportShortcutTeleportsTheSessionOrOpensThePicker(t *testing.T) {
+	shortcut := NewTeleportShortcut(nil)
 
 	open, _ := shortcut.Execute(t.Context(), nil)
 	if open.SideEffect != SideEffectShowEnvironments {
-		t.Errorf("/transfer without a target = %+v, want the picker", open)
+		t.Errorf("/teleport without a target = %+v, want the picker", open)
 	}
 
-	move, _ := shortcut.Execute(t.Context(), []string{"k8s-dev", "notes.txt", ".env.example"})
-	request, ok := move.Data.(tui.TransferRequestedEvent)
-	if move.SideEffect != SideEffectTransferSession || !ok || request.Target != "k8s-dev" || !slices.Equal(request.Files, []string{"notes.txt", ".env.example"}) {
-		t.Errorf("/transfer k8s-dev notes.txt .env.example = %+v, want a move carrying both files", move)
+	teleport, _ := shortcut.Execute(t.Context(), []string{"k8s-dev", "notes.txt", ".env.example"})
+	request, ok := teleport.Data.(tui.TeleportRequestedEvent)
+	if teleport.SideEffect != SideEffectTeleportSession || !ok || request.Target != "k8s-dev" || !slices.Equal(request.Files, []string{"notes.txt", ".env.example"}) {
+		t.Errorf("/teleport k8s-dev notes.txt .env.example = %+v, want a teleport carrying both files", teleport)
 	}
 }
 
-func TestTransferShortcutCompletesTheConfiguredEnvironments(t *testing.T) {
-	shortcut := NewTransferShortcut([]config.EnvironmentEntry{
+func TestTeleportShortcutCompletesTheConfiguredEnvironments(t *testing.T) {
+	shortcut := NewTeleportShortcut([]config.EnvironmentEntry{
 		{Name: "k8s-dev", Kind: config.EnvironmentKindKubernetes},
 		{Name: "workstation", Kind: config.EnvironmentKindDaemon},
 	})

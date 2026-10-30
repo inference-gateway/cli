@@ -56,10 +56,10 @@ These shortcuts are available out of the box:
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown. In a daemon chat it lists the sessions where the current one runs,
   with an Environment column naming where each session runs now
-- `/environments` - Show where a daemon chat's session runs and every environment it can move to, with their reachability and details.
-  `enter` moves the session to the selected one. Selecting the status bar's environment indicator opens the same picker
-- `/transfer [environment] [file...]` - Move a daemon chat's session to an environment, carrying the listed files git does not track.
-  Without an environment it opens the `/environments` picker. A remote session moves only back to this machine
+- `/environments` - Show where a daemon chat's session runs and every environment it can teleport to, with their reachability and details.
+  `enter` teleports the session to the selected one. Selecting the status bar's environment indicator opens the same picker
+- `/teleport [environment] [file...]` - Teleport a daemon chat's session to an environment, carrying the listed files git does not track.
+  Without an environment it opens the `/environments` picker. A remote session teleports only back to this machine
 - `/context` - Show context-window usage
 - `/cost` - Show session cost breakdown with per-model details
 - `/effort [level]` - Show or set the reasoning effort level applied to Anthropic models

@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 		return
 	}
 	if !found || lease.Environment == s.me {
-		s.launchLocal(ctx, w, key, opts, lease.TransferID)
+		s.launchLocal(ctx, w, key, opts, lease.TeleportID)
 		return
 	}
 	remote, err := s.connectRemote(ctx, key, lease)
@@ -53,7 +53,7 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 			key.ConversationID, lease.Environment, lease.Until.Format(time.RFC3339), err))
 		return
 	}
-	logger.Warn("transfer reclaims a session whose environment is unreachable and whose lease lapsed",
+	logger.Warn("teleport reclaims a session whose environment is unreachable and whose lease lapsed",
 		"conversation_id", key.ConversationID, "environment", lease.Environment, "error", err)
 	s.launchLocal(ctx, w, key, opts, "")
 }
@@ -74,8 +74,8 @@ func (s *Service) relayNamed(ctx context.Context, w *lazyWorker, key sessionsdom
 
 // launchLocal claims the session for this daemon and starts a process worker
 // with a lease heartbeat.
-func (s *Service) launchLocal(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions, transferID string) {
-	lease := agentdomain.Lease{ConversationID: key.ConversationID, Environment: s.me, Workspace: key.ProjectDir, TransferID: transferID, Until: time.Now().Add(s.ownedTTL())}
+func (s *Service) launchLocal(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions, teleportID string) {
+	lease := agentdomain.Lease{ConversationID: key.ConversationID, Environment: s.me, Workspace: key.ProjectDir, TeleportID: teleportID, Until: time.Now().Add(s.ownedTTL())}
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err != nil {
 		w.fail(describe(err, "claiming the session's lease").Error())
@@ -110,12 +110,12 @@ func (s *Service) keepAlive(conversationID string, worker sessionsdomain.Worker)
 			}
 			err := s.leases.RenewLease(ctx, conversationID, s.me, time.Now().Add(s.ownedTTL()))
 			if errors.Is(err, agentdomain.ErrLeaseLost) {
-				logger.Warn("transfer stops a worker whose session another environment took over", "conversation_id", conversationID)
+				logger.Warn("teleport stops a worker whose session another environment took over", "conversation_id", conversationID)
 				worker.Stop()
 				return
 			}
 			if err != nil {
-				logger.Debug("transfer could not renew a session lease", "conversation_id", conversationID, "error", err)
+				logger.Debug("teleport could not renew a session lease", "conversation_id", conversationID, "error", err)
 			}
 		}
 	}()
@@ -202,7 +202,7 @@ func (w *lazyWorker) attach(inner sessionsdomain.Worker) {
 	w.mu.Unlock()
 	for _, frame := range pending {
 		if err := inner.Send(frame); err != nil {
-			logger.Warn("transfer could not replay a frame into the connected worker", "error", err)
+			logger.Warn("teleport could not replay a frame into the connected worker", "error", err)
 		}
 	}
 	go func() {

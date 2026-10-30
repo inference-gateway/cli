@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	onLaptop     = tui.SessionPlacement{Daemon: true, Local: "laptop"}
-	onK8sDev     = tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}
-	movingToDev  = tui.SessionPlacement{Daemon: true, Local: "laptop", Transferring: "k8s-dev"}
-	environments = []agentdomain.EnvironmentStatus{
+	onLaptop         = tui.SessionPlacement{Daemon: true, Local: "laptop"}
+	onK8sDev         = tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}
+	teleportingToDev = tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev"}
+	environments     = []agentdomain.EnvironmentStatus{
 		{Name: "laptop", Kind: agentdomain.EnvironmentKindLocal, Reachable: true},
 		{Name: "k8s-dev", Kind: agentdomain.EnvironmentKindKubernetes, Reachable: true, Capabilities: map[string]string{"namespace": "infer"}},
 		{Name: "k8s-gone", Kind: agentdomain.EnvironmentKindKubernetes, Error: "connection refused"},
@@ -65,13 +65,13 @@ func TestEnvironmentsViewMarksWhereTheSessionRuns(t *testing.T) {
 		t.Errorf("title = %q", title)
 	}
 
-	p.view.Update(tui.SessionPlacementChangedEvent{Placement: movingToDev})
-	if !p.row("k8s-dev").moving {
-		t.Error("the picker does not mark the environment the session moves to")
+	p.view.Update(tui.SessionPlacementChangedEvent{Placement: teleportingToDev})
+	if !p.row("k8s-dev").teleporting {
+		t.Error("the picker does not mark the environment the session teleports to")
 	}
 }
 
-func TestEnvironmentsViewMovesTheSessionOnEnter(t *testing.T) {
+func TestEnvironmentsViewTeleportsTheSessionOnEnter(t *testing.T) {
 	tests := []struct {
 		name      string
 		placement tui.SessionPlacement
@@ -90,17 +90,17 @@ func TestEnvironmentsViewMovesTheSessionOnEnter(t *testing.T) {
 			if cmd == nil {
 				t.Fatalf("enter refused: %s", p.view.list.Title)
 			}
-			if request, ok := cmd().(tui.TransferRequestedEvent); !ok || request.Target != tt.target {
-				t.Fatalf("enter asked for %+v, want a move to %s", cmd(), tt.target)
+			if request, ok := cmd().(tui.TeleportRequestedEvent); !ok || request.Target != tt.target {
+				t.Fatalf("enter asked for %+v, want a teleport to %s", cmd(), tt.target)
 			}
 			if !p.view.IsCancelled() {
-				t.Error("the picker stayed open after the move started")
+				t.Error("the picker stayed open after the teleport started")
 			}
 		})
 	}
 }
 
-func TestEnvironmentsViewSaysWhyItCannotMoveThere(t *testing.T) {
+func TestEnvironmentsViewSaysWhyItCannotTeleportThere(t *testing.T) {
 	tests := []struct {
 		name      string
 		placement tui.SessionPlacement
@@ -109,8 +109,8 @@ func TestEnvironmentsViewSaysWhyItCannotMoveThere(t *testing.T) {
 	}{
 		{name: "where it runs", placement: onLaptop, row: 0, reason: "already runs on laptop"},
 		{name: "an unreachable environment", placement: onLaptop, row: 2, reason: "k8s-gone is unreachable"},
-		{name: "on from a remote environment", placement: onK8sDev, row: 2, reason: "moves only back to laptop"},
-		{name: "during a transfer", placement: movingToDev, row: 1, reason: "already running"},
+		{name: "on from a remote environment", placement: onK8sDev, row: 2, reason: "teleports only back to laptop"},
+		{name: "during a teleport", placement: teleportingToDev, row: 1, reason: "already running"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -152,6 +152,6 @@ func TestEnvironmentsViewClosesOnEsc(t *testing.T) {
 	p := openPicker(onLaptop, 0)
 
 	if cmd := p.press(tea.KeyPressMsg{Code: tea.KeyEscape}); cmd != nil || !p.view.IsCancelled() {
-		t.Error("esc did not close the picker without moving the session")
+		t.Error("esc did not close the picker without teleporting the session")
 	}
 }

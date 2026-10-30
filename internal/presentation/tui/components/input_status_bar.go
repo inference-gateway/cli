@@ -786,7 +786,7 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 }
 
 // buildEnvironmentIndicator names where a daemon chat's session runs: on the
-// daemon the TUI talks to, relayed to another environment, moving to one, or
+// daemon the TUI talks to, relayed to another environment, teleporting to one, or
 // unreachable while the connection is down. An in-process chat shows none.
 func (isb *InputStatusBar) buildEnvironmentIndicator() (string, string) {
 	if isb.stateManager == nil || isb.styleProvider == nil {
@@ -803,8 +803,8 @@ func (isb *InputStatusBar) buildEnvironmentIndicator() (string, string) {
 	switch {
 	case placement.Offline:
 		return glyph + " " + placement.Where() + " · offline", isb.styleProvider.GetThemeColor("error")
-	case placement.Transferring != "":
-		return icons.MovingSession + " " + placement.Transferring, isb.styleProvider.GetThemeColor("warning")
+	case placement.Teleporting != "":
+		return icons.TeleportingSession + " " + placement.Teleporting, isb.styleProvider.GetThemeColor("warning")
 	}
 	return glyph + " " + placement.Where(), color
 }

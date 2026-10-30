@@ -1,4 +1,4 @@
-package transfer
+package teleport
 
 import (
 	"encoding/json"
@@ -6,26 +6,26 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// The frames of the environments and transfers vocabulary. Clients send the
+// The frames of the environments and teleports vocabulary. Clients send the
 // first group to their daemon, peers exchange the second over a daemon
 // connection, and the third goes back to clients.
 const (
 	frameListEnvironments = "list_environments"
-	frameTransferSession  = "transfer_session"
-	frameTransferCancel   = "transfer_cancel"
+	frameTeleportSession  = "teleport_session"
+	frameTeleportCancel   = "teleport_cancel"
 
-	frameTransferChunk     = "transfer_chunk"
-	frameTransferImport    = "transfer_import"
-	frameTransferImported  = "transfer_imported"
-	frameTransferAbort     = "transfer_abort"
-	frameTransferReturn    = "transfer_return"
-	frameTransferReturning = "transfer_returning"
-	frameTransferReturned  = "transfer_returned"
+	frameTeleportChunk     = "teleport_chunk"
+	frameTeleportImport    = "teleport_import"
+	frameTeleportImported  = "teleport_imported"
+	frameTeleportAbort     = "teleport_abort"
+	frameTeleportReturn    = "teleport_return"
+	frameTeleportReturning = "teleport_returning"
+	frameTeleportReturned  = "teleport_returned"
 
-	frameEnvironments     = "environments"
-	frameTransferProgress = "transfer_progress"
-	frameSessionMoved     = "session_moved"
-	frameThreadStopped    = "thread_stopped"
+	frameEnvironments      = "environments"
+	frameTeleportProgress  = "teleport_progress"
+	frameSessionTeleported = "session_teleported"
+	frameThreadStopped     = "thread_stopped"
 
 	frameResumeConversation   = "resume_conversation"
 	frameMessagesSnapshot     = "MESSAGES_SNAPSHOT"
@@ -36,10 +36,10 @@ const (
 	frameConversationImported = "conversation_imported"
 )
 
-// clientFrame is what a client's transfer frame declares.
+// clientFrame is what a client's teleport frame declares.
 type clientFrame struct {
 	Type       string   `json:"type"`
-	TransferID string   `json:"transfer_id"`
+	TeleportID string   `json:"teleport_id"`
 	ProjectDir string   `json:"project_dir"`
 	ID         string   `json:"id"`
 	Target     string   `json:"target"`
@@ -53,12 +53,12 @@ type environmentsFrame struct {
 
 type progressFrame struct {
 	Type string `json:"type"`
-	agentdomain.TransferProgress
+	agentdomain.TeleportProgress
 }
 
-type sessionMovedFrame struct {
+type sessionTeleportedFrame struct {
 	Type string `json:"type"`
-	agentdomain.SessionMoved
+	agentdomain.SessionTeleported
 }
 
 // threadStoppedFrame answers stop_thread: the environment whose runtime of the
@@ -74,7 +74,7 @@ type threadStoppedFrame struct {
 // chunkFrame carries one slice of a checkpoint payload.
 type chunkFrame struct {
 	Type       string `json:"type"`
-	TransferID string `json:"transfer_id"`
+	TeleportID string `json:"teleport_id"`
 	Seq        int    `json:"seq"`
 	Data       []byte `json:"data"`
 }
@@ -83,7 +83,7 @@ type chunkFrame struct {
 // which environment the sender believes it is talking to.
 type importFrame struct {
 	Type        string `json:"type"`
-	TransferID  string `json:"transfer_id"`
+	TeleportID  string `json:"teleport_id"`
 	Environment string `json:"environment"`
 	Chunks      int    `json:"chunks"`
 	SHA256      string `json:"sha256"`
@@ -91,7 +91,7 @@ type importFrame struct {
 
 type importedFrame struct {
 	Type       string `json:"type"`
-	TransferID string `json:"transfer_id"`
+	TeleportID string `json:"teleport_id"`
 	OK         bool   `json:"ok"`
 	Workspace  string `json:"workspace,omitempty"`
 	Error      string `json:"error,omitempty"`
@@ -99,16 +99,16 @@ type importedFrame struct {
 
 type abortFrame struct {
 	Type       string `json:"type"`
-	TransferID string `json:"transfer_id"`
+	TeleportID string `json:"teleport_id"`
 }
 
 // returnFrame asks the daemon that owns a session to pack it and stream it
 // back to Environment, the daemon it came from. The owner answers
-// transfer_returning at once, and transfer_returned, carrying only the
-// transfer id, tells it the session landed.
+// teleport_returning at once, and teleport_returned, carrying only the
+// teleport id, tells it the session landed.
 type returnFrame struct {
 	Type        string `json:"type"`
-	TransferID  string `json:"transfer_id"`
+	TeleportID  string `json:"teleport_id"`
 	ID          string `json:"id"`
 	Workspace   string `json:"workspace,omitempty"`
 	Environment string `json:"environment"`

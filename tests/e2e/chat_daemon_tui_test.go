@@ -80,17 +80,17 @@ func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
 	expectPane(t, "infer-e2e-daemon-reattach", "⌂ a", d)
 }
 
-func TestChatDaemonMovesTheSessionAndBringsItBack(t *testing.T) {
+func TestChatDaemonTeleportsTheSessionAndBringsItBack(t *testing.T) {
 	a, b, _ := peers(t)
 	project := gitProject(t)
-	const session = "infer-e2e-daemon-transfer"
+	const session = "infer-e2e-daemon-teleport"
 
 	startDaemonChat(t, session, a, project)
 	expectPane(t, session, "⌂ a", a)
 	chatSay(t, session, "say hello")
 	expectPane(t, session, "Hello! How can I help?", a)
 
-	chatSay(t, session, "/transfer b")
+	chatSay(t, session, "/teleport b")
 	expectPane(t, session, "Session now runs on b", a, b)
 	expectPane(t, session, "⇄ b", a, b)
 	chatSay(t, session, "say hello again")
@@ -101,9 +101,9 @@ func TestChatDaemonMovesTheSessionAndBringsItBack(t *testing.T) {
 	expectPane(t, session, "/diff is unavailable: the session runs on b", a, b)
 	chatSay(t, session, "say hello @README.md")
 	expectPane(t, session, "You: say hello @README.md", a, b)
-	require.NotContains(t, capturePane(session), "transfer me", "a remote session read this machine's file:\n%s", capturePane(session))
+	require.NotContains(t, capturePane(session), "teleport me", "a remote session read this machine's file:\n%s", capturePane(session))
 
-	chatSay(t, session, "/transfer a")
+	chatSay(t, session, "/teleport a")
 	expectPane(t, session, "Session now runs on a", a, b)
 	expectPane(t, session, "⌂ a", a, b)
 	require.NotContains(t, capturePane(session), "⇄ b", "the indicator still names b:\n%s", capturePane(session))

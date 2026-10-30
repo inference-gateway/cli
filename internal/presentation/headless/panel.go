@@ -152,7 +152,7 @@ type Panel struct {
 	models        *modelPicker
 	modes         *modes
 	tools         *toolRequests
-	transfers     *transfers
+	teleports     *teleports
 }
 
 // NewPanel builds the panel units, one per frame family, each holding only the
@@ -165,7 +165,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
 	p.tools = newToolRequests(p.write, p.out, deps)
-	p.transfers = &transfers{write: p.write, store: deps.Storage}
+	p.teleports = &teleports{write: p.write, store: deps.Storage}
 	return p
 }
 
@@ -205,9 +205,9 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 	case inboundToolRequest:
 		go p.tools.run(msg)
 	case inboundExportConversation:
-		p.transfers.export(msg.ID)
+		p.teleports.export(msg.ID)
 	case inboundImportConversation:
-		p.transfers.importFrom(line)
+		p.teleports.importFrom(line)
 	default:
 		return false
 	}

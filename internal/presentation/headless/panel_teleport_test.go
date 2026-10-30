@@ -80,7 +80,7 @@ func TestPanelImportsAConversationIntoTheProject(t *testing.T) {
 	}
 }
 
-func TestPanelTransferFramesReportMissingStorage(t *testing.T) {
+func TestPanelTeleportFramesReportMissingStorage(t *testing.T) {
 	p, sink := startPanel(panelDeps())
 	handle(t, p, map[string]any{"type": "export_conversation", "id": "conv-1"})
 	if frame := readFrame(t, sink, "conversation_export"); frame["error"] == nil {

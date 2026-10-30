@@ -522,26 +522,26 @@ func conformanceLeaseClaims(t *testing.T, store agentdomain.LeaseStore) {
 	assert.False(t, claimed, "a live lease refuses a foreign claim")
 	assert.Equal(t, "laptop", got.Environment, "the refusal names the holder")
 
-	reasserted := agentdomain.Lease{ConversationID: "conv-1", Environment: "laptop", Workspace: "/proj", TransferID: "t-1", Until: live}
+	reasserted := agentdomain.Lease{ConversationID: "conv-1", Environment: "laptop", Workspace: "/proj", TeleportID: "t-1", Until: live}
 	_, claimed, err = store.ClaimLease(ctx, reasserted)
 	require.NoError(t, err)
 	assert.True(t, claimed, "the holder may rewrite its own row")
 
-	handover := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Workspace: "/workspace/proj", TransferID: "t-1", Until: live}
+	handover := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Workspace: "/workspace/proj", TeleportID: "t-1", Until: live}
 	got, claimed, err = store.ClaimLease(ctx, handover)
 	require.NoError(t, err)
-	assert.True(t, claimed, "the same transfer id hands the lease over")
+	assert.True(t, claimed, "the same teleport id hands the lease over")
 	assert.Equal(t, "/workspace/proj", got.Workspace)
 
 	_, claimed, err = store.ClaimLease(ctx, handover)
 	require.NoError(t, err)
-	assert.True(t, claimed, "a retry of the same transfer is idempotent")
+	assert.True(t, claimed, "a retry of the same teleport is idempotent")
 
 	stored, found, err := store.GetLease(ctx, "conv-1")
 	require.NoError(t, err)
 	require.True(t, found)
 	assert.Equal(t, "k8s", stored.Environment)
-	assert.Equal(t, "t-1", stored.TransferID)
+	assert.Equal(t, "t-1", stored.TeleportID)
 	assert.Equal(t, live.Unix(), stored.Until.Unix())
 
 	blank := agentdomain.Lease{ConversationID: "conv-2", Environment: "laptop", Until: live}
@@ -550,7 +550,7 @@ func conformanceLeaseClaims(t *testing.T, store agentdomain.LeaseStore) {
 	require.True(t, claimed)
 	_, claimed, err = store.ClaimLease(ctx, agentdomain.Lease{ConversationID: "conv-2", Environment: "k8s", Until: live})
 	require.NoError(t, err)
-	assert.False(t, claimed, "two empty transfer ids never match each other")
+	assert.False(t, claimed, "two empty teleport ids never match each other")
 
 	expired := agentdomain.Lease{ConversationID: "conv-3", Environment: "gone", Until: time.Now().Add(-time.Minute)}
 	_, claimed, err = store.ClaimLease(ctx, expired)

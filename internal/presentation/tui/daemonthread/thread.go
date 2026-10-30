@@ -65,7 +65,7 @@ type Thread struct {
 	inbox      [][]byte
 	waiters    []*waiter
 	synced     map[string]int
-	transfer   string
+	teleport   string
 	generation int
 	closed     bool
 
@@ -432,10 +432,10 @@ func (t *Thread) Handle(_ *agui.Conn, data []byte) {
 		t.trackActivity(frame)
 	case "browser_extension_status":
 		t.onExtensionStatus(frame)
-	case "transfer_progress":
+	case "teleport_progress":
 		t.onProgress(frame)
-	case "session_moved":
-		t.onMoved(frame)
+	case "session_teleported":
+		t.onTeleported(frame)
 	default:
 		if !t.answer(h, frame) && isRunFrame(h.Type) {
 			t.push(h, frame)
