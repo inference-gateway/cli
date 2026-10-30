@@ -2,6 +2,7 @@ package env
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -98,14 +99,15 @@ func createEnvExample(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to create %s file: %w", ExampleFileName, err)
 	}
 
-	fmt.Printf("%s Successfully created %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), envExamplePath)
-	fmt.Println("")
-	fmt.Println("Next steps:")
-	fmt.Println("  cp .env.example .env")
-	fmt.Println("  Edit .env and add your API keys")
-	fmt.Println("")
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s Successfully created %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), envExamplePath)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Next steps:")
+	fmt.Fprintln(w, "  cp .env.example .env")
+	fmt.Fprintln(w, "  Edit .env and add your API keys")
+	fmt.Fprintln(w)
 
-	if err := EnsureEnvInGitignore(); err != nil {
+	if err := EnsureEnvInGitignore(w); err != nil {
 		return err
 	}
 
@@ -115,14 +117,14 @@ func createEnvExample(cmd *cobra.Command) error {
 // ensureEnvInGitignore ensures that .env is listed in the root .gitignore file.
 // If .gitignore doesn't exist, it creates one with .env entry.
 // If .gitignore exists but doesn't contain .env, it appends it.
-func EnsureEnvInGitignore() error {
+func EnsureEnvInGitignore(w io.Writer) error {
 	gitignorePath := config.GitignoreFileName
 	if _, err := os.Stat(gitignorePath); os.IsNotExist(err) {
 		gitignoreContent := "# Inference Gateway\n.env\n"
 		if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
 			return fmt.Errorf("failed to create .gitignore file: %w", err)
 		}
-		fmt.Printf("%s Created .gitignore with .env entry\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+		fmt.Fprintf(w, "%s Created .gitignore with .env entry\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 		return nil
 	}
 
@@ -147,6 +149,6 @@ func EnsureEnvInGitignore() error {
 	if _, err := f.WriteString("\n# Inference Gateway\n.env\n"); err != nil {
 		return fmt.Errorf("failed to write to .gitignore: %w", err)
 	}
-	fmt.Printf("%s Added .env to .gitignore\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	fmt.Fprintf(w, "%s Added .env to .gitignore\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	return nil
 }
