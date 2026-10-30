@@ -67,7 +67,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	var attachment *agentdomain.ImageAttachment
 	var err error
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		attachment, err = t.imageService.ReadImageFromURL(path)
+		attachment, err = t.imageService.ReadImageFromURL(ctx, path)
 	} else {
 		if err := sandbox.ValidateRead(t.config, strings.TrimPrefix(path, "file://")); err != nil {
 			return fail(err.Error())

@@ -209,12 +209,4 @@ type TodoWriteToolResult struct {
 	ValidationOK   bool       `json:"validation_ok"`
 }
 
-// MCPToolResult represents the result of an MCP tool execution
-type MCPToolResult struct {
-	ServerName string `json:"server_name"`
-	ToolName   string `json:"tool_name"`
-	Content    string `json:"content"`
-	Error      string `json:"error,omitempty"`
-}
-
 // UI Event Types for application state management

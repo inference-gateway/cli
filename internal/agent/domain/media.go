@@ -16,7 +16,7 @@ type ImageService interface {
 	// ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
 	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
 	// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
-	ReadImageFromURL(imageURL string) (*ImageAttachment, error)
+	ReadImageFromURL(ctx context.Context, imageURL string) (*ImageAttachment, error)
 	// IsImageFile checks if a file is a supported image format
 	IsImageFile(filePath string) bool
 	// GenerateImage generates an image from prompt using model ("provider/name")

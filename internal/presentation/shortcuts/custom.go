@@ -245,7 +245,7 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		return c.executeWithSnippet(ctx, outputStr, cmdConfig.snippet)
 	}
 
-	return c.formatOutput(outputStr)
+	return c.formatOutput(ctx, outputStr)
 }
 
 // progressKey carries the callback watching a command shortcut's stderr.
@@ -375,13 +375,13 @@ func (c *CustomShortcut) buildCommandArgs(cfg commandConfig, args []string, ctx 
 }
 
 // formatOutput formats the command output with appropriate styling
-func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) {
+func (c *CustomShortcut) formatOutput(ctx context.Context, outputStr string) (ShortcutResult, error) {
 	imageURLs := extractAllImageURLs(outputStr)
 	var imageAttachments []agentdomain.ImageAttachment
 
 	if len(imageURLs) > 0 && c.imageService != nil {
 		for _, url := range imageURLs {
-			if attachment, err := c.imageService.ReadImageFromURL(url); err == nil {
+			if attachment, err := c.imageService.ReadImageFromURL(ctx, url); err == nil {
 				imageAttachments = append(imageAttachments, *attachment)
 			}
 		}

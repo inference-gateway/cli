@@ -11,6 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -657,7 +658,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		messages := h.nonHiddenMessages()
+		messages := conversation.VisibleMessages(h.conversationRepo.GetMessages())
 		if len(messages) == 0 {
 			return tui.SetStatusEvent{
 				Message:    "No messages to compact",
@@ -695,7 +696,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		if err := h.reseedConversationWithMessages(optimizedMessages, currentModel); err != nil {
+		if err := conversation.ReseedConversation(h.conversationRepo, optimizedMessages, currentModel); err != nil {
 			logger.Error("failed to start new conversation", "error", err)
 			return tui.SetStatusEvent{
 				Message:    fmt.Sprintf("Failed to start new conversation: %v", err),

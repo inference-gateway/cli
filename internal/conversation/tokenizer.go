@@ -2,7 +2,6 @@ package conversation
 
 import (
 	"encoding/json"
-	"strings"
 	"unicode/utf8"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -225,41 +224,6 @@ func (t *TokenizerService) ShouldUsePolyfill(usage *sdk.CompletionUsage) bool {
 	}
 
 	return usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0
-}
-
-// IsLikelyCodeContent checks if the text appears to be code
-// Code typically has a higher tokens-per-character ratio
-func (t *TokenizerService) IsLikelyCodeContent(text string) bool {
-	codeIndicators := []string{
-		"func ", "def ", "class ", "import ", "package ",
-		"const ", "var ", "let ", "return ", "if ", "for ",
-		"while ", "switch ", "case ", "struct ", "interface ",
-		"public ", "private ", "protected ", "static ",
-		"<div", "<span", "<script", "<!--", "-->",
-		"{", "}", "[", "]", "()", "=>", "->",
-	}
-
-	lowerText := strings.ToLower(text)
-	codeScore := 0
-
-	for _, indicator := range codeIndicators {
-		if strings.Contains(lowerText, indicator) {
-			codeScore++
-		}
-	}
-
-	return codeScore >= 3
-}
-
-// AdjustedEstimate provides a more accurate estimate for code vs prose
-func (t *TokenizerService) AdjustedEstimate(text string) int {
-	baseEstimate := t.EstimateTokenCount(text)
-
-	if t.IsLikelyCodeContent(text) {
-		return int(float64(baseEstimate) * 1.25)
-	}
-
-	return baseEstimate
 }
 
 // GetToolStats returns token count and tool count for the tools advertised to

@@ -95,7 +95,7 @@ func TestEventPublisher_PublishToolExecutionCompleted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			chatEvents := make(chan agentdomain.ChatEvent, 10)
-			publisher := newEventPublisher("test-request-123", chatEvents)
+			publisher := newEventPublisher("test-request-123", chatEvents, nil)
 
 			publisher.publishToolExecutionCompleted(tt.results)
 
