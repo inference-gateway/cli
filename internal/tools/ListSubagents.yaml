@@ -6,4 +6,8 @@ parameters:
   properties: {}
   required: []
 require_approval: false
-modes: [standard, auto, auto-with-judge, plan]
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
