@@ -20,7 +20,7 @@ const InlineDiffContextLines = 2
 
 // DiffRenderer is a thin adapter that preserves the legacy public surface
 // (RenderEditToolArguments / RenderMultiEditToolArguments / RenderWriteToolArguments
-// / RenderDiff / RenderColoredDiff) and delegates the actual diff rendering
+// / RenderDiff) and delegates the actual diff rendering
 // to the diffview package. The internal renderer there uses go-udiff for a
 // correct LCS-based diff algorithm and optional chroma syntax highlighting.
 type DiffRenderer struct {
@@ -47,11 +47,6 @@ type DiffInfo struct {
 // NewDiffRenderer creates a new diff renderer with colored output.
 func NewDiffRenderer(styleProvider *Provider) *DiffRenderer {
 	return &DiffRenderer{styleProvider: styleProvider}
-}
-
-// NewToolDiffRenderer creates a tool diff renderer (alias for NewDiffRenderer).
-func NewToolDiffRenderer(styleProvider *Provider) *DiffRenderer {
-	return NewDiffRenderer(styleProvider)
 }
 
 // SetWidth tells the renderer the available terminal width so the underlying
@@ -194,17 +189,6 @@ func (d *DiffRenderer) RenderDiff(info DiffInfo) string {
 
 	out.WriteString(d.buildDiffView(info.FilePath, info.OldContent, info.NewContent).String())
 	return out.String()
-}
-
-// RenderColoredDiff is a minimal compatibility wrapper that renders a simple
-// diff with a placeholder title and file path.
-func (d *DiffRenderer) RenderColoredDiff(oldContent, newContent string) string {
-	return d.RenderDiff(DiffInfo{
-		FilePath:   "test-file",
-		OldContent: oldContent,
-		NewContent: newContent,
-		Title:      "Diff Test",
-	})
 }
 
 // --- internals ---

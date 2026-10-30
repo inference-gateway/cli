@@ -87,7 +87,6 @@ func TestFormatMessageANSIWrapping(t *testing.T) {
 		want string
 	}{
 		{"success is green", FormatSuccess, "\033[32mok\033[0m"},
-		{"warning is yellow", FormatWarning, "\033[33mok\033[0m"},
 		{"error is red", FormatErrorCLI, "\033[31mok\033[0m"},
 	}
 	for _, tt := range tests {

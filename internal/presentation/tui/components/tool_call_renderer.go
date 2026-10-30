@@ -306,7 +306,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		iconColor = "error"
 		statusColor = "error"
 	default:
-		statusIcon = icons.BulletIcon
+		statusIcon = icons.QueuedIcon
 		statusText = tool.Status
 		iconColor = "dim"
 		statusColor = "dim"

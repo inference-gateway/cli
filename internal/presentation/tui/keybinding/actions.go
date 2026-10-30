@@ -960,11 +960,6 @@ func (m *Dispatcher) GetHelpShortcuts() []HelpShortcut {
 	return m.registry.GetHelpShortcuts(m.app)
 }
 
-// GetRegistry returns the underlying registry (for advanced usage)
-func (m *Dispatcher) GetRegistry() *Registry {
-	return m.registry
-}
-
 // GetHintFormatter returns a hint formatter for displaying keybinding hints in UI
 func (m *Dispatcher) GetHintFormatter() *hints.Formatter {
 	return NewHintFormatterFromRegistry(m.registry)
