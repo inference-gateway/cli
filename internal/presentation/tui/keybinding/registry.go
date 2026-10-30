@@ -230,11 +230,6 @@ func (r *Registry) canExecuteAction(action *KeyAction, app KeyHandlerContext) bo
 	return true
 }
 
-// HasSequenceWithPrefix checks if any registered action has a key sequence that starts with the given prefix
-func (r *Registry) HasSequenceWithPrefix(prefix string, app KeyHandlerContext) bool {
-	return r.GetSequenceActionForPrefix(prefix, app) != nil
-}
-
 // GetSequenceActionForPrefix returns the action that matches a sequence starting with the given prefix
 func (r *Registry) GetSequenceActionForPrefix(prefix string, app KeyHandlerContext) *KeyAction {
 	r.mutex.RLock()

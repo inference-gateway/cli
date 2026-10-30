@@ -149,11 +149,6 @@ func FormatSuccess(message string) string {
 	return fmt.Sprintf("\033[32m%s\033[0m", message)
 }
 
-// FormatWarning creates a properly formatted warning message
-func FormatWarning(message string) string {
-	return fmt.Sprintf("\033[33m%s\033[0m", message)
-}
-
 // FormatErrorCLI creates an error message with red color for CLI output
 func FormatErrorCLI(message string) string {
 	return fmt.Sprintf("\033[31m%s\033[0m", message)

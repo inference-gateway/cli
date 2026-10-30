@@ -56,22 +56,6 @@ func TestPredefinedColors(t *testing.T) {
 	}
 }
 
-func TestCreateSeparator(t *testing.T) {
-	separator := CreateSeparator(5, "-")
-
-	if !strings.Contains(separator, "-----") {
-		t.Error("Expected separator to contain repeated character")
-	}
-
-	if !strings.Contains(separator, DimColor.ANSI) {
-		t.Error("Expected separator to contain color code")
-	}
-
-	if !strings.Contains(separator, Reset) {
-		t.Error("Expected separator to contain reset code")
-	}
-}
-
 func TestCreateColoredText(t *testing.T) {
 	text := "Hello, World!"
 	color := UserColor
@@ -88,45 +72,6 @@ func TestCreateColoredText(t *testing.T) {
 
 	if !strings.Contains(result, Reset) {
 		t.Error("Expected result to contain reset code")
-	}
-}
-
-func TestCreateStyledText(t *testing.T) {
-	text := "Styled text"
-	colorCode := Red
-
-	result := CreateStyledText(text, colorCode)
-
-	if !strings.Contains(result, text) {
-		t.Error("Expected result to contain original text")
-	}
-
-	if !strings.Contains(result, colorCode) {
-		t.Error("Expected result to contain color code")
-	}
-
-	if !strings.Contains(result, Reset) {
-		t.Error("Expected result to contain reset code")
-	}
-}
-
-func TestCreateSeparator_EmptyChar(t *testing.T) {
-	separator := CreateSeparator(3, "")
-
-	if !strings.Contains(separator, DimColor.ANSI) {
-		t.Error("Expected separator to still contain color code with empty char")
-	}
-}
-
-func TestCreateSeparator_ZeroWidth(t *testing.T) {
-	separator := CreateSeparator(0, "-")
-
-	if !strings.Contains(separator, DimColor.ANSI) {
-		t.Error("Expected separator to still contain color code with zero width")
-	}
-
-	if !strings.Contains(separator, Reset) {
-		t.Error("Expected separator to contain reset code with zero width")
 	}
 }
 

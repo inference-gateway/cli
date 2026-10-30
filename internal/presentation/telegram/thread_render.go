@@ -11,11 +11,8 @@ import (
 	"strings"
 
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 )
-
-// maxToolResultLen caps how much of one tool result the chat render
-// forwards so a large file read or command output cannot flood the chat.
-const maxToolResultLen = 1000
 
 // onTextStart opens or reopens the streamed message the deltas build. The
 // worker echoes inbound messages; the chat never re-renders those.
@@ -88,7 +85,7 @@ func (t *threadChat) onToolArgs(frame []byte) {
 // onToolEnd queues one complete tool call as the compact line the next
 // render flushes.
 func (t *threadChat) onToolEnd() {
-	t.tools = append(t.tools, toolLine(t.toolName, t.toolArgs))
+	t.tools = append(t.tools, toolLine(t.toolName, t.toolArgs, t.manager.cfg.ToolResultLimit()))
 	t.toolName = ""
 	t.toolArgs = ""
 }
@@ -108,7 +105,7 @@ func (t *threadChat) onToolResult(frame []byte) {
 	if quote := t.flushTools(); quote != "" {
 		t.deliverText(quote)
 	}
-	if quote := quotedToolResult(ev.Content); quote != "" {
+	if quote := quotedToolResult(ev.Content, t.manager.cfg.ToolResultLimit()); quote != "" {
 		t.deliverText(quote)
 	}
 }
@@ -143,28 +140,25 @@ func (t *threadChat) flushTools() string {
 	if len(t.tools) == 0 {
 		return ""
 	}
-	quote := quoteBlock(strings.Join(t.tools, "\n"))
+	quote := render.QuoteBlock(strings.Join(t.tools, "\n"))
 	t.tools = nil
 	return quote
 }
 
 // toolLine renders one tool invocation as a compact single line, e.g.
 // `Bash: `+backtick+`wget -O /tmp/shot.png ...`+backtick+`. Input is the
-// call's name and its streamed arguments.
-func toolLine(name, args string) string {
+// call's name and its streamed arguments, capped at limit runes.
+func toolLine(name, args string, limit int) string {
 	if args == "" {
 		return name
 	}
-	if r := []rune(args); len(r) > maxToolResultLen {
-		args = string(r[:maxToolResultLen]) + "…"
-	}
-	return fmt.Sprintf("%s: `%s`", name, args)
+	return fmt.Sprintf("%s: `%s`", name, render.Truncate(args, limit))
 }
 
 // quotedToolResult renders one TOOL_CALL_RESULT's content, the marshaled
 // tool result, as the quoted block the subprocess render served: the error
-// detail on a failure, the result otherwise, both capped.
-func quotedToolResult(content string) string {
+// detail on a failure, the result otherwise, both capped at limit runes.
+func quotedToolResult(content string, limit int) string {
 	var result struct {
 		Success bool   `json:"success"`
 		Result  string `json:"result"`
@@ -172,8 +166,8 @@ func quotedToolResult(content string) string {
 	}
 	failed := json.Unmarshal([]byte(content), &result) == nil && !result.Success
 	if failed {
-		fenced := fmt.Sprintf("Tool failed - retrying may follow:\n\"\"\n%s\n\"\"", capRunes(strings.TrimSpace(result.Error)))
-		return quoteBlock(fenced)
+		fenced := fmt.Sprintf("Tool failed - retrying may follow:\n\"\"\n%s\n\"\"", render.Truncate(strings.TrimSpace(result.Error), limit))
+		return render.QuoteBlock(fenced)
 	}
 	body := strings.TrimSpace(result.Result)
 	if body == "" {
@@ -182,24 +176,5 @@ func quotedToolResult(content string) string {
 	if body == "" {
 		return ""
 	}
-	return quoteBlock("\"\"\n" + capRunes(body) + "\n\"\"")
-}
-
-// capRunes caps a value at maxToolResultLen runes with an ellipsis.
-func capRunes(s string) string {
-	if r := []rune(s); len(r) > maxToolResultLen {
-		return string(r[:maxToolResultLen]) + "…"
-	}
-	return s
-}
-
-// quoteBlock prefixes every line with "> " so tool traffic arrives as a
-// markdown blockquote - channels render quotes as collapsed or secondary
-// content (Telegram: an expandable blockquote).
-func quoteBlock(s string) string {
-	lines := strings.Split(s, "\n")
-	for i := range lines {
-		lines[i] = "> " + lines[i]
-	}
-	return strings.Join(lines, "\n")
+	return render.QuoteBlock("\"\"\n" + render.Truncate(body, limit) + "\n\"\"")
 }

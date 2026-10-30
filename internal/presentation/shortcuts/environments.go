@@ -7,22 +7,10 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-// EnvironmentsShortcut opens the picker of the environments a daemon chat's
+// NewEnvironmentsShortcut opens the picker of the environments a daemon chat's
 // session can run on.
-type EnvironmentsShortcut struct{}
-
-// NewEnvironmentsShortcut creates the /environments shortcut.
-func NewEnvironmentsShortcut() *EnvironmentsShortcut { return &EnvironmentsShortcut{} }
-
-func (e *EnvironmentsShortcut) GetName() string { return "environments" }
-func (e *EnvironmentsShortcut) GetDescription() string {
-	return "Show where this session runs and the environments it can teleport to"
-}
-func (e *EnvironmentsShortcut) GetUsage() string              { return "/environments" }
-func (e *EnvironmentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (e *EnvironmentsShortcut) Execute(_ context.Context, _ []string) (ShortcutResult, error) {
-	return ShortcutResult{Success: true, SideEffect: SideEffectShowEnvironments}, nil
+func NewEnvironmentsShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "environments", description: "Show where this session runs and the environments it can teleport to", sideEffect: SideEffectShowEnvironments}
 }
 
 // TeleportShortcut teleports a daemon chat's session to another environment, with

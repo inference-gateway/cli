@@ -9,8 +9,6 @@ import (
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
-	tea "charm.land/bubbletea/v2"
-
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
@@ -50,7 +48,7 @@ func TestIdleSubagentJobFreezesElapsedAndLingersOut(t *testing.T) {
 	cfg.Chat.StatusBar.SubagentLingerSeconds = 1
 	list.SetConfig(cfg)
 	list.SetRegistry(scheduler.NewBackgroundTaskRegistry(0, sup))
-	list.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	list.SetWidth(80)
 
 	if !list.HasRows() {
 		t.Fatal("a visible row must keep the live clock ticking")

@@ -519,47 +519,15 @@ func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 	}, nil
 }
 
-// ToolsShortcut shows the tools currently available to the agent
-type ToolsShortcut struct{}
-
-func NewToolsShortcut() *ToolsShortcut {
-	return &ToolsShortcut{}
+// NewToolsShortcut shows the tools currently available to the agent.
+func NewToolsShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "tools", description: "Show the tools available to the agent", sideEffect: SideEffectShowToolsList}
 }
 
-func (c *ToolsShortcut) GetName() string               { return "tools" }
-func (c *ToolsShortcut) GetDescription() string        { return "Show the tools available to the agent" }
-func (c *ToolsShortcut) GetUsage() string              { return "/tools" }
-func (c *ToolsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *ToolsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	return ShortcutResult{
-		Output:     "",
-		Success:    true,
-		SideEffect: SideEffectShowToolsList,
-	}, nil
-}
-
-// AgentsShortcut shows every agent the chat can use: local Markdown subagent
+// NewAgentsShortcut shows every agent the chat can use: local Markdown subagent
 // presets (.infer/agents/*.md) and remote A2A agents.
-type AgentsShortcut struct{}
-
-func NewAgentsShortcut() *AgentsShortcut {
-	return &AgentsShortcut{}
-}
-
-func (c *AgentsShortcut) GetName() string { return "agents" }
-func (c *AgentsShortcut) GetDescription() string {
-	return "Show configured agents (local presets and remote A2A)"
-}
-func (c *AgentsShortcut) GetUsage() string              { return "/agents" }
-func (c *AgentsShortcut) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *AgentsShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	return ShortcutResult{
-		Output:     "",
-		Success:    true,
-		SideEffect: SideEffectShowAgents,
-	}, nil
+func NewAgentsShortcut() *PanelShortcut {
+	return &PanelShortcut{name: "agents", description: "Show configured agents (local presets and remote A2A)", sideEffect: SideEffectShowAgents}
 }
 
 // EffortShortcut shows or sets the reasoning effort level applied to

@@ -10,6 +10,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
+	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
@@ -180,7 +181,7 @@ func validateInvalidKeys(cfg *config.Config, validActions []string) bool {
 			continue
 		}
 		for _, key := range binding.Keys {
-			if !keybinding.IsValidKey(key) {
+			if !keys.IsKnownKey(key) {
 				invalidKeys[actionID] = append(invalidKeys[actionID], key)
 			}
 		}
@@ -221,7 +222,7 @@ func buildKeyUsageMap(cfg *config.Config, validActions []string) map[string][]st
 			continue
 		}
 		for _, key := range binding.Keys {
-			if keybinding.IsValidKey(key) {
+			if keys.IsKnownKey(key) {
 				keyUsage[key] = append(keyUsage[key], actionID)
 			}
 		}

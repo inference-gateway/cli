@@ -102,6 +102,64 @@ func TestFlashStatusClearsWhenIdle(t *testing.T) {
 	}
 }
 
+// TestHandlePasteResultAppliesPaste verifies the paste-result handler attaches
+// images and inserts pasted text at the cursor, flashing the matching status.
+func TestHandlePasteResultAppliesPaste(t *testing.T) {
+	t.Run("image", func(t *testing.T) {
+		ctx := newFlashCtx(false, "")
+		input := ctx.input.(*tuimocks.FakeInputComponent)
+
+		cmd := HandlePasteResult(ctx, PasteResultMsg{Attachment: &agentdomain.ImageAttachment{}})
+
+		if input.AddImageAttachmentCallCount() != 1 {
+			t.Fatalf("expected one image attachment, got %d", input.AddImageAttachmentCallCount())
+		}
+		if got := firstFlashMessage(t, cmd); got != "Image pasted from clipboard" {
+			t.Errorf("expected image flash message, got %q", got)
+		}
+	})
+
+	t.Run("text", func(t *testing.T) {
+		ctx := newFlashCtx(false, "hel")
+		input := ctx.input.(*tuimocks.FakeInputComponent)
+		input.GetCursorReturns(3)
+
+		cmd := HandlePasteResult(ctx, PasteResultMsg{InsertText: "lo"})
+
+		if got := input.SetTextArgsForCall(0); got != "hello" {
+			t.Errorf("expected text with the paste inserted at the cursor, got %q", got)
+		}
+		if got := input.SetCursorArgsForCall(0); got != 5 {
+			t.Errorf("expected the cursor after the inserted text, got %d", got)
+		}
+		if got := firstFlashMessage(t, cmd); got != "Text pasted from clipboard" {
+			t.Errorf("expected text flash message, got %q", got)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		if cmd := HandlePasteResult(newFlashCtx(false, ""), PasteResultMsg{}); cmd != nil {
+			t.Errorf("expected no command for an empty paste result, got %v", cmd)
+		}
+	})
+}
+
+// firstFlashMessage runs a flash Cmd and returns the status message it shows.
+func firstFlashMessage(t *testing.T, cmd tea.Cmd) string {
+	t.Helper()
+
+	batch, ok := cmd().(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("expected a tea.BatchMsg, got %T", cmd())
+	}
+
+	ev, ok := batch[0]().(tui.SetStatusEvent)
+	if !ok {
+		t.Fatalf("expected a tui.SetStatusEvent, got %T", batch[0]())
+	}
+	return ev.Message
+}
+
 // TestHandlePasteEventFlashesAndInserts verifies the bracketed-paste (Cmd+V)
 // path inserts the text and flashes a "Text pasted from clipboard" confirmation.
 func TestHandlePasteEventFlashesAndInserts(t *testing.T) {

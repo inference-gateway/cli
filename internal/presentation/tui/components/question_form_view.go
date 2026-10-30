@@ -244,7 +244,7 @@ func (qv *QuestionFormView) Render() string {
 	question := qv.active.Questions[qv.idx]
 	parts := []string{
 		qv.renderHeader(question.Header, accentColor),
-		qv.styleProvider.RenderBold(formatting.WrapText(question.Question, qv.textBudget())),
+		qv.styleProvider.RenderBoldText(formatting.WrapText(question.Question, qv.textBudget())),
 		qv.form.View(),
 	}
 	return qv.styleProvider.RenderRail(strings.Join(parts, "\n\n"), accentColor)

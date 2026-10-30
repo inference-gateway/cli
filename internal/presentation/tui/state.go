@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -201,50 +202,41 @@ func (s *ApplicationState) SetSessionPlacement(placement SessionPlacement) {
 	s.sessionPlacement = placement
 }
 
+// validViewTransitions lists the views each view may move to.
+var validViewTransitions = map[ViewState][]ViewState{
+	ViewStateModelSelection: {ViewStateChat},
+	ViewStateChat: {
+		ViewStateModelSelection,
+		ViewStateConversationSelection,
+		ViewStateThemeSelection,
+		ViewStateA2ATaskManagement,
+		ViewStatePlanApproval,
+		ViewStateDiffViewer,
+		ViewStateExplorer,
+		ViewStateHelp,
+		ViewStateToolsList,
+		ViewStateAgents,
+		ViewStateEnvironments,
+	},
+	ViewStateConversationSelection: {ViewStateChat},
+	ViewStateThemeSelection:        {ViewStateChat},
+	ViewStateA2ATaskManagement:     {ViewStateChat},
+	ViewStatePlanApproval:          {ViewStateChat},
+	ViewStateDiffViewer:            {ViewStateChat},
+	ViewStateExplorer:              {ViewStateChat},
+	ViewStateHelp:                  {ViewStateChat},
+	ViewStateToolsList:             {ViewStateChat},
+	ViewStateAgents:                {ViewStateChat},
+	ViewStateEnvironments:          {ViewStateChat},
+}
+
 // isValidTransition validates if a view transition is allowed
 func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 	if from == to {
 		return true
 	}
 
-	validTransitions := map[ViewState][]ViewState{
-		ViewStateModelSelection: {ViewStateChat},
-		ViewStateChat: {
-			ViewStateModelSelection,
-			ViewStateConversationSelection,
-			ViewStateThemeSelection,
-			ViewStateA2ATaskManagement,
-			ViewStatePlanApproval,
-			ViewStateDiffViewer,
-			ViewStateExplorer,
-			ViewStateHelp,
-			ViewStateToolsList,
-			ViewStateAgents,
-			ViewStateEnvironments,
-		},
-		ViewStateConversationSelection: {ViewStateChat},
-		ViewStateThemeSelection:        {ViewStateChat},
-		ViewStateA2ATaskManagement:     {ViewStateChat},
-		ViewStatePlanApproval:          {ViewStateChat},
-		ViewStateDiffViewer:            {ViewStateChat},
-		ViewStateExplorer:              {ViewStateChat},
-		ViewStateHelp:                  {ViewStateChat},
-		ViewStateToolsList:             {ViewStateChat},
-		ViewStateAgents:                {ViewStateChat},
-		ViewStateEnvironments:          {ViewStateChat},
-	}
-
-	allowed, exists := validTransitions[from]
-	if !exists {
-		return false
-	}
-
-	for _, allowedView := range allowed {
-		if allowedView == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(validViewTransitions[from], to)
 }
 
 // SetChatPending creates a minimal chat session to mark the agent as busy
@@ -326,65 +318,56 @@ func (s *ApplicationState) UpdateChatStatus(status ChatStatus) error {
 	return nil
 }
 
+// validChatStatusTransitions lists the statuses each chat status may move to.
+var validChatStatusTransitions = map[ChatStatus][]ChatStatus{
+	ChatStatusIdle: {ChatStatusStarting},
+	ChatStatusStarting: {
+		ChatStatusThinking,
+		ChatStatusGenerating,
+		ChatStatusWaitingTools,
+		ChatStatusCompleted,
+		ChatStatusError,
+		ChatStatusCancelled,
+	},
+	ChatStatusThinking: {
+		ChatStatusGenerating,
+		ChatStatusReceivingTools,
+		ChatStatusWaitingTools,
+		ChatStatusCompleted,
+		ChatStatusError,
+		ChatStatusCancelled,
+	},
+	ChatStatusGenerating: {
+		ChatStatusReceivingTools,
+		ChatStatusWaitingTools,
+		ChatStatusCompleted,
+		ChatStatusError,
+		ChatStatusCancelled,
+	},
+	ChatStatusReceivingTools: {
+		ChatStatusWaitingTools,
+		ChatStatusCompleted,
+		ChatStatusError,
+		ChatStatusCancelled,
+	},
+	ChatStatusWaitingTools: {
+		ChatStatusStarting,
+		ChatStatusCompleted,
+		ChatStatusError,
+		ChatStatusCancelled,
+	},
+	ChatStatusCompleted: {ChatStatusIdle},
+	ChatStatusError:     {ChatStatusIdle},
+	ChatStatusCancelled: {ChatStatusIdle},
+}
+
 // isValidChatStatusTransition validates chat status transitions
 func (s *ApplicationState) isValidChatStatusTransition(from, to ChatStatus) bool {
 	if from == to {
 		return true
 	}
 
-	validTransitions := map[ChatStatus][]ChatStatus{
-		ChatStatusIdle: {ChatStatusStarting},
-		ChatStatusStarting: {
-			ChatStatusThinking,
-			ChatStatusGenerating,
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
-		},
-		ChatStatusThinking: {
-			ChatStatusGenerating,
-			ChatStatusReceivingTools,
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
-		},
-		ChatStatusGenerating: {
-			ChatStatusReceivingTools,
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
-		},
-		ChatStatusReceivingTools: {
-			ChatStatusWaitingTools,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
-		},
-		ChatStatusWaitingTools: {
-			ChatStatusStarting,
-			ChatStatusCompleted,
-			ChatStatusError,
-			ChatStatusCancelled,
-		},
-		ChatStatusCompleted: {ChatStatusIdle},
-		ChatStatusError:     {ChatStatusIdle},
-		ChatStatusCancelled: {ChatStatusIdle},
-	}
-
-	allowed, exists := validTransitions[from]
-	if !exists {
-		return false
-	}
-
-	for _, allowedStatus := range allowed {
-		if allowedStatus == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(validChatStatusTransitions[from], to)
 }
 
 // EndChatSession cleans up the chat session

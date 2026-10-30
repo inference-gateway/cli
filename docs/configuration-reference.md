@@ -1066,8 +1066,8 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   These are file-tool rules
   and shell approval checks, not OS isolation. Unrestricted auto mode and approved shell commands
   can still access files with the permissions of the CLI process.
-- **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`, `telegram`,
-  `whatsapp`. See [Channels](channels.md).
+- **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`,
+  `max_tool_result_len`, `telegram`, `whatsapp`. See [Channels](channels.md).
 - **`heartbeat.yaml`** - `enabled`, `interval`, `initial_delay`, `model`, `prompt`. See
   [Heartbeat](heartbeat.md).
 - **`reminders.yaml`** - `enabled`, `merge`, `reminders`. See

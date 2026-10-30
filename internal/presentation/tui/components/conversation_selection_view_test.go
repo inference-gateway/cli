@@ -7,6 +7,8 @@ import (
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
+	tea "charm.land/bubbletea/v2"
+
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -123,12 +125,45 @@ func TestConversationSelectorShowsWhereEachSessionRuns(t *testing.T) {
 			selector := NewConversationSelector(&convmocks.FakePersistentConversationRepository{}, styles.NewProvider(fakeThemeService))
 			selector.SetWidth(200)
 
-			selector.Update(tui.ConversationsLoadedEvent{Conversations: []any{tt.listed}})
+			selector.Update(tui.ConversationsLoadedEvent{Conversations: []convdomain.ConversationSummary{tt.listed}})
 
 			view := selector.table.View()
 			if located := strings.Contains(view, "Environment") && strings.Contains(view, "k8s-dev"); located != tt.located {
 				t.Errorf("the table names the environment: %v, want %v\n%s", located, tt.located, view)
 			}
 		})
+	}
+}
+
+// TestConversationSelectorConfirmIssuesOneDelete verifies the dialog closes as
+// the delete starts, so a repeated Y cannot delete the same row twice, and the
+// row leaves the list once the result arrives.
+func TestConversationSelectorConfirmIssuesOneDelete(t *testing.T) {
+	repo := &convmocks.FakePersistentConversationRepository{}
+	selector := NewConversationSelector(repo, nil)
+	selector.Update(tui.ConversationsLoadedEvent{Conversations: []convdomain.ConversationSummary{
+		{ID: "conv-1", Title: "Conversation 1"},
+		{ID: "conv-2", Title: "Conversation 2"},
+	}})
+
+	selector.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+	_, deleteCmd := selector.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	if deleteCmd == nil {
+		t.Fatal("expected the confirmation to return the delete command")
+	}
+	if _, again := selector.Update(tea.KeyPressMsg{Code: 'y', Text: "y"}); again != nil {
+		t.Fatal("expected a repeated Y to issue no second delete")
+	}
+
+	selector.Update(deleteCmd())
+
+	if got := repo.DeleteSavedConversationCallCount(); got != 1 {
+		t.Errorf("expected one delete, got %d", got)
+	}
+	if len(selector.conversations) != 1 || len(selector.filteredConversations) != 1 || selector.filteredConversations[0].ID != "conv-2" {
+		t.Errorf("expected only conv-2 left, got %v and %v", selector.conversations, selector.filteredConversations)
+	}
+	if selector.deleteError != nil {
+		t.Errorf("expected no delete error, got %v", selector.deleteError)
 	}
 }

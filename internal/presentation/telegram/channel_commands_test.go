@@ -34,7 +34,7 @@ func newCommandTestManager(t *testing.T) (*ChannelManagerService, *cleanerChanne
 	reg.Register(shortcuts.NewHelpShortcut(reg))
 	reg.Register(shortcuts.NewContextShortcut(nil, nil, nil))
 	reg.Register(shortcuts.NewStatsShortcut())
-	reg.Register(shortcuts.NewConversationSelectShortcut(nil))
+	reg.Register(shortcuts.NewConversationSelectShortcut())
 
 	store := storage.NewMemoryStorage()
 	cm := NewChannelManagerService(config.ChannelsConfig{Enabled: true}, nil)

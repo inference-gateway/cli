@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
-
 	sdk "github.com/inference-gateway/sdk"
 
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -151,19 +149,4 @@ func (qv *QueueBoxView) formatToolCallsPreview(toolCalls []sdk.ChatCompletionMes
 		return qv.toolFormatter.RenderToolSummary("", toolCall.Function.Name, parseToolArgs(toolCall.Function.Arguments), "", qv.width)
 	}
 	return fmt.Sprintf("%s(...)", toolCall.Function.Name)
-}
-
-func (qv *QueueBoxView) Init() tea.Cmd {
-	return nil
-}
-
-func (qv *QueueBoxView) View() tea.View {
-	return tea.NewView("")
-}
-
-func (qv *QueueBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		qv.SetWidth(windowMsg.Width)
-	}
-	return qv, nil
 }

@@ -25,7 +25,6 @@ const (
 // Tool execution icons - modern Unicode symbols
 const (
 	QueuedIcon = "•"
-	BulletIcon = "•"
 )
 
 // Icon styles
