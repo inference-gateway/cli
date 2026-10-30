@@ -366,7 +366,7 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[stri
 	if len(targetIDs) == 0 && t.shellService != nil {
 		allShells := t.shellService.GetAllShells()
 		for _, s := range allShells {
-			if s.State == scheddomain.ShellStateRunning {
+			if s.Status().State == scheddomain.ShellStateRunning {
 				targetIDs = append(targetIDs, s.ShellID)
 			}
 		}
@@ -395,7 +395,7 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[stri
 			allDone := true
 			for _, id := range targetIDs {
 				shell := t.shellService.GetShell(id)
-				if shell == nil || !shell.State.IsTerminal() {
+				if shell == nil || !shell.Status().State.IsTerminal() {
 					allDone = false
 					break
 				}
@@ -428,9 +428,10 @@ func (t *WaitTool) shellResults(ids []string, reason string) map[string]any {
 			})
 			continue
 		}
+		status := shell.Status()
 		exitCode := -1
-		if shell.ExitCode != nil {
-			exitCode = *shell.ExitCode
+		if status.ExitCode != nil {
+			exitCode = *status.ExitCode
 		}
 		tailOutput := ""
 		if shell.OutputBuffer != nil {
@@ -440,7 +441,7 @@ func (t *WaitTool) shellResults(ids []string, reason string) map[string]any {
 			"shell_id":  id,
 			"command":   shell.Command,
 			"exit_code": exitCode,
-			"state":     string(shell.State),
+			"state":     string(status.State),
 			"output":    tailOutput,
 		})
 	}

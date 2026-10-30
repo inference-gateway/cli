@@ -135,7 +135,8 @@ func (s *Service) Stop(ctx context.Context) error {
 
 // registerJob adds (or replaces) a cron entry for the given job. The closure
 // captures job by value so concurrent edits to the file don't race the
-// running fire.
+// running fire, and a fire is skipped while the job's previous run is still
+// going, so two runs never race persistRun.
 func (s *Service) registerJob(job *scheddomain.ScheduledJob) error {
 	if job == nil || job.ID == "" || job.CronExpression == "" {
 		return errors.New("invalid job: missing ID or cron expression")
@@ -143,9 +144,10 @@ func (s *Service) registerJob(job *scheddomain.ScheduledJob) error {
 
 	id := job.ID
 	captured := *job
-	eid, err := s.cron.AddFunc(job.CronExpression, func() {
+	fire := cron.FuncJob(func() {
 		s.fire(captured)
 	})
+	eid, err := s.cron.AddJob(job.CronExpression, cron.NewChain(cron.SkipIfStillRunning(skipLogger(id))).Then(fire))
 	if err != nil {
 		return fmt.Errorf("cron parse: %w", err)
 	}
@@ -158,6 +160,18 @@ func (s *Service) registerJob(job *scheddomain.ScheduledJob) error {
 	s.mu.Unlock()
 	logger.Info("scheduled job registered", "id", id, "cron", job.CronExpression)
 	return nil
+}
+
+// skipLogger reports, by job ID, a fire that cron skipped because the job's
+// previous run is still going.
+type skipLogger string
+
+func (id skipLogger) Info(string, ...any) {
+	logger.Info("scheduled job fire skipped, the previous run is still in flight", "id", string(id))
+}
+
+func (id skipLogger) Error(err error, msg string, _ ...any) {
+	logger.Error("scheduled job "+msg, "id", string(id), "error", err)
 }
 
 // removeJob unregisters the cron entry for a job ID, if any.

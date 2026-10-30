@@ -33,10 +33,10 @@ func (st *shellTracker) Add(shell *scheddomain.BackgroundShell) error {
 	st.mutex.Lock()
 	defer st.mutex.Unlock()
 
-	if shell.State == scheddomain.ShellStateRunning {
+	if shell.Status().State == scheddomain.ShellStateRunning {
 		runningCount := 0
 		for _, s := range st.shells {
-			if s.State == scheddomain.ShellStateRunning {
+			if s.Status().State == scheddomain.ShellStateRunning {
 				runningCount++
 			}
 		}
@@ -102,13 +102,14 @@ func (st *shellTracker) Cleanup(olderThan time.Duration) int {
 	removed := 0
 
 	for id, shell := range st.shells {
-		if !shell.State.IsTerminal() {
+		status := shell.Status()
+		if !status.State.IsTerminal() {
 			continue
 		}
 
 		completionTime := shell.StartedAt
-		if shell.CompletedAt != nil {
-			completionTime = *shell.CompletedAt
+		if status.CompletedAt != nil {
+			completionTime = *status.CompletedAt
 		}
 
 		if completionTime.Before(cutoffTime) {
@@ -136,7 +137,7 @@ func (st *shellTracker) CountRunning() int {
 	count := 0
 
 	for _, shell := range st.shells {
-		if shell.State == scheddomain.ShellStateRunning {
+		if shell.Status().State == scheddomain.ShellStateRunning {
 			count++
 		}
 	}

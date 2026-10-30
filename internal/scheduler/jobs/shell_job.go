@@ -56,24 +56,17 @@ func (j *shellJob) Run(ctx context.Context, _ func(scheddomain.JobSignal)) agent
 	waitErr := j.shell.Cmd.Wait()
 
 	now := time.Now()
-	j.shell.CompletedAt = &now
 	duration := now.Sub(j.shell.StartedAt)
 
 	switch {
 	case ctx.Err() != nil:
-		code := -1
-		j.shell.ExitCode = &code
-		j.shell.State = scheddomain.ShellStateCancelled
+		j.shell.Finish(scheddomain.ShellStateCancelled, -1, now)
 		return agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Duration: duration, Error: "shell cancelled"}
 	case waitErr != nil:
-		code := exitCodeFromErr(waitErr)
-		j.shell.ExitCode = &code
-		j.shell.State = scheddomain.ShellStateFailed
+		j.shell.Finish(scheddomain.ShellStateFailed, exitCodeFromErr(waitErr), now)
 		return agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Duration: duration, Error: waitErr.Error()}
 	default:
-		code := 0
-		j.shell.ExitCode = &code
-		j.shell.State = scheddomain.ShellStateCompleted
+		j.shell.Finish(scheddomain.ShellStateCompleted, 0, now)
 		return agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Duration: duration}
 	}
 }
@@ -111,8 +104,8 @@ func (j *shellJob) Output() string {
 // formatter does not know about exit codes or durations).
 func (j *shellJob) Notification(result agentdomain.ToolExecutionResult) string {
 	code := 0
-	if j.shell.ExitCode != nil {
-		code = *j.shell.ExitCode
+	if exitCode := j.shell.Status().ExitCode; exitCode != nil {
+		code = *exitCode
 	}
 	dur := result.Duration.Round(time.Millisecond)
 	if !result.Success {

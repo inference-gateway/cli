@@ -16,6 +16,10 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
+// sshAgentTimeout bounds the SSH agent round trips of one connect: listing
+// keys and signing the handshake.
+const sshAgentTimeout = 30 * time.Second
+
 // SSHClient manages SSH connections to remote servers
 type SSHClient struct {
 	cfg    *config.WebSSHConfig
@@ -37,10 +41,11 @@ func NewSSHClient(cfg *config.WebSSHConfig, server *config.SSHServerConfig) (*SS
 
 // Connect establishes SSH connection to the remote server
 func (c *SSHClient) Connect() error {
-	sshConfig, err := c.getSSHConfig()
+	sshConfig, releaseAgent, err := c.getSSHConfig()
 	if err != nil {
 		return fmt.Errorf("failed to create SSH config: %w", err)
 	}
+	defer releaseAgent()
 
 	addr := net.JoinHostPort(c.server.RemoteHost, fmt.Sprintf("%d", c.server.RemotePort))
 
@@ -91,26 +96,29 @@ func (c *SSHClient) Close() error {
 	return nil
 }
 
-// getSSHConfig creates SSH client configuration with authentication
-func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, error) {
-	var signers []ssh.Signer
-	var err error
+// getSSHConfig creates SSH client configuration with authentication. The
+// returned release closes the SSH agent connection once the handshake no
+// longer needs it to sign.
+func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, func(), error) {
+	release := func() {}
 
-	signers, err = connectSSHAgent()
+	signers, agentConn, err := connectSSHAgent()
 	if err != nil {
 		logger.Warn("sSH agent not available, falling back to key files", "error", err)
 
 		signers, err = loadSSHKeysFromFiles()
 		if err != nil {
-			return nil, fmt.Errorf("failed to load SSH keys: %w (tried SSH agent and key files)", err)
+			return nil, nil, fmt.Errorf("failed to load SSH keys: %w (tried SSH agent and key files)", err)
 		}
 		logger.Info("loaded SSH keys from files", "keys_available", len(signers))
 	} else {
+		release = func() { _ = agentConn.Close() }
 		logger.Info("sSH agent connected", "keys_available", len(signers))
 	}
 
 	if len(signers) == 0 {
-		return nil, fmt.Errorf("no SSH keys found (tried SSH agent and ~/.ssh key files)")
+		release()
+		return nil, nil, fmt.Errorf("no SSH keys found (tried SSH agent and ~/.ssh key files)")
 	}
 
 	var hostKeyCallback ssh.HostKeyCallback
@@ -137,20 +145,24 @@ func (c *SSHClient) getSSHConfig() (*ssh.ClientConfig, error) {
 		},
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         30 * time.Second,
-	}, nil
+	}, release, nil
 }
 
-// connectSSHAgent connects to the SSH agent and returns available signers
-func connectSSHAgent() ([]ssh.Signer, error) {
+// connectSSHAgent connects to the SSH agent and returns its signers along with
+// the connection they sign through, which the caller closes after the
+// handshake. A deadline bounds every agent round trip, so a hung agent fails
+// the connect instead of wedging it.
+func connectSSHAgent() ([]ssh.Signer, net.Conn, error) {
 	agentSock := os.Getenv("SSH_AUTH_SOCK")
 	if agentSock == "" {
-		return nil, fmt.Errorf("SSH_AUTH_SOCK environment variable not set")
+		return nil, nil, fmt.Errorf("SSH_AUTH_SOCK environment variable not set")
 	}
 
 	conn, err := net.Dial("unix", agentSock)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to SSH agent at %s: %w", agentSock, err)
+		return nil, nil, fmt.Errorf("failed to connect to SSH agent at %s: %w", agentSock, err)
 	}
+	_ = conn.SetDeadline(time.Now().Add(sshAgentTimeout))
 
 	agentClient := agent.NewClient(conn)
 	signers, err := agentClient.Signers()
@@ -158,10 +170,10 @@ func connectSSHAgent() ([]ssh.Signer, error) {
 		if closeErr := conn.Close(); closeErr != nil {
 			logger.Warn("failed to close agent connection after error", "error", closeErr)
 		}
-		return nil, fmt.Errorf("failed to get signers from SSH agent: %w", err)
+		return nil, nil, fmt.Errorf("failed to get signers from SSH agent: %w", err)
 	}
 
-	return signers, nil
+	return signers, conn, nil
 }
 
 // loadSSHKeysFromFiles loads SSH keys from standard file locations

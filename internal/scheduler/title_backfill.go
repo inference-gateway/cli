@@ -10,14 +10,14 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// TitleBackfill manages background tasks
+// TitleBackfill manages background tasks. cancel and done belong to the
+// current run and are nil while stopped.
 type TitleBackfill struct {
 	titleGenerator scheddomain.TitleGenerator
 	config         *config.Config
-	running        bool
-	stopChan       chan struct{}
-	wg             sync.WaitGroup
 	mutex          sync.RWMutex
+	cancel         context.CancelFunc
+	done           chan struct{}
 }
 
 // NewTitleBackfill creates a new background job manager
@@ -25,7 +25,6 @@ func NewTitleBackfill(titleGenerator scheddomain.TitleGenerator, config *config.
 	return &TitleBackfill{
 		titleGenerator: titleGenerator,
 		config:         config,
-		stopChan:       make(chan struct{}),
 	}
 }
 
@@ -34,35 +33,30 @@ func (m *TitleBackfill) Start(ctx context.Context) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if m.running {
+	if m.cancel != nil {
 		return
 	}
 
-	m.running = true
 	logger.Info("starting background job manager")
-
-	m.wg.Add(1)
-	go m.runTitleGenerationWorker(ctx)
+	ctx, m.cancel = context.WithCancel(ctx)
+	m.done = make(chan struct{})
+	go m.runTitleGenerationWorker(ctx, m.done)
 }
 
-// Stop stops all background jobs gracefully
+// Stop cancels the worker, including a title pass in flight, and waits for it
+// outside the lock.
 func (m *TitleBackfill) Stop() {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	cancel, done := m.cancel, m.done
+	m.cancel, m.done = nil, nil
+	m.mutex.Unlock()
 
-	if !m.running {
+	if cancel == nil {
 		return
 	}
 
 	logger.Info("stopping background job manager")
-	close(m.stopChan)
-	m.running = false
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		m.wg.Wait()
-	}()
+	cancel()
 
 	select {
 	case <-done:
@@ -76,12 +70,12 @@ func (m *TitleBackfill) Stop() {
 func (m *TitleBackfill) IsRunning() bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	return m.running
+	return m.cancel != nil
 }
 
 // runTitleGenerationWorker runs the conversation title generation job
-func (m *TitleBackfill) runTitleGenerationWorker(ctx context.Context) {
-	defer m.wg.Done()
+func (m *TitleBackfill) runTitleGenerationWorker(ctx context.Context, done chan<- struct{}) {
+	defer close(done)
 
 	interval := m.getJobInterval()
 	ticker := time.NewTicker(interval)
@@ -90,8 +84,6 @@ func (m *TitleBackfill) runTitleGenerationWorker(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-m.stopChan:
 			return
 		case <-ticker.C:
 			if m.titleGenerator != nil {

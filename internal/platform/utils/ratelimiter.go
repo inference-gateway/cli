@@ -52,32 +52,3 @@ func (rl *TokenBucketRateLimiter) CheckAndRecord(toolName string) error {
 	rl.actionTimes = append(rl.actionTimes, now)
 	return nil
 }
-
-// GetCurrentCount returns the number of actions in the current window
-func (rl *TokenBucketRateLimiter) GetCurrentCount() int {
-	if !rl.cfg.Enabled {
-		return 0
-	}
-
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	now := time.Now()
-	windowStart := now.Add(-time.Duration(rl.cfg.WindowSeconds) * time.Second)
-
-	count := 0
-	for _, t := range rl.actionTimes {
-		if t.After(windowStart) {
-			count++
-		}
-	}
-
-	return count
-}
-
-// Reset clears all recorded actions
-func (rl *TokenBucketRateLimiter) Reset() {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-	rl.actionTimes = make([]time.Time, 0)
-}

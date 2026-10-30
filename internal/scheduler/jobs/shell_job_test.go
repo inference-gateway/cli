@@ -22,7 +22,6 @@ func startShell(t *testing.T, id, name string, args ...string) *scheddomain.Back
 		Command:      name,
 		Cmd:          cmd,
 		StartedAt:    time.Now(),
-		State:        scheddomain.ShellStateRunning,
 		OutputBuffer: scheddomain.NewOutputRingBuffer(1024),
 	}
 }
@@ -81,8 +80,8 @@ func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 	if got := waitTerminal(t, sup, "s-drain"); got != scheddomain.JobCompleted {
 		t.Fatalf("status = %s, want completed", got)
 	}
-	if shell.State != scheddomain.ShellStateCompleted {
-		t.Fatalf("shell state = %s, want completed", shell.State)
+	if shell.Status().State != scheddomain.ShellStateCompleted {
+		t.Fatalf("shell state = %s, want completed", shell.Status().State)
 	}
 }
 
@@ -105,8 +104,8 @@ func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 		t.Fatalf("Wind: %v", err)
 	}
 	waitTerminal(t, sup, "s-stuck")
-	if shell.State != scheddomain.ShellStateCancelled {
-		t.Fatalf("shell state = %s, want cancelled", shell.State)
+	if shell.Status().State != scheddomain.ShellStateCancelled {
+		t.Fatalf("shell state = %s, want cancelled", shell.Status().State)
 	}
 }
 
@@ -123,8 +122,8 @@ func TestShellJob_CompletesAndNotifies(t *testing.T) {
 	if got := waitTerminal(t, sup, "s-ok"); got != scheddomain.JobCompleted {
 		t.Fatalf("status = %s, want completed", got)
 	}
-	if shell.State != scheddomain.ShellStateCompleted || shell.ExitCode == nil || *shell.ExitCode != 0 {
-		t.Fatalf("shell state=%s exit=%v, want completed/0", shell.State, shell.ExitCode)
+	if status := shell.Status(); status.State != scheddomain.ShellStateCompleted || status.ExitCode == nil || *status.ExitCode != 0 {
+		t.Fatalf("shell state=%s exit=%v, want completed/0", status.State, status.ExitCode)
 	}
 	if n := queue.EnqueueCallCount(); n != 1 {
 		t.Fatalf("Enqueue called %d times, want 1", n)
@@ -143,8 +142,8 @@ func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 	if got := waitTerminal(t, sup, "s-fail"); got != scheddomain.JobFailed {
 		t.Fatalf("status = %s, want failed", got)
 	}
-	if shell.State != scheddomain.ShellStateFailed || shell.ExitCode == nil || *shell.ExitCode == 0 {
-		t.Fatalf("shell state=%s exit=%v, want failed/non-zero", shell.State, shell.ExitCode)
+	if status := shell.Status(); status.State != scheddomain.ShellStateFailed || status.ExitCode == nil || *status.ExitCode == 0 {
+		t.Fatalf("shell state=%s exit=%v, want failed/non-zero", status.State, status.ExitCode)
 	}
 }
 
@@ -162,8 +161,8 @@ func TestShellJob_WindStopCancels(t *testing.T) {
 		t.Fatalf("Wind: %v", err)
 	}
 	waitTerminal(t, sup, "s-sleep")
-	if shell.State != scheddomain.ShellStateCancelled {
-		t.Fatalf("shell state = %s, want cancelled", shell.State)
+	if shell.Status().State != scheddomain.ShellStateCancelled {
+		t.Fatalf("shell state = %s, want cancelled", shell.Status().State)
 	}
 
 	NewShellJob(shell, tracker).Close()

@@ -91,20 +91,6 @@ func (b *CircularScreenshotBuffer) GetLatest() (*agentdomain.Frame, error) {
 	return b.screenshots[latestIndex], nil
 }
 
-// GetByID returns a screenshot by its ID
-func (b *CircularScreenshotBuffer) GetByID(id string) (*agentdomain.Frame, error) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	for i := 0; i < b.count; i++ {
-		if b.screenshots[i] != nil && b.screenshots[i].ID == id {
-			return b.screenshots[i], nil
-		}
-	}
-
-	return nil, fmt.Errorf("screenshot not found: %s", id)
-}
-
 // GetRecent returns the N most recent screenshots
 func (b *CircularScreenshotBuffer) GetRecent(limit int) []*agentdomain.Frame {
 	b.mu.RLock()
@@ -131,24 +117,6 @@ func (b *CircularScreenshotBuffer) Count() int {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.count
-}
-
-// Clear removes all screenshots from the buffer and deletes disk files
-func (b *CircularScreenshotBuffer) Clear() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	for i := 0; i < b.count; i++ {
-		if b.screenshots[i] != nil {
-			b.deleteFromDisk(b.screenshots[i].ID)
-		}
-	}
-
-	b.screenshots = make([]*agentdomain.Frame, b.maxSize)
-	b.currentIndex = 0
-	b.count = 0
-
-	return nil
 }
 
 // Cleanup removes the temp directory and all screenshots

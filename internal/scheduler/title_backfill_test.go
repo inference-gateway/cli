@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	assert "github.com/stretchr/testify/assert"
@@ -34,6 +35,32 @@ func TestBackgroundJobManager_StartStop(t *testing.T) {
 
 	manager.Stop()
 	assert.False(t, manager.IsRunning())
+}
+
+func TestBackgroundJobManager_StopCancelsInFlightPassAndRestarts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		generator := &schedmocks.FakeTitleGenerator{}
+		started := make(chan struct{}, 1)
+		generator.ProcessPendingTitlesStub = func(ctx context.Context) error {
+			started <- struct{}{}
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		cfg := &config.Config{}
+		cfg.Conversation.TitleGeneration.Interval = 1
+		manager := scheduler.NewTitleBackfill(generator, cfg)
+
+		manager.Start(t.Context())
+		<-started
+		stopAt := time.Now()
+		manager.Stop()
+		assert.Less(t, time.Since(stopAt), 10*time.Second, "Stop must cancel the in-flight pass, not wait out its timeout")
+		assert.False(t, manager.IsRunning())
+
+		manager.Start(t.Context())
+		assert.True(t, manager.IsRunning())
+		manager.Stop()
+	})
 }
 
 func TestBackgroundJobManager_TriggerTitleGeneration(t *testing.T) {

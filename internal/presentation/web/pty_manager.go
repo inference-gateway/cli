@@ -334,7 +334,14 @@ func (s *LocalPTYSession) waitForExit(done chan error, pid int, timeout time.Dur
 }
 
 func (s *LocalPTYSession) HandleConnection(conn *websocket.Conn) error {
-	done := make(chan struct{})
+	s.mu.Lock()
+	ptyFile := s.pty
+	s.mu.Unlock()
+	if ptyFile == nil {
+		return fmt.Errorf("PTY session is not running")
+	}
+
+	done := make(chan struct{}, 2)
 
 	go func() {
 		defer func() { done <- struct{}{} }()
@@ -346,7 +353,7 @@ func (s *LocalPTYSession) HandleConnection(conn *websocket.Conn) error {
 			if msgType == websocket.TextMessage && s.handleControlMessage(data) {
 				continue
 			}
-			if _, err := s.pty.Write(data); err != nil {
+			if _, err := ptyFile.Write(data); err != nil {
 				logger.Error("pTY write error", "error", err)
 				return
 			}
@@ -357,7 +364,7 @@ func (s *LocalPTYSession) HandleConnection(conn *websocket.Conn) error {
 		defer func() { done <- struct{}{} }()
 		buf := make([]byte, 4096)
 		for {
-			n, err := s.pty.Read(buf)
+			n, err := ptyFile.Read(buf)
 			if err != nil {
 				return
 			}
