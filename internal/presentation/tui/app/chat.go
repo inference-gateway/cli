@@ -592,6 +592,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	case tui.MessageHistoryRestoreEvent:
 		return app.messageHistoryHandler.HandleRestore(m)
 
+	case keybinding.PasteResultMsg:
+		return keybinding.HandlePasteResult(app, m)
+
 	case tea.BackgroundColorMsg:
 		app.handleBackgroundColorDetected(m)
 

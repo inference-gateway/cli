@@ -350,47 +350,46 @@ func handleTabKey(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// handleImagePaste processes clipboard image data and adds it as an attachment
-func handleImagePaste(app KeyHandlerContext, imageService agentdomain.ImageService, inputView tui.InputComponent, imageData []byte) bool {
+// handleImagePaste runs the clipboard-image I/O inside the paste Cmd: it saves
+// the data to a temp file, optimizes it when configured, and reads it back. It
+// returns nil on failure, logging the reason.
+func handleImagePaste(imageService agentdomain.ImageService, imageData []byte, opts config.ClipboardImageOptimizeConfig) *agentdomain.ImageAttachment {
 	timestamp := time.Now().Format("20060102-150405")
 	tmpDir := config.ProjectTmpDir()
 
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
 		logger.Warn("failed to create tmp directory", "path", tmpDir, "error", err)
-		return false
+		return nil
 	}
 
 	tmpPath := filepath.Join(tmpDir, fmt.Sprintf("clipboard-image-%s.png", timestamp))
 
 	if err := os.WriteFile(tmpPath, imageData, 0644); err != nil {
 		logger.Warn("failed to save clipboard image", "path", tmpPath, "error", err)
-		return false
+		return nil
 	}
 
-	cfg := app.GetConfig()
-	finalPath := applyImageOptimization(tmpPath, imageData, cfg)
+	finalPath := applyImageOptimization(tmpPath, imageData, opts)
 
 	imageAttachment, err := imageService.ReadImageFromFile(finalPath)
 	if err != nil {
 		logger.Warn("failed to read saved clipboard image", "path", finalPath, "error", err)
-		return false
+		return nil
 	}
 
 	imageAttachment.SourcePath = finalPath
-
-	inputView.AddImageAttachment(*imageAttachment)
-	return true
+	return imageAttachment
 }
 
-// applyImageOptimization applies image optimization if enabled in config
-// Returns the final file path (which may have a different extension)
-func applyImageOptimization(tmpPath string, originalData []byte, cfg *config.Config) string {
-	if cfg == nil || !cfg.Image.ClipboardOptimize.Enabled {
+// applyImageOptimization applies image optimization when enabled, returning the
+// final file path (which may have a different extension)
+func applyImageOptimization(tmpPath string, originalData []byte, opts config.ClipboardImageOptimizeConfig) string {
+	if !opts.Enabled {
 		logger.Info("clipboard image saved (you can inspect this file)", "path", tmpPath)
 		return tmpPath
 	}
 
-	result, err := optimizeClipboardImage(tmpPath, cfg.Image.ClipboardOptimize)
+	result, err := optimizeClipboardImage(tmpPath, opts)
 	if err != nil {
 		logger.Warn("failed to optimize clipboard image, using original", "error", err)
 		return tmpPath
@@ -453,53 +452,70 @@ func flashStatus(app KeyHandlerContext, message string) tea.Cmd {
 	)
 }
 
+// handlePaste reads the clipboard and does its file I/O inside the returned
+// Cmd, delivering a PasteResultMsg for Update to apply to the input.
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
+	if app.GetInputView() == nil {
+		return nil
+	}
+
+	imageService := app.GetImageService()
+	opts := config.ClipboardImageOptimizeConfig{}
+	if cfg := app.GetConfig(); cfg != nil {
+		opts = cfg.Image.ClipboardOptimize
+	}
+
+	return func() tea.Msg {
+		if imageData := clipboard.Read(clipboard.FmtImage); len(imageData) > 0 {
+			return PasteResultMsg{Attachment: handleImagePaste(imageService, imageData, opts)}
+		}
+
+		clipboardText := string(clipboard.Read(clipboard.FmtText))
+		cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
+		cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
+		cleanText = strings.TrimSpace(cleanText)
+		if cleanText == "" {
+			return nil
+		}
+
+		if imageService.IsImageFile(cleanText) {
+			if imageAttachment, err := imageService.ReadImageFromFile(cleanText); err == nil {
+				return PasteResultMsg{Attachment: imageAttachment}
+			}
+		}
+
+		return PasteResultMsg{InsertText: cleanText}
+	}
+}
+
+// PasteResultMsg carries a finished clipboard paste to the update loop, which
+// applies it to the input view - a Cmd never mutates the model.
+type PasteResultMsg struct {
+	Attachment *agentdomain.ImageAttachment
+	InsertText string
+}
+
+// HandlePasteResult applies a finished paste to the input and flashes the
+// matching status. Call it from Update when PasteResultMsg arrives.
+func HandlePasteResult(app KeyHandlerContext, msg PasteResultMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
 	}
 
-	imageService := app.GetImageService()
-
-	imageData := clipboard.Read(clipboard.FmtImage)
-	if len(imageData) > 0 {
-		if handleImagePaste(app, imageService, inputView, imageData) {
-			return flashStatus(app, "Image pasted from clipboard")
-		}
-		return nil
+	switch {
+	case msg.Attachment != nil:
+		inputView.AddImageAttachment(*msg.Attachment)
+		return flashStatus(app, "Image pasted from clipboard")
+	case msg.InsertText != "":
+		text := inputView.GetInput()
+		cursor := inputView.GetCursor()
+		inputView.SetText(text[:cursor] + msg.InsertText + text[cursor:])
+		inputView.SetCursor(cursor + len(msg.InsertText))
+		return flashStatus(app, "Text pasted from clipboard")
 	}
 
-	clipboardText := string(clipboard.Read(clipboard.FmtText))
-	if clipboardText == "" {
-		return nil
-	}
-
-	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
-	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
-	cleanText = strings.TrimSpace(cleanText)
-
-	if cleanText == "" {
-		return nil
-	}
-
-	if imageService.IsImageFile(cleanText) {
-		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
-		if err == nil {
-			inputView.AddImageAttachment(*imageAttachment)
-			return flashStatus(app, "Image pasted from clipboard")
-		}
-	}
-
-	currentText := inputView.GetInput()
-	cursor := inputView.GetCursor()
-
-	newText := currentText[:cursor] + cleanText + currentText[cursor:]
-	newCursor := cursor + len(cleanText)
-
-	inputView.SetText(newText)
-	inputView.SetCursor(newCursor)
-
-	return flashStatus(app, "Text pasted from clipboard")
+	return nil
 }
 
 func handleCopy(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
