@@ -407,17 +407,12 @@ func (c *command) installSkill(cmd *cobra.Command, args []string) error {
 }
 
 func resolveSkillsDest(userScope bool) (string, error) {
-	if userScope {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve home directory: %w", err)
+	if !userScope {
+		if _, err := os.Stat(config.ConfigDirName); os.IsNotExist(err) {
+			return "", fmt.Errorf("%s/ not found in current directory; run `infer init` first or pass --user", config.ConfigDirName)
 		}
-		return filepath.Join(home, config.ConfigDirName, "skills"), nil
 	}
-	if _, err := os.Stat(config.ConfigDirName); os.IsNotExist(err) {
-		return "", fmt.Errorf("%s/ not found in current directory; run `infer init` first or pass --user", config.ConfigDirName)
-	}
-	return filepath.Join(config.ConfigDirName, "skills"), nil
+	return runtime.WritePath(!userScope, "skills")
 }
 
 func uninstallSkill(cmd *cobra.Command, args []string) error {

@@ -100,7 +100,11 @@ func (c *command) pluginsRoot() (string, error) {
 
 // loadPluginsRegistry loads ~/.infer/plugins.yaml; the file is created on first save.
 func loadPluginsRegistry() (*config.PluginsConfig, error) {
-	registry, err := config.LoadPlugins(runtime.PluginsConfigPath())
+	path, err := runtime.WritePath(false, config.PluginsFileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load plugins registry: %w", err)
+	}
+	registry, err := config.LoadPlugins(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load plugins registry: %w", err)
 	}

@@ -19,8 +19,7 @@ func NewCommand(state *runtime.State) *cobra.Command {
 		Short: "Manage keybinding configuration",
 		Long:  `Manage custom keybindings for the chat interface. Customize keys and enable/disable specific actions.`,
 	}
-	command.PersistentFlags().Bool("project", false,
-		"Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
+	runtime.AddProjectFlag(command)
 	command.AddCommand(
 		&cobra.Command{
 			Use:   "list",
@@ -114,7 +113,7 @@ func listKeybindings(cfg *config.Config, cmd *cobra.Command, args []string) erro
 }
 
 func resetKeybindings(cmd *cobra.Command, args []string) error {
-	path, err := runtime.KeybindingsConfigWritePath(runtime.ProjectFlag(cmd))
+	path, err := runtime.WritePath(runtime.ProjectFlag(cmd), config.KeybindingsFileName)
 	if err != nil {
 		return err
 	}
@@ -352,7 +351,7 @@ func disableKeybinding(cmd *cobra.Command, args []string) error {
 // loads the existing config (or defaults if the file is absent), and returns
 // everything callers need to mutate-and-save.
 func loadKeybindingsForWrite(cmd *cobra.Command) (string, *config.KeybindingsConfig, error) {
-	path, err := runtime.KeybindingsConfigWritePath(runtime.ProjectFlag(cmd))
+	path, err := runtime.WritePath(runtime.ProjectFlag(cmd), config.KeybindingsFileName)
 	if err != nil {
 		return "", nil, err
 	}
