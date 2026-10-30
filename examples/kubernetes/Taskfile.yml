@@ -2,13 +2,12 @@ version: '3'
 
 vars:
   OPERATOR_VERSION: v0.23.0
-  K3S_VERSION: v1.36.2-k3s1
 
 tasks:
   cluster:create:
-    desc: Create a local k3d cluster
+    desc: Create the k3d cluster with ctlptl
     cmds:
-      - k3d cluster create infer-demo --agents 1 --image rancher/k3s:{{.K3S_VERSION}}
+      - ctlptl apply -f Cluster.yaml
 
   operator:install:
     desc: Install the Inference Gateway Operator (CRDs + controller)
@@ -54,4 +53,4 @@ tasks:
   cleanup:
     desc: Delete the k3d cluster and all resources
     cmds:
-      - k3d cluster delete infer-demo
+      - ctlptl delete -f Cluster.yaml
