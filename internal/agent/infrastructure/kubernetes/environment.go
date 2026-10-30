@@ -110,9 +110,10 @@ func (e *Environment) Kind() agentdomain.EnvironmentKind {
 	return agentdomain.EnvironmentKindKubernetes
 }
 
-// SandboxName is the Sandbox a session runs in, stable across transfers.
-func SandboxName(conversationID string) string {
-	sum := sha256.Sum256([]byte(conversationID))
+// SandboxName is the Sandbox a session runs in on an environment, stable
+// across transfers. Environments sharing a namespace never reach each other's.
+func SandboxName(environment, conversationID string) string {
+	sum := sha256.Sum256([]byte(environment + "/" + conversationID))
 	return "infer-" + hex.EncodeToString(sum[:])[:12]
 }
 
@@ -129,7 +130,7 @@ func (e *Environment) Reach(ctx context.Context, session agentdomain.Session) (a
 }
 
 func (e *Environment) reach(ctx context.Context, session agentdomain.Session, create bool) (agentdomain.Endpoint, error) {
-	name := SandboxName(session.ConversationID)
+	name := SandboxName(e.entry.Name, session.ConversationID)
 	sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
 	missing := k8serrors.IsNotFound(err)
 	switch {
@@ -378,13 +379,13 @@ func describeClusterError(err error) string {
 
 // Suspend parks the session's Sandbox, keeping its volumes.
 func (e *Environment) Suspend(ctx context.Context, session agentdomain.Session) error {
-	return e.setMode(ctx, SandboxName(session.ConversationID), "Suspended")
+	return e.setMode(ctx, SandboxName(e.entry.Name, session.ConversationID), "Suspended")
 }
 
 // Delete removes the session's Sandbox and its Secret. The volumes go with
 // the Sandbox.
 func (e *Environment) Delete(ctx context.Context, session agentdomain.Session) error {
-	name := SandboxName(session.ConversationID)
+	name := SandboxName(e.entry.Name, session.ConversationID)
 	if err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 		return fmt.Errorf("deleting Sandbox %s: %w", name, err)
 	}

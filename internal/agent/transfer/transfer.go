@@ -18,12 +18,13 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// The transfer's time budgets: the whole saga, one peer reply, and the
-// quiesce of the source worker.
+// The transfer's time budgets: the whole saga, one peer reply, the quiesce of
+// the source worker, and the cleanup of a failed target.
 const (
 	transferTimeout = 30 * time.Minute
 	replyTimeout    = 5 * time.Minute
 	quiesceTimeout  = 2 * time.Minute
+	discardTimeout  = time.Minute
 	chunkBytes      = 4 << 20
 )
 
@@ -130,6 +131,12 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		return
 	}
 	defer endpoint.Release()
+	moved := false
+	defer func() {
+		if !moved {
+			s.discard(ctx, environment, req)
+		}
+	}()
 	frames := newPeerFrames()
 	conn, info, err := s.dial.Dial(ctx, endpoint, frames)
 	if err != nil {
@@ -165,8 +172,23 @@ func (s *Service) transfer(ctx context.Context, to requester, req agentdomain.Tr
 		ConversationID: req.Session.ConversationID, Environment: req.Target, Workspace: workspace,
 		TransferID: req.TransferID, Until: time.Now().Add(s.entries[req.Target].EffectiveLeaseTTL()),
 	}
-	if s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts) && fingerprint != "" {
+	moved = s.handOver(ctx, conn, to, req, lease, endpoint.Addr, checkpoint.Interrupts)
+	if moved && fingerprint != "" {
 		s.rememberOrigin(req.Session.ConversationID, req.Session.ProjectDir, fingerprint)
+	}
+}
+
+// discard removes what a failed transfer left on its target: the runtime it
+// provisioned and any claim the target holds on the session, so the next
+// transfer starts clean. It outlives a cancelled transfer.
+func (s *Service) discard(ctx context.Context, environment agentdomain.Environment, req agentdomain.TransferRequest) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discardTimeout)
+	defer cancel()
+	if err := environment.Delete(ctx, req.Session); err != nil {
+		logger.Warn("transfer could not delete the runtime a failed transfer left", "transfer_id", req.TransferID, "target", req.Target, "error", err)
+	}
+	if err := s.leases.ReleaseLease(ctx, req.Session.ConversationID, req.Target); err != nil {
+		logger.Warn("transfer could not release the target's claim after a failed transfer", "transfer_id", req.TransferID, "target", req.Target, "error", err)
 	}
 }
 
