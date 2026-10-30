@@ -5,6 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.238.0...v0.239.0-rc.1) (2026-10-30)
+
+### 🚀 Features
+
+* **conversation:** add compact.strategy pointer mode ([#1629](https://github.com/inference-gateway/cli/issues/1629)) ([6367927](https://github.com/inference-gateway/cli/commit/63679275d6177aa69c640e4d7cf0ab71e2cdf9ec)), closes [#1627](https://github.com/inference-gateway/cli/issues/1627), references [#1592](https://github.com/inference-gateway/cli/issues/1592)
+* **chat:** drive daemon threads from the TUI with infer chat --daemon ([#1634](https://github.com/inference-gateway/cli/issues/1634)) ([11a371d](https://github.com/inference-gateway/cli/commit/11a371dd742b7870dd6da83ed8b91e68e742d09b)), closes [#1632](https://github.com/inference-gateway/cli/issues/1632)
+* **daemon:** transfer sessions between local and remote executors ([#1628](https://github.com/inference-gateway/cli/issues/1628)) ([f36f0fc](https://github.com/inference-gateway/cli/commit/f36f0fc631c14f6c2ee3c846932e53deb86973c5)), closes [#1619](https://github.com/inference-gateway/cli/issues/1619)
+
+### 🐛 Bug Fixes
+
+* **daemon:** clean up the target of a failed transfer ([#1639](https://github.com/inference-gateway/cli/issues/1639)) ([7ac10b5](https://github.com/inference-gateway/cli/commit/7ac10b504e2d7a01ff4bd61b0e70908d1df2f4cd))
+
+### ♻️ Code Refactoring
+
+* **examples:** manage the kubernetes example cluster with ctlptl ([#1638](https://github.com/inference-gateway/cli/issues/1638)) ([2eea981](https://github.com/inference-gateway/cli/commit/2eea9817a50223f733c2b83704cbb18ae1e26cba)), closes [#1633](https://github.com/inference-gateway/cli/issues/1633)
+* **daemon:** rename session transfer to teleport ([#1640](https://github.com/inference-gateway/cli/issues/1640)) ([981dcea](https://github.com/inference-gateway/cli/commit/981dcea273f2272b5e4a49962bf7524f62eef5f9))
+
+### ✅ Tests
+
+* **conversations:** prove show --grep --append pages the grep results ([#1630](https://github.com/inference-gateway/cli/issues/1630)) ([09fbb1d](https://github.com/inference-gateway/cli/commit/09fbb1dfce2b135eac1388ec1516bccefd6ddbbe)), references [#11](https://github.com/inference-gateway/cli/issues/11) [#11](https://github.com/inference-gateway/cli/issues/11) [#11](https://github.com/inference-gateway/cli/issues/11)
+
+### 🧹 Maintenance
+
+* **deps:** bump cli rc version ([ca25fe2](https://github.com/inference-gateway/cli/commit/ca25fe2a088b2cfc4cd2bff641fa2aa704010262))
+
+## 📦 Installation
+
+### npm / npx (Recommended)
+
+Most developers already have Node.js - run `infer` without installing anything. npx downloads the matching native binary on first use:
+
+```bash
+npx @inference-gateway/cli@0.239.0-rc.1 --help
+npx @inference-gateway/cli@0.239.0-rc.1 chat
+```
+
+Or install it globally:
+
+```bash
+npm install -g @inference-gateway/cli@0.239.0-rc.1
+infer --help
+```
+
+> Not recommended for production - prefer the install script, container image, or Nix flake below.
+
+### Quick Install (Install Script)
+
+Install the latest version using our install script:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.239.0-rc.1
+```
+
+Custom installation directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+```
+
+### Nix Flake
+
+Run directly without installing:
+
+```bash
+nix run github:inference-gateway/cli/v0.239.0-rc.1
+```
+
+Or pin it in a [Flox](https://flox.dev) manifest (`.flox/env/manifest.toml`):
+
+```toml
+[install]
+infer.flake = "github:inference-gateway/cli/v0.239.0-rc.1"
+```
+
+### Container Image
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.239.0-rc.1
+```
+
+### Binary Download
+
+Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+
 ## [0.239.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.238.0...v0.239.0-rc.1) (2026-10-29)
 
 ### 🚀 Features

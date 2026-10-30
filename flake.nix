@@ -46,7 +46,7 @@
               );
           };
 
-          vendorHash = "sha256-X2M2iLbe5yXAtIdKwgbYmoJnt+leaBaHcK/bAbBhKB0=";
+          vendorHash = "sha256-663jQ8OuHBdrZbTsQJxik3pw/jkjP+ttVHcRvdQaG0Q=";
 
           goSum = ./go.sum;
 
