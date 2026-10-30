@@ -18,6 +18,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -558,14 +559,15 @@ func (t *TaskView) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		t.applyFilters()
 
 	case key.Matches(msg, taskManagerKeys.backspace):
-		if len(t.searchQuery) > 0 {
-			t.searchQuery = t.searchQuery[:len(t.searchQuery)-1]
+		runes := []rune(t.searchQuery)
+		if len(runes) > 0 {
+			t.searchQuery = string(runes[:len(runes)-1])
 			t.applyFilters()
 		}
 
 	default:
-		if k := msg.String(); len(k) == 1 {
-			t.searchQuery += k
+		if text := keys.PrintableText(msg); text != "" {
+			t.searchQuery += text
 			t.applyFilters()
 		}
 	}

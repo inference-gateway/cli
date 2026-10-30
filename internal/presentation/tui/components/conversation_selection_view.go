@@ -19,6 +19,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
@@ -287,17 +288,20 @@ func (c *ConversationSelector) handleSearchClear() (tea.Model, tea.Cmd) {
 }
 
 func (c *ConversationSelector) handleBackspace() (tea.Model, tea.Cmd) {
-	if c.searchMode && len(c.searchQuery) > 0 {
-		c.searchQuery = c.searchQuery[:len(c.searchQuery)-1]
+	runes := []rune(c.searchQuery)
+	if c.searchMode && len(runes) > 0 {
+		c.searchQuery = string(runes[:len(runes)-1])
 		c.updateSearch()
 	}
 	return c, nil
 }
 
 func (c *ConversationSelector) handleCharacterInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if c.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
-		c.searchQuery += msg.String()
-		c.updateSearch()
+	if c.searchMode {
+		if text := keys.PrintableText(msg); text != "" {
+			c.searchQuery += text
+			c.updateSearch()
+		}
 	}
 	return c, nil
 }
