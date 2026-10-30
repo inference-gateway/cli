@@ -652,7 +652,7 @@ func startScheduler(ctx context.Context, cm *telegram.ChannelManagerService, cfg
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	notifier := scheduler.NewScheduleNotifier(cm.GetChannel)
+	notifier := scheduler.NewScheduleNotifier(cm.GetChannel, cfg.Channels.ToolResultLimit())
 	svc, err := scheduler.NewService(scheduler.Options{
 		Store:      stores.ScheduledJobs,
 		Runs:       stores.ScheduledRuns,

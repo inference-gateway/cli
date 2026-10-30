@@ -10,7 +10,8 @@ import (
 // FormatAgentMessage parses a JSON line from the agent's stdout and returns
 // a human-readable message to send to the channel. Returns empty string for
 // messages that should not be forwarded (status messages, tool results, etc.).
-func FormatAgentMessage(line []byte) string {
+// A tool result is capped at maxToolResult runes.
+func FormatAgentMessage(line []byte, maxToolResult int) string {
 	var msg map[string]any
 	if err := json.Unmarshal(line, &msg); err != nil {
 		return ""
@@ -39,7 +40,7 @@ func FormatAgentMessage(line []byte) string {
 	case "assistant":
 		return content
 	case "tool":
-		result := render.CapRunes(strings.TrimSpace(content))
+		result := render.Truncate(strings.TrimSpace(content), maxToolResult)
 		if result == "" {
 			return ""
 		}

@@ -43,15 +43,6 @@ func Truncate(s string, maxLen int) string {
 	return string(runes[:maxLen]) + "…"
 }
 
-// MaxToolResultLen caps how much of one tool result the channel renders
-// forward, so a large file read or command output cannot flood the chat.
-const MaxToolResultLen = 1000
-
-// CapRunes caps a value at MaxToolResultLen runes with an ellipsis.
-func CapRunes(s string) string {
-	return Truncate(s, MaxToolResultLen)
-}
-
 // QuoteBlock prefixes every line with "> " so tool traffic arrives as a
 // markdown blockquote - channels render quotes as collapsed or secondary
 // content (Telegram: an expandable blockquote).

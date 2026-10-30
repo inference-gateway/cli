@@ -37,6 +37,9 @@ func TestDefaultChannelsConfig(t *testing.T) {
 	if cfg.ImageRetention != 5 {
 		t.Errorf("Expected ImageRetention=5, got %d", cfg.ImageRetention)
 	}
+	if cfg.MaxToolResultLen != 1000 {
+		t.Errorf("Expected MaxToolResultLen=1000, got %d", cfg.MaxToolResultLen)
+	}
 	if cfg.Telegram.PollTimeout != 30 {
 		t.Errorf("Expected Telegram.PollTimeout=30, got %d", cfg.Telegram.PollTimeout)
 	}
@@ -57,6 +60,25 @@ func TestDefaultChannelsConfig(t *testing.T) {
 	}
 	if len(cfg.Telegram.Media.AllowedMimeTypes) == 0 {
 		t.Error("Expected Telegram.Media.AllowedMimeTypes to have defaults")
+	}
+}
+
+func TestChannelsConfigToolResultLimit(t *testing.T) {
+	tests := []struct {
+		name string
+		set  int
+		want int
+	}{
+		{"configured", 250, 250},
+		{"unset falls back to the default", 0, 1000},
+		{"negative falls back to the default", -5, 1000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (config.ChannelsConfig{MaxToolResultLen: tt.set}).ToolResultLimit(); got != tt.want {
+				t.Errorf("ToolResultLimit() = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 
