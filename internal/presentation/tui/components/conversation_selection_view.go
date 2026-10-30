@@ -172,6 +172,8 @@ func (c *ConversationSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tui.ConversationsLoadedEvent:
 		return c.handleConversationsLoaded(msg)
+	case conversationDeletedMsg:
+		return c.handleConversationDeleted(msg)
 	case tea.WindowSizeMsg:
 		return c.handleWindowResize(msg)
 	case tea.KeyPressMsg:
@@ -388,6 +390,13 @@ func (c *ConversationSelector) handleDeleteConfirmation(msg tea.KeyPressMsg) (te
 	}
 }
 
+// conversationDeletedMsg reports the result of one delete issued from the
+// confirmation dialog.
+type conversationDeletedMsg struct {
+	id  string
+	err error
+}
+
 func (c *ConversationSelector) performDelete() (tea.Model, tea.Cmd) {
 	cursor := c.table.Cursor()
 	if cursor >= len(c.filteredConversations) {
@@ -395,30 +404,38 @@ func (c *ConversationSelector) performDelete() (tea.Model, tea.Cmd) {
 		return c, nil
 	}
 
-	conv := c.filteredConversations[cursor]
+	id := c.filteredConversations[cursor].ID
+	repo := c.repo
+	return c, func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return conversationDeletedMsg{id: id, err: repo.DeleteSavedConversation(ctx, id)}
+	}
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (c *ConversationSelector) handleConversationDeleted(msg conversationDeletedMsg) (tea.Model, tea.Cmd) {
+	c.confirmDelete = false
 
-	if err := c.repo.DeleteSavedConversation(ctx, conv.ID); err != nil {
-		c.deleteError = err
-		c.confirmDelete = false
-		logger.Error("failed to delete conversation", "error", err, "id", conv.ID)
+	if msg.err != nil {
+		c.deleteError = msg.err
+		logger.Error("failed to delete conversation", "error", msg.err, "id", msg.id)
 		return c, nil
 	}
 
-	for i, origConv := range c.conversations {
-		if origConv.ID == conv.ID {
+	c.deleteError = nil
+	for i, conv := range c.conversations {
+		if conv.ID == msg.id {
 			c.conversations = append(c.conversations[:i], c.conversations[i+1:]...)
 			break
 		}
 	}
-
-	c.filteredConversations = append(c.filteredConversations[:cursor], c.filteredConversations[cursor+1:]...)
+	for i, conv := range c.filteredConversations {
+		if conv.ID == msg.id {
+			c.filteredConversations = append(c.filteredConversations[:i], c.filteredConversations[i+1:]...)
+			break
+		}
+	}
 	c.syncTable()
-
-	c.confirmDelete = false
-	c.deleteError = nil
 	return c, nil
 }
 
