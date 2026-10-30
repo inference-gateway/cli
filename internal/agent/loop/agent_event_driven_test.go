@@ -6,6 +6,7 @@ import (
 	"time"
 
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
@@ -16,7 +17,9 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	states "github.com/inference-gateway/cli/internal/agent/loop/states"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // testMocks holds all the mocks needed for testing
@@ -459,31 +462,82 @@ func TestHandleExecutingToolsState(t *testing.T) {
 		assert.Equal(t, states.StatePostToolExecution, toState)
 	})
 
-	t.Run("tools_completed_event_with_stop_transitions_to_stopped", func(t *testing.T) {
+}
+
+func TestHandlePostToolExecutionState(t *testing.T) {
+	t.Run("approved_round_images_reach_the_model", func(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)
 		agent := createTestAgent(mocks, ctx)
 
-		event := states.ToolsCompletedEvent{Stop: true}
-
+		ctx.Turns = 1
+		ctx.HasToolResults = true
+		mocks.queue.IsEmptyReturns(true)
 		mocks.stateMachine.TransitionReturns(nil)
+		agent.toolResults = []convdomain.ConversationEntry{
+			{
+				Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("screenshot taken")},
+				ToolExecution: &agentdomain.ToolExecutionResult{
+					ToolName: "Screenshot",
+					Success:  true,
+					Images:   []agentdomain.ImageAttachment{{MimeType: "image/png", Data: "aGk=", SourcePath: "/tmp/shot.png"}},
+				},
+			},
+		}
 
-		err := agent.stateHandlers[states.StateExecutingTools].Handle(event)
-		assert.NoError(t, err)
+		err := agent.stateHandlers[states.StatePostToolExecution].Handle(states.MessageReceivedEvent{})
+		require.NoError(t, err)
 
-		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
+		conversation := *ctx.Conversation
+		require.Len(t, conversation, 1)
+		assert.Equal(t, sdk.User, conversation[0].Role)
+		require.Equal(t, 1, mocks.repo.AddMessageCallCount())
+		assert.True(t, mocks.repo.AddMessageArgsForCall(0).Hidden)
+		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
+		assert.Equal(t, states.StateCheckingQueue, toState)
+	})
+
+	t.Run("requested_plan_stops_the_loop", func(t *testing.T) {
+		mocks := setupTestMocks()
+		ctx := createTestContext(mocks)
+		agent := createTestAgent(mocks, ctx)
+
+		ctx.Turns = 1
+		mocks.queue.IsEmptyReturns(false)
+		mocks.stateMachine.TransitionReturns(nil)
+		chatEvents := make(chan agentdomain.ChatEvent, 10)
+		agent.eventPublisher.chatEvents = chatEvents
+		agent.toolResults = []convdomain.ConversationEntry{
+			{
+				Message: sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("plan requested")},
+				ToolExecution: &agentdomain.ToolExecutionResult{
+					ToolName: tools.ToolRequestPlanApproval,
+					Success:  true,
+					Data:     map[string]any{"plan": "# Plan\n- step 1", "plan_id": "p-1"},
+				},
+			},
+		}
+
+		err := agent.stateHandlers[states.StatePostToolExecution].Handle(states.MessageReceivedEvent{})
+		require.NoError(t, err)
+
+		require.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
 		assert.Equal(t, states.StateStopped, toState)
+		assert.Empty(t, agent.events, "a pending plan must not start another turn")
 
-		select {
-		case ev := <-agent.events:
-			t.Errorf("expected no event on stop path, got %T", ev)
-		default:
-		}
+		conversation := *ctx.Conversation
+		require.NotEmpty(t, conversation)
+		assert.Equal(t, sdk.Assistant, conversation[len(conversation)-1].Role)
+		require.Equal(t, 1, mocks.repo.AddMessageCallCount())
+		assert.True(t, mocks.repo.AddMessageArgsForCall(0).IsPlan)
+
+		published := <-chatEvents
+		plan, ok := published.(agentdomain.PlanApprovalRequestedEvent)
+		require.True(t, ok, "expected PlanApprovalRequestedEvent, got %T", published)
+		assert.Equal(t, "p-1", plan.PlanID)
 	})
-}
 
-func TestHandlePostToolExecutionState(t *testing.T) {
 	t.Run("transitions_to_checking_queue_when_queue_not_empty", func(t *testing.T) {
 		mocks := setupTestMocks()
 		ctx := createTestContext(mocks)

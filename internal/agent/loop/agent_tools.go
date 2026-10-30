@@ -24,16 +24,15 @@ func (a *eventDrivenAgent) executeTools() {
 	toolResults := a.service.executeToolCallsParallel(a.agentCtx.Ctx, toolCallsSlice, a.eventPublisher)
 	logger.Debug("tool execution completed", "result_count", len(toolResults))
 
-	stop := a.service.handleToolResults(toolResults, a.agentCtx.Conversation, a.eventPublisher, a.req)
+	a.service.addToolResultsToConversation(toolResults, a.agentCtx.Conversation)
 
 	failed := states.AnyToolFailed(toolResults)
 	a.mu.Lock()
+	a.toolResults = toolResults
 	a.agentCtx.LastToolFailed = failed
-	if !stop {
-		a.agentCtx.HasToolResults = true
-	}
+	a.agentCtx.HasToolResults = true
 	a.mu.Unlock()
 
-	logger.Debug("emitting tools completed event", "stop", stop)
-	a.events <- states.ToolsCompletedEvent{Stop: stop}
+	logger.Debug("emitting tools completed event")
+	a.events <- states.ToolsCompletedEvent{}
 }
