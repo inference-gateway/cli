@@ -129,54 +129,24 @@ func (t *ImageGenerationTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *ImageGenerationTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "Image generation failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Image generated"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Image saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, imageGenerationFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *ImageGenerationTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("Image generation failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Image generated"
-	}
-	path, _ := data["path"].(string)
-	quality, _ := data["quality"].(string)
-	size, _ := data["size"].(string)
-	formatter := NewBaseFormatter(ToolImageGeneration)
-	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (quality: %s, size: %s)", path, quality, size))
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *ImageGenerationTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *ImageGenerationTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, imageGenerationFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *ImageGenerationTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatSavedResult(result, formatType, imageGenerationFile)
+}
+
+// imageGenerationFile describes the file the ImageGeneration tool saves.
+var imageGenerationFile = savedFile{
+	tool:    ToolImageGeneration,
+	noun:    "Image",
+	failure: "Image generation failed",
+	done:    "Image generated",
+	details: imageDetails,
 }

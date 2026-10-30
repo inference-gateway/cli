@@ -23,7 +23,7 @@ type EditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter CustomFormatter
+	formatter BaseFormatter
 }
 
 // ReadToolTracker interface for tracking read tool usage and per-file read freshness.
@@ -509,16 +509,7 @@ func (t *EditTool) validateFile(ctx context.Context, path string) error {
 
 // FormatResult formats tool execution results for different contexts
 func (t *EditTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -558,16 +549,7 @@ func (t *EditTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
@@ -587,11 +569,6 @@ func (t *EditTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *EditTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *EditTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 // formatEditData formats edit-specific data

@@ -107,53 +107,30 @@ func (t *ImageVariationTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *ImageVariationTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "Image variation failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Image variation created"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Image saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, imageVariationFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *ImageVariationTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("Image variation failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Image variation created"
-	}
-	path, _ := data["path"].(string)
-	size, _ := data["size"].(string)
-	formatter := NewBaseFormatter(ToolImageVariation)
-	return formatter.FormatExpanded(result, fmt.Sprintf("Image saved to %s (size: %s)", path, size))
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *ImageVariationTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *ImageVariationTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, imageVariationFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *ImageVariationTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatSavedResult(result, formatType, imageVariationFile)
+}
+
+// imageVariationFile describes the file the ImageVariation tool saves.
+var imageVariationFile = savedFile{
+	tool:    ToolImageVariation,
+	noun:    "Image",
+	failure: "Image variation failed",
+	done:    "Image variation created",
+	details: imageVariationDetails,
+}
+
+// imageVariationDetails renders the size an image variation reports.
+func imageVariationDetails(data map[string]any) string {
+	size, _ := data["size"].(string)
+	return fmt.Sprintf(" (size: %s)", size)
 }

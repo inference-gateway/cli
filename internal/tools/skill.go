@@ -147,13 +147,3 @@ func (t *SkillTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string
 func FormatSkillForLLM(name, path, content string) string {
 	return fmt.Sprintf("Skill: %s\nPath: %s\n\n%s", name, path, content)
 }
-
-// ShouldCollapseArg keeps the skill name visible in the tool call line.
-func (t *SkillTool) ShouldCollapseArg(string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand keeps skill bodies collapsed by default.
-func (t *SkillTool) ShouldAlwaysExpand() bool {
-	return false
-}

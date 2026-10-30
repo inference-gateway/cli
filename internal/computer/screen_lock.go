@@ -3,11 +3,13 @@
 package computer
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
+
+	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
 // The screen is a machine-wide resource: two concurrent computer-use sessions
@@ -43,13 +45,12 @@ func acquireScreenLock() error {
 		return fmt.Errorf("failed to create %s: %w", dir, err)
 	}
 
-	f, err := os.OpenFile(filepath.Join(dir, "computer-use.lock"), os.O_CREATE|os.O_RDWR, 0o644)
-	if err != nil {
-		return fmt.Errorf("failed to open screen lock file: %w", err)
-	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		_ = f.Close()
+	f, err := process.LockFile(filepath.Join(dir, "computer-use.lock"))
+	if errors.Is(err, process.ErrLocked) {
 		return fmt.Errorf("another computer-use session is already controlling the screen; abort this computer-use task and tell the user only one foreground computer-use session can run at a time")
+	}
+	if err != nil {
+		return fmt.Errorf("failed to take the screen lock: %w", err)
 	}
 
 	_ = f.Truncate(0)

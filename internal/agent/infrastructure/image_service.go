@@ -71,7 +71,7 @@ func (s *ImageService) GenerateImage(ctx context.Context, model, prompt, quality
 		return "", fmt.Errorf("image generation returned no images")
 	}
 
-	data, err := s.imageBytes(resp.Data[0])
+	data, err := s.imageBytes(ctx, resp.Data[0])
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +138,7 @@ func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, 
 		return "", fmt.Errorf("image edit returned no images")
 	}
 
-	data, err := s.imageBytes(resp.Data[0])
+	data, err := s.imageBytes(ctx, resp.Data[0])
 	if err != nil {
 		return "", err
 	}
@@ -177,12 +177,12 @@ func (s *ImageService) saveImage(ctx context.Context, data []byte) (string, erro
 
 // imageBytes resolves a generated image payload: base64 data first, falling
 // back to downloading the URL.
-func (s *ImageService) imageBytes(img sdk.Image) ([]byte, error) {
+func (s *ImageService) imageBytes(ctx context.Context, img sdk.Image) ([]byte, error) {
 	if img.B64Json != nil && *img.B64Json != "" {
 		return base64.StdEncoding.DecodeString(*img.B64Json)
 	}
 	if img.URL != nil && *img.URL != "" {
-		attachment, err := s.ReadImageFromURL(*img.URL)
+		attachment, err := s.ReadImageFromURL(ctx, *img.URL)
 		if err != nil {
 			return nil, err
 		}
@@ -257,7 +257,7 @@ func (s *ImageService) IsImageFile(filePath string) bool {
 // ReadImageFromURL fetches an image from a URL and returns it as a base64
 // attachment. URLs reach this from untrusted sources (LLM tool arguments), so
 // only http(s) to public addresses is allowed.
-func (s *ImageService) ReadImageFromURL(imageURL string) (*agentdomain.ImageAttachment, error) {
+func (s *ImageService) ReadImageFromURL(ctx context.Context, imageURL string) (*agentdomain.ImageAttachment, error) {
 	parsedURL, err := url.Parse(imageURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL: %w", err)
@@ -272,7 +272,12 @@ func (s *ImageService) ReadImageFromURL(imageURL string) (*agentdomain.ImageAtta
 		client = &http.Client{Timeout: timeout}
 	}
 
-	resp, err := client.Get(imageURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create image request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image from URL: %w", err)
 	}

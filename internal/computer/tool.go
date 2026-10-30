@@ -199,13 +199,3 @@ func (t *ComputerTool) FormatForLLM(result *agentdomain.ToolExecutionResult) str
 	}
 	return msg
 }
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *ComputerTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *ComputerTool) ShouldAlwaysExpand() bool {
-	return false
-}

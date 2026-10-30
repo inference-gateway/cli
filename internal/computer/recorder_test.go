@@ -3,6 +3,7 @@ package computer
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -162,6 +163,38 @@ func TestScreenRecorderStopKillsHungFFmpeg(t *testing.T) {
 	if _, err := r.Stop(); err == nil || !strings.Contains(err.Error(), "was killed") {
 		t.Fatalf("Stop() err = %v, want ffmpeg killed after the stop timeout", err)
 	}
+}
+
+func TestScreenRecorderRefusesStartWhileFinalizing(t *testing.T) {
+	r, _ := newFakeRecorder(t)
+	t.Setenv("INFER_FAKE_FFMPEG_IGNORE_Q", "1")
+	r.stopTimeout = 500 * time.Millisecond
+	if err := launchFake(r, filepath.Join(t.TempDir(), "hung.mp4"), "30"); err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		_, _ = r.Stop()
+	}()
+	for !recorderFinishing(r) {
+		runtime.Gosched()
+	}
+
+	err := launchFake(r, filepath.Join(t.TempDir(), "next.mp4"), "30")
+	if err == nil || !strings.Contains(err.Error(), "still finalizing") {
+		t.Fatalf("launch during finalize: err = %v, want still finalizing", err)
+	}
+	<-stopped
+	if recorderFinishing(r) {
+		t.Fatal("finishing still set after Stop returned")
+	}
+}
+
+func recorderFinishing(r *ScreenRecorder) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.finishing != nil
 }
 
 func TestScreenRecorderCloseFinalizesAndRefusesNew(t *testing.T) {

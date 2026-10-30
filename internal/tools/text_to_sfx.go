@@ -146,53 +146,23 @@ func (t *TextToSFXTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *TextToSFXTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "SFX generation failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Sound effect generated"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Sound effect saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, soundEffectFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *TextToSFXTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("SFX generation failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Sound effect generated"
-	}
-	path, _ := data["path"].(string)
-	summary := fmt.Sprintf("Sound effect saved to %s", path)
-	formatter := NewBaseFormatter(ToolTextToSFX)
-	return formatter.FormatExpanded(result, summary)
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *TextToSFXTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *TextToSFXTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, soundEffectFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *TextToSFXTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatSavedResult(result, formatType, soundEffectFile)
+}
+
+// soundEffectFile describes the file the TextToSFX tool saves.
+var soundEffectFile = savedFile{
+	tool:    ToolTextToSFX,
+	noun:    "Sound effect",
+	failure: "SFX generation failed",
+	done:    "Sound effect generated",
 }

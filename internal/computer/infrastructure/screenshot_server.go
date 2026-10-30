@@ -91,7 +91,8 @@ func (s *ScreenshotServer) Start() error {
 	mux.HandleFunc("/api/screenshots/status", s.handleGetStatus)
 
 	s.server = &http.Server{
-		Handler: mux,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
@@ -108,36 +109,39 @@ func (s *ScreenshotServer) Start() error {
 	return nil
 }
 
-// Stop stops the HTTP server and capture loop
+// Stop stops the HTTP server and capture loop. It releases the lock before
+// Shutdown, which waits for in-flight handlers that take the read lock.
 func (s *ScreenshotServer) Stop() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if !s.running {
+		s.mu.Unlock()
 		return nil
 	}
+	s.running = false
+	server, buffer, captureStop := s.server, s.buffer, s.captureStop
+	s.mu.Unlock()
 
-	if s.captureStop != nil {
-		s.captureStop()
+	if captureStop != nil {
+		captureStop()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if s.server != nil {
-		if err := s.server.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown server: %w", err)
-		}
+	var shutdownErr error
+	if server != nil {
+		shutdownErr = server.Shutdown(ctx)
 	}
 
-	if s.buffer != nil {
-		if err := s.buffer.Cleanup(); err != nil {
+	if buffer != nil {
+		if err := buffer.Cleanup(); err != nil {
 			logger.Warn("failed to cleanup buffer", "error", err)
 		}
 	}
 
-	s.running = false
-
+	if shutdownErr != nil {
+		return fmt.Errorf("failed to shutdown server: %w", shutdownErr)
+	}
 	return nil
 }
 

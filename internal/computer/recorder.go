@@ -84,9 +84,10 @@ type ScreenRecorder struct {
 	startupWait time.Duration
 	stopTimeout time.Duration
 
-	mu     sync.Mutex
-	cur    *recording
-	closed bool
+	mu        sync.Mutex
+	cur       *recording
+	finishing *recording
+	closed    bool
 }
 
 // NewScreenRecorder creates the recorder shared by RecordStart and RecordStop.
@@ -121,6 +122,9 @@ func (r *ScreenRecorder) Start(ctx context.Context, req recordRequest) (Recordin
 func (r *ScreenRecorder) idleLocked() error {
 	if r.closed {
 		return errors.New("screen recorder is shut down")
+	}
+	if r.finishing != nil {
+		return fmt.Errorf("the previous recording (%s) is still finalizing; try again in a moment", r.finishing.status.Path)
 	}
 	if r.cur != nil {
 		select {
@@ -275,17 +279,16 @@ func (r *ScreenRecorder) lockRecording() (*os.File, error) {
 		return nil, fmt.Errorf("create %s: %w", dir, err)
 	}
 	path := filepath.Join(dir, "screen-recording.lock")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("open the recording lock: %w", err)
-	}
-	if err := tryLockFile(f); err != nil {
-		_ = f.Close()
+	f, err := process.LockFile(path)
+	if errors.Is(err, process.ErrLocked) {
 		owner := "another infer process"
 		if pid, _ := os.ReadFile(path); len(strings.TrimSpace(string(pid))) > 0 {
 			owner += " (pid " + strings.TrimSpace(string(pid)) + ")"
 		}
 		return nil, fmt.Errorf("%s is already recording the screen and only one recording can run at a time; tell the user instead of retrying", owner)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("take the recording lock: %w", err)
 	}
 	_ = f.Truncate(0)
 	_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
@@ -352,26 +355,42 @@ func (j *recordingJob) Wind(context.Context, scheddomain.WindSignal) error {
 func (j *recordingJob) Close() {}
 
 // Stop finalizes the active recording, or the one the time cap already
-// finished, and reports the file.
+// finished, and reports the file. ffmpeg finalizes outside the lock, and
+// finishing keeps RecordStart refusing until it is done.
 func (r *ScreenRecorder) Stop() (RecordingStatus, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	rec := r.cur
 	if rec == nil {
+		r.mu.Unlock()
 		return RecordingStatus{}, errors.New("no recording is running; call RecordStart first")
 	}
-	r.cur = nil
+	r.cur, r.finishing = nil, rec
+	r.mu.Unlock()
+	defer r.doneFinishing(rec)
 	return rec.finish(r.stopTimeout)
 }
 
-// Close finalizes any active recording and refuses new ones. The container
-// calls it on shutdown (normal exit, SIGINT, SIGTERM).
-func (r *ScreenRecorder) Close() {
+func (r *ScreenRecorder) doneFinishing(rec *recording) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.finishing == rec {
+		r.finishing = nil
+	}
+}
+
+// Close finalizes any active recording, waits for one a Stop is finalizing,
+// and refuses new ones. The container calls it on shutdown (normal exit,
+// SIGINT, SIGTERM).
+func (r *ScreenRecorder) Close() {
+	r.mu.Lock()
 	r.closed = true
-	if rec := r.cur; rec != nil {
-		r.cur = nil
+	rec, finishing := r.cur, r.finishing
+	r.cur = nil
+	r.mu.Unlock()
+	if finishing != nil {
+		<-finishing.done
+	}
+	if rec != nil {
 		if _, err := rec.finish(r.stopTimeout); err != nil {
 			logger.Warn("failed to finalize screen recording", "error", err)
 		}

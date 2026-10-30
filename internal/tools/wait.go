@@ -196,16 +196,7 @@ func (t *WaitTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts.
 func (t *WaitTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -233,16 +224,7 @@ func (t *WaitTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption. Condition details
@@ -348,11 +330,6 @@ func (t *WaitTool) ShouldCollapseArg(key string) bool {
 	return key == "command" || key == "shell_ids"
 }
 
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI.
-func (t *WaitTool) ShouldAlwaysExpand() bool {
-	return false
-}
-
 // waitShells blocks until the referenced background shell(s) exit.
 func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[string]any {
 	shellIDs, _ := args["shell_ids"].([]any)
@@ -366,7 +343,7 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[stri
 	if len(targetIDs) == 0 && t.shellService != nil {
 		allShells := t.shellService.GetAllShells()
 		for _, s := range allShells {
-			if s.State == scheddomain.ShellStateRunning {
+			if s.Status().State == scheddomain.ShellStateRunning {
 				targetIDs = append(targetIDs, s.ShellID)
 			}
 		}
@@ -395,7 +372,7 @@ func (t *WaitTool) waitShells(ctx context.Context, args map[string]any) map[stri
 			allDone := true
 			for _, id := range targetIDs {
 				shell := t.shellService.GetShell(id)
-				if shell == nil || !shell.State.IsTerminal() {
+				if shell == nil || !shell.Status().State.IsTerminal() {
 					allDone = false
 					break
 				}
@@ -428,9 +405,10 @@ func (t *WaitTool) shellResults(ids []string, reason string) map[string]any {
 			})
 			continue
 		}
+		status := shell.Status()
 		exitCode := -1
-		if shell.ExitCode != nil {
-			exitCode = *shell.ExitCode
+		if status.ExitCode != nil {
+			exitCode = *status.ExitCode
 		}
 		tailOutput := ""
 		if shell.OutputBuffer != nil {
@@ -440,7 +418,7 @@ func (t *WaitTool) shellResults(ids []string, reason string) map[string]any {
 			"shell_id":  id,
 			"command":   shell.Command,
 			"exit_code": exitCode,
-			"state":     string(shell.State),
+			"state":     string(status.State),
 			"output":    tailOutput,
 		})
 	}

@@ -3,6 +3,8 @@ package tools
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -18,54 +20,34 @@ const (
 	crossMark = "✗"
 )
 
-// BaseFormatter provides common formatting functionality that tools can embed
+// BaseFormatter provides common formatting functionality that tools can embed.
+// Its collapse rule, when set, hides the matching arguments behind "...".
 type BaseFormatter struct {
-	toolName string
-}
-
-// CustomFormatter extends BaseFormatter with customizable collapse behavior
-type CustomFormatter struct {
-	BaseFormatter
+	toolName     string
 	collapseFunc func(string) bool
 }
 
-// NewBaseFormatter creates a new base formatter for a tool
+// NewBaseFormatter creates a formatter that shows every argument
 func NewBaseFormatter(toolName string) BaseFormatter {
-	return BaseFormatter{
-		toolName: toolName,
-	}
+	return BaseFormatter{toolName: toolName}
 }
 
 // NewCustomFormatter creates a formatter with custom collapse logic
-func NewCustomFormatter(toolName string, collapseFunc func(string) bool) CustomFormatter {
-	return CustomFormatter{
-		BaseFormatter: NewBaseFormatter(toolName),
-		collapseFunc:  collapseFunc,
-	}
+func NewCustomFormatter(toolName string, collapseFunc func(string) bool) BaseFormatter {
+	return BaseFormatter{toolName: toolName, collapseFunc: collapseFunc}
 }
 
 // FormatToolCall formats a tool call for consistent display
 func (f BaseFormatter) FormatToolCall(args map[string]any, expanded bool) string {
-	if len(args) == 0 {
-		return fmt.Sprintf("%s()", f.toolName)
-	}
-
-	keys := make([]string, 0, len(args))
-	for key := range args {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-
 	argPairs := make([]string, 0, len(args))
-	for _, key := range keys {
+	for _, key := range slices.Sorted(maps.Keys(args)) {
 		value := args[key]
 		if !expanded && f.ShouldCollapseArg(key) {
-			value = f.collapseArgValue(value, 50)
+			value = "..."
 		}
 		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
 	}
-
-	return fmt.Sprintf("%s(%s)", f.toolName, f.joinArgs(argPairs))
+	return fmt.Sprintf("%s(%s)", f.toolName, strings.Join(argPairs, ", "))
 }
 
 // FormatStatusIcon returns just the status icon
@@ -118,66 +100,26 @@ func (f BaseFormatter) FormatAsJSON(data any) string {
 	return fmt.Sprintf("%+v", data)
 }
 
-// ShouldCollapseArg provides default collapse behavior (can be overridden by tools)
+// ShouldCollapseArg reports whether the collapse rule hides the argument
 func (f BaseFormatter) ShouldCollapseArg(key string) bool {
-	return false
+	return f.collapseFunc != nil && f.collapseFunc(key)
 }
 
-// ShouldCollapseArg uses the custom collapse function if provided
-func (f CustomFormatter) ShouldCollapseArg(key string) bool {
-	if f.collapseFunc != nil {
-		return f.collapseFunc(key)
-	}
-	return f.BaseFormatter.ShouldCollapseArg(key)
-}
-
-// FormatToolCall overrides BaseFormatter to use custom collapse logic
-func (f CustomFormatter) FormatToolCall(args map[string]any, expanded bool) string {
-	if len(args) == 0 {
-		return fmt.Sprintf("%s()", f.toolName)
-	}
-
-	keys := make([]string, 0, len(args))
-	for key := range args {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-
-	argPairs := make([]string, 0, len(args))
-	for _, key := range keys {
-		value := args[key]
-		if !expanded && f.ShouldCollapseArg(key) {
-			value = "..."
-		}
-		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
-	}
-
-	return fmt.Sprintf("%s(%s)", f.toolName, f.joinArgs(argPairs))
-}
-
-// FormatExpanded renders the full expanded result as a single native lipgloss/tree,
-// replacing the hand-drawn ├─/└─ connectors that used to live across three methods.
+// FormatExpanded renders the full expanded result as a single native lipgloss/tree.
 // dataContent is the tool-specific result body (may be ""). Output is plain: the UI
-// wraps and themes it (services.themeTreeLines); LLM / headless consume it as-is.
+// wraps and themes it (services.themeTreeLines), LLM and headless consume it as-is.
 func (f BaseFormatter) FormatExpanded(result *agentdomain.ToolExecutionResult, dataContent string) string {
 	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
 }
 
-// FormatExpanded renders the expanded tree using the custom collapse behavior.
-func (f CustomFormatter) FormatExpanded(result *agentdomain.ToolExecutionResult, dataContent string) string {
-	return renderExpandedTree(f.FormatToolCall(result.Arguments, false), result, dataContent, f.argValue)
+// FormatCollapsed renders the collapsed view of a result under the tool call.
+func (f BaseFormatter) FormatCollapsed(result *agentdomain.ToolExecutionResult, summary string) string {
+	return renderCollapsed(f.FormatToolCall(result.Arguments, false), result.Success, summary)
 }
 
 // argValue formats a single argument value for the expanded view, honoring the
-// formatter's collapse behavior (BaseFormatter truncates to 50; CustomFormatter uses "...").
+// formatter's collapse rule.
 func (f BaseFormatter) argValue(key string, value any) string {
-	if f.ShouldCollapseArg(key) {
-		return f.collapseArgValue(value, 50)
-	}
-	return fmt.Sprintf("%v", value)
-}
-
-func (f CustomFormatter) argValue(key string, value any) string {
 	if f.ShouldCollapseArg(key) {
 		return "..."
 	}
@@ -201,13 +143,8 @@ func renderExpandedTree(toolCall string, result *agentdomain.ToolExecutionResult
 	}
 
 	if len(result.Arguments) > 0 {
-		keys := make([]string, 0, len(result.Arguments))
-		for key := range result.Arguments {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
 		args := tree.Root("Arguments:")
-		for _, key := range keys {
+		for _, key := range slices.Sorted(maps.Keys(result.Arguments)) {
 			args.Child(fmt.Sprintf("%s: %s", key, argValue(key, result.Arguments[key])))
 		}
 		t.Child(args)
@@ -218,19 +155,31 @@ func renderExpandedTree(toolCall string, result *agentdomain.ToolExecutionResult
 	}
 
 	if len(result.Metadata) > 0 {
-		keys := make([]string, 0, len(result.Metadata))
-		for key := range result.Metadata {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
 		meta := tree.Root("Metadata:")
-		for _, key := range keys {
+		for _, key := range slices.Sorted(maps.Keys(result.Metadata)) {
 			meta.Child(fmt.Sprintf("%s: %v", key, result.Metadata[key]))
 		}
 		t.Child(meta)
 	}
 
 	return trimLinePadding(t.String())
+}
+
+// renderCollapsed draws the collapsed view: the tool call, then the status and
+// summary under one connector. Later summary lines are indented under the first
+// so a multi-line summary stays inside the block.
+func renderCollapsed(toolCall string, success bool, summary string) string {
+	status := crossMark
+	if success {
+		status = checkMark
+	}
+	lines := strings.Split(summary, "\n")
+	var out strings.Builder
+	fmt.Fprintf(&out, "%s\n└─ %s %s", toolCall, status, lines[0])
+	for _, line := range lines[1:] {
+		fmt.Fprintf(&out, "\n     %s", line)
+	}
+	return out.String()
 }
 
 // trimLinePadding drops the trailing spaces lipgloss adds to pad every line of
@@ -246,23 +195,7 @@ func trimLinePadding(rendered string) string {
 
 // GetFileName extracts filename from a path
 func (f BaseFormatter) GetFileName(path string) string {
-	parts := strings.Split(path, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
-	}
-	return path
-}
-
-// GetDomainFromURL extracts domain from URL
-func (f BaseFormatter) GetDomainFromURL(url string) string {
-	url = strings.TrimPrefix(url, "http://")
-	url = strings.TrimPrefix(url, "https://")
-
-	parts := strings.Split(url, "/")
-	if len(parts) > 0 {
-		return parts[0]
-	}
-	return url
+	return filepath.Base(path)
 }
 
 // TruncateText truncates text to specified length with ellipsis
@@ -274,31 +207,4 @@ func (f BaseFormatter) TruncateText(text string, maxLength int) string {
 		return "..."
 	}
 	return text[:maxLength-3] + "..."
-}
-
-// Private helper methods
-func (f BaseFormatter) collapseArgValue(value any, maxLength int) string {
-	str := fmt.Sprintf("%v", value)
-	if len(str) <= maxLength {
-		return str
-	}
-	if maxLength <= 3 {
-		return "..."
-	}
-	return str[:maxLength-3] + "..."
-}
-
-func (f BaseFormatter) joinArgs(args []string) string {
-	if len(args) == 0 {
-		return ""
-	}
-	if len(args) == 1 {
-		return args[0]
-	}
-
-	result := args[0]
-	for i := 1; i < len(args); i++ {
-		result += ", " + args[i]
-	}
-	return result
 }

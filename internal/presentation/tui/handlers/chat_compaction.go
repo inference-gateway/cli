@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -9,7 +8,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	conversation "github.com/inference-gateway/cli/internal/conversation"
-	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
@@ -17,20 +15,6 @@ import (
 // compactionTimeout bounds the LLM summarization call so a wedged gateway can't
 // hang the UI thread. Shared by /compact and the post-plan-approval flow.
 const compactionTimeout = 70 * time.Second
-
-// nonHiddenMessages returns the current conversation's user-visible messages
-// (hidden system reminders / continue prompts are excluded from summarization).
-func (h *ChatHandler) nonHiddenMessages() []sdk.Message {
-	entries := h.conversationRepo.GetMessages()
-	messages := make([]sdk.Message, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Hidden {
-			continue
-		}
-		messages = append(messages, entry.Message)
-	}
-	return messages
-}
 
 // optimizeWithTimeout force-compacts messages under a hard timeout. It returns
 // (optimized, true) on success and (nil, false) if the summarization timed out.
@@ -47,28 +31,6 @@ func (h *ChatHandler) optimizeWithTimeout(messages []sdk.Message, model string) 
 		logger.Error("optimization timed out", "timeout", compactionTimeout)
 		return nil, false
 	}
-}
-
-// reseedConversationWithMessages saves the current conversation and starts a
-// fresh one titled "Continued from <old title>", seeded with the given messages.
-// The old conversation is preserved in storage; only the in-memory working set
-// is replaced.
-func (h *ChatHandler) reseedConversationWithMessages(messages []sdk.Message, model string) error {
-	newTitle := fmt.Sprintf("Continued from %s", h.conversationRepo.GetCurrentConversationTitle())
-	if err := h.conversationRepo.StartNewConversation(newTitle); err != nil {
-		return err
-	}
-	for _, msg := range messages {
-		entry := convdomain.ConversationEntry{
-			Message: msg,
-			Model:   model,
-			Time:    time.Now(),
-		}
-		if err := h.conversationRepo.AddMessage(entry); err != nil {
-			logger.Error("failed to add optimized message", "error", err)
-		}
-	}
-	return nil
 }
 
 // newSessionAfterPlanApproval starts the fresh conversation an approved plan

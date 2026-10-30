@@ -17,7 +17,7 @@ import (
 // TestAccumulateToolCalls tests tool call accumulation
 func TestAccumulateToolCalls(t *testing.T) {
 	agentService := &Agent{
-		toolCallsMap: make(map[string]*sdk.ChatCompletionMessageToolCall),
+		toolCallsMap: make(map[int]*sdk.ChatCompletionMessageToolCall),
 	}
 
 	callID := "call-1"
@@ -29,18 +29,18 @@ func TestAccumulateToolCalls(t *testing.T) {
 	agentService.accumulateToolCalls(deltas)
 
 	assert.Equal(t, 1, len(agentService.toolCallsMap))
-	assert.Contains(t, agentService.toolCallsMap, "0")
-	assert.Equal(t, "call-1", agentService.toolCallsMap["0"].ID)
-	assert.Equal(t, "Read", agentService.toolCallsMap["0"].Function.Name)
-	assert.Equal(t, `{"file":"test.txt"}`, agentService.toolCallsMap["0"].Function.Arguments)
+	assert.Contains(t, agentService.toolCallsMap, 0)
+	assert.Equal(t, "call-1", agentService.toolCallsMap[0].ID)
+	assert.Equal(t, "Read", agentService.toolCallsMap[0].Function.Name)
+	assert.Equal(t, `{"file":"test.txt"}`, agentService.toolCallsMap[0].Function.Arguments)
 }
 
 // TestGetAccumulatedToolCalls tests retrieving accumulated tool calls
 func TestGetAccumulatedToolCalls(t *testing.T) {
 	agentService := &Agent{
-		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
-			"1": {ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
+		toolCallsMap: map[int]*sdk.ChatCompletionMessageToolCall{
+			0: {ID: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
+			1: {ID: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
 		},
 	}
 
@@ -58,8 +58,8 @@ func TestGetAccumulatedToolCalls(t *testing.T) {
 // TestClearToolCallsMap tests clearing tool calls map
 func TestClearToolCallsMap(t *testing.T) {
 	agentService := &Agent{
-		toolCallsMap: map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {ID: "call-1"},
+		toolCallsMap: map[int]*sdk.ChatCompletionMessageToolCall{
+			0: {ID: "call-1"},
 		},
 	}
 
@@ -203,7 +203,7 @@ func TestAddToolResultsToConversation(t *testing.T) {
 		{Role: sdk.User, Content: sdk.NewMessageContent("initial")},
 	}
 
-	agentService.addToolResultsToConversation(toolResults, &conversation, "openai/gpt-4o")
+	agentService.addToolResultsToConversation(toolResults, &conversation)
 
 	assert.Equal(t, 3, len(conversation))
 	assert.Equal(t, sdk.Tool, conversation[1].Role)

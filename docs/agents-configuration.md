@@ -85,7 +85,7 @@ infer agents add test-runner https://localhost:8081 \
   --oci ghcr.io/org/test-runner:latest \
   --run
 
-# Agent with environment variables
+# Agent with environment variables (repeat the flag, or comma-separate: API_KEY=secret,MODEL=gpt-4)
 infer agents add analyzer https://agent.example.com \
   --environment API_KEY=secret \
   --environment MODEL=gpt-4
@@ -148,7 +148,8 @@ infer agents update project-helper --url http://helper:9090 --project
 ```
 
 **Flags:** `--url`, `--model`, `--oci`, `--tag` (known agents only, mutually exclusive with `--oci`),
-`--artifacts-url`, `--environment KEY=VALUE` (replaces the existing set), `--run`.
+`--artifacts-url`, `--environment KEY=VALUE` (replaces the existing set, takes
+`KEY=VALUE,KEY=VALUE` or a repeated flag), `--run`.
 
 ### Probe Agent Readiness
 

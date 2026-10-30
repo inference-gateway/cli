@@ -504,13 +504,11 @@ func TestGuardFunctions_MaxDurationReached(t *testing.T) {
 	}
 }
 
-// TestExecutingToolsToStoppedTransition is a regression test for the previously
-// unregistered ExecutingTools → Stopped transition. The executeTools goroutine
-// requests Stopped when a tool result signals stop (a rejected tool or a
-// successful RequestPlanApproval); that transition silently failed before, so
-// the loop was left parked in ExecutingTools. It must now succeed from
-// ExecutingTools - and only from there (no global loop to Stopped was added).
-func TestExecutingToolsToStoppedTransition(t *testing.T) {
+// TestPostToolExecutionToStoppedTransition pins where a requested plan stops the
+// loop: PostToolExecution, which every tool route (executing, approving,
+// blocking) reaches. Stopped stays unreachable from the routes themselves and
+// from Idle, so no route can bypass the plan check.
+func TestPostToolExecutionToStoppedTransition(t *testing.T) {
 	sm := newAgentStateMachine()
 	ctx := createTestAgentContext()
 	*ctx.Conversation = []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}}
@@ -530,8 +528,16 @@ func TestExecutingToolsToStoppedTransition(t *testing.T) {
 		t.Fatalf("setup: reaching ExecutingTools should succeed, got: %v", err)
 	}
 
+	if err := sm.Transition(ctx, states.StateStopped); err == nil {
+		t.Fatal("ExecutingTools → Stopped should fail (the plan check lives in PostToolExecution)")
+	}
+
+	if err := sm.Transition(ctx, states.StatePostToolExecution); err != nil {
+		t.Fatalf("setup: reaching PostToolExecution should succeed, got: %v", err)
+	}
+
 	if err := sm.Transition(ctx, states.StateStopped); err != nil {
-		t.Fatalf("ExecutingTools → Stopped should succeed, got error: %v", err)
+		t.Fatalf("PostToolExecution → Stopped should succeed, got error: %v", err)
 	}
 	if sm.GetCurrentState() != states.StateStopped {
 		t.Errorf("expected state Stopped, got %s", sm.GetCurrentState())

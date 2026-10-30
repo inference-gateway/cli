@@ -224,16 +224,7 @@ func (t *TodoWriteTool) validateTodoList(todos []agentdomain.TodoItem) error {
 
 // FormatResult formats tool execution results for different contexts
 func (t *TodoWriteTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -273,9 +264,7 @@ func (t *TodoWriteTool) FormatForUI(result *agentdomain.ToolExecutionResult) str
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	return fmt.Sprintf("TodoWrite(...)\n└─ %s Todo list updated", statusIcon)
+	return renderCollapsed(ToolTodoWrite+"(...)", result.Success, "Todo list updated")
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
@@ -383,10 +372,4 @@ func (t *TodoWriteTool) formatTodoItem(todo agentdomain.TodoItem) (string, strin
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *TodoWriteTool) ShouldCollapseArg(key string) bool {
 	return key == "todos"
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-// Returns false since todos are shown in the dedicated todo component
-func (t *TodoWriteTool) ShouldAlwaysExpand() bool {
-	return false
 }

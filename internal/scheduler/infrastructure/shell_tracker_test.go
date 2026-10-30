@@ -14,16 +14,18 @@ import (
 func createTestShell(id string, state scheddomain.ShellState) *scheddomain.BackgroundShell {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &scheddomain.BackgroundShell{
+	shell := &scheddomain.BackgroundShell{
 		ShellID:      id,
 		Command:      "echo test",
 		Cmd:          exec.CommandContext(ctx, "echo", "test"),
 		StartedAt:    time.Now(),
-		State:        state,
 		OutputBuffer: scheddomain.NewOutputRingBuffer(1024),
 		CancelFunc:   cancel,
-		ReadOffset:   0,
 	}
+	if state.IsTerminal() {
+		shell.Finish(state, 0, time.Now())
+	}
+	return shell
 }
 
 func mustAddShell(t *testing.T, tracker *shellTracker, shell *scheddomain.BackgroundShell) {
@@ -316,8 +318,7 @@ func TestShellTracker_Cleanup(t *testing.T) {
 					shell.StartedAt = time.Now().Add(-spec.startedAgo)
 				}
 				if spec.completedAgo != 0 {
-					completedAt := time.Now().Add(-spec.completedAgo)
-					shell.CompletedAt = &completedAt
+					shell.Finish(spec.state, 0, time.Now().Add(-spec.completedAgo))
 				}
 				mustAddShell(t, tracker, shell)
 			}

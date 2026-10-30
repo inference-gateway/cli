@@ -32,7 +32,6 @@ type SSHSession struct {
 	running             bool
 	ctx                 context.Context
 	cancel              context.CancelFunc
-	ws                  *websocket.Conn
 	tunnelListener      net.Listener
 	tunnelCtx           context.Context
 	tunnelCancel        context.CancelFunc
@@ -184,10 +183,6 @@ func (s *SSHSession) Resize(cols, rows int) error {
 
 // HandleConnection bridges WebSocket and SSH session I/O
 func (s *SSHSession) HandleConnection(conn *websocket.Conn) error {
-	s.mu.Lock()
-	s.ws = conn
-	s.mu.Unlock()
-
 	var wg sync.WaitGroup
 	errChan := make(chan error, 2)
 
@@ -302,7 +297,7 @@ func (s *SSHSession) handleSSHOutput(conn *websocket.Conn) error {
 		}
 
 		if n > 0 {
-			s.handleScreenshotPortEscape(buf[:n])
+			s.handleScreenshotPortEscape(conn, buf[:n])
 
 			if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
 				return fmt.Errorf("failed to write to websocket: %w", err)
@@ -312,7 +307,7 @@ func (s *SSHSession) handleSSHOutput(conn *websocket.Conn) error {
 }
 
 // handleScreenshotPortEscape checks for and handles screenshot port escape sequences
-func (s *SSHSession) handleScreenshotPortEscape(data []byte) {
+func (s *SSHSession) handleScreenshotPortEscape(conn *websocket.Conn, data []byte) {
 	port, found := extractPortFromEscape(data)
 	if !found {
 		return
@@ -328,7 +323,7 @@ func (s *SSHSession) handleScreenshotPortEscape(data []byte) {
 		return
 	}
 
-	s.notifyWebUI(localPort)
+	notifyWebUI(conn, localPort)
 }
 
 // SetupPortForwarding sets up SSH port forwarding from local to remote port
@@ -442,12 +437,7 @@ func (s *SSHSession) handleForwardedConnection(localConn net.Conn, remotePort in
 }
 
 // notifyWebUI sends a message to the WebSocket with the local screenshot port
-func (s *SSHSession) notifyWebUI(localPort int) {
-	if s.ws == nil {
-		logger.Warn("webSocket connection not available for notification")
-		return
-	}
-
+func notifyWebUI(conn *websocket.Conn, localPort int) {
 	msg := map[string]any{
 		"type": "screenshot_port",
 		"port": localPort,
@@ -459,7 +449,7 @@ func (s *SSHSession) notifyWebUI(localPort int) {
 		return
 	}
 
-	if err := s.ws.WriteMessage(websocket.TextMessage, data); err != nil {
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		logger.Error("failed to send screenshot port to WebSocket", "error", err)
 		return
 	}

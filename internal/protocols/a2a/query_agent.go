@@ -3,7 +3,6 @@ package a2a
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
@@ -18,7 +17,7 @@ import (
 
 type QueryAgentTool struct {
 	config    *config.Config
-	formatter tools.CustomFormatter
+	formatter tools.BaseFormatter
 }
 
 type QueryAgentResult struct {
@@ -143,16 +142,7 @@ func (t *QueryAgentTool) FormatForUI(result *agentdomain.ToolExecutionResult) st
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 func (t *QueryAgentTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
@@ -169,10 +159,6 @@ func (t *QueryAgentTool) FormatPreview(result *agentdomain.ToolExecutionResult) 
 
 func (t *QueryAgentTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
-}
-
-func (t *QueryAgentTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 func (t *QueryAgentTool) IsEnabled() bool {

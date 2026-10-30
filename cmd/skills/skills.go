@@ -2,7 +2,6 @@ package skills
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,8 +78,8 @@ Example:
 	}
 
 	skillsCmd.AddCommand(skillsListCmd, skillsSearchCmd, skillsInstallCmd, skillsUninstallCmd)
-	skillsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
-	skillsSearchCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(skillsListCmd, "text", "json")
+	output.AddFormatFlag(skillsSearchCmd, "text", "json")
 	skillsSearchCmd.Flags().Int("limit", 10, "Maximum number of matches to return")
 	skillsSearchCmd.Flags().Bool("no-trunc", false, "Print full descriptions instead of truncating them to fit the table")
 	skillsInstallCmd.Flags().Bool("user", false, "Install to ~/.infer/skills instead of project-local")
@@ -91,6 +90,8 @@ Example:
 }
 
 func (c *command) listSkills(cmd *cobra.Command, _ []string) error {
+	w := cmd.OutOrStdout()
+
 	scanCfg := &config.Config{
 		Agent: config.AgentConfig{
 			Skills: config.AgentSkillsConfig{Enabled: true},
@@ -111,51 +112,45 @@ func (c *command) listSkills(cmd *cobra.Command, _ []string) error {
 
 	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
-		out := map[string]any{
+		return output.PrintJSON(w, map[string]any{
 			"skills": loaded,
 			"errors": errs,
 			"total":  len(loaded),
-		}
-		data, err := json.MarshalIndent(out, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal skills: %w", err)
-		}
-		fmt.Println(string(data))
-		return nil
+		})
 	}
 
 	if len(loaded) == 0 && len(errs) == 0 {
-		fmt.Println("No skills discovered.")
-		fmt.Println("Drop a skill folder into .infer/skills/<name>/ with a SKILL.md file.")
-		fmt.Println("See `infer skills --help` for the format.")
+		fmt.Fprintln(w, "No skills discovered.")
+		fmt.Fprintln(w, "Drop a skill folder into .infer/skills/<name>/ with a SKILL.md file.")
+		fmt.Fprintln(w, "See `infer skills --help` for the format.")
 		return nil
 	}
 
 	cfg := c.state.Config()
 	enabledInConfig := cfg != nil && cfg.Agent.Skills.Enabled
 	if !enabledInConfig {
-		fmt.Println("Note: skills are currently disabled in config (agent.skills.enabled=false). Listing them anyway for visibility.")
-		fmt.Println()
+		fmt.Fprintln(w, "Note: skills are currently disabled in config (agent.skills.enabled=false). Listing them anyway for visibility.")
+		fmt.Fprintln(w)
 	}
 
-	fmt.Println(c.renderer.Title(fmt.Sprintf("Discovered Skills (%d)", len(loaded))))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Discovered Skills (%d)", len(loaded))))
+	fmt.Fprintln(w)
 
 	skillsTable := c.renderer.NewListTable("Name", "Scope", "Description", "Path")
 	for _, sk := range loaded {
 		skillsTable.Row(sk.Name, string(sk.Scope), sk.Description, sk.Path)
 	}
-	fmt.Println(skillsTable.Render())
+	fmt.Fprintln(w, skillsTable.Render())
 
 	if len(errs) > 0 {
-		fmt.Println()
-		fmt.Println(c.renderer.Title(fmt.Sprintf("Skipped (%d)", len(errs))))
-		fmt.Println()
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Skipped (%d)", len(errs))))
+		fmt.Fprintln(w)
 		errTable := c.renderer.NewListTable("Path", "Reason")
 		for _, e := range errs {
 			errTable.Row(e.Path, e.Reason)
 		}
-		fmt.Println(errTable.Render())
+		fmt.Fprintln(w, errTable.Render())
 	}
 
 	return nil
@@ -191,6 +186,8 @@ Examples:
 }
 
 func (c *command) searchSkills(cmd *cobra.Command, args []string) error {
+	w := cmd.OutOrStdout()
+
 	var query string
 	if len(args) == 1 {
 		query = args[0]
@@ -218,30 +215,25 @@ func (c *command) searchSkills(cmd *cobra.Command, args []string) error {
 				"path":        installed[sk.Name],
 			})
 		}
-		data, err := json.MarshalIndent(map[string]any{
+		return output.PrintJSON(w, map[string]any{
 			"skills":  out,
 			"total":   len(out),
 			"release": release,
 			"updated": updated,
-		}, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal search results: %w", err)
-		}
-		fmt.Println(string(data))
-		return nil
+		})
 	}
 
 	if len(matches) == 0 {
-		fmt.Printf("No catalog skills matched %q.\n", query)
-		fmt.Println("The catalog is fetched from the repository in agent.skills.repository; check `infer skills search` with no term to confirm it is reachable.")
+		fmt.Fprintf(w, "No catalog skills matched %q.\n", query)
+		fmt.Fprintln(w, "The catalog is fetched from the repository in agent.skills.repository; check `infer skills search` with no term to confirm it is reachable.")
 		return nil
 	}
 
-	fmt.Println(c.renderer.Title(fmt.Sprintf("Catalog Skills (%d)", len(matches))))
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Catalog Skills (%d)", len(matches))))
 	if line := catalogVersionLine(release, updated); line != "" {
-		fmt.Println(c.renderer.Field("Catalog", line))
+		fmt.Fprintln(w, c.renderer.Field("Catalog", line))
 	}
-	fmt.Println()
+	fmt.Fprintln(w)
 
 	noTrunc, _ := cmd.Flags().GetBool("no-trunc")
 	table := c.renderer.NewListTable("Name", "Description", "Installed")
@@ -256,9 +248,9 @@ func (c *command) searchSkills(cmd *cobra.Command, args []string) error {
 		}
 		table.Row(sk.Name, desc, state)
 	}
-	fmt.Println(table.Render())
-	fmt.Println()
-	fmt.Println("Install one with `infer skills install <name>`.")
+	fmt.Fprintln(w, table.Render())
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Install one with `infer skills install <name>`.")
 
 	return nil
 }
@@ -399,20 +391,17 @@ func (c *command) installSkill(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Installed skill to %s\n", dest)
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "Installed skill to %s\n", dest)
 	if cfg == nil || !cfg.Agent.Skills.Enabled {
-		fmt.Println("Note: skills are disabled - run `infer config set agent.skills.enabled true` (or set INFER_AGENT_SKILLS_ENABLED=true) to load this skill.")
+		fmt.Fprintln(w, "Note: skills are disabled - run `infer config set agent.skills.enabled true` (or set INFER_AGENT_SKILLS_ENABLED=true) to load this skill.")
 	}
 	return nil
 }
 
 func resolveSkillsDest(userScope bool) (string, error) {
 	if userScope {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve home directory: %w", err)
-		}
-		return filepath.Join(home, config.ConfigDirName, "skills"), nil
+		return runtime.UserConfigPath("skills")
 	}
 	if _, err := os.Stat(config.ConfigDirName); os.IsNotExist(err) {
 		return "", fmt.Errorf("%s/ not found in current directory; run `infer init` first or pass --user", config.ConfigDirName)
@@ -433,6 +422,6 @@ func uninstallSkill(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Uninstalled skill %s (%s)\n", name, removed)
+	fmt.Fprintf(cmd.OutOrStdout(), "Uninstalled skill %s (%s)\n", name, removed)
 	return nil
 }

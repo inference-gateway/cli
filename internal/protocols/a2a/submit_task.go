@@ -32,7 +32,7 @@ import (
 // SubmitTaskTool handles A2A task submission and management
 type SubmitTaskTool struct {
 	config      *config.Config
-	formatter   tools.CustomFormatter
+	formatter   tools.BaseFormatter
 	taskTracker a2adomain.TaskTracker
 	submitter   scheddomain.JobSubmitter
 	retention   a2adomain.TaskRetentionService
@@ -843,26 +843,12 @@ func (t *SubmitTaskTool) FormatForUI(result *agentdomain.ToolExecutionResult) st
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *SubmitTaskTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *SubmitTaskTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 // errorResult creates an error result

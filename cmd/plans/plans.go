@@ -2,8 +2,8 @@ package plans
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -45,7 +45,7 @@ Examples:
   infer plans show infer://plans/2026-07-17-153000-add-user-auth`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return showPlan(state, renderer, args[0])
+			return showPlan(cmd.OutOrStdout(), state, renderer, args[0])
 		},
 	}
 
@@ -61,10 +61,11 @@ Examples:
   # Output as JSON
   infer plans list --format json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listPlans(state, renderer, cmd)
+			format, _ := cmd.Flags().GetString("format")
+			return listPlans(cmd.OutOrStdout(), state, renderer, format)
 		},
 	}
-	listCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(listCommand, "text", "json")
 
 	command.AddCommand(showCommand, listCommand)
 	return command
@@ -79,7 +80,7 @@ func resolvePlanID(input string) string {
 	return input
 }
 
-func showPlan(state *runtime.State, renderer *output.Renderer, rawID string) error {
+func showPlan(w io.Writer, state *runtime.State, renderer *output.Renderer, rawID string) error {
 	storageConfig := storage.NewStorageFromConfig(state.Config())
 	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
@@ -97,11 +98,11 @@ func showPlan(state *runtime.State, renderer *output.Renderer, rawID string) err
 		return fmt.Errorf("failed to load plan %q: %w", planID, err)
 	}
 
-	renderer.PrintMarkdown("# " + plan.Title + "\n\n" + plan.Body)
+	renderer.PrintMarkdown(w, "# "+plan.Title+"\n\n"+plan.Body)
 	return nil
 }
 
-func listPlans(state *runtime.State, renderer *output.Renderer, cmd *cobra.Command) error {
+func listPlans(w io.Writer, state *runtime.State, renderer *output.Renderer, format string) error {
 	storageConfig := storage.NewStorageFromConfig(state.Config())
 	stores, err := storage.NewStorage(storageConfig)
 	if err != nil {
@@ -118,35 +119,27 @@ func listPlans(state *runtime.State, renderer *output.Renderer, cmd *cobra.Comma
 		return fmt.Errorf("failed to list plans: %w", err)
 	}
 
-	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
-		return renderPlansJSON(plans)
+		return renderPlansJSON(w, plans)
 	}
 
-	return renderPlansTable(renderer, plans)
+	return renderPlansTable(w, renderer, plans)
 }
 
-func renderPlansJSON(plans []*storage.PlanRecord) error {
-	output := struct {
+func renderPlansJSON(w io.Writer, plans []*storage.PlanRecord) error {
+	payload := struct {
 		Plans []*storage.PlanRecord `json:"plans"`
 		Count int                   `json:"count"`
 	}{
 		Plans: plans,
 		Count: len(plans),
 	}
-
-	jsonBytes, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal plans to JSON: %w", err)
-	}
-
-	fmt.Println(string(jsonBytes))
-	return nil
+	return output.PrintJSON(w, payload)
 }
 
-func renderPlansTable(renderer *output.Renderer, plans []*storage.PlanRecord) error {
+func renderPlansTable(w io.Writer, renderer *output.Renderer, plans []*storage.PlanRecord) error {
 	if len(plans) == 0 {
-		fmt.Println("No plans found.")
+		fmt.Fprintln(w, "No plans found.")
 		return nil
 	}
 
@@ -157,6 +150,6 @@ func renderPlansTable(renderer *output.Renderer, plans []*storage.PlanRecord) er
 		fmt.Fprintf(&table, "| %s | %s | %s |\n",
 			p.ID, p.Title, p.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
-	renderer.PrintMarkdown(table.String())
+	renderer.PrintMarkdown(w, table.String())
 	return nil
 }

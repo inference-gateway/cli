@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -152,13 +153,11 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 		{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Generate a title for this conversation:\n\n%s", conversationText))},
 	}
 
-	slashIndex := strings.Index(model, "/")
-	if slashIndex == -1 {
+	provider, modelName, ok := strings.Cut(model, "/")
+	if !ok {
 		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
 
-	provider := model[:slashIndex]
-	modelName := strings.TrimPrefix(model, provider+"/")
 	providerType := sdk.Provider(provider)
 
 	response, err := g.client.
@@ -184,14 +183,7 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 	title := strings.TrimSpace(contentStr)
 	title = strings.Trim(title, `"'`)
 
-	if len(title) > 50 {
-		title = title[:50]
-		if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
-			title = title[:lastSpace]
-		}
-	}
-
-	return title, nil
+	return truncateTitle(title), nil
 }
 
 // formatConversationForTitleGeneration formats conversation entries for AI processing
@@ -269,12 +261,26 @@ func (g *ConversationTitleGenerator) createTitleFromContent(content string) stri
 		title += word
 	}
 
-	if len(title) > 50 {
-		title = title[:50]
-		if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
-			title = title[:lastSpace]
-		}
-	}
+	return truncateTitle(title)
+}
 
-	return title
+// maxTitleRunes caps a title's length. A cut title ends at its last word break
+// when that keeps more than minTitleRunes, so it rarely ends mid-word.
+const (
+	maxTitleRunes = 50
+	minTitleRunes = 30
+)
+
+// truncateTitle caps title at maxTitleRunes runes instead of bytes, so a
+// multibyte character is never split in the middle.
+func truncateTitle(title string) string {
+	runes := []rune(title)
+	if len(runes) <= maxTitleRunes {
+		return title
+	}
+	cut := string(runes[:maxTitleRunes])
+	if lastSpace := strings.LastIndex(cut, " "); lastSpace >= 0 && utf8.RuneCountInString(cut[:lastSpace]) > minTitleRunes {
+		cut = cut[:lastSpace]
+	}
+	return cut
 }

@@ -3,11 +3,10 @@ package agents
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"io"
+	"maps"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -72,7 +71,8 @@ This allows you to configure remote or local agents that can be used for delegat
 	agentsAddCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
 	agentsAddCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
 	agentsAddCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
-	agentsAddCmd.Flags().StringSlice("environment", []string{}, "Environment variables (KEY=VALUE)")
+	agentsAddCmd.Flags().StringToString("environment", nil, "Environment variables (KEY=VALUE, comma-separated: KEY=VALUE,KEY=VALUE)")
+	agentsAddCmd.MarkFlagsMutuallyExclusive("tag", "oci")
 
 	agentsUpdateCmd.Flags().String("url", "", "Agent URL")
 	agentsUpdateCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
@@ -80,13 +80,15 @@ This allows you to configure remote or local agents that can be used for delegat
 	agentsUpdateCmd.Flags().String("tag", "", "Image tag for the agent's default image (browser-agent: chromium, firefox, webkit, lightpanda)")
 	agentsUpdateCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
 	agentsUpdateCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
-	agentsUpdateCmd.Flags().StringSlice("environment", []string{}, "Environment variables (KEY=VALUE)")
+	agentsUpdateCmd.Flags().StringToString("environment", nil, "Environment variables (KEY=VALUE, comma-separated: KEY=VALUE,KEY=VALUE)")
+	agentsUpdateCmd.MarkFlagsMutuallyExclusive("tag", "oci")
+	agentsUpdateCmd.MarkFlagsOneRequired("url", "artifacts-url", "oci", "tag", "run", "model", "environment")
 
-	agentsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
-	agentsShowCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
-	agentsStatusCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(agentsListCmd, "text", "json")
+	output.AddFormatFlag(agentsShowCmd, "text", "json")
+	output.AddFormatFlag(agentsStatusCmd, "text", "json")
 
-	agentsCmd.PersistentFlags().Bool("project", false, "Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
+	runtime.AddProjectFlag(agentsCmd)
 
 	return agentsCmd
 }
@@ -125,7 +127,7 @@ Examples:
   infer agents add code-reviewer https://agent.example.com --run --model deepseek/deepseek-v4-pro
 
   # Add agent with custom environment variables
-  infer agents add analyzer https://agent.example.com --run --environment CUSTOM_ENV=value --environment A2A_DEBUG=true --environment A2A_PORT=8443`,
+  infer agents add analyzer https://agent.example.com --run --environment CUSTOM_ENV=value,A2A_DEBUG=true,A2A_PORT=8443`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -147,7 +149,7 @@ Examples:
 			artifactsURL, _ := cmd.Flags().GetString("artifacts-url")
 			run, _ := cmd.Flags().GetBool("run")
 			model, _ := cmd.Flags().GetString("model")
-			envVars, _ := cmd.Flags().GetStringSlice("environment")
+			envVars, _ := cmd.Flags().GetStringToString("environment")
 
 			taggedOCI, err := resolveTagFlag(cmd, name)
 			if err != nil {
@@ -159,14 +161,7 @@ Examples:
 
 			var environment map[string]string
 			if len(envVars) > 0 {
-				environment = make(map[string]string)
-				for _, env := range envVars {
-					parts := strings.SplitN(env, "=", 2)
-					if len(parts) != 2 {
-						return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", env)
-					}
-					environment[parts[0]] = parts[1]
-				}
+				environment = envVars
 			}
 
 			//nolint:nestif // Agent metadata defaults and explicit flag overrides form one precedence block.
@@ -186,13 +181,8 @@ Examples:
 				if !cmd.Flags().Changed("environment") && defaults.Environment != nil {
 					environment = defaults.Environment
 				} else if cmd.Flags().Changed("environment") && defaults.Environment != nil {
-					merged := make(map[string]string)
-					for k, v := range defaults.Environment {
-						merged[k] = v
-					}
-					for k, v := range environment {
-						merged[k] = v
-					}
+					merged := maps.Clone(defaults.Environment)
+					maps.Copy(merged, environment)
 					environment = merged
 				}
 			}
@@ -223,24 +213,20 @@ Examples:
   infer agents update browser-agent --tag lightpanda
 
   # Add environment variables (replaces existing ones)
-  infer agents update analyzer --environment CUSTOM_ENV=value --environment DEBUG=true`,
+  infer agents update analyzer --environment CUSTOM_ENV=value,DEBUG=true`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-
-			if !cmd.Flags().Changed("url") && !cmd.Flags().Changed("artifacts-url") &&
-				!cmd.Flags().Changed("oci") && !cmd.Flags().Changed("tag") &&
-				!cmd.Flags().Changed("run") && !cmd.Flags().Changed("model") &&
-				!cmd.Flags().Changed("environment") {
-				return fmt.Errorf("at least one flag must be provided to update the agent")
-			}
 
 			url, _ := cmd.Flags().GetString("url")
 			artifactsURL, _ := cmd.Flags().GetString("artifacts-url")
 			oci, _ := cmd.Flags().GetString("oci")
 			run, _ := cmd.Flags().GetBool("run")
 			model, _ := cmd.Flags().GetString("model")
-			envVars, _ := cmd.Flags().GetStringSlice("environment")
+			var environment map[string]string
+			if cmd.Flags().Changed("environment") {
+				environment, _ = cmd.Flags().GetStringToString("environment")
+			}
 
 			taggedOCI, err := resolveTagFlag(cmd, name)
 			if err != nil {
@@ -248,18 +234,6 @@ Examples:
 			}
 			if taggedOCI != "" {
 				oci = taggedOCI
-			}
-
-			var environment map[string]string
-			if cmd.Flags().Changed("environment") {
-				environment = make(map[string]string)
-				for _, env := range envVars {
-					parts := strings.SplitN(env, "=", 2)
-					if len(parts) != 2 {
-						return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", env)
-					}
-					environment[parts[0]] = parts[1]
-				}
 			}
 
 			return c.updateAgent(cmd, name, url, artifactsURL, oci, run, model, environment)
@@ -313,14 +287,7 @@ func (c *command) newInitCommand() *cobra.Command {
 // target the userspace baseline (~/.infer/) by default; --project targets the
 // project .infer/agents.yaml instead.
 func agentsConfigPath(cmd *cobra.Command) (string, error) {
-	if runtime.ProjectFlag(cmd) {
-		return config.DefaultAgentsPath, nil
-	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
-	}
-	return filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName), nil
+	return runtime.ConfigPath(runtime.ProjectFlag(cmd), config.AgentsFileName)
 }
 
 // ExternalAgent represents an agent configured via INFER_A2A_AGENTS
@@ -348,13 +315,11 @@ func extractExternalAgents(cfg *config.Config) []ExternalAgent {
 }
 
 // resolveTagFlag turns --tag into a full OCI reference against the agent's
-// default image, or returns an empty string when the flag was not used.
+// default image, or returns an empty string when the flag was not used. Cobra
+// rejects a --tag combined with --oci through the declared flag group.
 func resolveTagFlag(cmd *cobra.Command, name string) (string, error) {
 	if !cmd.Flags().Changed("tag") {
 		return "", nil
-	}
-	if cmd.Flags().Changed("oci") {
-		return "", fmt.Errorf("cannot combine --tag with --oci: --tag only replaces the tag of the agent's default image")
 	}
 	tag, _ := cmd.Flags().GetString("tag")
 	return config.ResolveOCITag(name, tag)
@@ -384,22 +349,23 @@ func (c *command) addAgent(cmd *cobra.Command, name, url, artifactsURL, oci stri
 		return err
 	}
 
-	fmt.Printf("%s Agent '%s' added successfully\n", c.renderer.StatusIcon(true), name)
-	fmt.Printf("  URL: %s\n", url)
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s Agent '%s' added successfully\n", c.renderer.StatusIcon(true), name)
+	fmt.Fprintf(w, "  URL: %s\n", url)
 	if artifactsURL != "" {
-		fmt.Printf("  Artifacts URL: %s\n", artifactsURL)
+		fmt.Fprintf(w, "  Artifacts URL: %s\n", artifactsURL)
 	}
 	if oci != "" {
-		fmt.Printf("  OCI: %s\n", oci)
+		fmt.Fprintf(w, "  OCI: %s\n", oci)
 	}
 	if run {
-		fmt.Printf("  Run locally: enabled\n")
+		fmt.Fprintf(w, "  Run locally: enabled\n")
 	}
 	if model != "" {
-		fmt.Printf("  Model: %s\n", model)
+		fmt.Fprintf(w, "  Model: %s\n", model)
 	}
 	if len(environment) > 0 {
-		fmt.Printf("  Environment variables: %d configured\n", len(environment))
+		fmt.Fprintf(w, "  Environment variables: %d configured\n", len(environment))
 	}
 
 	return nil
@@ -444,22 +410,23 @@ func (c *command) updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci s
 		return err
 	}
 
-	fmt.Printf("%s Agent '%s' updated successfully\n", c.renderer.StatusIcon(true), name)
-	fmt.Printf("  URL: %s\n", agent.URL)
+	w := cmd.OutOrStdout()
+	fmt.Fprintf(w, "%s Agent '%s' updated successfully\n", c.renderer.StatusIcon(true), name)
+	fmt.Fprintf(w, "  URL: %s\n", agent.URL)
 	if agent.ArtifactsURL != "" {
-		fmt.Printf("  Artifacts URL: %s\n", agent.ArtifactsURL)
+		fmt.Fprintf(w, "  Artifacts URL: %s\n", agent.ArtifactsURL)
 	}
 	if agent.OCI != "" {
-		fmt.Printf("  OCI: %s\n", agent.OCI)
+		fmt.Fprintf(w, "  OCI: %s\n", agent.OCI)
 	}
 	if agent.Run {
-		fmt.Printf("  Run locally: enabled\n")
+		fmt.Fprintf(w, "  Run locally: enabled\n")
 	}
 	if agent.Model != "" {
-		fmt.Printf("  Model: %s\n", agent.Model)
+		fmt.Fprintf(w, "  Model: %s\n", agent.Model)
 	}
 	if len(agent.Environment) > 0 {
-		fmt.Printf("  Environment variables: %d configured\n", len(agent.Environment))
+		fmt.Fprintf(w, "  Environment variables: %d configured\n", len(agent.Environment))
 	}
 
 	return nil
@@ -479,7 +446,7 @@ func (c *command) removeAgent(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	fmt.Printf("%s Agent '%s' removed successfully\n", c.renderer.StatusIcon(true), name)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s Agent '%s' removed successfully\n", c.renderer.StatusIcon(true), name)
 	return nil
 }
 
@@ -509,39 +476,36 @@ func (c *command) listAgents(cmd *cobra.Command, _ []string) error {
 			"external": externalAgents,
 			"total":    totalAgents,
 		}
-		output, err := json.MarshalIndent(combinedOutput, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal agents: %w", err)
-		}
-		fmt.Println(string(output))
-		return nil
+		return output.PrintJSON(cmd.OutOrStdout(), combinedOutput)
 	}
 
+	w := cmd.OutOrStdout()
+
 	if totalAgents == 0 {
-		fmt.Println("No agents configured.")
-		fmt.Println("Use 'infer agents add <name> <url>' to add an agent or set INFER_A2A_AGENTS environment variable.")
+		fmt.Fprintln(w, "No agents configured.")
+		fmt.Fprintln(w, "Use 'infer agents add <name> <url>' to add an agent or set INFER_A2A_AGENTS environment variable.")
 		return nil
 	}
 
 	a2aCount := len(localAgents) + len(externalAgents)
 	if a2aCount > 0 {
-		c.printA2AAgents(a2aCount, localAgents, externalAgents)
+		c.printA2AAgents(w, a2aCount, localAgents, externalAgents)
 	}
 	if len(markdownAgents) > 0 {
 		if a2aCount > 0 {
-			fmt.Println()
+			fmt.Fprintln(w)
 		}
-		c.printMarkdownAgents(markdownAgents)
+		c.printMarkdownAgents(w, markdownAgents)
 	}
 
-	fmt.Println()
+	fmt.Fprintln(w)
 	return nil
 }
 
 // printA2AAgents renders the A2A table (agents.yaml entries plus INFER_A2A_AGENTS),
 // the agent name left-aligned and the metadata columns right-aligned.
-func (c *command) printA2AAgents(count int, localAgents []config.AgentEntry, externalAgents []ExternalAgent) {
-	fmt.Println(c.renderer.Title(fmt.Sprintf("A2A Agents (%d)", count)))
+func (c *command) printA2AAgents(w io.Writer, count int, localAgents []config.AgentEntry, externalAgents []ExternalAgent) {
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("A2A Agents (%d)", count)))
 
 	agentsTable := c.renderer.NewAgentsListTable("Name", "Source", "URL", "OCI Image", "Local", "Model", "Env")
 	for _, agent := range localAgents {
@@ -567,19 +531,19 @@ func (c *command) printA2AAgents(count int, localAgents []config.AgentEntry, ext
 	for _, agent := range externalAgents {
 		agentsTable.Row(agent.Name, "env", agent.URL, "-", "-", "-", "-")
 	}
-	fmt.Println(agentsTable.Render())
+	fmt.Fprintln(w, agentsTable.Render())
 }
 
 // printMarkdownAgents renders the Markdown-defined subagent presets table,
 // the agent name left-aligned and the metadata columns right-aligned.
-func (c *command) printMarkdownAgents(markdownAgents []agentdomain.SubagentInfo) {
-	fmt.Println(c.renderer.Title(fmt.Sprintf("Markdown Agents (%d)", len(markdownAgents))))
+func (c *command) printMarkdownAgents(w io.Writer, markdownAgents []agentdomain.SubagentInfo) {
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Markdown Agents (%d)", len(markdownAgents))))
 
 	mdTable := c.renderer.NewAgentsListTable("Name", "Description", "Tools", "Model", "Mode", "Source")
 	for _, info := range markdownAgents {
 		mdTable.Row(info.Name, info.Description, markdownAgentTools(info), cmp.Or(info.Model, "inherit"), markdownAgentMode(info), info.Source)
 	}
-	fmt.Println(mdTable.Render())
+	fmt.Fprintln(w, mdTable.Render())
 }
 
 // markdownAgentMode renders the capability mode derived from the allowlist.
@@ -642,20 +606,16 @@ func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {
 
 	format, _ := cmd.Flags().GetString("format")
 	if format == "json" {
-		out, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal agents status: %w", err)
-		}
-		fmt.Println(string(out))
-		return nil
+		return output.PrintJSON(cmd.OutOrStdout(), report)
 	}
 
-	fmt.Println(c.renderer.Title(fmt.Sprintf("A2A: %d/%d", report.ReadyAgents, report.TotalAgents)))
+	w := cmd.OutOrStdout()
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("A2A: %d/%d", report.ReadyAgents, report.TotalAgents)))
 	if len(report.Agents) == 0 {
-		fmt.Println("No agents configured.")
+		fmt.Fprintln(w, "No agents configured.")
 		return nil
 	}
-	fmt.Println()
+	fmt.Fprintln(w)
 	statusTable := c.renderer.NewListTable("Ready", "Name", "URL", "Error")
 	for _, agent := range report.Agents {
 		errText := agent.Error
@@ -664,7 +624,7 @@ func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {
 		}
 		statusTable.Row(c.renderer.StatusIcon(agent.State == "Ready"), agent.Name, agent.URL, errText)
 	}
-	fmt.Println(statusTable.Render())
+	fmt.Fprintln(w, statusTable.Render())
 	return nil
 }
 
@@ -673,10 +633,11 @@ func (c *command) startAgents(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := c.sharedRuntime()
+	rt, err := containerruntime.NewSharedRuntime(containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
 	if err != nil {
 		return err
 	}
+	w := cmd.OutOrStdout()
 	ctx := context.Background()
 	if err := rt.EnsureNetwork(ctx); err != nil {
 		return fmt.Errorf("failed to create container network: %w", err)
@@ -686,10 +647,10 @@ func (c *command) startAgents(cmd *cobra.Command, args []string) error {
 	for _, agent := range agents {
 		if err := supervisor.StartAgent(ctx, agent); err != nil {
 			failed = errors.Join(failed, fmt.Errorf("%s: %w", agent.Name, err))
-			fmt.Printf("%s %s\n", c.renderer.StatusIcon(false), agent.Name)
+			fmt.Fprintf(w, "%s %s\n", c.renderer.StatusIcon(false), agent.Name)
 			continue
 		}
-		fmt.Printf("%s %s %s\n", c.renderer.StatusIcon(true), agent.Name, agent.URL)
+		fmt.Fprintf(w, "%s %s %s\n", c.renderer.StatusIcon(true), agent.Name, agent.URL)
 	}
 	return failed
 }
@@ -699,7 +660,7 @@ func (c *command) stopAgents(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	rt, err := c.sharedRuntime()
+	rt, err := containerruntime.NewSharedRuntime(containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
 	if err != nil {
 		return err
 	}
@@ -708,7 +669,7 @@ func (c *command) stopAgents(cmd *cobra.Command, args []string) error {
 		if err := supervisor.StopAgentByName(context.Background(), agent.Name); err != nil {
 			return fmt.Errorf("%s: %w", agent.Name, err)
 		}
-		fmt.Printf("%s %s stopped\n", c.renderer.StatusIcon(true), agent.Name)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s stopped\n", c.renderer.StatusIcon(true), agent.Name)
 	}
 	return nil
 }
@@ -742,17 +703,6 @@ func (c *command) runnableAgents(cmd *cobra.Command, args []string) (*config.Age
 	return cfg, agents, nil
 }
 
-func (c *command) sharedRuntime() (containerruntime.ContainerRuntime, error) {
-	rt, err := containerruntime.NewContainerRuntime(containerruntime.SharedSessionID, containerruntime.RuntimeType(c.state.Config().ContainerRuntime.Type))
-	if err != nil {
-		return nil, err
-	}
-	if rt == nil {
-		return nil, fmt.Errorf("no container runtime configured (set container_runtime.type to docker or podman)")
-	}
-	return rt, nil
-}
-
 func filterAgents(agents []config.AgentEntry, name string) []config.AgentEntry {
 	for _, agent := range agents {
 		if agent.Name == name {
@@ -780,50 +730,46 @@ func (c *command) showAgent(cmd *cobra.Command, name string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		output, err := json.MarshalIndent(agent, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal agent: %w", err)
-		}
-		fmt.Println(string(output))
-		return nil
+		return output.PrintJSON(cmd.OutOrStdout(), agent)
 	}
 
-	fmt.Println(c.renderer.Title(fmt.Sprintf("Agent: %s", agent.Name)))
-	fmt.Println()
+	w := cmd.OutOrStdout()
+	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Agent: %s", agent.Name)))
+	fmt.Fprintln(w)
 
-	fmt.Println(c.renderer.Field("URL", agent.URL))
+	fmt.Fprintln(w, c.renderer.Field("URL", agent.URL))
 
 	if agent.ArtifactsURL != "" {
-		fmt.Println(c.renderer.Field("Artifacts URL", agent.ArtifactsURL))
+		fmt.Fprintln(w, c.renderer.Field("Artifacts URL", agent.ArtifactsURL))
 	}
 
 	if agent.OCI != "" {
-		fmt.Println(c.renderer.Field("OCI", agent.OCI))
+		fmt.Fprintln(w, c.renderer.Field("OCI", agent.OCI))
 	}
 
 	runLocally := c.renderer.StatusIcon(false)
 	if agent.Run {
 		runLocally = c.renderer.StatusIcon(true)
 	}
-	fmt.Println(c.renderer.Field("Run Locally", runLocally))
+	fmt.Fprintln(w, c.renderer.Field("Run Locally", runLocally))
 
 	if agent.Model != "" {
-		fmt.Println(c.renderer.Field("Model", agent.Model))
+		fmt.Fprintln(w, c.renderer.Field("Model", agent.Model))
 	}
 
 	if agent.Auth != nil {
-		fmt.Println(c.renderer.Field("Auth", describeAuth(*agent.Auth)))
+		fmt.Fprintln(w, c.renderer.Field("Auth", describeAuth(*agent.Auth)))
 	}
 
 	if len(agent.Environment) > 0 {
-		fmt.Println()
-		fmt.Println(c.renderer.Title("Environment Variables"))
-		fmt.Println()
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, c.renderer.Title("Environment Variables"))
+		fmt.Fprintln(w)
 		envTable := c.renderer.NewListTable("Variable", "Value")
 		for key, value := range agent.Environment {
 			envTable.Row(key, value)
 		}
-		fmt.Println(envTable.Render())
+		fmt.Fprintln(w, envTable.Render())
 	}
 
 	return nil
@@ -860,6 +806,6 @@ func (c *command) initAgents(cmd *cobra.Command, _ []string) error {
 		scopeDesc = "project "
 	}
 
-	fmt.Printf("%s %sagents.yaml initialized successfully\n", c.renderer.StatusIcon(true), scopeDesc)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %sagents.yaml initialized successfully\n", c.renderer.StatusIcon(true), scopeDesc)
 	return nil
 }

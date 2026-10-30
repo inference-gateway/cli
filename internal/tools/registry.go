@@ -3,9 +3,9 @@ package tools
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -135,12 +135,7 @@ func (r *Registry) FrameSource(name string) (agentdomain.FrameSource, bool) {
 func (r *Registry) FrameSourceNames() []string {
 	r.frameSourcesMu.RLock()
 	defer r.frameSourcesMu.RUnlock()
-	names := make([]string, 0, len(r.frameSources))
-	for name := range r.frameSources {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(r.frameSources))
 }
 
 // registerTools initializes and registers all available tools. It runs during

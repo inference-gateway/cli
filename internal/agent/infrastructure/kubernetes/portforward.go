@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 
 	k8sintstr "k8s.io/apimachinery/pkg/util/intstr"
 	k8sportforward "k8s.io/client-go/tools/portforward"
@@ -48,14 +49,7 @@ func (e *Environment) portForward(ctx context.Context, pod string) (string, func
 		close(stop)
 		return "", nil, fmt.Errorf("reading the port-forward's local port: %w", err)
 	}
-	var once func()
-	closed := false
-	once = func() {
-		if !closed {
-			closed = true
-			close(stop)
-		}
-	}
+	once := sync.OnceFunc(func() { close(stop) })
 	logger.Debug("port-forward opened to the sandbox pod", "pod", pod, "local_port", ports[0].Local)
 	return portAddr(int(ports[0].Local)), once, nil
 }

@@ -117,16 +117,7 @@ func (t *RequestPlanApprovalTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts
 func (t *RequestPlanApprovalTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -150,12 +141,11 @@ func (t *RequestPlanApprovalTool) FormatForUI(result *agentdomain.ToolExecutionR
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	summary := "Plan submitted for approval"
 	if uri := planURI(result); uri != "" {
-		return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan saved to %s", statusIcon, uri)
+		summary = "Plan saved to " + uri
 	}
-	return fmt.Sprintf("RequestPlanApproval(...)\n└─ %s Plan submitted for approval", statusIcon)
+	return renderCollapsed(ToolRequestPlanApproval+"(...)", result.Success, summary)
 }
 
 // FormatForLLM formats the result for LLM consumption
@@ -177,11 +167,6 @@ func (t *RequestPlanApprovalTool) FormatForLLM(result *agentdomain.ToolExecution
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *RequestPlanApprovalTool) ShouldCollapseArg(key string) bool {
 	return key == "plan"
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *RequestPlanApprovalTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 // extractPlanArgs pulls and validates `title` and `plan` from the raw

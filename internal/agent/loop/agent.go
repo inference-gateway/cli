@@ -73,7 +73,7 @@ type Agent struct {
 	reasoningEffortMux sync.RWMutex
 	metrics            map[string]*agentdomain.ChatMetrics
 	metricsMux         sync.RWMutex
-	toolCallsMap       map[string]*sdk.ChatCompletionMessageToolCall
+	toolCallsMap       map[int]*sdk.ChatCompletionMessageToolCall
 	toolCallsMux       sync.RWMutex
 	gitContextCache    string
 	gitContextTurn     int
@@ -111,7 +111,25 @@ func (sc *sessionCancel) Cancel() {
 type eventPublisher struct {
 	requestID  string
 	chatEvents chan<- agentdomain.ChatEvent
+	done       <-chan struct{}
 	inputGate  func(wait func())
+}
+
+// send publishes evt onto the chat channel and waits for the consumer. Delivery
+// is tried first, so events of a cancelled run (its own cancelled completion
+// included) still reach a draining consumer. Only a full channel on a cancelled
+// session gives up, which unwinds the agent instead of wedging it on a consumer
+// that stopped reading. A nil done stays a plain send.
+func (p *eventPublisher) send(evt agentdomain.ChatEvent) {
+	select {
+	case p.chatEvents <- evt:
+		return
+	default:
+	}
+	select {
+	case p.chatEvents <- evt:
+	case <-p.done:
+	}
 }
 
 // awaitUser runs wait with the run marked as blocked on the user, so the wait
@@ -125,10 +143,11 @@ func (p *eventPublisher) awaitUser(wait func()) {
 }
 
 // newEventPublisher creates a new event publisher for the given request
-func newEventPublisher(requestID string, chatEvents chan<- agentdomain.ChatEvent) *eventPublisher {
+func newEventPublisher(requestID string, chatEvents chan<- agentdomain.ChatEvent, done <-chan struct{}) *eventPublisher {
 	return &eventPublisher{
 		requestID:  requestID,
 		chatEvents: chatEvents,
+		done:       done,
 	}
 }
 
@@ -145,13 +164,13 @@ type chatQuestionBroker struct {
 func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []agentdomain.UserQuestion) ([]agentdomain.UserQuestionAnswer, bool, error) {
 	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
 
-	b.publisher.chatEvents <- agentdomain.UserQuestionRequestedEvent{
+	b.publisher.send(agentdomain.UserQuestionRequestedEvent{
 		RequestID:    b.publisher.requestID,
 		ToolCallID:   b.toolCallID,
 		Timestamp:    time.Now(),
 		Questions:    questions,
 		ResponseChan: responseChan,
-	}
+	})
 
 	var answers []agentdomain.UserQuestionAnswer
 	var answered bool
@@ -171,22 +190,22 @@ func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []a
 
 // publishChatStart publishes a ChatStartEvent
 func (p *eventPublisher) publishChatStart() {
-	p.chatEvents <- agentdomain.ChatStartEvent{
+	p.send(agentdomain.ChatStartEvent{
 		RequestID: p.requestID,
 		Timestamp: time.Now(),
-	}
+	})
 }
 
 // publishChatComplete publishes a ChatCompleteEvent for a normally-finished
 // chat turn.
 func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics) {
-	p.chatEvents <- agentdomain.ChatCompleteEvent{
+	p.send(agentdomain.ChatCompleteEvent{
 		RequestID:        p.requestID,
 		Timestamp:        time.Now(),
 		ReasoningContent: reasoning,
 		ToolCalls:        toolCalls,
 		Metrics:          metrics,
-	}
+	})
 }
 
 // publishChatCancelled publishes a ChatCompleteEvent for a run that ended
@@ -195,13 +214,13 @@ func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.C
 // with the budget's code instead of reporting a cancellation.
 func (p *eventPublisher) publishChatCancelled(ctx context.Context, metrics *agentdomain.ChatMetrics) {
 	budgetSpent := errors.Is(context.Cause(ctx), agentdomain.ErrMaxDurationReached)
-	p.chatEvents <- agentdomain.ChatCompleteEvent{
+	p.send(agentdomain.ChatCompleteEvent{
 		RequestID:          p.requestID,
 		Timestamp:          time.Now(),
 		Metrics:            metrics,
 		Cancelled:          !budgetSpent,
 		MaxDurationReached: budgetSpent,
-	}
+	})
 }
 
 // withTimeBudget ends ctx when agent.max_duration_minutes is spent, with
@@ -222,26 +241,26 @@ func (s *Agent) withTimeBudget(ctx context.Context) context.Context {
 
 // publishChatChunk publishes a ChatChunkEvent
 func (p *eventPublisher) publishChatChunk(content, reasoningContent string, toolCalls []sdk.ChatCompletionMessageToolCallChunk) {
-	p.chatEvents <- agentdomain.ChatChunkEvent{
+	p.send(agentdomain.ChatChunkEvent{
 		RequestID:        p.requestID,
 		Timestamp:        time.Now(),
 		ReasoningContent: reasoningContent,
 		Content:          content,
 		Delta:            true,
 		ToolCalls:        toolCalls,
-	}
+	})
 }
 
 // publishOptimizationStatus publishes an OptimizationStatusEvent
 func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool, originalCount, optimizedCount int) {
-	p.chatEvents <- agentdomain.OptimizationStatusEvent{
+	p.send(agentdomain.OptimizationStatusEvent{
 		RequestID:      p.requestID,
 		Timestamp:      time.Now(),
 		Message:        message,
 		IsActive:       isActive,
 		OriginalCount:  originalCount,
 		OptimizedCount: optimizedCount,
-	}
+	})
 }
 
 // publishToolsQueued publishes individual ToolExecutionProgressEvent for each queued tool
@@ -258,7 +277,7 @@ func (p *eventPublisher) publishToolsQueued(toolCalls []sdk.ChatCompletionMessag
 			Status:     "queued",
 			Message:    "",
 		}
-		p.chatEvents <- event
+		p.send(event)
 	}
 }
 
@@ -276,7 +295,7 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 		Images:     images,
 	}
 
-	p.chatEvents <- event
+	p.send(event)
 }
 
 // publishToolProgress sends a non-blocking running-status update so a lagging
@@ -329,7 +348,7 @@ func (p *eventPublisher) publishTodoUpdate(todos []agentdomain.TodoItem) {
 		Todos: todos,
 	}
 
-	p.chatEvents <- event
+	p.send(event)
 }
 
 // publishPlanApprovalRequest publishes a PlanApprovalRequestedEvent when RequestPlanApproval tool executes
@@ -342,7 +361,7 @@ func (p *eventPublisher) publishPlanApprovalRequest(planContent, planID string) 
 		ResponseChan: nil,
 	}
 
-	p.chatEvents <- event
+	p.send(event)
 }
 
 // publishToolExecutionCompleted publishes a ToolExecutionCompletedEvent after all tools finish
@@ -375,7 +394,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []convdomain.Conv
 		Results:       toolResults,
 	}
 
-	p.chatEvents <- event
+	p.send(event)
 }
 
 // usageEstimator fills in token usage for providers that do not report it.
@@ -436,7 +455,7 @@ func NewAgent(
 		firedReminders:     make(map[string]bool),
 		activeSessions:     make(map[string]*sessionCancel),
 		metrics:            make(map[string]*agentdomain.ChatMetrics),
-		toolCallsMap:       make(map[string]*sdk.ChatCompletionMessageToolCall),
+		toolCallsMap:       make(map[int]*sdk.ChatCompletionMessageToolCall),
 	}
 }
 
@@ -554,12 +573,12 @@ func (s *Agent) ensureConversationIntegrity(
 			}
 		}
 		if publisher != nil {
-			publisher.chatEvents <- agentdomain.ToolCancelledEvent{
+			publisher.send(agentdomain.ToolCancelledEvent{
 				RequestID:  requestID,
 				Timestamp:  time.Now(),
 				ToolCallID: syn.ToolCallID,
 				ToolName:   syn.ToolName,
-			}
+			})
 		}
 	}
 	return len(synthetics)
@@ -604,11 +623,11 @@ func (s *Agent) batchDrainQueue(
 			logger.Error("failed to store batched message", "error", err)
 		}
 
-		eventPublisher.chatEvents <- agentdomain.MessageQueuedEvent{
+		eventPublisher.send(agentdomain.MessageQueuedEvent{
 			RequestID: queuedMsg.RequestID,
 			Timestamp: time.Now(),
 			Message:   queuedMsg.Message,
-		}
+		})
 	}
 
 	return len(messages)
@@ -630,7 +649,6 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 	s.failedCallsMux.Unlock()
 
 	chatEvents := make(chan agentdomain.ChatEvent, 1000)
-	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
 	sessionCtx, cancelCtx := context.WithCancel(ctx)
 	sessionCtx = s.withTimeBudget(sessionCtx)
@@ -643,6 +661,7 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 		cancelCtx:  cancelCtx,
 		cancelChan: make(chan struct{}),
 	}
+	eventPublisher := newEventPublisher(req.RequestID, chatEvents, sc.cancelChan)
 	s.registerSession(req.RequestID, sc)
 	context.AfterFunc(sessionCtx, sc.Cancel)
 
@@ -652,7 +671,7 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 	if err != nil {
 		sc.Cancel()
 		s.deregisterSession(req.RequestID)
-		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", req.Model, err)
 	}
 
 	go func() {
@@ -667,11 +686,11 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 		defer func() {
 			if r := recover(); r != nil {
 				logger.Error("agent panic recovered", "panic", r, "stack", string(debug.Stack()))
-				eventPublisher.chatEvents <- agentdomain.ChatErrorEvent{
+				eventPublisher.send(agentdomain.ChatErrorEvent{
 					RequestID: req.RequestID,
 					Timestamp: time.Now(),
 					Error:     fmt.Errorf("agent panic: %v", r),
-				}
+				})
 			}
 		}()
 
@@ -1056,7 +1075,7 @@ func (s *Agent) requestSandboxApproval(
 	}
 
 	responseChan := make(chan agentdomain.ApprovalAction, 1)
-	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
+	eventPublisher.send(agentdomain.ToolApprovalRequestedEvent{
 		RequestID: eventPublisher.requestID,
 		Timestamp: time.Now(),
 		ToolCall: sdk.ChatCompletionMessageToolCall{
@@ -1068,7 +1087,7 @@ func (s *Agent) requestSandboxApproval(
 			},
 		},
 		ResponseChan: responseChan,
-	}
+	})
 
 	eventPublisher.awaitUser(func() {
 		select {
@@ -1278,26 +1297,21 @@ func (s *Agent) executeToolOnce(
 	return entry
 }
 
-// handleToolResults appends tool results to the conversation and returns true
-// when the agent should stop (a plan is awaiting approval). Rejections cannot
-// occur on this route; the state machine's ApprovingToolsState is the only
-// place a rejection ends the turn.
-func (s *Agent) handleToolResults(
+// presentPlan appends the plan a round's RequestPlanApproval asked for after
+// its tool results and publishes it for approval. It reports whether the
+// round requested one, which ends the run until the user decides.
+func (s *Agent) presentPlan(
 	toolResults []convdomain.ConversationEntry,
 	conversation *[]sdk.Message,
 	eventPublisher *eventPublisher,
 	req *agentdomain.AgentRequest,
 ) bool {
 	planContent, planID := s.checkPlanApproval(toolResults)
-
-	s.addToolResultsToConversation(toolResults, conversation, req.Model)
-
-	if planContent != "" {
-		s.createPlanMessage(planContent, planID, conversation, eventPublisher, req)
-		return true
+	if planContent == "" {
+		return false
 	}
-
-	return false
+	s.createPlanMessage(planContent, planID, conversation, eventPublisher, req)
+	return true
 }
 
 // checkPlanApproval returns the plan content and ID when a RequestPlanApproval
@@ -1314,8 +1328,8 @@ func (s *Agent) checkPlanApproval(toolResults []convdomain.ConversationEntry) (p
 	return planContent, planID
 }
 
-// addToolResultsToConversation adds tool results and images to the conversation
-func (s *Agent) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message, model string) {
+// addToolResultsToConversation adds tool results to the conversation
+func (s *Agent) addToolResultsToConversation(toolResults []convdomain.ConversationEntry, conversation *[]sdk.Message) {
 	for _, entry := range toolResults {
 		toolResult := sdk.Message{
 			Role:       sdk.Tool,
@@ -1324,8 +1338,6 @@ func (s *Agent) addToolResultsToConversation(toolResults []convdomain.Conversati
 		}
 		*conversation = append(*conversation, toolResult)
 	}
-
-	s.addImageMessageFromToolResults(toolResults, conversation, model)
 }
 
 // createPlanMessage creates and stores a plan message for approval
@@ -1500,13 +1512,13 @@ func (s *Agent) requestHumanApproval(
 	note string,
 ) (bool, string, error) {
 	responseChan := make(chan agentdomain.ApprovalAction, 1)
-	eventPublisher.chatEvents <- agentdomain.ToolApprovalRequestedEvent{
+	eventPublisher.send(agentdomain.ToolApprovalRequestedEvent{
 		RequestID:    eventPublisher.requestID,
 		Timestamp:    time.Now(),
 		ToolCall:     tc,
 		Context:      note,
 		ResponseChan: responseChan,
-	}
+	})
 
 	var approved bool
 	var err error
@@ -1647,14 +1659,14 @@ func (s *Agent) applyJudgeVerdict(
 		s.escalations.record(tc.Function.Name, tc.Function.Arguments, verdict.Reason)
 	}
 
-	eventPublisher.chatEvents <- agentdomain.JudgeVerdictChatEvent{
+	eventPublisher.send(agentdomain.JudgeVerdictChatEvent{
 		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: eventPublisher.requestID, Timestamp: time.Now()},
 		Tool:          tc.Function.Name,
 		Model:         model,
 		Decision:      verdict.Decision,
 		Reason:        verdict.Reason,
 		Turn:          int(s.sessionTurns.Load()),
-	}
+	})
 	streamevent.EmitDebugEvent("judge_verdict", map[string]any{
 		"tool": tc.Function.Name, "call": tc.ID, "model": model, "decision": verdict.Decision, "reason": verdict.Reason, "turn": s.sessionTurns.Load(),
 	})
@@ -1770,16 +1782,10 @@ func (s *Agent) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error
 }
 
 func (s *Agent) batchSaveToolResults(entries []convdomain.ConversationEntry) error {
-	savedCount := 0
 	for _, entry := range entries {
 		if err := s.conversationRepo.AddMessage(entry); err != nil {
-			logger.Error("failed to save tool result",
-				"tool", entry.ToolExecution.ToolName,
-				"error", err,
-			)
-			return err
+			return fmt.Errorf("saving %s tool result: %w", entry.ToolExecution.ToolName, err)
 		}
-		savedCount++
 	}
 
 	return nil

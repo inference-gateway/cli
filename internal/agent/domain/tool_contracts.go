@@ -28,11 +28,17 @@ type Tool interface {
 
 	// FormatPreview returns a short preview of the result for UI display
 	FormatPreview(result *ToolExecutionResult) string
+}
 
-	// ShouldCollapseArg determines if an argument should be collapsed in display
+// ArgCollapser is implemented by tools whose call line hides long arguments,
+// such as file contents or a plan body. Tools without it show every argument.
+type ArgCollapser interface {
 	ShouldCollapseArg(key string) bool
+}
 
-	// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+// AlwaysExpander is implemented by tools whose result stays expanded in the
+// conversation, such as collected answers. Tools without it start collapsed.
+type AlwaysExpander interface {
 	ShouldAlwaysExpand() bool
 }
 
@@ -201,14 +207,6 @@ type TodoWriteToolResult struct {
 	CompletedTasks int        `json:"completed_tasks"`
 	InProgressTask string     `json:"in_progress_task,omitempty"`
 	ValidationOK   bool       `json:"validation_ok"`
-}
-
-// MCPToolResult represents the result of an MCP tool execution
-type MCPToolResult struct {
-	ServerName string `json:"server_name"`
-	ToolName   string `json:"tool_name"`
-	Content    string `json:"content"`
-	Error      string `json:"error,omitempty"`
 }
 
 // UI Event Types for application state management

@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -179,11 +178,6 @@ func (rb *OutputRingBuffer) Size() int {
 	return len(rb.buffer)
 }
 
-// MaxSize returns the maximum size of the buffer in bytes.
-func (rb *OutputRingBuffer) MaxSize() int {
-	return rb.maxSize
-}
-
 // String returns the entire current buffer contents as a string.
 // This respects the circular nature and returns data in the correct order.
 func (rb *OutputRingBuffer) String() string {
@@ -195,23 +189,4 @@ func (rb *OutputRingBuffer) String() string {
 	}
 
 	return string(rb.buffer[rb.writePos:]) + string(rb.buffer[:rb.writePos])
-}
-
-// Clear resets the buffer to empty state.
-func (rb *OutputRingBuffer) Clear() {
-	rb.mutex.Lock()
-	defer rb.mutex.Unlock()
-
-	rb.buffer = make([]byte, 0, rb.maxSize)
-	rb.writePos = 0
-	rb.totalWritten = 0
-}
-
-// Stats returns statistics about the buffer.
-func (rb *OutputRingBuffer) Stats() string {
-	rb.mutex.RLock()
-	defer rb.mutex.RUnlock()
-
-	return fmt.Sprintf("OutputRingBuffer: size=%d/%d, written=%d, writePos=%d",
-		len(rb.buffer), rb.maxSize, rb.totalWritten, rb.writePos)
 }

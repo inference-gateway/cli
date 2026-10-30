@@ -135,12 +135,7 @@ func (t *CloseSubagentTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts.
 func (t *CloseSubagentTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatResult(result, formatType, t.FormatForLLM, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display.
@@ -170,14 +165,4 @@ func (t *CloseSubagentTool) FormatForLLM(result *agentdomain.ToolExecutionResult
 		return fmt.Sprintf("%s\n\nFinal output:\n%s", msg, output)
 	}
 	return msg
-}
-
-// ShouldCollapseArg returns whether an argument should be collapsed.
-func (t *CloseSubagentTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand returns whether results should always be expanded.
-func (t *CloseSubagentTool) ShouldAlwaysExpand() bool {
-	return false
 }

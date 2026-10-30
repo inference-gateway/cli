@@ -350,16 +350,7 @@ func (t *ScheduleTool) fail(args map[string]any, start time.Time, err error) (*a
 
 // FormatResult formats tool execution results for different contexts.
 func (t *ScheduleTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a compact one-line preview.
@@ -400,13 +391,7 @@ func (t *ScheduleTool) FormatForUI(result *agentdomain.ToolExecutionResult) stri
 	if result == nil {
 		return "Schedule result unavailable"
 	}
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-	var out strings.Builder
-	fmt.Fprintf(&out, "%s\n", toolCall)
-	fmt.Fprintf(&out, "└─ %s %s", statusIcon, preview)
-	return out.String()
+	return t.formatter.FormatCollapsed(result, t.FormatPreview(result))
 }
 
 // FormatForLLM renders a structured detail block for the assistant.
@@ -465,11 +450,6 @@ func formatJobDetail(out *strings.Builder, job *scheddomain.ScheduledJob) {
 // ShouldCollapseArg controls per-arg collapsing in the chat UI.
 func (t *ScheduleTool) ShouldCollapseArg(key string) bool {
 	return key == "prompt"
-}
-
-// ShouldAlwaysExpand keeps the result block expanded by default.
-func (t *ScheduleTool) ShouldAlwaysExpand() bool {
-	return false
 }
 
 func short(id string) string {

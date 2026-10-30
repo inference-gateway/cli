@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -94,10 +96,43 @@ func shellBuffer(total int) *OutputRingBuffer {
 	return rb
 }
 
+func finishedShell(shell *BackgroundShell, state ShellState, exitCode int, at time.Time) *BackgroundShell {
+	shell.Finish(state, exitCode, at)
+	return shell
+}
+
+func TestBackgroundShellReadAndFinish(t *testing.T) {
+	shell := &BackgroundShell{OutputBuffer: NewOutputRingBuffer(64)}
+	_, _ = shell.OutputBuffer.Write([]byte("hello"))
+	if got := shell.Status().State; got != ShellStateRunning {
+		t.Fatalf("unfinished shell state = %q, want running", got)
+	}
+
+	var mu sync.Mutex
+	var got strings.Builder
+	var wg sync.WaitGroup
+	wg.Go(func() { shell.Finish(ShellStateCompleted, 0, time.Now()) })
+	for range 8 {
+		wg.Go(func() {
+			out, _, _ := shell.Read(-1)
+			mu.Lock()
+			got.WriteString(out)
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
+
+	if got.String() != "hello" {
+		t.Errorf("parallel reads returned %q, want each byte exactly once", got.String())
+	}
+	if out, next, state := shell.Read(0); out != "hello" || next != 5 || state != ShellStateCompleted {
+		t.Errorf("Read(0) = %q, %d, %q, want hello, 5, completed", out, next, state)
+	}
+}
+
 func TestNewShellInfo(t *testing.T) {
 	started := time.Now().Add(-10 * time.Minute)
 	completed := started.Add(2 * time.Minute)
-	exitCode := 3
 
 	tests := []struct {
 		name        string
@@ -110,22 +145,18 @@ func TestNewShellInfo(t *testing.T) {
 				ShellID:      "sh-1",
 				Command:      "sleep 600",
 				StartedAt:    started,
-				State:        ShellStateRunning,
 				OutputBuffer: shellBuffer(42),
 			},
 			wantElapsed: func(d time.Duration) bool { return d >= 10*time.Minute && d < 11*time.Minute },
 		},
 		{
 			name: "completed shell freezes elapsed at CompletedAt-StartedAt",
-			shell: &BackgroundShell{
+			shell: finishedShell(&BackgroundShell{
 				ShellID:      "sh-2",
 				Command:      "make build",
 				StartedAt:    started,
-				CompletedAt:  &completed,
-				State:        ShellStateCompleted,
-				ExitCode:     &exitCode,
 				OutputBuffer: shellBuffer(1024),
-			},
+			}, ShellStateCompleted, 3, completed),
 			wantElapsed: func(d time.Duration) bool { return d == 2*time.Minute },
 		},
 	}
@@ -138,17 +169,18 @@ func TestNewShellInfo(t *testing.T) {
 			if info.Command != tt.shell.Command {
 				t.Errorf("Command = %q, want %q", info.Command, tt.shell.Command)
 			}
-			if info.State != tt.shell.State {
-				t.Errorf("State = %q, want %q", info.State, tt.shell.State)
+			status := tt.shell.Status()
+			if info.State != status.State {
+				t.Errorf("State = %q, want %q", info.State, status.State)
 			}
 			if !info.StartedAt.Equal(tt.shell.StartedAt) {
 				t.Errorf("StartedAt = %v, want %v", info.StartedAt, tt.shell.StartedAt)
 			}
-			if info.CompletedAt != tt.shell.CompletedAt {
-				t.Errorf("CompletedAt = %v, want %v", info.CompletedAt, tt.shell.CompletedAt)
+			if info.CompletedAt != status.CompletedAt {
+				t.Errorf("CompletedAt = %v, want %v", info.CompletedAt, status.CompletedAt)
 			}
-			if info.ExitCode != tt.shell.ExitCode {
-				t.Errorf("ExitCode = %v, want %v", info.ExitCode, tt.shell.ExitCode)
+			if info.ExitCode != status.ExitCode {
+				t.Errorf("ExitCode = %v, want %v", info.ExitCode, status.ExitCode)
 			}
 			if want := tt.shell.OutputBuffer.TotalWritten(); info.OutputSize != want {
 				t.Errorf("OutputSize = %d, want %d", info.OutputSize, want)

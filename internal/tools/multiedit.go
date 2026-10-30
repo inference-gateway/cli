@@ -19,7 +19,7 @@ type MultiEditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter CustomFormatter
+	formatter BaseFormatter
 }
 
 // NewMultiEditTool creates a new multi-edit tool with an optional read-tracking registry
@@ -518,16 +518,7 @@ func (t *MultiEditTool) createSuggestion(lines, searchLines []string, startLine 
 
 // FormatResult formats tool execution results for different contexts
 func (t *MultiEditTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -563,26 +554,12 @@ func (t *MultiEditTool) FormatForUI(result *agentdomain.ToolExecutionResult) str
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	filePath, _ := result.Arguments["file_path"].(string)
-	editsInterface := result.Arguments["edits"]
-
-	var toolCallDisplay string
-	if editsArray, ok := editsInterface.([]any); ok && len(editsArray) > 0 {
-		fileName := t.formatter.GetFileName(filePath)
-		toolCallDisplay = fmt.Sprintf("MultiEdit(file=%s, %d edits)", fileName, len(editsArray))
-	} else {
-		toolCallDisplay = t.formatter.FormatToolCall(result.Arguments, false)
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	if edits, ok := result.Arguments["edits"].([]any); ok && len(edits) > 0 {
+		filePath, _ := result.Arguments["file_path"].(string)
+		toolCall = fmt.Sprintf("%s(file=%s, %d edits)", ToolMultiEdit, t.formatter.GetFileName(filePath), len(edits))
 	}
-
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCallDisplay)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return renderCollapsed(toolCall, result.Success, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
@@ -646,9 +623,4 @@ func (t *MultiEditTool) formatMultiEditData(data any) string {
 // ShouldCollapseArg delegates to the formatter's collapse logic
 func (t *MultiEditTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *MultiEditTool) ShouldAlwaysExpand() bool {
-	return false
 }

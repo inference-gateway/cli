@@ -122,14 +122,3 @@ func TestLookupConfigKey(t *testing.T) {
 		t.Error("expected error descending into a scalar")
 	}
 }
-
-func TestSplitListValue(t *testing.T) {
-	got := splitListValue("a, b ,,c\nd")
-	want := []string{"a", "b", "c", "d"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %v, want %v", got, want)
-	}
-	if got := splitListValue("  "); len(got) != 0 {
-		t.Fatalf("expected empty slice, got %v", got)
-	}
-}

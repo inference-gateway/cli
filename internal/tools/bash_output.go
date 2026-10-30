@@ -74,20 +74,21 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*age
 		}, nil
 	}
 
+	recordedExit := shell.Status().ExitCode
 	var statusMsg string
 	switch state {
 	case scheddomain.ShellStateRunning:
 		statusMsg = "Shell is still running"
 	case scheddomain.ShellStateCompleted:
 		exitCode := 0
-		if shell.ExitCode != nil {
-			exitCode = *shell.ExitCode
+		if recordedExit != nil {
+			exitCode = *recordedExit
 		}
 		statusMsg = fmt.Sprintf("Shell completed with exit code %d", exitCode)
 	case scheddomain.ShellStateFailed:
 		exitCode := -1
-		if shell.ExitCode != nil {
-			exitCode = *shell.ExitCode
+		if recordedExit != nil {
+			exitCode = *recordedExit
 		}
 		statusMsg = fmt.Sprintf("Shell failed with exit code %d", exitCode)
 	case scheddomain.ShellStateCancelled:
@@ -135,16 +136,7 @@ func (t *BashOutputTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts
 func (t *BashOutputTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -188,14 +180,4 @@ func (t *BashOutputTool) FormatForLLM(result *agentdomain.ToolExecutionResult) s
 	status, _ := data["status"].(string)
 
 	return fmt.Sprintf("%s\n\nOutput:\n%s", status, output)
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *BashOutputTool) ShouldAlwaysExpand() bool {
-	return false
-}
-
-// ShouldCollapseArg determines if a specific argument should be collapsed in UI
-func (t *BashOutputTool) ShouldCollapseArg(key string) bool {
-	return false
 }

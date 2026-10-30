@@ -14,7 +14,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// fakeSourceLookup is a hand-rolled frameSourceLookup over a plain map.
+// fakeSourceLookup is a hand-rolled FrameSourceLookup over a plain map.
 type fakeSourceLookup map[string]agentdomain.FrameSource
 
 func (f fakeSourceLookup) FrameSource(name string) (agentdomain.FrameSource, bool) {

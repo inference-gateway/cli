@@ -26,19 +26,13 @@ const (
 	annotatorMaxPixels   = 1_100_000.0
 )
 
-// frameSourceLookup is the narrow slice of the Registry the tool needs.
-type frameSourceLookup interface {
-	FrameSource(name string) (agentdomain.FrameSource, bool)
-	FrameSourceNames() []string
-}
-
 // GetLatestFrameTool retrieves the latest frame from a named frame source
 // (the screen ring buffer or a configured directory source), either as a raw
 // image or as annotated text for models without vision.
 type GetLatestFrameTool struct {
 	config          *config.Config
 	formatter       tools.BaseFormatter
-	sources         frameSourceLookup
+	sources         FrameSourceLookup
 	annotator       agentdomain.ImageAnnotator
 	lastCallMu      sync.Mutex
 	lastCallTimes   map[string]time.Time
@@ -46,7 +40,7 @@ type GetLatestFrameTool struct {
 }
 
 // NewGetLatestFrameTool creates a new tool that reads from the frame sources
-func NewGetLatestFrameTool(cfg *config.Config, sources frameSourceLookup, annotator agentdomain.ImageAnnotator) *GetLatestFrameTool {
+func NewGetLatestFrameTool(cfg *config.Config, sources FrameSourceLookup, annotator agentdomain.ImageAnnotator) *GetLatestFrameTool {
 	minInterval := time.Duration(cfg.ComputerUse.Screenshot.CaptureInterval) * time.Second
 	if minInterval < 2*time.Second {
 		minInterval = 2 * time.Second
@@ -446,14 +440,4 @@ func (t *GetLatestFrameTool) FormatForLLM(result *agentdomain.ToolExecutionResul
 		return msg + " " + data.Note
 	}
 	return msg + " Image is attached."
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *GetLatestFrameTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *GetLatestFrameTool) ShouldAlwaysExpand() bool {
-	return false
 }

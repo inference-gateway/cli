@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"strings"
@@ -36,19 +37,19 @@ func captureStdout(t *testing.T, fn func()) string {
 func TestPrintA2AAgentsTable(t *testing.T) {
 	c := &command{renderer: output.NewRenderer()}
 
-	got := captureStdout(t, func() {
-		c.printA2AAgents(2, []config.AgentEntry{
-			{
-				Name:        "browser-agent",
-				URL:         "http://localhost:8080",
-				OCI:         "ghcr.io/inference-gateway/browser-agent:0.5.0",
-				Run:         true,
-				Model:       "openai/gpt-5",
-				Environment: map[string]string{"A2A_DEBUG": "true"},
-			},
-		}, []ExternalAgent{{Name: "remote-agent", URL: "https://agent.example.com"}})
-	})
+	var out bytes.Buffer
+	c.printA2AAgents(&out, 2, []config.AgentEntry{
+		{
+			Name:        "browser-agent",
+			URL:         "http://localhost:8080",
+			OCI:         "ghcr.io/inference-gateway/browser-agent:0.5.0",
+			Run:         true,
+			Model:       "openai/gpt-5",
+			Environment: map[string]string{"A2A_DEBUG": "true"},
+		},
+	}, []ExternalAgent{{Name: "remote-agent", URL: "https://agent.example.com"}})
 
+	got := out.String()
 	for _, want := range []string{"A2A Agents (2)", "browser-agent", "yaml", "browser-agent:0.5.0", "remote-agent", "env"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("A2A table missing %q\noutput:\n%s", want, got)
@@ -59,13 +60,13 @@ func TestPrintA2AAgentsTable(t *testing.T) {
 func TestPrintMarkdownAgentsTable(t *testing.T) {
 	c := &command{renderer: output.NewRenderer()}
 
-	got := captureStdout(t, func() {
-		c.printMarkdownAgents([]agentdomain.SubagentInfo{
-			{Name: "runner", Description: "Runs the test suite", Source: "user"},
-			{Name: "explorer", Description: "Read-only code explorer", Tools: []string{"Grep", "Read"}, ReadOnly: true, Source: "project"},
-		})
+	var out bytes.Buffer
+	c.printMarkdownAgents(&out, []agentdomain.SubagentInfo{
+		{Name: "runner", Description: "Runs the test suite", Source: "user"},
+		{Name: "explorer", Description: "Read-only code explorer", Tools: []string{"Grep", "Read"}, ReadOnly: true, Source: "project"},
 	})
 
+	got := out.String()
 	for _, want := range []string{"Markdown Agents (2)", "runner", "all tools (inherited)", "inherit", "explorer", "Grep, Read", "read-only", "project"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("Markdown table missing %q\noutput:\n%s", want, got)

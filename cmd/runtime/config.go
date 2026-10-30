@@ -278,7 +278,7 @@ func dropBlankStrings(m map[string]any) {
 }
 
 // decodeHook is Viper's default hook with the comma split replaced by
-// parseDelimitedList, so list values from env may use commas or newlines and
+// ParseDelimitedList, so list values from env may use commas or newlines and
 // keep entries that contain spaces, and scalars trimmed so a padded env value
 // still parses.
 func decodeHook() mapstructure.DecodeHookFunc {
@@ -292,7 +292,7 @@ func decodeHook() mapstructure.DecodeHookFunc {
 			switch to.Kind() {
 			case reflect.Slice:
 				if to.Elem().Kind() == reflect.String {
-					return parseDelimitedList(raw), nil
+					return ParseDelimitedList(raw), nil
 				}
 			case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
@@ -339,9 +339,9 @@ func postProcess(cfg *config.Config, v *viper.Viper, root *cobra.Command) {
 		cfg.Prompts.Agent.SystemPrompt = prompt
 	}
 	if override := resolveFlagEnvOverride(v, root, "tools-bash-allow-append", "tools.bash.allow_append"); override != "" {
-		cfg.Tools.Bash.Mode.All.Allow = append(cfg.Tools.Bash.Mode.All.Allow, parseDelimitedList(override)...)
+		cfg.Tools.Bash.Mode.All.Allow = append(cfg.Tools.Bash.Mode.All.Allow, ParseDelimitedList(override)...)
 	}
-	if extra := parseDelimitedList(v.GetString("tools.sandbox.directories")); len(extra) > 0 {
+	if extra := ParseDelimitedList(v.GetString("tools.sandbox.directories")); len(extra) > 0 {
 		for i, dir := range extra {
 			if !sandbox.IsAnchored(dir) {
 				extra[i] = "./" + dir
@@ -368,28 +368,29 @@ func resolveFlagEnvOverride(v *viper.Viper, root *cobra.Command, flagName, key s
 	return ""
 }
 
-// PluginsConfigPath returns the path of the plugins registry. Plugins are
-// userspace-only, so unlike other sidecars there is no project-first search.
-func PluginsConfigPath() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(config.ConfigDirName, config.PluginsFileName)
+// ConfigPath resolves name under the project .infer/ override when toProject
+// is set, and under the userspace baseline (~/.infer/) otherwise.
+func ConfigPath(toProject bool, name string) (string, error) {
+	if toProject {
+		return filepath.Join(config.ConfigDirName, name), nil
 	}
-	return filepath.Join(homeDir, config.ConfigDirName, config.PluginsFileName)
+	return UserConfigPath(name)
 }
 
-// KeybindingsConfigWritePath returns the path to write keybindings to.
-// Keybindings are a userspace-only concern, so writes target ~/.infer/ by
-// default; --project (toProject) opts into a project-level override instead.
-func KeybindingsConfigWritePath(toProject bool) (string, error) {
-	if toProject {
-		return config.DefaultKeybindingsPath, nil
-	}
+// UserConfigPath resolves name under the userspace baseline (~/.infer/).
+func UserConfigPath(name string) (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %w", err)
+		return "", fmt.Errorf("failed to resolve user home directory: %w", err)
 	}
-	return filepath.Join(homeDir, config.ConfigDirName, config.KeybindingsFileName), nil
+	return filepath.Join(homeDir, config.ConfigDirName, name), nil
+}
+
+// AddProjectFlag registers the --project flag that flips a write command from
+// the userspace baseline (~/.infer/) to the project .infer/ override layer.
+func AddProjectFlag(cmd *cobra.Command) {
+	cmd.PersistentFlags().Bool("project", false,
+		"Apply to the project configuration (./.infer/) instead of the userspace baseline (~/.infer/)")
 }
 
 // pruneMemoryRemindersIfDisabled drops the built-in memory reminders (see

@@ -146,53 +146,23 @@ func (t *TextToMusicTool) IsEnabled() bool {
 
 // FormatPreview formats the result for display preview
 func (t *TextToMusicTool) FormatPreview(result *agentdomain.ToolExecutionResult) string {
-	if result == nil || !result.Success {
-		return "Music generation failed"
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Music generated"
-	}
-	path, _ := data["path"].(string)
-	return fmt.Sprintf("Music saved to %s", path)
+	return formatSavedResult(result, agentdomain.FormatterShort, musicFile)
 }
 
 // FormatForLLM formats the result for LLM consumption
 func (t *TextToMusicTool) FormatForLLM(result *agentdomain.ToolExecutionResult) string {
-	if result == nil {
-		return "Error: no result"
-	}
-	if !result.Success {
-		return fmt.Sprintf("Music generation failed: %s", result.Error)
-	}
-	data, ok := result.Data.(map[string]any)
-	if !ok {
-		return "Music generated"
-	}
-	path, _ := data["path"].(string)
-	summary := fmt.Sprintf("Music saved to %s", path)
-	formatter := NewBaseFormatter(ToolTextToMusic)
-	return formatter.FormatExpanded(result, summary)
-}
-
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *TextToMusicTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *TextToMusicTool) ShouldAlwaysExpand() bool {
-	return false
+	return formatSavedResult(result, agentdomain.FormatterLLM, musicFile)
 }
 
 // FormatResult formats the result based on the requested format type
 func (t *TextToMusicTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForLLM(result)
-	}
+	return formatSavedResult(result, formatType, musicFile)
+}
+
+// musicFile describes the file the TextToMusic tool saves.
+var musicFile = savedFile{
+	tool:    ToolTextToMusic,
+	noun:    "Music",
+	failure: "Music generation failed",
+	done:    "Music generated",
 }

@@ -47,7 +47,7 @@ through these commands instead of downloading on their own.`,
 				if st.Detail != "" {
 					line += " (" + st.Detail + ")"
 				}
-				fmt.Println(line)
+				fmt.Fprintln(cmd.OutOrStdout(), line)
 				if st.State != binariesdomain.Current {
 					notCurrent++
 				}

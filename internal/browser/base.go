@@ -28,16 +28,6 @@ func (b *browserToolBase) IsEnabled() bool {
 	return b.enabled
 }
 
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (b *browserToolBase) ShouldCollapseArg(string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (b *browserToolBase) ShouldAlwaysExpand() bool {
-	return false
-}
-
 // FormatResult formats tool execution results for different contexts
 func (b *browserToolBase) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
 	if formatType == agentdomain.FormatterShort {

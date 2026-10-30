@@ -28,13 +28,8 @@ type StreamCompletedEvent struct {
 
 func (e StreamCompletedEvent) EventType() string { return "StreamCompleted" }
 
-// ToolsCompletedEvent is triggered when all tools finish executing. Stop is set
-// when the results signal the loop should terminate (a rejected tool or a
-// successful RequestPlanApproval); the ExecutingTools state then routes to the
-// Stopped terminal instead of continuing to PostToolExecution.
-type ToolsCompletedEvent struct {
-	Stop bool
-}
+// ToolsCompletedEvent is triggered when all tools finish executing.
+type ToolsCompletedEvent struct{}
 
 func (e ToolsCompletedEvent) EventType() string { return "ToolsCompleted" }
 
@@ -125,6 +120,13 @@ type StateContext struct {
 	PublishChatComplete   func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics)
 	PublishChatCancelled  func(metrics *agentdomain.ChatMetrics)
 	PublishToolResults    func(results []convdomain.ConversationEntry)
+	// AttachToolImages appends the images a round's tools returned as one
+	// hidden user message after its results, since tool messages carry text only.
+	AttachToolImages func(results []convdomain.ConversationEntry)
+	// PresentPlan appends the plan a successful RequestPlanApproval in results
+	// asked for and publishes it for approval. It reports whether one did,
+	// which ends the run until the user decides.
+	PresentPlan func(results []convdomain.ConversationEntry) bool
 
 	// DispatchHooks runs the actions attached to a hook point. State executors call it
 	// at their loop point; the streaming path calls the service directly.

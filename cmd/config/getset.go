@@ -1,9 +1,9 @@
 package configcmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -14,6 +14,7 @@ import (
 	cobra "github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v3"
 
+	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -40,7 +41,7 @@ and is shown here too.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error { return getConfigValue(state, cmd, args) },
 	}
-	command.Flags().StringP("format", "f", "yaml", "Output format (yaml, json)")
+	output.AddFormatFlag(command, "yaml", "json")
 	return command
 }
 
@@ -65,8 +66,7 @@ to write a sparse override into the project .infer/config.yaml instead.`,
 			return setConfigValue(cmd, args, state.LoadConfig)
 		},
 	}
-	command.Flags().Bool("project", false,
-		"Write a sparse override into the project ./.infer/config.yaml instead of the userspace baseline (~/.infer/)")
+	runtime.AddProjectFlag(command)
 	return command
 }
 
@@ -102,7 +102,7 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 		value = v
 	}
 
-	return printConfigValue(value, format)
+	return printConfigValue(cmd.OutOrStdout(), value, format)
 }
 
 // injectTools merges the tools policy into the get dump under the names the
@@ -143,21 +143,16 @@ func lookupConfigKey(root map[string]any, key string) (any, error) {
 	return current, nil
 }
 
-func printConfigValue(value any, format string) error {
+func printConfigValue(w io.Writer, value any, format string) error {
 	if format == "json" {
-		out, err := json.MarshalIndent(value, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to format value as json: %w", err)
-		}
-		fmt.Println(string(out))
-		return nil
+		return output.PrintJSON(w, value)
 	}
 
 	out, err := yaml.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to format value as yaml: %w", err)
 	}
-	fmt.Print(string(out))
+	fmt.Fprint(w, string(out))
 	return nil
 }
 
@@ -197,12 +192,12 @@ func setConfigValue(cmd *cobra.Command, args []string, load func() (*config.Conf
 	}
 
 	target.Set(key, parsed)
-	writeErr := utils.WriteViperConfigWithIndent(target, 2)
+	save := utils.WriteViperConfigWithIndent
 	if toProject {
-		writeErr = utils.WriteViperConfigSparse(target, 2)
+		save = utils.WriteViperConfigSparse
 	}
-	if writeErr != nil {
-		return fmt.Errorf("failed to save config: %w", writeErr)
+	if err := save(target, 2); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	if _, err := load(); err != nil {
@@ -212,8 +207,8 @@ func setConfigValue(cmd *cobra.Command, args []string, load func() (*config.Conf
 		return fmt.Errorf("%s = %v was not saved: %w", key, parsed, err)
 	}
 
-	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Set %s = %v", key, parsed)))
-	fmt.Printf("Configuration saved to: %s\n", path)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s\n", formatting.FormatSuccess(fmt.Sprintf("Set %s = %v", key, parsed)))
+	fmt.Fprintf(cmd.OutOrStdout(), "Configuration saved to: %s\n", path)
 	return nil
 }
 
@@ -312,20 +307,8 @@ func parseConfigValue(raw string, kind reflect.Kind) (any, error) {
 		}
 		return f, nil
 	case reflect.Slice:
-		return splitListValue(raw), nil
+		return runtime.ParseDelimitedList(raw), nil
 	default:
 		return nil, fmt.Errorf("setting %s values is not supported via config set", kind)
 	}
-}
-
-// splitListValue parses a comma/newline-separated value into a string slice,
-// matching the split rule used for INFER_* list environment variables.
-func splitListValue(raw string) []string {
-	out := []string{}
-	for _, item := range strings.FieldsFunc(raw, func(c rune) bool { return c == ',' || c == '\n' }) {
-		if trimmed := strings.TrimSpace(item); trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
 }

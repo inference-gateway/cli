@@ -143,16 +143,6 @@ func (t *ListShellsTool) FormatPreview(result *agentdomain.ToolExecutionResult) 
 	return t.FormatResult(result, agentdomain.FormatterShort)
 }
 
-// ShouldCollapseArg returns whether an argument should be collapsed
-func (t *ListShellsTool) ShouldCollapseArg(key string) bool {
-	return false
-}
-
-// ShouldAlwaysExpand returns whether results should always be expanded
-func (t *ListShellsTool) ShouldAlwaysExpand() bool {
-	return false
-}
-
 // formatLLMResult formats the result for LLM consumption
 func (t *ListShellsTool) formatLLMResult(result *agentdomain.ToolExecutionResult) string {
 	data, ok := result.Data.(map[string]any)

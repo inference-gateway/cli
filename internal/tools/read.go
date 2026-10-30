@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -571,16 +572,7 @@ func (t *ReadTool) validatePathSecurity(path string) error {
 
 // FormatResult formats tool execution results for different contexts
 func (t *ReadTool) FormatResult(result *agentdomain.ToolExecutionResult, formatType agentdomain.FormatterType) string {
-	switch formatType {
-	case agentdomain.FormatterUI:
-		return t.FormatForUI(result)
-	case agentdomain.FormatterLLM:
-		return t.FormatForLLM(result)
-	case agentdomain.FormatterShort:
-		return t.FormatPreview(result)
-	default:
-		return t.FormatForUI(result)
-	}
+	return formatResult(result, formatType, t.FormatForUI, t.FormatForLLM, t.FormatPreview)
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -627,24 +619,11 @@ func (t *ReadTool) FormatForUI(result *agentdomain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
-
-	args := make(map[string]any, len(result.Arguments))
-	for k, v := range result.Arguments {
-		args[k] = v
-	}
+	args := maps.Clone(result.Arguments)
 	if fp, ok := args["file_path"].(string); ok {
 		args["file_path"] = t.formatter.GetFileName(fp)
 	}
-
-	toolCall := t.formatter.FormatToolCall(args, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	fmt.Fprintf(&output, "%s\n", toolCall)
-	fmt.Fprintf(&output, "└─ %s %s", statusIcon, preview)
-
-	return output.String()
+	return renderCollapsed(t.formatter.FormatToolCall(args, false), result.Success, t.FormatPreview(result))
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
@@ -698,9 +677,4 @@ func (t *ReadTool) formatReadData(data any) string {
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *ReadTool) ShouldCollapseArg(key string) bool {
 	return key == "file_path"
-}
-
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *ReadTool) ShouldAlwaysExpand() bool {
-	return false
 }
