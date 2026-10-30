@@ -1,11 +1,15 @@
 package output
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 
 	glamour "charm.land/glamour/v2"
 	lipgloss "charm.land/lipgloss/v2"
 	table "charm.land/lipgloss/v2/table"
+	cobra "github.com/spf13/cobra"
 
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -123,12 +127,29 @@ func (r *Renderer) RenderMarkdown(markdown string) (string, error) {
 	return renderer.Render(markdown)
 }
 
-func (r *Renderer) PrintMarkdown(markdown string) {
+// AddFormatFlag registers the standard --format flag shared by commands that
+// can emit structured output, so every command documents its formats alike.
+func AddFormatFlag(cmd *cobra.Command, def string, allowed ...string) {
+	formats := append([]string{def}, allowed...)
+	cmd.Flags().StringP("format", "f", def, "Output format ("+strings.Join(formats, ", ")+")")
+}
+
+// PrintJSON writes v as two-space indented JSON terminated by a newline.
+func PrintJSON(w io.Writer, v any) error {
+	out, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON output: %w", err)
+	}
+	_, err = fmt.Fprintln(w, string(out))
+	return err
+}
+
+func (r *Renderer) PrintMarkdown(w io.Writer, markdown string) {
 	if !r.disabled {
 		if rendered, err := r.RenderMarkdown(markdown); err == nil {
-			fmt.Print(rendered)
+			fmt.Fprint(w, rendered)
 			return
 		}
 	}
-	fmt.Println(markdown)
+	fmt.Fprintln(w, markdown)
 }

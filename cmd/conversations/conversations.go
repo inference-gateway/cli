@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 	"time"
 
@@ -55,7 +55,7 @@ Examples:
 	}
 	listCommand.Flags().IntP("limit", "l", 50, "Maximum number of conversations to display")
 	listCommand.Flags().Int("offset", 0, "Number of conversations to skip (for pagination)")
-	listCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(listCommand, "text", "json")
 	listCommand.Flags().Bool("all-projects", false, "List conversations across all projects instead of only the current one")
 
 	deleteCommand := &cobra.Command{
@@ -77,7 +77,7 @@ Examples:
   infer conversations delete channel-telegram-12345`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return deleteConversation(state, args[0])
+			return deleteConversation(state, cmd.OutOrStdout(), args[0])
 		},
 	}
 
@@ -127,7 +127,7 @@ Examples:
 		},
 	}
 	showCommand.Flags().Bool("include-hidden", false, "Include hidden entries (system reminders, plan prompts, drained background results, verify message)")
-	showCommand.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(showCommand, "text", "json")
 	showCommand.Flags().String("grep", "", "Only show the entries whose text contains this substring (case-insensitive)")
 	showCommand.Flags().Bool("no-trunc", false, "Print every entry instead of the default first-10 window")
 	showCommand.Flags().BoolP("append", "a", false, "Print the entries after the default first-10 window instead of the window itself")
@@ -160,45 +160,38 @@ func listConversations(state *runtime.State, renderer *output.Renderer, cmd *cob
 	}
 
 	if format == "json" {
-		return renderConversationsJSON(conversations)
+		return renderConversationsJSON(cmd.OutOrStdout(), conversations)
 	}
 
-	return renderConversationsTable(renderer, conversations, limit, offset)
+	return renderConversationsTable(cmd.OutOrStdout(), renderer, conversations, limit, offset)
 }
 
-func renderConversationsJSON(conversations []convdomain.ConversationSummary) error {
+func renderConversationsJSON(w io.Writer, conversations []convdomain.ConversationSummary) error {
 	for i := range conversations {
 		if conversations[i].InvokedBy == "" {
 			conversations[i].InvokedBy = "human"
 		}
 	}
-	output := struct {
+	payload := struct {
 		Conversations []convdomain.ConversationSummary `json:"conversations"`
 		Count         int                              `json:"count"`
 	}{
 		Conversations: conversations,
 		Count:         len(conversations),
 	}
-
-	jsonBytes, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal conversations to JSON: %w", err)
-	}
-
-	fmt.Println(string(jsonBytes))
-	return nil
+	return output.PrintJSON(w, payload)
 }
 
-func renderConversationsTable(renderer *output.Renderer, conversations []convdomain.ConversationSummary, limit, offset int) error {
+func renderConversationsTable(w io.Writer, renderer *output.Renderer, conversations []convdomain.ConversationSummary, limit, offset int) error {
 	if len(conversations) == 0 {
-		fmt.Println("No conversations found.")
-		fmt.Println()
-		fmt.Println("Start a new conversation with: infer chat")
+		fmt.Fprintln(w, "No conversations found.")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Start a new conversation with: infer chat")
 		return nil
 	}
 
-	fmt.Println(renderer.Title(fmt.Sprintf("Saved Conversations (%d)", len(conversations))))
-	fmt.Println()
+	fmt.Fprintln(w, renderer.Title(fmt.Sprintf("Saved Conversations (%d)", len(conversations))))
+	fmt.Fprintln(w)
 
 	t := renderer.NewListTable("ID", "Summary", "Messages", "Requests", "Input", "Output", "Cost")
 	for _, conv := range conversations {
@@ -212,22 +205,22 @@ func renderConversationsTable(renderer *output.Renderer, conversations []convdom
 			formatting.FormatCost(conv.CostStats.TotalCost),
 		)
 	}
-	fmt.Println(t.Render())
+	fmt.Fprintln(w, t.Render())
 
 	switch {
 	case len(conversations) >= limit:
-		fmt.Println()
-		fmt.Println(renderer.Hint(fmt.Sprintf("Showing %d-%d (use --limit and --offset for pagination)",
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, renderer.Hint(fmt.Sprintf("Showing %d-%d (use --limit and --offset for pagination)",
 			offset+1, offset+len(conversations))))
 	case offset > 0:
-		fmt.Println()
-		fmt.Println(renderer.Hint(fmt.Sprintf("Showing %d-%d", offset+1, offset+len(conversations))))
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, renderer.Hint(fmt.Sprintf("Showing %d-%d", offset+1, offset+len(conversations))))
 	}
 
 	return nil
 }
 
-func deleteConversation(state *runtime.State, rawID string) error {
+func deleteConversation(state *runtime.State, w io.Writer, rawID string) error {
 	services := container.NewServiceContainer(state.Config())
 
 	store := services.GetStorage()
@@ -242,7 +235,7 @@ func deleteConversation(state *runtime.State, rawID string) error {
 		return fmt.Errorf("failed to delete conversation: %w", err)
 	}
 
-	fmt.Printf("Deleted conversation: %s\n", sessionID)
+	fmt.Fprintf(w, "Deleted conversation: %s\n", sessionID)
 	return nil
 }
 
@@ -273,9 +266,9 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 	window, start, total := windowConversationEntries(entries, noTrunc, showRest)
 
 	if format == "json" {
-		return printConversationShowJSON(window, metadata, start, total)
+		return printConversationShowJSON(cmd.OutOrStdout(), window, metadata, start, total)
 	}
-	return printConversationShowText(window, sessionID, start, total)
+	return printConversationShowText(cmd.OutOrStdout(), window, sessionID, start, total)
 }
 
 // resolveConversationSessionID mirrors 'infer headless --session-id' resolution:
@@ -479,16 +472,16 @@ func buildConversationShowJSON(entries []convdomain.ConversationEntry, metadata 
 	return string(jsonBytes), nil
 }
 
-func printConversationShowText(entries []convdomain.ConversationEntry, sessionID string, start, total int) error {
-	fmt.Print(buildConversationShowText(entries, sessionID, start, total))
+func printConversationShowText(w io.Writer, entries []convdomain.ConversationEntry, sessionID string, start, total int) error {
+	fmt.Fprint(w, buildConversationShowText(entries, sessionID, start, total))
 	return nil
 }
 
-func printConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata, start, total int) error {
+func printConversationShowJSON(w io.Writer, entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata, start, total int) error {
 	out, err := buildConversationShowJSON(entries, metadata, start > 1 || total > len(entries))
 	if err != nil {
 		return err
 	}
-	_, werr := os.Stdout.Write([]byte(out))
+	_, werr := fmt.Fprintln(w, out)
 	return werr
 }

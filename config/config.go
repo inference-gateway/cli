@@ -1685,14 +1685,6 @@ func (c *Config) GetAgentConfig() *AgentConfig {
 	return &c.Agent
 }
 
-func (c *Config) GetGatewayURL() string {
-	return c.Gateway.URL
-}
-
-func (c *Config) GetTimeout() int {
-	return c.Gateway.Timeout
-}
-
 // ResolveMemoryDir resolves the directory that holds the memory index
 // (MEMORY.md) and the fact-files. It honors an explicit Memory.Dir override
 // and otherwise defaults to the global userspace ~/.infer/memory. The store is

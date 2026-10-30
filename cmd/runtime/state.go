@@ -3,7 +3,6 @@ package runtime
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
@@ -118,7 +117,10 @@ func (s *State) ConfigureDaemonLogging() {
 	logger.Init(s.loggerCfg)
 }
 
-func parseDelimitedList(value string) []string {
+// ParseDelimitedList parses a comma/newline-separated value into a string
+// slice, dropping empty items - the split rule shared by the INFER_* list
+// environment overrides and `config set` list values.
+func ParseDelimitedList(value string) []string {
 	var out []string
 	for _, item := range strings.FieldsFunc(value, func(r rune) bool {
 		return r == ',' || r == '\n'
@@ -147,13 +149,9 @@ func FileExists(path string) bool {
 // ConfigWriteTarget returns a fresh Viper instance for a userspace baseline or
 // sparse project override without writing the fully merged runtime config.
 func ConfigWriteTarget(toProject bool) (*viper.Viper, string, error) {
-	path := config.DefaultConfigPath
-	if !toProject {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to resolve home directory: %w", err)
-		}
-		path = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	path, err := ConfigPath(toProject, config.ConfigFileName)
+	if err != nil {
+		return nil, "", err
 	}
 
 	target := viper.New()

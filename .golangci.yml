@@ -172,6 +172,10 @@ linters:
           - staticcheck
         text: "SA5011"
         path: _test\.go
+      - linters:
+          - errcheck
+        text: "fmt\\.Fprint"
+        path: ^cmd/
 
 issues:
   max-issues-per-linter: 0

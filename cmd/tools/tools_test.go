@@ -1,9 +1,10 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"os"
+	"strings"
 	"testing"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -89,6 +90,46 @@ func TestRecordToolCallRejectsNonPersistentRepo(t *testing.T) {
 	}
 }
 
+func TestValidateTool(t *testing.T) {
+	tests := []struct {
+		name         string
+		toolsEnabled bool
+		command      string
+		wantErr      string
+	}{
+		{"allowed command passes", true, "git status", ""},
+		{"disallowed command fails", true, "rm -rf /", "command not allowed: rm -rf /"},
+		{"disabled tools fail", false, "git status", "tools are disabled"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			cfg := config.DefaultConfig()
+			cfg.Tools.Enabled = tt.toolsEnabled
+			cfg.Tools.Bash.Enabled = true
+
+			var stdout bytes.Buffer
+			err := ValidateTool(&stdout, cfg, tt.command)
+
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateTool(%q) = %v, want nil", tt.command, err)
+				}
+				if !strings.Contains(stdout.String(), "Command is allowed") {
+					t.Errorf("expected the allowed confirmation on stdout, got %q", stdout.String())
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("ValidateTool(%q) = %v, want an error containing %q", tt.command, err, tt.wantErr)
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("a failed validation reports through the error only, stdout got %q", stdout.String())
+			}
+		})
+	}
+}
+
 func execJSON(t *testing.T, args []string, approved bool) execResult {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
@@ -96,20 +137,12 @@ func execJSON(t *testing.T, args []string, approved bool) execResult {
 	cfg.Tools.Enabled = true
 	cfg.Tools.Bash.Enabled = true
 
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stdout := os.Stdout
-	os.Stdout = w
-	execErr := ExecTool(cfg, args, "json", "", approved)
-	os.Stdout = stdout
-	_ = w.Close()
-	if execErr != nil {
-		t.Fatalf("ExecTool: %v", execErr)
+	var stdout bytes.Buffer
+	if err := ExecTool(&stdout, cfg, args, "json", "", approved); err != nil {
+		t.Fatalf("ExecTool: %v", err)
 	}
 	var got execResult
-	if err := json.NewDecoder(r).Decode(&got); err != nil {
+	if err := json.NewDecoder(&stdout).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	return got

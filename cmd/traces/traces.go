@@ -1,8 +1,8 @@
 package traces
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 
 	cobra "github.com/spf13/cobra"
 
@@ -45,7 +45,7 @@ Examples:
 		RunE: c.runTraces,
 	}
 	cmd.Flags().Bool("list", false, "List sessions that have trace files instead of rendering a tree")
-	cmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	output.AddFormatFlag(cmd, "text", "json")
 	return cmd
 }
 
@@ -60,8 +60,10 @@ func (c *command) runTraces(cmd *cobra.Command, args []string) error {
 	}
 
 	if list {
-		return c.renderTraceSessions(sessions, format)
+		return c.renderTraceSessions(cmd.OutOrStdout(), sessions, format)
 	}
+
+	w := cmd.OutOrStdout()
 
 	var session string
 	switch {
@@ -70,9 +72,9 @@ func (c *command) runTraces(cmd *cobra.Command, args []string) error {
 	case len(sessions) > 0:
 		session = sessions[0].ID
 	default:
-		fmt.Println("No traces recorded yet.")
-		fmt.Println()
-		fmt.Println(c.renderer.Hint("Traces accumulate as you use `infer chat` / `infer headless` (when telemetry.enabled)."))
+		fmt.Fprintln(w, "No traces recorded yet.")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, c.renderer.Hint("Traces accumulate as you use `infer chat` / `infer headless` (when telemetry.enabled)."))
 		return nil
 	}
 
@@ -82,41 +84,32 @@ func (c *command) runTraces(cmd *cobra.Command, args []string) error {
 	}
 
 	if format == "json" {
-		return printJSON(map[string]any{"session": session, "spans": roots})
+		return output.PrintJSON(w, map[string]any{"session": session, "spans": roots})
 	}
 	if len(roots) == 0 {
-		fmt.Printf("No spans recorded for session %s.\n", session)
+		fmt.Fprintf(w, "No spans recorded for session %s.\n", session)
 		return nil
 	}
-	fmt.Println(c.renderer.Field("Session", session))
-	fmt.Println()
-	fmt.Print(styles.RenderTraceTree(roots, c.renderer.TraceTreeStyle()))
+	fmt.Fprintln(w, c.renderer.Field("Session", session))
+	fmt.Fprintln(w)
+	fmt.Fprint(w, styles.RenderTraceTree(roots, c.renderer.TraceTreeStyle()))
 	return nil
 }
 
-func (c *command) renderTraceSessions(sessions []telemetry.TraceSession, format string) error {
+func (c *command) renderTraceSessions(w io.Writer, sessions []telemetry.TraceSession, format string) error {
 	if format == "json" {
-		return printJSON(sessions)
+		return output.PrintJSON(w, sessions)
 	}
 	if len(sessions) == 0 {
-		fmt.Println("No traces recorded yet.")
+		fmt.Fprintln(w, "No traces recorded yet.")
 		return nil
 	}
-	fmt.Println(c.renderer.Title("Trace Sessions"))
-	fmt.Println()
+	fmt.Fprintln(w, c.renderer.Title("Trace Sessions"))
+	fmt.Fprintln(w)
 	t := c.renderer.NewListTable("Session", "Modified")
 	for _, s := range sessions {
 		t.Row(s.ID, s.Modified.Format("2006-01-02 15:04:05"))
 	}
-	fmt.Println(t.Render())
-	return nil
-}
-
-func printJSON(v any) error {
-	out, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal output: %w", err)
-	}
-	fmt.Println(string(out))
+	fmt.Fprintln(w, t.Render())
 	return nil
 }

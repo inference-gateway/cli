@@ -2,8 +2,8 @@ package avatarscmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"sync"
@@ -66,22 +66,22 @@ default) for every generated angle.
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			format, _ := cmd.Flags().GetString("format")
-			return listAvatars(renderer, format)
+			return listAvatars(cmd.OutOrStdout(), renderer, format)
 		},
 	}
 	deleteCmd := &cobra.Command{
 		Use:   "delete <name>",
 		Short: "Delete an avatar and all of its images",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := avatars.Delete(avatars.Dir(), args[0]); err != nil {
 				return err
 			}
-			fmt.Printf("%s Deleted avatar %s\n", renderer.StatusIcon(true), args[0])
+			fmt.Fprintf(cmd.OutOrStdout(), "%s Deleted avatar %s\n", renderer.StatusIcon(true), args[0])
 			return nil
 		},
 	}
-	listCmd.Flags().StringP("format", "f", "text", "Output format (text|json)")
+	output.AddFormatFlag(listCmd, "text", "json")
 	createCmd.Flags().String("from", "", "Front-facing photo to build the avatar from (.png, .jpg, .jpeg, .webp)")
 	createCmd.Flags().StringSlice("angles", avatars.DefaultAngles,
 		"Views to generate: three-quarter-left, three-quarter-right, left-profile, right-profile (\"\" for none)")
@@ -111,7 +111,7 @@ func createAvatar(cmd *cobra.Command, state *runtime.State, renderer *output.Ren
 			return fmt.Errorf("generating angles uses the ImageEdit model: set tools.image_edit.enabled and tools.image_edit.model, or pass --angles \"\" to only copy the photo")
 		}
 		imageService := sync.OnceValues(func() (agentdomain.ImageService, error) {
-			fmt.Printf("Generating %d angle(s) with %s (%s quality, %s)...\n", len(angles), model, quality, size)
+			fmt.Fprintf(cmd.OutOrStdout(), "Generating %d angle(s) with %s (%s quality, %s)...\n", len(angles), model, quality, size)
 			services := container.NewServiceContainer(cfg)
 			if err := services.GetGatewaySupervisor().EnsureStarted(); err != nil {
 				return nil, fmt.Errorf("failed to start inference gateway: %w", err)
@@ -131,14 +131,15 @@ func createAvatar(cmd *cobra.Command, state *runtime.State, renderer *output.Ren
 	if err != nil {
 		return err
 	}
+	w := cmd.OutOrStdout()
 	for _, image := range avatar.Images {
-		fmt.Printf("  %s\n", image)
+		fmt.Fprintf(w, "  %s\n", image)
 	}
-	fmt.Printf("%s Created avatar %s (%d images)\n", renderer.StatusIcon(true), avatar.Name, len(avatar.Images))
+	fmt.Fprintf(w, "%s Created avatar %s (%d images)\n", renderer.StatusIcon(true), avatar.Name, len(avatar.Images))
 	return nil
 }
 
-func listAvatars(renderer *output.Renderer, format string) error {
+func listAvatars(w io.Writer, renderer *output.Renderer, format string) error {
 	dir := avatars.Dir()
 	list, err := avatars.List(dir)
 	if err != nil {
@@ -146,26 +147,21 @@ func listAvatars(renderer *output.Renderer, format string) error {
 	}
 
 	if format == "json" {
-		data, err := json.MarshalIndent(append([]avatars.Avatar{}, list...), "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal avatars: %w", err)
-		}
-		fmt.Println(string(data))
-		return nil
+		return output.PrintJSON(w, append([]avatars.Avatar{}, list...))
 	}
 
 	if len(list) == 0 {
-		fmt.Printf("No avatars in %s.\n", dir)
-		fmt.Println("Add one by creating a folder there with one or more portrait images.")
+		fmt.Fprintf(w, "No avatars in %s.\n", dir)
+		fmt.Fprintln(w, "Add one by creating a folder there with one or more portrait images.")
 		return nil
 	}
 
-	fmt.Println(renderer.Title("Avatars"))
-	fmt.Println(renderer.Field("Directory", dir))
+	fmt.Fprintln(w, renderer.Title("Avatars"))
+	fmt.Fprintln(w, renderer.Field("Directory", dir))
 	tbl := renderer.NewListTable("Name", "Images")
 	for _, a := range list {
 		tbl.Row(a.Name, strings.Join(a.Images, ", "))
 	}
-	fmt.Println(tbl.Render())
+	fmt.Fprintln(w, tbl.Render())
 	return nil
 }

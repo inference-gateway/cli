@@ -22,7 +22,7 @@ func NewCommand() *cobra.Command {
 		Short: "Print the version information",
 		Long:  `Display version information for the Inference Gateway CLI.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Printf("infer %s\n", version)
+			fmt.Fprintf(cmd.OutOrStdout(), "infer %s\n", version)
 			return nil
 		},
 	}

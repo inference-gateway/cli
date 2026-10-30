@@ -1,13 +1,18 @@
 package conversations
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	cobra "github.com/spf13/cobra"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -52,7 +57,7 @@ func TestRenderConversationsJSON(t *testing.T) {
 		},
 	}
 
-	err := renderConversationsJSON(conversations)
+	err := renderConversationsJSON(io.Discard, conversations)
 	if err != nil {
 		t.Fatalf("renderConversationsJSON() failed: %v", err)
 	}
@@ -103,7 +108,7 @@ func TestRenderConversationsJSON_Structure(t *testing.T) {
 func TestRenderConversationsTable_Empty(t *testing.T) {
 	conversations := []convdomain.ConversationSummary{}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations, 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations, 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with empty conversations failed: %v", err)
 	}
@@ -126,7 +131,7 @@ func TestRenderConversationsTable_WithData(t *testing.T) {
 		},
 	}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations, 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations, 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() failed: %v", err)
 	}
@@ -150,12 +155,12 @@ func TestRenderConversationsTable_Pagination(t *testing.T) {
 		}
 	}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations[:50], 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations[:50], 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() page 1 failed: %v", err)
 	}
 
-	err = renderConversationsTable(output.NewRenderer(), conversations[50:], 50, 50)
+	err = renderConversationsTable(io.Discard, output.NewRenderer(), conversations[50:], 50, 50)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() page 2 failed: %v", err)
 	}
@@ -178,7 +183,7 @@ func TestRenderConversationsTable_LongTitle(t *testing.T) {
 		},
 	}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations, 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations, 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with long title failed: %v", err)
 	}
@@ -201,7 +206,7 @@ func TestRenderConversationsTable_ZeroCost(t *testing.T) {
 		},
 	}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations, 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations, 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with zero cost failed: %v", err)
 	}
@@ -250,7 +255,7 @@ func TestRenderConversationsTable_VariousCosts(t *testing.T) {
 		},
 	}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations, 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations, 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with various costs failed: %v", err)
 	}
@@ -273,7 +278,7 @@ func TestRenderConversationsTable_LargeNumbers(t *testing.T) {
 		},
 	}
 
-	err := renderConversationsTable(output.NewRenderer(), conversations, 50, 0)
+	err := renderConversationsTable(io.Discard, output.NewRenderer(), conversations, 50, 0)
 	if err != nil {
 		t.Fatalf("renderConversationsTable() with large numbers failed: %v", err)
 	}
@@ -592,6 +597,63 @@ func TestConversationsListCmd_AllProjectsFlag(t *testing.T) {
 	}
 	if cmd := command.Flags().Lookup("all-projects"); cmd == nil {
 		t.Error("expected list to register the --all-projects flag")
+	}
+}
+
+// runConversations executes `infer conversations` with args against an isolated
+// HOME and the default jsonl store, capturing output through SetOut - the seam
+// everything the command prints must route through.
+func runConversations(t *testing.T, args ...string) string {
+	t.Helper()
+	for _, env := range os.Environ() {
+		key, _, ok := strings.Cut(env, "=")
+		if ok && strings.HasPrefix(key, "INFER_") {
+			t.Setenv(key, "")
+		}
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("NO_COLOR", "1")
+
+	state := runtime.NewState()
+	if err := state.Initialize(&cobra.Command{}); err != nil {
+		t.Fatalf("initialize state: %v", err)
+	}
+
+	command := NewCommand(state, output.NewRenderer())
+	var stdout bytes.Buffer
+	command.SetOut(&stdout)
+	command.SetErr(io.Discard)
+	command.SetArgs(args)
+	if err := command.Execute(); err != nil {
+		t.Fatalf("conversations %v: %v", args, err)
+	}
+	return stdout.String()
+}
+
+func TestConversationsListEmptyCapturesThroughSetOut(t *testing.T) {
+	out := runConversations(t, "list")
+
+	if !strings.Contains(out, "No conversations found.") {
+		t.Errorf("expected the empty hint, got:\n%s", out)
+	}
+	if strings.Contains(out, "Saved Conversations") {
+		t.Errorf("expected no table for an empty store:\n%s", out)
+	}
+}
+
+func TestConversationsListJSONCapturesThroughSetOut(t *testing.T) {
+	var decoded struct {
+		Conversations []convdomain.ConversationSummary `json:"conversations"`
+		Count         int                              `json:"count"`
+	}
+	if err := json.Unmarshal([]byte(runConversations(t, "list", "--format", "json")), &decoded); err != nil {
+		t.Fatalf("json list output not valid JSON: %v", err)
+	}
+	if decoded.Count != 0 {
+		t.Errorf("expected count 0, got %d", decoded.Count)
+	}
+	if decoded.Conversations == nil {
+		t.Error("expected conversations to be an empty array, got null")
 	}
 }
 

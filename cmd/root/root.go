@@ -74,8 +74,8 @@ deployment, monitoring, and management of inference services.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Welcome to the Inference Gateway CLI!")
-			fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
+			fmt.Fprintln(cmd.OutOrStdout(), "Welcome to the Inference Gateway CLI!")
+			fmt.Fprintln(cmd.OutOrStdout(), "Use 'infer chat' to start interactive chat or --help to see available commands.")
 			return nil
 		},
 	}
