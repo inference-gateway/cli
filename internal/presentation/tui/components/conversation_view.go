@@ -67,6 +67,11 @@ type ConversationView struct {
 	// on theme refresh, which restyles without touching entry state.
 	renderCache map[int]renderCacheEntry
 
+	// welcomeCache memoizes the tall welcome box render, invalidated on
+	// resize and theme refresh.
+	welcomeCache      string
+	welcomeCacheValid bool
+
 	// Streaming state
 	streamingBuffer          strings.Builder
 	streamingReasoningBuffer strings.Builder
@@ -344,6 +349,7 @@ func (cv *ConversationView) RefreshTheme() {
 		cv.markdownRenderer.RefreshTheme()
 	}
 	cv.renderCache = make(map[int]renderCacheEntry)
+	cv.welcomeCacheValid = false
 	if cv.navigationMode != NavigationModeMessageHistory {
 		cv.updateViewportContentFull()
 	}
@@ -368,6 +374,7 @@ func (cv *ConversationView) SetWidth(width int) {
 		return
 	}
 	cv.width = width
+	cv.welcomeCacheValid = false
 	cv.Viewport.SetWidth(width)
 	if cv.lineFormatter != nil {
 		cv.lineFormatter.SetWidth(width)
@@ -390,6 +397,7 @@ func (cv *ConversationView) SetHeight(height int) {
 	}
 	atBottom := cv.Viewport.AtBottom()
 	cv.height = height
+	cv.welcomeCacheValid = false
 	cv.Viewport.SetHeight(height)
 	cv.rebuild()
 	if atBottom && cv.navigationMode != NavigationModeMessageHistory {
@@ -517,7 +525,11 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 func (cv *ConversationView) renderWelcome() string {
 	if cv.height >= 20 {
-		return cv.renderFullWelcome()
+		if !cv.welcomeCacheValid {
+			cv.welcomeCache = cv.renderFullWelcome()
+			cv.welcomeCacheValid = true
+		}
+		return cv.welcomeCache
 	}
 	return cv.renderCompactWelcome()
 }

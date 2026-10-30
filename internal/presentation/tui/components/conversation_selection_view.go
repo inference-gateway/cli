@@ -156,13 +156,8 @@ func (c *ConversationSelector) loadConversationsCmd() tea.Cmd {
 
 		conversations, err := c.repo.ListSavedConversations(ctx, 50, 0)
 
-		interfaceConversations := make([]any, len(conversations))
-		for i, conv := range conversations {
-			interfaceConversations[i] = conv
-		}
-
 		return tui.ConversationsLoadedEvent{
-			Conversations: interfaceConversations,
+			Conversations: conversations,
 			Error:         err,
 		}
 	}
@@ -199,16 +194,10 @@ func (c *ConversationSelector) handleConversationsLoaded(msg tui.ConversationsLo
 	c.dataLoaded = true
 
 	if msg.Error == nil {
-		conversations := make([]convdomain.ConversationSummary, len(msg.Conversations))
-		for i, conv := range msg.Conversations {
-			if summary, ok := conv.(convdomain.ConversationSummary); ok {
-				conversations[i] = summary
-			}
-		}
+		c.conversations = msg.Conversations
 
-		c.conversations = conversations
-		c.filteredConversations = make([]convdomain.ConversationSummary, len(conversations))
-		copy(c.filteredConversations, conversations)
+		c.filteredConversations = make([]convdomain.ConversationSummary, len(msg.Conversations))
+		copy(c.filteredConversations, msg.Conversations)
 		c.syncTable()
 		c.table.GotoTop()
 	} else {

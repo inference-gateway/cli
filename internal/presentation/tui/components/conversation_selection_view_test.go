@@ -123,7 +123,7 @@ func TestConversationSelectorShowsWhereEachSessionRuns(t *testing.T) {
 			selector := NewConversationSelector(&convmocks.FakePersistentConversationRepository{}, styles.NewProvider(fakeThemeService))
 			selector.SetWidth(200)
 
-			selector.Update(tui.ConversationsLoadedEvent{Conversations: []any{tt.listed}})
+			selector.Update(tui.ConversationsLoadedEvent{Conversations: []convdomain.ConversationSummary{tt.listed}})
 
 			view := selector.table.View()
 			if located := strings.Contains(view, "Environment") && strings.Contains(view, "k8s-dev"); located != tt.located {

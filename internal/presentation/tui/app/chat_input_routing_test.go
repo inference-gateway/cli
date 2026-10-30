@@ -156,9 +156,9 @@ func TestConversationSelectionDeleteKeysDoNotLeakIntoInput(t *testing.T) {
 	repo := &convmocks.FakePersistentConversationRepository{}
 	selector := components.NewConversationSelector(repo, nil)
 	model, _ := selector.Update(tui.ConversationsLoadedEvent{
-		Conversations: []any{
-			convdomain.ConversationSummary{ID: "conv-1", Title: "Conversation 1"},
-			convdomain.ConversationSummary{ID: "conv-2", Title: "Conversation 2"},
+		Conversations: []convdomain.ConversationSummary{
+			{ID: "conv-1", Title: "Conversation 1"},
+			{ID: "conv-2", Title: "Conversation 2"},
 		},
 	})
 	app.conversationSelector = model.(*components.ConversationSelector)
