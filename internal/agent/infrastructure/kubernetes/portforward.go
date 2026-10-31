@@ -8,16 +8,11 @@ import (
 	"strconv"
 	"sync"
 
-	k8sintstr "k8s.io/apimachinery/pkg/util/intstr"
 	k8sportforward "k8s.io/client-go/tools/portforward"
 	k8sspdy "k8s.io/client-go/transport/spdy"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
-
-func intstrPort(port int) k8sintstr.IntOrString {
-	return k8sintstr.FromInt32(int32(port))
-}
 
 // portForward opens a tunnel from a free loopback port to the pod's binding
 // port and returns the local address with the function that closes it.
@@ -50,6 +45,6 @@ func (e *Workspace) portForward(ctx context.Context, pod string) (string, func()
 		return "", nil, fmt.Errorf("reading the port-forward's local port: %w", err)
 	}
 	once := sync.OnceFunc(func() { close(stop) })
-	logger.Debug("port-forward opened to the sandbox pod", "pod", pod, "local_port", ports[0].Local)
+	logger.Debug("port-forward opened to the orchestrator pod", "pod", pod, "local_port", ports[0].Local)
 	return portAddr(int(ports[0].Local)), once, nil
 }
