@@ -15,13 +15,13 @@ import (
 
 func TestStopSessionDeletesTheRemoteRuntimeAndAnswers(t *testing.T) {
 	tests := []struct {
-		name            string
-		owner           string
-		deleteErr       error
-		wantDeletes     int
-		wantEnvironment string
-		wantError       string
-		wantLease       string
+		name          string
+		owner         string
+		deleteErr     error
+		wantDeletes   int
+		wantWorkspace string
+		wantError     string
+		wantLease     string
 	}{
 		{"remote owner", "k8s", nil, 1, "k8s", "", ""},
 		{"remote delete fails", "k8s", errors.New("forbidden"), 1, "", "forbidden", "k8s"},
@@ -31,11 +31,11 @@ func TestStopSessionDeletesTheRemoteRuntimeAndAnswers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
+			k8s := fakeWorkspace("k8s", agentdomain.WorkspaceKindKubernetes)
 			k8s.DeleteReturns(tt.deleteErr)
 			s, store := newService(t, &launcher{}, k8s)
 			if tt.owner != "" {
-				_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: tt.owner, Until: time.Now().Add(time.Hour)})
+				_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: tt.owner, Until: time.Now().Add(time.Hour)})
 			}
 			client := &sessionsmocks.FakeClient{}
 
@@ -51,14 +51,14 @@ func TestStopSessionDeletesTheRemoteRuntimeAndAnswers(t *testing.T) {
 			if err := json.Unmarshal(client.DeliverArgsForCall(0), &stopped); err != nil {
 				t.Fatal(err)
 			}
-			if stopped.Type != frameThreadStopped || stopped.ID != "conv-1" || stopped.ProjectDir != "/proj" || stopped.Environment != tt.wantEnvironment {
+			if stopped.Type != frameThreadStopped || stopped.ID != "conv-1" || stopped.ProjectDir != "/proj" || stopped.Workspace != tt.wantWorkspace {
 				t.Fatalf("thread_stopped = %+v", stopped)
 			}
 			if !strings.Contains(stopped.Error, tt.wantError) || (tt.wantError == "") != (stopped.Error == "") {
 				t.Fatalf("thread_stopped error = %q, want %q", stopped.Error, tt.wantError)
 			}
 			lease, found, _ := store.GetLease(context.Background(), "conv-1")
-			if found != (tt.wantLease != "") || lease.Environment != tt.wantLease {
+			if found != (tt.wantLease != "") || lease.Workspace != tt.wantLease {
 				t.Fatalf("lease = %+v, %v, want owner %q", lease, found, tt.wantLease)
 			}
 		})

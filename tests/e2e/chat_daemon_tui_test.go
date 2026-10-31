@@ -52,18 +52,18 @@ func chatSay(t *testing.T, session, text string) {
 }
 
 // expectListedOn opens the conversations table, expects the session's
-// conversation on environment, and closes the table again.
-func expectListedOn(t *testing.T, session, environment string, daemons ...*daemonProc) {
+// conversation on workspace, and closes the table again.
+func expectListedOn(t *testing.T, session, workspace string, daemons ...*daemonProc) {
 	t.Helper()
 	chatSay(t, session, "/conversations")
-	expectPane(t, session, "Environment", daemons...)
-	require.Regexp(t, `say hello\s+`+environment+`\s`, capturePane(session))
+	expectPane(t, session, "Workspace", daemons...)
+	require.Regexp(t, `say hello\s+`+workspace+`\s`, capturePane(session))
 	tmuxSendKeys(t, session, "Escape")
 	expectPane(t, session, "Type your message", daemons...)
 }
 
 func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
-	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_ENVIRONMENT=a")
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
 	project := gitProject(t)
 
 	startDaemonChat(t, "infer-e2e-daemon-chat", d, project)

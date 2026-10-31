@@ -158,7 +158,7 @@ chat:
       git_branch: true
       git_pr: true
       subagents: true
-      environment: true
+      workspace: true
 compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (1-80)
@@ -806,9 +806,9 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
     - **subagents**: The stacked list of background jobs, one row per subagent, A2A task, shell or
       recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
       how long a finished row lingers before it drops off
-    - **environment**: Where a daemon chat's session runs (default: `true`): `⌂ laptop` on this machine's
-      daemon, `⇄ k8s-dev` on another environment, `⇢ k8s-dev` while it teleports and `· offline` while the
-      daemon is unreachable. Selecting it opens `/environments`. An in-process chat shows none
+    - **workspace**: Where a daemon chat's session runs (default: `true`): `⌂ laptop` on this machine's
+      daemon, `⇄ k8s-dev` on another workspace, `⇢ k8s-dev` while it teleports and `· offline` while the
+      daemon is unreachable. Selecting it opens `/workspaces`. An in-process chat shows none
 
 - **chat.daemon**: Run the chat TUI as a client of the local infer daemon, the way `infer chat --daemon` does
   (default: `false`, env `INFER_CHAT_DAEMON`). See [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
@@ -1085,14 +1085,14 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   [Daemon Binding Protocol](browser-extension-protocol.md).
 - **`mcp.yaml`** - `enabled`, `connection_timeout`, `discovery_timeout`, `liveness_probe_enabled`,
   `liveness_probe_interval`, `max_retries`, `servers`. See [MCP Integration](mcp-integration.md).
-- **`daemon.yaml`** - `environment` (this daemon's name in session leases, default the hostname), `workspace_root`,
+- **`daemon.yaml`** - `workspace` (this daemon's name in session leases, default the hostname), `projects_root`,
   `idle_exit`, `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
   with client certificates), `binding.tls` (`mode` off|files|ca, `cert_file`, `key_file`, `ca_file`,
-  `client_auth`) and `environments`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
+  `client_auth`) and `workspaces`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
   `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
   and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
-  `forward_env` for a Kubernetes environment. See [infer daemon](daemon.md#environments-and-teleports).
+  `forward_env` for a Kubernetes workspace. See [infer daemon](daemon.md#workspaces-and-teleports).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).
 

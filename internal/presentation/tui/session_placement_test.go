@@ -16,8 +16,8 @@ func TestSessionPlacementSaysWhereTheSessionRuns(t *testing.T) {
 	}{
 		{name: "in process", placement: SessionPlacement{}},
 		{name: "on the local daemon", placement: SessionPlacement{Daemon: true, Local: "laptop"}, where: "laptop"},
-		{name: "on the local daemon by name", placement: SessionPlacement{Daemon: true, Local: "laptop", Environment: "laptop"}, where: "laptop"},
-		{name: "on another environment", placement: SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}, where: "k8s-dev", remote: true},
+		{name: "on the local daemon by name", placement: SessionPlacement{Daemon: true, Local: "laptop", Workspace: "laptop"}, where: "laptop"},
+		{name: "on another workspace", placement: SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}, where: "k8s-dev", remote: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -34,7 +34,7 @@ func TestSessionPlacementSaysWhereTheSessionRuns(t *testing.T) {
 func TestSessionPlacementUnavailable(t *testing.T) {
 	inProcess := SessionPlacement{}
 	local := SessionPlacement{Daemon: true, Local: "laptop"}
-	remote := SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}
+	remote := SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}
 	features := []Feature{FeatureLocalFiles, FeatureCompaction, FeatureHistoryRewind, FeatureBackgroundShell, FeatureTasks}
 
 	for _, feature := range features {

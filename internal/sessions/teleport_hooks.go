@@ -138,7 +138,7 @@ func (r *Registry) AgentsDone() (done, known bool) {
 	return len(r.finished) > 0, len(r.finished) > 0
 }
 
-// TeleportedAway records that a thread's session now lives in another environment.
+// TeleportedAway records that a thread's session now lives in another workspace.
 // Its last run here, interrupted or not, no longer keeps AgentsDone false.
 func (r *Registry) TeleportedAway(key sessionsdomain.ThreadKey) {
 	r.mu.Lock()

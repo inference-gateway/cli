@@ -18,7 +18,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-func testEnvironment(t *testing.T, sandboxes []*k8sunstructured.Unstructured, secrets ...k8sruntime.Object) (*Environment, *k8sdynamicfake.FakeDynamicClient, *k8sclientfake.Clientset) {
+func testWorkspace(t *testing.T, sandboxes []*k8sunstructured.Unstructured, secrets ...k8sruntime.Object) (*Workspace, *k8sdynamicfake.FakeDynamicClient, *k8sclientfake.Clientset) {
 	t.Helper()
 	dynamic := k8sdynamicfake.NewSimpleDynamicClientWithCustomListKinds(k8sruntime.NewScheme(), map[k8sschema.GroupVersionResource]string{sandboxGVR: "SandboxList"})
 	for _, sandbox := range sandboxes {
@@ -28,7 +28,7 @@ func testEnvironment(t *testing.T, sandboxes []*k8sunstructured.Unstructured, se
 	}
 	dynamic.ClearActions()
 	typed := k8sclientfake.NewClientset(secrets...)
-	return &Environment{entry: config.EnvironmentEntry{Name: "k8s", Namespace: "ns"}, dynamic: dynamic, typed: typed}, dynamic, typed
+	return &Workspace{entry: config.WorkspaceEntry{Name: "k8s", Namespace: "ns"}, dynamic: dynamic, typed: typed}, dynamic, typed
 }
 
 func testSandbox(name string, spec map[string]any) *k8sunstructured.Unstructured {
@@ -78,7 +78,7 @@ func TestSuspendPatchStartsTheRetentionOnlyWhenEveryAgentIsDone(t *testing.T) {
 }
 
 func TestReachNeverCreatesAMissingSandbox(t *testing.T) {
-	e, dynamic, typed := testEnvironment(t, nil)
+	e, dynamic, typed := testWorkspace(t, nil)
 	_, err := e.Reach(t.Context(), agentdomain.Session{ConversationID: "conv-1"})
 	if err == nil || !strings.Contains(err.Error(), "is gone") {
 		t.Fatalf("Reach of a missing Sandbox = %v", err)
@@ -92,7 +92,7 @@ func TestReachNeverCreatesAMissingSandbox(t *testing.T) {
 
 func TestResumeClearsTheExpiryASuspensionSet(t *testing.T) {
 	suspended := testSandbox("infer-1", map[string]any{"operatingMode": "Suspended", "shutdownTime": "2026-10-30T12:00:00Z", "shutdownPolicy": "Delete"})
-	e, dynamic, _ := testEnvironment(t, []*k8sunstructured.Unstructured{suspended})
+	e, dynamic, _ := testWorkspace(t, []*k8sunstructured.Unstructured{suspended})
 	if err := e.resume(t.Context(), suspended); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestResumeClearsTheExpiryASuspensionSet(t *testing.T) {
 
 func TestOwnSecretMakesTheSandboxItsOwner(t *testing.T) {
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "infer-1" + tlsSecretSuffix, Namespace: "ns"}}
-	e, _, typed := testEnvironment(t, nil, secret)
+	e, _, typed := testWorkspace(t, nil, secret)
 	if err := e.ownSecret(t.Context(), testSandbox("infer-1", map[string]any{})); err != nil {
 		t.Fatal(err)
 	}

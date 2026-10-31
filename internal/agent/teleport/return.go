@@ -21,8 +21,8 @@ import (
 // before it quiesces and packs.
 const returnAckTimeout = 15 * time.Second
 
-// teleportBack teleports a session that runs on a remote environment back to this
-// daemon: the owner packs it, its workspace lands on the checkout it left and
+// teleportBack teleports a session that runs on a remote workspace back to this
+// daemon: the owner packs it, its repository lands on the checkout it left and
 // its conversation is stored here again. A failure leaves it where it was.
 func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomain.TeleportRequest) {
 	fail := func(err error) { s.failTeleport(to, req, err) }
@@ -32,13 +32,13 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 	case err != nil:
 		fail(describe(err, "reading the session's lease"))
 		return
-	case !found || remote.Environment == s.me:
+	case !found || remote.Workspace == s.me:
 		fail(fmt.Errorf("session %s already runs on %s", req.Session.ConversationID, s.me))
 		return
 	}
-	environment, ok := s.environments[remote.Environment]
+	workspace, ok := s.workspaces[remote.Workspace]
 	if !ok {
-		fail(fmt.Errorf("environment %s is not registered in daemon.yaml", remote.Environment))
+		fail(fmt.Errorf("workspace %s is not registered in daemon.yaml", remote.Workspace))
 		return
 	}
 	if err := s.checkoutReady(ctx, req.Session); err != nil {
@@ -47,9 +47,9 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 	}
 
 	s.report(to, req, agentdomain.TeleportProvisioning, "")
-	endpoint, err := environment.Reach(ctx, req.Session)
+	endpoint, err := workspace.Reach(ctx, req.Session)
 	if err != nil {
-		fail(describe(err, "reaching %s", remote.Environment))
+		fail(describe(err, "reaching %s", remote.Workspace))
 		return
 	}
 	defer endpoint.Release()
@@ -60,8 +60,8 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 		return
 	}
 	defer conn.Close()
-	if info.Environment != remote.Environment {
-		fail(fmt.Errorf("the daemon reached for %s identifies as %q", remote.Environment, info.Environment))
+	if info.Workspace != remote.Workspace {
+		fail(fmt.Errorf("the daemon reached for %s identifies as %q", remote.Workspace, info.Workspace))
 		return
 	}
 
@@ -87,13 +87,13 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 	s.forgetOrigin(req.Session.ConversationID)
 	s.report(to, req, agentdomain.TeleportReady, "")
 	teleported := encode(sessionTeleportedFrame{Type: frameSessionTeleported, SessionTeleported: agentdomain.SessionTeleported{
-		Session: req.Session, Environment: s.me, Workspace: req.Session.ProjectDir, CancelledInterrupts: checkpoint.Interrupts,
+		Session: req.Session, Workspace: s.me, WorkspaceDir: req.Session.ProjectDir, CancelledInterrupts: checkpoint.Interrupts,
 	}})
 	to.Deliver(teleported)
 	s.registry.Deliver(key, teleported)
 }
 
-// checkoutReady says why the session's workspace cannot land on the checkout
+// checkoutReady says why the session's repository cannot land on the checkout
 // it left, or nil: the checkout is clean, or unchanged since the session left.
 func (s *Service) checkoutReady(ctx context.Context, session agentdomain.Session) error {
 	fingerprint, clean, err := agentinfra.CheckoutState(ctx, session.ProjectDir, s.excludes(session.ProjectDir))
@@ -114,8 +114,8 @@ func (s *Service) checkoutReady(ctx context.Context, session agentdomain.Session
 // checkpoint it streams back. An owner that does not answer at once runs an
 // infer that cannot send sessions back.
 func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TeleportRequest, remote agentdomain.Lease) (agentdomain.Checkpoint, error) {
-	owner := remote.Environment
-	ask := returnFrame{Type: frameTeleportReturn, TeleportID: req.TeleportID, ID: req.Session.ConversationID, Workspace: remote.Workspace, Environment: s.me}
+	owner := remote.Workspace
+	ask := returnFrame{Type: frameTeleportReturn, TeleportID: req.TeleportID, ID: req.Session.ConversationID, WorkspaceDir: remote.WorkspaceDir, Workspace: s.me}
 	if err := conn.Send(encode(ask)); err != nil {
 		return agentdomain.Checkpoint{}, describe(err, "asking %s for the session", owner)
 	}
@@ -166,13 +166,13 @@ func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *
 	}
 }
 
-// land puts the checkpoint's workspace on the session's checkout, takes the
+// land puts the checkpoint's repository on the session's checkout, takes the
 // session's lease back and stores its conversation here. A failure undoes
 // all three, so the session stays with its remote owner.
 func (s *Service) land(ctx context.Context, req agentdomain.TeleportRequest, remote agentdomain.Lease, checkpoint agentdomain.Checkpoint) error {
-	landing, err := agentinfra.LandWorkspace(ctx, checkpoint.Workspace, req.Session.ProjectDir, s.excludes(req.Session.ProjectDir))
+	landing, err := agentinfra.LandRepository(ctx, checkpoint.Repository, req.Session.ProjectDir, s.excludes(req.Session.ProjectDir))
 	if err != nil {
-		return describe(err, "landing the workspace on %s", req.Session.ProjectDir)
+		return describe(err, "landing the repository on %s", req.Session.ProjectDir)
 	}
 	if err := s.reclaim(ctx, req, remote, checkpoint); err != nil {
 		if undoErr := landing.Undo(ctx); undoErr != nil {
@@ -191,21 +191,21 @@ func (s *Service) land(ctx context.Context, req agentdomain.TeleportRequest, rem
 // the import fails.
 func (s *Service) reclaim(ctx context.Context, req agentdomain.TeleportRequest, remote agentdomain.Lease, checkpoint agentdomain.Checkpoint) error {
 	conversationID := req.Session.ConversationID
-	if err := s.leases.ReleaseLease(ctx, conversationID, remote.Environment); err != nil {
-		return describe(err, "releasing %s's lease", remote.Environment)
+	if err := s.leases.ReleaseLease(ctx, conversationID, remote.Workspace); err != nil {
+		return describe(err, "releasing %s's lease", remote.Workspace)
 	}
-	own := agentdomain.Lease{ConversationID: conversationID, Environment: s.me, Workspace: req.Session.ProjectDir, TeleportID: req.TeleportID, Until: time.Now().Add(s.ownedTTL())}
+	own := agentdomain.Lease{ConversationID: conversationID, Workspace: s.me, WorkspaceDir: req.Session.ProjectDir, TeleportID: req.TeleportID, Until: time.Now().Add(s.ownedTTL())}
 	giveBack := func(err error) error {
 		_ = s.leases.ReleaseLease(ctx, conversationID, s.me)
-		remote.Until = time.Now().Add(s.entries[remote.Environment].EffectiveLeaseTTL())
+		remote.Until = time.Now().Add(s.entries[remote.Workspace].EffectiveLeaseTTL())
 		if _, _, claimErr := s.leases.ClaimLease(ctx, remote); claimErr != nil {
-			return errors.Join(err, describe(claimErr, "handing the lease back to %s", remote.Environment))
+			return errors.Join(err, describe(claimErr, "handing the lease back to %s", remote.Workspace))
 		}
 		return err
 	}
 	if holder, ok, err := s.leases.ClaimLease(ctx, own); err != nil || !ok {
 		if err == nil {
-			err = fmt.Errorf("environment %s claimed the session first", holder.Environment)
+			err = fmt.Errorf("workspace %s claimed the session first", holder.Workspace)
 		}
 		return giveBack(describe(err, "claiming the session"))
 	}
@@ -226,7 +226,7 @@ func (s *Service) packForReturn(conn *agui.Conn, f returnFrame) {
 		s.mu.Lock()
 		s.returns[f.TeleportID] = key
 		s.mu.Unlock()
-		err = sendCheckpoint(conn, f.TeleportID, f.Environment, checkpoint)
+		err = sendCheckpoint(conn, f.TeleportID, f.Workspace, checkpoint)
 	}
 	if err != nil {
 		logger.Warn("teleport could not send a session back", "teleport_id", f.TeleportID, "conversation_id", f.ID, "error", err)
@@ -236,20 +236,20 @@ func (s *Service) packForReturn(conn *agui.Conn, f returnFrame) {
 
 // packOwned quiesces a session restored here and captures it whole, its
 // conversation always included, since it goes back to where it left. The
-// workspace comes from the requester, since a restarted daemon forgets its
-// leases, so only one under this daemon's workspace root is packed.
+// workspace dir comes from the requester, since a restarted daemon forgets its
+// leases, so only one under this daemon's projects root is packed.
 func (s *Service) packOwned(ctx context.Context, f returnFrame) (agentdomain.Checkpoint, sessionsdomain.ThreadKey, error) {
 	lease, found, err := s.leases.GetLease(ctx, f.ID)
 	if err != nil {
 		return agentdomain.Checkpoint{}, sessionsdomain.ThreadKey{}, describe(err, "reading the session's lease")
 	}
-	if found && lease.Environment != s.me {
-		return agentdomain.Checkpoint{}, sessionsdomain.ThreadKey{}, fmt.Errorf("session %s runs on %s, not %s", f.ID, lease.Environment, s.me)
+	if found && lease.Workspace != s.me {
+		return agentdomain.Checkpoint{}, sessionsdomain.ThreadKey{}, fmt.Errorf("session %s runs on %s, not %s", f.ID, lease.Workspace, s.me)
 	}
-	if rel, err := filepath.Rel(s.cfg.WorkspaceRoot, f.Workspace); f.Workspace == "" || err != nil || !filepath.IsLocal(rel) {
-		return agentdomain.Checkpoint{}, sessionsdomain.ThreadKey{}, fmt.Errorf("%q is not a workspace %s restored", f.Workspace, s.me)
+	if rel, err := filepath.Rel(s.cfg.ProjectsRoot, f.WorkspaceDir); f.WorkspaceDir == "" || err != nil || !filepath.IsLocal(rel) {
+		return agentdomain.Checkpoint{}, sessionsdomain.ThreadKey{}, fmt.Errorf("%q is not a workspace dir %s restored", f.WorkspaceDir, s.me)
 	}
-	key := sessionsdomain.ThreadKey{ProjectDir: filepath.Clean(f.Workspace), ConversationID: f.ID}
+	key := sessionsdomain.ThreadKey{ProjectDir: filepath.Clean(f.WorkspaceDir), ConversationID: f.ID}
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
 	defer cancel()
 	interrupts, err := s.registry.Quiesce(quiesceCtx, key)
@@ -261,9 +261,9 @@ func (s *Service) packOwned(ctx context.Context, f returnFrame) (agentdomain.Che
 	if err != nil {
 		return agentdomain.Checkpoint{}, key, err
 	}
-	workspace, err := agentinfra.PackWorkspace(ctx, key.ProjectDir, nil, s.excludes(key.ProjectDir))
+	repository, err := agentinfra.PackRepository(ctx, key.ProjectDir, nil, s.excludes(key.ProjectDir))
 	if err != nil {
-		return agentdomain.Checkpoint{}, key, describe(err, "packing the workspace")
+		return agentdomain.Checkpoint{}, key, describe(err, "packing the repository")
 	}
 	return agentdomain.Checkpoint{
 		SchemaVersion: agentdomain.CheckpointSchemaVersion,
@@ -272,7 +272,7 @@ func (s *Service) packOwned(ctx context.Context, f returnFrame) (agentdomain.Che
 		Digest:        exported.Digest,
 		Conversation:  encode(map[string]json.RawMessage{"entries": exported.Entries, "metadata": exported.Metadata}),
 		Interrupts:    interrupts,
-		Workspace:     workspace,
+		Repository:    repository,
 	}, key, nil
 }
 

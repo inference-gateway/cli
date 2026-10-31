@@ -19,7 +19,7 @@ import (
 // continue the checkout's HEAD.
 var ErrCheckoutDiverged = errors.New("the session's commits do not continue the checkout's HEAD")
 
-// CheckoutState fingerprints a checkout the way PackWorkspace captures it:
+// CheckoutState fingerprints a checkout the way PackRepository captures it:
 // HEAD, the uncommitted changes and the untracked files excluded lets in. It
 // also reports whether the checkout has none of either.
 func CheckoutState(ctx context.Context, projectDir string, excluded func(abs string) bool) (string, bool, error) {
@@ -75,7 +75,7 @@ func untrackedDigest(project *os.Root, rel string) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(data)), nil
 }
 
-// Landing is a packed workspace applied onto an existing checkout. It stays
+// Landing is a packed repository applied onto an existing checkout. It stays
 // undoable until Keep: the checkout's own changes wait in a stash, and the
 // untracked files excluded keeps out of a pack are never touched.
 type Landing struct {
@@ -88,10 +88,10 @@ type Landing struct {
 	kept     []string
 }
 
-// LandWorkspace moves the checkout at dir onto a packed workspace that
+// LandRepository moves the checkout at dir onto a packed repository that
 // continues it: the pack's commits fast-forward its branch, then its patch and
 // files apply. A failure undoes the landing before it returns.
-func LandWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, excluded func(abs string) bool) (*Landing, error) {
+func LandRepository(ctx context.Context, ws agentdomain.Repository, dir string, excluded func(abs string) bool) (*Landing, error) {
 	l, err := beginLanding(ctx, dir, excluded)
 	if err != nil {
 		return nil, err
@@ -146,7 +146,7 @@ func beginLanding(ctx context.Context, dir string, excluded func(abs string) boo
 
 // apply fetches the pack's commits, moves the checkout onto them and lays the
 // pack's uncommitted changes and files over it.
-func (l *Landing) apply(ctx context.Context, ws agentdomain.Workspace, excluded func(abs string) bool) error {
+func (l *Landing) apply(ctx context.Context, ws agentdomain.Repository, excluded func(abs string) bool) error {
 	target, err := l.fetch(ctx, ws.Bundle)
 	if err != nil {
 		return err
@@ -163,10 +163,10 @@ func (l *Landing) apply(ctx context.Context, ws agentdomain.Workspace, excluded 
 		}
 	}
 	denied := func(rel string) bool { return excluded != nil && excluded(filepath.Join(l.dir, rel)) }
-	if err := untar(ws.Untracked, l.dir, denied, MaxWorkspaceBytes); err != nil {
+	if err := untar(ws.Untracked, l.dir, denied, MaxRepositoryBytes); err != nil {
 		return fmt.Errorf("unpacking the untracked files: %w", err)
 	}
-	if err := untar(ws.Extra, l.dir, denied, MaxWorkspaceBytes); err != nil {
+	if err := untar(ws.Extra, l.dir, denied, MaxRepositoryBytes); err != nil {
 		return fmt.Errorf("unpacking the extra files: %w", err)
 	}
 	return nil
@@ -208,7 +208,7 @@ func (l *Landing) checkout(ctx context.Context, branch, target string) error {
 		return nil
 	}
 	if strings.HasPrefix(branch, "-") {
-		return fmt.Errorf("the workspace branch %q is not a branch", branch)
+		return fmt.Errorf("the repository branch %q is not a branch", branch)
 	}
 	if tip, err := utils.RunGit(ctx, l.dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
 		l.movedTip = strings.TrimSpace(string(tip))
@@ -224,7 +224,7 @@ func (l *Landing) checkout(ctx context.Context, branch, target string) error {
 }
 
 // Keep ends the landing, dropping the stash of the checkout's own changes,
-// which the landed workspace continues.
+// which the landed repository continues.
 func (l *Landing) Keep(ctx context.Context) error {
 	if l.stash == "" {
 		return nil

@@ -46,7 +46,7 @@ var sidecars = []sidecar{
 	{key: "heartbeat", file: config.HeartbeatFileName},
 	{key: "computer_use", file: config.ComputerUseFileName},
 	{key: "browser_use", file: config.BrowserUseFileName},
-	{key: "daemon", file: config.DaemonFileName, fixup: keepEnvironmentEnvCase},
+	{key: "daemon", file: config.DaemonFileName, fixup: keepWorkspaceEnvCase},
 	{key: "memory", file: config.MemoryConfigFileName},
 	{key: "plugins", file: config.PluginsFileName, homeOnly: true},
 }
@@ -205,12 +205,12 @@ func keepMCPEnvCase(m map[string]any) error {
 	return nil
 }
 
-// keepEnvironmentEnvCase retypes every environment's env map so Viper keeps the
+// keepWorkspaceEnvCase retypes every workspace's env map so Viper keeps the
 // variable names' case, as keepMCPEnvCase does for MCP servers.
-func keepEnvironmentEnvCase(m map[string]any) error {
-	environments, _ := m["environments"].([]any)
-	for _, environment := range environments {
-		if entry, ok := environment.(map[string]any); ok {
+func keepWorkspaceEnvCase(m map[string]any) error {
+	workspaces, _ := m["workspaces"].([]any)
+	for _, workspace := range workspaces {
+		if entry, ok := workspace.(map[string]any); ok {
 			if err := retype[map[string]string](entry, "env"); err != nil {
 				return err
 			}

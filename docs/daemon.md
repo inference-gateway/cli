@@ -27,7 +27,7 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
 | AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peer daemons and `/artifacts/` |
-| Environments | `daemon.environments` | Where sessions can be teleported to, see [Environments and teleports](#environments-and-teleports) |
+| Workspaces | `daemon.workspaces` | Where sessions can be teleported to, see [Workspaces and teleports](#workspaces-and-teleports) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
 Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then
@@ -73,7 +73,7 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
 
 With `ca` the token may be empty, since every connection carries a verified certificate.
-The `infer daemon environments`, `teleport`, `run` and `stop` commands dial the local binding over whichever
+The `infer daemon workspaces`, `teleport`, `run` and `stop` commands dial the local binding over whichever
 mode it serves, with the token or, when it requires them, a client certificate.
 
 An enabled binding with neither a token nor a client-certificate mode uses this machine's local token: the
@@ -81,23 +81,23 @@ daemon and its local clients share one generated into `~/.infer/daemon/binding.t
 owner, on first use. `infer chat --daemon` turns the binding on whatever `daemon.yaml` says, and a daemon a
 client starts on demand serves it too, so daemon mode needs no `daemon.yaml` at all.
 
-## Environments and teleports
+## Workspaces and teleports
 
-An environment is where a session's agent runs. This daemon is one, named by `environment` (default the
+A workspace is where a session's agent runs. This daemon is one, named by `workspace` (default the
 hostname), and `daemon.yaml` registers the others:
 
 ```yaml
 # ~/.infer/daemon.yaml
-environment: laptop
-workspace_root: ~/.infer/workspaces
+workspace: laptop
+projects_root: ~/.infer/projects
 idle_exit: 0s
-environments:
+workspaces:
   - name: laptop
     kind: local
   - name: k8s-dev
     kind: kubernetes
-    context: k3d-infer-environments
-    namespace: infer-environments
+    context: k3d-infer-workspaces
+    namespace: infer-workspaces
     image: ghcr.io/inference-gateway/cli:latest
     storage: 5Gi
     idle_ttl: 2h
@@ -116,7 +116,7 @@ environments:
 
 - `kind: daemon` is a standalone `infer daemon` reached over TLS. `tls.ca_file` pins its certificate,
   without one the system roots verify it, and `tls.cert_file` with `tls.key_file` present a client
-  certificate when it requires one. Its `environment` must match the entry's `name`.
+  certificate when it requires one. Its `workspace` must match the entry's `name`.
 - `kind: kubernetes` runs one agent-sandbox `Sandbox` per session in `namespace`, from `image`, as an
   `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
   volume of `storage` each, so a session survives its pod. This daemon's CA issues the pod's server
@@ -134,32 +134,32 @@ environments:
   its retention deleted: the session falls back to this machine's copy once its lease lapsed.
 - `forward_env` names variables of this daemon's environment that a teleport seals to the target's
   certificate for its workers. They never land in a Kubernetes object.
-- `workspace_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
+- `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
 
-A teleport sends a session to another environment between turns: the source daemon interrupts an open run, stops the worker so
+A teleport sends a session to another workspace between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
 project's `HEAD` with a patch of the uncommitted and untracked changes (minus what `sandbox.yaml`
 denies) and the files the request lists, and streams that checkpoint to the target. The target restores
-it, imports the conversation through a worker in the new workspace, claims the session's lease and
+it, imports the conversation through a worker in the new workspace dir, claims the session's lease and
 answers `resume_conversation` with a snapshot the source checks against the checkpoint before it
 reports `ready`. From then on the session lives on the target: clients that resume through the source
-are relayed there, a client that reaches a daemon-kind environment resumes there directly, and killing the
+are relayed there, a client that reaches a daemon-kind workspace resumes there directly, and killing the
 source does not stop the target.
 
 The restored clone keeps the source's `origin`, minus any credentials an http(s) URL embeds, so the agent
 on the target can push to the same remote. Credentials never travel in that URL, so forward a token
 through `forward_env` instead.
 
-Ownership is a lease stored next to the conversations: `environment`, `workspace`, `teleport_id` and when
+Ownership is a lease stored next to the conversations: `workspace`, `workspace_dir`, `teleport_id` and when
 it lapses. A worker starts only on a session this daemon owns or nobody does, relays to the owner
 otherwise, and reclaims a lapsed lease whose owner cannot be reached. The owner renews its lease every
 30 seconds while a worker runs, a relaying daemon refreshes its own row for the owner for the
-environment's `lease_ttl`, and a teleport is a compare-and-swap keyed by `teleport_id`, so a retry is a
+workspace's `lease_ttl`, and a teleport is a compare-and-swap keyed by `teleport_id`, so a retry is a
 no-op once it succeeded. With `storage.type` jsonl the leases are machine-local
 (`~/.infer/leases.json`), with a shared Postgres or Redis every daemon sees them. The wire frames are in
-the [Daemon Binding Protocol](browser-extension-protocol.md#environments).
+the [Daemon Binding Protocol](browser-extension-protocol.md#workspaces).
 
 Two daemons that teleport sessions between them should point `storage.type` at a backend they share -
 Postgres, Redis or D1. On jsonl or memory each machine keeps its own lease rows, so the one-owner
@@ -170,17 +170,17 @@ in the daemon's log.
 The daemon's subcommands drive this from a shell:
 
 ```bash
-infer daemon environments                                 # who is reachable
+infer daemon workspaces                                 # who is reachable
 infer daemon teleport <conversation-id> --to k8s-dev      # teleport a session, follow the stages
 infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
 infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
 ```
 
 A teleport starts on the daemon that owns the session. A daemon that only relays a session refuses to
-teleport it with `session <id> is owned by environment <name>`, with one exception: it brings back a session
+teleport it with `session <id> is owned by workspace <name>`, with one exception: it brings back a session
 that left it. `infer daemon teleport <conversation-id> --to <this daemon>` asks the owner to quiesce the
-worker and pack the conversation and the workspace, and streams that checkpoint back over the connection
-the daemon opened. The workspace lands on the checkout the session left: the pod's commits fast-forward its
+worker and pack the conversation and the repository, and streams that checkpoint back over the connection
+the daemon opened. The repository lands on the checkout the session left: the pod's commits fast-forward its
 branch, then the pod's uncommitted patch and untracked files apply.
 
 A teleport back lands only while the checkout is clean or unchanged since the session left, which the daemon
@@ -226,7 +226,7 @@ directories, max turns) become the worker's flags and `INFER_` env.
 
 Workers speak the binding's vocabulary on stdio, so the daemon relays frames without translating
 them. A client that deletes a conversation sends `stop_thread`, which stops its worker at once and
-deletes the session's runtime on the remote environment that owns it. A worker
+deletes the session's runtime on the remote workspace that owns it. A worker
 nobody follows stops 30 seconds after the turn comes back to the user with no run
 open, no reply pending and no background job still running. A worker that exits mid-turn ends its run
 with `RUN_ERROR` for every client of the thread, and the next `run_agent_input` starts a new one.
@@ -236,8 +236,8 @@ A worker's headless subagents are threads too: the worker opens
 a worker of its own and the desktop can follow it live. Without a configured binding the worker
 spawns the subagent itself instead.
 
-A thread whose session another environment owns gets no local worker: the daemon relays its frames to the
-owning environment's daemon instead, see [Environments and teleports](#environments-and-teleports).
+A thread whose session another workspace owns gets no local worker: the daemon relays its frames to the
+owning workspace's daemon instead, see [Workspaces and teleports](#workspaces-and-teleports).
 
 Scheduled jobs and heartbeat wake-ups do not use workers. Each runs as a one-shot `infer headless`
 inside the daemon, one process per run, and no client follows it.
@@ -246,18 +246,18 @@ inside the daemon, one process per run, and no client follows it.
 
 `infer chat --daemon`, or `chat.daemon: true` (`INFER_CHAT_DAEMON`), runs the chat TUI as a client of the
 local daemon instead of its own agent loop. Every turn runs on the daemon's thread for the project, in a
-worker on this machine or relayed to the environment that owns the session, so the TUI follows a session
+worker on this machine or relayed to the workspace that owns the session, so the TUI follows a session
 wherever it lives and the session keeps running when the TUI exits. The exit line prints how to come back:
 `infer chat --daemon --session-id <id>` reattaches from any machine whose daemon reaches the owner, and an
 approval or a question left open is asked again on reattach. The in-process chat stays the default.
 
 A fresh session opens the model picker unless `agent.model` is set, and a reattached one keeps its model.
 The status bar shows where the session runs: `⌂ laptop` on this machine's daemon, `⇄ k8s-dev` on another
-environment, `⇢ k8s-dev` while it teleports and `· offline` while the daemon is unreachable, which the TUI
-reconnects to with backoff. Selecting that indicator, `/environments`, or `/teleport` without a target opens
-a picker of every environment with its reachability and details, and `enter` teleports the session there.
-`/teleport <environment> [file...]` teleports it directly, carrying the files git does not track. A teleport is
-refused while a turn runs, `esc` cancels a running one, and from a remote environment the session teleports
+workspace, `⇢ k8s-dev` while it teleports and `· offline` while the daemon is unreachable, which the TUI
+reconnects to with backoff. Selecting that indicator, `/workspaces`, or `/teleport` without a target opens
+a picker of every workspace with its reachability and details, and `enter` teleports the session there.
+`/teleport <workspace> [file...]` teleports it directly, carrying the files git does not track. A teleport is
+refused while a turn runs, `esc` cancels a running one, and from a remote workspace the session teleports
 only back to this machine.
 
 | Feature | In a daemon chat |
@@ -266,9 +266,9 @@ only back to this machine.
 | Approvals, questions, plan approval, `esc`, the queue, model switch, agent mode, pasted images, skills | Run on the worker |
 | `!cmd` and `!!Tool(...)` | Run on the worker as a turn of their own |
 | `/new`, `/clear`, `ctrl+n` | Start a new thread on this machine's daemon |
-| `/conversations` | Lists the sessions where the current one runs, with the environment each one runs on now |
+| `/conversations` | Lists the sessions where the current one runs, with the workspace each one runs on now |
 | `@file` | Inlines this machine's file on a local session. On a remote one `@` lists no files and the reference goes to the agent's workspace |
-| `/diff`, `/explorer`, the git branch label | Read this machine's checkout, so they are off while the session runs on another environment |
+| `/diff`, `/explorer`, the git branch label | Read this machine's checkout, so they are off while the session runs on another workspace |
 | `/compact` | Off, the worker compacts the session itself at `compact.auto_at` |
 | `/effort` | Off, the worker's config sets the reasoning effort |
 | `/tasks`, `ctrl+b` and rewinding or editing the history | Off, the conversation and its commands live on the worker |

@@ -86,7 +86,7 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 	mode := scheddomain.InheritedAgentMode()
 	services.GetStateStore().SetAgentMode(mode)
 	if err := thread.Follow(ctx, sessionID, sessionsdomain.ThreadOptions{Model: cfg.Agent.Model, Mode: mode.ModeKey()}); err != nil {
-		return fmt.Errorf("opening session %s on infer daemon: %w (check it with: infer daemon environments)", sessionID, err)
+		return fmt.Errorf("opening session %s on infer daemon: %w (check it with: infer daemon workspaces)", sessionID, err)
 	}
 	dim(placementLine(thread.Placement(), sessionID, fresh))
 
@@ -131,7 +131,7 @@ func placementLine(placement tui.SessionPlacement, sessionID string, fresh bool)
 	short := shortID(sessionID)
 	switch {
 	case placement.Remote():
-		return fmt.Sprintf("• Session %s runs on %s, attaching through %s…", short, placement.Environment, placement.Local)
+		return fmt.Sprintf("• Session %s runs on %s, attaching through %s…", short, placement.Workspace, placement.Local)
 	case fresh:
 		return fmt.Sprintf("• Starting session %s on %s…", short, placement.Where())
 	}

@@ -115,7 +115,7 @@ func TestConversationSelectorShowsWhereEachSessionRuns(t *testing.T) {
 		listed  convdomain.ConversationSummary
 		located bool
 	}{
-		{name: "a daemon chat's listing", listed: convdomain.ConversationSummary{ID: "c1", Environment: "k8s-dev"}, located: true},
+		{name: "a daemon chat's listing", listed: convdomain.ConversationSummary{ID: "c1", Workspace: "k8s-dev"}, located: true},
 		{name: "an in-process listing", listed: convdomain.ConversationSummary{ID: "c1"}},
 	}
 	for _, tt := range tests {
@@ -128,8 +128,8 @@ func TestConversationSelectorShowsWhereEachSessionRuns(t *testing.T) {
 			selector.Update(tui.ConversationsLoadedEvent{Conversations: []convdomain.ConversationSummary{tt.listed}})
 
 			view := selector.table.View()
-			if located := strings.Contains(view, "Environment") && strings.Contains(view, "k8s-dev"); located != tt.located {
-				t.Errorf("the table names the environment: %v, want %v\n%s", located, tt.located, view)
+			if located := strings.Contains(view, "Workspace") && strings.Contains(view, "k8s-dev"); located != tt.located {
+				t.Errorf("the table names the workspace: %v, want %v\n%s", located, tt.located, view)
 			}
 		})
 	}

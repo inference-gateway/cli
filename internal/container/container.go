@@ -818,8 +818,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 	c.shortcutRegistry.Register(shortcuts.NewDiffShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewExplorerShortcut())
-	c.shortcutRegistry.Register(shortcuts.NewEnvironmentsShortcut())
-	c.shortcutRegistry.Register(shortcuts.NewTeleportShortcut(c.config.Daemon.Environments))
+	c.shortcutRegistry.Register(shortcuts.NewWorkspacesShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewTeleportShortcut(c.config.Daemon.Workspaces))
 	c.shortcutRegistry.Register(shortcuts.NewReleaseNotesShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTracesShortcut())
@@ -1160,7 +1160,7 @@ func (c *ServiceContainer) GetDaemonThread() *daemonthread.Thread {
 	return c.daemonThread
 }
 
-// GetSessionTeleporter moves a daemon chat's session between environments, and is
+// GetSessionTeleporter moves a daemon chat's session between workspaces, and is
 // nil for an in-process chat.
 func (c *ServiceContainer) GetSessionTeleporter() tui.SessionTeleporter {
 	if c.daemonThread == nil {

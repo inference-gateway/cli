@@ -17,9 +17,9 @@ import (
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-// maxPayloadBytes caps an incoming checkpoint: the workspace limit plus room
+// maxPayloadBytes caps an incoming checkpoint: the repository limit plus room
 // for the conversation and the JSON around it.
-const maxPayloadBytes = agentinfra.MaxWorkspaceBytes + 64<<20
+const maxPayloadBytes = agentinfra.MaxRepositoryBytes + 64<<20
 
 // pendingImport collects the chunks of one incoming checkpoint.
 type pendingImport struct {
@@ -130,10 +130,10 @@ func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
 }
 
 // receiveImport assembles and validates the checkpoint, restores the
-// workspace and the conversation, claims the lease and answers.
+// repository and the conversation, claims the lease and answers.
 func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
-	reply := func(workspace string, err error) {
-		frame := importedFrame{Type: frameTeleportImported, TeleportID: f.TeleportID, OK: err == nil, Workspace: workspace}
+	reply := func(workspaceDir string, err error) {
+		frame := importedFrame{Type: frameTeleportImported, TeleportID: f.TeleportID, OK: err == nil, WorkspaceDir: workspaceDir}
 		if err != nil {
 			logger.Warn("teleport refused an incoming session", "teleport_id", f.TeleportID, "error", err)
 			frame.Error = err.Error()
@@ -154,71 +154,71 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 		reply("", err)
 		return
 	}
-	if f.Environment != s.me {
-		reply("", fmt.Errorf("this daemon is environment %q, not %q", s.me, f.Environment))
+	if f.Workspace != s.me {
+		reply("", fmt.Errorf("this daemon is workspace %q, not %q", s.me, f.Workspace))
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()
-	workspace, err := s.install(ctx, f.TeleportID, checkpoint)
-	reply(workspace, err)
+	workspaceDir, err := s.install(ctx, f.TeleportID, checkpoint)
+	reply(workspaceDir, err)
 }
 
-// install restores the checkpoint into a fresh workspace, imports its
+// install restores the checkpoint into a fresh workspace dir, imports its
 // conversation through a worker there, opens its credentials and claims the
 // lease. A failure undoes what it did.
 func (s *Service) install(ctx context.Context, teleportID string, checkpoint agentdomain.Checkpoint) (string, error) {
 	session := checkpoint.Session
-	workspace := s.workspaceFor(session)
-	if err := os.RemoveAll(workspace); err != nil {
-		return "", describe(err, "clearing the workspace")
+	workspaceDir := s.workspaceDirFor(session)
+	if err := os.RemoveAll(workspaceDir); err != nil {
+		return "", describe(err, "clearing the workspace dir")
 	}
 	denied := func(rel string) bool {
-		return s.cfg.Denies != nil && s.cfg.Denies(workspace, filepath.Join(workspace, rel))
+		return s.cfg.Denies != nil && s.cfg.Denies(workspaceDir, filepath.Join(workspaceDir, rel))
 	}
-	if err := agentinfra.UnpackWorkspace(ctx, checkpoint.Workspace, workspace, denied); err != nil {
-		_ = os.RemoveAll(workspace)
-		return "", describe(err, "restoring the workspace")
+	if err := agentinfra.UnpackRepository(ctx, checkpoint.Repository, workspaceDir, denied); err != nil {
+		_ = os.RemoveAll(workspaceDir)
+		return "", describe(err, "restoring the repository")
 	}
 	if len(checkpoint.Conversation) > 0 {
-		if err := s.importConversation(ctx, workspace, session.ConversationID, checkpoint); err != nil {
-			_ = os.RemoveAll(workspace)
+		if err := s.importConversation(ctx, workspaceDir, session.ConversationID, checkpoint); err != nil {
+			_ = os.RemoveAll(workspaceDir)
 			return "", err
 		}
 	}
 	if len(checkpoint.SealedEnv) > 0 {
 		env, err := s.keyring.Open(checkpoint.SealedEnv, teleportID)
 		if err != nil {
-			_ = os.RemoveAll(workspace)
+			_ = os.RemoveAll(workspaceDir)
 			return "", describe(err, "opening the credentials")
 		}
 		s.remember(session.ConversationID, env)
 	}
-	lease := agentdomain.Lease{ConversationID: session.ConversationID, Environment: s.me, Workspace: workspace, TeleportID: teleportID, Until: time.Now().Add(s.ownedTTL())}
+	lease := agentdomain.Lease{ConversationID: session.ConversationID, Workspace: s.me, WorkspaceDir: workspaceDir, TeleportID: teleportID, Until: time.Now().Add(s.ownedTTL())}
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err != nil {
-		_ = os.RemoveAll(workspace)
+		_ = os.RemoveAll(workspaceDir)
 		return "", describe(err, "claiming the session")
 	}
 	if !ok {
-		_ = os.RemoveAll(workspace)
-		return "", fmt.Errorf("the session is owned by environment %s", holder.Environment)
+		_ = os.RemoveAll(workspaceDir)
+		return "", fmt.Errorf("the session is owned by workspace %s", holder.Workspace)
 	}
 	s.mu.Lock()
 	s.installed[teleportID] = lease
 	s.mu.Unlock()
-	return workspace, nil
+	return workspaceDir, nil
 }
 
 // importConversation stores the checkpoint's conversation through a worker in
-// the restored workspace and checks it renders to the checkpoint's digest.
-func (s *Service) importConversation(ctx context.Context, workspace, conversationID string, checkpoint agentdomain.Checkpoint) error {
+// the restored workspace dir and checks it renders to the checkpoint's digest.
+func (s *Service) importConversation(ctx context.Context, workspaceDir, conversationID string, checkpoint agentdomain.Checkpoint) error {
 	var conversation map[string]json.RawMessage
 	if err := json.Unmarshal(checkpoint.Conversation, &conversation); err != nil {
 		return describe(err, "decoding the conversation")
 	}
 	request := encode(map[string]any{
-		"type": frameImportConversation, "project_dir": workspace, "id": conversationID,
+		"type": frameImportConversation, "project_dir": workspaceDir, "id": conversationID,
 		"entries": conversation["entries"], "metadata": conversation["metadata"],
 	})
 	reply, err := s.registry.Request(ctx, request, frameConversationImported)
@@ -248,6 +248,6 @@ func (s *Service) abort(teleportID string) {
 		return
 	}
 	s.remember(lease.ConversationID, nil)
-	_ = os.RemoveAll(lease.Workspace)
+	_ = os.RemoveAll(lease.WorkspaceDir)
 	_ = s.leases.ReleaseLease(ctx, lease.ConversationID, s.me)
 }

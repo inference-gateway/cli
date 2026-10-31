@@ -22,7 +22,7 @@ import (
 
 // The lease cadence: an owned row is renewed every heartbeat and lapses
 // ownedLeaseTTL after the last one, unless the daemon is a long-lived
-// environment whose idle exit says how long its sessions stay its own.
+// workspace whose idle exit says how long its sessions stay its own.
 const (
 	leaseHeartbeat = 30 * time.Second
 	ownedLeaseTTL  = 90 * time.Second
@@ -32,16 +32,16 @@ const (
 
 // Config is what the daemon tells the service about itself.
 type Config struct {
-	Identity      string
-	WorkspaceRoot string
-	IdleExit      time.Duration
-	Version       string
-	StorageID     string
+	Identity     string
+	ProjectsRoot string
+	IdleExit     time.Duration
+	Version      string
+	StorageID    string
 	// LeaseBackend names the storage type the lease store lives on, to warn
 	// when two daemons cannot see each other's rows.
 	LeaseBackend config.StorageType
 	Handshake    agui.Handshake
-	Entries      []config.EnvironmentEntry
+	Entries      []config.WorkspaceEntry
 	// StateDir keeps what the daemon remembers about the sessions it teleported
 	// away, such as the checkout each one left. Empty remembers nothing.
 	StateDir string
@@ -52,29 +52,29 @@ type Config struct {
 
 // Deps are the collaborators the service orchestrates.
 type Deps struct {
-	Leases       agentdomain.LeaseStore
-	Environments []agentdomain.Environment
-	Keyring      *agentinfra.Keyring
-	Launch       sessionsdomain.LaunchWorker
+	Leases     agentdomain.LeaseStore
+	Workspaces []agentdomain.Workspace
+	Keyring    *agentinfra.Keyring
+	Launch     sessionsdomain.LaunchWorker
 	// SelfSuspend parks the runtime this daemon runs in, told whether every
 	// agent it ran is done and whether it ran any. Nil on bare metal.
 	SelfSuspend func(ctx context.Context, done, known bool) error
 }
 
-// Service runs agents on environments: it decides where a thread's worker runs
-// (the launch seam the registry calls), teleports sessions between environments, and
+// Service runs agents on workspaces: it decides where a thread's worker runs
+// (the launch seam the registry calls), teleports sessions between workspaces, and
 // receives the sessions other daemons teleport here.
 type Service struct {
-	cfg          Config
-	me           string
-	leases       agentdomain.LeaseStore
-	environments map[string]agentdomain.Environment
-	entries      map[string]config.EnvironmentEntry
-	keyring      *agentinfra.Keyring
-	launch       sessionsdomain.LaunchWorker
-	dial         agentinfra.PeerDialer
-	registry     *sessions.Registry
-	selfSuspend  func(ctx context.Context, done, known bool) error
+	cfg         Config
+	me          string
+	leases      agentdomain.LeaseStore
+	workspaces  map[string]agentdomain.Workspace
+	entries     map[string]config.WorkspaceEntry
+	keyring     *agentinfra.Keyring
+	launch      sessionsdomain.LaunchWorker
+	dial        agentinfra.PeerDialer
+	registry    *sessions.Registry
+	selfSuspend func(ctx context.Context, done, known bool) error
 
 	mu            sync.Mutex
 	teleports     map[string]context.CancelFunc
@@ -92,8 +92,8 @@ func New(cfg Config, deps Deps) *Service {
 		cfg:           cfg,
 		me:            cfg.Identity,
 		leases:        deps.Leases,
-		environments:  make(map[string]agentdomain.Environment, len(deps.Environments)),
-		entries:       make(map[string]config.EnvironmentEntry, len(cfg.Entries)),
+		workspaces:    make(map[string]agentdomain.Workspace, len(deps.Workspaces)),
+		entries:       make(map[string]config.WorkspaceEntry, len(cfg.Entries)),
 		keyring:       deps.Keyring,
 		launch:        deps.Launch,
 		selfSuspend:   deps.SelfSuspend,
@@ -105,8 +105,8 @@ func New(cfg Config, deps Deps) *Service {
 		returns:       make(map[string]sessionsdomain.ThreadKey),
 		credentials:   make(map[string][]string),
 	}
-	for _, environment := range deps.Environments {
-		s.environments[environment.Name()] = environment
+	for _, workspace := range deps.Workspaces {
+		s.workspaces[workspace.Name()] = workspace
 	}
 	for _, entry := range cfg.Entries {
 		s.entries[entry.Name] = entry
@@ -123,13 +123,13 @@ func (s *Service) AttachRegistry(registry *sessions.Registry) {
 // AckAttrs are the facts the binding's ack declares about this daemon.
 func (s *Service) AckAttrs() map[string]any {
 	return map[string]any{
-		agentinfra.AttrEnvironment: s.me,
-		agentinfra.AttrVersion:     s.cfg.Version,
-		agentinfra.AttrStorageID:   s.cfg.StorageID,
+		agentinfra.AttrWorkspace: s.me,
+		agentinfra.AttrVersion:   s.cfg.Version,
+		agentinfra.AttrStorageID: s.cfg.StorageID,
 	}
 }
 
-// Handle claims the environments and teleports frames: the client requests, and
+// Handle claims the workspaces and teleports frames: the client requests, and
 // the peer frames when the connection is another daemon's.
 func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 	var f clientFrame
@@ -137,8 +137,8 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 		return false
 	}
 	switch f.Type {
-	case frameListEnvironments:
-		go s.listEnvironments(conn)
+	case frameListWorkspaces:
+		go s.listWorkspaces(conn)
 	case frameTeleportSession:
 		go s.startTeleport(conn, f)
 	case frameTeleportCancel:
@@ -155,22 +155,22 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 	return true
 }
 
-// listEnvironments answers list_environments with every environment's reachability,
+// listWorkspaces answers list_workspaces with every workspace's reachability,
 // this daemon first, probing the others in parallel.
-func (s *Service) listEnvironments(conn *agui.Conn) {
+func (s *Service) listWorkspaces(conn *agui.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout+time.Second)
 	defer cancel()
-	names := slices.Sorted(maps.Keys(s.environments))
-	statuses := make([]agentdomain.EnvironmentStatus, len(names))
+	names := slices.Sorted(maps.Keys(s.workspaces))
+	statuses := make([]agentdomain.WorkspaceStatus, len(names))
 	var wg sync.WaitGroup
 	for i, name := range names {
-		wg.Go(func() { statuses[i] = s.environments[name].Probe(ctx) })
+		wg.Go(func() { statuses[i] = s.workspaces[name].Probe(ctx) })
 	}
 	wg.Wait()
-	slices.SortStableFunc(statuses, func(a, b agentdomain.EnvironmentStatus) int {
-		return boolRank(b.Kind == agentdomain.EnvironmentKindLocal) - boolRank(a.Kind == agentdomain.EnvironmentKindLocal)
+	slices.SortStableFunc(statuses, func(a, b agentdomain.WorkspaceStatus) int {
+		return boolRank(b.Kind == agentdomain.WorkspaceKindLocal) - boolRank(a.Kind == agentdomain.WorkspaceKindLocal)
 	})
-	conn.Deliver(encode(environmentsFrame{Type: frameEnvironments, Environments: statuses}))
+	conn.Deliver(encode(workspacesFrame{Type: frameWorkspaces, Workspaces: statuses}))
 }
 
 func boolRank(b bool) int {
@@ -180,43 +180,43 @@ func boolRank(b bool) int {
 	return 0
 }
 
-// StopSession handles a client dropping a session: when a remote environment owns
+// StopSession handles a client dropping a session: when a remote workspace owns
 // it, the session's runtime there is deleted and the lease released, so the
 // session starts here next time. The client gets thread_stopped, naming the
-// environment whose runtime went or the error that kept it.
+// workspace whose runtime went or the error that kept it.
 func (s *Service) StopSession(ctx context.Context, to requester, key sessionsdomain.ThreadKey) {
 	stopped := threadStoppedFrame{Type: frameThreadStopped, ProjectDir: key.ProjectDir, ID: key.ConversationID}
-	environment, err := s.deleteRemote(ctx, key)
-	stopped.Environment = environment
+	workspace, err := s.deleteRemote(ctx, key)
+	stopped.Workspace = workspace
 	if err != nil {
-		logger.Warn("teleport could not delete the session's runtime on its environment", "conversation_id", key.ConversationID, "error", err)
+		logger.Warn("teleport could not delete the session's runtime on its workspace", "conversation_id", key.ConversationID, "error", err)
 		stopped.Error = err.Error()
 	}
 	to.Deliver(encode(stopped))
 }
 
-// deleteRemote deletes the session's runtime on the remote environment that
-// owns it and releases the lease, returning that environment, or "" when the
+// deleteRemote deletes the session's runtime on the remote workspace that
+// owns it and releases the lease, returning that workspace, or "" when the
 // session is this daemon's or nobody's.
 func (s *Service) deleteRemote(ctx context.Context, key sessionsdomain.ThreadKey) (string, error) {
 	lease, found, err := s.leases.GetLease(ctx, key.ConversationID)
 	if err != nil {
 		return "", describe(err, "reading the session's lease")
 	}
-	if !found || lease.Environment == s.me {
+	if !found || lease.Workspace == s.me {
 		return "", nil
 	}
-	environment, ok := s.environments[lease.Environment]
+	workspace, ok := s.workspaces[lease.Workspace]
 	if !ok {
-		return "", fmt.Errorf("environment %s is not registered in daemon.yaml", lease.Environment)
+		return "", fmt.Errorf("workspace %s is not registered in daemon.yaml", lease.Workspace)
 	}
-	if err := environment.Delete(ctx, s.session(key)); err != nil {
-		return "", describe(err, "deleting the session's runtime on %s", lease.Environment)
+	if err := workspace.Delete(ctx, s.session(key)); err != nil {
+		return "", describe(err, "deleting the session's runtime on %s", lease.Workspace)
 	}
-	if err := s.leases.ReleaseLease(ctx, key.ConversationID, lease.Environment); err != nil {
+	if err := s.leases.ReleaseLease(ctx, key.ConversationID, lease.Workspace); err != nil {
 		return "", describe(err, "releasing the session's lease")
 	}
-	return lease.Environment, nil
+	return lease.Workspace, nil
 }
 
 // Suspend parks the runtime this daemon runs in when it idles out, the way a
@@ -259,8 +259,8 @@ func (s *Service) ownedTTL() time.Duration {
 	return ownedLeaseTTL
 }
 
-func (s *Service) workspaceFor(session agentdomain.Session) string {
-	return filepath.Join(s.cfg.WorkspaceRoot, session.Slug, session.ConversationID)
+func (s *Service) workspaceDirFor(session agentdomain.Session) string {
+	return filepath.Join(s.cfg.ProjectsRoot, session.Slug, session.ConversationID)
 }
 
 func (s *Service) remember(conversationID string, env map[string]string) {

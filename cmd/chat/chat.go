@@ -96,7 +96,7 @@ and have a conversational interface with the inference gateway.`,
 	command.Flags().Bool("ssh-no-install", false, "Disable auto-installation of infer on remote")
 	command.Flags().String("ssh-command", "infer", "Path to infer binary on remote")
 	command.Flags().String("session-id", "", "Resume an existing chat session by conversation ID")
-	command.Flags().Bool("daemon", false, "Run every turn through the local infer daemon (started when needed), so the session can teleport between environments and outlive this terminal")
+	command.Flags().Bool("daemon", false, "Run every turn through the local infer daemon (started when needed), so the session can teleport between workspaces and outlive this terminal")
 	return command
 }
 
@@ -234,11 +234,11 @@ func chatExitMessage(sessionID string) string {
 }
 
 // resumeChatSession loads the conversation for sessionID into the repository,
-// resolving rollover chains first and refusing a session another environment
+// resolving rollover chains first and refusing a session another workspace
 // owns. When the conversation cannot be loaded it adopts the requested ID for
 // the new session if the repository supports it, mirroring `infer headless
 // --session-id` semantics.
-func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager convdomain.SessionRollover, leases agentdomain.LeaseStore, environment, sessionID string) error {
+func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager convdomain.SessionRollover, leases agentdomain.LeaseStore, workspace, sessionID string) error {
 	if rolloverManager != nil {
 		resolved, _, _ := rolloverManager.ResolveSessionID(sessionID)
 		sessionID = resolved
@@ -247,7 +247,7 @@ func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager c
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := refuseForeignSession(ctx, leases, environment, sessionID); err != nil {
+	if err := refuseForeignSession(ctx, leases, workspace, sessionID); err != nil {
 		return err
 	}
 
@@ -266,10 +266,10 @@ func resumeChatSession(repo convdomain.ConversationRepository, rolloverManager c
 	return nil
 }
 
-// refuseForeignSession fails when another environment holds the session's
+// refuseForeignSession fails when another workspace holds the session's
 // lease, lapsed or not: in-process chat cannot relay to the owner or probe it
 // before a reclaim, so only daemon mode may continue such a session.
-func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, environment, sessionID string) error {
+func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, workspace, sessionID string) error {
 	if leases == nil {
 		return nil
 	}
@@ -277,11 +277,11 @@ func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, en
 	if err != nil {
 		return fmt.Errorf("reading the lease of session %s: %w", sessionID, err)
 	}
-	if !found || lease.Environment == environment {
+	if !found || lease.Workspace == workspace {
 		return nil
 	}
-	return fmt.Errorf("session %s runs on environment %s, attach to it with: infer chat --daemon --session-id %s",
-		sessionID, lease.Environment, sessionID)
+	return fmt.Errorf("session %s runs on workspace %s, attach to it with: infer chat --daemon --session-id %s",
+		sessionID, lease.Workspace, sessionID)
 }
 
 // StartWebChatSession starts a web-based chat session with PTY and WebSocket

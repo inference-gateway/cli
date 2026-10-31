@@ -22,7 +22,7 @@ import (
 var (
 	inProcess   = tui.SessionPlacement{}
 	localDaemon = tui.SessionPlacement{Daemon: true, Local: "laptop"}
-	remote      = tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}
+	remote      = tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}
 )
 
 // placedChat is a chat handler for a session at placement, with the fakes

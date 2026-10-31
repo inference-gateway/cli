@@ -134,7 +134,7 @@ func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 	id := request["teleport_id"].(string)
 	send(d.conn(), `{"type":"teleport_progress","teleport_id":"`+id+`","stage":"checkpointing"}`)
 	send(d.conn(), `{"type":"teleport_progress","teleport_id":"other","stage":"failed"}`)
-	teleported := `{"type":"session_teleported","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/workspace/proj","cancelled_interrupts":[{"id":"tc1"}]}`
+	teleported := `{"type":"session_teleported","session":{"conversation_id":"conv-1"},"workspace":"k8s-dev","workspace_dir":"/workspace/proj","cancelled_interrupts":[{"id":"tc1"}]}`
 	send(d.conn(), teleported)
 	send(d.conn(), teleported)
 
@@ -144,7 +144,7 @@ func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 	})
 	changes := notified[tui.SessionPlacementChangedEvent](notifier)
 	last := changes[len(changes)-1]
-	if last.Placement.Environment != "k8s-dev" || last.Placement.Workspace != "/workspace/proj" || !last.Placement.Remote() || last.CancelledInterrupts != 1 {
+	if last.Placement.Workspace != "k8s-dev" || last.Placement.WorkspaceDir != "/workspace/proj" || !last.Placement.Remote() || last.CancelledInterrupts != 1 {
 		t.Fatalf("teleported placement = %+v", last)
 	}
 	progress := notified[tui.TeleportProgressEvent](notifier)
@@ -153,8 +153,8 @@ func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 	}
 	eventually(t, "the follow after the teleport", func() bool { return len(d.frames("resume_conversation")) == 2 })
 	refollow := d.frames("resume_conversation")[1]
-	if refollow["environment"] != "k8s-dev" || refollow["workspace"] != "/workspace/proj" {
-		t.Errorf("refollow = %v, want it placed on the environment it teleported to", refollow)
+	if refollow["workspace"] != "k8s-dev" || refollow["workspace_dir"] != "/workspace/proj" {
+		t.Errorf("refollow = %v, want it placed on the workspace it teleported to", refollow)
 	}
 	if teleports := len(d.frames("resume_conversation")); teleports != 2 {
 		t.Errorf("follows = %d, the duplicate session_teleported followed again", teleports)
@@ -164,7 +164,7 @@ func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 func TestThreadTeleportsARemoteSessionOnlyBackHome(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, _ := connected(t, d)
-	send(d.conn(), `{"type":"session_teleported","session":{"conversation_id":"conv-1"},"environment":"k8s-dev","workspace":"/w"}`)
+	send(d.conn(), `{"type":"session_teleported","session":{"conversation_id":"conv-1"},"workspace":"k8s-dev","workspace_dir":"/w"}`)
 	eventually(t, "the teleport", func() bool { return thread.Placement().Remote() })
 
 	err := thread.Teleport("workstation", nil)
@@ -186,8 +186,8 @@ func TestThreadTeleportsARemoteSessionOnlyBackHome(t *testing.T) {
 func TestThreadFindsTheProjectOfASessionItsDaemonRuns(t *testing.T) {
 	d := startDaemon(t, 0)
 	leases := storage.NewMemoryStorage()
-	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "here", Environment: "laptop", Workspace: "/proj/other", Until: time.Now().Add(time.Hour)})
-	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "away", Environment: "k8s-dev", Workspace: "/workspace/x", Until: time.Now().Add(time.Hour)})
+	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "here", Workspace: "laptop", WorkspaceDir: "/proj/other", Until: time.Now().Add(time.Hour)})
+	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "away", Workspace: "k8s-dev", WorkspaceDir: "/workspace/x", Until: time.Now().Add(time.Hour)})
 	thread := New(d.config(), Options{ProjectDir: "/proj"}, leases)
 	t.Cleanup(thread.Close)
 	if err := thread.Connect(t.Context()); err != nil {

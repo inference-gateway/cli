@@ -929,7 +929,7 @@ type StatusBarIndicators struct {
 	GitBranch     bool `yaml:"git_branch" mapstructure:"git_branch"`
 	GitPR         bool `yaml:"git_pr" mapstructure:"git_pr"`
 	Subagents     bool `yaml:"subagents" mapstructure:"subagents"`
-	Environment   bool `yaml:"environment" mapstructure:"environment"`
+	Workspace     bool `yaml:"workspace" mapstructure:"workspace"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -1196,7 +1196,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			GitBranch:     true,
 			GitPR:         true,
 			Subagents:     true,
-			Environment:   true,
+			Workspace:     true,
 		},
 	}
 }

@@ -183,11 +183,11 @@ Both make the connection follow that thread:
   paths added to the user's `sandbox.yaml` allowed list), `max_turns` and
   `subagent` (`{"parent": "<conversation id>", "depth": 1, "tools": [...]}`,
   set by a worker's Agent tool when the thread is a subagent it spawned).
-- `environment` and `workspace` place a thread whose conversation no lease
-  places: the registered environment that holds it and its project dir there.
+- `workspace` and `workspace_dir` place a thread whose conversation no lease
+  places: the registered workspace that holds it and its source code there.
   A client sends them when it opens a session it listed on a remote
-  environment (`list_conversations` on a relayed thread). The daemon relays the
-  thread there and never starts it locally, even when the environment cannot
+  workspace (`list_conversations` on a relayed thread). The daemon relays the
+  thread there and never starts it locally, even when the workspace cannot
   be reached.
 - `resume_conversation` requires `id`. A worker that resumes a long-idle
   conversation can roll it over to a new id, so resume with the last `threadId`
@@ -258,17 +258,17 @@ when it deletes the conversation instead of leaving the worker to idle out:
 - Followers of the thread with a run open get a `RUN_ERROR` for it, exactly
   as when a worker exits mid-turn, and a thread with no running worker is
   left alone.
-- When another environment owns the session, the CLI deletes the session's
+- When another workspace owns the session, the CLI deletes the session's
   runtime there (a Kubernetes `Sandbox` with its volumes) and releases the
   lease, so the session continues from the CLI's own copy.
 
 CLI → client, only the sender receives it:
 
 ```json
-{"type": "thread_stopped", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "environment": "k8s-dev"}
+{"type": "thread_stopped", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "workspace": "k8s-dev"}
 ```
 
-- `environment` names the environment whose runtime was deleted, and is
+- `workspace` names the workspace whose runtime was deleted, and is
   absent when the session ran on the CLI itself. `error` replaces it when the
   runtime could not be deleted, and the lease then stays.
 
@@ -554,41 +554,41 @@ CLI → client, exactly one result per request id:
   `gh api` in the CLI's bash-allow configuration avoids an approval prompt per
   call.
 
-## Environments
+## Workspaces
 
-An environment is where a session's agent runs: this daemon, a standalone daemon reachable over TLS, or a
+A workspace is where a session's agent runs: this daemon, a standalone daemon reachable over TLS, or a
 Kubernetes `Sandbox` per session. `~/.infer/daemon.yaml` registers them by name, see
-[infer daemon](daemon.md#environments-and-teleports).
+[infer daemon](daemon.md#workspaces-and-teleports).
 
 Client → CLI:
 
 ```json
-{"type": "list_environments"}
+{"type": "list_workspaces"}
 ```
 
 CLI → client, only the requesting client receives it:
 
 ```json
 {
-  "type": "environments",
-  "environments": [
+  "type": "workspaces",
+  "workspaces": [
     {"name": "laptop", "kind": "local", "reachable": true, "capabilities": {"version": "0.238.0", "storage": "jsonl"}},
     {"name": "k8s-dev", "kind": "kubernetes", "reachable": false, "error": "the agent-sandbox CRD is not installed: ..."}
   ]
 }
 ```
 
-- The local environment comes first. An unreachable environment is reported with its `error`, never hidden.
-- `capabilities` is what the environment declared about itself: version, storage id, sandbox count, image, auth.
+- The local workspace comes first. An unreachable workspace is reported with its `error`, never hidden.
+- `capabilities` is what the workspace declared about itself: version, storage id, sandbox count, image, auth.
 
 ## Teleports
 
-A teleport sends a session to another environment. The source daemon quiesces the thread's worker, packs a
+A teleport sends a session to another workspace. The source daemon quiesces the thread's worker, packs a
 checkpoint and streams it to the target's daemon, the target restores it and claims the session's lease,
 and the source tells the thread's clients where the session lives now. The checkpoint carries the
 conversation unless both daemons share one storage backend, the interrupts the last run was suspended
 on, a git bundle of `HEAD` with the credential-free `origin` URL and a patch of the uncommitted and
-untracked changes (minus what `sandbox.yaml` denies), the listed extra files, and the environment's
+untracked changes (minus what `sandbox.yaml` denies), the listed extra files, and the workspace's
 `forward_env` values sealed to the target's certificate. A teleport happens between turns: an open run
 is interrupted first.
 
@@ -615,7 +615,7 @@ CLI → client, only the requesting client receives it, once per stage:
   carries `message` and leaves the session on the source with its lease intact.
 - `teleport_id` is the client's idempotency key: a retry with the same id after `ready` answers `ready`
   at once and teleports nothing twice.
-- A session another live environment owns is refused with `failed`, unless `target` names the daemon it
+- A session another live workspace owns is refused with `failed`, unless `target` names the daemon it
   left, which brings it back (see [Daemon to daemon](#daemon-to-daemon)).
 - `files` are extra files relative to the project that travel although git does not track them. A file
   outside the project, or one `sandbox.yaml` denies, fails the teleport.
@@ -633,51 +633,54 @@ CLI → the requesting client and every client of the thread, after `ready`:
 {
   "type": "session_teleported",
   "session": {"project_dir": "/abs/path/to/project", "conversation_id": "<conversation id>", "slug": "project"},
-  "environment": "k8s-dev",
+  "workspace": "k8s-dev",
   "addr": "",
-  "workspace": "/workspace/project/<conversation id>",
+  "workspace_dir": "/workspace/project/<conversation id>",
   "cancelled_interrupts": [{"id": "<interrupt id>", "reason": "tool_call", "toolCallId": "<tool call id>"}]
 }
 ```
 
 - Clients keep using `resume_conversation` with their own `project_dir`: the source daemon relays the
-  thread to the owning environment's daemon and rewrites `project_dir` to `workspace` on the way. Killing
+  thread to the owning workspace's daemon and rewrites `project_dir` to `workspace_dir` on the way. Killing
   the source daemon after `ready` does not touch the target.
-- `addr` is the target's binding when a client can dial it directly (a daemon-kind environment), with
-  `project_dir` set to `workspace`. It is empty for a Kubernetes environment reached through a port-forward.
+- `addr` is the target's binding when a client can dial it directly (a daemon-kind workspace), with
+  `project_dir` set to `workspace_dir`. It is empty for a Kubernetes workspace reached through a port-forward.
 - `cancelled_interrupts` are the interrupts the suspended run was waiting on, as its `RUN_FINISHED`
   listed them. The target's worker closes the matching tool calls as cancelled, so the client tells the
   user and sends the next `run_agent_input` without a `resume`.
 
 ### Daemon to daemon
 
-A daemon dials another daemon's binding with `client: "daemon"` and an `environment` hello field naming
-itself. The ack carries `environment`, `version` and `storage_id`, so the dialer checks it reached the
-environment it meant and whether the two share a storage backend. The checkpoint streams as
+A daemon dials another daemon's binding with `client: "daemon"` and a `workspace` hello field naming
+itself. The ack carries `workspace`, `version` and `storage_id`, so the dialer checks it reached the
+workspace it meant and whether the two share a storage backend. The checkpoint streams as
 `teleport_chunk` frames of at most 4 MiB and is closed by `teleport_import`:
 
 ```json
 {"type": "teleport_chunk", "teleport_id": "<uuid>", "seq": 0, "data": "<base64>"}
-{"type": "teleport_import", "teleport_id": "<uuid>", "environment": "k8s-dev", "chunks": 3, "sha256": "<hex>"}
-{"type": "teleport_imported", "teleport_id": "<uuid>", "ok": true, "workspace": "/workspace/project/<conversation id>"}
+{"type": "teleport_import", "teleport_id": "<uuid>", "workspace": "k8s-dev", "chunks": 3, "sha256": "<hex>"}
+{"type": "teleport_imported", "teleport_id": "<uuid>", "ok": true, "workspace_dir": "/workspace/project/<conversation id>"}
 ```
 
 The target validates the checkpoint (schema version, digest, the patch applies cleanly) before it
-restores the workspace, imports the conversation through a worker there and claims the lease. The source
+restores the repository, imports the conversation through a worker there and claims the lease. The source
 then sends `resume_conversation` on the same connection and reports `ready` only when the
 `MESSAGES_SNAPSHOT` renders to the checkpoint's digest. `teleport_abort` with the `teleport_id` undoes an
 import whose verification failed. A daemon accepts these frames only from connections of kind `daemon`
-and only when `environment` names itself.
+and only when `workspace` names itself.
 
 A session comes back the other way over a connection the daemon it left opens to its owner. That daemon
-sends `teleport_return` with the workspace its lease names, the owner answers `teleport_returning` at once,
+sends `teleport_return` with the workspace dir its lease names, the owner answers `teleport_returning` at once,
 quiesces the worker, then streams the checkpoint back as `teleport_chunk` frames closed by `teleport_import`
-naming the requester. The checkpoint always carries the conversation. Once the workspace landed, the lease
+naming the requester. The checkpoint always carries the conversation. Once the repository landed, the lease
 teleported and the conversation imported, the requester sends `teleport_returned` and the owner releases its row.
-An owner packs only a workspace under its own workspace root and refuses a session another environment owns.
+An owner packs only a workspace dir under its own projects root and refuses a session another workspace owns.
 
 ```json
-{"type": "teleport_return", "teleport_id": "<uuid>", "id": "<conversation id>", "workspace": "/workspace/project/<conversation id>", "environment": "laptop"}
+{
+  "type": "teleport_return", "teleport_id": "<uuid>", "id": "<conversation id>",
+  "workspace_dir": "/workspace/project/<conversation id>", "workspace": "laptop"
+}
 {"type": "teleport_returning", "teleport_id": "<uuid>", "id": "<conversation id>"}
 {"type": "teleport_returned", "teleport_id": "<uuid>"}
 ```
@@ -690,7 +693,7 @@ worker runs in the project dir whose storage layout the conversation lives in:
 ```json
 {"type": "export_conversation", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
 {"type": "conversation_export", "id": "<conversation id>", "entries": [...], "metadata": {...}, "message_count": 4, "digest": "<hex>"}
-{"type": "import_conversation", "project_dir": "/abs/path/to/workspace", "id": "<conversation id>", "entries": [...], "metadata": {...}}
+{"type": "import_conversation", "project_dir": "/workspace/project/<conversation id>", "id": "<conversation id>", "entries": [...], "metadata": {...}}
 {"type": "conversation_imported", "id": "<conversation id>", "message_count": 4, "digest": "<hex>"}
 ```
 

@@ -13,8 +13,8 @@ import (
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 )
 
-// environmentsTimeout bounds listing the environments, which probes each one.
-const environmentsTimeout = 30 * time.Second
+// workspacesTimeout bounds listing the workspaces, which probes each one.
+const workspacesTimeout = 30 * time.Second
 
 // teleportSteps numbers the stages of a teleport for the status progress bar.
 var teleportSteps = map[agentdomain.TeleportStage]int{
@@ -25,7 +25,7 @@ var teleportSteps = map[agentdomain.TeleportStage]int{
 }
 
 // placedFiles offers the project's files to the input while the session can
-// read this checkout, and none while it runs on another environment.
+// read this checkout, and none while it runs on another workspace.
 type placedFiles struct {
 	agentdomain.FileService
 	placement func() tui.SessionPlacement
@@ -53,7 +53,7 @@ func (f placedFiles) ValidateFile(path string) error {
 	return f.FileService.ValidateFile(path)
 }
 
-// SetSessionTeleporter gives a daemon chat the teleporter behind /environments and
+// SetSessionTeleporter gives a daemon chat the teleporter behind /workspaces and
 // /teleport, and records where its session runs. An in-process chat has none.
 func (app *ChatApplication) SetSessionTeleporter(teleporter tui.SessionTeleporter) {
 	app.sessionTeleporter = teleporter
@@ -62,12 +62,12 @@ func (app *ChatApplication) SetSessionTeleporter(teleporter tui.SessionTeleporte
 	}
 }
 
-// handleSessionPlacementEvents drives the environments picker and the
+// handleSessionPlacementEvents drives the workspaces picker and the
 // teleport of a daemon chat's session.
 func (app *ChatApplication) handleSessionPlacementEvents(msg tea.Msg) tea.Cmd {
 	switch m := msg.(type) {
-	case tui.ShowEnvironmentsEvent:
-		return app.openEnvironments()
+	case tui.ShowWorkspacesEvent:
+		return app.openWorkspaces()
 	case tui.TeleportRequestedEvent:
 		return app.requestTeleport(m)
 	case tui.TeleportProgressEvent:
@@ -78,35 +78,35 @@ func (app *ChatApplication) handleSessionPlacementEvents(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-func (app *ChatApplication) openEnvironments() tea.Cmd {
+func (app *ChatApplication) openWorkspaces() tea.Cmd {
 	if app.sessionTeleporter == nil {
 		return statusCmd(daemonOnlyHint)
 	}
-	if err := app.stateManager.TransitionToView(tui.ViewStateEnvironments); err != nil {
-		return errorCmd(fmt.Sprintf("Failed to open the environments: %v", err), false)
+	if err := app.stateManager.TransitionToView(tui.ViewStateWorkspaces); err != nil {
+		return errorCmd(fmt.Sprintf("Failed to open the workspaces: %v", err), false)
 	}
-	return tea.Batch(statusCmd(""), app.environmentsView.Reset(app.stateManager.GetSessionPlacement()))
+	return tea.Batch(statusCmd(""), app.workspacesView.Reset(app.stateManager.GetSessionPlacement()))
 }
 
-// loadEnvironments lists the environments off the update loop.
-func (app *ChatApplication) loadEnvironments() tea.Cmd {
+// loadWorkspaces lists the workspaces off the update loop.
+func (app *ChatApplication) loadWorkspaces() tea.Cmd {
 	teleporter := app.sessionTeleporter
 	if teleporter == nil {
 		return nil
 	}
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), environmentsTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), workspacesTimeout)
 		defer cancel()
-		environments, err := teleporter.ListEnvironments(ctx)
-		return tui.EnvironmentsLoadedEvent{Environments: environments, Err: err}
+		workspaces, err := teleporter.ListWorkspaces(ctx)
+		return tui.WorkspacesLoadedEvent{Workspaces: workspaces, Err: err}
 	}
 }
 
-func (app *ChatApplication) handleEnvironmentsView(msg tea.Msg) []tea.Cmd {
-	model, cmd := app.environmentsView.Update(msg)
-	app.environmentsView = model.(*components.EnvironmentsView)
+func (app *ChatApplication) handleWorkspacesView(msg tea.Msg) []tea.Cmd {
+	model, cmd := app.workspacesView.Update(msg)
+	app.workspacesView = model.(*components.WorkspacesView)
 	cmds := []tea.Cmd{cmd}
-	if app.environmentsView.IsCancelled() {
+	if app.workspacesView.IsCancelled() {
 		if err := app.stateManager.TransitionToView(tui.ViewStateChat); err != nil {
 			cmds = append(cmds, errorCmd(fmt.Sprintf("Failed to return to chat: %v", err), false))
 		}
@@ -115,11 +115,11 @@ func (app *ChatApplication) handleEnvironmentsView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-func (app *ChatApplication) renderEnvironments() string {
+func (app *ChatApplication) renderWorkspaces() string {
 	width, height := app.stateManager.GetDimensions()
-	app.environmentsView.SetWidth(width)
-	app.environmentsView.SetHeight(height)
-	return app.environmentsView.View().Content
+	app.workspacesView.SetWidth(width)
+	app.workspacesView.SetHeight(height)
+	return app.workspacesView.View().Content
 }
 
 // requestTeleport teleports the session to the target, or says why it cannot go.
@@ -145,7 +145,7 @@ func (app *ChatApplication) teleportRefusal(target string) string {
 	case placement.Teleporting != "":
 		return "A teleport to " + placement.Teleporting + " is already running · esc cancels it"
 	case placement.Remote() && target != placement.Local:
-		return "From " + placement.Environment + " the session teleports only back to " + placement.Local
+		return "From " + placement.Workspace + " the session teleports only back to " + placement.Local
 	case target == placement.Where():
 		return "The session already runs on " + target
 	case app.stateManager.IsAgentBusy():
@@ -205,23 +205,23 @@ func (app *ChatApplication) teleporting() bool {
 func teleportStage(placement tui.SessionPlacement, stage agentdomain.TeleportStage) string {
 	target := placement.Teleporting
 	if placement.Remote() && target == placement.Local {
-		from := placement.Environment
+		from := placement.Workspace
 		return map[agentdomain.TeleportStage]string{
 			agentdomain.TeleportProvisioning:  "reaching " + from,
 			agentdomain.TeleportCheckpointing: "packing the session on " + from,
-			agentdomain.TeleportRestoring:     "landing its workspace and conversation here",
+			agentdomain.TeleportRestoring:     "landing its repository and conversation here",
 			agentdomain.TeleportReady:         "ready, reattaching",
 		}[stage]
 	}
 	return map[agentdomain.TeleportStage]string{
 		agentdomain.TeleportProvisioning:  "provisioning " + target,
-		agentdomain.TeleportCheckpointing: "checkpointing the conversation and workspace",
+		agentdomain.TeleportCheckpointing: "checkpointing the conversation and repository",
 		agentdomain.TeleportRestoring:     "restoring on " + target,
 		agentdomain.TeleportReady:         "ready, reattaching",
 	}[stage]
 }
 
-const daemonOnlyHint = "Environments are for daemon chats · start one with infer chat --daemon"
+const daemonOnlyHint = "Workspaces are for daemon chats · start one with infer chat --daemon"
 
 func teleportStatusCmd(target, stage string, step int) tea.Cmd {
 	return func() tea.Msg {

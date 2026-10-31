@@ -27,7 +27,7 @@ type peerBinding struct {
 	frames  [][]byte
 }
 
-func startPeer(t *testing.T, environment string, handle func(conn *agui.Conn, frame []byte)) *peerBinding {
+func startPeer(t *testing.T, workspace string, handle func(conn *agui.Conn, frame []byte)) *peerBinding {
 	t.Helper()
 	p := &peerBinding{}
 	handler := &aguimocks.FakeHandler{}
@@ -46,7 +46,7 @@ func startPeer(t *testing.T, environment string, handle func(conn *agui.Conn, fr
 	})
 	p.binding = agui.NewBinding(agui.BindingConfig{
 		Token: "t", Handshake: testHandshake,
-		AckAttrs: map[string]any{agentinfra.AttrEnvironment: environment, agentinfra.AttrVersion: "test", agentinfra.AttrStorageID: "store-b"},
+		AckAttrs: map[string]any{agentinfra.AttrWorkspace: workspace, agentinfra.AttrVersion: "test", agentinfra.AttrStorageID: "store-b"},
 	}, handler)
 	if err := p.binding.Start(); err != nil {
 		t.Fatal(err)
@@ -85,12 +85,12 @@ func (p *peerBinding) endpoint() agentdomain.Endpoint {
 
 func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	peer := startPeer(t, "peer", nil)
-	environment := fakeEnvironment("peer", agentdomain.EnvironmentKindDaemon)
-	environment.ReachReturns(peer.endpoint(), nil)
-	s, _ := newService(t, &launcher{}, environment)
+	workspace := fakeWorkspace("peer", agentdomain.WorkspaceKindDaemon)
+	workspace.ReachReturns(peer.endpoint(), nil)
+	s, _ := newService(t, &launcher{}, workspace)
 	s.dial.Handshake = testHandshake
 
-	lease := agentdomain.Lease{ConversationID: "conv-1", Environment: "peer", Workspace: "/remote/ws", Until: time.Now().Add(time.Hour)}
+	lease := agentdomain.Lease{ConversationID: "conv-1", Workspace: "peer", WorkspaceDir: "/remote/ws", Until: time.Now().Add(time.Hour)}
 	w, err := s.connectRemote(t.Context(), testKey, lease)
 	if err != nil {
 		t.Fatalf("connectRemote: %v", err)
@@ -134,32 +134,32 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 			return false
 		}
 	})
-	if environment.ReachCallCount() != 1 || environment.EnsureCallCount() != 0 {
-		t.Fatalf("a relay reached the environment %d times and ensured it %d times", environment.ReachCallCount(), environment.EnsureCallCount())
+	if workspace.ReachCallCount() != 1 || workspace.EnsureCallCount() != 0 {
+		t.Fatalf("a relay reached the workspace %d times and ensured it %d times", workspace.ReachCallCount(), workspace.EnsureCallCount())
 	}
 }
 
 func TestRemoteWorkerRefusesAPeerWithAnotherIdentity(t *testing.T) {
 	peer := startPeer(t, "someone-else", nil)
-	environment := fakeEnvironment("peer", agentdomain.EnvironmentKindDaemon)
-	environment.ReachReturns(peer.endpoint(), nil)
-	s, _ := newService(t, &launcher{}, environment)
+	workspace := fakeWorkspace("peer", agentdomain.WorkspaceKindDaemon)
+	workspace.ReachReturns(peer.endpoint(), nil)
+	s, _ := newService(t, &launcher{}, workspace)
 	s.dial.Handshake = testHandshake
 
-	_, err := s.connectRemote(t.Context(), testKey, agentdomain.Lease{Environment: "peer"})
+	_, err := s.connectRemote(t.Context(), testKey, agentdomain.Lease{Workspace: "peer"})
 	if err == nil || !strings.Contains(err.Error(), "identifies as") {
 		t.Fatalf("connectRemote = %v", err)
 	}
 }
 
-func TestLaunchRelaysToTheOwningEnvironment(t *testing.T) {
+func TestLaunchRelaysToTheOwningWorkspace(t *testing.T) {
 	peer := startPeer(t, "peer", nil)
-	environment := fakeEnvironment("peer", agentdomain.EnvironmentKindDaemon)
-	environment.ReachReturns(peer.endpoint(), nil)
+	workspace := fakeWorkspace("peer", agentdomain.WorkspaceKindDaemon)
+	workspace.ReachReturns(peer.endpoint(), nil)
 	l := &launcher{}
-	s, store := newService(t, l, environment)
+	s, store := newService(t, l, workspace)
 	s.dial.Handshake = testHandshake
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "peer", Workspace: "/remote", Until: time.Now().Add(time.Hour)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: "peer", WorkspaceDir: "/remote", Until: time.Now().Add(time.Hour)})
 
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	_ = w.Send([]byte(`{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`))

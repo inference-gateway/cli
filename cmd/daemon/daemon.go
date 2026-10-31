@@ -24,7 +24,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
-	k8senvironment "github.com/inference-gateway/cli/internal/agent/infrastructure/kubernetes"
+	k8sworkspace "github.com/inference-gateway/cli/internal/agent/infrastructure/kubernetes"
 	agentteleport "github.com/inference-gateway/cli/internal/agent/teleport"
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
@@ -98,7 +98,7 @@ Examples:
 		},
 	}
 	command.Flags().Duration("idle-exit", 0, "Stop after this long with no threads and no clients, unless daemon.yaml sets idle_exit (a daemon a client starts on demand passes 30m)")
-	command.AddCommand(newEnvironmentsCommand(state), newTeleportCommand(state), newRunCommand(state), newStopCommand(state))
+	command.AddCommand(newWorkspacesCommand(state), newTeleportCommand(state), newRunCommand(state), newStopCommand(state))
 	return command
 }
 
@@ -279,7 +279,7 @@ func threadsEnabled(cfg *config.Config) bool {
 
 // bindingHandler puts the binding's consumers behind its one handler. The
 // extension relay claims the browser frames, the teleport service the
-// environments and teleport frames, and the thread registry gets the rest.
+// workspaces and teleport frames, and the thread registry gets the rest.
 type bindingHandler struct {
 	relay     *browserinfra.ExtensionRelay
 	teleports *agentteleport.Service
@@ -307,7 +307,7 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 }
 
 // stopSession answers stop_thread off the binding's read loop: a delete that
-// hangs on an unreachable environment cannot stall the frames after it, and
+// hangs on an unreachable workspace cannot stall the frames after it, and
 // the client still gets its thread_stopped once it answers.
 func (h bindingHandler) stopSession(conn *agui.Conn, key sessionsdomain.ThreadKey) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -482,7 +482,7 @@ func watchExecutable(ctx context.Context, exe string) <-chan struct{} {
 
 // buildTeleports wires the teleport service: the lease store on the
 // configured storage, the daemon CA when a mode needs it, the TLS provider,
-// and one environment per daemon.yaml entry plus this daemon itself.
+// and one workspace per daemon.yaml entry plus this daemon itself.
 func buildTeleports(cfg *config.Config) (*agentteleport.Service, *agentinfra.TLSProvider, error) {
 	identity := cfg.Daemon.Identity()
 	storageConfig := storage.NewStorageFromConfig(cfg)
@@ -498,53 +498,53 @@ func buildTeleports(cfg *config.Config) (*agentteleport.Service, *agentinfra.TLS
 	}
 	tlsProvider := agentinfra.NewTLSProvider(identity, pki)
 	dial := agentinfra.PeerDialer{Me: identity, Handshake: browserinfra.BindingHandshake}
-	environments := []agentdomain.Environment{agentinfra.NewLocalEnvironment(identity, map[string]string{
+	workspaces := []agentdomain.Workspace{agentinfra.NewLocalWorkspace(identity, map[string]string{
 		agentinfra.AttrVersion: version.Value(), "storage": string(storageConfig.Type),
 	})}
-	for _, entry := range cfg.Daemon.Environments {
-		environment, err := buildEnvironment(entry, identity, tlsProvider, pki, dial)
+	for _, entry := range cfg.Daemon.Workspaces {
+		workspace, err := buildWorkspace(entry, identity, tlsProvider, pki, dial)
 		if err != nil {
 			return nil, nil, err
 		}
-		if environment != nil {
-			environments = append(environments, environment)
+		if workspace != nil {
+			workspaces = append(workspaces, workspace)
 		}
 	}
 	service := agentteleport.New(agentteleport.Config{
-		Identity:      identity,
-		WorkspaceRoot: cfg.Daemon.WorkspaceDir(),
-		IdleExit:      cfg.Daemon.IdleExit,
-		Version:       version.Value(),
-		StorageID:     storageIdentity(storageConfig),
-		LeaseBackend:  storageConfig.Type,
-		Handshake:     browserinfra.BindingHandshake,
-		Entries:       cfg.Daemon.Environments,
-		StateDir:      filepath.Join(config.UserSpaceConfigDir(), "daemon"),
-		Denies:        func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
+		Identity:     identity,
+		ProjectsRoot: cfg.Daemon.ProjectsDir(),
+		IdleExit:     cfg.Daemon.IdleExit,
+		Version:      version.Value(),
+		StorageID:    storageIdentity(storageConfig),
+		LeaseBackend: storageConfig.Type,
+		Handshake:    browserinfra.BindingHandshake,
+		Entries:      cfg.Daemon.Workspaces,
+		StateDir:     filepath.Join(config.UserSpaceConfigDir(), "daemon"),
+		Denies:       func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
 	}, agentteleport.Deps{
-		Leases:       stores.Leases,
-		Environments: environments,
-		Keyring:      tlsProvider.Keyring(),
-		Launch:       sessionsinfra.LaunchWorker,
-		SelfSuspend:  selfSuspend(),
+		Leases:      stores.Leases,
+		Workspaces:  workspaces,
+		Keyring:     tlsProvider.Keyring(),
+		Launch:      sessionsinfra.LaunchWorker,
+		SelfSuspend: selfSuspend(),
 	})
 	return service, tlsProvider, nil
 }
 
-func buildEnvironment(entry config.EnvironmentEntry, identity string, tlsProvider *agentinfra.TLSProvider, pki *agentinfra.PKI, dial agentinfra.PeerDialer) (agentdomain.Environment, error) {
+func buildWorkspace(entry config.WorkspaceEntry, identity string, tlsProvider *agentinfra.TLSProvider, pki *agentinfra.PKI, dial agentinfra.PeerDialer) (agentdomain.Workspace, error) {
 	switch entry.Kind {
-	case config.EnvironmentKindDaemon:
-		environment, err := agentinfra.NewDaemonEnvironment(entry, tlsProvider, dial)
+	case config.WorkspaceKindDaemon:
+		workspace, err := agentinfra.NewDaemonWorkspace(entry, tlsProvider, dial)
 		if err != nil {
-			return nil, fmt.Errorf("environment %s: %w", entry.Name, err)
+			return nil, fmt.Errorf("workspace %s: %w", entry.Name, err)
 		}
-		return environment, nil
-	case config.EnvironmentKindKubernetes:
-		environment, err := k8senvironment.New(entry, identity, tlsProvider, pki)
+		return workspace, nil
+	case config.WorkspaceKindKubernetes:
+		workspace, err := k8sworkspace.New(entry, identity, tlsProvider, pki)
 		if err != nil {
-			return nil, fmt.Errorf("environment %s: %w", entry.Name, err)
+			return nil, fmt.Errorf("workspace %s: %w", entry.Name, err)
 		}
-		return environment, nil
+		return workspace, nil
 	default:
 		return nil, nil
 	}
@@ -555,8 +555,8 @@ func needsPKI(cfg *config.Config) bool {
 	if cfg.Daemon.Binding.TLS.Mode == config.TLSModeCA {
 		return true
 	}
-	for _, entry := range cfg.Daemon.Environments {
-		if entry.Kind == config.EnvironmentKindKubernetes {
+	for _, entry := range cfg.Daemon.Workspaces {
+		if entry.Kind == config.WorkspaceKindKubernetes {
 			return true
 		}
 	}
@@ -565,12 +565,12 @@ func needsPKI(cfg *config.Config) bool {
 
 // selfSuspend is how a pod daemon parks its own Sandbox, nil outside one.
 func selfSuspend() func(ctx context.Context, done, known bool) error {
-	name, namespace := os.Getenv(k8senvironment.EnvSandboxName), os.Getenv(k8senvironment.EnvSandboxNamespace)
+	name, namespace := os.Getenv(k8sworkspace.EnvSandboxName), os.Getenv(k8sworkspace.EnvSandboxNamespace)
 	if name == "" || namespace == "" {
 		return nil
 	}
-	retention, _ := time.ParseDuration(os.Getenv(k8senvironment.EnvSandboxRetention))
-	suspend, err := k8senvironment.SelfSuspend(name, namespace, retention)
+	retention, _ := time.ParseDuration(os.Getenv(k8sworkspace.EnvSandboxRetention))
+	suspend, err := k8sworkspace.SelfSuspend(name, namespace, retention)
 	if err != nil {
 		logger.Warn("this daemon cannot suspend its own Sandbox", "error", err)
 		return nil
