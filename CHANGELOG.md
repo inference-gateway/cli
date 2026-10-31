@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0-rc.10](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.9...v0.239.0-rc.10) (2026-10-31)
+
+### 🚀 Features
+
+* **teleport:** clean up a workspace's runtime once its session teleported home ([#1666](https://github.com/inference-gateway/cli/issues/1666)) ([cc4ab2b](https://github.com/inference-gateway/cli/commit/cc4ab2ba9708117fc2925b37b4668b2520b1906a)), references [inference-gateway/docs#1051](https://github.com/inference-gateway/docs/issues/1051)
+* **teleport:** deploy a gateway per kubernetes workspace that holds the provider keys ([#1667](https://github.com/inference-gateway/cli/issues/1667)) ([bc4c2e5](https://github.com/inference-gateway/cli/commit/bc4c2e5fdc47f04ff9f08d9c9a389a3f99b535e5))
+* **teleport:** run kubernetes workspaces as operator Orchestrators ([#1660](https://github.com/inference-gateway/cli/issues/1660)) ([e1b3777](https://github.com/inference-gateway/cli/commit/e1b37778470bc9d26e9579cdfab92785ce3b7c32)), references [inference-gateway/operator#298](https://github.com/inference-gateway/operator/issues/298) [inference-gateway/operator#302](https://github.com/inference-gateway/operator/issues/302) [inference-gateway/operator#302](https://github.com/inference-gateway/operator/issues/302)
+
+### 🐛 Bug Fixes
+
+* **examples:** reattach a session-teleport chat with task chat -- --session-id ([#1659](https://github.com/inference-gateway/cli/issues/1659)) ([7298c96](https://github.com/inference-gateway/cli/commit/7298c961f4dd254f87b928893fff1a62958b72a9))
+
 ## [0.239.0-rc.9](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.8...v0.239.0-rc.9) (2026-10-31)
 
 ### 🐛 Bug Fixes
