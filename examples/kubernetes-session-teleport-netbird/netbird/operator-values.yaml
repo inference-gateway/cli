@@ -1,0 +1,8 @@
+managementURL: http://netbird.netbird.svc.cluster.local:18080
+routingClientImage: netbirdio/netbird:0.82.0
+webhook:
+  namespaceSelectors:
+    - key: kubernetes.io/metadata.name
+      operator: In
+      values:
+        - infer-peers

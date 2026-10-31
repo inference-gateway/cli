@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sniffer
+  namespace: infer-peers
+spec:
+  hostNetwork: true
+  nodeSelector:
+    kubernetes.io/hostname: k3d-infer-netbird-agent-1
+  containers:
+    - name: tcpdump
+      image: nicolaka/netshoot:v0.15
+      command:
+        - tcpdump
+        - -i
+        - any
+        - -nn
+        - -U
+        - -w
+        - /captures/teleport.pcap
+        - not port 10250 and not port 6443
+      securityContext:
+        capabilities:
+          add:
+            - NET_RAW
+            - NET_ADMIN
+      volumeMounts:
+        - name: captures
+          mountPath: /captures
+  volumes:
+    - name: captures
+      emptyDir: {}

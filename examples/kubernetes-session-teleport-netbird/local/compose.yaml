@@ -1,0 +1,39 @@
+name: infer-local
+services:
+  netbird:
+    image: netbirdio/netbird:0.82.0
+    container_name: infer-local-netbird
+    hostname: infer-local
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    environment:
+      NB_MANAGEMENT_URL: http://netbird.netbird.svc.cluster.local:18080
+      NB_SETUP_KEY: ${NB_SETUP_KEY:-}
+      NB_EXTRA_DNS_LABELS: infer-local
+      NB_LOG_FILE: console
+    extra_hosts:
+      - netbird.netbird.svc.cluster.local:${NETBIRD_NODE_IP:-127.0.0.1}
+    networks:
+      - k3d
+  infer:
+    image: ghcr.io/inference-gateway/cli:local
+    container_name: infer-local
+    network_mode: service:netbird
+    depends_on:
+      - netbird
+    command:
+      - daemon
+    environment:
+      INFER_GATEWAY_MOCK: "true"
+      INFER_AGENT_MODEL: mock/openai/gpt-4o
+      INFER_K8S_TOKEN: ${INFER_K8S_TOKEN:-}
+      DEMO_SECRET: ${DEMO_SECRET:-}
+    volumes:
+      - ./daemon.yaml:/home/infer/.infer/daemon.yaml:ro
+      - ../.state/infer-k8s-ca.crt:/etc/infer/infer-k8s-ca.crt:ro
+networks:
+  k3d:
+    name: k3d-infer-netbird
+    external: true

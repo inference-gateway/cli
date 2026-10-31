@@ -1,0 +1,55 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+  namespace: infer-peers
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-k8s-ca
+  namespace: infer-peers
+spec:
+  isCA: true
+  commonName: infer-k8s demo CA
+  secretName: infer-k8s-ca
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: infer-k8s-ca
+  namespace: infer-peers
+spec:
+  ca:
+    secretName: infer-k8s-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-k8s-tls
+  namespace: infer-peers
+spec:
+  commonName: infer-k8s.netbird.internal
+  secretName: infer-k8s-tls
+  duration: 720h
+  dnsNames:
+    - infer-k8s.netbird.internal
+    - infer-k8s
+    - localhost
+  usages:
+    - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: infer-k8s-ca
+    kind: Issuer

@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gateway
+  namespace: infer-peers
+  labels:
+    app: gateway
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k3d-infer-netbird-agent-0
+  containers:
+    - name: gateway
+      image: ghcr.io/inference-gateway/inference-gateway:0.60.1
+      env:
+        - name: OPENAI_API_URL
+          value: http://tokenless:8080/v1
+        - name: OPENAI_API_KEY
+          value: mock
+      ports:
+        - name: http
+          containerPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-wireguard-only
+  namespace: infer-peers
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: UDP
+          port: 51820
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tokenless-scenarios
+  namespace: infer-peers
+data:
+  scenarios.yaml: |
+    fallback:
+      content: "Hello from the Inference Gateway in Kubernetes, reached over NetBird."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tokenless
+  namespace: infer-peers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tokenless
+  template:
+    metadata:
+      labels:
+        app: tokenless
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3d-infer-netbird-agent-0
+      containers:
+        - name: tokenless
+          image: alpine:3.24.3
+          workingDir: /opt/tokenless
+          command:
+            - sh
+            - -c
+            - |
+              BINARY=tokenless-linux-$(uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/')
+              RELEASE=https://github.com/inference-gateway/tokenless/releases/download/v0.10.0
+              wget -q "$RELEASE/$BINARY" "$RELEASE/checksums.txt"
+              grep " $BINARY\$" checksums.txt | sha256sum -c -
+              chmod +x "$BINARY"
+              exec "./$BINARY" --host 0.0.0.0 --port 8080 --model gpt-4o --scenarios /etc/tokenless/scenarios.yaml
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 3
+          volumeMounts:
+            - name: scenarios
+              mountPath: /etc/tokenless
+            - name: bin
+              mountPath: /opt/tokenless
+      volumes:
+        - name: scenarios
+          configMap:
+            name: tokenless-scenarios
+        - name: bin
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tokenless
+  namespace: infer-peers
+spec:
+  selector:
+    app: tokenless
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

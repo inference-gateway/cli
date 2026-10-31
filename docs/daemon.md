@@ -254,8 +254,29 @@ Register it with that name and no `tls`:
 ```
 
 A grant in the tailnet policy decides which machines reach it. `forward_env` needs the remote daemon to
-serve TLS itself (`files` or `ca`): a teleport seals the variables to the certificate the peer presents,
+serve TLS itself: a teleport seals the variables to the certificate the peer presents,
 and behind Serve the key of that certificate belongs to Tailscale, not to the daemon.
+
+To keep `forward_env`, let the remote daemon terminate TLS itself on its VPN address. With
+[NetBird](https://netbird.io/), set `binding.host` to the NetBird address only, serve `tls.mode: files` with an
+ECDSA P-256 certificate for its NetBird name (sealing needs an ECDSA key), and let a NetBird policy admit only the
+laptop's group to the binding port. The laptop registers it by that name and pins the CA:
+
+```yaml
+  - name: workstation
+    kind: daemon
+    address: workstation.netbird.internal:52789
+    token: ${WORKSTATION_TOKEN}
+    tls:
+      ca_file: ~/.infer/daemon/workstation-ca.crt
+    forward_env:
+      - GITHUB_TOKEN
+```
+
+`tls.mode: ca` does not fit two machines: its certificate names only the workspace, the hostname and
+`localhost`, and it requires client certificates from that daemon's own CA. The
+[kubernetes-session-teleport-netbird](../examples/kubernetes-session-teleport-netbird/) example runs both daemons as
+NetBird peers on k3d against a self-hosted NetBird, and shows what an attacker on the wire and on the overlay gets.
 
 ## Session workers
 
