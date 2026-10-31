@@ -130,10 +130,9 @@ HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.ho
 ## A computer of its own: the desktop workspace
 
 The `k8s-desktop` workspace gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
-Chromium and ffmpeg to the infer image, and puts an `infer` wrapper first on `PATH` that starts display `:99`
-with Chromium on it before the pod daemon, since the operator runs the pod's `infer daemon` by name.
-`INFER_COMPUTER_USE_ENABLED` in the workspace's `env` registers the `Computer` tool for the pod's workers, so
-after the teleport the agent drives the pod's screen, never your laptop's.
+Chromium and ffmpeg to the infer image, and its entrypoint starts display `:99` with Chromium on it
+before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the workspace's `env` registers the `Computer` tool for the
+pod's workers, so after the teleport the agent drives the pod's screen, never your laptop's.
 
 ```bash
 # 1. Build the desktop image and import it into the cluster
@@ -240,7 +239,7 @@ task cleanup
 | Symptom | Fix |
 | --- | --- |
 | `the Inference Gateway operator is not installed` | Run `task operator:install`, check `kubectl get crd orchestrators.core.inference-gateway.com` |
-| `predates runtime: Sandbox` | The operator is older than v0.28.0. Run `task operator:install` |
+| `predates runtime: Sandbox` | The operator is too old. Run `task operator:install` |
 | `runtime: Sandbox needs agent-sandbox` | The operator started first. `kubectl -n inference-gateway-system rollout restart deployment` |
 | `provisioning` fails with `already exists` | An rc of infer left a bare `Sandbox`. `kubectl -n infer-workspaces delete sandboxes --all` |
 | `provisioning` hangs, pod `ImagePullBackOff` | Run `task image:import`, the pod runs the `:local` image built from this checkout |

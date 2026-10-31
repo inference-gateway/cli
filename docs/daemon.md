@@ -125,7 +125,7 @@ workspaces:
   the pod daemon's binding requires them. The pod daemon idles out after `idle_ttl`, the operator suspends
   the Orchestrator, and the next teleport resumes it. `env` is the pod daemon's non-secret environment,
   such as the gateway URL. `address` replaces the port-forward when an Ingress or Gateway exposes the pods.
-- The cluster needs the operator v0.28.0 or later, agent-sandbox, and the Gateway API CRDs the operator
+- The cluster needs the operator v0.28.1 or later, agent-sandbox, and the Gateway API CRDs the operator
   requires. Install agent-sandbox first, because the operator looks for it only when it starts. A teleport
   to a cluster without the operator fails before it creates anything:
   `the Inference Gateway operator is not installed in the cluster of workspace <name>`. Your kubeconfig

@@ -194,8 +194,8 @@ func (e *Workspace) requireOperator(ctx context.Context) error {
 }
 
 // minOperatorVersion is the first operator release that runs an Orchestrator
-// in a Sandbox.
-const minOperatorVersion = "v0.28.0"
+// in a Sandbox from the image's own entrypoint.
+const minOperatorVersion = "v0.28.1"
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // and the certificates the daemon CA issued.
