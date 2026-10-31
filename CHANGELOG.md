@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0-rc.8](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.7...v0.239.0-rc.8) (2026-10-31)
+
+### 🐛 Bug Fixes
+
+* **teleport:** relay every frame's project dir to the owner's workspace ([#1657](https://github.com/inference-gateway/cli/issues/1657)) ([5a29954](https://github.com/inference-gateway/cli/commit/5a2995439fcd69ed7f2b20275c24a089c718cb84))
+
 ## [0.239.0-rc.7](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.6...v0.239.0-rc.7) (2026-10-31)
 
 ### 🐛 Bug Fixes
