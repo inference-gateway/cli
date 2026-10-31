@@ -8,10 +8,12 @@ not stop the pod.
 
 The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declared in `Cluster.yaml` and created by
 [ctlptl](https://github.com/tilt-dev/ctlptl), running the
-[agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller, which gives every session
-a `Sandbox`: a stable pod with two persistent volumes (the workspace and the conversation store) that the
-pod daemon suspends when idle and the next teleport resumes. Both workspaces authenticate the pod with mTLS
-from the daemon's own CA: `k8s-dev` runs the plain image, `k8s-desktop` adds a Linux desktop of its own.
+[Inference Gateway operator](https://github.com/inference-gateway/operator) on top of the
+[agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller. Every session gets an
+`Orchestrator` with `runtime: Sandbox`: a stable pod with two persistent volumes (the workspace and the
+conversation store) that the operator suspends when the pod daemon idles out and the next teleport resumes.
+Both workspaces authenticate the pod with mTLS from the daemon's own CA: `k8s-dev` runs the plain image,
+`k8s-desktop` adds a Linux desktop of its own.
 
 Everything runs against the built-in mock model, so no API key is needed. See [infer daemon](../../docs/daemon.md#workspaces-and-teleports)
 for the workspace model and the [Daemon Binding Protocol](../../docs/browser-extension-protocol.md#workspaces)
@@ -33,7 +35,7 @@ for the wire frames.
 | `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` and `k8s-desktop` workspaces |
 | `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
 | `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
-| `k8s/namespace.yaml` | The `infer-workspaces` namespace, the `infer-workspace` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
+| `k8s/namespace.yaml` | The `infer-workspaces` namespace. The pods need no ServiceAccount, the operator parks them |
 | `Taskfile.yml` | Every step below |
 | `.home/` | Created by the tasks: a throwaway `HOME` with the daemon config and the demo project |
 
@@ -42,7 +44,7 @@ The tasks run the daemon under `.home/` as `HOME`, so your own `~/.infer` stays 
 ## Quick start: the daemon CA workspace
 
 ```bash
-# 1. The cluster, the agent-sandbox controller and the workspace namespace
+# 1. The cluster, agent-sandbox, the Inference Gateway operator and the workspace namespace
 task cluster:create
 
 # 2. The infer image built from this checkout, imported into the cluster
@@ -59,29 +61,30 @@ The workspaces run `ghcr.io/inference-gateway/cli:local`, the image `task image:
 checkout, until a release candidate speaks the teleport protocol. Run `task image:import` again after every
 change you want on the pod.
 
-`task demo` prints the workspaces first, then the teleport's stages, the Sandbox and its pod, and the
+`task demo` prints the workspaces first, then the teleport's stages, the Orchestrator and its pod, and the
 reply of a turn that ran on the pod:
 
 ```text
 NAME         KIND        REACHABLE  DETAILS
 laptop       local       true       storage=jsonl version=...
 k8s-desktop  kubernetes  true       image=infer-desktop:local ...
-k8s-dev      kubernetes  true       image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-workspaces sandboxes=0
+k8s-dev      kubernetes  true       image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-workspaces orchestrators=0
 provisioning
 checkpointing
 restoring
 ready
 session now lives on k8s-dev in /workspace/project/<conversation id>
-NAME                                         READY   REASON              AGE
-sandbox.agents.x-k8s.io/infer-7eb7f642fa3d   True    DependenciesReady   8s
+NAME                                                         RUNTIME   READY   AGENTS   MCPS   AGE
+orchestrator.core.inference-gateway.com/infer-7eb7f642fa3d   Sandbox   true                    12s
 Hello! How can I help?
 ```
 
 What each step proved:
 
-- `provisioning` created the `Sandbox` from the workspace entry, a Secret with the pod's server certificate,
-  its client certificate and a binding token issued by the laptop daemon's CA (`.home/.infer/daemon/pki/`),
-  waited for `Ready` and opened a port-forward to the pod's binding.
+- `provisioning` checked that the cluster serves Orchestrators, created a Secret with the pod's server
+  certificate, its client certificate and a binding token issued by the laptop daemon's CA
+  (`.home/.infer/daemon/pki/`), created the `Orchestrator` from the workspace entry, waited for the operator to
+  report it `Ready` and opened a port-forward to the pod's binding.
 - `checkpointing` stopped the laptop worker, exported the conversation through a worker in the project and
   packed the project's `HEAD` plus its uncommitted and untracked changes.
 - `restoring` streamed the checkpoint to the pod daemon over mTLS, which cloned the bundle into
@@ -105,18 +108,18 @@ task daemon:start
 HOME=$PWD/.home ../../infer daemon run <conversation id> "and again" --project-dir $PWD/.home/project
 ```
 
-After `idle_ttl` (30 minutes in `daemon.yaml`) with no client and no run, the pod daemon suspends its own
-Sandbox: `kubectl -n infer-workspaces get sandboxes` shows `Ready False` with reason `SandboxSuspended`, the
-pod is gone and the two volumes stay. The next `infer daemon run` or teleport sets the Sandbox back to
-`Running`, waits for the new pod and reattaches the volumes.
+After `idle_ttl` (30 minutes in `daemon.yaml`) with no client and no run, the pod daemon exits and the operator
+suspends its Orchestrator: `kubectl -n infer-workspaces get orchestrators` shows `READY false`, its `Ready`
+condition says `SandboxSuspended`, the pod is gone and the two volumes stay. The next `infer daemon run` or
+teleport sets `spec.sandbox.operatingMode` back to `Running`, waits for the new pod and reattaches the volumes.
 
 The pod only idles out when no run is open, so an agent you sent off keeps working with the laptop closed.
-Once every agent on the pod is done, the suspension also starts the workspace's `retention` (24 hours in
-`daemon.yaml`): agent-sandbox then deletes the Sandbox with its volumes and its Secret, unless a run or a
-teleport resumed it first. An agent that waits on an approval or a question, or whose last run failed, is not
-done, and its Sandbox stays. `kubectl -n infer-workspaces get sandbox -o yaml` shows the countdown as
-`spec.shutdownTime` and the verdict as the `inference-gateway.com/agents-done` annotation. To delete a
-session's Sandbox now, whatever its state:
+The pod daemon leaves whether every agent is done as its termination message, and only then does the
+suspension start the workspace's `retention` (24 hours in `daemon.yaml`): the operator then deletes the
+Orchestrator with its Sandbox, volumes and Secret, unless a run or a teleport resumed it first. An agent that
+waits on an approval or a question, or whose last run failed, is not done, and its Orchestrator stays.
+`kubectl -n infer-workspaces get sandbox -o yaml` shows the countdown as `spec.shutdownTime` and the verdict as
+the `inference-gateway.com/agents-done` annotation. To delete a session's Orchestrator now, whatever its state:
 
 ```bash
 HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.home/project
@@ -127,9 +130,10 @@ HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.ho
 ## A computer of its own: the desktop workspace
 
 The `k8s-desktop` workspace gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
-Chromium and ffmpeg to the infer image, and its entrypoint starts display `:99` with Chromium on it
-before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the workspace's `env` registers the `Computer` tool for the
-pod's workers, so after the teleport the agent drives the pod's screen, never your laptop's.
+Chromium and ffmpeg to the infer image, and puts an `infer` wrapper first on `PATH` that starts display `:99`
+with Chromium on it before the pod daemon, since the operator runs the pod's `infer daemon` by name.
+`INFER_COMPUTER_USE_ENABLED` in the workspace's `env` registers the `Computer` tool for the pod's workers, so
+after the teleport the agent drives the pod's screen, never your laptop's.
 
 ```bash
 # 1. Build the desktop image and import it into the cluster
@@ -148,7 +152,7 @@ pod, and stops the recording. The reply is
 `I opened https://example.com in the browser on my own desktop and recorded it.` and `.home/desktop.png`
 shows Chromium on example.com. The recording is an artifact, see the next section. With a real model, drop
 `INFER_GATEWAY_MOCK_SCENARIOS` and the agent picks the steps from its own
-screenshots, so choose a vision model. The desktop lives as long as the pod: a suspended Sandbox comes back
+screenshots, so choose a vision model. The desktop lives as long as the pod: a suspended Orchestrator comes back
 with a fresh display and browser, and only the workspace dir and the conversation persist.
 
 ## From the chat TUI: infer chat --daemon
@@ -205,7 +209,7 @@ task artifacts:console
 ```
 
 The listing runs in a pod of its own against RustFS, so it still shows the recording after the session's
-Sandbox is suspended or deleted.
+Orchestrator is suspended or deleted.
 
 The upload is a `post_session` [command hook](../../docs/hooks.md) baked into the desktop image
 (`desktop/hooks.yaml`). It runs `desktop/upload-artifacts` after every finished run, which reads the session
@@ -214,7 +218,7 @@ MinIO client. The workspace's `env` points recordings at
 `~/.infer/artifacts`, allow-lists the hook with `INFER_TOOLS_BASH_ALLOW_APPEND`, and carries the endpoint,
 bucket and credentials. A pod without `ARTIFACTS_ENDPOINT` skips the upload. The demo credentials sit in
 `daemon.yaml` in plain text. Put real ones under the workspace's `forward_env` instead, so they travel
-sealed with the session and never land in the Sandbox spec.
+sealed with the session and never land in the Orchestrator spec.
 
 ## Switching the pod to a real model
 
@@ -235,13 +239,16 @@ task cleanup
 
 | Symptom | Fix |
 | --- | --- |
-| `k8s-dev reachable false` with a CRD error | `task cluster:create` installs agent-sandbox, check `kubectl get crd sandboxes.agents.x-k8s.io` |
+| `the Inference Gateway operator is not installed` | Run `task operator:install`, check `kubectl get crd orchestrators.core.inference-gateway.com` |
+| `predates runtime: Sandbox` | The operator is older than v0.28.0. Run `task operator:install` |
+| `runtime: Sandbox needs agent-sandbox` | The operator started first. `kubectl -n inference-gateway-system rollout restart deployment` |
+| `provisioning` fails with `already exists` | An rc of infer left a bare `Sandbox`. `kubectl -n infer-workspaces delete sandboxes --all` |
 | `provisioning` hangs, pod `ImagePullBackOff` | Run `task image:import`, the pod runs the `:local` image built from this checkout |
 | `k8s-desktop` pod `ErrImageNeverPull` or `ImagePullBackOff` | Run `task desktop:image`, it imports `infer-desktop:local` into the cluster |
 | `desktop:screenshot` fails with `array index out of bounds` | No session lives on `k8s-desktop` yet. Run `task demo TARGET=k8s-desktop` first |
 | `artifacts:list` says the bucket does not exist | No run finished on `k8s-desktop` since `task artifacts:install`. The first run creates it |
-| `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-workspaces describe sandbox` and the pod's logs |
-| `session ... is owned by workspace` | The session teleported. Continue with `infer daemon run`, or delete its Sandbox with `infer daemon stop` |
+| `provisioning` fails with `did not become ready` | Check `kubectl -n infer-workspaces describe orchestrator` and the pod's logs |
+| `session ... is owned by workspace` | The session teleported. Continue with `infer daemon run`, or delete it remotely with `infer daemon stop` |
 | `restoring` fails with `does not apply cleanly` | The project changed after the teleport started. Retry |
 | Teleporting back fails with `did not answer the teleport back` | The pod runs an older infer. Run `task image:import`, then `task desktop:image` |
 | Teleporting back fails with `changed since the session left it` | `git stash -u`, teleport back, then `git stash pop` |

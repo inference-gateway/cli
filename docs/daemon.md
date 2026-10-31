@@ -117,21 +117,28 @@ workspaces:
 - `kind: daemon` is a standalone `infer daemon` reached over TLS. `tls.ca_file` pins its certificate,
   without one the system roots verify it, and `tls.cert_file` with `tls.key_file` present a client
   certificate when it requires one. Its `workspace` must match the entry's `name`.
-- `kind: kubernetes` runs one agent-sandbox `Sandbox` per session in `namespace`, from `image`, as an
-  `infer daemon` whose binding listens on the pod network. The Sandbox keeps a `workspace` and a `state`
-  volume of `storage` each, so a session survives its pod. This daemon's CA issues the pod's server
-  certificate and a client certificate into a Secret, and the pod daemon's binding requires them. The pod
-  daemon idles out after `idle_ttl`, suspends its own Sandbox first, and the next teleport resumes it. `env`
-  is the pod daemon's non-secret environment, such as the gateway URL. `address` replaces the
-  port-forward when an Ingress or Gateway exposes the pods.
-- `retention` deletes a suspended Sandbox, its volumes and its Secret once it sat suspended that long,
-  through agent-sandbox's `shutdownTime`. It only starts when every agent on the pod is done: its last
-  run finished without waiting on an approval or a question. A run still going keeps the pod up, and a
-  run that waits on the user or ended in an error keeps the Sandbox until `infer daemon stop` deletes
-  it. Resuming the Sandbox clears the countdown. The pod records its verdict in the
-  `inference-gateway.com/agents-done` annotation, so a later pod that ran nothing keeps it. Without a
-  `retention` a suspended Sandbox stays until the session is stopped. A relay never recreates a Sandbox
-  its retention deleted: the session falls back to this machine's copy once its lease lapsed.
+- `kind: kubernetes` creates one [Inference Gateway operator](https://github.com/inference-gateway/operator)
+  `Orchestrator` per session in `namespace`, with `runtime: Sandbox`. The operator runs `image` as an
+  `infer daemon` in an agent-sandbox `Sandbox`, with its binding on the pod network. The Sandbox keeps a
+  `workspace` and a `state` volume of `storage` each, so a session survives its pod. This daemon's CA
+  issues the pod's server certificate and a client certificate into a Secret the Orchestrator owns, and
+  the pod daemon's binding requires them. The pod daemon idles out after `idle_ttl`, the operator suspends
+  the Orchestrator, and the next teleport resumes it. `env` is the pod daemon's non-secret environment,
+  such as the gateway URL. `address` replaces the port-forward when an Ingress or Gateway exposes the pods.
+- The cluster needs the operator v0.28.0 or later, agent-sandbox, and the Gateway API CRDs the operator
+  requires. Install agent-sandbox first, because the operator looks for it only when it starts. A teleport
+  to a cluster without the operator fails before it creates anything:
+  `the Inference Gateway operator is not installed in the cluster of workspace <name>`. Your kubeconfig
+  user needs `get`, `list`, `create`, `patch` and `delete` on `orchestrators.core.inference-gateway.com`,
+  `get`, `create`, `patch` and `delete` on `secrets`, and `create` on `pods/portforward`.
+- `retention` has the operator delete a suspended Orchestrator, its Sandbox, volumes and Secret once it
+  sat suspended that long. It only starts when every agent on the pod is done: its last run finished
+  without waiting on an approval or a question. A run still going keeps the pod up, and a run that waits
+  on the user or ended in an error keeps the Orchestrator until `infer daemon stop` deletes it. Resuming
+  the Orchestrator clears the countdown. The pod daemon leaves its verdict as the pod's termination
+  message (`agents-done=true`), and a pod that ran nothing reports not done. Without a `retention` a
+  suspended Orchestrator stays until the session is stopped. A relay never recreates an Orchestrator its
+  retention deleted: the session falls back to this machine's copy once its lease lapsed.
 - `forward_env` names variables of this daemon's environment that a teleport seals to the target's
   certificate for its workers. They never land in a Kubernetes object.
 - `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.

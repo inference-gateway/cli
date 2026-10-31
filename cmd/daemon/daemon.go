@@ -408,7 +408,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		defer close(stopped)
 		registry.Run(ctx)
 	}()
-	idle := watchIdle(ctx, cfg.Daemon.IdleExit, registry, teleports)
+	idle := watchIdle(ctx, cfg.Daemon.IdleExit, registry, k8sworkspace.ReportIdle)
 	return threadHost{
 		stop: func() {
 			if binding != nil {
@@ -424,9 +424,9 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 const idleCheck = 30 * time.Second
 
 // watchIdle closes the returned channel once the registry has had no thread
-// and no client for idleExit, after parking this daemon's own runtime. A zero
-// idleExit never closes it.
-func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.Registry, teleports *agentteleport.Service) <-chan struct{} {
+// and no client for idleExit, after reporting to the runtime this daemon runs
+// in whether every agent it ran is done. A zero idleExit never closes it.
+func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.Registry, report func(done bool) error) <-chan struct{} {
 	idle := make(chan struct{})
 	if idleExit <= 0 {
 		return idle
@@ -441,7 +441,9 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 			case <-ticker.C:
 			}
 			if since, isIdle := registry.Idle(); isIdle && time.Since(since) >= idleExit {
-				teleports.Suspend(ctx)
+				if err := report(registry.AgentsDone()); err != nil {
+					logger.Warn("the daemon could not report that it idled out", "error", err)
+				}
 				close(idle)
 				return
 			}
@@ -522,11 +524,10 @@ func buildTeleports(cfg *config.Config) (*agentteleport.Service, *agentinfra.TLS
 		StateDir:     filepath.Join(config.UserSpaceConfigDir(), "daemon"),
 		Denies:       func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
 	}, agentteleport.Deps{
-		Leases:      stores.Leases,
-		Workspaces:  workspaces,
-		Keyring:     tlsProvider.Keyring(),
-		Launch:      sessionsinfra.LaunchWorker,
-		SelfSuspend: selfSuspend(),
+		Leases:     stores.Leases,
+		Workspaces: workspaces,
+		Keyring:    tlsProvider.Keyring(),
+		Launch:     sessionsinfra.LaunchWorker,
 	})
 	return service, tlsProvider, nil
 }
@@ -561,21 +562,6 @@ func needsPKI(cfg *config.Config) bool {
 		}
 	}
 	return false
-}
-
-// selfSuspend is how a pod daemon parks its own Sandbox, nil outside one.
-func selfSuspend() func(ctx context.Context, done, known bool) error {
-	name, namespace := os.Getenv(k8sworkspace.EnvSandboxName), os.Getenv(k8sworkspace.EnvSandboxNamespace)
-	if name == "" || namespace == "" {
-		return nil
-	}
-	retention, _ := time.ParseDuration(os.Getenv(k8sworkspace.EnvSandboxRetention))
-	suspend, err := k8sworkspace.SelfSuspend(name, namespace, retention)
-	if err != nil {
-		logger.Warn("this daemon cannot suspend its own Sandbox", "error", err)
-		return nil
-	}
-	return suspend
 }
 
 // storageIdentity names a storage backend so two daemons can tell whether

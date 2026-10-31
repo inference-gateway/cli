@@ -4,6 +4,7 @@ vars:
   CLUSTER: infer-workspaces
   NAMESPACE: infer-workspaces
   AGENT_SANDBOX_VERSION: v1.0.8
+  OPERATOR_VERSION: v0.28.0
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
   INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
 
@@ -13,12 +14,19 @@ env:
 
 tasks:
   cluster:create:
-    desc: Create the k3d cluster with ctlptl, install agent-sandbox and the workspace namespace
+    desc: Create the k3d cluster with ctlptl, install agent-sandbox, the Inference Gateway operator and the workspace namespace
     cmds:
       - ctlptl apply -f Cluster.yaml
       - kubectl --context k3d-{{.CLUSTER}} apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
       - kubectl --context k3d-{{.CLUSTER}} -n agent-sandbox-system wait --for=condition=Available deployment --all --timeout=180s
+      - task: operator:install
       - kubectl --context k3d-{{.CLUSTER}} apply -f k8s/namespace.yaml
+
+  operator:install:
+    desc: Install the Inference Gateway operator, after agent-sandbox so the operator finds it (k3s ships the Gateway API CRDs it needs)
+    cmds:
+      - kubectl --context k3d-{{.CLUSTER}} apply -f https://github.com/inference-gateway/operator/releases/download/{{.OPERATOR_VERSION}}/install.yaml
+      - kubectl --context k3d-{{.CLUSTER}} -n inference-gateway-system wait --for=condition=Available deployment --all --timeout=180s
 
   image:import:
     desc: Build the infer image from this checkout and import it into the cluster
@@ -112,7 +120,7 @@ tasks:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
       - HOME={{.HOME_DIR}} {{.INFER}} daemon workspaces
       - HOME={{.HOME_DIR}} {{.INFER}} daemon teleport {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
-      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get orchestrators,pods
       - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project
       - echo "conversation {{.ID}} now lives on {{.TARGET}}"
 

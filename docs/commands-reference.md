@@ -674,7 +674,7 @@ infer daemon teleport <conversation-id> --to k8s-dev              # teleport the
 infer daemon teleport <conversation-id> --to k8s-dev --file build/out.bin --teleport-id <uuid>
 infer daemon run <conversation-id> "continue please"              # one turn through the daemon, wherever the session runs
 infer daemon run <conversation-id>                                # print the conversation instead of running a turn
-infer daemon stop <conversation-id>                               # stop the agent, delete its Sandbox and volumes on the owner
+infer daemon stop <conversation-id>                               # stop the agent, delete its Orchestrator and volumes on the owner
 ```
 
 - `--project-dir` names the conversation's project, the current directory by default.

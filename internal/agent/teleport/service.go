@@ -56,25 +56,21 @@ type Deps struct {
 	Workspaces []agentdomain.Workspace
 	Keyring    *agentinfra.Keyring
 	Launch     sessionsdomain.LaunchWorker
-	// SelfSuspend parks the runtime this daemon runs in, told whether every
-	// agent it ran is done and whether it ran any. Nil on bare metal.
-	SelfSuspend func(ctx context.Context, done, known bool) error
 }
 
 // Service runs agents on workspaces: it decides where a thread's worker runs
 // (the launch seam the registry calls), teleports sessions between workspaces, and
 // receives the sessions other daemons teleport here.
 type Service struct {
-	cfg         Config
-	me          string
-	leases      agentdomain.LeaseStore
-	workspaces  map[string]agentdomain.Workspace
-	entries     map[string]config.WorkspaceEntry
-	keyring     *agentinfra.Keyring
-	launch      sessionsdomain.LaunchWorker
-	dial        agentinfra.PeerDialer
-	registry    *sessions.Registry
-	selfSuspend func(ctx context.Context, done, known bool) error
+	cfg        Config
+	me         string
+	leases     agentdomain.LeaseStore
+	workspaces map[string]agentdomain.Workspace
+	entries    map[string]config.WorkspaceEntry
+	keyring    *agentinfra.Keyring
+	launch     sessionsdomain.LaunchWorker
+	dial       agentinfra.PeerDialer
+	registry   *sessions.Registry
 
 	mu            sync.Mutex
 	teleports     map[string]context.CancelFunc
@@ -96,7 +92,6 @@ func New(cfg Config, deps Deps) *Service {
 		entries:       make(map[string]config.WorkspaceEntry, len(cfg.Entries)),
 		keyring:       deps.Keyring,
 		launch:        deps.Launch,
-		selfSuspend:   deps.SelfSuspend,
 		dial:          agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
 		teleports:     make(map[string]context.CancelFunc),
 		conversations: make(map[string]string),
@@ -217,19 +212,6 @@ func (s *Service) deleteRemote(ctx context.Context, key sessionsdomain.ThreadKey
 		return "", describe(err, "releasing the session's lease")
 	}
 	return lease.Workspace, nil
-}
-
-// Suspend parks the runtime this daemon runs in when it idles out, the way a
-// pod daemon suspends its Sandbox before exiting, and says whether every
-// agent it ran is done.
-func (s *Service) Suspend(ctx context.Context) {
-	if s.selfSuspend == nil || s.registry == nil {
-		return
-	}
-	done, known := s.registry.AgentsDone()
-	if err := s.selfSuspend(ctx, done, known); err != nil {
-		logger.Warn("teleport could not suspend this daemon's runtime", "error", err)
-	}
 }
 
 // session names a thread the way checkpoints and leases do.
