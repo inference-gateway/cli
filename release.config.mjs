@@ -189,7 +189,7 @@ export default {
         ],
         discussionCategoryName: false,
         releaseBodyTemplate: '<%= nextRelease.notes %>' + installationSection({ version: '<%= nextRelease.version %>' }),
-        releasedLabels: ["<%= nextRelease.channel ? 'prerelease' : 'released' %>"],
+        releasedLabels: ["<%= nextRelease.channel ? 'rc' : 'released' %>"],
       },
     ],
   ],
