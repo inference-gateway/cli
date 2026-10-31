@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	require "github.com/stretchr/testify/require"
 
@@ -110,4 +111,16 @@ channels:
 	require.False(t, Cfg.Channels.Enabled, "legacy channels: block in config.yaml must not enable channels")
 	require.False(t, Cfg.Channels.Telegram.Enabled)
 	require.Empty(t, Cfg.Channels.Telegram.BotToken)
+}
+
+// TestLoadConfigFromViper_DaemonAwayExitDefaultsAndEnv pins away_exit's minute
+// default without a daemon.yaml and the INFER_DAEMON_AWAY_EXIT override.
+func TestLoadConfigFromViper_DaemonAwayExitDefaultsAndEnv(t *testing.T) {
+	withHermeticEnv(t)
+	initConfig()
+	require.Equal(t, time.Minute, Cfg.Daemon.AwayExit)
+
+	t.Setenv("INFER_DAEMON_AWAY_EXIT", "5m")
+	initConfig()
+	require.Equal(t, 5*time.Minute, Cfg.Daemon.AwayExit)
 }

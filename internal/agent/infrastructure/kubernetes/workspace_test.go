@@ -129,7 +129,7 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 	for _, raw := range env {
 		names = append(names, raw.(map[string]any)["name"].(string))
 	}
-	wantNames := "INFER_DAEMON_WORKSPACE INFER_DAEMON_PROJECTS_ROOT INFER_DAEMON_IDLE_EXIT INFER_AGENT_MODEL INFER_GATEWAY_URL"
+	wantNames := "INFER_DAEMON_WORKSPACE INFER_DAEMON_PROJECTS_ROOT INFER_DAEMON_IDLE_EXIT INFER_DAEMON_AWAY_EXIT INFER_AGENT_MODEL INFER_GATEWAY_URL"
 	if strings.Join(names, " ") != wantNames {
 		t.Fatalf("env = %v, want %s", names, wantNames)
 	}

@@ -432,12 +432,14 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8s
 }
 
 // env is what the pod daemon needs beyond what the operator sets: which
-// workspace it is, where projects restore, when it idles out, then the entry's.
+// workspace it is, where projects restore, when it idles out with and without
+// its sessions, then the entry's.
 func (e *Workspace) env() []any {
 	env := []any{
 		envVar("INFER_DAEMON_WORKSPACE", e.entry.Name),
 		envVar("INFER_DAEMON_PROJECTS_ROOT", workspaceMount),
 		envVar("INFER_DAEMON_IDLE_EXIT", e.entry.EffectiveIdleTTL().String()),
+		envVar("INFER_DAEMON_AWAY_EXIT", e.entry.EffectiveAwayTTL().String()),
 	}
 	for _, key := range slices.Sorted(maps.Keys(e.entry.Env)) {
 		env = append(env, envVar(key, e.entry.Env[key]))

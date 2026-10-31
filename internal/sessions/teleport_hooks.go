@@ -125,27 +125,60 @@ func (r *Registry) Request(ctx context.Context, frame []byte, replyType string) 
 }
 
 // AgentsDone reports whether the last run of every thread this registry ran
-// finished without waiting on the user. A run still open, suspended on an
-// interrupt or ended by an error is not done, and neither is no run at all.
+// finished without waiting on the user, and every session that teleported here
+// and stayed had such a run. A run still open, suspended on an interrupt or
+// ended by an error is not done, and neither is no run at all, unless every
+// session that teleported here left again.
 func (r *Registry) AgentsDone() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, finished := range r.finished {
-		if !finished {
+	for key, finished := range r.finished {
+		if !finished && !r.away[key] {
 			return false
 		}
 	}
-	return len(r.finished) > 0
+	for key, left := range r.away {
+		if !left && !r.finished[key] {
+			return false
+		}
+	}
+	return len(r.finished) > 0 || r.allTeleportedAwayLocked()
 }
 
 // TeleportedAway records that a thread's session now lives in another workspace.
-// Its last run here, interrupted or not, no longer keeps AgentsDone false.
+// Its last run here, interrupted or never started, no longer keeps AgentsDone false.
 func (r *Registry) TeleportedAway(key sessionsdomain.ThreadKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ran := r.finished[key]; ran {
-		r.finished[key] = true
+	r.away[key] = true
+}
+
+// TeleportedHere records that a thread's session arrived from another
+// workspace, so this daemon hosts it until it teleports away again.
+func (r *Registry) TeleportedHere(key sessionsdomain.ThreadKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.away[key] = false
+}
+
+// AllTeleportedAway reports whether a session teleported away from this
+// daemon and every one that teleported here since left again, so it hosts none.
+//
+// ponytail: a session started on this daemon without a teleport is not counted.
+// A pod has none. Count the registry's own threads if a daemon ever mixes both.
+func (r *Registry) AllTeleportedAway() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.allTeleportedAwayLocked()
+}
+
+func (r *Registry) allTeleportedAwayLocked() bool {
+	for _, left := range r.away {
+		if !left {
+			return false
+		}
 	}
+	return len(r.away) > 0
 }
 
 // Idle reports whether the registry has no thread and no client, and when it

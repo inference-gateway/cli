@@ -126,6 +126,7 @@ HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.ho
 ```
 
 `stop` releases the lease too, so the session continues from the laptop's copy, as it was before the teleport.
+After a session teleported home, `stop` deletes the Orchestrator it left behind on the workspace it came from.
 
 ## A computer of its own: the desktop workspace
 
@@ -178,6 +179,10 @@ In the chat:
    with `task chat -- --session-id <id>`, which runs `infer chat --daemon --session-id <id>` with the demo `HOME`.
 6. Bring it home with `/teleport laptop`, or `laptop` in the picker. The pod packs the session, its commits
    fast-forward the checkout in `.home/project`, and its uncommitted and untracked files land there too.
+   The pod daemon does not wait out `idle_ttl` once the session left: after `away_ttl` (a minute in
+   `daemon.yaml`) with no client attached it exits with its agents done, so the operator suspends the
+   Orchestrator and starts its `retention`. Teleport the session there again before the retention runs out
+   and the Orchestrator resumes with its volumes. `infer daemon stop <id>` deletes it at once.
 
 Teleporting back lands only while the checkout is clean or unchanged since the session left, so stash your own
 changes first (`git stash -u`, then `git stash pop` afterwards).
