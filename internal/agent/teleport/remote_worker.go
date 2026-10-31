@@ -15,13 +15,6 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// rewriteProjectDir names the frames that carry the client's project dir,
-// which a remote worker replaces with the workspace on the owning environment.
-var rewriteProjectDir = map[string]bool{
-	"new_session": true, frameResumeConversation: true, "list_conversations": true, "list_history": true,
-	"list_skills": true, "list_models": true, "tool_request": true, frameExportConversation: true, frameImportConversation: true,
-}
-
 // daemonFrames are the frames a daemon sends every client, not a thread's
 // worker lines, so a remote worker drops them.
 var daemonFrames = map[string]bool{"thread_activity": true, "browser_extension_status": true}
@@ -159,15 +152,13 @@ func (w *remoteWorker) Send(frame []byte) error {
 		return err
 	}
 	frame = compact.Bytes()
-	if rewriteProjectDir[frameType(frame)] {
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(frame, &fields); err != nil {
-			return err
-		}
-		if _, named := fields["project_dir"]; named {
-			fields["project_dir"] = encode(w.workspace)
-			frame = encode(fields)
-		}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(frame, &fields); err != nil {
+		return err
+	}
+	if _, named := fields["project_dir"]; named {
+		fields["project_dir"] = encode(w.workspace)
+		frame = encode(fields)
 	}
 	return w.conn.Send(frame)
 }

@@ -101,7 +101,10 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	if err := w.Send([]byte(`{"type":"run_agent_input","input":{"threadId":"conv-1"}}`)); err != nil {
 		t.Fatal(err)
 	}
-	frames := peer.received(t, 2)
+	if err := w.Send([]byte(`{"type":"set_mode","mode":"standard","project_dir":"/proj"}`)); err != nil {
+		t.Fatal(err)
+	}
+	frames := peer.received(t, 3)
 	var resume map[string]any
 	_ = json.Unmarshal(frames[0], &resume)
 	if resume["project_dir"] != "/remote/ws" || resume["id"] != "conv-1" {
@@ -109,6 +112,11 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	}
 	if strings.Contains(string(frames[1]), "project_dir") {
 		t.Fatalf("a frame without project_dir gained one: %s", frames[1])
+	}
+	var mode map[string]any
+	_ = json.Unmarshal(frames[2], &mode)
+	if mode["project_dir"] != "/remote/ws" {
+		t.Fatalf("set_mode reached the peer naming the client's project dir: %s", frames[2])
 	}
 
 	conn := peer.conn(t)
