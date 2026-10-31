@@ -7,6 +7,9 @@ spec:
   image: ghcr.io/inference-gateway/inference-gateway:0.60.1
   environment: development
   replicas: 1
+  pod:
+    nodeSelector:
+      kubernetes.io/hostname: k3d-infer-netbird-agent-0
   providers:
     - name: openai
       env:

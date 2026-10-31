@@ -11,7 +11,7 @@ infer-local    Docker container beside the cluster, "your machine"
 infer-k8s      pod on agent-1, binding only on its NetBird address, files TLS and a token
     │          policy infer-k8s-to-gateway: TCP 8080 (model calls)
     ▼
-gateway        the Inference Gateway, run by its operator, only WireGuard on its pod address
+gateway        the Inference Gateway on agent-0, run by its operator, only WireGuard on its pod address
     │          cluster network
     ▼
 tokenless      a mock OpenAI provider, so no API key is needed
@@ -29,7 +29,7 @@ Everything runs in a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declar
   `netbirdio/netbird-server` v0.82.0, plus the dashboard v2.96.0
 - the [NetBird Kubernetes operator](https://github.com/netbirdio/kubernetes-operator) v0.9.0. It turns the pods into
   NetBird peers by injecting a NetBird client sidecar
-- the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.29.0. It runs the gateway from a
+- the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.30.0. It runs the gateway from a
   `Gateway` resource
 - [cert-manager](https://cert-manager.io/) v1.21.3. It serves the operator's webhook and issues the `infer-k8s`
   certificate
@@ -152,11 +152,9 @@ The `task up` steps, one by one:
   `INFER_DAEMON_BINDING_HOST` set to it, so nothing listens on its pod address. The gateway image has no shell to do the
   same, so the NetworkPolicy `gateway-wireguard-only` admits nothing but WireGuard (UDP 51820) to its pod address.
 - **The gateway.** The Inference Gateway operator turns the `Gateway` named `gateway` into a Deployment whose pods carry
-  `app: gateway`, the label the NetBird `SidecarProfile` and the NetworkPolicy both select. The `Gateway` resource sets
-  no pod labels, annotations or node placement of its own
-  ([inference-gateway/operator#308](https://github.com/inference-gateway/operator/issues/308)), so the peer keeps its
-  pod's name (`gateway-5f58f87d6b-xnd8h`) and the pod runs on whichever node the scheduler picks. The extra DNS label
-  keeps `gateway.netbird.internal` stable all the same.
+  `app: gateway`, the label the NetBird `SidecarProfile` and the NetworkPolicy both select. Its `spec.pod.nodeSelector`
+  pins the pod to agent-0, away from `infer-k8s`. The peer keeps its pod's name (`gateway-7ddf64d7c8-r976t`), and the
+  extra DNS label keeps `gateway.netbird.internal` stable across rollouts.
 - **TLS and the token.** `infer-k8s` serves `binding.tls.mode: files` with a certificate cert-manager issues for
   `infer-k8s.netbird.internal`, `infer-k8s` and `localhost`. `infer-local` pins its CA (`tls.ca_file`) and sends the
   token. TLS runs inside the WireGuard tunnel, so the session is encrypted twice.
@@ -200,7 +198,7 @@ community server has no flow log, so the capture below shows what crosses the wi
 ## What an attacker gets
 
 **On the wire.** `sniffer` runs `tcpdump` on the host network of the `infer-k8s` node, so it sees both hops:
-`infer-local` to `infer-k8s`, and `infer-k8s` to the gateway, wherever it runs. `task sniff:start` starts it and sends
+`infer-local` to `infer-k8s`, and `infer-k8s` to the gateway on the other agent. `task sniff:start` starts it and sends
 a plaintext canary from `infer-local` to that node, to prove the capture reads plaintext when there is any.
 `task sniff:report` reads the capture after `task demo`:
 
@@ -300,4 +298,5 @@ task cleanup
 | `ports are not available` on `task cluster:create` | Something else listens on 18080 or 18081. Free them, the config uses those numbers |
 | `task demo` hangs before `provisioning` | The daemons run an older infer. Run `task image:import`, recreate the `infer-k8s` pod, `task local:up` |
 | The turn on `infer-k8s` fails to reach the model | Check `kubectl -n infer-peers logs deploy/tokenless` and `deploy/gateway` |
+| `no route to host` after the gateway pod changed | The old peer keeps the `gateway` label until NetBird drops it. Retry or delete it in Peers |
 | No `gateway` Deployment | The namespace lacks `inference-gateway.com/managed=true` or the operator is down. Run `task operator:install` |
