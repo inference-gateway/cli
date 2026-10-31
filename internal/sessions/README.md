@@ -40,8 +40,13 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   once, which is what a client sends when it deletes the conversation. The worker's exit does the usual
   bookkeeping.
 - **Agents done** - `AgentsDone` reports whether the last run of every thread the registry ran finished
-  without waiting on the user. A pod daemon reads it when it idles out to decide whether its Sandbox's
-  retention may start.
+  without waiting on the user, a session that teleported away counting as done and one that teleported here
+  counting only once its own run finished. A pod daemon reports it as
+  its termination message when it idles out, which tells the operator whether the Orchestrator's retention
+  may start.
+- **Teleported sessions** - `TeleportedHere` and `TeleportedAway` record where a teleported session lives.
+  `AllTeleportedAway` reports that every session that teleported here left again, which lets the daemon
+  idle out after `away_exit` instead of `idle_exit`.
 - **Crashes and idling** - a worker that exits mid-turn ends its open run with a synthesized `RUN_ERROR`. A
   worker nobody follows is stopped once it sat on the user's turn for the idle timeout with no open run,
   no pending reply and no background job (tracked from its `backgroundTasks` state), and daemon shutdown
@@ -62,10 +67,11 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   daemon owns the subagent's worker and the desktop follows the same thread live. The subagent worker reports
   each finished turn to its parent as a CUSTOM `subagent_turn` event. Without a configured binding the tool
   falls back to spawning `infer headless --keep-alive` itself.
-- `Quiesce`, `Deliver`, `Request`, `TeleportedAway` and `Idle` are the hooks a session teleport uses: end a thread's run and
-  stop its worker while keeping its clients, tell a thread's followers something, ask a worker in a project dir one
-  panel question, stop a thread whose session left from holding `AgentsDone` back, and learn whether the daemon sits
-  idle. The agent context's `teleport` package drives them.
+- `Quiesce`, `Deliver`, `Request`, `TeleportedHere`, `TeleportedAway`, `AllTeleportedAway` and `Idle` are the hooks a
+  session teleport uses: end a thread's run and stop its worker while keeping its clients, tell a thread's followers
+  something, ask a worker in a project dir one panel question, record a session arriving or leaving so it stops
+  holding `AgentsDone` back, learn whether every one left, and whether the daemon sits idle. The agent context's
+  `teleport` package drives them.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
   env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so

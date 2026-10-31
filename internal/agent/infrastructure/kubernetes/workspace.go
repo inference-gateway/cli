@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -8,7 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 
@@ -17,7 +20,6 @@ import (
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	k8sdynamic "k8s.io/client-go/dynamic"
@@ -31,26 +33,20 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// The agent-sandbox API this workspace drives, and the labels and annotation
-// it reads and writes.
+// The operator API this workspace drives, and the labels it writes.
 const (
-	sandboxGroup   = "agents.x-k8s.io"
-	sandboxVersion = "v1beta1"
-	sandboxKind    = "Sandbox"
+	orchestratorGroup    = "core.inference-gateway.com"
+	orchestratorVersion  = "v1alpha1"
+	orchestratorKind     = "Orchestrator"
+	orchestratorResource = "orchestrators"
 
-	podNameAnnotation = "agents.x-k8s.io/pod-name"
 	labelWorkspace    = "inference-gateway.com/workspace"
 	labelConversation = "inference-gateway.com/conversation"
 
 	bindingPort      = 52789
 	readyTimeout     = 5 * time.Minute
 	readyPoll        = 2 * time.Second
-	containerName    = "infer"
 	workspaceMount   = "/workspace"
-	stateMount       = "/home/infer/.infer/projects"
-	tlsMount         = "/etc/infer/tls"
-	serviceAccount   = "infer-workspace"
-	defaultStorage   = "5Gi"
 	tlsSecretSuffix  = "-tls"
 	secretTokenKey   = "token"
 	secretCertKey    = "tls.crt"
@@ -58,13 +54,20 @@ const (
 	secretCAKey      = "ca.crt"
 	secretClientCert = "client.crt"
 	secretClientKey  = "client.key"
+
+	modeRunning   = "Running"
+	modeSuspended = "Suspended"
 )
 
-var sandboxGVR = k8sschema.GroupVersionResource{Group: sandboxGroup, Version: sandboxVersion, Resource: "sandboxes"}
+var orchestratorGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: orchestratorResource}
 
-// Workspace runs sessions as agent-sandbox Sandboxes: one per session, running
-// the infer image as a daemon, reached through a port-forward unless the
-// entry names an address.
+// unrecoverableReasons are the Ready reasons the operator reports for an
+// Orchestrator that never runs without a change to the cluster or its spec.
+var unrecoverableReasons = []string{"SandboxCRDMissing", "InvalidSpec"}
+
+// Workspace runs sessions as Inference Gateway operator Orchestrators: one per
+// session, running the infer daemon in an agent-sandbox Sandbox, reached
+// through a port-forward unless the entry names an address.
 type Workspace struct {
 	entry    config.WorkspaceEntry
 	identity string
@@ -110,53 +113,68 @@ func (e *Workspace) Kind() agentdomain.WorkspaceKind {
 	return agentdomain.WorkspaceKindKubernetes
 }
 
-// SandboxName is the Sandbox a session runs in on a workspace, stable
+// orchestratorName is the Orchestrator a session runs in on a workspace, stable
 // across teleports. Workspaces sharing a namespace never reach each other's.
-func SandboxName(workspace, conversationID string) string {
+func orchestratorName(workspace, conversationID string) string {
 	sum := sha256.Sum256([]byte(workspace + "/" + conversationID))
 	return "infer-" + hex.EncodeToString(sum[:])[:12]
 }
 
-// Ensure creates or resumes the session's Sandbox, waits for it to be Ready,
-// and returns the pod daemon's binding through a port-forward.
+func (e *Workspace) orchestrators() k8sdynamic.ResourceInterface {
+	return e.dynamic.Resource(orchestratorGVR).Namespace(e.entry.Namespace)
+}
+
+// Ensure creates or resumes the session's Orchestrator, waits for its daemon to
+// be ready, and returns the daemon's binding through a port-forward.
 func (e *Workspace) Ensure(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
 	return e.reach(ctx, session, true)
 }
 
-// Reach resumes the session's Sandbox like Ensure but never creates one, so a
-// Sandbox its retention deleted is reported instead of replaced by an empty one.
+// Reach resumes the session's Orchestrator like Ensure but never creates one, so
+// an Orchestrator its retention deleted is reported instead of replaced by an
+// empty one.
 func (e *Workspace) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
 	return e.reach(ctx, session, false)
 }
 
 func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, create bool) (agentdomain.Endpoint, error) {
-	name := SandboxName(e.entry.Name, session.ConversationID)
-	sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err := e.requireOperator(ctx); err != nil {
+		return agentdomain.Endpoint{}, err
+	}
+	name := orchestratorName(e.entry.Name, session.ConversationID)
+	orchestrator, err := e.orchestrators().Get(ctx, name, metav1.GetOptions{})
 	missing := k8serrors.IsNotFound(err)
 	switch {
 	case missing && !create:
-		return agentdomain.Endpoint{}, fmt.Errorf("sandbox %s of workspace %s is gone: its retention ran out or it was deleted", name, e.entry.Name)
+		return agentdomain.Endpoint{}, fmt.Errorf("orchestrator %s of workspace %s is gone: its retention ran out or it was deleted", name, e.entry.Name)
 	case err != nil && !missing:
-		return agentdomain.Endpoint{}, fmt.Errorf("reading Sandbox %s: %w", name, err)
+		return agentdomain.Endpoint{}, fmt.Errorf("reading Orchestrator %s: %w", name, err)
 	}
 	token, err := e.ensureSecret(ctx, name)
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
 	if missing {
-		sandbox, err = e.create(ctx, name, session)
-	} else {
-		err = e.resume(ctx, sandbox)
+		if orchestrator, err = e.create(ctx, name, session); err != nil {
+			return agentdomain.Endpoint{}, err
+		}
 	}
-	if err != nil {
+	if err := e.ownSecret(ctx, orchestrator); err != nil {
 		return agentdomain.Endpoint{}, err
 	}
-	if err := e.ownSecret(ctx, sandbox); err != nil {
-		return agentdomain.Endpoint{}, err
+	if create && e.entry.DeploysGateway() {
+		if err := e.ensureGateway(ctx, orchestrator); err != nil {
+			return agentdomain.Endpoint{}, err
+		}
 	}
 	pod, err := e.awaitReady(ctx, name)
 	if err != nil {
 		return agentdomain.Endpoint{}, err
+	}
+	if create && e.entry.DeploysGateway() {
+		if err := e.awaitGateway(ctx); err != nil {
+			return agentdomain.Endpoint{}, err
+		}
 	}
 	tlsConfig, err := e.tls.ClientForKubernetes(name)
 	if err != nil {
@@ -171,6 +189,23 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 	}
 	return agentdomain.Endpoint{Addr: addr, TLS: tlsConfig, Token: token, Close: stop}, nil
 }
+
+// requireOperator fails unless the cluster serves Orchestrators, so a teleport
+// aborts before it leaves anything behind in a cluster without the operator.
+func (e *Workspace) requireOperator(ctx context.Context) error {
+	resources, err := e.typed.Discovery().ServerResourcesForGroupVersionWithContext(ctx, orchestratorGroup+"/"+orchestratorVersion)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("looking for the Inference Gateway operator in the cluster of workspace %s: %w", e.entry.Name, err)
+	}
+	if err == nil && slices.ContainsFunc(resources.APIResources, func(r metav1.APIResource) bool { return r.Name == orchestratorResource }) {
+		return nil
+	}
+	return fmt.Errorf("the Inference Gateway operator is not installed in the cluster of workspace %s: install %s or later from https://github.com/inference-gateway/operator/releases", e.entry.Name, minOperatorVersion)
+}
+
+// minOperatorVersion is the first operator release that runs an Orchestrator
+// in a Sandbox from the image's own entrypoint.
+const minOperatorVersion = "v0.28.1"
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // and the certificates the daemon CA issued.
@@ -216,16 +251,28 @@ func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, erro
 	return token, nil
 }
 
-// ownSecret makes the Sandbox the owner of its Secret, so the garbage
-// collector removes the Secret with the Sandbox however that is deleted.
-func (e *Workspace) ownSecret(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
-	owner := metav1.OwnerReference{APIVersion: sandboxGroup + "/" + sandboxVersion, Kind: sandboxKind, Name: sandbox.GetName(), UID: sandbox.GetUID()}
-	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{owner}}})
-	name := sandbox.GetName() + tlsSecretSuffix
+// ownSecret makes the Orchestrator the owner of its Secret, so the garbage
+// collector removes the Secret with the Orchestrator however that is deleted.
+func (e *Workspace) ownSecret(ctx context.Context, orchestrator *k8sunstructured.Unstructured) error {
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{ownerOf(orchestrator)}}})
+	name := orchestrator.GetName() + tlsSecretSuffix
 	if _, err := e.typed.CoreV1().Secrets(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		return fmt.Errorf("making Sandbox %s the owner of Secret %s: %w", sandbox.GetName(), name, err)
+		return fmt.Errorf("making Orchestrator %s the owner of Secret %s: %w", orchestrator.GetName(), name, err)
 	}
 	return nil
+}
+
+func ownerOf(orchestrator *k8sunstructured.Unstructured) metav1.OwnerReference {
+	return metav1.OwnerReference{APIVersion: orchestratorGroup + "/" + orchestratorVersion, Kind: orchestratorKind, Name: orchestrator.GetName(), UID: orchestrator.GetUID()}
+}
+
+// addOwner adds the Orchestrator to an object's owners unless it is one, so an
+// object the sessions share goes with the last of them.
+func addOwner(owners []metav1.OwnerReference, orchestrator *k8sunstructured.Unstructured) []metav1.OwnerReference {
+	if slices.ContainsFunc(owners, func(owner metav1.OwnerReference) bool { return owner.UID == orchestrator.GetUID() }) {
+		return owners
+	}
+	return append(slices.Clone(owners), ownerOf(orchestrator))
 }
 
 func randomToken() (string, error) {
@@ -236,158 +283,130 @@ func randomToken() (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
-// create submits the Sandbox for a session.
+// create submits the Orchestrator for a session. Strict field validation makes
+// an operator that predates the Sandbox runtime refuse it instead of running
+// the daemon as a Deployment.
 func (e *Workspace) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
-	sandbox, err := e.sandbox(name, session)
+	orchestrator, err := e.orchestrator(name, session)
 	if err != nil {
 		return nil, err
 	}
-	created, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Create(ctx, sandbox, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("creating Sandbox %s: %w", name, err)
+	created, err := e.orchestrators().Create(ctx, orchestrator, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict})
+	if k8serrors.IsBadRequest(err) {
+		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s predates runtime: Sandbox, upgrade it to %s or later: %w", name, e.entry.Name, minOperatorVersion, err)
 	}
-	logger.Info("created a Sandbox for the session", "workspace", e.entry.Name, "sandbox", name, "conversation_id", session.ConversationID)
+	if err != nil {
+		return nil, fmt.Errorf("creating Orchestrator %s: %w", name, err)
+	}
+	logger.Info("created an Orchestrator for the session", "workspace", e.entry.Name, "orchestrator", name, "conversation_id", session.ConversationID)
 	return created, nil
 }
 
-// resume brings a parked or finished Sandbox back to Running: a suspended one
-// is set Running, a finished one cycles through Suspended first so a fresh pod
-// reattaches the volumes.
-func (e *Workspace) resume(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
-	mode, _, _ := k8sunstructured.NestedString(sandbox.Object, "spec", "operatingMode")
-	ready := conditionTrue(sandbox, "Ready")
-	finished := conditionTrue(sandbox, "Finished")
-	switch {
-	case mode == "Suspended":
-		return e.setMode(ctx, sandbox.GetName(), "Running")
-	case !ready && finished:
-		if err := e.setMode(ctx, sandbox.GetName(), "Suspended"); err != nil {
-			return err
-		}
-		if err := e.awaitCondition(ctx, sandbox.GetName(), "Suspended"); err != nil {
-			return err
-		}
-		return e.setMode(ctx, sandbox.GetName(), "Running")
-	}
-	return nil
-}
-
-// setMode moves the Sandbox to mode. Running also clears the expiry a
-// suspension may have set, so a resumed session is never deleted under its pod.
+// setMode runs or suspends the Orchestrator's Sandbox. The operator keeps the
+// volumes across a suspension and owns the expiry.
 func (e *Workspace) setMode(ctx context.Context, name, mode string) error {
-	spec := map[string]any{"operatingMode": mode}
-	if mode == "Running" {
-		spec["shutdownTime"], spec["shutdownPolicy"] = nil, nil
-	}
-	patch, _ := json.Marshal(map[string]any{"spec": spec})
-	if _, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		return fmt.Errorf("setting Sandbox %s to %s: %w", name, mode, err)
+	patch, _ := json.Marshal(map[string]any{"spec": map[string]any{"sandbox": map[string]any{"operatingMode": mode}}})
+	if _, err := e.orchestrators().Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		return fmt.Errorf("setting Orchestrator %s to %s: %w", name, mode, err)
 	}
 	return nil
 }
 
-// awaitReady polls until the Sandbox reports Ready and returns its pod name.
+// awaitReady polls until the Orchestrator's daemon is ready and returns the pod
+// it runs. It resumes an Orchestrator found suspended, also one the operator
+// parks during the wait, and gives up early on a reason that never recovers.
 func (e *Workspace) awaitReady(ctx context.Context, name string) (string, error) {
-	if err := e.awaitCondition(ctx, name, "Ready"); err != nil {
-		return "", err
-	}
-	sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return "", fmt.Errorf("reading Sandbox %s: %w", name, err)
-	}
-	pod := sandbox.GetAnnotations()[podNameAnnotation]
-	if pod == "" {
-		pod = name
-	}
-	return pod, nil
-}
-
-func (e *Workspace) awaitCondition(ctx context.Context, name, condition string) error {
 	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
 	defer cancel()
 	ticker := time.NewTicker(readyPoll)
 	defer ticker.Stop()
 	for {
-		sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
+		orchestrator, err := e.orchestrators().Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("reading Sandbox %s: %w", name, err)
+			return "", fmt.Errorf("reading Orchestrator %s: %w", name, err)
 		}
-		if conditionTrue(sandbox, condition) {
-			return nil
+		ready := readyCondition(orchestrator)
+		switch {
+		case isSuspended(orchestrator):
+			if err := e.setMode(ctx, name, modeRunning); err != nil {
+				return "", err
+			}
+		case ready.status == string(metav1.ConditionTrue):
+			pod, _, _ := k8sunstructured.NestedString(orchestrator.Object, "status", "podName")
+			return cmp.Or(pod, name), nil
+		case slices.Contains(unrecoverableReasons, ready.reason):
+			return "", fmt.Errorf("orchestrator %s cannot run: %s", name, ready.message)
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("sandbox %s did not become %s in time: %s", name, condition, conditionMessage(sandbox, condition))
+			return "", fmt.Errorf("orchestrator %s did not become ready in time: %s", name, cmp.Or(ready.message, "no condition reported"))
 		case <-ticker.C:
 		}
 	}
 }
 
-func conditionTrue(sandbox *k8sunstructured.Unstructured, name string) bool {
-	return conditionStatus(sandbox, name) == string(metav1.ConditionTrue)
+func isSuspended(orchestrator *k8sunstructured.Unstructured) bool {
+	mode, _, _ := k8sunstructured.NestedString(orchestrator.Object, "spec", "sandbox", "operatingMode")
+	return mode == modeSuspended
 }
 
-func conditionStatus(sandbox *k8sunstructured.Unstructured, name string) string {
-	conditions, _, _ := k8sunstructured.NestedSlice(sandbox.Object, "status", "conditions")
+type condition struct{ status, reason, message string }
+
+// readyCondition is the Ready condition the operator reported for the
+// Orchestrator's current generation. One about an older spec reads as unknown,
+// since it says nothing about the change that was just made.
+func readyCondition(orchestrator *k8sunstructured.Unstructured) condition {
+	conditions, _, _ := k8sunstructured.NestedSlice(orchestrator.Object, "status", "conditions")
 	for _, raw := range conditions {
-		condition, ok := raw.(map[string]any)
-		if ok && condition["type"] == name {
-			status, _ := condition["status"].(string)
-			return status
+		ready, ok := raw.(map[string]any)
+		if !ok || ready["type"] != "Ready" {
+			continue
 		}
+		if observed, found, _ := k8sunstructured.NestedInt64(ready, "observedGeneration"); found && observed != orchestrator.GetGeneration() {
+			return condition{}
+		}
+		status, _ := ready["status"].(string)
+		reason, _ := ready["reason"].(string)
+		message, _ := ready["message"].(string)
+		return condition{status: status, reason: reason, message: message}
 	}
-	return ""
+	return condition{}
 }
 
-func conditionMessage(sandbox *k8sunstructured.Unstructured, name string) string {
-	conditions, _, _ := k8sunstructured.NestedSlice(sandbox.Object, "status", "conditions")
-	for _, raw := range conditions {
-		condition, ok := raw.(map[string]any)
-		if ok && condition["type"] == name {
-			message, _ := condition["message"].(string)
-			return message
-		}
-	}
-	return "no condition reported"
-}
-
-// Probe lists this workspace's Sandboxes and the cluster version. A missing
-// CRD or an unreachable cluster is the error.
+// Probe lists this workspace's Orchestrators and the cluster version. A missing
+// operator or an unreachable cluster is the error.
 func (e *Workspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
 	status := agentdomain.WorkspaceStatus{Name: e.entry.Name, Kind: agentdomain.WorkspaceKindKubernetes, Capabilities: map[string]string{
 		"namespace": e.entry.Namespace, "image": e.entry.Image,
 	}}
-	list, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelWorkspace + "=" + e.entry.Name})
+	if err := e.requireOperator(ctx); err != nil {
+		status.Error = err.Error()
+		return status
+	}
+	list, err := e.orchestrators().List(ctx, metav1.ListOptions{LabelSelector: labelWorkspace + "=" + e.entry.Name})
 	if err != nil {
-		status.Error = describeClusterError(err)
+		status.Error = err.Error()
 		return status
 	}
 	status.Reachable = true
-	status.Capabilities["sandboxes"] = strconv.Itoa(len(list.Items))
+	status.Capabilities["orchestrators"] = strconv.Itoa(len(list.Items))
 	if version, err := e.typed.Discovery().ServerVersion(); err == nil {
 		status.Capabilities["kubernetes"] = version.GitVersion
 	}
 	return status
 }
 
-func describeClusterError(err error) string {
-	if k8serrors.IsNotFound(err) {
-		return "the agent-sandbox CRD is not installed: " + err.Error()
-	}
-	return err.Error()
-}
-
-// Suspend parks the session's Sandbox, keeping its volumes.
+// Suspend parks the session's Orchestrator, keeping its volumes.
 func (e *Workspace) Suspend(ctx context.Context, session agentdomain.Session) error {
-	return e.setMode(ctx, SandboxName(e.entry.Name, session.ConversationID), "Suspended")
+	return e.setMode(ctx, orchestratorName(e.entry.Name, session.ConversationID), modeSuspended)
 }
 
-// Delete removes the session's Sandbox and its Secret. The volumes go with
-// the Sandbox.
+// Delete removes the session's Orchestrator and its Secret. The operator's
+// Sandbox and its volumes go with the Orchestrator.
 func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) error {
-	name := SandboxName(e.entry.Name, session.ConversationID)
-	if err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
-		return fmt.Errorf("deleting Sandbox %s: %w", name, err)
+	name := orchestratorName(e.entry.Name, session.ConversationID)
+	if err := e.orchestrators().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("deleting Orchestrator %s: %w", name, err)
 	}
 	if err := e.typed.CoreV1().Secrets(e.entry.Namespace).Delete(ctx, name+tlsSecretSuffix, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 		return fmt.Errorf("deleting Secret %s: %w", name+tlsSecretSuffix, err)
@@ -395,98 +414,67 @@ func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) err
 	return nil
 }
 
-// sandbox is the Sandbox object for a session: the infer image as a daemon
-// with its binding on the pod network, a workspace and a state volume, and
-// the daemon CA's certificates.
-func (e *Workspace) sandbox(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
-	podSpec := e.podSpec(name)
-	spec, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(&podSpec)
-	if err != nil {
-		return nil, err
-	}
-	storage := e.entry.Storage
-	if storage == "" {
-		storage = defaultStorage
-	}
-	if _, err := k8sresource.ParseQuantity(storage); err != nil {
-		return nil, fmt.Errorf("invalid storage %q for workspace %s: %w", storage, e.entry.Name, err)
-	}
-	claim := func(volume string) map[string]any {
-		return map[string]any{
-			"metadata": map[string]any{"name": volume},
-			"spec": map[string]any{
-				"accessModes": []any{"ReadWriteOnce"},
-				"resources":   map[string]any{"requests": map[string]any{"storage": storage}},
-			},
+// orchestrator is the Orchestrator for a session: the infer image as a daemon
+// in a Sandbox, its binding authenticated by the session's Secret, with tools
+// and A2A on as they are by default outside the cluster.
+func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
+	sandbox := map[string]any{"operatingMode": modeRunning}
+	if e.entry.Storage != "" {
+		if _, err := k8sresource.ParseQuantity(e.entry.Storage); err != nil {
+			return nil, fmt.Errorf("invalid storage %q for workspace %s: %w", e.entry.Storage, e.entry.Name, err)
 		}
+		sandbox["storage"] = e.entry.Storage
+	}
+	if e.entry.Retention > 0 {
+		sandbox["retention"] = e.entry.Retention.String()
+	}
+	secret := name + tlsSecretSuffix
+	spec := map[string]any{
+		"image":   e.entry.Image,
+		"runtime": "Sandbox",
+		"sandbox": sandbox,
+		"daemon": map[string]any{"binding": map[string]any{
+			"port":           int64(bindingPort),
+			"tokenSecretRef": map[string]any{"name": secret, "key": secretTokenKey},
+			"tls":            map[string]any{"secretName": secret, "clientAuth": true},
+		}},
+		"tools": map[string]any{"enabled": true},
+		"a2a":   map[string]any{"enabled": true},
+		"env":   e.env(),
+	}
+	if url := e.podGatewayURL(); url != "" {
+		spec["gateway"] = map[string]any{"url": url}
 	}
 	return &k8sunstructured.Unstructured{Object: map[string]any{
-		"apiVersion": sandboxGroup + "/" + sandboxVersion,
-		"kind":       sandboxKind,
+		"apiVersion": orchestratorGroup + "/" + orchestratorVersion,
+		"kind":       orchestratorKind,
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": e.entry.Namespace,
 			"labels":    map[string]any{labelWorkspace: e.entry.Name, labelConversation: session.ConversationID},
 		},
-		"spec": map[string]any{
-			"podTemplate":          map[string]any{"metadata": map[string]any{"labels": map[string]any{labelWorkspace: e.entry.Name}}, "spec": spec},
-			"volumeClaimTemplates": []any{claim("workspace"), claim("state")},
-			"failedPodPolicy":      "Recreate",
-		},
+		"spec": spec,
 	}}, nil
 }
 
-func (e *Workspace) podSpec(name string) corev1.PodSpec {
-	fsGroup := int64(1000)
-	env := []corev1.EnvVar{
-		{Name: "INFER_DAEMON_BINDING_ENABLED", Value: "true"},
-		{Name: "INFER_DAEMON_BINDING_HOST", Value: "0.0.0.0"},
-		{Name: "INFER_DAEMON_BINDING_PORT", Value: strconv.Itoa(bindingPort)},
-		{Name: "INFER_DAEMON_WORKSPACE", Value: e.entry.Name},
-		{Name: "INFER_DAEMON_PROJECTS_ROOT", Value: workspaceMount},
-		{Name: "INFER_DAEMON_IDLE_EXIT", Value: e.entry.EffectiveIdleTTL().String()},
-		{Name: EnvSandboxName, Value: name},
-		{Name: EnvSandboxRetention, Value: e.entry.Retention.String()},
-		{Name: EnvSandboxNamespace, ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
-		{Name: "INFER_DAEMON_BINDING_TOKEN", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: name + tlsSecretSuffix}, Key: secretTokenKey,
-		}}},
+// env is what the pod daemon needs beyond what the operator sets: which
+// workspace it is, where projects restore, when it idles out with and without
+// its sessions, then the entry's.
+func (e *Workspace) env() []any {
+	env := []any{
+		envVar("INFER_DAEMON_WORKSPACE", e.entry.Name),
+		envVar("INFER_DAEMON_PROJECTS_ROOT", workspaceMount),
+		envVar("INFER_DAEMON_IDLE_EXIT", e.entry.EffectiveIdleTTL().String()),
+		envVar("INFER_DAEMON_AWAY_EXIT", e.entry.EffectiveAwayTTL().String()),
 	}
-	for key, value := range e.entry.Env {
-		env = append(env, corev1.EnvVar{Name: key, Value: value})
+	for _, key := range slices.Sorted(maps.Keys(e.entry.Env)) {
+		env = append(env, envVar(key, e.entry.Env[key]))
 	}
-	env = append(env,
-		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_MODE", Value: string(config.TLSModeFiles)},
-		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CERT_FILE", Value: tlsMount + "/" + secretCertKey},
-		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_KEY_FILE", Value: tlsMount + "/" + secretKeyKey},
-		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CA_FILE", Value: tlsMount + "/" + secretCAKey},
-		corev1.EnvVar{Name: "INFER_DAEMON_BINDING_TLS_CLIENT_AUTH", Value: "true"},
-	)
-	return corev1.PodSpec{
-		ServiceAccountName: serviceAccount,
-		RestartPolicy:      corev1.RestartPolicyOnFailure,
-		SecurityContext:    &corev1.PodSecurityContext{FSGroup: &fsGroup},
-		Volumes: []corev1.Volume{{Name: "tls", VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{SecretName: name + tlsSecretSuffix},
-		}}},
-		Containers: []corev1.Container{{
-			Name:  containerName,
-			Image: e.entry.Image,
-			Args:  []string{"daemon"},
-			Env:   env,
-			Ports: []corev1.ContainerPort{{Name: "binding", ContainerPort: bindingPort}},
-			VolumeMounts: []corev1.VolumeMount{
-				{Name: "workspace", MountPath: workspaceMount},
-				{Name: "state", MountPath: stateMount},
-				{Name: "tls", MountPath: tlsMount, ReadOnly: true},
-			},
-			ReadinessProbe: &corev1.Probe{
-				ProbeHandler:        corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstrPort(bindingPort)}},
-				InitialDelaySeconds: 2,
-				PeriodSeconds:       5,
-			},
-		}},
-	}
+	return env
+}
+
+func envVar(name, value string) map[string]any {
+	return map[string]any{"name": name, "value": value}
 }
 
 func portAddr(port int) string {

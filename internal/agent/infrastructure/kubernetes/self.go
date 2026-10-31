@@ -1,67 +1,33 @@
 package kubernetes
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
+	"io/fs"
+	"os"
 	"strconv"
-	"time"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
-	k8sdynamic "k8s.io/client-go/dynamic"
-	k8srest "k8s.io/client-go/rest"
 )
 
-// The environment a pod daemon learns its own Sandbox from.
-const (
-	EnvSandboxName      = "INFER_DAEMON_KUBERNETES_SANDBOX"
-	EnvSandboxNamespace = "INFER_DAEMON_KUBERNETES_NAMESPACE"
-	EnvSandboxRetention = "INFER_DAEMON_KUBERNETES_RETENTION"
-)
+// TerminationLog is the file Kubernetes reads a container's termination
+// message from.
+const TerminationLog = "/dev/termination-log"
 
-// annotationAgentsDone records on a Sandbox whether every agent was done when
-// its pod daemon last suspended it, for a later pod that ran nothing itself.
-const annotationAgentsDone = "inference-gateway.com/agents-done"
-
-// SelfSuspend returns the function a pod daemon calls before it idles out: it
-// patches its own Sandbox to Suspended through the in-cluster API, so the
-// controller parks the pod and keeps the volumes for the next teleport. done
-// says whether every agent finished, and known whether this pod ran any.
-func SelfSuspend(sandbox, namespace string, retention time.Duration) (func(ctx context.Context, done, known bool) error, error) {
-	restConfig, err := k8srest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("loading the in-cluster config: %w", err)
-	}
-	client, err := k8sdynamic.NewForConfig(restConfig)
-	if err != nil {
-		return nil, err
-	}
-	sandboxes := client.Resource(sandboxGVR).Namespace(namespace)
-	return func(ctx context.Context, done, known bool) error {
-		if !known {
-			current, err := sandboxes.Get(ctx, sandbox, metav1.GetOptions{})
-			done = err == nil && current.GetAnnotations()[annotationAgentsDone] == "true"
-		}
-		patch, _ := json.Marshal(suspendPatch(done, retention, time.Now()))
-		if _, err := sandboxes.Patch(ctx, sandbox, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			return fmt.Errorf("suspending Sandbox %s: %w", sandbox, err)
-		}
-		return nil
-	}, nil
+// ReportIdle leaves the operator the termination message of a pod daemon that
+// idles out: whether every agent it ran is done, which starts the
+// Orchestrator's retention. Outside a pod there is nothing to report.
+func ReportIdle(done bool) error {
+	return writeTerminationMessage(TerminationLog, done)
 }
 
-// suspendPatch parks a Sandbox and records whether its agents are done. Only
-// then does a retention have the agent-sandbox controller delete the Sandbox,
-// its volumes included, once it sat suspended that long.
-func suspendPatch(done bool, retention time.Duration, now time.Time) map[string]any {
-	spec := map[string]any{"operatingMode": "Suspended"}
-	if done && retention > 0 {
-		spec["shutdownTime"] = now.Add(retention).UTC().Format(time.RFC3339)
-		spec["shutdownPolicy"] = "Delete"
+// ponytail: a pod that ran no agent reports not done, which only keeps its
+// Orchestrator longer. Carry the last pod's answer if retention ever stalls.
+func writeTerminationMessage(path string, done bool) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
 	}
-	return map[string]any{
-		"metadata": map[string]any{"annotations": map[string]any{annotationAgentsDone: strconv.FormatBool(done)}},
-		"spec":     spec,
+	if err != nil {
+		return err
 	}
+	_, err = file.WriteString("agents-done=" + strconv.FormatBool(done))
+	return errors.Join(err, file.Close())
 }

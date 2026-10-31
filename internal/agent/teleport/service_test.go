@@ -17,23 +17,32 @@ func TestStopSessionDeletesTheRemoteRuntimeAndAnswers(t *testing.T) {
 	tests := []struct {
 		name          string
 		owner         string
+		leftOn        string
 		deleteErr     error
 		wantDeletes   int
 		wantWorkspace string
 		wantError     string
 		wantLease     string
+		wantLeftOn    string
 	}{
-		{"remote owner", "k8s", nil, 1, "k8s", "", ""},
-		{"remote delete fails", "k8s", errors.New("forbidden"), 1, "", "forbidden", "k8s"},
-		{"owned here", "laptop", nil, 0, "", "", "laptop"},
-		{"nobody owns it", "", nil, 0, "", "", ""},
-		{"unknown owner", "ghost", nil, 0, "", "not registered", "ghost"},
+		{name: "remote owner", owner: "k8s", wantDeletes: 1, wantWorkspace: "k8s"},
+		{name: "remote delete fails", owner: "k8s", deleteErr: errors.New("forbidden"), wantDeletes: 1, wantError: "forbidden", wantLease: "k8s"},
+		{name: "owned here", owner: "laptop", wantLease: "laptop"},
+		{name: "nobody owns it"},
+		{name: "unknown owner", owner: "ghost", wantError: "not registered", wantLease: "ghost"},
+		{name: "came home from k8s", owner: "laptop", leftOn: "k8s", wantDeletes: 1, wantWorkspace: "k8s", wantLease: "laptop"},
+		{name: "came home, nobody owns it", leftOn: "k8s", wantDeletes: 1, wantWorkspace: "k8s"},
+		{name: "came home, delete fails", owner: "laptop", leftOn: "k8s", deleteErr: errors.New("forbidden"), wantDeletes: 1, wantError: "forbidden", wantLease: "laptop", wantLeftOn: "k8s"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k8s := fakeWorkspace("k8s", agentdomain.WorkspaceKindKubernetes)
 			k8s.DeleteReturns(tt.deleteErr)
 			s, store := newService(t, &launcher{}, k8s)
+			s.cfg.StateDir = t.TempDir()
+			if tt.leftOn != "" {
+				s.rememberRuntime("conv-1", tt.leftOn)
+			}
 			if tt.owner != "" {
 				_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: tt.owner, Until: time.Now().Add(time.Hour)})
 			}
@@ -60,6 +69,9 @@ func TestStopSessionDeletesTheRemoteRuntimeAndAnswers(t *testing.T) {
 			lease, found, _ := store.GetLease(context.Background(), "conv-1")
 			if found != (tt.wantLease != "") || lease.Workspace != tt.wantLease {
 				t.Fatalf("lease = %+v, %v, want owner %q", lease, found, tt.wantLease)
+			}
+			if left := s.runtimeLeftOn("conv-1"); left != tt.wantLeftOn {
+				t.Fatalf("runtime left on %q, want %q", left, tt.wantLeftOn)
 			}
 		})
 	}

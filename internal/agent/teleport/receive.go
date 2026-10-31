@@ -15,6 +15,7 @@ import (
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 // maxPayloadBytes caps an incoming checkpoint: the repository limit plus room
@@ -165,8 +166,9 @@ func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
 }
 
 // install restores the checkpoint into a fresh workspace dir, imports its
-// conversation through a worker there, opens its credentials and claims the
-// lease. A failure undoes what it did.
+// conversation through a worker there, opens its credentials, claims the
+// lease and tells the registry the session is hosted here. A failure undoes
+// what it did.
 func (s *Service) install(ctx context.Context, teleportID string, checkpoint agentdomain.Checkpoint) (string, error) {
 	session := checkpoint.Session
 	workspaceDir := s.workspaceDirFor(session)
@@ -207,6 +209,9 @@ func (s *Service) install(ctx context.Context, teleportID string, checkpoint age
 	s.mu.Lock()
 	s.installed[teleportID] = lease
 	s.mu.Unlock()
+	if s.registry != nil {
+		s.registry.TeleportedHere(sessionsdomain.ThreadKey{ProjectDir: workspaceDir, ConversationID: session.ConversationID})
+	}
 	return workspaceDir, nil
 }
 

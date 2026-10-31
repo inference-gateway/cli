@@ -102,6 +102,10 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"daemon kind needs an address", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
 		{"daemon kind trusts the system roots without a ca_file", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1"}}}, ""},
 		{"kubernetes needs namespace and image", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "k8s", Kind: WorkspaceKindKubernetes}}}, "namespace and an image"},
+		{"kubernetes runs the gateway all-in-one", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(kubernetes, WorkspaceModeAllInOne)}}, ""},
+		{"unknown mode", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(kubernetes, "sidecar")}}, "invalid mode"},
+		{"mode on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(daemon, WorkspaceModeStandard)}}, "only a kubernetes workspace"},
+		{"gateway_env on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", GatewayEnv: []string{"OPENAI_API_KEY"}}}}, "only a kubernetes workspace"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -138,6 +142,16 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	if got := k8s.EffectiveLeaseTTL(); got != time.Hour+5*time.Minute {
 		t.Fatalf("kubernetes lease ttl follows idle ttl: %v", got)
 	}
+	if got := k8s.EffectiveAwayTTL(); got != time.Minute {
+		t.Fatalf("kubernetes away ttl = %v, want the minute default", got)
+	}
+	k8s.AwayTTL = 10 * time.Minute
+	if got := k8s.EffectiveAwayTTL(); got != 10*time.Minute {
+		t.Fatalf("configured away ttl wins: %v", got)
+	}
+	if got := DefaultDaemonConfig().AwayExit; got != time.Minute {
+		t.Fatalf("default away_exit = %v, want a minute", got)
+	}
 	if got := (WorkspaceEntry{Kind: WorkspaceKindDaemon}).EffectiveLeaseTTL(); got != 24*time.Hour {
 		t.Fatalf("daemon lease ttl = %v", got)
 	}
@@ -166,4 +180,9 @@ func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
+	entry.Mode = mode
+	return entry
 }

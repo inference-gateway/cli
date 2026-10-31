@@ -182,21 +182,20 @@ func TestAgentsDoneOnlyWhenEveryLastRunFinishedWithoutWaiting(t *testing.T) {
 	resumed := `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-2"}`
 	resumedDone := `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-2"}`
 	tests := []struct {
-		name      string
-		lines     []string
-		exit      bool
-		wantDone  bool
-		wantKnown bool
+		name     string
+		lines    []string
+		exit     bool
+		wantDone bool
 	}{
-		{"no run", nil, false, false, false},
-		{"run still open", []string{started}, false, false, true},
-		{"run finished", []string{started, finished}, false, true, true},
-		{"run waits on an approval", []string{started, suspended}, false, false, true},
-		{"run ended by an error", []string{started, failed}, false, false, true},
-		{"worker exited mid-run", []string{started}, true, false, true},
-		{"approval answered and finished", []string{started, suspended, resumed, resumedDone}, false, true, true},
-		{"finished run outlives its worker", []string{started, finished}, true, true, true},
-		{"approval outlives its worker", []string{started, suspended}, true, false, true},
+		{"no run", nil, false, false},
+		{"run still open", []string{started}, false, false},
+		{"run finished", []string{started, finished}, false, true},
+		{"run waits on an approval", []string{started, suspended}, false, false},
+		{"run ended by an error", []string{started, failed}, false, false},
+		{"worker exited mid-run", []string{started}, true, false},
+		{"approval answered and finished", []string{started, suspended, resumed, resumedDone}, false, true},
+		{"finished run outlives its worker", []string{started, finished}, true, true},
+		{"approval outlives its worker", []string{started, suspended}, true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -218,20 +217,23 @@ func TestAgentsDoneOnlyWhenEveryLastRunFinishedWithoutWaiting(t *testing.T) {
 					return thread == nil || thread.worker == nil
 				})
 			}
-			done, known := r.AgentsDone()
-			if done != tt.wantDone || known != tt.wantKnown {
-				t.Fatalf("AgentsDone() = %v, %v, want %v, %v", done, known, tt.wantDone, tt.wantKnown)
+			if done := r.AgentsDone(); done != tt.wantDone {
+				t.Fatalf("AgentsDone() = %v, want %v", done, tt.wantDone)
 			}
 		})
 	}
 }
 
-func TestAgentsDoneOnceAnInterruptedSessionTeleportedAway(t *testing.T) {
+func TestAgentsDoneOnceASessionTeleportedAway(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)
 	r.TeleportedAway(hooksKey)
-	if done, known := r.AgentsDone(); done || known {
-		t.Fatalf("AgentsDone() = %v, %v for a thread that never ran here, want false, false", done, known)
+	if !r.AgentsDone() {
+		t.Fatal("AgentsDone() = false for a session that left without running here")
+	}
+	r.TeleportedHere(hooksKey)
+	if r.AgentsDone() {
+		t.Fatal("AgentsDone() = true for a session that came back and never ran")
 	}
 	c := &sessionsmocks.FakeClient{}
 	handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
@@ -239,10 +241,68 @@ func TestAgentsDoneOnceAnInterruptedSessionTeleportedAway(t *testing.T) {
 	lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
 	lines <- []byte(`{"type":"RUN_ERROR","threadId":"conv-1","runId":"run-1","message":"interrupted"}`)
 	eventually(t, "the interrupted run", func() bool { return c.DeliverCallCount() == 2 })
+	if r.AgentsDone() {
+		t.Fatal("AgentsDone() = true for an interrupted session that is still here")
+	}
 
 	r.TeleportedAway(hooksKey)
-	if done, known := r.AgentsDone(); !done || !known {
-		t.Fatalf("AgentsDone() = %v, %v after the session teleported away, want true, true", done, known)
+	if !r.AgentsDone() {
+		t.Fatal("AgentsDone() = false after the interrupted session teleported away")
+	}
+}
+
+func TestAgentsDoneWaitsOnASessionThatArrivedAndNeverRan(t *testing.T) {
+	arrived := sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "conv-2"}
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	c := &sessionsmocks.FakeClient{}
+	handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	_, lines := l.worker(0)
+	lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
+	lines <- []byte(`{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1"}`)
+	eventually(t, "the finished run", func() bool { return c.DeliverCallCount() == 2 })
+
+	r.TeleportedHere(arrived)
+	if r.AgentsDone() {
+		t.Fatal("AgentsDone() = true while a session that teleported here never ran")
+	}
+	r.TeleportedAway(arrived)
+	if !r.AgentsDone() {
+		t.Fatal("AgentsDone() = false once the session that never ran left again")
+	}
+}
+
+func TestAllTeleportedAway(t *testing.T) {
+	other := sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "conv-2"}
+	type teleport struct {
+		key  sessionsdomain.ThreadKey
+		away bool
+	}
+	tests := []struct {
+		name      string
+		teleports []teleport
+		want      bool
+	}{
+		{name: "nothing teleported"},
+		{name: "the only session left", teleports: []teleport{{hooksKey, true}}, want: true},
+		{name: "it came back", teleports: []teleport{{hooksKey, true}, {hooksKey, false}}},
+		{name: "another session is still here", teleports: []teleport{{other, false}, {hooksKey, true}}},
+		{name: "both left", teleports: []teleport{{other, false}, {hooksKey, true}, {other, true}}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRegistry((&launcher{}).launch, time.Hour)
+			for _, teleport := range tt.teleports {
+				if teleport.away {
+					r.TeleportedAway(teleport.key)
+				} else {
+					r.TeleportedHere(teleport.key)
+				}
+			}
+			if got := r.AllTeleportedAway(); got != tt.want {
+				t.Fatalf("AllTeleportedAway() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -267,7 +327,7 @@ func TestAgentsDoneIgnoresTheRunAReapedWorkerDrains(t *testing.T) {
 	eventually(t, "the reaped worker to drain", func() bool { return worker.StopCallCount() == 1 && len(lines) == 0 })
 	time.Sleep(20 * time.Millisecond)
 
-	if done, known := r.AgentsDone(); done || !known {
-		t.Fatalf("AgentsDone() = %v, %v after a reaped worker drained its approval, want false, true", done, known)
+	if r.AgentsDone() {
+		t.Fatal("AgentsDone() = true after a reaped worker drained its approval")
 	}
 }

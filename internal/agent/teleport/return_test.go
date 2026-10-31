@@ -167,6 +167,12 @@ func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
 	if frameType(frames[0]) != frameTeleportReturn || frameType(frames[1]) != frameTeleportReturned {
 		t.Errorf("k8s-dev got %s then %s, want the return request and its confirmation", frames[0], frames[1])
 	}
+	if left := s.runtimeLeftOn("conv-1"); left != "k8s-dev" {
+		t.Errorf("the runtime the session left is remembered on %q, want k8s-dev", left)
+	}
+	if s.registry.AllTeleportedAway() {
+		t.Error("the laptop counts the session that came home as away")
+	}
 }
 
 func TestBringBackRefusesACheckoutThatChangedSinceItLeft(t *testing.T) {
@@ -246,16 +252,16 @@ func TestPackForReturnRefusesWhatItDidNotRestore(t *testing.T) {
 	}
 }
 
-func TestOriginFileTakesOnlyPlainConversationIDs(t *testing.T) {
+func TestStateFileTakesOnlyPlainConversationIDs(t *testing.T) {
 	s := New(Config{Identity: "laptop", StateDir: t.TempDir()}, Deps{})
 
 	for _, id := range []string{"", ".", "..", "a/b", "../escape", "x/../y"} {
-		if path := s.originFile(id); path != "" {
-			t.Errorf("originFile(%q) = %q, want none", id, path)
+		if path := s.stateFile(originsState, id); path != "" {
+			t.Errorf("stateFile(%q) = %q, want none", id, path)
 		}
 	}
-	if path := s.originFile("conv-1"); path != filepath.Join(s.cfg.StateDir, "origins", "conv-1") {
-		t.Errorf("originFile(conv-1) = %q", path)
+	if path := s.stateFile(originsState, "conv-1"); path != filepath.Join(s.cfg.StateDir, "origins", "conv-1") {
+		t.Errorf("stateFile(conv-1) = %q", path)
 	}
 }
 

@@ -259,8 +259,10 @@ when it deletes the conversation instead of leaving the worker to idle out:
   as when a worker exits mid-turn, and a thread with no running worker is
   left alone.
 - When another workspace owns the session, the CLI deletes the session's
-  runtime there (a Kubernetes `Sandbox` with its volumes) and releases the
+  runtime there (a Kubernetes `Orchestrator` with its volumes) and releases the
   lease, so the session continues from the CLI's own copy.
+- When the session teleported home, the CLI deletes the runtime it left on the
+  workspace it came from.
 
 CLI → client, only the sender receives it:
 
@@ -557,7 +559,7 @@ CLI → client, exactly one result per request id:
 ## Workspaces
 
 A workspace is where a session's agent runs: this daemon, a standalone daemon reachable over TLS, or a
-Kubernetes `Sandbox` per session. `~/.infer/daemon.yaml` registers them by name, see
+Kubernetes `Orchestrator` per session. `~/.infer/daemon.yaml` registers them by name, see
 [infer daemon](daemon.md#workspaces-and-teleports).
 
 Client → CLI:
@@ -573,13 +575,13 @@ CLI → client, only the requesting client receives it:
   "type": "workspaces",
   "workspaces": [
     {"name": "laptop", "kind": "local", "reachable": true, "capabilities": {"version": "0.238.0", "storage": "jsonl"}},
-    {"name": "k8s-dev", "kind": "kubernetes", "reachable": false, "error": "the agent-sandbox CRD is not installed: ..."}
+    {"name": "k8s-dev", "kind": "kubernetes", "reachable": false, "error": "the Inference Gateway operator is not installed ..."}
   ]
 }
 ```
 
 - The local workspace comes first. An unreachable workspace is reported with its `error`, never hidden.
-- `capabilities` is what the workspace declared about itself: version, storage id, sandbox count, image, auth.
+- `capabilities` is what the workspace declared about itself: version, storage id, orchestrator count, image, auth.
 
 ## Teleports
 

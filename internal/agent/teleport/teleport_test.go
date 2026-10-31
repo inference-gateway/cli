@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +14,7 @@ import (
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
@@ -155,4 +159,50 @@ func TestStartTeleportRefusesASecondTeleportOfTheSameSession(t *testing.T) {
 
 	go s.startTeleport(second, frame("t-3"))
 	eventually(t, "a later teleport of the same session to run", func() bool { return remote.EnsureCallCount() == 2 })
+}
+
+func TestWorkerEnv(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.MkdirAll(filepath.Join(home, config.ConfigDirName), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.AuthFilePath(), []byte("OLLAMA_CLOUD_API_KEY: ollama-key\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GITHUB_TOKEN", "gh-token")
+	t.Setenv("OLLAMA_CLOUD_API_KEY", "")
+	tests := []struct {
+		name  string
+		entry config.WorkspaceEntry
+		want  map[string]string
+	}{
+		{
+			name:  "standard keeps the gateway's keys away from the workers",
+			entry: config.WorkspaceEntry{ForwardEnv: []string{"GITHUB_TOKEN", "UNSET_TOKEN"}, GatewayEnv: []string{"OLLAMA_CLOUD_API_KEY"}},
+			want:  map[string]string{"GITHUB_TOKEN": "gh-token"},
+		},
+		{
+			name:  "all-in-one hands the workers the auth file keys and the gateway binary",
+			entry: config.WorkspaceEntry{Mode: config.WorkspaceModeAllInOne, ForwardEnv: []string{"GITHUB_TOKEN"}, GatewayEnv: []string{"OLLAMA_CLOUD_API_KEY", "UNSET_KEY"}},
+			want: map[string]string{
+				"GITHUB_TOKEN":                    "gh-token",
+				"OLLAMA_CLOUD_API_KEY":            "ollama-key",
+				"INFER_GATEWAY_RUN":               "true",
+				"INFER_GATEWAY_STANDALONE_BINARY": "true",
+			},
+		},
+		{
+			name:  "nothing to forward",
+			entry: config.WorkspaceEntry{},
+			want:  map[string]string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := workerEnv(tt.entry); !maps.Equal(got, tt.want) {
+				t.Fatalf("workerEnv() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
