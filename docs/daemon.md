@@ -104,8 +104,9 @@ workspaces:
     idle_ttl: 2h
     away_ttl: 1m
     retention: 168h
-    env:
-      INFER_GATEWAY_URL: http://inference-gateway:8080
+    mode: standard
+    gateway_env:
+      - ANTHROPIC_API_KEY
     forward_env:
       - GITHUB_TOKEN
   - name: workstation
@@ -126,14 +127,30 @@ workspaces:
   issues the pod's server certificate and a client certificate into a Secret the Orchestrator owns, and
   the pod daemon's binding requires them. The pod daemon idles out after `idle_ttl`, or after `away_ttl`
   once its session teleported away with no client attached, the operator suspends the Orchestrator, and
-  the next teleport resumes it. `env` is the pod daemon's non-secret environment,
-  such as the gateway URL. `address` replaces the port-forward when an Ingress or Gateway exposes the pods.
+  the next teleport resumes it. `env` is the pod daemon's non-secret environment, such as the agent's
+  model. `address` replaces the port-forward when an Ingress or Gateway exposes the pods.
+- `mode` says where a Kubernetes workspace runs the gateway its agents call, and `gateway_env` names the
+  variables that gateway gets, such as provider keys. A teleport resolves them like the local gateway does:
+  this daemon's environment first, then `~/.infer/auth.yaml`.
+  - `standard` (the default) deploys one operator `Gateway` per workspace beside its sessions and points
+    every pod at it. Each teleport writes the `gateway_env` values into the gateway's Secret, so the keys
+    never enter the agent's pod and the agent cannot read them into its context. A variable this daemon
+    resolves no value for keeps the value an earlier teleport wrote, and a changed value rolls the gateway. Every
+    session's Orchestrator owns the Gateway and its Secret, so both go with the last session. Without
+    `gateway_env` no gateway is deployed, and the pod calls whatever `INFER_GATEWAY_URL` names.
+  - `all-in-one` deploys nothing beside the pod. A teleport seals the `gateway_env` values with
+    `forward_env`, and the pod's workers run the gateway binary on `127.0.0.1:8080` themselves. It costs one
+    pod less, but the keys sit in the agent's environment.
 - The cluster needs the operator v0.28.1 or later, agent-sandbox, and the Gateway API CRDs the operator
   requires. Install agent-sandbox first, because the operator looks for it only when it starts. A teleport
   to a cluster without the operator fails before it creates anything:
   `the Inference Gateway operator is not installed in the cluster of workspace <name>`. Your kubeconfig
   user needs `get`, `list`, `create`, `patch` and `delete` on `orchestrators.core.inference-gateway.com`,
-  `get`, `create`, `patch` and `delete` on `secrets`, and `create` on `pods/portforward`.
+  `get`, `create` and `update` on `gateways.core.inference-gateway.com` and `get` on `deployments` in
+  `standard` mode, `get`, `create`, `update`, `patch` and `delete` on `secrets`, and `create` on
+  `pods/portforward`. The operator only deploys a `Gateway` in a namespace its `WATCH_NAMESPACE_SELECTOR`
+  matches, `inference-gateway.com/managed=true` by default, so label the workspace's namespace for
+  `standard` mode. A teleport waits for the gateway to serve before it restores the session.
 - `retention` has the operator delete a suspended Orchestrator, its Sandbox, volumes and Secret once it
   sat suspended that long. It only starts when every agent on the pod is done: its last run finished
   without waiting on an approval or a question, or its session teleported away. A run still going keeps
@@ -143,8 +160,10 @@ workspaces:
   message (`agents-done=true`), and a pod that ran nothing reports not done. Without a `retention` a
   suspended Orchestrator stays until the session is stopped. A relay never recreates an Orchestrator its
   retention deleted: the session falls back to this machine's copy once its lease lapsed.
-- `forward_env` names variables of this daemon's environment that a teleport seals to the target's
-  certificate for its workers. They never land in a Kubernetes object.
+- `forward_env` names variables of this daemon's environment or `~/.infer/auth.yaml` that a teleport seals
+  to the target's certificate for its workers, such as a token the agent pushes with. They never land in
+  a Kubernetes object, but the agent can read them, so provider keys belong under `gateway_env`. The pod
+  daemon keeps them in memory, so a pod that idled out gets them again with the next teleport.
 - `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.

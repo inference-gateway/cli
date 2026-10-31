@@ -106,3 +106,14 @@ func TestLoadAuthKeys_UnreadableFile(t *testing.T) {
 	require.NoError(t, err)
 	require.FileExists(t, authPath)
 }
+
+func TestCredentialsPreferTheEnvironmentOverTheAuthFile(t *testing.T) {
+	writeAuthFile(t, "OLLAMA_CLOUD_API_KEY: from-auth\nOPENAI_API_KEY: openai-from-auth\n", 0600)
+	t.Setenv("OPENAI_API_KEY", "openai-from-env")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	got, err := Credentials([]string{"OLLAMA_CLOUD_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"})
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"OLLAMA_CLOUD_API_KEY": "from-auth", "OPENAI_API_KEY": "openai-from-env"}, got)
+}

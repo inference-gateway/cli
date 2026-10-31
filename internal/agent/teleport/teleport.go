@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"slices"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -305,28 +305,41 @@ func (s *Service) export(ctx context.Context, session agentdomain.Session) (expo
 	return exported, nil
 }
 
-// sealCredentials encrypts the workspace's forward_env values to the peer's
-// certificate, so they travel only to the daemon that presented it.
+// sealCredentials encrypts the environment the target's workers need to the
+// peer's certificate, so it travels only to the daemon that presented it.
 func (s *Service) sealCredentials(req agentdomain.TeleportRequest, conn *agui.Conn) ([]byte, error) {
-	names := s.entries[req.Target].ForwardEnv
-	if len(names) == 0 {
+	env := workerEnv(s.entries[req.Target])
+	if len(env) == 0 {
 		return nil, nil
 	}
 	certs := conn.PeerCertificates()
 	if len(certs) == 0 {
 		return nil, errors.New("forward_env needs a TLS connection to seal the credentials to")
 	}
-	env := make(map[string]string, len(names))
-	for _, name := range names {
-		if value, ok := os.LookupEnv(name); ok {
-			env[name] = value
-		}
-	}
 	sealed, err := agentinfra.SealEnv(certs[0], env, req.TeleportID)
 	if err != nil {
 		return nil, describe(err, "sealing the credentials")
 	}
 	return sealed, nil
+}
+
+// workerEnv is this daemon's forward_env values, from its environment or the
+// auth file. An all-in-one workspace also gets the gateway_env values and has
+// its workers run the gateway binary, which the operator turns off for the pod.
+func workerEnv(entry config.WorkspaceEntry) map[string]string {
+	names := entry.ForwardEnv
+	if entry.Mode == config.WorkspaceModeAllInOne {
+		names = slices.Concat(names, entry.GatewayEnv)
+	}
+	env, err := config.Credentials(names)
+	if err != nil {
+		logger.Warn("teleport forwards no keys from the auth file", "error", err)
+	}
+	if entry.Mode == config.WorkspaceModeAllInOne {
+		env["INFER_GATEWAY_RUN"] = "true"
+		env["INFER_GATEWAY_STANDALONE_BINARY"] = "true"
+	}
+	return env
 }
 
 // restore streams the checkpoint to the peer, waits for it to import, then

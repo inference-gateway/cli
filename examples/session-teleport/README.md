@@ -32,7 +32,7 @@ for the wire frames.
 | File | Purpose |
 | --- | --- |
 | `Cluster.yaml` | The ctlptl cluster: k3d `infer-workspaces` with one agent node, pinned to k3s v1.37.1 |
-| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` and `k8s-desktop` workspaces |
+| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev`, `k8s-cloud` and `k8s-desktop` workspaces |
 | `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
 | `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
 | `k8s/namespace.yaml` | The `infer-workspaces` namespace. The pods need no ServiceAccount, the operator parks them |
@@ -67,6 +67,7 @@ reply of a turn that ran on the pod:
 ```text
 NAME         KIND        REACHABLE  DETAILS
 laptop       local       true       storage=jsonl version=...
+k8s-cloud    kubernetes  true       image=ghcr.io/inference-gateway/cli:local ...
 k8s-desktop  kubernetes  true       image=infer-desktop:local ...
 k8s-dev      kubernetes  true       image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-workspaces orchestrators=0
 provisioning
@@ -224,14 +225,36 @@ bucket and credentials. A pod without `ARTIFACTS_ENDPOINT` skips the upload. The
 `daemon.yaml` in plain text. Put real ones under the workspace's `forward_env` instead, so they travel
 sealed with the session and never land in the Orchestrator spec.
 
-## Switching the pod to a real model
+## A real model behind a gateway of its own: the cloud workspace
 
-The image sets `INFER_GATEWAY_URL=http://inference-gateway:8080`, so a pod reaches a gateway Service of
-that name in its namespace. Deploy one (the [kubernetes example](../kubernetes/) uses the operator for
-this) with your provider keys in a Secret, drop `INFER_GATEWAY_MOCK` and set `INFER_AGENT_MODEL` in the
-workspace's `env`. Provider and MCP credentials the laptop's workers use can travel with the session instead:
-list them under the workspace's `forward_env`, and a teleport seals them to the pod's certificate for its
-workers. They never land in a Kubernetes object.
+The `k8s-cloud` workspace runs `ollama_cloud/glm-5.3-flash` and keeps the provider key away from the agent.
+It runs in the default `standard` mode and lists `OLLAMA_CLOUD_API_KEY` under `gateway_env`. Each teleport
+to it deploys an operator `Gateway` beside the workspace. The laptop daemon writes the key into the
+gateway's Secret, taking it from its own environment, or else from `.home/.infer/auth.yaml`. The pod only
+learns the gateway's URL, so nothing the agent runs can read the key into its context.
+
+```bash
+# 1. Hand the laptop daemon the key: export it, or reuse your own auth file
+ln -sf ~/.infer/auth.yaml .home/.infer/auth.yaml
+task daemon:start
+
+# 2. Teleport a fresh conversation to the cloud workspace and continue it there
+task demo TARGET=k8s-cloud PROMPT="say hello from the cluster"
+
+# 3. The gateway holds the key, the agent's pod only knows where the gateway is
+kubectl --context k3d-infer-workspaces -n infer-workspaces get gateways
+POD=$(kubectl --context k3d-infer-workspaces -n infer-workspaces get pods -l inference-gateway.com/workspace=k8s-cloud -o jsonpath='{.items[0].metadata.name}')
+kubectl --context k3d-infer-workspaces -n infer-workspaces exec $POD -- env | grep -E 'INFER_GATEWAY_URL|OLLAMA_CLOUD'
+```
+
+The last command prints only `INFER_GATEWAY_URL`. Every session on `k8s-cloud` shares the one Gateway. Each
+session's Orchestrator owns it and its Secret, so `infer daemon stop` on the last session, or that
+session's retention, deletes both. A teleport whose daemon has no key leaves the stored one in place,
+and a changed key rolls the gateway.
+
+`mode: all-in-one` runs the gateway inside the pod instead. The key travels sealed with the session, and
+the pod's workers start the gateway binary on `127.0.0.1:8080` with it, so the agent can read it.
+Credentials the agent itself needs, such as a token to push with, go under `forward_env`.
 
 ## Cleanup
 

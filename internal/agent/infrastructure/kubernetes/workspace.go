@@ -162,9 +162,19 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 	if err := e.ownSecret(ctx, orchestrator); err != nil {
 		return agentdomain.Endpoint{}, err
 	}
+	if create && e.entry.DeploysGateway() {
+		if err := e.ensureGateway(ctx, orchestrator); err != nil {
+			return agentdomain.Endpoint{}, err
+		}
+	}
 	pod, err := e.awaitReady(ctx, name)
 	if err != nil {
 		return agentdomain.Endpoint{}, err
+	}
+	if create && e.entry.DeploysGateway() {
+		if err := e.awaitGateway(ctx); err != nil {
+			return agentdomain.Endpoint{}, err
+		}
 	}
 	tlsConfig, err := e.tls.ClientForKubernetes(name)
 	if err != nil {
@@ -244,13 +254,25 @@ func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, erro
 // ownSecret makes the Orchestrator the owner of its Secret, so the garbage
 // collector removes the Secret with the Orchestrator however that is deleted.
 func (e *Workspace) ownSecret(ctx context.Context, orchestrator *k8sunstructured.Unstructured) error {
-	owner := metav1.OwnerReference{APIVersion: orchestratorGroup + "/" + orchestratorVersion, Kind: orchestratorKind, Name: orchestrator.GetName(), UID: orchestrator.GetUID()}
-	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{owner}}})
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{ownerOf(orchestrator)}}})
 	name := orchestrator.GetName() + tlsSecretSuffix
 	if _, err := e.typed.CoreV1().Secrets(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		return fmt.Errorf("making Orchestrator %s the owner of Secret %s: %w", orchestrator.GetName(), name, err)
 	}
 	return nil
+}
+
+func ownerOf(orchestrator *k8sunstructured.Unstructured) metav1.OwnerReference {
+	return metav1.OwnerReference{APIVersion: orchestratorGroup + "/" + orchestratorVersion, Kind: orchestratorKind, Name: orchestrator.GetName(), UID: orchestrator.GetUID()}
+}
+
+// addOwner adds the Orchestrator to an object's owners unless it is one, so an
+// object the sessions share goes with the last of them.
+func addOwner(owners []metav1.OwnerReference, orchestrator *k8sunstructured.Unstructured) []metav1.OwnerReference {
+	if slices.ContainsFunc(owners, func(owner metav1.OwnerReference) bool { return owner.UID == orchestrator.GetUID() }) {
+		return owners
+	}
+	return append(slices.Clone(owners), ownerOf(orchestrator))
 }
 
 func randomToken() (string, error) {
@@ -407,6 +429,22 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8s
 		sandbox["retention"] = e.entry.Retention.String()
 	}
 	secret := name + tlsSecretSuffix
+	spec := map[string]any{
+		"image":   e.entry.Image,
+		"runtime": "Sandbox",
+		"sandbox": sandbox,
+		"daemon": map[string]any{"binding": map[string]any{
+			"port":           int64(bindingPort),
+			"tokenSecretRef": map[string]any{"name": secret, "key": secretTokenKey},
+			"tls":            map[string]any{"secretName": secret, "clientAuth": true},
+		}},
+		"tools": map[string]any{"enabled": true},
+		"a2a":   map[string]any{"enabled": true},
+		"env":   e.env(),
+	}
+	if url := e.podGatewayURL(); url != "" {
+		spec["gateway"] = map[string]any{"url": url}
+	}
 	return &k8sunstructured.Unstructured{Object: map[string]any{
 		"apiVersion": orchestratorGroup + "/" + orchestratorVersion,
 		"kind":       orchestratorKind,
@@ -415,19 +453,7 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8s
 			"namespace": e.entry.Namespace,
 			"labels":    map[string]any{labelWorkspace: e.entry.Name, labelConversation: session.ConversationID},
 		},
-		"spec": map[string]any{
-			"image":   e.entry.Image,
-			"runtime": "Sandbox",
-			"sandbox": sandbox,
-			"daemon": map[string]any{"binding": map[string]any{
-				"port":           int64(bindingPort),
-				"tokenSecretRef": map[string]any{"name": secret, "key": secretTokenKey},
-				"tls":            map[string]any{"secretName": secret, "clientAuth": true},
-			}},
-			"tools": map[string]any{"enabled": true},
-			"a2a":   map[string]any{"enabled": true},
-			"env":   e.env(),
-		},
+		"spec": spec,
 	}}, nil
 }
 

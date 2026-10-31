@@ -25,7 +25,7 @@ import (
 
 func testWorkspace(t *testing.T, operator bool, orchestrators []*k8sunstructured.Unstructured, secrets ...k8sruntime.Object) (*Workspace, *k8sdynamicfake.FakeDynamicClient, *k8sclientfake.Clientset) {
 	t.Helper()
-	dynamic := k8sdynamicfake.NewSimpleDynamicClientWithCustomListKinds(k8sruntime.NewScheme(), map[k8sschema.GroupVersionResource]string{orchestratorGVR: "OrchestratorList"})
+	dynamic := k8sdynamicfake.NewSimpleDynamicClientWithCustomListKinds(k8sruntime.NewScheme(), map[k8sschema.GroupVersionResource]string{orchestratorGVR: "OrchestratorList", gatewayGVR: "GatewayList"})
 	for _, orchestrator := range orchestrators {
 		if _, err := dynamic.Resource(orchestratorGVR).Namespace("ns").Create(t.Context(), orchestrator, metav1.CreateOptions{}); err != nil {
 			t.Fatal(err)

@@ -14,6 +14,20 @@ workspaces:
     env:
       INFER_GATEWAY_MOCK: "true"
       INFER_AGENT_MODEL: mock/openai/gpt-4o
+  - name: k8s-cloud
+    kind: kubernetes
+    context: k3d-infer-workspaces
+    namespace: infer-workspaces
+    image: ghcr.io/inference-gateway/cli:local
+    storage: 1Gi
+    idle_ttl: 30m
+    away_ttl: 1m
+    retention: 24h
+    mode: standard
+    gateway_env:
+      - OLLAMA_CLOUD_API_KEY
+    env:
+      INFER_AGENT_MODEL: ollama_cloud/glm-5.3-flash
   - name: k8s-desktop
     kind: kubernetes
     context: k3d-infer-workspaces
