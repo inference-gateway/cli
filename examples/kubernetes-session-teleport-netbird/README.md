@@ -8,7 +8,7 @@ Then watch an attacker fail to read or reach any of it.
 infer-local    Docker container beside the cluster, "your machine"
     │          policy infer-local-to-infer-k8s: TCP 52789 (teleport, relayed turns)
     ▼
-infer-k8s      pod on agent-1, binding only on its NetBird address, files TLS and a token
+infer-k8s      pod on agent-1, binding only on its NetBird address, mTLS with infer-local's client certificate
     │          policy infer-k8s-to-gateway: TCP 8080 (model calls)
     ▼
 gateway        the Inference Gateway on agent-0, run by its operator, only WireGuard on its pod address
@@ -64,15 +64,15 @@ VPN.
 | `netbird/operator-values.yaml` | The operator's Helm values: the self-hosted management URL, the client image, the one namespace it injects into |
 | `netbird/peers.yaml` | A `Group` and `SetupKey` per peer, and a `SidecarProfile` for each pod: `infer-k8s`, `gateway`, `attacker` |
 | `k8s/namespace.yaml` | The `infer-peers` namespace, labelled so the Inference Gateway operator manages it |
-| `k8s/certificates.yaml` | cert-manager issuers and the `infer-k8s` ECDSA P-256 certificate |
-| `k8s/infer-k8s.yaml` | The `infer-k8s` daemon: binding on its NetBird address, `files` TLS, a token, the gateway as its model endpoint |
+| `k8s/certificates.yaml` | The demo CA `peers-ca`, the `infer-k8s` server and `infer-local` client certificates, all ECDSA P-256 |
+| `k8s/infer-k8s.yaml` | The `infer-k8s` daemon: binding on its NetBird address with mTLS, the gateway as its model endpoint |
 | `k8s/gateway.yaml` | The `Gateway` resource, a NetworkPolicy that admits only WireGuard to its pods, and tokenless behind it |
 | `k8s/attacker.yaml` | A NetBird peer that no policy admits |
 | `k8s/sniffer.yaml` | `tcpdump` on the host network of the `infer-k8s` node |
 | `local/compose.yaml` | `infer-local`: the daemon and its NetBird client, two containers sharing one network namespace |
 | `local/daemon.yaml` | `infer-local`'s config, with `infer-k8s` as a `kind: daemon` workspace |
 | `Taskfile.yml` | Every step below |
-| `.state/` | Created by the tasks: the NetBird API token, the owner's password, the `infer-k8s` CA, the last session and capture |
+| `.state/` | Created by the tasks: the NetBird API token, the owner's password, `infer-local`'s client certificate, the last session and capture |
 
 ## Quick start
 
@@ -127,7 +127,7 @@ The `task up` steps, one by one:
 | `netbird:operator` | cert-manager, then the NetBird operator with that token |
 | `operator:install` | The Inference Gateway operator |
 | `netbird:peers` | The groups, setup keys and sidecar profiles, then the two policies |
-| `secrets` | The `infer-k8s` certificate, the binding token and the demo secret |
+| `secrets` | The `infer-k8s` server certificate, the `infer-local` client certificate and the demo secret |
 | `deploy` | tokenless, the `Gateway`, `infer-k8s` and the attacker |
 | `local:up` | `infer-local`, once its NetBird client resolves `infer-k8s.netbird.internal` |
 
@@ -155,9 +155,11 @@ The `task up` steps, one by one:
   `app: gateway`, the label the NetBird `SidecarProfile` and the NetworkPolicy both select. Its `spec.pod.nodeSelector`
   pins the pod to agent-0, away from `infer-k8s`. The peer keeps its pod's name (`gateway-7ddf64d7c8-r976t`), and the
   extra DNS label keeps `gateway.netbird.internal` stable across rollouts.
-- **TLS and the token.** `infer-k8s` serves `binding.tls.mode: files` with a certificate cert-manager issues for
-  `infer-k8s.netbird.internal`, `infer-k8s` and `localhost`. `infer-local` pins its CA (`tls.ca_file`) and sends the
-  token. TLS runs inside the WireGuard tunnel, so the session is encrypted twice.
+- **Mutual TLS on the first hop.** `infer-k8s` serves `binding.tls.mode: files` with `client_auth: true`, using a
+  certificate cert-manager issues for `infer-k8s.netbird.internal`, `infer-k8s` and `localhost`. Only a client with a
+  certificate from the same CA, `peers-ca`, gets through the handshake. `infer-local` pins that CA (`tls.ca_file`) and
+  presents its own client certificate (`tls.cert_file`, `tls.key_file`). The binding accepts that verified certificate in
+  place of a token, so there is none. TLS runs inside the WireGuard tunnel, so the session is encrypted twice.
 
 ## Watch the chain in the NetBird dashboard
 
@@ -210,12 +212,11 @@ WireGuard packets (udp port 51820):  507
 binding packets (tcp port 52789):    0
 gateway packets (tcp port 8080):     0
 DEMO_SECRET in the capture:          0
-INFER_K8S_TOKEN in the capture:      0
 the gateway's reply in the capture:  0
 plaintext canary in the capture:     9
 ```
 
-The teleport, the token, the turn and the model's reply only exist inside WireGuard. The capture is saved to
+The teleport, the turn and the model's reply only exist inside WireGuard. The capture is saved to
 `.state/teleport.pcap` for Wireshark. It leaves out the kubelet (10250) and API server (6443) ports, otherwise it
 would also record the `kubectl exec` stream that reads it back.
 
@@ -239,11 +240,25 @@ nc: connect to 10.42.3.9 port 8080 (tcp) failed: Connection refused
 Peers count: 0/0 Connected
 == infer-local: the gateway, two hops away
 gateway.netbird.internal: unreachable from infer-local
+== infer-local's network, the policy admits it, but no client certificate
+curl: (56) OpenSSL SSL_read: OpenSSL/3.5.4: error:0A00045C:SSL routines::tlsv13 alert certificate required, errno 0
 ```
 
 Management never sends the attacker either peer, so it can neither resolve their names nor reach their NetBird
 addresses. On the pod network, `infer-k8s` has nothing listening and the NetworkPolicy refuses the gateway. Even
-`infer-local` cannot skip a hop: no policy lets it reach the gateway, so it never learns its name.
+`infer-local` cannot skip a hop: no policy lets it reach the gateway, so it never learns its name. And the network
+alone is not enough: a client in `infer-local`'s own network namespace, which the policy admits, still fails the TLS
+handshake with `certificate required` unless it presents `infer-local`'s client certificate.
+
+## TLS on the other hops
+
+Only the first hop runs mutual TLS today. The other two run plain HTTP inside the WireGuard tunnel, because each is
+missing a piece, filed while building this example:
+
+| Hop | Missing |
+| --- | --- |
+| `infer-k8s` → `gateway` | Server TLS from the operator's `Gateway` never becomes Ready ([operator#310](https://github.com/inference-gateway/operator/issues/310)). The gateway cannot require client certificates ([inference-gateway#817](https://github.com/inference-gateway/inference-gateway/issues/817)). infer cannot present one to the gateway ([cli#1672](https://github.com/inference-gateway/cli/issues/1672)) |
+| `gateway` → tokenless | tokenless serves no TLS ([tokenless#90](https://github.com/inference-gateway/tokenless/issues/90)), and the gateway cannot present a client certificate to a provider (inference-gateway#817) |
 
 ## forward_env, sealed end to end
 

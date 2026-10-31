@@ -28,11 +28,10 @@ services:
     environment:
       INFER_GATEWAY_MOCK: "true"
       INFER_AGENT_MODEL: mock/openai/gpt-4o
-      INFER_K8S_TOKEN: ${INFER_K8S_TOKEN:-}
       DEMO_SECRET: ${DEMO_SECRET:-}
     volumes:
       - ./daemon.yaml:/home/infer/.infer/daemon.yaml:ro
-      - ../.state/infer-k8s-ca.crt:/etc/infer/infer-k8s-ca.crt:ro
+      - ../.state/infer-local-tls:/etc/infer/tls:ro
 networks:
   k3d:
     name: k3d-infer-netbird

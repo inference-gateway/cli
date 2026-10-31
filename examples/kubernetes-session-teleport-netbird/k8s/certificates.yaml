@@ -9,12 +9,12 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: infer-k8s-ca
+  name: peers-ca
   namespace: infer-peers
 spec:
   isCA: true
-  commonName: infer-k8s demo CA
-  secretName: infer-k8s-ca
+  commonName: infer peers demo CA
+  secretName: peers-ca
   duration: 720h
   privateKey:
     algorithm: ECDSA
@@ -26,11 +26,11 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: infer-k8s-ca
+  name: peers-ca
   namespace: infer-peers
 spec:
   ca:
-    secretName: infer-k8s-ca
+    secretName: peers-ca
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -51,5 +51,23 @@ spec:
     algorithm: ECDSA
     size: 256
   issuerRef:
-    name: infer-k8s-ca
+    name: peers-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-local-tls
+  namespace: infer-peers
+spec:
+  commonName: infer-local
+  secretName: infer-local-tls
+  duration: 720h
+  usages:
+    - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
     kind: Issuer

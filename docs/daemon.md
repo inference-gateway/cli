@@ -260,15 +260,18 @@ and behind Serve the key of that certificate belongs to Tailscale, not to the da
 To keep `forward_env`, let the remote daemon terminate TLS itself on its VPN address. With
 [NetBird](https://netbird.io/), set `binding.host` to the NetBird address only, serve `tls.mode: files` with an
 ECDSA P-256 certificate for its NetBird name (sealing needs an ECDSA key), and let a NetBird policy admit only the
-laptop's group to the binding port. The laptop registers it by that name and pins the CA:
+laptop's group to the binding port. With `client_auth: true` and a `ca_file`, the binding also requires a client
+certificate from that CA, which replaces the token. The laptop registers it by that name, pins the CA and presents its
+client certificate:
 
 ```yaml
   - name: workstation
     kind: daemon
     address: workstation.netbird.internal:52789
-    token: ${WORKSTATION_TOKEN}
     tls:
       ca_file: ~/.infer/daemon/workstation-ca.crt
+      cert_file: ~/.infer/daemon/laptop.crt
+      key_file: ~/.infer/daemon/laptop.key
     forward_env:
       - GITHUB_TOKEN
 ```

@@ -142,13 +142,10 @@ tasks:
         done
 
   secrets:
-    desc: Issue the infer-k8s ECDSA certificate with cert-manager, and create the binding token and the forwarded demo secret
+    desc: Issue the infer-k8s server and infer-local client certificates with cert-manager, and create the forwarded demo secret
     cmds:
       - '{{.KUBECTL}} apply -f k8s/certificates.yaml'
       - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready certificate --all --timeout=180s'
-      - |
-        {{.KUBECTL}} -n {{.NAMESPACE}} get secret infer-k8s-token >/dev/null 2>&1 || \
-          {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic infer-k8s-token --from-literal=INFER_K8S_TOKEN="$(openssl rand -hex 16)"
       - |
         {{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret >/dev/null 2>&1 || \
           {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic demo-secret --from-literal=DEMO_SECRET="sealed-$(openssl rand -hex 16)"
@@ -165,12 +162,11 @@ tasks:
   local:up:
     desc: Start infer-local, the daemon on "your machine" - a Docker container beside the cluster with its own NetBird client
     cmds:
-      - mkdir -p {{.STATE_DIR}}
-      - "{{.KUBECTL}} -n {{.NAMESPACE}} get secret infer-k8s-tls -o jsonpath='{.data.ca\\.crt}' | base64 -d > {{.STATE_DIR}}/infer-k8s-ca.crt"
       - |
         secret() { {{.KUBECTL}} -n {{.NAMESPACE}} get secret "$1" -o json | jq -r --arg key "$2" '.data[$key]' | base64 -d; }
+        mkdir -p {{.STATE_DIR}}/infer-local-tls
+        for file in ca.crt tls.crt tls.key; do secret infer-local-tls $file > {{.STATE_DIR}}/infer-local-tls/$file; done
         export NB_SETUP_KEY=$(secret setup-key-infer-local setup-key)
-        export INFER_K8S_TOKEN=$(secret infer-k8s-token INFER_K8S_TOKEN)
         export DEMO_SECRET=$(secret demo-secret DEMO_SECRET)
         export NETBIRD_NODE_IP=$(docker inspect k3d-{{.CLUSTER}}-server-0 | jq -r '.[0].NetworkSettings.Networks["k3d-{{.CLUSTER}}"].IPAddress')
         docker compose -f local/compose.yaml up -d --wait
@@ -253,18 +249,16 @@ tasks:
         count() { {{.KUBECTL}} -n {{.NAMESPACE}} exec sniffer -- sh -c "tcpdump -nn -r /captures/teleport.pcap '$1' 2>/dev/null | wc -l"; }
         matches() { grep -c -a -F "$1" {{.STATE_DIR}}/teleport.pcap || true; }
         SECRET=$({{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret -o jsonpath='{.data.DEMO_SECRET}' | base64 -d)
-        TOKEN=$({{.KUBECTL}} -n {{.NAMESPACE}} get secret infer-k8s-token -o jsonpath='{.data.INFER_K8S_TOKEN}' | base64 -d)
         echo "WireGuard packets (udp port 51820):  $(count 'udp port 51820')"
         echo "binding packets (tcp port 52789):    $(count 'tcp port 52789')"
         echo "gateway packets (tcp port 8080):     $(count 'tcp port 8080')"
         echo "DEMO_SECRET in the capture:          $(matches "$SECRET")"
-        echo "INFER_K8S_TOKEN in the capture:      $(matches "$TOKEN")"
         echo "the gateway's reply in the capture:  $(matches 'Hello from the Inference Gateway')"
         echo "plaintext canary in the capture:     $(matches "$(cat {{.STATE_DIR}}/canary)")"
         echo "capture saved to {{.STATE_DIR}}/teleport.pcap"
 
   attack:
-    desc: Try the infer-k8s binding and the gateway from the attacker, a NetBird peer no policy admits, and the gateway from infer-local
+    desc: Try infer-k8s and the gateway from the attacker, a NetBird peer no policy admits, then from infer-local's own network without its client certificate
     cmds:
       - |
         netbird_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} exec "$1" -c netbird -- netbird status --json | jq -r .netbirdIp | cut -d/ -f1; }
@@ -280,6 +274,9 @@ tasks:
         {{.KUBECTL}} -n {{.NAMESPACE}} exec attacker -c netbird -- netbird status | grep "Peers count"
         echo "== infer-local: the gateway, two hops away"
         {{.LOCAL}} sh -c "nc -z -w 3 gateway.netbird.internal 8080 2>&1 || echo 'gateway.netbird.internal: unreachable from infer-local'"
+        echo "== infer-local's network, the policy admits it, but no client certificate"
+        docker run --rm --network container:infer-local-netbird -v {{.STATE_DIR}}/infer-local-tls/ca.crt:/ca.crt:ro nicolaka/netshoot:v0.15 \
+          sh -c 'curl -sS --max-time 5 --cacert /ca.crt https://infer-k8s.netbird.internal:52789/ws 2>&1 || true'
 
   netbird:status:
     desc: Show infer-k8s's NetBird view of both its neighbours - connection type, handshake and bytes sent and received

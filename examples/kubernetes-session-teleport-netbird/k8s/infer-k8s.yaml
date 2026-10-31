@@ -12,11 +12,12 @@ data:
     binding:
       enabled: true
       port: 52789
-      token: ${INFER_K8S_TOKEN}
       tls:
         mode: files
         cert_file: /etc/infer/tls/tls.crt
         key_file: /etc/infer/tls/tls.key
+        ca_file: /etc/infer/tls/ca.crt
+        client_auth: true
 ---
 apiVersion: v1
 kind: Pod
@@ -44,11 +45,6 @@ spec:
           value: http://gateway.netbird.internal:8080
         - name: INFER_AGENT_MODEL
           value: openai/gpt-4o
-        - name: INFER_K8S_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: infer-k8s-token
-              key: INFER_K8S_TOKEN
       readinessProbe:
         exec:
           command:
@@ -78,3 +74,5 @@ spec:
             path: tls.crt
           - key: tls.key
             path: tls.key
+          - key: ca.crt
+            path: ca.crt
