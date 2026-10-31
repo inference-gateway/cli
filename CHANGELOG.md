@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0](https://github.com/inference-gateway/cli/compare/v0.238.0...v0.239.0) (2026-10-31)
+
+### 🚀 Features
+
+* **conversation:** add compact.strategy pointer mode ([#1629](https://github.com/inference-gateway/cli/issues/1629)) ([6367927](https://github.com/inference-gateway/cli/commit/63679275d6177aa69c640e4d7cf0ab71e2cdf9ec)), closes [#1627](https://github.com/inference-gateway/cli/issues/1627), references [#1592](https://github.com/inference-gateway/cli/issues/1592)
+* **teleport:** clean up a workspace's runtime once its session teleported home ([#1666](https://github.com/inference-gateway/cli/issues/1666)) ([cc4ab2b](https://github.com/inference-gateway/cli/commit/cc4ab2ba9708117fc2925b37b4668b2520b1906a)), references [inference-gateway/docs#1051](https://github.com/inference-gateway/docs/issues/1051)
+* **teleport:** deploy a gateway per kubernetes workspace that holds the provider keys ([#1667](https://github.com/inference-gateway/cli/issues/1667)) ([bc4c2e5](https://github.com/inference-gateway/cli/commit/bc4c2e5fdc47f04ff9f08d9c9a389a3f99b535e5))
+* **chat:** drive daemon threads from the TUI with infer chat --daemon ([#1634](https://github.com/inference-gateway/cli/issues/1634)) ([11a371d](https://github.com/inference-gateway/cli/commit/11a371dd742b7870dd6da83ed8b91e68e742d09b)), closes [#1632](https://github.com/inference-gateway/cli/issues/1632)
+* **tui:** quick wins - input correctness, Update-loop I/O, dead boilerplate, shared render helpers ([#1651](https://github.com/inference-gateway/cli/issues/1651)) ([f6615c9](https://github.com/inference-gateway/cli/commit/f6615c913e0ade9d91df20cf77d9ebc2eeeba501)), closes [#1645](https://github.com/inference-gateway/cli/issues/1645)
+* **teleport:** run kubernetes workspaces as operator Orchestrators ([#1660](https://github.com/inference-gateway/cli/issues/1660)) ([e1b3777](https://github.com/inference-gateway/cli/commit/e1b37778470bc9d26e9579cdfab92785ce3b7c32)), references [inference-gateway/operator#298](https://github.com/inference-gateway/operator/issues/298) [inference-gateway/operator#302](https://github.com/inference-gateway/operator/issues/302) [inference-gateway/operator#302](https://github.com/inference-gateway/operator/issues/302)
+* **daemon:** transfer sessions between local and remote executors ([#1628](https://github.com/inference-gateway/cli/issues/1628)) ([f36f0fc](https://github.com/inference-gateway/cli/commit/f36f0fc631c14f6c2ee3c846932e53deb86973c5)), closes [#1619](https://github.com/inference-gateway/cli/issues/1619)
+
+### 🐛 Bug Fixes
+
+* **daemon:** clean up the target of a failed transfer ([#1639](https://github.com/inference-gateway/cli/issues/1639)) ([7ac10b5](https://github.com/inference-gateway/cli/commit/7ac10b504e2d7a01ff4bd61b0e70908d1df2f4cd))
+* close the scheduler, computer and web concurrency hotspots ([#1646](https://github.com/inference-gateway/cli/issues/1646)) ([4673468](https://github.com/inference-gateway/cli/commit/4673468c91459fd7d0a735454980946970fddf76))
+* **examples:** reattach a session-teleport chat with task chat -- --session-id ([#1659](https://github.com/inference-gateway/cli/issues/1659)) ([7298c96](https://github.com/inference-gateway/cli/commit/7298c961f4dd254f87b928893fff1a62958b72a9))
+* **teleport:** relay every frame's project dir to the owner's workspace ([#1657](https://github.com/inference-gateway/cli/issues/1657)) ([5a29954](https://github.com/inference-gateway/cli/commit/5a2995439fcd69ed7f2b20275c24a089c718cb84))
+* **agent:** stop the loop on every plan request ([#1652](https://github.com/inference-gateway/cli/issues/1652)) ([66652c9](https://github.com/inference-gateway/cli/commit/66652c91c030acb9025a6c6b8efa6ce9d22273d0))
+* **teleport:** teleport a chat with no message sent yet ([#1656](https://github.com/inference-gateway/cli/issues/1656)) ([ccdf61b](https://github.com/inference-gateway/cli/commit/ccdf61ba71c1a1ca1f2affec93fa003547e823c4))
+
+### ♻️ Code Refactoring
+
+* **agent,conversation:** loop and conversation quick wins ([#1650](https://github.com/inference-gateway/cli/issues/1650)) ([0c1dc63](https://github.com/inference-gateway/cli/commit/0c1dc63fcc013e63e39dc922429bae5f550ded22)), closes [#1644](https://github.com/inference-gateway/cli/issues/1644)
+* **examples:** manage the kubernetes example cluster with ctlptl ([#1638](https://github.com/inference-gateway/cli/issues/1638)) ([2eea981](https://github.com/inference-gateway/cli/commit/2eea9817a50223f733c2b83704cbb18ae1e26cba)), closes [#1633](https://github.com/inference-gateway/cli/issues/1633)
+* **daemon:** rename session transfer to teleport ([#1640](https://github.com/inference-gateway/cli/issues/1640)) ([981dcea](https://github.com/inference-gateway/cli/commit/981dcea273f2272b5e4a49962bf7524f62eef5f9))
+* **daemon:** rename teleport environments to workspaces ([#1658](https://github.com/inference-gateway/cli/issues/1658)) ([35ada71](https://github.com/inference-gateway/cli/commit/35ada71a0b0c863a13892721ca6117bf17dc0ced))
+* **cmd:** route command output and config write paths onto shared helpers ([#1648](https://github.com/inference-gateway/cli/issues/1648)) ([ea0609d](https://github.com/inference-gateway/cli/commit/ea0609dfd1c345fb8df8e08322b6dbdf4df94a3a)), references [#1643](https://github.com/inference-gateway/cli/issues/1643) [inference-gateway/docs#1038](https://github.com/inference-gateway/docs/issues/1038) [#1643](https://github.com/inference-gateway/cli/issues/1643)
+* **tools:** share result helpers and make display flags optional ([#1647](https://github.com/inference-gateway/cli/issues/1647)) ([39c1c77](https://github.com/inference-gateway/cli/commit/39c1c77559e201ebd38fdec840ad57b656a4a63e)), closes [#1641](https://github.com/inference-gateway/cli/issues/1641)
+
+### ✅ Tests
+
+* **conversations:** prove show --grep --append pages the grep results ([#1630](https://github.com/inference-gateway/cli/issues/1630)) ([09fbb1d](https://github.com/inference-gateway/cli/commit/09fbb1dfce2b135eac1388ec1516bccefd6ddbbe)), references [#11](https://github.com/inference-gateway/cli/issues/11) [#11](https://github.com/inference-gateway/cli/issues/11) [#11](https://github.com/inference-gateway/cli/issues/11)
+
+### 👷 CI/CD
+
+* **release:** keep the installation guide out of CHANGELOG.md ([#1654](https://github.com/inference-gateway/cli/issues/1654)) ([434e4da](https://github.com/inference-gateway/cli/commit/434e4da2e364d847a9a08ee74d83397694af690e))
+* **release:** label issues and PRs shipped in an rc with rc ([#1655](https://github.com/inference-gateway/cli/issues/1655)) ([64e69f8](https://github.com/inference-gateway/cli/commit/64e69f83441ca30bb596f42f893313eb72a2e95f))
+
+### 🧹 Maintenance
+
+* **release:** 0.239.0-rc.9 [skip ci] ([#1653](https://github.com/inference-gateway/cli/issues/1653)) ([d68b450](https://github.com/inference-gateway/cli/commit/d68b4509a5f9b9ae3383f92dbedac1ec89135e97))
+* **deps:** bump cli rc version ([ca25fe2](https://github.com/inference-gateway/cli/commit/ca25fe2a088b2cfc4cd2bff641fa2aa704010262))
+
 ## [0.239.0-rc.10](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.9...v0.239.0-rc.10) (2026-10-31)
 
 ### 🚀 Features
