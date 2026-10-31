@@ -6,6 +6,7 @@ vars:
   NAMESPACE: infer-peers
   CERT_MANAGER_VERSION: v1.21.3
   NETBIRD_OPERATOR_VERSION: 0.9.0
+  INFERENCE_GATEWAY_OPERATOR_VERSION: v0.29.0
   API: http://localhost:18080/api
   STATE_DIR: '{{.TASKFILE_DIR}}/.state'
   NB: 'curl -fsS -H "Authorization: Token $(cat {{.TASKFILE_DIR}}/.state/pat)" -H "Content-Type: application/json"'
@@ -23,6 +24,7 @@ tasks:
       - task: netbird:install
       - task: netbird:bootstrap
       - task: netbird:operator
+      - task: operator:install
       - task: netbird:peers
       - task: secrets
       - task: deploy
@@ -96,6 +98,12 @@ tasks:
           oci://ghcr.io/netbirdio/helm-charts/netbird-operator --version {{.NETBIRD_OPERATOR_VERSION}} \
           -n netbird-operator -f netbird/operator-values.yaml --wait --timeout 5m
 
+  operator:install:
+    desc: Install the Inference Gateway operator, which runs the gateway from a Gateway resource
+    cmds:
+      - '{{.KUBECTL}} apply -f https://github.com/inference-gateway/operator/releases/download/{{.INFERENCE_GATEWAY_OPERATOR_VERSION}}/install.yaml'
+      - '{{.KUBECTL}} -n inference-gateway-system wait --for=condition=Available deployment --all --timeout=180s'
+
   netbird:peers:
     desc: Declare the groups, setup keys and sidecar profiles, then the two policies that chain infer-local to infer-k8s to the gateway
     cmds:
@@ -146,11 +154,13 @@ tasks:
           {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic demo-secret --from-literal=DEMO_SECRET="sealed-$(openssl rand -hex 16)"
 
   deploy:
-    desc: Start the gateway with its mock provider, the infer-k8s daemon and the attacker peer
+    desc: Start the gateway (an operator Gateway) with its mock provider, the infer-k8s daemon and the attacker peer
     cmds:
       - '{{.KUBECTL}} apply -f k8s/gateway.yaml -f k8s/infer-k8s.yaml -f k8s/attacker.yaml'
       - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/tokenless --timeout=300s'
-      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/gateway pod/infer-k8s pod/attacker --timeout=300s'
+      - until {{.KUBECTL}} -n {{.NAMESPACE}} get deployment gateway >/dev/null 2>&1; do sleep 2; done
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/gateway --timeout=300s'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/infer-k8s pod/attacker --timeout=300s'
 
   local:up:
     desc: Start infer-local, the daemon on "your machine" - a Docker container beside the cluster with its own NetBird client
@@ -258,13 +268,13 @@ tasks:
     cmds:
       - |
         netbird_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} exec "$1" -c netbird -- netbird status --json | jq -r .netbirdIp | cut -d/ -f1; }
-        pod_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} get pod "$1" -o jsonpath='{.status.podIP}'; }
+        pod_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} get pod -l "app=$1" -o jsonpath='{.items[0].status.podIP}'; }
         attacker() { echo "== attacker: $1"; {{.KUBECTL}} -n {{.NAMESPACE}} exec attacker -c attacker -- sh -c "$1 2>&1 || true"; }
         attacker "nslookup infer-k8s.netbird.internal | tail -n 2"
-        attacker "nc -z -v -w 3 $(netbird_ip infer-k8s) 52789"
+        attacker "nc -z -v -w 3 $(netbird_ip pod/infer-k8s) 52789"
         attacker "nc -z -v -w 3 $(pod_ip infer-k8s) 52789"
         attacker "nslookup gateway.netbird.internal | tail -n 2"
-        attacker "nc -z -v -w 3 $(netbird_ip gateway) 8080"
+        attacker "nc -z -v -w 3 $(netbird_ip deployment/gateway) 8080"
         attacker "nc -z -v -w 3 $(pod_ip gateway) 8080"
         echo "== attacker: its NetBird peers"
         {{.KUBECTL}} -n {{.NAMESPACE}} exec attacker -c netbird -- netbird status | grep "Peers count"

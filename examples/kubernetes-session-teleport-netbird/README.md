@@ -11,7 +11,7 @@ infer-local    Docker container beside the cluster, "your machine"
 infer-k8s      pod on agent-1, binding only on its NetBird address, files TLS and a token
     │          policy infer-k8s-to-gateway: TCP 8080 (model calls)
     ▼
-gateway        pod on agent-0, the Inference Gateway, only WireGuard on its pod address
+gateway        the Inference Gateway, run by its operator, only WireGuard on its pod address
     │          cluster network
     ▼
 tokenless      a mock OpenAI provider, so no API key is needed
@@ -29,10 +29,12 @@ Everything runs in a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declar
   `netbirdio/netbird-server` v0.82.0, plus the dashboard v2.96.0
 - the [NetBird Kubernetes operator](https://github.com/netbirdio/kubernetes-operator) v0.9.0. It turns the pods into
   NetBird peers by injecting a NetBird client sidecar
+- the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.29.0. It runs the gateway from a
+  `Gateway` resource
 - [cert-manager](https://cert-manager.io/) v1.21.3. It serves the operator's webhook and issues the `infer-k8s`
   certificate
 - the [Inference Gateway](https://github.com/inference-gateway/inference-gateway) 0.60.1 in front of
-  [tokenless](https://github.com/inference-gateway/tokenless) v0.10.0
+  [tokenless](https://github.com/inference-gateway/tokenless) v0.10.0, a mock OpenAI provider
 - an attacker peer and a packet sniffer
 
 Nothing needs an account or an API key. See [infer daemon](../../docs/daemon.md#daemons-on-other-machines) for the
@@ -61,10 +63,10 @@ VPN.
 | `netbird/dashboard.yaml` | The NetBird dashboard on <http://localhost:18081> |
 | `netbird/operator-values.yaml` | The operator's Helm values: the self-hosted management URL, the client image, the one namespace it injects into |
 | `netbird/peers.yaml` | A `Group` and `SetupKey` per peer, and a `SidecarProfile` for each pod: `infer-k8s`, `gateway`, `attacker` |
-| `k8s/namespace.yaml` | The `infer-peers` namespace the pods run in |
+| `k8s/namespace.yaml` | The `infer-peers` namespace, labelled so the Inference Gateway operator manages it |
 | `k8s/certificates.yaml` | cert-manager issuers and the `infer-k8s` ECDSA P-256 certificate |
 | `k8s/infer-k8s.yaml` | The `infer-k8s` daemon: binding on its NetBird address, `files` TLS, a token, the gateway as its model endpoint |
-| `k8s/gateway.yaml` | The gateway, a NetworkPolicy that admits only WireGuard to it, and tokenless behind it |
+| `k8s/gateway.yaml` | The `Gateway` resource, a NetworkPolicy that admits only WireGuard to its pods, and tokenless behind it |
 | `k8s/attacker.yaml` | A NetBird peer that no policy admits |
 | `k8s/sniffer.yaml` | `tcpdump` on the host network of the `infer-k8s` node |
 | `local/compose.yaml` | `infer-local`: the daemon and its NetBird client, two containers sharing one network namespace |
@@ -75,7 +77,7 @@ VPN.
 ## Quick start
 
 ```bash
-# 1. Cluster, NetBird, operator, peers and policies, certificates, the gateway, infer-k8s, the attacker, infer-local
+# 1. Cluster, NetBird, both operators, peers and policies, certificates, the gateway, infer-k8s, the attacker, infer-local
 task up
 
 # 2. infer-k8s is reachable from infer-local by its NetBird name
@@ -122,10 +124,11 @@ The `task up` steps, one by one:
 | `image:import` | The infer image from this checkout, imported into the cluster |
 | `netbird:install` | The NetBird server and dashboard, with keys generated once |
 | `netbird:bootstrap` | The owner and an API token (`POST /api/setup`), the `netbird.internal` DNS domain, the allow-all `Default` policy deleted |
-| `netbird:operator` | cert-manager, then the operator with that token |
+| `netbird:operator` | cert-manager, then the NetBird operator with that token |
+| `operator:install` | The Inference Gateway operator |
 | `netbird:peers` | The groups, setup keys and sidecar profiles, then the two policies |
 | `secrets` | The `infer-k8s` certificate, the binding token and the demo secret |
-| `deploy` | tokenless, the gateway, `infer-k8s` and the attacker |
+| `deploy` | tokenless, the `Gateway`, `infer-k8s` and the attacker |
 | `local:up` | `infer-local`, once its NetBird client resolves `infer-k8s.netbird.internal` |
 
 ## How the pieces fit
@@ -148,6 +151,12 @@ The `task up` steps, one by one:
 - **Off the pod network.** `infer-k8s` waits until `wt0` has an address, then starts the daemon with
   `INFER_DAEMON_BINDING_HOST` set to it, so nothing listens on its pod address. The gateway image has no shell to do the
   same, so the NetworkPolicy `gateway-wireguard-only` admits nothing but WireGuard (UDP 51820) to its pod address.
+- **The gateway.** The Inference Gateway operator turns the `Gateway` named `gateway` into a Deployment whose pods carry
+  `app: gateway`, the label the NetBird `SidecarProfile` and the NetworkPolicy both select. The `Gateway` resource sets
+  no pod labels, annotations or node placement of its own
+  ([inference-gateway/operator#308](https://github.com/inference-gateway/operator/issues/308)), so the peer keeps its
+  pod's name (`gateway-5f58f87d6b-xnd8h`) and the pod runs on whichever node the scheduler picks. The extra DNS label
+  keeps `gateway.netbird.internal` stable all the same.
 - **TLS and the token.** `infer-k8s` serves `binding.tls.mode: files` with a certificate cert-manager issues for
   `infer-k8s.netbird.internal`, `infer-k8s` and `localhost`. `infer-local` pins its CA (`tls.ca_file`) and sends the
   token. TLS runs inside the WireGuard tunnel, so the session is encrypted twice.
@@ -191,7 +200,7 @@ community server has no flow log, so the capture below shows what crosses the wi
 ## What an attacker gets
 
 **On the wire.** `sniffer` runs `tcpdump` on the host network of the `infer-k8s` node, so it sees both hops:
-`infer-local` to `infer-k8s`, and `infer-k8s` to the gateway on the other agent. `task sniff:start` starts it and sends
+`infer-local` to `infer-k8s`, and `infer-k8s` to the gateway, wherever it runs. `task sniff:start` starts it and sends
 a plaintext canary from `infer-local` to that node, to prove the capture reads plaintext when there is any.
 `task sniff:report` reads the capture after `task demo`:
 
@@ -290,4 +299,5 @@ task cleanup
 | `task local:up` cannot resolve `infer-k8s.netbird.internal` | Check `docker logs infer-local-netbird` for the management connection |
 | `ports are not available` on `task cluster:create` | Something else listens on 18080 or 18081. Free them, the config uses those numbers |
 | `task demo` hangs before `provisioning` | The daemons run an older infer. Run `task image:import`, recreate the `infer-k8s` pod, `task local:up` |
-| The turn on `infer-k8s` fails to reach the model | Check `kubectl -n infer-peers logs deploy/tokenless` and the gateway's logs |
+| The turn on `infer-k8s` fails to reach the model | Check `kubectl -n infer-peers logs deploy/tokenless` and `deploy/gateway` |
+| No `gateway` Deployment | The namespace lacks `inference-gateway.com/managed=true` or the operator is down. Run `task operator:install` |
