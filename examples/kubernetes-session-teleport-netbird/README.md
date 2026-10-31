@@ -168,13 +168,14 @@ task dashboard
 The task prints the dashboard URL and the owner's login: `admin@netbird.local` and the password in
 `.state/owner-password`. Then look at:
 
-- **Control Center → Peer**: the graph draws one hop at a time, the policies that let the focused peer reach others.
-  Pick the peer with the selector on its node:
-  - `infer-local` → `infer-local-to-infer-k8s` (TCP 52789) → `infer-k8s`
-  - `infer-k8s` → `infer-k8s-to-gateway` (TCP 8080) → `gateway`
-  - `attacker`, where the view opens because it sorts first, has no edges at all
-- **Control Center → Group**: the same hops, group by group. Clicking a group node opens its membership editor, so
-  cancel it to leave the groups as they are.
+- **Control Center → Group**, then pick `infer-k8s` with the selector (⇕) on the selected node. The Group view draws the
+  policies the selected group is the source of on its right and the ones it is the destination of on its left, so the
+  whole chain fits in one view: `infer-local` → `infer-local-to-infer-k8s` (TCP 52789) → `infer-k8s` →
+  `infer-k8s-to-gateway` (TCP 8080) → `gateway`. The Control Center is an access explorer, not a network map, so it
+  always starts from one selected node, the first alphabetically. Clicking any other group node opens its membership
+  editor, so cancel it to leave the groups as they are.
+- **Control Center → Peer**: only the policies the selected peer is the source of. `infer-local` shows the hop to
+  `infer-k8s`, `infer-k8s` the hop to `gateway`, and `attacker`, where the view opens, has no edges at all.
 - **Access Control → Policies**: `infer-local-to-infer-k8s` (TCP 52789) and `infer-k8s-to-gateway` (TCP 8080), and
   nothing else.
 - **Peers**: the four peers, online, each with its group and NetBird address.
@@ -291,7 +292,7 @@ task cleanup
 | --- | --- |
 | `task netbird:bootstrap` fails on `POST /api/setup` | The account already exists but `.state/pat` is gone. Run `task cleanup` and `task up` again |
 | Sign-in shows `Bad Request: Requested resource does not exist` | The page belongs to a cluster you recreated. Open <http://localhost:18081> again |
-| The Control Center shows a single peer and no edges | It opened on `attacker`. Pick `infer-local` or `infer-k8s` in the peer selector |
+| The Control Center shows a single node and no edges | It opened on `attacker`. Use the Group tab and select `infer-k8s` |
 | The operator logs `invalid header field value` | The API key Secret holds a newline. Run `task netbird:operator` again |
 | A pod is rejected by `mpod-v1.netbird.io` | The operator is not ready yet. Wait for its pod in `netbird-operator`, then run `task deploy` |
 | A NetBird client never gets an address | Your Docker VM's kernel lacks WireGuard. Docker Desktop and OrbStack have it |
