@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0-rc.7](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.6...v0.239.0-rc.7) (2026-10-31)
+
+### 🐛 Bug Fixes
+
+* **teleport:** teleport a chat with no message sent yet ([#1656](https://github.com/inference-gateway/cli/issues/1656)) ([ccdf61b](https://github.com/inference-gateway/cli/commit/ccdf61ba71c1a1ca1f2affec93fa003547e823c4))
+
+### 👷 CI/CD
+
+* **release:** label issues and PRs shipped in an rc with rc ([#1655](https://github.com/inference-gateway/cli/issues/1655)) ([64e69f8](https://github.com/inference-gateway/cli/commit/64e69f83441ca30bb596f42f893313eb72a2e95f))
+
 ## [0.239.0-rc.6](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.5...v0.239.0-rc.6) (2026-10-30)
 
 ### 🚀 Features
