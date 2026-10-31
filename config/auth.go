@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,4 +45,18 @@ func LoadAuthKeys() (map[string]string, error) {
 	}
 
 	return keys, nil
+}
+
+// Credentials resolves names the way the local gateway does: the environment
+// first, then the userspace auth file. Unset names are left out, and the error
+// is the auth file's warning, so callers log it and go on.
+func Credentials(names []string) (map[string]string, error) {
+	authKeys, err := LoadAuthKeys()
+	values := make(map[string]string, len(names))
+	for _, name := range names {
+		if value := cmp.Or(os.Getenv(name), authKeys[name]); value != "" {
+			values[name] = value
+		}
+	}
+	return values, err
 }
