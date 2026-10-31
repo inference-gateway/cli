@@ -91,3 +91,25 @@ func TestPanelTeleportFramesReportMissingStorage(t *testing.T) {
 		t.Fatalf("import without storage reported no error: %v", frame)
 	}
 }
+
+func TestPanelTeleportsAConversationNotStoredYet(t *testing.T) {
+	store := storage.NewMemoryStorage()
+	deps := panelDeps()
+	deps.Storage = store
+	p, sink := startPanel(deps)
+
+	handle(t, p, map[string]any{"type": "export_conversation", "id": "fresh"})
+	exported := readFrame(t, sink, "conversation_export")
+	if exported["error"] != nil || exported["message_count"] != float64(0) || exported["digest"] == nil {
+		t.Fatalf("export of a chat with no message sent = %v, want an empty conversation", exported)
+	}
+
+	handle(t, p, map[string]any{"type": "import_conversation", "id": "fresh", "entries": nil})
+	imported := readFrame(t, sink, "conversation_imported")
+	if imported["error"] != nil || imported["digest"] != exported["digest"] {
+		t.Fatalf("import of the empty export = %v, want the export's digest %v", imported, exported["digest"])
+	}
+	if _, _, err := store.LoadConversation(context.Background(), "fresh"); err == nil {
+		t.Fatal("importing an empty conversation stored one, so listings would show a conversation with no message")
+	}
+}

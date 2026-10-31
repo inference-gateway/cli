@@ -59,14 +59,16 @@ type teleports struct {
 	store storage.ConversationStorage
 }
 
-// export answers export_conversation with the conversation as stored.
+// export answers export_conversation with the conversation as stored. A chat
+// with no message sent has nothing stored yet and exports as empty, so a fresh
+// session still teleports.
 func (t *teleports) export(id string) {
 	if t.store == nil {
 		t.write(conversationExportFrame{Type: outboundConversationExport, ID: id, Error: errNoConversationStorage.Error()})
 		return
 	}
 	entries, metadata, err := t.store.LoadConversation(context.Background(), id)
-	if err != nil {
+	if err != nil && !errors.Is(err, convdomain.ErrConversationNotFound) {
 		t.write(conversationExportFrame{Type: outboundConversationExport, ID: id, Error: err.Error()})
 		return
 	}
@@ -92,7 +94,7 @@ func (t *teleports) importFrom(line []byte) {
 	frame.Metadata.ID = frame.ID
 	frame.Metadata.Project = projects.Path()
 	frame.Metadata.MessageCount = len(frame.Entries)
-	if err := t.store.SaveConversation(context.Background(), frame.ID, frame.Entries, frame.Metadata); err != nil {
+	if err := t.save(frame); err != nil {
 		t.write(conversationImportedFrame{Type: outboundConversationImported, ID: frame.ID, Error: err.Error()})
 		return
 	}
@@ -100,4 +102,13 @@ func (t *teleports) importFrom(line []byte) {
 	t.write(conversationImportedFrame{
 		Type: outboundConversationImported, ID: frame.ID, MessageCount: len(messages), Digest: agui.SnapshotDigest(messages),
 	})
+}
+
+// save stores an imported conversation. An empty one stores nothing, so the
+// listings never show a conversation with no message. Its first message does.
+func (t *teleports) save(frame importConversationFrame) error {
+	if len(frame.Entries) == 0 {
+		return nil
+	}
+	return t.store.SaveConversation(context.Background(), frame.ID, frame.Entries, frame.Metadata)
 }
