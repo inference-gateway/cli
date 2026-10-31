@@ -170,8 +170,8 @@ In the chat:
    stages, `provisioning`, `checkpointing`, `restoring` and `ready`, and the indicator turns into `⇄ k8s-desktop`.
 4. Send `browse to example.com`. The turn runs in the pod, and `task desktop:screenshot` in another shell saves
    its screen to `.home/desktop.png`.
-5. Quit with `/exit`. The session keeps running on the pod, and the exit line prints the command that comes
-   back to it: `infer chat --daemon --session-id <id>`.
+5. Quit with `/exit`. The session keeps running on the pod, and the exit line prints its id. Come back to it
+   with `task chat -- --session-id <id>`, which runs `infer chat --daemon --session-id <id>` with the demo `HOME`.
 6. Bring it home with `/teleport laptop`, or `laptop` in the picker. The pod packs the session, its commits
    fast-forward the checkout in `.home/project`, and its uncommitted and untracked files land there too.
 

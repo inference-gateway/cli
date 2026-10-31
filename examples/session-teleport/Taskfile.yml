@@ -101,7 +101,7 @@ tasks:
       - home
     interactive: true
     cmds:
-      - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} chat --daemon
+      - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} chat --daemon {{.CLI_ARGS}}
 
   workspaces:
     desc: List the workspaces and their reachability
