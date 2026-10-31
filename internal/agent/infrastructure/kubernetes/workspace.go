@@ -171,7 +171,7 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
-	if create && e.entry.DeploysGateway() {
+	if e.entry.DeploysGateway() {
 		if err := e.awaitGateway(ctx); err != nil {
 			return agentdomain.Endpoint{}, err
 		}
@@ -204,8 +204,8 @@ func (e *Workspace) requireOperator(ctx context.Context) error {
 }
 
 // minOperatorVersion is the first operator release that runs an Orchestrator
-// in a Sandbox from the image's own entrypoint.
-const minOperatorVersion = "v0.28.1"
+// in a Sandbox from the image's own entrypoint and links it to a Gateway by ref.
+const minOperatorVersion = "v0.29.0"
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // and the certificates the daemon CA issued.
@@ -284,8 +284,8 @@ func randomToken() (string, error) {
 }
 
 // create submits the Orchestrator for a session. Strict field validation makes
-// an operator that predates the Sandbox runtime refuse it instead of running
-// the daemon as a Deployment.
+// an older operator refuse a field it does not know, such as the Sandbox
+// runtime or the gateway ref, instead of silently dropping it.
 func (e *Workspace) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	orchestrator, err := e.orchestrator(name, session)
 	if err != nil {
@@ -293,7 +293,7 @@ func (e *Workspace) create(ctx context.Context, name string, session agentdomain
 	}
 	created, err := e.orchestrators().Create(ctx, orchestrator, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict})
 	if k8serrors.IsBadRequest(err) {
-		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s predates runtime: Sandbox, upgrade it to %s or later: %w", name, e.entry.Name, minOperatorVersion, err)
+		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s may predate %s, upgrade it: %w", name, e.entry.Name, minOperatorVersion, err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("creating Orchestrator %s: %w", name, err)
@@ -442,8 +442,8 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8s
 		"a2a":   map[string]any{"enabled": true},
 		"env":   e.env(),
 	}
-	if url := e.podGatewayURL(); url != "" {
-		spec["gateway"] = map[string]any{"url": url}
+	if gateway := e.orchestratorGateway(); gateway != nil {
+		spec["gateway"] = gateway
 	}
 	return &k8sunstructured.Unstructured{Object: map[string]any{
 		"apiVersion": orchestratorGroup + "/" + orchestratorVersion,

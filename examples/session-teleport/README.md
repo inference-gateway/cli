@@ -249,7 +249,8 @@ kubectl --context k3d-infer-workspaces -n infer-workspaces exec $POD -- env | gr
 The last command prints only `INFER_GATEWAY_URL`. Every session on `k8s-cloud` shares the one Gateway. Each
 session's Orchestrator owns it and its Secret, so `infer daemon stop` on the last session, or that
 session's retention, deletes both. A teleport whose daemon has no key leaves the stored one in place,
-and a changed key rolls the gateway.
+and a changed key rolls the gateway. Once every session on `k8s-cloud` idled out, the Gateway keeps its
+Deployment and Secret but runs no pod, and the next turn starts it again.
 
 `mode: all-in-one` runs the gateway inside the pod instead. The key travels sealed with the session, and
 the pod's workers start the gateway binary on `127.0.0.1:8080` with it, so the agent can read it.

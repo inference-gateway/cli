@@ -28,7 +28,6 @@ import (
 const (
 	gatewayKind       = "Gateway"
 	gatewayResource   = "gateways"
-	gatewayPort       = 8080
 	credentialsSuffix = "-credentials"
 	revisionEnv       = "CREDENTIALS_REVISION"
 	revisionKey       = "inference-gateway.com/credentials-revision"
@@ -44,27 +43,23 @@ func gatewayName(workspace string) string {
 	return "infer-gateway-" + hex.EncodeToString(sum[:])[:12]
 }
 
-func (e *Workspace) gatewayURL() string {
-	return fmt.Sprintf("http://%s.%s.svc:%d", gatewayName(e.entry.Name), e.entry.Namespace, gatewayPort)
-}
-
-// podGatewayURL is the gateway the pod's workers call: inside the pod in
-// all-in-one mode, the workspace's own beside it, else whatever the image or
-// the entry's env names.
-func (e *Workspace) podGatewayURL() string {
+// orchestratorGateway is the spec.gateway the pod's workers call: inside the
+// pod in all-in-one mode, else the workspace's own Gateway by ref, which the
+// operator addresses and parks while every session is suspended. Nil leaves it
+// to the image or the entry's env.
+func (e *Workspace) orchestratorGateway() map[string]any {
 	switch {
 	case e.entry.Mode == config.WorkspaceModeAllInOne:
-		return inPodGatewayURL
+		return map[string]any{"url": inPodGatewayURL}
 	case e.entry.DeploysGateway():
-		return e.gatewayURL()
+		return map[string]any{"ref": gatewayName(e.entry.Name)}
 	}
-	return ""
+	return nil
 }
 
 // ensureGateway writes gateway_env from this daemon's environment into the
 // gateway's Secret and deploys the Gateway that reads it, both owned by every
 // session's Orchestrator, so the last session to go takes them along.
-// ponytail: the gateway keeps running while its sessions are suspended, scale it with them if idle cost matters.
 func (e *Workspace) ensureGateway(ctx context.Context, orchestrator *k8sunstructured.Unstructured) error {
 	revision, err := e.writeCredentials(ctx, orchestrator)
 	if err != nil {
@@ -179,8 +174,9 @@ func (e *Workspace) applyGateway(ctx context.Context, orchestrator *k8sunstructu
 }
 
 // awaitGateway polls until the workspace gateway has a pod that serves, since
-// the restore already imports the conversation through it. The operator only
-// deploys Gateways in namespaces its WATCH_NAMESPACE_SELECTOR matches.
+// the restore already imports the conversation through it and a parked gateway
+// only comes back with its session. The operator only deploys Gateways in
+// namespaces its WATCH_NAMESPACE_SELECTOR matches.
 // ponytail: one available pod is enough, so a rotated key may serve a turn from the old pod until its rollout ends.
 func (e *Workspace) awaitGateway(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
@@ -209,9 +205,9 @@ func (e *Workspace) awaitGateway(ctx context.Context) error {
 	}
 }
 
-// gatewaySpec serves on the port gatewayURL names and reads every gateway_env
-// variable from the credentials Secret, grouped by provider. The Secret's revision rides along, so a rotated key
-// changes the spec and rolls the gateway's pods.
+// gatewaySpec reads every gateway_env variable from the credentials Secret,
+// grouped by provider, and serves on the operator's default port. The Secret's
+// revision rides along, so a rotated key changes the spec and rolls the pods.
 func (e *Workspace) gatewaySpec(revision string) map[string]any {
 	secret := gatewayName(e.entry.Name) + credentialsSuffix
 	byProvider := map[string][]any{}
@@ -227,7 +223,7 @@ func (e *Workspace) gatewaySpec(revision string) map[string]any {
 		providers = append(providers, map[string]any{"name": provider, "enabled": true, "env": byProvider[provider]})
 	}
 	providers = append(providers, map[string]any{"name": "credentials", "enabled": true, "env": []any{envVar(revisionEnv, revision)}})
-	return map[string]any{"server": map[string]any{"port": int64(gatewayPort)}, "providers": providers}
+	return map[string]any{"providers": providers}
 }
 
 // providerOf names the provider a gateway variable configures, the part
