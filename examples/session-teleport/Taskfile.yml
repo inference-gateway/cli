@@ -89,9 +89,15 @@ tasks:
           git commit --quiet -m "init"
         fi
 
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
   daemon:start:
     desc: Run the laptop daemon with the demo HOME (foreground, keep it in its own shell)
     deps:
+      - build
       - home
     cmds:
       - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} daemon
@@ -99,6 +105,7 @@ tasks:
   chat:
     desc: Chat in the demo project through the laptop daemon (started when needed), and teleport the session with /workspaces or /teleport
     deps:
+      - build
       - home
     interactive: true
     cmds:
@@ -106,6 +113,8 @@ tasks:
 
   workspaces:
     desc: List the workspaces and their reachability
+    deps:
+      - build
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} daemon workspaces
 
@@ -116,6 +125,8 @@ tasks:
       PROMPT: '{{default "say hello again" .PROMPT}}'
       ID:
         sh: uuidgen | tr 'A-Z' 'a-z'
+    deps:
+      - build
     cmds:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
       - HOME={{.HOME_DIR}} {{.INFER}} daemon workspaces
