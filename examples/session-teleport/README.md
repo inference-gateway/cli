@@ -1,4 +1,4 @@
-# Session teleport: teleport a daemon session to a Kubernetes environment
+# Session teleport: teleport a daemon session to a Kubernetes workspace
 
 Teleport a running `infer daemon` session from your laptop to a Kubernetes sandbox and pick it up from any
 client. The worker process never teleports: the daemon checkpoints the conversation and the project's git
@@ -10,11 +10,11 @@ The cluster is a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declared i
 [ctlptl](https://github.com/tilt-dev/ctlptl), running the
 [agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) controller, which gives every session
 a `Sandbox`: a stable pod with two persistent volumes (the workspace and the conversation store) that the
-pod daemon suspends when idle and the next teleport resumes. Both environments authenticate the pod with mTLS
+pod daemon suspends when idle and the next teleport resumes. Both workspaces authenticate the pod with mTLS
 from the daemon's own CA: `k8s-dev` runs the plain image, `k8s-desktop` adds a Linux desktop of its own.
 
-Everything runs against the built-in mock model, so no API key is needed. See [infer daemon](../../docs/daemon.md#environments-and-teleports)
-for the environment model and the [Daemon Binding Protocol](../../docs/browser-extension-protocol.md#environments)
+Everything runs against the built-in mock model, so no API key is needed. See [infer daemon](../../docs/daemon.md#workspaces-and-teleports)
+for the workspace model and the [Daemon Binding Protocol](../../docs/browser-extension-protocol.md#workspaces)
 for the wire frames.
 
 ## Prerequisites
@@ -28,20 +28,20 @@ for the wire frames.
 
 | File | Purpose |
 | --- | --- |
-| `Cluster.yaml` | The ctlptl cluster: k3d `infer-environments` with one agent node, pinned to k3s v1.37.1 |
-| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` and `k8s-desktop` environments |
+| `Cluster.yaml` | The ctlptl cluster: k3d `infer-workspaces` with one agent node, pinned to k3s v1.37.1 |
+| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev` and `k8s-desktop` workspaces |
 | `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
 | `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
-| `k8s/namespace.yaml` | The `infer-environments` namespace, the `infer-environment` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
+| `k8s/namespace.yaml` | The `infer-workspaces` namespace, the `infer-workspace` ServiceAccount, and the Role a pod uses to suspend its Sandbox |
 | `Taskfile.yml` | Every step below |
 | `.home/` | Created by the tasks: a throwaway `HOME` with the daemon config and the demo project |
 
 The tasks run the daemon under `.home/` as `HOME`, so your own `~/.infer` stays untouched.
 
-## Quick start: the daemon CA environment
+## Quick start: the daemon CA workspace
 
 ```bash
-# 1. The cluster, the agent-sandbox controller and the environment namespace
+# 1. The cluster, the agent-sandbox controller and the workspace namespace
 task cluster:create
 
 # 2. The infer image built from this checkout, imported into the cluster
@@ -54,18 +54,18 @@ task daemon:start
 task demo
 ```
 
-The environments run `ghcr.io/inference-gateway/cli:local`, the image `task image:import` builds from this
+The workspaces run `ghcr.io/inference-gateway/cli:local`, the image `task image:import` builds from this
 checkout, until a release candidate speaks the teleport protocol. Run `task image:import` again after every
 change you want on the pod.
 
-`task demo` prints the environments first, then the teleport's stages, the Sandbox and its pod, and the
+`task demo` prints the workspaces first, then the teleport's stages, the Sandbox and its pod, and the
 reply of a turn that ran on the pod:
 
 ```text
 NAME         KIND        REACHABLE  DETAILS
 laptop       local       true       storage=jsonl version=...
 k8s-desktop  kubernetes  true       image=infer-desktop:local ...
-k8s-dev      kubernetes  true       image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-environments sandboxes=0
+k8s-dev      kubernetes  true       image=ghcr.io/inference-gateway/cli:local kubernetes=v1.37.1+k3s1 namespace=infer-workspaces sandboxes=0
 provisioning
 checkpointing
 restoring
@@ -78,7 +78,7 @@ Hello! How can I help?
 
 What each step proved:
 
-- `provisioning` created the `Sandbox` from the environment entry, a Secret with the pod's server certificate,
+- `provisioning` created the `Sandbox` from the workspace entry, a Secret with the pod's server certificate,
   its client certificate and a binding token issued by the laptop daemon's CA (`.home/.infer/daemon/pki/`),
   waited for `Ready` and opened a port-forward to the pod's binding.
 - `checkpointing` stopped the laptop worker, exported the conversation through a worker in the project and
@@ -92,9 +92,9 @@ What each step proved:
 Look around:
 
 ```bash
-# The conversation and the workspace on the pod
-POD=$(kubectl -n infer-environments get pods -o jsonpath='{.items[0].metadata.name}')
-kubectl -n infer-environments exec $POD -- sh -c 'ls /workspace/project/*/ && ls /home/infer/.infer/projects/*/conversations'
+# The conversation and the workspace dir on the pod
+POD=$(kubectl -n infer-workspaces get pods -o jsonpath='{.items[0].metadata.name}')
+kubectl -n infer-workspaces exec $POD -- sh -c 'ls /workspace/project/*/ && ls /home/infer/.infer/projects/*/conversations'
 
 # A second teleport of the same session is refused: k8s-dev owns it now
 HOME=$PWD/.home ../../infer daemon teleport <conversation id> --to k8s-desktop --project-dir $PWD/.home/project
@@ -105,15 +105,15 @@ HOME=$PWD/.home ../../infer daemon run <conversation id> "and again" --project-d
 ```
 
 After `idle_ttl` (30 minutes in `daemon.yaml`) with no client and no run, the pod daemon suspends its own
-Sandbox: `kubectl -n infer-environments get sandboxes` shows `Ready False` with reason `SandboxSuspended`, the
+Sandbox: `kubectl -n infer-workspaces get sandboxes` shows `Ready False` with reason `SandboxSuspended`, the
 pod is gone and the two volumes stay. The next `infer daemon run` or teleport sets the Sandbox back to
 `Running`, waits for the new pod and reattaches the volumes.
 
 The pod only idles out when no run is open, so an agent you sent off keeps working with the laptop closed.
-Once every agent on the pod is done, the suspension also starts the environment's `retention` (24 hours in
+Once every agent on the pod is done, the suspension also starts the workspace's `retention` (24 hours in
 `daemon.yaml`): agent-sandbox then deletes the Sandbox with its volumes and its Secret, unless a run or a
 teleport resumed it first. An agent that waits on an approval or a question, or whose last run failed, is not
-done, and its Sandbox stays. `kubectl -n infer-environments get sandbox -o yaml` shows the countdown as
+done, and its Sandbox stays. `kubectl -n infer-workspaces get sandbox -o yaml` shows the countdown as
 `spec.shutdownTime` and the verdict as the `inference-gateway.com/agents-done` annotation. To delete a
 session's Sandbox now, whatever its state:
 
@@ -123,11 +123,11 @@ HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.ho
 
 `stop` releases the lease too, so the session continues from the laptop's copy, as it was before the teleport.
 
-## A computer of its own: the desktop environment
+## A computer of its own: the desktop workspace
 
-The `k8s-desktop` environment gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
+The `k8s-desktop` workspace gives the session a Linux desktop inside its pod. The `desktop/` image adds Xvfb,
 Chromium and ffmpeg to the infer image, and its entrypoint starts display `:99` with Chromium on it
-before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the environment's `env` registers the `Computer` tool for the
+before the pod daemon. `INFER_COMPUTER_USE_ENABLED` in the workspace's `env` registers the `Computer` tool for the
 pod's workers, so after the teleport the agent drives the pod's screen, never your laptop's.
 
 ```bash
@@ -148,7 +148,7 @@ pod, and stops the recording. The reply is
 shows Chromium on example.com. The recording is an artifact, see the next section. With a real model, drop
 `INFER_GATEWAY_MOCK_SCENARIOS` and the agent picks the steps from its own
 screenshots, so choose a vision model. The desktop lives as long as the pod: a suspended Sandbox comes back
-with a fresh display and browser, and only the workspace and the conversation persist.
+with a fresh display and browser, and only the workspace dir and the conversation persist.
 
 ## From the chat TUI: infer chat --daemon
 
@@ -164,8 +164,8 @@ task chat
 In the chat:
 
 1. Send `say hello`. The turn runs on a worker of the laptop daemon.
-2. Press `↓` to reach the status bar, `→` to the `⌂ laptop` indicator and `enter`, or type `/environments`.
-   The picker lists every environment with its reachability and details and marks `laptop` with `● here`.
+2. Press `↓` to reach the status bar, `→` to the `⌂ laptop` indicator and `enter`, or type `/workspaces`.
+   The picker lists every workspace with its reachability and details and marks `laptop` with `● here`.
 3. Pick `k8s-desktop` and press `enter`, or type `/teleport k8s-desktop`. The status line counts the four
    stages, `provisioning`, `checkpointing`, `restoring` and `ready`, and the indicator turns into `⇄ k8s-desktop`.
 4. Send `browse to example.com`. The turn runs in the pod, and `task desktop:screenshot` in another shell saves
@@ -186,7 +186,7 @@ everything it placed in `~/.infer/artifacts` or `~/.infer/projects/<project>/art
 uploaded to the `infer-artifacts` bucket under the session id.
 
 ```bash
-# 1. RustFS in the environment namespace (S3 API on rustfs:9000, console on rustfs:9001)
+# 1. RustFS in the workspace namespace (S3 API on rustfs:9000, console on rustfs:9001)
 task artifacts:install
 
 # 2. A conversation on the desktop: the agent browses and records its screen while it does
@@ -209,10 +209,10 @@ Sandbox is suspended or deleted.
 The upload is a `post_session` [command hook](../../docs/hooks.md) baked into the desktop image
 (`desktop/hooks.yaml`). It runs `desktop/upload-artifacts` after every finished run, which reads the session
 id from the hook's stdin and mirrors both artifact directories to `infer-artifacts/<session id>/` with the
-MinIO client. The environment's `env` points recordings at
+MinIO client. The workspace's `env` points recordings at
 `~/.infer/artifacts`, allow-lists the hook with `INFER_TOOLS_BASH_ALLOW_APPEND`, and carries the endpoint,
 bucket and credentials. A pod without `ARTIFACTS_ENDPOINT` skips the upload. The demo credentials sit in
-`daemon.yaml` in plain text. Put real ones under the environment's `forward_env` instead, so they travel
+`daemon.yaml` in plain text. Put real ones under the workspace's `forward_env` instead, so they travel
 sealed with the session and never land in the Sandbox spec.
 
 ## Switching the pod to a real model
@@ -220,8 +220,8 @@ sealed with the session and never land in the Sandbox spec.
 The image sets `INFER_GATEWAY_URL=http://inference-gateway:8080`, so a pod reaches a gateway Service of
 that name in its namespace. Deploy one (the [kubernetes example](../kubernetes/) uses the operator for
 this) with your provider keys in a Secret, drop `INFER_GATEWAY_MOCK` and set `INFER_AGENT_MODEL` in the
-environment's `env`. Provider and MCP credentials the laptop's workers use can travel with the session instead:
-list them under the environment's `forward_env`, and a teleport seals them to the pod's certificate for its
+workspace's `env`. Provider and MCP credentials the laptop's workers use can travel with the session instead:
+list them under the workspace's `forward_env`, and a teleport seals them to the pod's certificate for its
 workers. They never land in a Kubernetes object.
 
 ## Cleanup
@@ -239,8 +239,8 @@ task cleanup
 | `k8s-desktop` pod `ErrImageNeverPull` or `ImagePullBackOff` | Run `task desktop:image`, it imports `infer-desktop:local` into the cluster |
 | `desktop:screenshot` fails with `array index out of bounds` | No session lives on `k8s-desktop` yet. Run `task demo TARGET=k8s-desktop` first |
 | `artifacts:list` says the bucket does not exist | No run finished on `k8s-desktop` since `task artifacts:install`. The first run creates it |
-| `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-environments describe sandbox` and the pod's logs |
-| `session ... is owned by environment` | The session teleported. Continue with `infer daemon run`, or delete its Sandbox with `infer daemon stop` |
+| `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-workspaces describe sandbox` and the pod's logs |
+| `session ... is owned by workspace` | The session teleported. Continue with `infer daemon run`, or delete its Sandbox with `infer daemon stop` |
 | `restoring` fails with `does not apply cleanly` | The project changed after the teleport started. Retry |
 | `daemon teleport` hangs before `provisioning` | The daemon runs an older infer. Stop it and run `task daemon:start` again, it rebuilds `infer` |
 | Teleporting back fails with `did not answer the teleport back` | The pod runs an older infer. Run `task image:import`, then `task desktop:image` |
@@ -249,7 +249,7 @@ task cleanup
 | The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer daemon run` opens a new one |
 
 Two things to know. The lease a relaying daemon keeps for a remote owner lapses after `lease_ttl` (the
-environment's `idle_ttl` plus five minutes by default): a laptop that cannot reach the pod after that may
+workspace's `idle_ttl` plus five minutes by default): a laptop that cannot reach the pod after that may
 reclaim the session locally, with the conversation as of the last checkpoint. And a panel request such as
 `list_conversations` from another client in the same project dir may be routed to the relay and answer from
 the pod's store.

@@ -84,22 +84,22 @@ func gitProject(t *testing.T) string {
 	return dir
 }
 
-// peers starts daemon A, which registers daemon B as an environment of kind
-// daemon, and daemon B, which serves its binding over TLS as environment "b".
-func peers(t *testing.T) (a, b *daemonProc, workspaceRoot string) {
+// peers starts daemon A, which registers daemon B as a workspace of kind
+// daemon, and daemon B, which serves its binding over TLS as workspace "b".
+func peers(t *testing.T) (a, b *daemonProc, projectsRoot string) {
 	t.Helper()
 	homeA, homeB := t.TempDir(), t.TempDir()
 	certFile, keyFile, caFile, clientTLS := peerCA(t, homeB)
-	workspaceRoot = filepath.Join(homeB, "workspaces")
+	projectsRoot = filepath.Join(homeB, "projects")
 	b = startDaemonWithTLS(t, homeB, clientTLS,
-		"INFER_DAEMON_ENVIRONMENT=b",
-		"INFER_DAEMON_WORKSPACE_ROOT="+workspaceRoot,
+		"INFER_DAEMON_WORKSPACE=b",
+		"INFER_DAEMON_PROJECTS_ROOT="+projectsRoot,
 		"INFER_DAEMON_BINDING_TLS_MODE=files",
 		"INFER_DAEMON_BINDING_TLS_CERT_FILE="+certFile,
 		"INFER_DAEMON_BINDING_TLS_KEY_FILE="+keyFile,
 	)
-	daemonYAML := fmt.Sprintf(`environment: a
-environments:
+	daemonYAML := fmt.Sprintf(`workspace: a
+workspaces:
   - name: b
     kind: daemon
     address: 127.0.0.1:%d
@@ -111,7 +111,7 @@ environments:
 	require.NoError(t, os.MkdirAll(filepath.Join(homeA, ".infer"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(homeA, ".infer", "daemon.yaml"), []byte(daemonYAML), 0644))
 	a = startDaemon(t, homeA)
-	return a, b, workspaceRoot
+	return a, b, projectsRoot
 }
 
 func startDaemonWithTLS(t *testing.T, home string, clientTLS *tls.Config, extraEnv ...string) *daemonProc {
@@ -141,7 +141,7 @@ func teleport(c *daemonClient, project, threadID, target, teleportID string) []s
 }
 
 func TestTeleportSendsASessionToAnotherDaemon(t *testing.T) {
-	a, b, workspaceRoot := peers(t)
+	a, b, projectsRoot := peers(t)
 	project := gitProject(t)
 	desktop := dialDaemon(t, a, "desktop")
 	threadID := openThread(desktop, project, "auto")
@@ -151,10 +151,10 @@ func TestTeleportSendsASessionToAnotherDaemon(t *testing.T) {
 	stages := teleport(desktop, project, threadID, "b", teleportID)
 	require.Equal(t, []string{"provisioning", "checkpointing", "restoring", "ready"}, stages, "daemon A output:\n%s\ndaemon B output:\n%s", a.output, b.output)
 	teleported := desktop.next("session_teleported")
-	require.Equal(t, "b", teleported["environment"])
-	workspace, _ := teleported["workspace"].(string)
-	require.True(t, filepath.HasPrefix(workspace, workspaceRoot), "workspace %q is not under %q", workspace, workspaceRoot)
-	require.FileExists(t, filepath.Join(workspace, "notes.txt"), "the uncommitted file must travel with the workspace")
+	require.Equal(t, "b", teleported["workspace"])
+	workspaceDir, _ := teleported["workspace_dir"].(string)
+	require.True(t, filepath.HasPrefix(workspaceDir, projectsRoot), "workspace dir %q is not under %q", workspaceDir, projectsRoot)
+	require.FileExists(t, filepath.Join(workspaceDir, "notes.txt"), "the uncommitted file must travel with the repository")
 
 	require.Equal(t, []string{"ready"}, teleport(desktop, project, threadID, "b", teleportID), "a retry of the same teleport is a no-op")
 
@@ -166,7 +166,7 @@ func TestTeleportSendsASessionToAnotherDaemon(t *testing.T) {
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "events: %v\ndaemon A:\n%s\ndaemon B:\n%s", events, a.output, b.output)
 
 	direct := dialDaemon(t, b, "desktop")
-	direct.send(map[string]any{"type": "resume_conversation", "project_dir": workspace, "id": threadID})
+	direct.send(map[string]any{"type": "resume_conversation", "project_dir": workspaceDir, "id": threadID})
 	snapshot := direct.next("MESSAGES_SNAPSHOT")
 	require.True(t, snapshotContains(snapshot, "Hello! How can I help?"), "daemon B must hold the conversation")
 	messages, _ := snapshot["messages"].([]any)
@@ -192,12 +192,12 @@ func TestTeleportFailuresLeaveTheSessionAtHome(t *testing.T) {
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "the session must still run at home: %v", events)
 }
 
-func TestListEnvironmentsReportsReachability(t *testing.T) {
+func TestListWorkspacesReportsReachability(t *testing.T) {
 	home := t.TempDir()
 	deadPort := freePort(t)
 	_, _, caFile, _ := peerCA(t, home)
-	daemonYAML := fmt.Sprintf(`environment: a
-environments:
+	daemonYAML := fmt.Sprintf(`workspace: a
+workspaces:
   - name: ghost
     kind: daemon
     address: 127.0.0.1:%d
@@ -210,14 +210,14 @@ environments:
 	d := startDaemon(t, home)
 	client := dialDaemon(t, d, "desktop")
 
-	client.send(map[string]any{"type": "list_environments"})
-	environments, _ := client.next("environments")["environments"].([]any)
-	require.Len(t, environments, 2, "daemon output:\n%s", d.output)
-	local := environments[0].(map[string]any)
+	client.send(map[string]any{"type": "list_workspaces"})
+	workspaces, _ := client.next("workspaces")["workspaces"].([]any)
+	require.Len(t, workspaces, 2, "daemon output:\n%s", d.output)
+	local := workspaces[0].(map[string]any)
 	require.Equal(t, "a", local["name"])
 	require.Equal(t, true, local["reachable"])
-	ghost := environments[1].(map[string]any)
+	ghost := workspaces[1].(map[string]any)
 	require.Equal(t, "ghost", ghost["name"])
 	require.Equal(t, false, ghost["reachable"])
-	require.NotEmpty(t, ghost["error"], "an unreachable environment is reported, not hidden")
+	require.NotEmpty(t, ghost["error"], "an unreachable workspace is reported, not hidden")
 }

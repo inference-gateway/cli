@@ -4,7 +4,7 @@ import "encoding/json"
 
 // CheckpointSchemaVersion is the shape of Checkpoint a receiving daemon
 // understands. A mismatch refuses the teleport before anything is restored.
-const CheckpointSchemaVersion = 1
+const CheckpointSchemaVersion = 2
 
 // TeleportStage is one step of a teleport as reported to its requester.
 type TeleportStage string
@@ -17,12 +17,12 @@ const (
 	TeleportFailed        TeleportStage = "failed"
 )
 
-// Workspace is the project's git state: a bundle of HEAD, a binary patch of
+// Repository is the project's git state: a bundle of HEAD, a binary patch of
 // the uncommitted changes, a tarball of the untracked files that respect
 // .gitignore and the sandbox's denied paths, and the explicitly listed extra
 // files. Branch is the branch the restore checks out again, and Origin the
 // credential-free origin remote the restored clone pushes to.
-type Workspace struct {
+type Repository struct {
 	Branch    string `json:"branch"`
 	Origin    string `json:"origin,omitempty"`
 	Bundle    []byte `json:"bundle,omitempty"`
@@ -32,8 +32,8 @@ type Workspace struct {
 }
 
 // Checkpoint is everything a session needs to continue elsewhere: its
-// conversation unless both environments share a store, the interrupts its last
-// run was suspended on, the workspace, and the credentials sealed to the
+// conversation unless both workspaces share a store, the interrupts its last
+// run was suspended on, the repository, and the credentials sealed to the
 // target. SchemaVersion and Digest let the target validate before it claims.
 type Checkpoint struct {
 	SchemaVersion int             `json:"schema_version"`
@@ -42,12 +42,12 @@ type Checkpoint struct {
 	Digest        string          `json:"digest"`
 	Conversation  json.RawMessage `json:"conversation,omitempty"`
 	Interrupts    json.RawMessage `json:"interrupts,omitempty"`
-	Workspace     Workspace       `json:"workspace"`
+	Repository    Repository      `json:"repository"`
 	SealedEnv     []byte          `json:"sealed_env,omitempty"`
 }
 
 // TeleportRequest is what a client asks for: teleport the session to the named
-// environment, carrying the listed extra files. TeleportID makes retries
+// workspace, carrying the listed extra files. TeleportID makes retries
 // idempotent.
 type TeleportRequest struct {
 	TeleportID string   `json:"teleport_id"`
@@ -67,8 +67,8 @@ type TeleportProgress struct {
 // interrupts the teleport cancelled, so they resume there.
 type SessionTeleported struct {
 	Session             Session         `json:"session"`
-	Environment         string          `json:"environment"`
-	Addr                string          `json:"addr,omitempty"`
 	Workspace           string          `json:"workspace"`
+	Addr                string          `json:"addr,omitempty"`
+	WorkspaceDir        string          `json:"workspace_dir"`
 	CancelledInterrupts json.RawMessage `json:"cancelled_interrupts,omitempty"`
 }

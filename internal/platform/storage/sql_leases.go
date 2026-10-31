@@ -14,29 +14,29 @@ import (
 // exists, and update only when the row yields (same holder, same non-empty
 // teleport id, or lapsed). Zero affected rows means the holder kept it.
 const claimLeaseSQL = `
-	INSERT INTO session_leases (conversation_id, environment, workspace, teleport_id, until_unix)
+	INSERT INTO session_leases (conversation_id, workspace, workspace_dir, teleport_id, until_unix)
 	VALUES (?, ?, ?, ?, ?)
 	ON CONFLICT(conversation_id) DO UPDATE SET
-		environment = excluded.environment,
 		workspace = excluded.workspace,
+		workspace_dir = excluded.workspace_dir,
 		teleport_id = excluded.teleport_id,
 		until_unix = excluded.until_unix
-	WHERE session_leases.environment = excluded.environment
+	WHERE session_leases.workspace = excluded.workspace
 	   OR (excluded.teleport_id <> '' AND session_leases.teleport_id = excluded.teleport_id)
 	   OR session_leases.until_unix < ?
 `
 
-const getLeaseSQL = `SELECT environment, workspace, teleport_id, until_unix FROM session_leases WHERE conversation_id = ?`
+const getLeaseSQL = `SELECT workspace, workspace_dir, teleport_id, until_unix FROM session_leases WHERE conversation_id = ?`
 
-const renewLeaseSQL = `UPDATE session_leases SET until_unix = ? WHERE conversation_id = ? AND environment = ?`
+const renewLeaseSQL = `UPDATE session_leases SET until_unix = ? WHERE conversation_id = ? AND workspace = ?`
 
-const releaseLeaseSQL = `DELETE FROM session_leases WHERE conversation_id = ? AND environment = ?`
+const releaseLeaseSQL = `DELETE FROM session_leases WHERE conversation_id = ? AND workspace = ?`
 
 func (s *sqlStore) GetLease(ctx context.Context, conversationID string) (agentdomain.Lease, bool, error) {
 	lease := agentdomain.Lease{ConversationID: conversationID}
 	var until int64
 	err := s.db.QueryRowContext(ctx, s.rebind(getLeaseSQL), conversationID).
-		Scan(&lease.Environment, &lease.Workspace, &lease.TeleportID, &until)
+		Scan(&lease.Workspace, &lease.WorkspaceDir, &lease.TeleportID, &until)
 	if errors.Is(err, sql.ErrNoRows) {
 		return agentdomain.Lease{}, false, nil
 	}
@@ -49,7 +49,7 @@ func (s *sqlStore) GetLease(ctx context.Context, conversationID string) (agentdo
 
 func (s *sqlStore) ClaimLease(ctx context.Context, lease agentdomain.Lease) (agentdomain.Lease, bool, error) {
 	result, err := s.db.ExecContext(ctx, s.rebind(claimLeaseSQL),
-		lease.ConversationID, lease.Environment, lease.Workspace, lease.TeleportID, lease.Until.Unix(), time.Now().Unix())
+		lease.ConversationID, lease.Workspace, lease.WorkspaceDir, lease.TeleportID, lease.Until.Unix(), time.Now().Unix())
 	if err != nil {
 		return agentdomain.Lease{}, false, fmt.Errorf("claiming the session lease: %w", err)
 	}
@@ -60,8 +60,8 @@ func (s *sqlStore) ClaimLease(ctx context.Context, lease agentdomain.Lease) (age
 	return current, false, err
 }
 
-func (s *sqlStore) RenewLease(ctx context.Context, conversationID, environment string, until time.Time) error {
-	result, err := s.db.ExecContext(ctx, s.rebind(renewLeaseSQL), until.Unix(), conversationID, environment)
+func (s *sqlStore) RenewLease(ctx context.Context, conversationID, workspace string, until time.Time) error {
+	result, err := s.db.ExecContext(ctx, s.rebind(renewLeaseSQL), until.Unix(), conversationID, workspace)
 	if err != nil {
 		return fmt.Errorf("renewing the session lease: %w", err)
 	}
@@ -71,8 +71,8 @@ func (s *sqlStore) RenewLease(ctx context.Context, conversationID, environment s
 	return nil
 }
 
-func (s *sqlStore) ReleaseLease(ctx context.Context, conversationID, environment string) error {
-	if _, err := s.db.ExecContext(ctx, s.rebind(releaseLeaseSQL), conversationID, environment); err != nil {
+func (s *sqlStore) ReleaseLease(ctx context.Context, conversationID, workspace string) error {
+	if _, err := s.db.ExecContext(ctx, s.rebind(releaseLeaseSQL), conversationID, workspace); err != nil {
 		return fmt.Errorf("releasing the session lease: %w", err)
 	}
 	return nil

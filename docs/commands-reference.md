@@ -460,7 +460,7 @@ select models and have conversations.
 - `--session-id <id>`: Resume an existing chat session by conversation ID. With `--daemon` it attaches to the
   session wherever it runs
 - `--daemon`: Run every turn through the local infer daemon, started when needed, so the session can teleport between
-  environments and keeps running after the TUI exits (`chat.daemon`, `INFER_CHAT_DAEMON`). See
+  workspaces and keeps running after the TUI exits (`chat.daemon`, `INFER_CHAT_DAEMON`). See
   [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
 
 The web terminal flags are covered in [Web Terminal](web-terminal.md). With `--daemon` the chat it starts runs in
@@ -669,7 +669,7 @@ Four subcommands talk to the running daemon over its binding, so they need `daem
 or a client-certificate TLS mode in `~/.infer/daemon.yaml`:
 
 ```bash
-infer daemon environments                                         # every environment in daemon.yaml and whether it is reachable
+infer daemon workspaces                                         # every workspace in daemon.yaml and whether it is reachable
 infer daemon teleport <conversation-id> --to k8s-dev              # teleport the session, printing each stage until ready
 infer daemon teleport <conversation-id> --to k8s-dev --file build/out.bin --teleport-id <uuid>
 infer daemon run <conversation-id> "continue please"              # one turn through the daemon, wherever the session runs
@@ -681,10 +681,10 @@ infer daemon stop <conversation-id>                               # stop the age
 - `--file` adds files git does not track to the checkpoint, relative to the project, and may repeat.
 - `--teleport-id` retries one teleport idempotently: a teleport that already succeeded answers `ready` at once.
 - `teleport` exits non-zero when the teleport fails, and the session stays where it was.
-- `stop` deletes the session's runtime on the remote environment that owns it, volumes included, and releases the
+- `stop` deletes the session's runtime on the remote workspace that owns it, volumes included, and releases the
   lease, so the session continues from this machine's copy. A session this daemon owns only has its worker stopped.
 
-See [Environments and teleports](daemon.md#environments-and-teleports) for the environments and the lease model.
+See [Workspaces and teleports](daemon.md#workspaces-and-teleports) for the workspaces and the lease model.
 
 ---
 

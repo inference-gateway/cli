@@ -476,9 +476,9 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		parts = append(parts, indicatorPart{text: currentModel, action: tui.StatusIndicatorActionModelSelection})
 	}
 
-	if isb.shouldShowIndicator("environment") {
-		if text, color := isb.buildEnvironmentIndicator(); text != "" {
-			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionEnvironments, color: color})
+	if isb.shouldShowIndicator("workspace") {
+		if text, color := isb.buildWorkspaceIndicator(); text != "" {
+			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionWorkspaces, color: color})
 		}
 	}
 
@@ -728,8 +728,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.GitBranch
 	case "git_pr":
 		return indicators.GitPR
-	case "environment":
-		return indicators.Environment
+	case "workspace":
+		return indicators.Workspace
 	default:
 		return true
 	}
@@ -785,10 +785,10 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 	return ""
 }
 
-// buildEnvironmentIndicator names where a daemon chat's session runs: on the
-// daemon the TUI talks to, relayed to another environment, teleporting to one, or
+// buildWorkspaceIndicator names where a daemon chat's session runs: on the
+// daemon the TUI talks to, relayed to another workspace, teleporting to one, or
 // unreachable while the connection is down. An in-process chat shows none.
-func (isb *InputStatusBar) buildEnvironmentIndicator() (string, string) {
+func (isb *InputStatusBar) buildWorkspaceIndicator() (string, string) {
 	if isb.stateManager == nil || isb.styleProvider == nil {
 		return "", ""
 	}

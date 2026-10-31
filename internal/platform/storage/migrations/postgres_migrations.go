@@ -204,5 +204,17 @@ func GetPostgresMigrations() []Migration {
 				ALTER TABLE session_leases RENAME COLUMN teleport_id TO transfer_id;
 			`,
 		},
+		{
+			Version:     "013",
+			Description: "Session leases name the owning workspace and the dir there",
+			UpSQL: `
+				ALTER TABLE session_leases RENAME COLUMN workspace TO workspace_dir;
+				ALTER TABLE session_leases RENAME COLUMN environment TO workspace;
+			`,
+			DownSQL: `
+				ALTER TABLE session_leases RENAME COLUMN workspace TO environment;
+				ALTER TABLE session_leases RENAME COLUMN workspace_dir TO workspace;
+			`,
+		},
 	}
 }

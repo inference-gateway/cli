@@ -121,10 +121,10 @@ func projectDirFlag(cmd *cobra.Command) (string, error) {
 	return abs, nil
 }
 
-func newEnvironmentsCommand(state *runtime.State) *cobra.Command {
+func newWorkspacesCommand(state *runtime.State) *cobra.Command {
 	return &cobra.Command{
-		Use:          "environments",
-		Short:        "List the environments sessions can be teleported to and whether each is reachable",
+		Use:          "workspaces",
+		Short:        "List the workspaces sessions can be teleported to and whether each is reachable",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), clientTimeout)
@@ -134,36 +134,36 @@ func newEnvironmentsCommand(state *runtime.State) *cobra.Command {
 				return err
 			}
 			defer client.close()
-			if err := client.send(map[string]string{"type": "list_environments"}); err != nil {
+			if err := client.send(map[string]string{"type": "list_workspaces"}); err != nil {
 				return err
 			}
-			frame, err := client.next(ctx, "environments")
+			frame, err := client.next(ctx, "workspaces")
 			if err != nil {
 				return err
 			}
-			return printEnvironments(cmd.OutOrStdout(), frame)
+			return printWorkspaces(cmd.OutOrStdout(), frame)
 		},
 	}
 }
 
-func printEnvironments(out io.Writer, frame map[string]any) error {
-	raw, _ := json.Marshal(frame["environments"])
-	var environments []agentdomain.EnvironmentStatus
-	if err := json.Unmarshal(raw, &environments); err != nil {
+func printWorkspaces(out io.Writer, frame map[string]any) error {
+	raw, _ := json.Marshal(frame["workspaces"])
+	var workspaces []agentdomain.WorkspaceStatus
+	if err := json.Unmarshal(raw, &workspaces); err != nil {
 		return err
 	}
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	say(w, "NAME\tKIND\tREACHABLE\tDETAILS\n")
-	for _, environment := range environments {
-		details := environment.Error
-		if environment.Reachable {
-			parts := make([]string, 0, len(environment.Capabilities))
-			for _, key := range slices.Sorted(maps.Keys(environment.Capabilities)) {
-				parts = append(parts, key+"="+environment.Capabilities[key])
+	for _, workspace := range workspaces {
+		details := workspace.Error
+		if workspace.Reachable {
+			parts := make([]string, 0, len(workspace.Capabilities))
+			for _, key := range slices.Sorted(maps.Keys(workspace.Capabilities)) {
+				parts = append(parts, key+"="+workspace.Capabilities[key])
 			}
 			details = strings.Join(parts, " ")
 		}
-		say(w, "%s\t%s\t%t\t%s\n", environment.Name, environment.Kind, environment.Reachable, details)
+		say(w, "%s\t%s\t%t\t%s\n", workspace.Name, workspace.Kind, workspace.Reachable, details)
 	}
 	return w.Flush()
 }
@@ -171,13 +171,13 @@ func printEnvironments(out io.Writer, frame map[string]any) error {
 func newTeleportCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
 		Use:          "teleport <conversation-id>",
-		Short:        "Teleport a session to another environment and follow the teleport",
+		Short:        "Teleport a session to another workspace and follow the teleport",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target, _ := cmd.Flags().GetString("to")
 			if target == "" {
-				return errors.New("--to names the environment to teleport the session to")
+				return errors.New("--to names the workspace to teleport the session to")
 			}
 			projectDir, err := projectDirFlag(cmd)
 			if err != nil {
@@ -202,7 +202,7 @@ func newTeleportCommand(state *runtime.State) *cobra.Command {
 			return followTeleport(ctx, cmd.OutOrStdout(), client)
 		},
 	}
-	command.Flags().String("to", "", "The environment to teleport the session to (a name from daemon.yaml)")
+	command.Flags().String("to", "", "The workspace to teleport the session to (a name from daemon.yaml)")
 	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
 	command.Flags().String("teleport-id", "", "Reuse a teleport id to retry the same teleport idempotently")
 	command.Flags().StringSlice("file", nil, "Extra files to carry along, relative to the project (repeatable)")
@@ -217,7 +217,7 @@ func followTeleport(ctx context.Context, out io.Writer, client *daemonClient) er
 			return err
 		}
 		if frame["type"] == "session_teleported" {
-			say(out, "session now lives on %v in %v\n", frame["environment"], frame["workspace"])
+			say(out, "session now lives on %v in %v\n", frame["workspace"], frame["workspace_dir"])
 			return nil
 		}
 		stage, _ := frame["stage"].(string)
@@ -305,7 +305,7 @@ func runTurn(ctx context.Context, out, errOut io.Writer, client *daemonClient, c
 func newStopCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
 		Use:          "stop <conversation-id>",
-		Short:        "Stop a session's agent and delete its runtime and volumes on the remote environment that owns it",
+		Short:        "Stop a session's agent and delete its runtime and volumes on the remote workspace that owns it",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -339,8 +339,8 @@ func printStopped(out io.Writer, frame map[string]any) error {
 	if message, _ := frame["error"].(string); message != "" {
 		return errors.New(message)
 	}
-	if environment, _ := frame["environment"].(string); environment != "" {
-		say(out, "deleted the session's runtime on %s and released its lease, it continues here next time\n", environment)
+	if workspace, _ := frame["workspace"].(string); workspace != "" {
+		say(out, "deleted the session's runtime on %s and released its lease, it continues here next time\n", workspace)
 		return nil
 	}
 	say(out, "stopped the session's worker on this daemon\n")

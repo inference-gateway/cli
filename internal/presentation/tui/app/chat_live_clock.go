@@ -62,7 +62,7 @@ func (app *ChatApplication) liveCadence() time.Duration {
 			return time.Second
 		}
 	}
-	if app.environmentsView != nil && app.environmentsView.IsLoading() && app.stateManager.GetCurrentView() == tui.ViewStateEnvironments {
+	if app.workspacesView != nil && app.workspacesView.IsLoading() && app.stateManager.GetCurrentView() == tui.ViewStateWorkspaces {
 		return components.SpinnerFrameInterval
 	}
 	if app.subagentList != nil && app.subagentList.HasRows() {

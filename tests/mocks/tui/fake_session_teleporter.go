@@ -20,17 +20,17 @@ type FakeSessionTeleporter struct {
 	cancelTeleportReturnsOnCall map[int]struct {
 		result1 error
 	}
-	ListEnvironmentsStub        func(context.Context) ([]domain.EnvironmentStatus, error)
-	listEnvironmentsMutex       sync.RWMutex
-	listEnvironmentsArgsForCall []struct {
+	ListWorkspacesStub        func(context.Context) ([]domain.WorkspaceStatus, error)
+	listWorkspacesMutex       sync.RWMutex
+	listWorkspacesArgsForCall []struct {
 		arg1 context.Context
 	}
-	listEnvironmentsReturns struct {
-		result1 []domain.EnvironmentStatus
+	listWorkspacesReturns struct {
+		result1 []domain.WorkspaceStatus
 		result2 error
 	}
-	listEnvironmentsReturnsOnCall map[int]struct {
-		result1 []domain.EnvironmentStatus
+	listWorkspacesReturnsOnCall map[int]struct {
+		result1 []domain.WorkspaceStatus
 		result2 error
 	}
 	PlacementStub        func() tui.SessionPlacement
@@ -112,16 +112,16 @@ func (fake *FakeSessionTeleporter) CancelTeleportReturnsOnCall(i int, result1 er
 	}{result1}
 }
 
-func (fake *FakeSessionTeleporter) ListEnvironments(arg1 context.Context) ([]domain.EnvironmentStatus, error) {
-	fake.listEnvironmentsMutex.Lock()
-	ret, specificReturn := fake.listEnvironmentsReturnsOnCall[len(fake.listEnvironmentsArgsForCall)]
-	fake.listEnvironmentsArgsForCall = append(fake.listEnvironmentsArgsForCall, struct {
+func (fake *FakeSessionTeleporter) ListWorkspaces(arg1 context.Context) ([]domain.WorkspaceStatus, error) {
+	fake.listWorkspacesMutex.Lock()
+	ret, specificReturn := fake.listWorkspacesReturnsOnCall[len(fake.listWorkspacesArgsForCall)]
+	fake.listWorkspacesArgsForCall = append(fake.listWorkspacesArgsForCall, struct {
 		arg1 context.Context
 	}{arg1})
-	stub := fake.ListEnvironmentsStub
-	fakeReturns := fake.listEnvironmentsReturns
-	fake.recordInvocation("ListEnvironments", []interface{}{arg1})
-	fake.listEnvironmentsMutex.Unlock()
+	stub := fake.ListWorkspacesStub
+	fakeReturns := fake.listWorkspacesReturns
+	fake.recordInvocation("ListWorkspaces", []interface{}{arg1})
+	fake.listWorkspacesMutex.Unlock()
 	if stub != nil {
 		return stub(arg1)
 	}
@@ -131,47 +131,47 @@ func (fake *FakeSessionTeleporter) ListEnvironments(arg1 context.Context) ([]dom
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeSessionTeleporter) ListEnvironmentsCallCount() int {
-	fake.listEnvironmentsMutex.RLock()
-	defer fake.listEnvironmentsMutex.RUnlock()
-	return len(fake.listEnvironmentsArgsForCall)
+func (fake *FakeSessionTeleporter) ListWorkspacesCallCount() int {
+	fake.listWorkspacesMutex.RLock()
+	defer fake.listWorkspacesMutex.RUnlock()
+	return len(fake.listWorkspacesArgsForCall)
 }
 
-func (fake *FakeSessionTeleporter) ListEnvironmentsCalls(stub func(context.Context) ([]domain.EnvironmentStatus, error)) {
-	fake.listEnvironmentsMutex.Lock()
-	defer fake.listEnvironmentsMutex.Unlock()
-	fake.ListEnvironmentsStub = stub
+func (fake *FakeSessionTeleporter) ListWorkspacesCalls(stub func(context.Context) ([]domain.WorkspaceStatus, error)) {
+	fake.listWorkspacesMutex.Lock()
+	defer fake.listWorkspacesMutex.Unlock()
+	fake.ListWorkspacesStub = stub
 }
 
-func (fake *FakeSessionTeleporter) ListEnvironmentsArgsForCall(i int) context.Context {
-	fake.listEnvironmentsMutex.RLock()
-	defer fake.listEnvironmentsMutex.RUnlock()
-	argsForCall := fake.listEnvironmentsArgsForCall[i]
+func (fake *FakeSessionTeleporter) ListWorkspacesArgsForCall(i int) context.Context {
+	fake.listWorkspacesMutex.RLock()
+	defer fake.listWorkspacesMutex.RUnlock()
+	argsForCall := fake.listWorkspacesArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeSessionTeleporter) ListEnvironmentsReturns(result1 []domain.EnvironmentStatus, result2 error) {
-	fake.listEnvironmentsMutex.Lock()
-	defer fake.listEnvironmentsMutex.Unlock()
-	fake.ListEnvironmentsStub = nil
-	fake.listEnvironmentsReturns = struct {
-		result1 []domain.EnvironmentStatus
+func (fake *FakeSessionTeleporter) ListWorkspacesReturns(result1 []domain.WorkspaceStatus, result2 error) {
+	fake.listWorkspacesMutex.Lock()
+	defer fake.listWorkspacesMutex.Unlock()
+	fake.ListWorkspacesStub = nil
+	fake.listWorkspacesReturns = struct {
+		result1 []domain.WorkspaceStatus
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeSessionTeleporter) ListEnvironmentsReturnsOnCall(i int, result1 []domain.EnvironmentStatus, result2 error) {
-	fake.listEnvironmentsMutex.Lock()
-	defer fake.listEnvironmentsMutex.Unlock()
-	fake.ListEnvironmentsStub = nil
-	if fake.listEnvironmentsReturnsOnCall == nil {
-		fake.listEnvironmentsReturnsOnCall = make(map[int]struct {
-			result1 []domain.EnvironmentStatus
+func (fake *FakeSessionTeleporter) ListWorkspacesReturnsOnCall(i int, result1 []domain.WorkspaceStatus, result2 error) {
+	fake.listWorkspacesMutex.Lock()
+	defer fake.listWorkspacesMutex.Unlock()
+	fake.ListWorkspacesStub = nil
+	if fake.listWorkspacesReturnsOnCall == nil {
+		fake.listWorkspacesReturnsOnCall = make(map[int]struct {
+			result1 []domain.WorkspaceStatus
 			result2 error
 		})
 	}
-	fake.listEnvironmentsReturnsOnCall[i] = struct {
-		result1 []domain.EnvironmentStatus
+	fake.listWorkspacesReturnsOnCall[i] = struct {
+		result1 []domain.WorkspaceStatus
 		result2 error
 	}{result1, result2}
 }

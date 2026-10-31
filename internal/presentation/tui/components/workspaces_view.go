@@ -19,31 +19,31 @@ import (
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 )
 
-// environmentReloadKey reprobes the environments.
-var environmentReloadKey = key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reprobe"))
+// workspaceReloadKey reprobes the workspaces.
+var workspaceReloadKey = key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reprobe"))
 
-// environmentItem is one environment the session can run on.
-type environmentItem struct {
-	status      agentdomain.EnvironmentStatus
+// workspaceItem is one workspace the session can run on.
+type workspaceItem struct {
+	status      agentdomain.WorkspaceStatus
 	current     bool
 	teleporting bool
 }
 
 // FilterValue lets the user filter by name or kind (/).
-func (i environmentItem) FilterValue() string { return i.status.Name + " " + string(i.status.Kind) }
+func (i workspaceItem) FilterValue() string { return i.status.Name + " " + string(i.status.Kind) }
 
-// environmentDelegate renders an environment on two rows: its name with its
+// workspaceDelegate renders a workspace on two rows: its name with its
 // kind, reachability and where the session is, then its details dimmed.
-type environmentDelegate struct {
+type workspaceDelegate struct {
 	styleProvider *styles.Provider
 }
 
-func (d environmentDelegate) Height() int                             { return 2 }
-func (d environmentDelegate) Spacing() int                            { return 0 }
-func (d environmentDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d workspaceDelegate) Height() int                             { return 2 }
+func (d workspaceDelegate) Spacing() int                            { return 0 }
+func (d workspaceDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
-func (d environmentDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	it, ok := item.(environmentItem)
+func (d workspaceDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	it, ok := item.(workspaceItem)
 	if !ok {
 		return
 	}
@@ -68,12 +68,12 @@ func (d environmentDelegate) Render(w io.Writer, m list.Model, index int, item l
 	if it.status.Error != "" {
 		detailColor = color("error")
 	}
-	detail := ansi.Truncate("      "+environmentDetail(it.status), max(m.Width()-1, 8), "…")
+	detail := ansi.Truncate("      "+workspaceDetail(it.status), max(m.Width()-1, 8), "…")
 	_, _ = fmt.Fprint(w, row+"\n"+d.styleProvider.RenderWithColor(detail, detailColor))
 }
 
-// environmentDetail is an environment's error, or its capabilities sorted.
-func environmentDetail(status agentdomain.EnvironmentStatus) string {
+// workspaceDetail is a workspace's error, or its capabilities sorted.
+func workspaceDetail(status agentdomain.WorkspaceStatus) string {
 	if status.Error != "" {
 		return status.Error
 	}
@@ -85,10 +85,10 @@ func environmentDetail(status agentdomain.EnvironmentStatus) string {
 	return strings.Join(pairs, "  ")
 }
 
-// EnvironmentsView picks the environment a daemon chat's session runs on:
-// every environment the daemon knows with whether it is reachable and where
+// WorkspacesView picks the workspace a daemon chat's session runs on:
+// every workspace the daemon knows with whether it is reachable and where
 // the session is. Enter on another reachable one teleports the session there.
-type EnvironmentsView struct {
+type WorkspacesView struct {
 	list          list.Model
 	width         int
 	height        int
@@ -101,21 +101,21 @@ type EnvironmentsView struct {
 	styleProvider *styles.Provider
 }
 
-// NewEnvironmentsView builds the picker. load lists the environments, and
-// answers with a tui.EnvironmentsLoadedEvent.
-func NewEnvironmentsView(styleProvider *styles.Provider, load func() tea.Cmd) *EnvironmentsView {
-	l := list.New(nil, environmentDelegate{styleProvider: styleProvider}, 80, 24)
+// NewWorkspacesView builds the picker. load lists the workspaces, and
+// answers with a tui.WorkspacesLoadedEvent.
+func NewWorkspacesView(styleProvider *styles.Provider, load func() tea.Cmd) *WorkspacesView {
+	l := list.New(nil, workspaceDelegate{styleProvider: styleProvider}, 80, 24)
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 	l.SetShowHelp(true)
 	l.DisableQuitKeybindings()
 	l.Styles.Title = toolsTitleStyle(styleProvider)
-	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{environmentReloadKey} }
-	return &EnvironmentsView{list: l, width: 80, height: 24, load: load, styleProvider: styleProvider}
+	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{workspaceReloadKey} }
+	return &WorkspacesView{list: l, width: 80, height: 24, load: load, styleProvider: styleProvider}
 }
 
 // Reset opens the picker for the session at placement and starts listing.
-func (m *EnvironmentsView) Reset(placement tui.SessionPlacement) tea.Cmd {
+func (m *WorkspacesView) Reset(placement tui.SessionPlacement) tea.Cmd {
 	m.placement = placement
 	m.cancelled = false
 	m.hint = ""
@@ -123,7 +123,7 @@ func (m *EnvironmentsView) Reset(placement tui.SessionPlacement) tea.Cmd {
 	return m.reload()
 }
 
-func (m *EnvironmentsView) reload() tea.Cmd {
+func (m *WorkspacesView) reload() tea.Cmd {
 	m.loading, m.err = true, nil
 	m.list.Title = m.title()
 	if m.load == nil {
@@ -132,15 +132,15 @@ func (m *EnvironmentsView) reload() tea.Cmd {
 	return m.load()
 }
 
-func (m *EnvironmentsView) Init() tea.Cmd { return nil }
+func (m *WorkspacesView) Init() tea.Cmd { return nil }
 
-func (m *EnvironmentsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *WorkspacesView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.SetWidth(msg.Width)
 		m.SetHeight(msg.Height)
 		return m, nil
-	case tui.EnvironmentsLoadedEvent:
+	case tui.WorkspacesLoadedEvent:
 		return m, m.loaded(msg)
 	case tui.SessionPlacementChangedEvent:
 		m.placement = msg.Placement
@@ -158,12 +158,12 @@ func (m *EnvironmentsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// loaded shows a listing, keeping the cursor on the environment it was on.
-func (m *EnvironmentsView) loaded(event tui.EnvironmentsLoadedEvent) tea.Cmd {
+// loaded shows a listing, keeping the cursor on the workspace it was on.
+func (m *WorkspacesView) loaded(event tui.WorkspacesLoadedEvent) tea.Cmd {
 	m.loading, m.err = false, event.Err
-	items := make([]list.Item, 0, len(event.Environments))
-	for _, status := range event.Environments {
-		items = append(items, environmentItem{status: status})
+	items := make([]list.Item, 0, len(event.Workspaces))
+	for _, status := range event.Workspaces {
+		items = append(items, workspaceItem{status: status})
 	}
 	cmd := m.list.SetItems(items)
 	refresh := m.refreshItems()
@@ -171,10 +171,10 @@ func (m *EnvironmentsView) loaded(event tui.EnvironmentsLoadedEvent) tea.Cmd {
 }
 
 // refreshItems marks where the session runs and where it teleports to.
-func (m *EnvironmentsView) refreshItems() tea.Cmd {
+func (m *WorkspacesView) refreshItems() tea.Cmd {
 	items := m.list.Items()
 	for i, item := range items {
-		it, ok := item.(environmentItem)
+		it, ok := item.(workspaceItem)
 		if !ok {
 			continue
 		}
@@ -186,22 +186,22 @@ func (m *EnvironmentsView) refreshItems() tea.Cmd {
 	return m.list.SetItems(items)
 }
 
-func (m *EnvironmentsView) title() string {
+func (m *WorkspacesView) title() string {
 	switch {
 	case m.hint != "":
 		return m.hint
 	case m.loading:
-		return "Environments · probing " + spinnerFrame(time.Now(), SpinnerFrameInterval)
+		return "Workspaces · probing " + spinnerFrame(time.Now(), SpinnerFrameInterval)
 	case m.err != nil:
-		return "Could not list environments: " + m.err.Error() + " · r retries"
+		return "Could not list workspaces: " + m.err.Error() + " · r retries"
 	}
-	return fmt.Sprintf("Environments (%d) · session on %s", len(m.list.Items()), m.placement.Where())
+	return fmt.Sprintf("Workspaces (%d) · session on %s", len(m.list.Items()), m.placement.Where())
 }
 
 // handleKey owns the picker's keys unless the list is filtering: enter teleports
 // the session, r reprobes, esc and ctrl+c close. A refusal shows in the title
 // until the next key.
-func (m *EnvironmentsView) handleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
+func (m *WorkspacesView) handleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
 		return false, nil
 	}
@@ -219,7 +219,7 @@ func (m *EnvironmentsView) handleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 		}
 		m.cancelled = true
 		return true, nil
-	case key.Matches(msg, environmentReloadKey):
+	case key.Matches(msg, workspaceReloadKey):
 		return true, m.reload()
 	case key.Matches(msg, listViewKeys.selectKey):
 		return true, m.choose()
@@ -227,10 +227,10 @@ func (m *EnvironmentsView) handleKey(msg tea.KeyPressMsg) (bool, tea.Cmd) {
 	return false, nil
 }
 
-// choose teleports the session to the selected environment, or says why it
+// choose teleports the session to the selected workspace, or says why it
 // cannot go there.
-func (m *EnvironmentsView) choose() tea.Cmd {
-	it, ok := m.list.SelectedItem().(environmentItem)
+func (m *WorkspacesView) choose() tea.Cmd {
+	it, ok := m.list.SelectedItem().(workspaceItem)
 	if !ok {
 		return nil
 	}
@@ -245,38 +245,38 @@ func (m *EnvironmentsView) choose() tea.Cmd {
 }
 
 // refusal is why the session cannot teleport to it, or "".
-func (m *EnvironmentsView) refusal(it environmentItem) string {
+func (m *WorkspacesView) refusal(it workspaceItem) string {
 	switch {
 	case m.placement.Teleporting != "":
 		return "A teleport to " + m.placement.Teleporting + " is already running · esc in the chat cancels it"
 	case it.current:
 		return "The session already runs on " + it.status.Name
 	case m.placement.Remote() && it.status.Name != m.placement.Local:
-		return "From " + m.placement.Environment + " the session teleports only back to " + m.placement.Local
+		return "From " + m.placement.Workspace + " the session teleports only back to " + m.placement.Local
 	case !it.status.Reachable:
 		return it.status.Name + " is unreachable · r reprobes"
 	}
 	return ""
 }
 
-func (m *EnvironmentsView) View() tea.View {
+func (m *WorkspacesView) View() tea.View {
 	return tea.NewView(m.list.View())
 }
 
 // IsCancelled reports whether the picker closed.
-func (m *EnvironmentsView) IsCancelled() bool { return m.cancelled }
+func (m *WorkspacesView) IsCancelled() bool { return m.cancelled }
 
 // IsLoading reports whether the picker is probing, which animates its title.
-func (m *EnvironmentsView) IsLoading() bool { return m.loading }
+func (m *WorkspacesView) IsLoading() bool { return m.loading }
 
 // SetWidth sets the width of the picker.
-func (m *EnvironmentsView) SetWidth(width int) {
+func (m *WorkspacesView) SetWidth(width int) {
 	m.width = width
 	m.list.SetSize(width, m.height)
 }
 
 // SetHeight sets the height of the picker.
-func (m *EnvironmentsView) SetHeight(height int) {
+func (m *WorkspacesView) SetHeight(height int) {
 	m.height = height
 	m.list.SetSize(m.width, height)
 }

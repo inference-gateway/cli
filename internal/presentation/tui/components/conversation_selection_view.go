@@ -92,7 +92,7 @@ func (c *ConversationSelector) tableHeight() int {
 func conversationColumns(located bool) []table.Column {
 	columns := []table.Column{{Title: "ID", Width: 38}, {Title: "Summary", Width: 25}}
 	if located {
-		columns = append(columns, table.Column{Title: "Environment", Width: 14})
+		columns = append(columns, table.Column{Title: "Workspace", Width: 14})
 	}
 	return append(columns,
 		table.Column{Title: "Messages", Width: 10},
@@ -107,7 +107,7 @@ func conversationColumns(located bool) []table.Column {
 // the cursor in range. The rows clear before the columns change, since the
 // table renders each row's cells against the columns.
 func (c *ConversationSelector) syncTable() {
-	located := slices.ContainsFunc(c.conversations, func(conv convdomain.ConversationSummary) bool { return conv.Environment != "" })
+	located := slices.ContainsFunc(c.conversations, func(conv convdomain.ConversationSummary) bool { return conv.Workspace != "" })
 	rows := make([]table.Row, 0, len(c.filteredConversations))
 	for _, conv := range c.filteredConversations {
 		rows = append(rows, conversationRow(conv, located))
@@ -134,7 +134,7 @@ func conversationRow(conv convdomain.ConversationSummary, located bool) table.Ro
 
 	row := table.Row{conv.ID, formatting.TruncateText(conv.Title, 25)}
 	if located {
-		row = append(row, cmp.Or(conv.Environment, "-"))
+		row = append(row, cmp.Or(conv.Workspace, "-"))
 	}
 	return append(row,
 		fmt.Sprintf("%d", conv.MessageCount),

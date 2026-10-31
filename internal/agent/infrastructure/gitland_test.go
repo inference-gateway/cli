@@ -23,14 +23,14 @@ func git(t *testing.T, dir string, args ...string) string {
 
 // podWork clones the checkout the way a teleport restores it, lets the
 // session commit, edit and add a file there, and packs the result.
-func podWork(t *testing.T, laptop string) agentdomain.Workspace {
+func podWork(t *testing.T, laptop string) agentdomain.Repository {
 	t.Helper()
-	sent, err := PackWorkspace(t.Context(), laptop, nil, nil)
+	sent, err := PackRepository(t.Context(), laptop, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pod := filepath.Join(t.TempDir(), "pod")
-	if err := UnpackWorkspace(t.Context(), sent, pod, nil); err != nil {
+	if err := UnpackRepository(t.Context(), sent, pod, nil); err != nil {
 		t.Fatal(err)
 	}
 	git(t, pod, "config", "user.email", "pod@example.com")
@@ -41,20 +41,20 @@ func podWork(t *testing.T, laptop string) agentdomain.Workspace {
 	git(t, pod, "commit", "--quiet", "-m", "feature")
 	write(t, pod, "README.md", "hello from the pod\n")
 	write(t, pod, "notes.txt", "remember\n")
-	back, err := PackWorkspace(t.Context(), pod, nil, nil)
+	back, err := PackRepository(t.Context(), pod, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return back
 }
 
-func TestLandWorkspaceContinuesTheCheckout(t *testing.T) {
+func TestLandRepositoryContinuesTheCheckout(t *testing.T) {
 	laptop := gitRepo(t)
 	ws := podWork(t, laptop)
 
-	landing, err := LandWorkspace(t.Context(), ws, laptop, nil)
+	landing, err := LandRepository(t.Context(), ws, laptop, nil)
 	if err != nil {
-		t.Fatalf("LandWorkspace: %v", err)
+		t.Fatalf("LandRepository: %v", err)
 	}
 	if err := landing.Keep(t.Context()); err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ func TestLandWorkspaceContinuesTheCheckout(t *testing.T) {
 	}
 }
 
-func TestLandWorkspaceUndoRestoresADirtyCheckout(t *testing.T) {
+func TestLandRepositoryUndoRestoresADirtyCheckout(t *testing.T) {
 	laptop := gitRepo(t)
 	write(t, laptop, "README.md", "work in progress\n")
 	write(t, laptop, "draft.txt", "draft\n")
@@ -81,9 +81,9 @@ func TestLandWorkspaceUndoRestoresADirtyCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	landing, err := LandWorkspace(t.Context(), ws, laptop, nil)
+	landing, err := LandRepository(t.Context(), ws, laptop, nil)
 	if err != nil {
-		t.Fatalf("LandWorkspace: %v", err)
+		t.Fatalf("LandRepository: %v", err)
 	}
 	if err := landing.Undo(t.Context()); err != nil {
 		t.Fatalf("Undo: %v", err)
@@ -104,7 +104,7 @@ func TestLandWorkspaceUndoRestoresADirtyCheckout(t *testing.T) {
 	}
 }
 
-func TestLandWorkspaceRefusesADivergedCheckout(t *testing.T) {
+func TestLandRepositoryRefusesADivergedCheckout(t *testing.T) {
 	laptop := gitRepo(t)
 	ws := podWork(t, laptop)
 	write(t, laptop, "local.txt", "local\n")
@@ -113,8 +113,8 @@ func TestLandWorkspaceRefusesADivergedCheckout(t *testing.T) {
 	write(t, laptop, "README.md", "edited after the move\n")
 	head := git(t, laptop, "rev-parse", "HEAD")
 
-	if _, err := LandWorkspace(t.Context(), ws, laptop, nil); !errors.Is(err, ErrCheckoutDiverged) {
-		t.Fatalf("LandWorkspace = %v, want ErrCheckoutDiverged", err)
+	if _, err := LandRepository(t.Context(), ws, laptop, nil); !errors.Is(err, ErrCheckoutDiverged) {
+		t.Fatalf("LandRepository = %v, want ErrCheckoutDiverged", err)
 	}
 
 	if git(t, laptop, "rev-parse", "HEAD") != head || read(t, laptop, "README.md") != "edited after the move\n" {
@@ -125,28 +125,28 @@ func TestLandWorkspaceRefusesADivergedCheckout(t *testing.T) {
 	}
 }
 
-func TestLandWorkspaceLeavesExcludedUntrackedFilesAlone(t *testing.T) {
+func TestLandRepositoryLeavesExcludedUntrackedFilesAlone(t *testing.T) {
 	laptop := gitRepo(t)
 	write(t, laptop, ".env", "SECRET=1\n")
 	write(t, laptop, "draft.txt", "draft\n")
 	excluded := func(abs string) bool { return filepath.Base(abs) == ".env" }
-	sent, err := PackWorkspace(t.Context(), laptop, nil, excluded)
+	sent, err := PackRepository(t.Context(), laptop, nil, excluded)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pod := filepath.Join(t.TempDir(), "pod")
-	if err := UnpackWorkspace(t.Context(), sent, pod, nil); err != nil {
+	if err := UnpackRepository(t.Context(), sent, pod, nil); err != nil {
 		t.Fatal(err)
 	}
 	write(t, pod, "draft.txt", "draft, finished\n")
-	ws, err := PackWorkspace(t.Context(), pod, nil, excluded)
+	ws, err := PackRepository(t.Context(), pod, nil, excluded)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	landing, err := LandWorkspace(t.Context(), ws, laptop, excluded)
+	landing, err := LandRepository(t.Context(), ws, laptop, excluded)
 	if err != nil {
-		t.Fatalf("LandWorkspace: %v", err)
+		t.Fatalf("LandRepository: %v", err)
 	}
 	if err := landing.Keep(t.Context()); err != nil {
 		t.Fatal(err)

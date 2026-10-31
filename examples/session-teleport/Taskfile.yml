@@ -1,8 +1,8 @@
 version: '3'
 
 vars:
-  CLUSTER: infer-environments
-  NAMESPACE: infer-environments
+  CLUSTER: infer-workspaces
+  NAMESPACE: infer-workspaces
   AGENT_SANDBOX_VERSION: v1.0.8
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
   INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
@@ -13,7 +13,7 @@ env:
 
 tasks:
   cluster:create:
-    desc: Create the k3d cluster with ctlptl, install agent-sandbox and the environment namespace
+    desc: Create the k3d cluster with ctlptl, install agent-sandbox and the workspace namespace
     cmds:
       - ctlptl apply -f Cluster.yaml
       - kubectl --context k3d-{{.CLUSTER}} apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/{{.AGENT_SANDBOX_VERSION}}/sandbox.yaml
@@ -36,7 +36,7 @@ tasks:
     desc: Save what the k8s-desktop pod's screen shows to .home/desktop.png
     cmds:
       - |
-        POD=$(kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get pods -l inference-gateway.com/environment=k8s-desktop -o jsonpath='{.items[0].metadata.name}')
+        POD=$(kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get pods -l inference-gateway.com/workspace=k8s-desktop -o jsonpath='{.items[0].metadata.name}')
         kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} exec $POD -- \
           ffmpeg -loglevel error -f x11grab -video_size 1280x800 -i :99 -frames:v 1 -f image2 -vcodec png - > {{.HOME_DIR}}/desktop.png
       - echo "saved {{.HOME_DIR}}/desktop.png"
@@ -95,7 +95,7 @@ tasks:
       - HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} daemon
 
   chat:
-    desc: Chat in the demo project through the laptop daemon (started when needed), and teleport the session with /environments or /teleport
+    desc: Chat in the demo project through the laptop daemon (started when needed), and teleport the session with /workspaces or /teleport
     deps:
       - build
       - home
@@ -103,15 +103,15 @@ tasks:
     cmds:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} KUBECONFIG=$(k3d kubeconfig write {{.CLUSTER}}) {{.INFER}} chat --daemon
 
-  environments:
-    desc: List the environments and their reachability
+  workspaces:
+    desc: List the workspaces and their reachability
     deps:
       - build
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon environments
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon workspaces
 
   demo:
-    desc: Create a conversation, teleport it to the TARGET environment (default k8s-dev) and continue it there with PROMPT
+    desc: Create a conversation, teleport it to the TARGET workspace (default k8s-dev) and continue it there with PROMPT
     vars:
       TARGET: '{{default "k8s-dev" .TARGET}}'
       PROMPT: '{{default "say hello again" .PROMPT}}'
@@ -121,7 +121,7 @@ tasks:
       - build
     cmds:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon environments
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon workspaces
       - HOME={{.HOME_DIR}} {{.INFER}} daemon teleport {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get sandboxes,pods
       - HOME={{.HOME_DIR}} {{.INFER}} daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project

@@ -13,28 +13,28 @@ import (
 
 var (
 	onLaptop         = tui.SessionPlacement{Daemon: true, Local: "laptop"}
-	onK8sDev         = tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}
+	onK8sDev         = tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}
 	teleportingToDev = tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev"}
-	environments     = []agentdomain.EnvironmentStatus{
-		{Name: "laptop", Kind: agentdomain.EnvironmentKindLocal, Reachable: true},
-		{Name: "k8s-dev", Kind: agentdomain.EnvironmentKindKubernetes, Reachable: true, Capabilities: map[string]string{"namespace": "infer"}},
-		{Name: "k8s-gone", Kind: agentdomain.EnvironmentKindKubernetes, Error: "connection refused"},
+	workspaces       = []agentdomain.WorkspaceStatus{
+		{Name: "laptop", Kind: agentdomain.WorkspaceKindLocal, Reachable: true},
+		{Name: "k8s-dev", Kind: agentdomain.WorkspaceKindKubernetes, Reachable: true, Capabilities: map[string]string{"namespace": "infer"}},
+		{Name: "k8s-gone", Kind: agentdomain.WorkspaceKindKubernetes, Error: "connection refused"},
 	}
 )
 
-// picker is an environments picker that counts its listings.
+// picker is a workspaces picker that counts its listings.
 type picker struct {
-	view  *EnvironmentsView
+	view  *WorkspacesView
 	loads int
 }
 
 // openPicker opens the picker for a session at placement with the
-// environments listed, its cursor on row.
+// workspaces listed, its cursor on row.
 func openPicker(placement tui.SessionPlacement, row int) *picker {
 	p := &picker{}
-	p.view = NewEnvironmentsView(createMockStyleProvider(), func() tea.Cmd { p.loads++; return nil })
+	p.view = NewWorkspacesView(createMockStyleProvider(), func() tea.Cmd { p.loads++; return nil })
 	p.view.Reset(placement)
-	p.view.Update(tui.EnvironmentsLoadedEvent{Environments: environments})
+	p.view.Update(tui.WorkspacesLoadedEvent{Workspaces: workspaces})
 	for range row {
 		p.press(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
@@ -46,32 +46,32 @@ func (p *picker) press(key tea.KeyPressMsg) tea.Cmd {
 	return cmd
 }
 
-func (p *picker) row(name string) environmentItem {
+func (p *picker) row(name string) workspaceItem {
 	for _, item := range p.view.list.Items() {
-		if it := item.(environmentItem); it.status.Name == name {
+		if it := item.(workspaceItem); it.status.Name == name {
 			return it
 		}
 	}
-	return environmentItem{}
+	return workspaceItem{}
 }
 
-func TestEnvironmentsViewMarksWhereTheSessionRuns(t *testing.T) {
+func TestWorkspacesViewMarksWhereTheSessionRuns(t *testing.T) {
 	p := openPicker(onLaptop, 0)
 
 	if !p.row("laptop").current || p.row("k8s-dev").current {
 		t.Error("the picker does not mark laptop, and only laptop, as where the session runs")
 	}
-	if title := p.view.list.Title; title != "Environments (3) · session on laptop" {
+	if title := p.view.list.Title; title != "Workspaces (3) · session on laptop" {
 		t.Errorf("title = %q", title)
 	}
 
 	p.view.Update(tui.SessionPlacementChangedEvent{Placement: teleportingToDev})
 	if !p.row("k8s-dev").teleporting {
-		t.Error("the picker does not mark the environment the session teleports to")
+		t.Error("the picker does not mark the workspace the session teleports to")
 	}
 }
 
-func TestEnvironmentsViewTeleportsTheSessionOnEnter(t *testing.T) {
+func TestWorkspacesViewTeleportsTheSessionOnEnter(t *testing.T) {
 	tests := []struct {
 		name      string
 		placement tui.SessionPlacement
@@ -100,7 +100,7 @@ func TestEnvironmentsViewTeleportsTheSessionOnEnter(t *testing.T) {
 	}
 }
 
-func TestEnvironmentsViewSaysWhyItCannotTeleportThere(t *testing.T) {
+func TestWorkspacesViewSaysWhyItCannotTeleportThere(t *testing.T) {
 	tests := []struct {
 		name      string
 		placement tui.SessionPlacement
@@ -108,8 +108,8 @@ func TestEnvironmentsViewSaysWhyItCannotTeleportThere(t *testing.T) {
 		reason    string
 	}{
 		{name: "where it runs", placement: onLaptop, row: 0, reason: "already runs on laptop"},
-		{name: "an unreachable environment", placement: onLaptop, row: 2, reason: "k8s-gone is unreachable"},
-		{name: "on from a remote environment", placement: onK8sDev, row: 2, reason: "teleports only back to laptop"},
+		{name: "an unreachable workspace", placement: onLaptop, row: 2, reason: "k8s-gone is unreachable"},
+		{name: "on from a remote workspace", placement: onK8sDev, row: 2, reason: "teleports only back to laptop"},
 		{name: "during a teleport", placement: teleportingToDev, row: 1, reason: "already running"},
 	}
 	for _, tt := range tests {
@@ -129,15 +129,15 @@ func TestEnvironmentsViewSaysWhyItCannotTeleportThere(t *testing.T) {
 	}
 }
 
-func TestEnvironmentsViewProbesAgainOnR(t *testing.T) {
+func TestWorkspacesViewProbesAgainOnR(t *testing.T) {
 	p := &picker{}
-	p.view = NewEnvironmentsView(createMockStyleProvider(), func() tea.Cmd { p.loads++; return nil })
+	p.view = NewWorkspacesView(createMockStyleProvider(), func() tea.Cmd { p.loads++; return nil })
 	p.view.Reset(onLaptop)
 	if !p.view.IsLoading() || !strings.Contains(p.view.list.Title, "probing") {
 		t.Fatalf("an opened picker is not probing: %q", p.view.list.Title)
 	}
 
-	p.view.Update(tui.EnvironmentsLoadedEvent{Err: errors.New("daemon gone")})
+	p.view.Update(tui.WorkspacesLoadedEvent{Err: errors.New("daemon gone")})
 	if p.view.IsLoading() || !strings.Contains(p.view.list.Title, "daemon gone") {
 		t.Fatalf("title = %q, want the listing's error", p.view.list.Title)
 	}
@@ -148,7 +148,7 @@ func TestEnvironmentsViewProbesAgainOnR(t *testing.T) {
 	}
 }
 
-func TestEnvironmentsViewClosesOnEsc(t *testing.T) {
+func TestWorkspacesViewClosesOnEsc(t *testing.T) {
 	p := openPicker(onLaptop, 0)
 
 	if cmd := p.press(tea.KeyPressMsg{Code: tea.KeyEscape}); cmd != nil || !p.view.IsCancelled() {

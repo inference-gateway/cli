@@ -57,7 +57,7 @@ func read(t *testing.T, dir, rel string) string {
 	return string(data)
 }
 
-func TestWorkspaceRoundTrip(t *testing.T) {
+func TestRepositoryRoundTrip(t *testing.T) {
 	src := gitRepo(t)
 	write(t, src, "README.md", "hello\nchanged\n")
 	write(t, src, "notes/todo.txt", "untracked\n")
@@ -66,16 +66,16 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	write(t, src, "build/out.bin", "artifact\n")
 	denied := func(abs string) bool { return strings.HasSuffix(abs, ".env") }
 
-	ws, err := PackWorkspace(t.Context(), src, []string{"build/out.bin"}, denied)
+	ws, err := PackRepository(t.Context(), src, []string{"build/out.bin"}, denied)
 	if err != nil {
 		t.Fatalf("Pack: %v", err)
 	}
 	if ws.Branch != "main" || len(ws.Bundle) == 0 || !strings.Contains(string(ws.Patch), "+changed") {
-		t.Fatalf("workspace = branch %q, bundle %d bytes, patch %q", ws.Branch, len(ws.Bundle), ws.Patch)
+		t.Fatalf("repository = branch %q, bundle %d bytes, patch %q", ws.Branch, len(ws.Bundle), ws.Patch)
 	}
 
 	dst := filepath.Join(t.TempDir(), "restored")
-	if err := UnpackWorkspace(t.Context(), ws, dst, nil); err != nil {
+	if err := UnpackRepository(t.Context(), ws, dst, nil); err != nil {
 		t.Fatalf("Unpack: %v", err)
 	}
 	if got := read(t, dst, "README.md"); got != "hello\nchanged\n" {
@@ -96,18 +96,18 @@ func TestWorkspaceRoundTrip(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(branch)) != "main" {
 		t.Fatalf("restored branch = %q, %v", branch, err)
 	}
-	if err := UnpackWorkspace(t.Context(), ws, dst, nil); err == nil {
-		t.Fatal("unpacking over an existing workspace must fail")
+	if err := UnpackRepository(t.Context(), ws, dst, nil); err == nil {
+		t.Fatal("unpacking over an existing workspace dir must fail")
 	}
 }
 
-func TestWorkspaceDetachedHeadAndRefusals(t *testing.T) {
+func TestRepositoryDetachedHeadAndRefusals(t *testing.T) {
 	src := gitRepo(t)
 	sha, _ := utils.RunGit(t.Context(), src, "rev-parse", "HEAD")
 	if _, err := utils.RunGit(t.Context(), src, "checkout", "--quiet", "--detach"); err != nil {
 		t.Fatal(err)
 	}
-	ws, err := PackWorkspace(t.Context(), src, nil, nil)
+	ws, err := PackRepository(t.Context(), src, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,32 +115,32 @@ func TestWorkspaceDetachedHeadAndRefusals(t *testing.T) {
 		t.Fatalf("a detached head packs its commit, got %q", ws.Branch)
 	}
 	dst := filepath.Join(t.TempDir(), "restored")
-	if err := UnpackWorkspace(t.Context(), ws, dst, nil); err != nil {
+	if err := UnpackRepository(t.Context(), ws, dst, nil); err != nil {
 		t.Fatalf("Unpack detached: %v", err)
 	}
 
-	if _, err := PackWorkspace(t.Context(), src, []string{"../outside"}, nil); err == nil {
+	if _, err := PackRepository(t.Context(), src, []string{"../outside"}, nil); err == nil {
 		t.Fatal("an extra file outside the project must be refused")
 	}
-	if _, err := PackWorkspace(t.Context(), t.TempDir(), nil, nil); err == nil {
+	if _, err := PackRepository(t.Context(), t.TempDir(), nil, nil); err == nil {
 		t.Fatal("a directory without a git commit must be refused")
 	}
 
 	optionLike := ws
 	optionLike.Branch = "--orphan=planted"
-	if err := UnpackWorkspace(t.Context(), optionLike, filepath.Join(t.TempDir(), "planted"), nil); err == nil {
+	if err := UnpackRepository(t.Context(), optionLike, filepath.Join(t.TempDir(), "planted"), nil); err == nil {
 		t.Fatal("a peer-sent branch that reads as an option must fail the restore")
 	}
 
 	write(t, src, "README.md", "diverged\n")
-	ws, _ = PackWorkspace(t.Context(), src, nil, nil)
+	ws, _ = PackRepository(t.Context(), src, nil, nil)
 	ws.Bundle = nil
-	if err := UnpackWorkspace(t.Context(), ws, filepath.Join(t.TempDir(), "broken"), nil); err == nil {
+	if err := UnpackRepository(t.Context(), ws, filepath.Join(t.TempDir(), "broken"), nil); err == nil {
 		t.Fatal("an empty bundle must fail the restore")
 	}
 }
 
-func TestPackWorkspaceKeepsExtraFilesInsideTheProject(t *testing.T) {
+func TestPackRepositoryKeepsExtraFilesInsideTheProject(t *testing.T) {
 	src := gitRepo(t)
 	outside := t.TempDir()
 	write(t, outside, "secret", "do not ship\n")
@@ -150,15 +150,15 @@ func TestPackWorkspaceKeepsExtraFilesInsideTheProject(t *testing.T) {
 	write(t, src, "local.env", "TOKEN=x\n")
 	denyEnv := func(abs string) bool { return strings.HasSuffix(abs, ".env") }
 
-	if _, err := PackWorkspace(t.Context(), src, []string{"linked/secret"}, nil); err == nil {
+	if _, err := PackRepository(t.Context(), src, []string{"linked/secret"}, nil); err == nil {
 		t.Fatal("an extra file behind a symlinked directory outside the project must be refused")
 	}
-	if _, err := PackWorkspace(t.Context(), src, []string{"local.env"}, denyEnv); err == nil || !strings.Contains(err.Error(), "sandbox policy") {
+	if _, err := PackRepository(t.Context(), src, []string{"local.env"}, denyEnv); err == nil || !strings.Contains(err.Error(), "sandbox policy") {
 		t.Fatalf("an extra file the sandbox denies must be refused, got %v", err)
 	}
 }
 
-func TestUntarRefusesEntriesThatLeaveTheWorkspace(t *testing.T) {
+func TestUntarRefusesEntriesThatLeaveTheWorkspaceDir(t *testing.T) {
 	tests := []struct {
 		name  string
 		entry string
@@ -174,11 +174,11 @@ func TestUntarRefusesEntriesThatLeaveTheWorkspace(t *testing.T) {
 			if err := os.Symlink(outside, filepath.Join(dir, "linked")); err != nil {
 				t.Fatal(err)
 			}
-			if err := untar(tarOf(t, tt.entry, "pwned\n"), dir, nil, MaxWorkspaceBytes); err == nil {
+			if err := untar(tarOf(t, tt.entry, "pwned\n"), dir, nil, MaxRepositoryBytes); err == nil {
 				t.Fatalf("entry %q was written", tt.entry)
 			}
 			if entries, _ := os.ReadDir(outside); len(entries) != 0 {
-				t.Fatalf("entry %q landed outside the workspace", tt.entry)
+				t.Fatalf("entry %q landed outside the workspace dir", tt.entry)
 			}
 		})
 	}
@@ -217,12 +217,12 @@ func TestUntarRefusesPlantedEntries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			err := untar(tarOf(t, tt.entry, "pwned\n"), dir, tt.denied, MaxWorkspaceBytes)
+			err := untar(tarOf(t, tt.entry, "pwned\n"), dir, tt.denied, MaxRepositoryBytes)
 			if err == nil {
 				t.Fatalf("entry %q was written", tt.entry)
 			}
 			if _, err := os.Stat(filepath.Join(dir, tt.entry)); err == nil {
-				t.Fatalf("entry %q landed in the workspace", tt.entry)
+				t.Fatalf("entry %q landed in the workspace dir", tt.entry)
 			}
 		})
 	}
@@ -236,7 +236,7 @@ func TestUntarCapsTheDecompressedSize(t *testing.T) {
 	}
 }
 
-func TestPackWorkspaceRefusesUncommittedChangesToADeniedFile(t *testing.T) {
+func TestPackRepositoryRefusesUncommittedChangesToADeniedFile(t *testing.T) {
 	src := gitRepo(t)
 	write(t, src, "deploy.env", "TOKEN=old\n")
 	for _, args := range [][]string{{"add", "deploy.env"}, {"commit", "--quiet", "-m", "secrets"}} {
@@ -248,18 +248,18 @@ func TestPackWorkspaceRefusesUncommittedChangesToADeniedFile(t *testing.T) {
 	write(t, src, "README.md", "hello\nchanged\n")
 	denied := func(abs string) bool { return strings.HasSuffix(abs, ".env") }
 
-	_, err := PackWorkspace(t.Context(), src, nil, denied)
+	_, err := PackRepository(t.Context(), src, nil, denied)
 	if err == nil || !strings.Contains(err.Error(), "deploy.env") || !strings.Contains(err.Error(), "sandbox policy") {
 		t.Fatalf("Pack = %v, want the denied uncommitted change refused", err)
 	}
 
 	allow := func(string) bool { return false }
-	if _, err := PackWorkspace(t.Context(), src, nil, allow); err != nil {
-		t.Fatalf("a workspace without denied changes must still pack: %v", err)
+	if _, err := PackRepository(t.Context(), src, nil, allow); err != nil {
+		t.Fatalf("a repository without denied changes must still pack: %v", err)
 	}
 }
 
-func TestWorkspaceOriginFollowsTheSourceWithoutCredentials(t *testing.T) {
+func TestRepositoryOriginFollowsTheSourceWithoutCredentials(t *testing.T) {
 	tests := []struct {
 		name     string
 		origin   string
@@ -279,7 +279,7 @@ func TestWorkspaceOriginFollowsTheSourceWithoutCredentials(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			ws, err := PackWorkspace(t.Context(), src, nil, nil)
+			ws, err := PackRepository(t.Context(), src, nil, nil)
 			if err != nil {
 				t.Fatalf("Pack: %v", err)
 			}
@@ -290,7 +290,7 @@ func TestWorkspaceOriginFollowsTheSourceWithoutCredentials(t *testing.T) {
 				t.Fatalf("packed origin = %q, want %q", ws.Origin, tt.want)
 			}
 			dst := filepath.Join(t.TempDir(), "restored")
-			if err := UnpackWorkspace(t.Context(), ws, dst, nil); err != nil {
+			if err := UnpackRepository(t.Context(), ws, dst, nil); err != nil {
 				t.Fatalf("Unpack: %v", err)
 			}
 			got, err := utils.RunGit(t.Context(), dst, "remote", "get-url", "origin")

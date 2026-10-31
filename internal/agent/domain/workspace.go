@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 )
 
-// EnvironmentKind names where an agent runs: this daemon, a standalone daemon
+// WorkspaceKind names where an agent runs: this daemon, a standalone daemon
 // reachable over TLS, or a Kubernetes Sandbox per session.
-type EnvironmentKind string
+type WorkspaceKind string
 
 const (
-	EnvironmentKindLocal      EnvironmentKind = "local"
-	EnvironmentKindDaemon     EnvironmentKind = "daemon"
-	EnvironmentKindKubernetes EnvironmentKind = "kubernetes"
+	WorkspaceKindLocal      WorkspaceKind = "local"
+	WorkspaceKindDaemon     WorkspaceKind = "daemon"
+	WorkspaceKindKubernetes WorkspaceKind = "kubernetes"
 )
 
 // Session names one conversation and the project it belongs to. Slug is the
-// project's stable name, which a receiving environment restores it under.
+// project's stable name, which a receiving workspace restores it under.
 type Session struct {
 	ProjectDir     string `json:"project_dir"`
 	ConversationID string `json:"conversation_id"`
@@ -26,8 +26,8 @@ type Session struct {
 }
 
 // Validate checks the slug and the conversation id are each one plain path
-// element, because a receiving environment restores the session under
-// <workspace_root>/<slug>/<conversation id> and clears that directory first.
+// element, because a receiving workspace restores the session under
+// <projects_root>/<slug>/<conversation id> and clears that directory first.
 func (s Session) Validate() error {
 	for _, element := range []string{s.Slug, s.ConversationID} {
 		if element == "." || element != filepath.Base(element) || !filepath.IsLocal(element) {
@@ -37,7 +37,7 @@ func (s Session) Validate() error {
 	return nil
 }
 
-// Endpoint is a reachable daemon binding on an environment. Close releases what
+// Endpoint is a reachable daemon binding on a workspace. Close releases what
 // made it reachable, such as a port-forward, and may be nil.
 type Endpoint struct {
 	Addr  string
@@ -53,25 +53,25 @@ func (e Endpoint) Release() {
 	}
 }
 
-// EnvironmentStatus is what list_environments reports per environment.
-type EnvironmentStatus struct {
+// WorkspaceStatus is what list_workspaces reports per workspace.
+type WorkspaceStatus struct {
 	Name         string            `json:"name"`
-	Kind         EnvironmentKind   `json:"kind"`
+	Kind         WorkspaceKind     `json:"kind"`
 	Reachable    bool              `json:"reachable"`
 	Error        string            `json:"error,omitempty"`
 	Capabilities map[string]string `json:"capabilities,omitempty"`
 }
 
-// Environment is a place sessions run. Ensure makes the environment's daemon for a
+// Workspace is a place sessions run. Ensure makes the workspace's daemon for a
 // session reachable, creating or resuming what runs it, and Reach only resumes
-// what already runs it. Probe reports whether the environment can be reached
+// what already runs it. Probe reports whether the workspace can be reached
 // at all. Suspend parks a session's runtime and Delete removes it.
-type Environment interface {
+type Workspace interface {
 	Name() string
-	Kind() EnvironmentKind
+	Kind() WorkspaceKind
 	Ensure(ctx context.Context, session Session) (Endpoint, error)
 	Reach(ctx context.Context, session Session) (Endpoint, error)
-	Probe(ctx context.Context) EnvironmentStatus
+	Probe(ctx context.Context) WorkspaceStatus
 	Suspend(ctx context.Context, session Session) error
 	Delete(ctx context.Context, session Session) error
 }

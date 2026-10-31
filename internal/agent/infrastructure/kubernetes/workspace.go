@@ -31,7 +31,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// The agent-sandbox API this environment drives, and the labels and annotation
+// The agent-sandbox API this workspace drives, and the labels and annotation
 // it reads and writes.
 const (
 	sandboxGroup   = "agents.x-k8s.io"
@@ -39,7 +39,7 @@ const (
 	sandboxKind    = "Sandbox"
 
 	podNameAnnotation = "agents.x-k8s.io/pod-name"
-	labelEnvironment  = "inference-gateway.com/environment"
+	labelWorkspace    = "inference-gateway.com/workspace"
 	labelConversation = "inference-gateway.com/conversation"
 
 	bindingPort      = 52789
@@ -49,7 +49,7 @@ const (
 	workspaceMount   = "/workspace"
 	stateMount       = "/home/infer/.infer/projects"
 	tlsMount         = "/etc/infer/tls"
-	serviceAccount   = "infer-environment"
+	serviceAccount   = "infer-workspace"
 	defaultStorage   = "5Gi"
 	tlsSecretSuffix  = "-tls"
 	secretTokenKey   = "token"
@@ -62,11 +62,11 @@ const (
 
 var sandboxGVR = k8sschema.GroupVersionResource{Group: sandboxGroup, Version: sandboxVersion, Resource: "sandboxes"}
 
-// Environment runs sessions as agent-sandbox Sandboxes: one per session, running
+// Workspace runs sessions as agent-sandbox Sandboxes: one per session, running
 // the infer image as a daemon, reached through a port-forward unless the
 // entry names an address.
-type Environment struct {
-	entry    config.EnvironmentEntry
+type Workspace struct {
+	entry    config.WorkspaceEntry
 	identity string
 	tls      *agentinfra.TLSProvider
 	pki      *agentinfra.PKI
@@ -75,24 +75,24 @@ type Environment struct {
 	typed    k8sclient.Interface
 }
 
-// New connects to the cluster the entry names and returns the environment.
-func New(entry config.EnvironmentEntry, identity string, tls *agentinfra.TLSProvider, pki *agentinfra.PKI) (*Environment, error) {
+// New connects to the cluster the entry names and returns the workspace.
+func New(entry config.WorkspaceEntry, identity string, tls *agentinfra.TLSProvider, pki *agentinfra.PKI) (*Workspace, error) {
 	restConfig, err := restConfigFor(entry)
 	if err != nil {
 		return nil, err
 	}
 	dynamicClient, err := k8sdynamic.NewForConfig(restConfig)
 	if err != nil {
-		return nil, fmt.Errorf("building the Kubernetes client for environment %s: %w", entry.Name, err)
+		return nil, fmt.Errorf("building the Kubernetes client for workspace %s: %w", entry.Name, err)
 	}
 	typedClient, err := k8sclient.NewForConfig(restConfig)
 	if err != nil {
-		return nil, fmt.Errorf("building the Kubernetes client for environment %s: %w", entry.Name, err)
+		return nil, fmt.Errorf("building the Kubernetes client for workspace %s: %w", entry.Name, err)
 	}
-	return &Environment{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, typed: typedClient}, nil
+	return &Workspace{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, typed: typedClient}, nil
 }
 
-func restConfigFor(entry config.EnvironmentEntry) (*k8srest.Config, error) {
+func restConfigFor(entry config.WorkspaceEntry) (*k8srest.Config, error) {
 	rules := k8sclientcmd.NewDefaultClientConfigLoadingRules()
 	if entry.Kubeconfig != "" {
 		rules.ExplicitPath = entry.Kubeconfig
@@ -100,42 +100,42 @@ func restConfigFor(entry config.EnvironmentEntry) (*k8srest.Config, error) {
 	overrides := &k8sclientcmd.ConfigOverrides{CurrentContext: entry.Context}
 	restConfig, err := k8sclientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("loading the kubeconfig for environment %s: %w", entry.Name, err)
+		return nil, fmt.Errorf("loading the kubeconfig for workspace %s: %w", entry.Name, err)
 	}
 	return restConfig, nil
 }
 
-func (e *Environment) Name() string { return e.entry.Name }
-func (e *Environment) Kind() agentdomain.EnvironmentKind {
-	return agentdomain.EnvironmentKindKubernetes
+func (e *Workspace) Name() string { return e.entry.Name }
+func (e *Workspace) Kind() agentdomain.WorkspaceKind {
+	return agentdomain.WorkspaceKindKubernetes
 }
 
-// SandboxName is the Sandbox a session runs in on an environment, stable
-// across teleports. Environments sharing a namespace never reach each other's.
-func SandboxName(environment, conversationID string) string {
-	sum := sha256.Sum256([]byte(environment + "/" + conversationID))
+// SandboxName is the Sandbox a session runs in on a workspace, stable
+// across teleports. Workspaces sharing a namespace never reach each other's.
+func SandboxName(workspace, conversationID string) string {
+	sum := sha256.Sum256([]byte(workspace + "/" + conversationID))
 	return "infer-" + hex.EncodeToString(sum[:])[:12]
 }
 
 // Ensure creates or resumes the session's Sandbox, waits for it to be Ready,
 // and returns the pod daemon's binding through a port-forward.
-func (e *Environment) Ensure(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
+func (e *Workspace) Ensure(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
 	return e.reach(ctx, session, true)
 }
 
 // Reach resumes the session's Sandbox like Ensure but never creates one, so a
 // Sandbox its retention deleted is reported instead of replaced by an empty one.
-func (e *Environment) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
+func (e *Workspace) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
 	return e.reach(ctx, session, false)
 }
 
-func (e *Environment) reach(ctx context.Context, session agentdomain.Session, create bool) (agentdomain.Endpoint, error) {
+func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, create bool) (agentdomain.Endpoint, error) {
 	name := SandboxName(e.entry.Name, session.ConversationID)
 	sandbox, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
 	missing := k8serrors.IsNotFound(err)
 	switch {
 	case missing && !create:
-		return agentdomain.Endpoint{}, fmt.Errorf("sandbox %s of environment %s is gone: its retention ran out or it was deleted", name, e.entry.Name)
+		return agentdomain.Endpoint{}, fmt.Errorf("sandbox %s of workspace %s is gone: its retention ran out or it was deleted", name, e.entry.Name)
 	case err != nil && !missing:
 		return agentdomain.Endpoint{}, fmt.Errorf("reading Sandbox %s: %w", name, err)
 	}
@@ -174,7 +174,7 @@ func (e *Environment) reach(ctx context.Context, session agentdomain.Session, cr
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // and the certificates the daemon CA issued.
-func (e *Environment) ensureSecret(ctx context.Context, name string) (string, error) {
+func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, error) {
 	secrets := e.typed.CoreV1().Secrets(e.entry.Namespace)
 	existing, err := secrets.Get(ctx, name+tlsSecretSuffix, metav1.GetOptions{})
 	if err == nil {
@@ -188,7 +188,7 @@ func (e *Environment) ensureSecret(ctx context.Context, name string) (string, er
 		return "", err
 	}
 	if e.pki == nil {
-		return "", errors.New("a kubernetes environment needs the daemon CA")
+		return "", errors.New("a kubernetes workspace needs the daemon CA")
 	}
 	server, err := e.pki.IssueServer(name, name+"."+e.entry.Namespace, name+"."+e.entry.Namespace+".svc")
 	if err != nil {
@@ -207,7 +207,7 @@ func (e *Environment) ensureSecret(ctx context.Context, name string) (string, er
 		secretClientKey:  client.KeyPEM,
 	}
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelEnvironment: e.entry.Name}},
+		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelWorkspace: e.entry.Name}},
 		Data:       data,
 	}
 	if _, err := secrets.Create(ctx, secret, metav1.CreateOptions{}); err != nil {
@@ -218,7 +218,7 @@ func (e *Environment) ensureSecret(ctx context.Context, name string) (string, er
 
 // ownSecret makes the Sandbox the owner of its Secret, so the garbage
 // collector removes the Secret with the Sandbox however that is deleted.
-func (e *Environment) ownSecret(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
+func (e *Workspace) ownSecret(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
 	owner := metav1.OwnerReference{APIVersion: sandboxGroup + "/" + sandboxVersion, Kind: sandboxKind, Name: sandbox.GetName(), UID: sandbox.GetUID()}
 	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{owner}}})
 	name := sandbox.GetName() + tlsSecretSuffix
@@ -237,7 +237,7 @@ func randomToken() (string, error) {
 }
 
 // create submits the Sandbox for a session.
-func (e *Environment) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
+func (e *Workspace) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	sandbox, err := e.sandbox(name, session)
 	if err != nil {
 		return nil, err
@@ -246,14 +246,14 @@ func (e *Environment) create(ctx context.Context, name string, session agentdoma
 	if err != nil {
 		return nil, fmt.Errorf("creating Sandbox %s: %w", name, err)
 	}
-	logger.Info("created a Sandbox for the session", "environment", e.entry.Name, "sandbox", name, "conversation_id", session.ConversationID)
+	logger.Info("created a Sandbox for the session", "workspace", e.entry.Name, "sandbox", name, "conversation_id", session.ConversationID)
 	return created, nil
 }
 
 // resume brings a parked or finished Sandbox back to Running: a suspended one
 // is set Running, a finished one cycles through Suspended first so a fresh pod
 // reattaches the volumes.
-func (e *Environment) resume(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
+func (e *Workspace) resume(ctx context.Context, sandbox *k8sunstructured.Unstructured) error {
 	mode, _, _ := k8sunstructured.NestedString(sandbox.Object, "spec", "operatingMode")
 	ready := conditionTrue(sandbox, "Ready")
 	finished := conditionTrue(sandbox, "Finished")
@@ -274,7 +274,7 @@ func (e *Environment) resume(ctx context.Context, sandbox *k8sunstructured.Unstr
 
 // setMode moves the Sandbox to mode. Running also clears the expiry a
 // suspension may have set, so a resumed session is never deleted under its pod.
-func (e *Environment) setMode(ctx context.Context, name, mode string) error {
+func (e *Workspace) setMode(ctx context.Context, name, mode string) error {
 	spec := map[string]any{"operatingMode": mode}
 	if mode == "Running" {
 		spec["shutdownTime"], spec["shutdownPolicy"] = nil, nil
@@ -287,7 +287,7 @@ func (e *Environment) setMode(ctx context.Context, name, mode string) error {
 }
 
 // awaitReady polls until the Sandbox reports Ready and returns its pod name.
-func (e *Environment) awaitReady(ctx context.Context, name string) (string, error) {
+func (e *Workspace) awaitReady(ctx context.Context, name string) (string, error) {
 	if err := e.awaitCondition(ctx, name, "Ready"); err != nil {
 		return "", err
 	}
@@ -302,7 +302,7 @@ func (e *Environment) awaitReady(ctx context.Context, name string) (string, erro
 	return pod, nil
 }
 
-func (e *Environment) awaitCondition(ctx context.Context, name, condition string) error {
+func (e *Workspace) awaitCondition(ctx context.Context, name, condition string) error {
 	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
 	defer cancel()
 	ticker := time.NewTicker(readyPoll)
@@ -351,13 +351,13 @@ func conditionMessage(sandbox *k8sunstructured.Unstructured, name string) string
 	return "no condition reported"
 }
 
-// Probe lists this environment's Sandboxes and the cluster version. A missing
+// Probe lists this workspace's Sandboxes and the cluster version. A missing
 // CRD or an unreachable cluster is the error.
-func (e *Environment) Probe(ctx context.Context) agentdomain.EnvironmentStatus {
-	status := agentdomain.EnvironmentStatus{Name: e.entry.Name, Kind: agentdomain.EnvironmentKindKubernetes, Capabilities: map[string]string{
+func (e *Workspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
+	status := agentdomain.WorkspaceStatus{Name: e.entry.Name, Kind: agentdomain.WorkspaceKindKubernetes, Capabilities: map[string]string{
 		"namespace": e.entry.Namespace, "image": e.entry.Image,
 	}}
-	list, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelEnvironment + "=" + e.entry.Name})
+	list, err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).List(ctx, metav1.ListOptions{LabelSelector: labelWorkspace + "=" + e.entry.Name})
 	if err != nil {
 		status.Error = describeClusterError(err)
 		return status
@@ -378,13 +378,13 @@ func describeClusterError(err error) string {
 }
 
 // Suspend parks the session's Sandbox, keeping its volumes.
-func (e *Environment) Suspend(ctx context.Context, session agentdomain.Session) error {
+func (e *Workspace) Suspend(ctx context.Context, session agentdomain.Session) error {
 	return e.setMode(ctx, SandboxName(e.entry.Name, session.ConversationID), "Suspended")
 }
 
 // Delete removes the session's Sandbox and its Secret. The volumes go with
 // the Sandbox.
-func (e *Environment) Delete(ctx context.Context, session agentdomain.Session) error {
+func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) error {
 	name := SandboxName(e.entry.Name, session.ConversationID)
 	if err := e.dynamic.Resource(sandboxGVR).Namespace(e.entry.Namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 		return fmt.Errorf("deleting Sandbox %s: %w", name, err)
@@ -398,7 +398,7 @@ func (e *Environment) Delete(ctx context.Context, session agentdomain.Session) e
 // sandbox is the Sandbox object for a session: the infer image as a daemon
 // with its binding on the pod network, a workspace and a state volume, and
 // the daemon CA's certificates.
-func (e *Environment) sandbox(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
+func (e *Workspace) sandbox(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	podSpec := e.podSpec(name)
 	spec, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(&podSpec)
 	if err != nil {
@@ -409,7 +409,7 @@ func (e *Environment) sandbox(name string, session agentdomain.Session) (*k8suns
 		storage = defaultStorage
 	}
 	if _, err := k8sresource.ParseQuantity(storage); err != nil {
-		return nil, fmt.Errorf("invalid storage %q for environment %s: %w", storage, e.entry.Name, err)
+		return nil, fmt.Errorf("invalid storage %q for workspace %s: %w", storage, e.entry.Name, err)
 	}
 	claim := func(volume string) map[string]any {
 		return map[string]any{
@@ -426,24 +426,24 @@ func (e *Environment) sandbox(name string, session agentdomain.Session) (*k8suns
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": e.entry.Namespace,
-			"labels":    map[string]any{labelEnvironment: e.entry.Name, labelConversation: session.ConversationID},
+			"labels":    map[string]any{labelWorkspace: e.entry.Name, labelConversation: session.ConversationID},
 		},
 		"spec": map[string]any{
-			"podTemplate":          map[string]any{"metadata": map[string]any{"labels": map[string]any{labelEnvironment: e.entry.Name}}, "spec": spec},
+			"podTemplate":          map[string]any{"metadata": map[string]any{"labels": map[string]any{labelWorkspace: e.entry.Name}}, "spec": spec},
 			"volumeClaimTemplates": []any{claim("workspace"), claim("state")},
 			"failedPodPolicy":      "Recreate",
 		},
 	}}, nil
 }
 
-func (e *Environment) podSpec(name string) corev1.PodSpec {
+func (e *Workspace) podSpec(name string) corev1.PodSpec {
 	fsGroup := int64(1000)
 	env := []corev1.EnvVar{
 		{Name: "INFER_DAEMON_BINDING_ENABLED", Value: "true"},
 		{Name: "INFER_DAEMON_BINDING_HOST", Value: "0.0.0.0"},
 		{Name: "INFER_DAEMON_BINDING_PORT", Value: strconv.Itoa(bindingPort)},
-		{Name: "INFER_DAEMON_ENVIRONMENT", Value: e.entry.Name},
-		{Name: "INFER_DAEMON_WORKSPACE_ROOT", Value: workspaceMount},
+		{Name: "INFER_DAEMON_WORKSPACE", Value: e.entry.Name},
+		{Name: "INFER_DAEMON_PROJECTS_ROOT", Value: workspaceMount},
 		{Name: "INFER_DAEMON_IDLE_EXIT", Value: e.entry.EffectiveIdleTTL().String()},
 		{Name: EnvSandboxName, Value: name},
 		{Name: EnvSandboxRetention, Value: e.entry.Retention.String()},

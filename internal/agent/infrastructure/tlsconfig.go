@@ -12,7 +12,7 @@ import (
 )
 
 // TLSProvider builds every tls.Config the daemon needs from daemon.yaml: the
-// binding's server side and the client side for each environment, from
+// binding's server side and the client side for each workspace, from
 // certificate files or the daemon-managed CA.
 type TLSProvider struct {
 	identity string
@@ -78,10 +78,10 @@ func (p *TLSProvider) Server(cfg config.BindingTLSConfig) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// ClientForDaemon dials a daemon-kind environment: its CA pins the server,
+// ClientForDaemon dials a daemon-kind workspace: its CA pins the server,
 // else the system roots verify it, such as the certificate `tailscale serve`
 // presents. A client certificate goes along when configured.
-func (p *TLSProvider) ClientForDaemon(entry config.EnvironmentEntry) (*tls.Config, error) {
+func (p *TLSProvider) ClientForDaemon(entry config.WorkspaceEntry) (*tls.Config, error) {
 	host, _, err := net.SplitHostPort(entry.Address)
 	if err != nil {
 		host = entry.Address
@@ -95,7 +95,7 @@ func (p *TLSProvider) ClientForDaemon(entry config.EnvironmentEntry) (*tls.Confi
 	if entry.TLS.CertFile != "" {
 		cert, err := tls.LoadX509KeyPair(entry.TLS.CertFile, entry.TLS.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("loading the client certificate for environment %s: %w", entry.Name, err)
+			return nil, fmt.Errorf("loading the client certificate for workspace %s: %w", entry.Name, err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
@@ -106,7 +106,7 @@ func (p *TLSProvider) ClientForDaemon(entry config.EnvironmentEntry) (*tls.Confi
 // client certificate naming this daemon.
 func (p *TLSProvider) ClientForKubernetes(serverName string) (*tls.Config, error) {
 	if p.pki == nil {
-		return nil, errors.New("a kubernetes environment needs the daemon CA")
+		return nil, errors.New("a kubernetes workspace needs the daemon CA")
 	}
 	issued, err := p.pki.IssueClient(p.identity)
 	if err != nil {

@@ -17,7 +17,7 @@ const resolveTimeout = 10 * time.Minute
 
 // LaunchWorker is the seam the registry launches threads through. It answers
 // at once with a worker that connects in the background: to a process here
-// when this daemon owns the session or nobody does, to the owning environment's
+// when this daemon owns the session or nobody does, to the owning workspace's
 // daemon when another one does. The registry holds its lock while launching,
 // so nothing here may block.
 func (s *Service) LaunchWorker(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
@@ -35,11 +35,11 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 		w.fail(describe(err, "reading the session's lease").Error())
 		return
 	}
-	if !found && opts.Environment != "" && opts.Environment != s.me {
+	if !found && opts.Workspace != "" && opts.Workspace != s.me {
 		s.relayNamed(ctx, w, key, opts)
 		return
 	}
-	if !found || lease.Environment == s.me {
+	if !found || lease.Workspace == s.me {
 		s.launchLocal(ctx, w, key, opts, lease.TeleportID)
 		return
 	}
@@ -49,24 +49,24 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 		return
 	}
 	if lease.Live(time.Now()) {
-		w.fail(fmt.Sprintf("session %s is owned by environment %s until %s and cannot be reached: %v",
-			key.ConversationID, lease.Environment, lease.Until.Format(time.RFC3339), err))
+		w.fail(fmt.Sprintf("session %s is owned by workspace %s until %s and cannot be reached: %v",
+			key.ConversationID, lease.Workspace, lease.Until.Format(time.RFC3339), err))
 		return
 	}
-	logger.Warn("teleport reclaims a session whose environment is unreachable and whose lease lapsed",
-		"conversation_id", key.ConversationID, "environment", lease.Environment, "error", err)
+	logger.Warn("teleport reclaims a session whose workspace is unreachable and whose lease lapsed",
+		"conversation_id", key.ConversationID, "workspace", lease.Workspace, "error", err)
 	s.launchLocal(ctx, w, key, opts, "")
 }
 
-// relayNamed relays a thread no lease places to the environment its client
+// relayNamed relays a thread no lease places to the workspace its client
 // named, which holds the conversation. Unlike a lapsed lease, an unreachable
-// named environment never falls back to a local worker, which would start the
+// named workspace never falls back to a local worker, which would start the
 // conversation empty here.
 func (s *Service) relayNamed(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) {
-	placed := agentdomain.Lease{ConversationID: key.ConversationID, Environment: opts.Environment, Workspace: opts.Workspace}
+	placed := agentdomain.Lease{ConversationID: key.ConversationID, Workspace: opts.Workspace, WorkspaceDir: opts.WorkspaceDir}
 	remote, err := s.connectRemote(ctx, key, placed)
 	if err != nil {
-		w.fail(fmt.Sprintf("session %s cannot be reached on environment %s: %v", key.ConversationID, opts.Environment, err))
+		w.fail(fmt.Sprintf("session %s cannot be reached on workspace %s: %v", key.ConversationID, opts.Workspace, err))
 		return
 	}
 	w.attach(remote)
@@ -75,14 +75,14 @@ func (s *Service) relayNamed(ctx context.Context, w *lazyWorker, key sessionsdom
 // launchLocal claims the session for this daemon and starts a process worker
 // with a lease heartbeat.
 func (s *Service) launchLocal(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions, teleportID string) {
-	lease := agentdomain.Lease{ConversationID: key.ConversationID, Environment: s.me, Workspace: key.ProjectDir, TeleportID: teleportID, Until: time.Now().Add(s.ownedTTL())}
+	lease := agentdomain.Lease{ConversationID: key.ConversationID, Workspace: s.me, WorkspaceDir: key.ProjectDir, TeleportID: teleportID, Until: time.Now().Add(s.ownedTTL())}
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err != nil {
 		w.fail(describe(err, "claiming the session's lease").Error())
 		return
 	}
 	if !ok {
-		w.fail(fmt.Sprintf("session %s is owned by environment %s", key.ConversationID, holder.Environment))
+		w.fail(fmt.Sprintf("session %s is owned by workspace %s", key.ConversationID, holder.Workspace))
 		return
 	}
 	opts.Env = append(opts.Env, s.credentialsFor(key.ConversationID)...)
@@ -96,7 +96,7 @@ func (s *Service) launchLocal(ctx context.Context, w *lazyWorker, key sessionsdo
 }
 
 // keepAlive renews this daemon's lease while the worker runs and stops the
-// worker the moment another environment holds the row.
+// worker the moment another workspace holds the row.
 func (s *Service) keepAlive(conversationID string, worker sessionsdomain.Worker) func() {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -110,7 +110,7 @@ func (s *Service) keepAlive(conversationID string, worker sessionsdomain.Worker)
 			}
 			err := s.leases.RenewLease(ctx, conversationID, s.me, time.Now().Add(s.ownedTTL()))
 			if errors.Is(err, agentdomain.ErrLeaseLost) {
-				logger.Warn("teleport stops a worker whose session another environment took over", "conversation_id", conversationID)
+				logger.Warn("teleport stops a worker whose session another workspace took over", "conversation_id", conversationID)
 				worker.Stop()
 				return
 			}
