@@ -23,7 +23,8 @@ const returnAckTimeout = 15 * time.Second
 
 // teleportBack teleports a session that runs on a remote workspace back to this
 // daemon: the owner packs it, its repository lands on the checkout it left and
-// its conversation is stored here again. A failure leaves it where it was.
+// its conversation is stored here again, remembering the runtime it left
+// behind. A failure leaves it where it was.
 func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomain.TeleportRequest) {
 	fail := func(err error) { s.failTeleport(to, req, err) }
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
@@ -85,6 +86,8 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 	}
 	_ = conn.Send(encode(returnFrame{Type: frameTeleportReturned, TeleportID: req.TeleportID}))
 	s.forgetOrigin(req.Session.ConversationID)
+	s.rememberRuntime(req.Session.ConversationID, remote.Workspace)
+	s.registry.TeleportedHere(key)
 	s.report(to, req, agentdomain.TeleportReady, "")
 	teleported := encode(sessionTeleportedFrame{Type: frameSessionTeleported, SessionTeleported: agentdomain.SessionTeleported{
 		Session: req.Session, Workspace: s.me, WorkspaceDir: req.Session.ProjectDir, CancelledInterrupts: checkpoint.Interrupts,
@@ -300,49 +303,84 @@ func (s *Service) excludes(projectDir string) func(abs string) bool {
 	return func(abs string) bool { return s.cfg.Denies != nil && s.cfg.Denies(projectDir, abs) }
 }
 
+// What the daemon remembers per session under its state dir.
+const (
+	originsState  = "origins"
+	runtimesState = "runtimes"
+)
+
 // rememberOrigin keeps the checkout a session left and its fingerprint, which
 // lets it come back onto that checkout, and only that one, while unchanged.
 func (s *Service) rememberOrigin(conversationID, projectDir, fingerprint string) {
-	path := s.originFile(conversationID)
-	if path == "" {
-		return
+	if !s.writeState(originsState, conversationID, projectDir+"\n"+fingerprint) {
+		logger.Warn("teleport could not remember the checkout a session left", "conversation_id", conversationID)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err == nil {
-		err = os.WriteFile(path, []byte(projectDir+"\n"+fingerprint), 0o600)
-		if err == nil {
-			return
-		}
-	}
-	logger.Warn("teleport could not remember the checkout a session left", "conversation_id", conversationID)
 }
 
 // origin is the checkout a session left and its fingerprint then, or empty
 // strings when the daemon remembers none.
 func (s *Service) origin(conversationID string) (string, string) {
-	path := s.originFile(conversationID)
-	if path == "" {
-		return "", ""
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", ""
-	}
-	projectDir, fingerprint, _ := strings.Cut(strings.TrimSpace(string(data)), "\n")
+	projectDir, fingerprint, _ := strings.Cut(s.readState(originsState, conversationID), "\n")
 	return projectDir, fingerprint
 }
 
 func (s *Service) forgetOrigin(conversationID string) {
-	if path := s.originFile(conversationID); path != "" {
+	s.removeState(originsState, conversationID)
+}
+
+// rememberRuntime keeps the remote workspace a session came home from, whose
+// runtime it left behind, so stopping the session deletes that runtime too.
+func (s *Service) rememberRuntime(conversationID, workspace string) {
+	if !s.writeState(runtimesState, conversationID, workspace) {
+		logger.Warn("teleport could not remember the runtime a session left", "conversation_id", conversationID, "workspace", workspace)
+	}
+}
+
+// runtimeLeftOn is the remote workspace a session left its runtime on when it
+// came home, "" when the daemon remembers none.
+func (s *Service) runtimeLeftOn(conversationID string) string {
+	return s.readState(runtimesState, conversationID)
+}
+
+func (s *Service) forgetRuntime(conversationID string) {
+	s.removeState(runtimesState, conversationID)
+}
+
+func (s *Service) writeState(kind, conversationID, value string) bool {
+	path := s.stateFile(kind, conversationID)
+	if path == "" {
+		return true
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return false
+	}
+	return os.WriteFile(path, []byte(value), 0o600) == nil
+}
+
+func (s *Service) readState(kind, conversationID string) string {
+	path := s.stateFile(kind, conversationID)
+	if path == "" {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func (s *Service) removeState(kind, conversationID string) {
+	if path := s.stateFile(kind, conversationID); path != "" {
 		_ = os.Remove(path)
 	}
 }
 
-// originFile is where the origin of a session is kept, "" when the daemon
-// remembers none or the conversation id is not a plain file name.
-func (s *Service) originFile(conversationID string) string {
+// stateFile is where the daemon keeps one kind of state about a session, ""
+// when it remembers none or the conversation id is not a plain file name.
+func (s *Service) stateFile(kind, conversationID string) string {
 	name := filepath.Base(conversationID)
 	if s.cfg.StateDir == "" || name != conversationID || name == "." || strings.Contains(name, "..") {
 		return ""
 	}
-	return filepath.Join(s.cfg.StateDir, "origins", name)
+	return filepath.Join(s.cfg.StateDir, kind, name)
 }

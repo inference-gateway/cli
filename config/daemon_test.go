@@ -138,6 +138,16 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	if got := k8s.EffectiveLeaseTTL(); got != time.Hour+5*time.Minute {
 		t.Fatalf("kubernetes lease ttl follows idle ttl: %v", got)
 	}
+	if got := k8s.EffectiveAwayTTL(); got != time.Minute {
+		t.Fatalf("kubernetes away ttl = %v, want the minute default", got)
+	}
+	k8s.AwayTTL = 10 * time.Minute
+	if got := k8s.EffectiveAwayTTL(); got != 10*time.Minute {
+		t.Fatalf("configured away ttl wins: %v", got)
+	}
+	if got := DefaultDaemonConfig().AwayExit; got != time.Minute {
+		t.Fatalf("default away_exit = %v, want a minute", got)
+	}
 	if got := (WorkspaceEntry{Kind: WorkspaceKindDaemon}).EffectiveLeaseTTL(); got != 24*time.Hour {
 		t.Fatalf("daemon lease ttl = %v", got)
 	}

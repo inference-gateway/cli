@@ -9,6 +9,7 @@ workspaces:
     image: ghcr.io/inference-gateway/cli:local
     storage: 1Gi
     idle_ttl: 30m
+    away_ttl: 1m
     retention: 24h
     env:
       INFER_GATEWAY_MOCK: "true"
@@ -20,6 +21,7 @@ workspaces:
     image: infer-desktop:local
     storage: 1Gi
     idle_ttl: 30m
+    away_ttl: 1m
     retention: 24h
     env:
       INFER_GATEWAY_MOCK: "true"

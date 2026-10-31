@@ -211,7 +211,7 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 	select {
 	case <-sigChan:
 	case <-threads.idle:
-		logger.Info("the daemon idled out", "idle_exit", cfg.Daemon.IdleExit)
+		logger.Info("the daemon idled out", "idle_exit", cfg.Daemon.IdleExit, "away_exit", cfg.Daemon.AwayExit)
 	case <-watchExecutable(ctx, exe):
 		logger.Warn("the daemon's binary is gone, stopping so the next client starts a current one", "executable", exe)
 	}
@@ -408,7 +408,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		defer close(stopped)
 		registry.Run(ctx)
 	}()
-	idle := watchIdle(ctx, cfg.Daemon.IdleExit, registry, k8sworkspace.ReportIdle)
+	idle := watchIdle(ctx, cfg.Daemon, registry, k8sworkspace.ReportIdle)
 	return threadHost{
 		stop: func() {
 			if binding != nil {
@@ -424,11 +424,12 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 const idleCheck = 30 * time.Second
 
 // watchIdle closes the returned channel once the registry has had no thread
-// and no client for idleExit, after reporting to the runtime this daemon runs
-// in whether every agent it ran is done. A zero idleExit never closes it.
-func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.Registry, report func(done bool) error) <-chan struct{} {
+// and no client for the daemon's idle limit, after reporting to the runtime
+// this daemon runs in whether every agent it ran is done. A zero idle exit
+// never closes it.
+func watchIdle(ctx context.Context, daemon config.DaemonConfig, registry *sessions.Registry, report func(done bool) error) <-chan struct{} {
 	idle := make(chan struct{})
-	if idleExit <= 0 {
+	if daemon.IdleExit <= 0 {
 		return idle
 	}
 	go func() {
@@ -440,7 +441,7 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 				return
 			case <-ticker.C:
 			}
-			if since, isIdle := registry.Idle(); isIdle && time.Since(since) >= idleExit {
+			if since, isIdle := registry.Idle(); isIdle && time.Since(since) >= idleLimit(daemon, registry) {
 				if err := report(registry.AgentsDone()); err != nil {
 					logger.Warn("the daemon could not report that it idled out", "error", err)
 				}
@@ -450,6 +451,15 @@ func watchIdle(ctx context.Context, idleExit time.Duration, registry *sessions.R
 		}
 	}()
 	return idle
+}
+
+// idleLimit is how long the registry may sit idle before the daemon exits:
+// away_exit once every session that teleported here left again, else idle_exit.
+func idleLimit(daemon config.DaemonConfig, registry *sessions.Registry) time.Duration {
+	if daemon.AwayExit > 0 && registry.AllTeleportedAway() {
+		return min(daemon.IdleExit, daemon.AwayExit)
+	}
+	return daemon.IdleExit
 }
 
 // executableCheck is how often the daemon looks for the binary it runs.

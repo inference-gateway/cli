@@ -137,6 +137,10 @@ type Registry struct {
 	// without waiting on the user. It outlives the thread, one entry per
 	// conversation for the daemon's lifetime. Read by AgentsDone.
 	finished map[sessionsdomain.ThreadKey]bool
+	// away holds, per thread whose session teleported, whether it now lives in
+	// another workspace (true) or arrived here (false). Read by AgentsDone and
+	// AllTeleportedAway.
+	away map[sessionsdomain.ThreadKey]bool
 }
 
 // thread is one project dir plus conversation id and the worker running it.
@@ -173,6 +177,7 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 		all:        make(map[sessionsdomain.Client]struct{}),
 		lastActive: time.Now(),
 		finished:   make(map[sessionsdomain.ThreadKey]bool),
+		away:       make(map[sessionsdomain.ThreadKey]bool),
 	}
 }
 

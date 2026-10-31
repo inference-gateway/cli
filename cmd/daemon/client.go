@@ -305,7 +305,7 @@ func runTurn(ctx context.Context, out, errOut io.Writer, client *daemonClient, c
 func newStopCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
 		Use:          "stop <conversation-id>",
-		Short:        "Stop a session's agent and delete its runtime and volumes on the remote workspace that owns it",
+		Short:        "Stop a session's agent and delete its runtime and volumes on the remote workspace that owns it or that it left after teleporting home",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -340,7 +340,7 @@ func printStopped(out io.Writer, frame map[string]any) error {
 		return errors.New(message)
 	}
 	if workspace, _ := frame["workspace"].(string); workspace != "" {
-		say(out, "deleted the session's runtime on %s and released its lease, it continues here next time\n", workspace)
+		say(out, "deleted the session's runtime on %s, the session continues on this daemon\n", workspace)
 		return nil
 	}
 	say(out, "stopped the session's worker on this daemon\n")

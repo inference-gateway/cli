@@ -261,6 +261,8 @@ when it deletes the conversation instead of leaving the worker to idle out:
 - When another workspace owns the session, the CLI deletes the session's
   runtime there (a Kubernetes `Orchestrator` with its volumes) and releases the
   lease, so the session continues from the CLI's own copy.
+- When the session teleported home, the CLI deletes the runtime it left on the
+  workspace it came from.
 
 CLI → client, only the sender receives it:
 

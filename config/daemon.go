@@ -15,6 +15,7 @@ const (
 	DefaultDaemonDir = ConfigDirName + "/" + DaemonFileName
 
 	defaultKubernetesIdleTTL = 2 * time.Hour
+	defaultAwayExit          = time.Minute
 	defaultDaemonLeaseTTL    = 24 * time.Hour
 	remoteLeaseGrace         = 5 * time.Minute
 )
@@ -51,7 +52,11 @@ type DaemonConfig struct {
 	ProjectsRoot string `yaml:"projects_root,omitempty" mapstructure:"projects_root"`
 	// IdleExit stops the daemon after this long with no threads and no clients.
 	// Zero keeps it running.
-	IdleExit   time.Duration    `yaml:"idle_exit,omitempty" mapstructure:"idle_exit"`
+	IdleExit time.Duration `yaml:"idle_exit,omitempty" mapstructure:"idle_exit"`
+	// AwayExit stops the daemon sooner, after this long with no threads and no
+	// clients once every session that teleported here left again. It only
+	// shortens IdleExit, and zero leaves IdleExit alone.
+	AwayExit   time.Duration    `yaml:"away_exit,omitempty" mapstructure:"away_exit"`
 	Binding    BindingConfig    `yaml:"binding" mapstructure:"binding"`
 	Workspaces []WorkspaceEntry `yaml:"workspaces" mapstructure:"workspaces"`
 }
@@ -113,6 +118,10 @@ type WorkspaceEntry struct {
 	IdleTTL    time.Duration     `yaml:"idle_ttl,omitempty" mapstructure:"idle_ttl"`
 	Env        map[string]string `yaml:"env,omitempty" mapstructure:"env"`
 
+	// AwayTTL is how long a Kubernetes pod daemon idles once its sessions all
+	// teleported away before it suspends its Sandbox. Empty is a minute.
+	AwayTTL time.Duration `yaml:"away_ttl,omitempty" mapstructure:"away_ttl"`
+
 	// Retention is how long a Sandbox stays suspended once every agent on it is
 	// done before agent-sandbox deletes it with its volumes. Zero keeps it until
 	// the session is stopped.
@@ -132,6 +141,15 @@ func (e WorkspaceEntry) EffectiveIdleTTL() time.Duration {
 		return e.IdleTTL
 	}
 	return defaultKubernetesIdleTTL
+}
+
+// EffectiveAwayTTL is how long a Kubernetes pod daemon idles once its sessions
+// all teleported away before it suspends its Sandbox.
+func (e WorkspaceEntry) EffectiveAwayTTL() time.Duration {
+	if e.AwayTTL > 0 {
+		return e.AwayTTL
+	}
+	return defaultAwayExit
 }
 
 // EffectiveLeaseTTL is the configured lease TTL, else the idle TTL plus a
@@ -326,9 +344,11 @@ func (c *Config) Binding() Binding {
 
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml
 // exists: the binding is off until the user or the desktop app enables it, no
-// TLS, and no workspaces beyond this daemon.
+// TLS, no workspaces beyond this daemon, and a minute's idle once every
+// teleported session left.
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
+		AwayExit: defaultAwayExit,
 		Binding: BindingConfig{
 			TLS: BindingTLSConfig{Mode: TLSModeOff},
 		},

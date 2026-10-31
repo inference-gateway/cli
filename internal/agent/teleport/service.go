@@ -177,8 +177,9 @@ func boolRank(b bool) int {
 
 // StopSession handles a client dropping a session: when a remote workspace owns
 // it, the session's runtime there is deleted and the lease released, so the
-// session starts here next time. The client gets thread_stopped, naming the
-// workspace whose runtime went or the error that kept it.
+// session starts here next time, and a session that came home has the runtime
+// it left behind deleted. The client gets thread_stopped, naming the workspace
+// whose runtime went or the error that kept it.
 func (s *Service) StopSession(ctx context.Context, to requester, key sessionsdomain.ThreadKey) {
 	stopped := threadStoppedFrame{Type: frameThreadStopped, ProjectDir: key.ProjectDir, ID: key.ConversationID}
 	workspace, err := s.deleteRemote(ctx, key)
@@ -191,27 +192,50 @@ func (s *Service) StopSession(ctx context.Context, to requester, key sessionsdom
 }
 
 // deleteRemote deletes the session's runtime on the remote workspace that
-// owns it and releases the lease, returning that workspace, or "" when the
-// session is this daemon's or nobody's.
+// owns it and releases the lease, or, for a session this daemon owns or nobody
+// does, the runtime it left behind when it came home. It returns the workspace
+// whose runtime went, "" when there was none.
 func (s *Service) deleteRemote(ctx context.Context, key sessionsdomain.ThreadKey) (string, error) {
 	lease, found, err := s.leases.GetLease(ctx, key.ConversationID)
 	if err != nil {
 		return "", describe(err, "reading the session's lease")
 	}
 	if !found || lease.Workspace == s.me {
-		return "", nil
+		return s.deleteLeftBehind(ctx, key)
 	}
-	workspace, ok := s.workspaces[lease.Workspace]
-	if !ok {
-		return "", fmt.Errorf("workspace %s is not registered in daemon.yaml", lease.Workspace)
-	}
-	if err := workspace.Delete(ctx, s.session(key)); err != nil {
-		return "", describe(err, "deleting the session's runtime on %s", lease.Workspace)
+	if err := s.deleteRuntime(ctx, lease.Workspace, key); err != nil {
+		return "", err
 	}
 	if err := s.leases.ReleaseLease(ctx, key.ConversationID, lease.Workspace); err != nil {
 		return "", describe(err, "releasing the session's lease")
 	}
 	return lease.Workspace, nil
+}
+
+// deleteLeftBehind deletes the runtime a session that came home left on the
+// workspace it came from, returning that workspace, "" when none is remembered.
+func (s *Service) deleteLeftBehind(ctx context.Context, key sessionsdomain.ThreadKey) (string, error) {
+	workspace := s.runtimeLeftOn(key.ConversationID)
+	if workspace == "" {
+		return "", nil
+	}
+	if err := s.deleteRuntime(ctx, workspace, key); err != nil {
+		return "", err
+	}
+	s.forgetRuntime(key.ConversationID)
+	return workspace, nil
+}
+
+// deleteRuntime deletes the session's runtime on the named workspace.
+func (s *Service) deleteRuntime(ctx context.Context, name string, key sessionsdomain.ThreadKey) error {
+	workspace, ok := s.workspaces[name]
+	if !ok {
+		return fmt.Errorf("workspace %s is not registered in daemon.yaml", name)
+	}
+	if err := workspace.Delete(ctx, s.session(key)); err != nil {
+		return describe(err, "deleting the session's runtime on %s", name)
+	}
+	return nil
 }
 
 // session names a thread the way checkpoints and leases do.

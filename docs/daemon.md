@@ -91,6 +91,7 @@ hostname), and `daemon.yaml` registers the others:
 workspace: laptop
 projects_root: ~/.infer/projects
 idle_exit: 0s
+away_exit: 1m
 workspaces:
   - name: laptop
     kind: local
@@ -101,6 +102,7 @@ workspaces:
     image: ghcr.io/inference-gateway/cli:latest
     storage: 5Gi
     idle_ttl: 2h
+    away_ttl: 1m
     retention: 168h
     env:
       INFER_GATEWAY_URL: http://inference-gateway:8080
@@ -122,8 +124,9 @@ workspaces:
   `infer daemon` in an agent-sandbox `Sandbox`, with its binding on the pod network. The Sandbox keeps a
   `workspace` and a `state` volume of `storage` each, so a session survives its pod. This daemon's CA
   issues the pod's server certificate and a client certificate into a Secret the Orchestrator owns, and
-  the pod daemon's binding requires them. The pod daemon idles out after `idle_ttl`, the operator suspends
-  the Orchestrator, and the next teleport resumes it. `env` is the pod daemon's non-secret environment,
+  the pod daemon's binding requires them. The pod daemon idles out after `idle_ttl`, or after `away_ttl`
+  once its session teleported away with no client attached, the operator suspends the Orchestrator, and
+  the next teleport resumes it. `env` is the pod daemon's non-secret environment,
   such as the gateway URL. `address` replaces the port-forward when an Ingress or Gateway exposes the pods.
 - The cluster needs the operator v0.28.1 or later, agent-sandbox, and the Gateway API CRDs the operator
   requires. Install agent-sandbox first, because the operator looks for it only when it starts. A teleport
@@ -133,8 +136,9 @@ workspaces:
   `get`, `create`, `patch` and `delete` on `secrets`, and `create` on `pods/portforward`.
 - `retention` has the operator delete a suspended Orchestrator, its Sandbox, volumes and Secret once it
   sat suspended that long. It only starts when every agent on the pod is done: its last run finished
-  without waiting on an approval or a question. A run still going keeps the pod up, and a run that waits
-  on the user or ended in an error keeps the Orchestrator until `infer daemon stop` deletes it. Resuming
+  without waiting on an approval or a question, or its session teleported away. A run still going keeps
+  the pod up, and a run that waits on the user or ended in an error keeps the Orchestrator until
+  `infer daemon stop` deletes it. Resuming
   the Orchestrator clears the countdown. The pod daemon leaves its verdict as the pod's termination
   message (`agents-done=true`), and a pod that ran nothing reports not done. Without a `retention` a
   suspended Orchestrator stays until the session is stopped. A relay never recreates an Orchestrator its
@@ -144,6 +148,10 @@ workspaces:
 - `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
+- `away_exit` (default `1m`) stops a daemon sooner, once every session that teleported to it left again
+  and it had no thread and no client for that long. It only shortens `idle_exit`, never stops a daemon
+  without one, and `0` turns it off. Pod daemons get `away_ttl` (default `1m`), so set `away_ttl` to
+  `idle_ttl` to keep a pod up for the full `idle_ttl` after its session left.
 
 A teleport sends a session to another workspace between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
@@ -180,7 +188,7 @@ The daemon's subcommands drive this from a shell:
 infer daemon workspaces                                 # who is reachable
 infer daemon teleport <conversation-id> --to k8s-dev      # teleport a session, follow the stages
 infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
-infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime
+infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime, also one it left
 ```
 
 A teleport starts on the daemon that owns the session. A daemon that only relays a session refuses to
@@ -195,9 +203,14 @@ fingerprints into `~/.infer/daemon/origins/` when a session teleports away. A ch
 `changed since the session left it`, so stash those changes (`git stash -u`), teleport back, then
 `git stash pop`. The checkout's own changes wait in a stash until the landing, the lease and the
 conversation import all succeed, and any failure undoes all three, so the session stays with its owner.
-Untracked files the sandbox policy denies are never touched. The remote runtime stays behind and suspends
-after its `idle_ttl`. A pod that runs an infer too old to send sessions back fails the teleport within 15
-seconds.
+Untracked files the sandbox policy denies are never touched. A pod that runs an infer too old to send
+sessions back fails the teleport within 15 seconds.
+
+The remote runtime stays behind for a while. A pod daemon whose session left, with no client attached,
+idles out after `away_ttl` and reports its agents done, so the operator suspends the Orchestrator and
+starts its `retention`. Teleporting the session to that workspace again before the retention runs out
+resumes the Orchestrator with its volumes. The daemon remembers the workspace a session came home from in
+`~/.infer/daemon/runtimes/`, so `infer daemon stop <conversation-id>` deletes that runtime at once.
 
 ### Daemons on other machines
 
