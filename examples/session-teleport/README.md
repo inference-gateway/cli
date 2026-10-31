@@ -22,8 +22,7 @@ for the wire frames.
 - [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5 (ctlptl drives k3d)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [docker](https://docs.docker.com/get-docker/) (k3d runs on it, `task image:import` builds with it)
-- [task](https://taskfile.dev/) and Go 1.26 (the image build)
-- `task build` at the repository root: the tasks run that `infer` binary (`INFER=<path>` overrides it)
+- [task](https://taskfile.dev/) and Go 1.26: the tasks build `infer` at the repository root before they run it (`INFER=<path>` overrides it)
 
 ## Layout
 
@@ -243,6 +242,7 @@ task cleanup
 | `provisioning` fails with `did not become Ready` | Check `kubectl -n infer-environments describe sandbox` and the pod's logs |
 | `session ... is owned by environment` | The session teleported. Continue with `infer daemon run`, or delete its Sandbox with `infer daemon stop` |
 | `restoring` fails with `does not apply cleanly` | The project changed after the teleport started. Retry |
+| `daemon teleport` hangs before `provisioning` | The daemon runs an older infer. Stop it and run `task daemon:start` again, it rebuilds `infer` |
 | Teleporting back fails with `did not answer the teleport back` | The pod runs an older infer. Run `task image:import`, then `task desktop:image` |
 | Teleporting back fails with `changed since the session left it` | `git stash -u`, teleport back, then `git stash pop` |
 | `checkpointing` fails with `not a git checkout with a commit` | A teleport bundles `HEAD`, so the project needs at least one commit |
