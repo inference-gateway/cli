@@ -40,7 +40,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   once, which is what a client sends when it deletes the conversation. The worker's exit does the usual
   bookkeeping.
 - **Agents done** - `AgentsDone` reports whether the last run of every thread the registry ran finished
-  without waiting on the user, a session that teleported away counting as done. A pod daemon reports it as
+  without waiting on the user, a session that teleported away counting as done and one that teleported here
+  counting only once its own run finished. A pod daemon reports it as
   its termination message when it idles out, which tells the operator whether the Orchestrator's retention
   may start.
 - **Teleported sessions** - `TeleportedHere` and `TeleportedAway` record where a teleported session lives.

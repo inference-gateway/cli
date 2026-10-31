@@ -125,14 +125,20 @@ func (r *Registry) Request(ctx context.Context, frame []byte, replyType string) 
 }
 
 // AgentsDone reports whether the last run of every thread this registry ran
-// finished without waiting on the user. A run still open, suspended on an
-// interrupt or ended by an error is not done, and neither is no run at all,
-// unless every session that teleported here left again.
+// finished without waiting on the user, and every session that teleported here
+// and stayed had such a run. A run still open, suspended on an interrupt or
+// ended by an error is not done, and neither is no run at all, unless every
+// session that teleported here left again.
 func (r *Registry) AgentsDone() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for key, finished := range r.finished {
 		if !finished && !r.away[key] {
+			return false
+		}
+	}
+	for key, left := range r.away {
+		if !left && !r.finished[key] {
 			return false
 		}
 	}

@@ -251,6 +251,27 @@ func TestAgentsDoneOnceASessionTeleportedAway(t *testing.T) {
 	}
 }
 
+func TestAgentsDoneWaitsOnASessionThatArrivedAndNeverRan(t *testing.T) {
+	arrived := sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "conv-2"}
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	c := &sessionsmocks.FakeClient{}
+	handle(r, c, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	_, lines := l.worker(0)
+	lines <- []byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
+	lines <- []byte(`{"type":"RUN_FINISHED","threadId":"conv-1","runId":"run-1"}`)
+	eventually(t, "the finished run", func() bool { return c.DeliverCallCount() == 2 })
+
+	r.TeleportedHere(arrived)
+	if r.AgentsDone() {
+		t.Fatal("AgentsDone() = true while a session that teleported here never ran")
+	}
+	r.TeleportedAway(arrived)
+	if !r.AgentsDone() {
+		t.Fatal("AgentsDone() = false once the session that never ran left again")
+	}
+}
+
 func TestAllTeleportedAway(t *testing.T) {
 	other := sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "conv-2"}
 	type teleport struct {
