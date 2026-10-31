@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.239.0-rc.9](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.8...v0.239.0-rc.9) (2026-10-31)
+
+### 🐛 Bug Fixes
+
+* **examples:** build infer before the session-teleport tasks run it ([8687eb3](https://github.com/inference-gateway/cli/commit/8687eb36ee0d8c2fd61b317a5cfbcecf246eba70))
+
+### ♻️ Code Refactoring
+
+* **daemon:** rename teleport environments to workspaces ([#1658](https://github.com/inference-gateway/cli/issues/1658)) ([35ada71](https://github.com/inference-gateway/cli/commit/35ada71a0b0c863a13892721ca6117bf17dc0ced))
+
 ## [0.239.0-rc.8](https://github.com/inference-gateway/cli/compare/v0.239.0-rc.7...v0.239.0-rc.8) (2026-10-31)
 
 ### 🐛 Bug Fixes
