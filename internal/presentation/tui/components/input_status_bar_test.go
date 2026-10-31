@@ -1335,7 +1335,7 @@ func TestInputStatusBar_ShouldShowIndicator_Duration(t *testing.T) {
 	}
 }
 
-func TestInputStatusBar_BuildEnvironmentIndicator(t *testing.T) {
+func TestInputStatusBar_BuildWorkspaceIndicator(t *testing.T) {
 	theme := &tuimocks.FakeTheme{}
 	theme.GetDimColorReturns("dim")
 	theme.GetAccentColorReturns("accent")
@@ -1352,7 +1352,7 @@ func TestInputStatusBar_BuildEnvironmentIndicator(t *testing.T) {
 	}{
 		{name: "in process", placement: tui.SessionPlacement{}},
 		{name: "on the local daemon", placement: tui.SessionPlacement{Daemon: true, Local: "laptop"}, text: icons.LocalSession + " laptop", color: "dim"},
-		{name: "on another environment", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}, text: icons.RemoteSession + " k8s-dev", color: "accent"},
+		{name: "on another workspace", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}, text: icons.RemoteSession + " k8s-dev", color: "accent"},
 		{name: "teleporting", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev"}, text: icons.TeleportingSession + " k8s-dev", color: "warning"},
 		{name: "offline", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Offline: true}, text: icons.LocalSession + " laptop · offline", color: "error"},
 	}
@@ -1362,7 +1362,7 @@ func TestInputStatusBar_BuildEnvironmentIndicator(t *testing.T) {
 			state.SetSessionPlacement(tt.placement)
 			statusBar := &InputStatusBar{stateManager: state, styleProvider: styles.NewProvider(themeService)}
 
-			text, color := statusBar.buildEnvironmentIndicator()
+			text, color := statusBar.buildWorkspaceIndicator()
 
 			if text != tt.text || color != tt.color {
 				t.Errorf("indicator = %q in %q, want %q in %q", text, color, tt.text, tt.color)

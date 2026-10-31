@@ -403,7 +403,7 @@ func (iv *InputView) Render() string {
 // buildGitBranchLabel returns the "⎇ <branch>" label embedded in the input box
 // top border, with " ─ #<pr>" when a PR exists and git_pr is enabled. It is ""
 // when git_branch is off, there is no branch (not a repo, detached HEAD) or the
-// session runs on another environment, whose checkout this one is not. The
+// session runs on another workspace, whose checkout this one is not. The
 // style provider truncates it to fit the border.
 func (iv *InputView) buildGitBranchLabel() string {
 	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {

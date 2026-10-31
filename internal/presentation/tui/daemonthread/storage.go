@@ -56,7 +56,7 @@ func (s *Storage) LoadConversation(ctx context.Context, conversationID string) (
 	return exported.Entries, exported.Metadata, nil
 }
 
-// ListConversations lists the conversations of the environment the session
+// ListConversations lists the conversations of the workspace the session
 // runs on, in the worker's project.
 func (s *Storage) ListConversations(ctx context.Context, _ string, _, offset int) ([]convdomain.ConversationSummary, error) {
 	if offset > 0 {
@@ -85,23 +85,23 @@ func (s *Storage) locate(ctx context.Context, summaries []convdomain.Conversatio
 		wg.Go(func() {
 			slots <- struct{}{}
 			defer func() { <-slots }()
-			summaries[i].Environment = s.environmentOf(ctx, summaries[i].ID)
+			summaries[i].Workspace = s.workspaceOf(ctx, summaries[i].ID)
 		})
 	}
 	wg.Wait()
 }
 
-// environmentOf names where the session of id runs: the environment its lease
+// workspaceOf names where the session of id runs: the workspace its lease
 // names, or else the one whose storage holds it, where the thread's session
 // runs. It is "" when the lease cannot be read.
-func (s *Storage) environmentOf(ctx context.Context, id string) string {
+func (s *Storage) workspaceOf(ctx context.Context, id string) string {
 	if s.thread.leases != nil {
 		lease, found, err := s.thread.leases.GetLease(ctx, id)
 		if err != nil {
 			return ""
 		}
 		if found {
-			return lease.Environment
+			return lease.Workspace
 		}
 	}
 	return s.thread.Placement().Where()

@@ -52,7 +52,7 @@ func (p *peerFrames) await(ctx context.Context, types ...string) ([]byte, error)
 			return nil, ctx.Err()
 		case frame, ok := <-p.frames:
 			if !ok {
-				return nil, errors.New("the environment's daemon hung up")
+				return nil, errors.New("the workspace's daemon hung up")
 			}
 			typ := frameType(frame)
 			for _, want := range types {
@@ -71,25 +71,25 @@ func (p *peerFrames) await(ctx context.Context, types ...string) ([]byte, error)
 	}
 }
 
-// remoteWorker relays a thread's frames to the daemon of the environment that
+// remoteWorker relays a thread's frames to the daemon of the workspace that
 // owns the session, as if that daemon were the worker.
 type remoteWorker struct {
-	conn      *agui.Conn
-	endpoint  agentdomain.Endpoint
-	workspace string
-	lines     chan []byte
-	cancel    context.CancelFunc
-	once      sync.Once
+	conn         *agui.Conn
+	endpoint     agentdomain.Endpoint
+	workspaceDir string
+	lines        chan []byte
+	cancel       context.CancelFunc
+	once         sync.Once
 }
 
-// connectRemote reaches the environment named by a lease and relays the thread
+// connectRemote reaches the workspace named by a lease and relays the thread
 // to it, refreshing this daemon's row for that owner while connected.
 func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKey, lease agentdomain.Lease) (sessionsdomain.Worker, error) {
-	environment, ok := s.environments[lease.Environment]
+	workspace, ok := s.workspaces[lease.Workspace]
 	if !ok {
-		return nil, fmt.Errorf("environment %s is not registered in daemon.yaml", lease.Environment)
+		return nil, fmt.Errorf("workspace %s is not registered in daemon.yaml", lease.Workspace)
 	}
-	endpoint, err := environment.Reach(ctx, s.session(key))
+	endpoint, err := workspace.Reach(ctx, s.session(key))
 	if err != nil {
 		return nil, err
 	}
@@ -99,22 +99,22 @@ func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKe
 		endpoint.Release()
 		return nil, err
 	}
-	if info.Environment != lease.Environment {
+	if info.Workspace != lease.Workspace {
 		conn.Close()
 		endpoint.Release()
-		return nil, fmt.Errorf("the daemon reached for environment %s identifies as %q", lease.Environment, info.Environment)
+		return nil, fmt.Errorf("the daemon reached for workspace %s identifies as %q", lease.Workspace, info.Workspace)
 	}
 	refreshCtx, cancel := context.WithCancel(context.Background())
-	w := &remoteWorker{conn: conn, endpoint: endpoint, workspace: lease.Workspace, lines: make(chan []byte, 64), cancel: cancel}
+	w := &remoteWorker{conn: conn, endpoint: endpoint, workspaceDir: lease.WorkspaceDir, lines: make(chan []byte, 64), cancel: cancel}
 	go w.relay(frames)
-	go s.refreshRemote(refreshCtx, key.ConversationID, lease.Environment, w)
+	go s.refreshRemote(refreshCtx, key.ConversationID, lease.Workspace, w)
 	return w, nil
 }
 
 // refreshRemote keeps this daemon's row for the remote owner live while the
 // relay is connected, and drops the relay when the row changed hands.
-func (s *Service) refreshRemote(ctx context.Context, conversationID, environment string, w *remoteWorker) {
-	ttl := s.entries[environment].EffectiveLeaseTTL()
+func (s *Service) refreshRemote(ctx context.Context, conversationID, workspace string, w *remoteWorker) {
+	ttl := s.entries[workspace].EffectiveLeaseTTL()
 	ticker := time.NewTicker(leaseHeartbeat)
 	defer ticker.Stop()
 	for {
@@ -123,9 +123,9 @@ func (s *Service) refreshRemote(ctx context.Context, conversationID, environment
 			return
 		case <-ticker.C:
 		}
-		err := s.leases.RenewLease(ctx, conversationID, environment, time.Now().Add(ttl))
+		err := s.leases.RenewLease(ctx, conversationID, workspace, time.Now().Add(ttl))
 		if errors.Is(err, agentdomain.ErrLeaseLost) {
-			logger.Info("teleport drops a relay whose session changed hands", "conversation_id", conversationID, "environment", environment)
+			logger.Info("teleport drops a relay whose session changed hands", "conversation_id", conversationID, "workspace", workspace)
 			w.Stop()
 			return
 		}
@@ -144,7 +144,7 @@ func (w *remoteWorker) relay(frames *peerFrames) {
 	w.Stop()
 }
 
-// Send forwards one client frame, naming the remote workspace where the frame
+// Send forwards one client frame, naming the workspace dir where the frame
 // named the client's project dir.
 func (w *remoteWorker) Send(frame []byte) error {
 	var compact bytes.Buffer
@@ -157,7 +157,7 @@ func (w *remoteWorker) Send(frame []byte) error {
 		return err
 	}
 	if _, named := fields["project_dir"]; named {
-		fields["project_dir"] = encode(w.workspace)
+		fields["project_dir"] = encode(w.workspaceDir)
 		frame = encode(fields)
 	}
 	return w.conn.Send(frame)

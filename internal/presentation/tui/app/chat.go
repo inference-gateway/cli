@@ -102,7 +102,7 @@ type ChatApplication struct {
 	helpView             *components.HelpView
 	toolsView            *components.ToolsView
 	agentsView           *components.AgentsView
-	environmentsView     *components.EnvironmentsView
+	workspacesView       *components.WorkspacesView
 	sessionTeleporter    tui.SessionTeleporter
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
@@ -334,7 +334,7 @@ func NewChatApplication(
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.toolsView = components.NewToolsView(app.toolService, app.stateManager, styleProvider)
 	app.agentsView = components.NewAgentsView(app.stateManager, app.toolService, styleProvider)
-	app.environmentsView = components.NewEnvironmentsView(styleProvider, app.loadEnvironments)
+	app.workspacesView = components.NewWorkspacesView(styleProvider, app.loadWorkspaces)
 	if persistentRepo, ok := app.conversationRepo.(convdomain.PersistentConversationRepository); ok {
 		app.conversationSelector = components.NewConversationSelector(persistentRepo, styleProvider)
 	} else {
@@ -703,8 +703,8 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 		return app.handleToolsListView(msg)
 	case tui.ViewStateAgents:
 		return app.handleAgentsView(msg)
-	case tui.ViewStateEnvironments:
-		return app.handleEnvironmentsView(msg)
+	case tui.ViewStateWorkspaces:
+		return app.handleWorkspacesView(msg)
 	default:
 		return nil
 	}
@@ -995,8 +995,8 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 				StatusType: tui.StatusDefault,
 			}
 		}}
-	case tui.StatusIndicatorActionEnvironments:
-		return []tea.Cmd{app.openEnvironments()}
+	case tui.StatusIndicatorActionWorkspaces:
+		return []tea.Cmd{app.openWorkspaces()}
 	case tui.StatusIndicatorActionA2AAgents:
 		_ = app.stateManager.TransitionToView(tui.ViewStateAgents)
 		return []tea.Cmd{func() tea.Msg {
@@ -1047,8 +1047,8 @@ func (app *ChatApplication) viewContent() string {
 		return app.renderToolsList()
 	case tui.ViewStateAgents:
 		return app.renderAgents()
-	case tui.ViewStateEnvironments:
-		return app.renderEnvironments()
+	case tui.ViewStateWorkspaces:
+		return app.renderWorkspaces()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}

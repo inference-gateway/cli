@@ -8,16 +8,16 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-func TestEnvironmentsShortcutOpensThePicker(t *testing.T) {
-	shortcut := NewEnvironmentsShortcut()
+func TestWorkspacesShortcutOpensThePicker(t *testing.T) {
+	shortcut := NewWorkspacesShortcut()
 
 	result, err := shortcut.Execute(t.Context(), nil)
 
-	if err != nil || result.SideEffect != SideEffectShowEnvironments {
+	if err != nil || result.SideEffect != SideEffectShowWorkspaces {
 		t.Fatalf("Execute = %+v, %v, want the picker", result, err)
 	}
 	if shortcut.CanExecute([]string{"k8s-dev"}) {
-		t.Error("/environments took an argument")
+		t.Error("/workspaces took an argument")
 	}
 }
 
@@ -25,7 +25,7 @@ func TestTeleportShortcutTeleportsTheSessionOrOpensThePicker(t *testing.T) {
 	shortcut := NewTeleportShortcut(nil)
 
 	open, _ := shortcut.Execute(t.Context(), nil)
-	if open.SideEffect != SideEffectShowEnvironments {
+	if open.SideEffect != SideEffectShowWorkspaces {
 		t.Errorf("/teleport without a target = %+v, want the picker", open)
 	}
 
@@ -36,10 +36,10 @@ func TestTeleportShortcutTeleportsTheSessionOrOpensThePicker(t *testing.T) {
 	}
 }
 
-func TestTeleportShortcutCompletesTheConfiguredEnvironments(t *testing.T) {
-	shortcut := NewTeleportShortcut([]config.EnvironmentEntry{
-		{Name: "k8s-dev", Kind: config.EnvironmentKindKubernetes},
-		{Name: "workstation", Kind: config.EnvironmentKindDaemon},
+func TestTeleportShortcutCompletesTheConfiguredWorkspaces(t *testing.T) {
+	shortcut := NewTeleportShortcut([]config.WorkspaceEntry{
+		{Name: "k8s-dev", Kind: config.WorkspaceKindKubernetes},
+		{Name: "workstation", Kind: config.WorkspaceKindDaemon},
 	})
 
 	var names []string
@@ -48,6 +48,6 @@ func TestTeleportShortcutCompletesTheConfiguredEnvironments(t *testing.T) {
 	}
 
 	if !slices.Equal(names, []string{"k8s-dev", "workstation"}) {
-		t.Errorf("completions = %v, want the environments daemon.yaml names", names)
+		t.Errorf("completions = %v, want the workspaces daemon.yaml names", names)
 	}
 }

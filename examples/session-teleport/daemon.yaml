@@ -1,11 +1,11 @@
-environment: laptop
-environments:
+workspace: laptop
+workspaces:
   - name: laptop
     kind: local
   - name: k8s-dev
     kind: kubernetes
-    context: k3d-infer-environments
-    namespace: infer-environments
+    context: k3d-infer-workspaces
+    namespace: infer-workspaces
     image: ghcr.io/inference-gateway/cli:local
     storage: 1Gi
     idle_ttl: 30m
@@ -15,8 +15,8 @@ environments:
       INFER_AGENT_MODEL: mock/openai/gpt-4o
   - name: k8s-desktop
     kind: kubernetes
-    context: k3d-infer-environments
-    namespace: infer-environments
+    context: k3d-infer-workspaces
+    namespace: infer-workspaces
     image: infer-desktop:local
     storage: 1Gi
     idle_ttl: 30m

@@ -125,7 +125,7 @@ type ConversationSummary struct {
 	// in; empty for legacy records.
 	Project string `json:"project,omitempty"`
 
-	// Environment names where the session runs. A daemon chat sets it, other
+	// Workspace names where the session runs. A daemon chat sets it, other
 	// listings leave it empty.
-	Environment string `json:"environment,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
 }

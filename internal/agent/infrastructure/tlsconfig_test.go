@@ -35,7 +35,7 @@ func TestClientForDaemonPinsTheCAFileElseTrustsTheSystemRoots(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			entry := config.EnvironmentEntry{Name: "ws", Kind: config.EnvironmentKindDaemon, Address: "ws.tailnet.ts.net:443", TLS: tt.tls}
+			entry := config.WorkspaceEntry{Name: "ws", Kind: config.WorkspaceKindDaemon, Address: "ws.tailnet.ts.net:443", TLS: tt.tls}
 			got, err := NewTLSProvider("laptop", nil).ClientForDaemon(entry)
 			if tt.wantErr {
 				if err == nil {

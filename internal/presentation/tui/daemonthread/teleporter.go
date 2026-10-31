@@ -22,20 +22,20 @@ type teleportFrame struct {
 	Files      []string `json:"files,omitempty"`
 }
 
-// ListEnvironments asks the daemon for every environment it knows, the local
+// ListWorkspaces asks the daemon for every workspace it knows, the local
 // one first, with whether each is reachable.
-func (t *Thread) ListEnvironments(ctx context.Context) ([]agentdomain.EnvironmentStatus, error) {
-	data, err := t.Request(ctx, map[string]string{"type": "list_environments"}, "environments")
+func (t *Thread) ListWorkspaces(ctx context.Context) ([]agentdomain.WorkspaceStatus, error) {
+	data, err := t.Request(ctx, map[string]string{"type": "list_workspaces"}, "workspaces")
 	if err != nil {
 		return nil, err
 	}
 	var listed struct {
-		Environments []agentdomain.EnvironmentStatus `json:"environments"`
+		Workspaces []agentdomain.WorkspaceStatus `json:"workspaces"`
 	}
 	if err := json.Unmarshal(data, &listed); err != nil {
 		return nil, err
 	}
-	return listed.Environments, nil
+	return listed.Workspaces, nil
 }
 
 // Teleport starts teleporting the followed session to target. Progress arrives as
@@ -50,7 +50,7 @@ func (t *Thread) Teleport(target string, files []string) error {
 		t.mu.Unlock()
 		return errors.New("a teleport of this session is already running")
 	case t.placement.Remote() && target != t.placement.Local:
-		where := t.placement.Environment
+		where := t.placement.Workspace
 		t.mu.Unlock()
 		return errors.New("the session runs on " + where + " and teleports only back to " + t.placement.Local + " from there")
 	}
@@ -113,14 +113,14 @@ func (t *Thread) onTeleported(frame []byte) {
 		return
 	}
 	t.mu.Lock()
-	duplicate := teleported.Session.ConversationID != t.following || t.teleport == "" && t.placement.Environment == teleported.Environment
+	duplicate := teleported.Session.ConversationID != t.following || t.teleport == "" && t.placement.Workspace == teleported.Workspace
 	if duplicate {
 		t.mu.Unlock()
 		return
 	}
 	t.teleport = ""
 	t.placement.Teleporting = ""
-	t.placement.Environment, t.placement.Workspace = teleported.Environment, teleported.Workspace
+	t.placement.Workspace, t.placement.WorkspaceDir = teleported.Workspace, teleported.WorkspaceDir
 	id := t.following
 	t.mu.Unlock()
 	var cancelled []json.RawMessage

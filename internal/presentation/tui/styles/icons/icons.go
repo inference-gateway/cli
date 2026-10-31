@@ -15,7 +15,7 @@ const (
 )
 
 // Session placement icons: on the daemon the chat talks to, relayed to
-// another environment, and moving between them
+// another workspace, and moving between them
 const (
 	LocalSession       = "⌂"
 	RemoteSession      = "⇄"

@@ -22,7 +22,7 @@ func handOverRequest() (agentdomain.TeleportRequest, agentdomain.Lease) {
 		TeleportID: "t-1", Target: "remote",
 		Session: agentdomain.Session{ProjectDir: "/proj", ConversationID: "conv-1", Slug: "proj"},
 	}
-	lease := agentdomain.Lease{ConversationID: "conv-1", Environment: "remote", Workspace: "/w", TeleportID: "t-1"}
+	lease := agentdomain.Lease{ConversationID: "conv-1", Workspace: "remote", WorkspaceDir: "/w", TeleportID: "t-1"}
 	return req, lease
 }
 
@@ -36,8 +36,8 @@ func TestHandOverAbortsWhenTheFinalClaimRefuses(t *testing.T) {
 	}
 	t.Cleanup(conn.Close)
 	leases := &agentdomainmocks.FakeLeaseStore{}
-	leases.ClaimLeaseReturns(agentdomain.Lease{Environment: "k8s-dev"}, false, nil)
-	s := New(Config{Identity: "laptop", WorkspaceRoot: t.TempDir()}, Deps{Leases: leases})
+	leases.ClaimLeaseReturns(agentdomain.Lease{Workspace: "k8s-dev"}, false, nil)
+	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir()}, Deps{Leases: leases})
 	client := &sessionsmocks.FakeClient{}
 	req, lease := handOverRequest()
 
@@ -64,7 +64,7 @@ func TestHandOverAbortsWhenTheFinalClaimRefuses(t *testing.T) {
 func TestHandOverAnnouncesATeleportItWon(t *testing.T) {
 	leases := &agentdomainmocks.FakeLeaseStore{}
 	leases.ClaimLeaseReturns(agentdomain.Lease{}, true, nil)
-	s := New(Config{Identity: "laptop", WorkspaceRoot: t.TempDir()}, Deps{Leases: leases})
+	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir()}, Deps{Leases: leases})
 	client := &sessionsmocks.FakeClient{}
 	req, lease := handOverRequest()
 
@@ -79,20 +79,20 @@ func TestHandOverAnnouncesATeleportItWon(t *testing.T) {
 	}
 	var teleported sessionTeleportedFrame
 	if err := json.Unmarshal(client.DeliverArgsForCall(1), &teleported); err != nil ||
-		teleported.Type != frameSessionTeleported || teleported.Environment != "remote" || teleported.Workspace != "/w" {
+		teleported.Type != frameSessionTeleported || teleported.Workspace != "remote" || teleported.WorkspaceDir != "/w" {
 		t.Fatalf("the second frame = %+v, want the teleport to remote", teleported)
 	}
 }
 
 func TestTeleportFailingAfterProvisioningDiscardsTheTarget(t *testing.T) {
 	peer := startPeer(t, "k8s-desktop", nil)
-	target := fakeEnvironment("k8s-dev", agentdomain.EnvironmentKindKubernetes)
+	target := fakeWorkspace("k8s-dev", agentdomain.WorkspaceKindKubernetes)
 	s, store := newService(t, &launcher{}, target)
 	s.dial.Handshake = testHandshake
 	req, _ := handOverRequest()
 	req.Target = "k8s-dev"
 	target.EnsureCalls(func(ctx context.Context, _ agentdomain.Session) (agentdomain.Endpoint, error) {
-		claim := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s-dev", TeleportID: req.TeleportID, Until: time.Now().Add(time.Hour)}
+		claim := agentdomain.Lease{ConversationID: "conv-1", Workspace: "k8s-dev", TeleportID: req.TeleportID, Until: time.Now().Add(time.Hour)}
 		if _, ok, err := store.ClaimLease(ctx, claim); err != nil || !ok {
 			t.Errorf("the target's claim = %v, %v", ok, err)
 		}
@@ -110,13 +110,13 @@ func TestTeleportFailingAfterProvisioningDiscardsTheTarget(t *testing.T) {
 	if target.DeleteCallCount() != 1 {
 		t.Fatalf("the target's runtime was deleted %d times, want once", target.DeleteCallCount())
 	}
-	if lease, found, _ := store.GetLease(t.Context(), "conv-1"); found && lease.Environment == "k8s-dev" {
+	if lease, found, _ := store.GetLease(t.Context(), "conv-1"); found && lease.Workspace == "k8s-dev" {
 		t.Fatalf("the failed target still holds the lease: %+v", lease)
 	}
 }
 
 func TestStartTeleportRefusesASecondTeleportOfTheSameSession(t *testing.T) {
-	remote := fakeEnvironment("remote", agentdomain.EnvironmentKindDaemon)
+	remote := fakeWorkspace("remote", agentdomain.WorkspaceKindDaemon)
 	ensure := make(chan struct{})
 	remote.EnsureCalls(func(context.Context, agentdomain.Session) (agentdomain.Endpoint, error) {
 		<-ensure
@@ -133,7 +133,7 @@ func TestStartTeleportRefusesASecondTeleportOfTheSameSession(t *testing.T) {
 
 	s.startTeleport(second, frame("t-2"))
 	if remote.EnsureCallCount() != 1 {
-		t.Fatal("the refused teleport touched the environment")
+		t.Fatal("the refused teleport touched the workspace")
 	}
 	if second.DeliverCallCount() != 1 {
 		t.Fatalf("the second requester got %d frames, want the refusal", second.DeliverCallCount())

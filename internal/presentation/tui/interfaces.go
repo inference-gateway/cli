@@ -130,7 +130,7 @@ const (
 	StatusIndicatorActionThemeSelection
 	StatusIndicatorActionToolsList
 	StatusIndicatorActionA2AAgents
-	StatusIndicatorActionEnvironments
+	StatusIndicatorActionWorkspaces
 )
 
 // InputStatusBarComponent interface for input status bar

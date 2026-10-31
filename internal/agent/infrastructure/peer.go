@@ -9,19 +9,19 @@ import (
 )
 
 // The hello and ack fields two daemons exchange: the client kind a peer
-// declares, its environment identity, and what the host answers about itself.
+// declares, its workspace identity, and what the host answers about itself.
 const (
-	PeerClientKind  = "daemon"
-	AttrEnvironment = "environment"
-	AttrVersion     = "version"
-	AttrStorageID   = "storage_id"
+	PeerClientKind = "daemon"
+	AttrWorkspace  = "workspace"
+	AttrVersion    = "version"
+	AttrStorageID  = "storage_id"
 )
 
 // PeerInfo is what a peer daemon declared about itself in its ack.
 type PeerInfo struct {
-	Environment string
-	Version     string
-	StorageID   string
+	Workspace string
+	Version   string
+	StorageID string
 }
 
 // PeerDialer dials other daemons as this one, over their binding.
@@ -37,16 +37,16 @@ func (d PeerDialer) Dial(ctx context.Context, endpoint agentdomain.Endpoint, han
 		Addr:       endpoint.Addr,
 		Token:      endpoint.Token,
 		Kind:       PeerClientKind,
-		HelloAttrs: map[string]string{AttrEnvironment: d.Me},
+		HelloAttrs: map[string]string{AttrWorkspace: d.Me},
 		Handshake:  d.Handshake,
 		TLS:        endpoint.TLS,
 	}, handler)
 	if err != nil {
-		return nil, PeerInfo{}, fmt.Errorf("reaching the environment's daemon: %w", err)
+		return nil, PeerInfo{}, fmt.Errorf("reaching the workspace's daemon: %w", err)
 	}
 	return conn, PeerInfo{
-		Environment: conn.AckAttr(AttrEnvironment),
-		Version:     conn.AckAttr(AttrVersion),
-		StorageID:   conn.AckAttr(AttrStorageID),
+		Workspace: conn.AckAttr(AttrWorkspace),
+		Version:   conn.AckAttr(AttrVersion),
+		StorageID: conn.AckAttr(AttrStorageID),
 	}, nil
 }

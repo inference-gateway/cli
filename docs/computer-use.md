@@ -27,7 +27,7 @@ and Windows fall back to screenshots. Actions are governed by
 [desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
 (monitor, screen overlay, approvals). For a sandboxed desktop to drive, see
 [examples/computer-use](../examples/computer-use/). To give an agent a desktop of its own in a Kubernetes
-pod, see the [desktop environment](../examples/session-teleport/README.md#a-computer-of-its-own-the-desktop-environment).
+pod, see the [desktop workspace](../examples/session-teleport/README.md#a-computer-of-its-own-the-desktop-workspace).
 
 ## Related
 

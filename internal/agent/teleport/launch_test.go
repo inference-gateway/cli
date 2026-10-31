@@ -46,23 +46,23 @@ func (l *launcher) count() int {
 	return len(l.keys)
 }
 
-func fakeEnvironment(name string, kind agentdomain.EnvironmentKind) *agentdomainmocks.FakeEnvironment {
-	e := &agentdomainmocks.FakeEnvironment{}
+func fakeWorkspace(name string, kind agentdomain.WorkspaceKind) *agentdomainmocks.FakeWorkspace {
+	e := &agentdomainmocks.FakeWorkspace{}
 	e.NameReturns(name)
 	e.KindReturns(kind)
 	return e
 }
 
-func newService(t *testing.T, l *launcher, environments ...agentdomain.Environment) (*Service, *storage.MemoryStorage) {
+func newService(t *testing.T, l *launcher, workspaces ...agentdomain.Workspace) (*Service, *storage.MemoryStorage) {
 	t.Helper()
 	store := storage.NewMemoryStorage()
-	entries := []config.EnvironmentEntry{}
-	for _, e := range environments {
-		if e.Kind() != agentdomain.EnvironmentKindLocal {
-			entries = append(entries, config.EnvironmentEntry{Name: e.Name(), Kind: config.EnvironmentKind(e.Kind()), Address: "peer:1", TLS: config.PeerTLSConfig{CAFile: "ca"}})
+	entries := []config.WorkspaceEntry{}
+	for _, e := range workspaces {
+		if e.Kind() != agentdomain.WorkspaceKindLocal {
+			entries = append(entries, config.WorkspaceEntry{Name: e.Name(), Kind: config.WorkspaceKind(e.Kind()), Address: "peer:1", TLS: config.PeerTLSConfig{CAFile: "ca"}})
 		}
 	}
-	s := New(Config{Identity: "laptop", WorkspaceRoot: t.TempDir(), Entries: entries}, Deps{Leases: store, Environments: environments, Launch: l.launch})
+	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir(), Entries: entries}, Deps{Leases: store, Workspaces: workspaces, Launch: l.launch})
 	return s, store
 }
 
@@ -161,7 +161,7 @@ func TestLaunchClaimsTheSessionAndRunsLocally(t *testing.T) {
 		t.Fatalf("launched %+v with %+v", l.keys[0], l.opts[0])
 	}
 	lease, found, _ := store.GetLease(context.Background(), "conv-1")
-	if !found || lease.Environment != "laptop" || lease.Workspace != "/proj" {
+	if !found || lease.Workspace != "laptop" || lease.WorkspaceDir != "/proj" {
 		t.Fatalf("lease = %+v, %v", lease, found)
 	}
 	l.lines[0] <- []byte(`{"type":"RUN_STARTED"}`)
@@ -173,36 +173,36 @@ func TestLaunchClaimsTheSessionAndRunsLocally(t *testing.T) {
 
 func TestLaunchRefusesAForeignLiveLeaseItCannotReach(t *testing.T) {
 	l := &launcher{}
-	k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
+	k8s := fakeWorkspace("k8s", agentdomain.WorkspaceKindKubernetes)
 	k8s.ReachReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
 	s, store := newService(t, l, k8s)
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Workspace: "/w", Until: time.Now().Add(time.Hour)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: "k8s", WorkspaceDir: "/w", Until: time.Now().Add(time.Hour)})
 
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	got := firstLine(t, w)
-	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "owned by environment k8s") || !strings.Contains(got, "cluster down") {
+	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "owned by workspace k8s") || !strings.Contains(got, "cluster down") {
 		t.Fatalf("got %q", got)
 	}
 	if l.count() != 0 {
-		t.Fatal("a process worker was launched for a session another environment owns")
+		t.Fatal("a process worker was launched for a session another workspace owns")
 	}
 	lease, _, _ := store.GetLease(context.Background(), "conv-1")
-	if lease.Environment != "k8s" {
+	if lease.Workspace != "k8s" {
 		t.Fatalf("the lease changed hands: %+v", lease)
 	}
 }
 
-func TestLaunchReclaimsALapsedLeaseOfAnUnreachableEnvironment(t *testing.T) {
+func TestLaunchReclaimsALapsedLeaseOfAnUnreachableWorkspace(t *testing.T) {
 	l := &launcher{}
-	k8s := fakeEnvironment("k8s", agentdomain.EnvironmentKindKubernetes)
+	k8s := fakeWorkspace("k8s", agentdomain.WorkspaceKindKubernetes)
 	k8s.ReachReturns(agentdomain.Endpoint{}, errors.New("cluster down"))
 	s, store := newService(t, l, k8s)
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s", Until: time.Now().Add(-time.Minute)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: "k8s", Until: time.Now().Add(-time.Minute)})
 
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	eventually(t, "the session to be reclaimed", func() bool { return l.count() == 1 })
 	lease, _, _ := store.GetLease(context.Background(), "conv-1")
-	if lease.Environment != "laptop" {
+	if lease.Workspace != "laptop" {
 		t.Fatalf("lease = %+v", lease)
 	}
 	w.Stop()
@@ -211,34 +211,34 @@ func TestLaunchReclaimsALapsedLeaseOfAnUnreachableEnvironment(t *testing.T) {
 func TestLaunchRefusesAnUnknownOwner(t *testing.T) {
 	l := &launcher{}
 	s, store := newService(t, l)
-	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Environment: "ghost", Until: time.Now().Add(time.Hour)})
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: "ghost", Until: time.Now().Add(time.Hour)})
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
 	if got := firstLine(t, w); !strings.Contains(got, "not registered") {
 		t.Fatalf("got %q", got)
 	}
 }
 
-func TestLaunchRelaysAnUnplacedThreadToTheEnvironmentItNames(t *testing.T) {
+func TestLaunchRelaysAnUnplacedThreadToTheWorkspaceItNames(t *testing.T) {
 	l := &launcher{}
-	workstation := fakeEnvironment("workstation", agentdomain.EnvironmentKindDaemon)
+	workstation := fakeWorkspace("workstation", agentdomain.WorkspaceKindDaemon)
 	workstation.ReachReturns(agentdomain.Endpoint{}, errors.New("asleep"))
 	s, _ := newService(t, l, workstation)
 
-	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Environment: "workstation", Workspace: "/home/me/proj"})
+	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Workspace: "workstation", WorkspaceDir: "/home/me/proj"})
 	got := firstLine(t, w)
-	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "on environment workstation") || !strings.Contains(got, "asleep") {
+	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "on workspace workstation") || !strings.Contains(got, "asleep") {
 		t.Fatalf("got %q", got)
 	}
 	if workstation.ReachCallCount() != 1 || l.count() != 0 {
-		t.Fatalf("reached %d times and launched %d local workers, want the named environment reached and nothing local", workstation.ReachCallCount(), l.count())
+		t.Fatalf("reached %d times and launched %d local workers, want the named workspace reached and nothing local", workstation.ReachCallCount(), l.count())
 	}
 }
 
-func TestLaunchRunsLocallyWhenTheNamedEnvironmentIsThisDaemon(t *testing.T) {
+func TestLaunchRunsLocallyWhenTheNamedWorkspaceIsThisDaemon(t *testing.T) {
 	l := &launcher{}
 	s, _ := newService(t, l)
 
-	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Environment: "laptop"})
+	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Workspace: "laptop"})
 	eventually(t, "the process worker to launch", func() bool { return l.count() == 1 })
 	w.Stop()
 }

@@ -19,10 +19,10 @@ import (
 
 var (
 	sessionOnLaptop = tui.SessionPlacement{Daemon: true, Local: "laptop"}
-	sessionOnK8sDev = tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev"}
+	sessionOnK8sDev = tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}
 )
 
-// newDaemonChatApp is the chat surface the environments flow drives, for a
+// newDaemonChatApp is the chat surface the workspaces flow drives, for a
 // session at placement. A nil teleporter is an in-process chat.
 func newDaemonChatApp(placement tui.SessionPlacement, teleporter tui.SessionTeleporter) (*ChatApplication, *statemanager.Store) {
 	state := statemanager.NewStore(false)
@@ -30,7 +30,7 @@ func newDaemonChatApp(placement tui.SessionPlacement, teleporter tui.SessionTele
 	app := &ChatApplication{stateManager: state}
 	themeService := &tuimocks.FakeThemeService{}
 	themeService.GetCurrentThemeReturns(&tuimocks.FakeTheme{})
-	app.environmentsView = components.NewEnvironmentsView(styles.NewProvider(themeService), app.loadEnvironments)
+	app.workspacesView = components.NewWorkspacesView(styles.NewProvider(themeService), app.loadWorkspaces)
 	app.SetSessionTeleporter(teleporter)
 	state.SetSessionPlacement(placement)
 	return app, state
@@ -64,7 +64,7 @@ func TestRequestTeleportSaysWhyTheSessionCannotTeleport(t *testing.T) {
 		{name: "in process", inProcess: true, target: "k8s-dev", reason: "infer chat --daemon"},
 		{name: "offline", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Offline: true}, target: "k8s-dev", reason: "unreachable"},
 		{name: "during a teleport", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-desktop"}, target: "k8s-dev", reason: "already running"},
-		{name: "on from a remote environment", placement: sessionOnK8sDev, target: "k8s-desktop", reason: "teleports only back to laptop"},
+		{name: "on from a remote workspace", placement: sessionOnK8sDev, target: "k8s-desktop", reason: "teleports only back to laptop"},
 		{name: "where it runs", placement: sessionOnLaptop, target: "laptop", reason: "already runs on laptop"},
 		{name: "during a turn", placement: sessionOnLaptop, busy: true, target: "k8s-dev", reason: "Wait for the turn"},
 	}
@@ -134,7 +134,7 @@ func TestTeleportFailureStaysOnScreen(t *testing.T) {
 }
 
 func TestTeleportStagesNameTheWayBack(t *testing.T) {
-	back := tui.SessionPlacement{Daemon: true, Local: "laptop", Environment: "k8s-dev", Teleporting: "laptop"}
+	back := tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev", Teleporting: "laptop"}
 	app, _ := newDaemonChatApp(back, &tuimocks.FakeSessionTeleporter{})
 
 	status, ok := app.teleportProgressed(agentdomain.TeleportProgress{Stage: agentdomain.TeleportCheckpointing})().(tui.SetStatusEvent)
@@ -155,18 +155,18 @@ func TestEscCancelsARunningTeleport(t *testing.T) {
 	}
 }
 
-func TestOpenEnvironmentsNeedsADaemonChat(t *testing.T) {
+func TestOpenWorkspacesNeedsADaemonChat(t *testing.T) {
 	app, state := newDaemonChatApp(tui.SessionPlacement{}, nil)
-	text, _ := message(t, app.openEnvironments())
+	text, _ := message(t, app.openWorkspaces())
 	if state.GetCurrentView() != tui.ViewStateChat || !strings.Contains(text, "infer chat --daemon") {
 		t.Errorf("an in-process chat opened %v with %q", state.GetCurrentView(), text)
 	}
 
 	teleporter := &tuimocks.FakeSessionTeleporter{}
 	daemon, daemonState := newDaemonChatApp(sessionOnLaptop, teleporter)
-	_ = daemon.openEnvironments()
-	if daemonState.GetCurrentView() != tui.ViewStateEnvironments || !daemon.environmentsView.IsLoading() {
-		t.Fatalf("a daemon chat opened %v, loading %v", daemonState.GetCurrentView(), daemon.environmentsView.IsLoading())
+	_ = daemon.openWorkspaces()
+	if daemonState.GetCurrentView() != tui.ViewStateWorkspaces || !daemon.workspacesView.IsLoading() {
+		t.Fatalf("a daemon chat opened %v, loading %v", daemonState.GetCurrentView(), daemon.workspacesView.IsLoading())
 	}
 	if daemon.liveCadence() != components.SpinnerFrameInterval {
 		t.Error("the probing picker does not animate")
@@ -181,7 +181,7 @@ func TestTheInputOffersThisCheckoutsFilesOnlyWhereTheSessionReadsThem(t *testing
 	}{
 		{name: "in process", placement: tui.SessionPlacement{}, offered: true},
 		{name: "on the local daemon", placement: sessionOnLaptop, offered: true},
-		{name: "on another environment", placement: sessionOnK8sDev},
+		{name: "on another workspace", placement: sessionOnK8sDev},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

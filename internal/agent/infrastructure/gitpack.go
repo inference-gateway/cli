@@ -17,53 +17,53 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
-// MaxWorkspaceBytes caps one checkpoint's workspace payload. A workspace
+// MaxRepositoryBytes caps one checkpoint's repository payload. A repository
 // beyond it fails the teleport with a clear message instead of a stalled
 // upload.
-// ponytail: one size cap, resumable uploads when a workspace outgrows it.
-const MaxWorkspaceBytes = 256 << 20
+// ponytail: one size cap, resumable uploads when a repository outgrows it.
+const MaxRepositoryBytes = 256 << 20
 
 // detachedHead is what rev-parse answers for a detached HEAD.
 const detachedHead = "HEAD"
 
-// PackWorkspace captures a project's git state: a bundle of HEAD, a binary
+// PackRepository captures a project's git state: a bundle of HEAD, a binary
 // patch of the uncommitted changes, the untracked files that respect
 // .gitignore and pass excluded, and the explicitly listed extra files.
-func PackWorkspace(ctx context.Context, projectDir string, extra []string, excluded func(abs string) bool) (agentdomain.Workspace, error) {
+func PackRepository(ctx context.Context, projectDir string, extra []string, excluded func(abs string) bool) (agentdomain.Repository, error) {
 	branch, refs, err := headRefs(ctx, projectDir)
 	if err != nil {
-		return agentdomain.Workspace{}, err
+		return agentdomain.Repository{}, err
 	}
 	bundle, err := bundleRefs(ctx, projectDir, refs)
 	if err != nil {
-		return agentdomain.Workspace{}, err
+		return agentdomain.Repository{}, err
 	}
 	patch, err := utils.RunGit(ctx, projectDir, "diff", "--binary", "HEAD")
 	if err != nil {
-		return agentdomain.Workspace{}, fmt.Errorf("diffing the workspace: %w", err)
+		return agentdomain.Repository{}, fmt.Errorf("diffing the repository: %w", err)
 	}
 	if err := denyUncommitted(ctx, projectDir, excluded); err != nil {
-		return agentdomain.Workspace{}, err
+		return agentdomain.Repository{}, err
 	}
 	untrackedPaths, err := untrackedFiles(ctx, projectDir, excluded)
 	if err != nil {
-		return agentdomain.Workspace{}, err
+		return agentdomain.Repository{}, err
 	}
 	untracked, err := tarFiles(projectDir, untrackedPaths)
 	if err != nil {
-		return agentdomain.Workspace{}, fmt.Errorf("packing the untracked files: %w", err)
+		return agentdomain.Repository{}, fmt.Errorf("packing the untracked files: %w", err)
 	}
 	extraPaths, err := relativeFiles(projectDir, extra, excluded)
 	if err != nil {
-		return agentdomain.Workspace{}, err
+		return agentdomain.Repository{}, err
 	}
 	extraTar, err := tarFiles(projectDir, extraPaths)
 	if err != nil {
-		return agentdomain.Workspace{}, fmt.Errorf("packing the extra files: %w", err)
+		return agentdomain.Repository{}, fmt.Errorf("packing the extra files: %w", err)
 	}
-	ws := agentdomain.Workspace{Branch: branch, Origin: originURL(ctx, projectDir), Bundle: bundle, Patch: patch, Untracked: untracked, Extra: extraTar}
-	if size := len(bundle) + len(patch) + len(untracked) + len(extraTar); size > MaxWorkspaceBytes {
-		return agentdomain.Workspace{}, fmt.Errorf("the workspace checkpoint is %d bytes, over the %d byte limit", size, MaxWorkspaceBytes)
+	ws := agentdomain.Repository{Branch: branch, Origin: originURL(ctx, projectDir), Bundle: bundle, Patch: patch, Untracked: untracked, Extra: extraTar}
+	if size := len(bundle) + len(patch) + len(untracked) + len(extraTar); size > MaxRepositoryBytes {
+		return agentdomain.Repository{}, fmt.Errorf("the repository checkpoint is %d bytes, over the %d byte limit", size, MaxRepositoryBytes)
 	}
 	return ws, nil
 }
@@ -230,13 +230,13 @@ func addFile(tw *tar.Writer, project *os.Root, rel string) error {
 	return err
 }
 
-// UnpackWorkspace restores a packed workspace into dir, which must not exist
+// UnpackRepository restores a packed repository into dir, which must not exist
 // yet: clone the bundle, check the branch out, apply the patch only when it
 // applies cleanly, then unpack the untracked and extra files. The denied
 // callback keeps a peer-planted entry out, the way the sender's policy does.
-func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, denied func(rel string) bool) error {
+func UnpackRepository(ctx context.Context, ws agentdomain.Repository, dir string, denied func(rel string) bool) error {
 	if _, err := os.Stat(dir); err == nil {
-		return fmt.Errorf("workspace %s already exists", dir)
+		return fmt.Errorf("workspace dir %s already exists", dir)
 	}
 	file, err := os.CreateTemp("", "infer-bundle-*.bundle")
 	if err != nil {
@@ -256,7 +256,7 @@ func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, 
 	}
 	if ws.Branch != "" {
 		if strings.HasPrefix(ws.Branch, "-") {
-			return fmt.Errorf("the workspace branch %q is not a branch or a commit", ws.Branch)
+			return fmt.Errorf("the repository branch %q is not a branch or a commit", ws.Branch)
 		}
 		if _, err := utils.RunGit(ctx, dir, "checkout", "--quiet", ws.Branch); err != nil {
 			return fmt.Errorf("checking out %s: %w", ws.Branch, err)
@@ -267,16 +267,16 @@ func UnpackWorkspace(ctx context.Context, ws agentdomain.Workspace, dir string, 
 	}
 	if len(ws.Patch) > 0 {
 		if _, err := utils.RunGitStdin(ctx, dir, string(ws.Patch), "apply", "--binary", "--check"); err != nil {
-			return fmt.Errorf("the workspace patch does not apply cleanly: %w", err)
+			return fmt.Errorf("the repository patch does not apply cleanly: %w", err)
 		}
 		if _, err := utils.RunGitStdin(ctx, dir, string(ws.Patch), "apply", "--binary"); err != nil {
-			return fmt.Errorf("applying the workspace patch: %w", err)
+			return fmt.Errorf("applying the repository patch: %w", err)
 		}
 	}
-	if err := untar(ws.Untracked, dir, denied, MaxWorkspaceBytes); err != nil {
+	if err := untar(ws.Untracked, dir, denied, MaxRepositoryBytes); err != nil {
 		return fmt.Errorf("unpacking the untracked files: %w", err)
 	}
-	if err := untar(ws.Extra, dir, denied, MaxWorkspaceBytes); err != nil {
+	if err := untar(ws.Extra, dir, denied, MaxRepositoryBytes); err != nil {
 		return fmt.Errorf("unpacking the extra files: %w", err)
 	}
 	return nil
@@ -304,11 +304,11 @@ func untar(data []byte, dir string, denied func(rel string) bool, limit int64) e
 	if len(data) == 0 {
 		return nil
 	}
-	workspace, err := os.OpenRoot(dir)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = workspace.Close() }()
+	defer func() { _ = root.Close() }()
 	gz, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return err
@@ -327,15 +327,15 @@ func untar(data []byte, dir string, denied func(rel string) bool, limit int64) e
 		}
 		name := filepath.Clean(filepath.FromSlash(header.Name))
 		if !filepath.IsLocal(name) {
-			return fmt.Errorf("archive entry %q escapes the workspace", header.Name)
+			return fmt.Errorf("archive entry %q escapes the workspace dir", header.Name)
 		}
 		if rejectedEntry(filepath.ToSlash(name), denied) {
-			return fmt.Errorf("archive entry %q is not allowed into the workspace", header.Name)
+			return fmt.Errorf("archive entry %q is not allowed into the workspace dir", header.Name)
 		}
-		if err := workspace.MkdirAll(filepath.Dir(name), 0755); err != nil {
+		if err := root.MkdirAll(filepath.Dir(name), 0755); err != nil {
 			return fmt.Errorf("archive entry %q: %w", header.Name, err)
 		}
-		if err := writeEntry(workspace, name, tr, min(header.FileInfo().Mode().Perm(), 0755)); err != nil {
+		if err := writeEntry(root, name, tr, min(header.FileInfo().Mode().Perm(), 0755)); err != nil {
 			return fmt.Errorf("archive entry %q: %w", header.Name, err)
 		}
 	}
@@ -353,7 +353,7 @@ func rejectedEntry(rel string, denied func(rel string) bool) bool {
 }
 
 // limitedReader fails once reading passes limit, so a small compressed
-// archive cannot decompress into an unbounded workspace.
+// archive cannot decompress into an unbounded workspace dir.
 type limitedReader struct {
 	r     io.Reader
 	left  int64
@@ -372,8 +372,8 @@ func (l *limitedReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func writeEntry(workspace *os.Root, name string, r io.Reader, mode os.FileMode) error {
-	file, err := workspace.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode|0600)
+func writeEntry(root *os.Root, name string, r io.Reader, mode os.FileMode) error {
+	file, err := root.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode|0600)
 	if err != nil {
 		return err
 	}

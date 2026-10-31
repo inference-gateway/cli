@@ -15,8 +15,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
   (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`, `subagent`)
   apply when the worker launches. `subagent` names the parent thread that spawned this one, its depth and its
-  tool allowlist, which the worker gets as its subagent env. `environment` and `workspace` place a thread no lease places on a
-  remote environment, which the launch seam relays it to.
+  tool allowlist, which the worker gets as its subagent env. `workspace` and `workspace_dir` place a thread no lease places on a
+  remote workspace, which the launch seam relays it to.
 - **Forwarded frames** - `run_agent_input`, `interrupt` and `user_question_response` go to the client's
   thread unchanged. A `run_agent_input` relaunches a thread whose worker exited.
 - **Resumes** - a run that ends with the `interrupt` outcome leaves its interrupts open on the thread. The

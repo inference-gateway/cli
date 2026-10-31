@@ -48,19 +48,19 @@ func checkout(t *testing.T) string {
 // on top of the checkout it got.
 func podCheckpoint(t *testing.T, laptop string) agentdomain.Checkpoint {
 	t.Helper()
-	sent, err := agentinfra.PackWorkspace(t.Context(), laptop, nil, nil)
+	sent, err := agentinfra.PackRepository(t.Context(), laptop, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pod := filepath.Join(t.TempDir(), "pod")
-	if err := agentinfra.UnpackWorkspace(t.Context(), sent, pod, nil); err != nil {
+	if err := agentinfra.UnpackRepository(t.Context(), sent, pod, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, kv := range [][2]string{{"user.email", "pod@example.com"}, {"user.name", "Pod"}, {"commit.gpgsign", "false"}} {
 		runGit(t, pod, "config", kv[0], kv[1])
 	}
 	runGit(t, pod, "commit", "--quiet", "--allow-empty", "-m", "done on the pod")
-	workspace, err := agentinfra.PackWorkspace(t.Context(), pod, nil, nil)
+	repository, err := agentinfra.PackRepository(t.Context(), pod, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func podCheckpoint(t *testing.T, laptop string) agentdomain.Checkpoint {
 		Session:       agentdomain.Session{ProjectDir: "/workspace/x", ConversationID: "conv-1", Slug: "x"},
 		Digest:        "d-1",
 		Conversation:  json.RawMessage(`{"entries":[],"metadata":{}}`),
-		Workspace:     workspace,
+		Repository:    repository,
 	}
 }
 
@@ -92,31 +92,31 @@ func importingLaunch(key sessionsdomain.ThreadKey, _ sessionsdomain.ThreadOption
 // returningService is the laptop daemon of a session that runs on k8s-dev,
 // whose daemon answers teleport_return with checkpoint, its answer arriving
 // only after the chunks.
-func returningService(t *testing.T, checkpoint agentdomain.Checkpoint) (*Service, *storage.MemoryStorage, *peerBinding, *agentdomainmocks.FakeEnvironment) {
+func returningService(t *testing.T, checkpoint agentdomain.Checkpoint) (*Service, *storage.MemoryStorage, *peerBinding, *agentdomainmocks.FakeWorkspace) {
 	t.Helper()
 	peer := startPeer(t, "k8s-dev", func(conn *agui.Conn, frame []byte) {
 		var f returnFrame
 		if json.Unmarshal(frame, &f) == nil && f.Type == frameTeleportReturn {
 			go func() {
-				_ = sendCheckpoint(conn, f.TeleportID, f.Environment, checkpoint)
+				_ = sendCheckpoint(conn, f.TeleportID, f.Workspace, checkpoint)
 				_ = conn.Send(encode(returnFrame{Type: frameTeleportReturning, TeleportID: f.TeleportID}))
 			}()
 		}
 	})
-	environment := fakeEnvironment("k8s-dev", agentdomain.EnvironmentKindKubernetes)
-	environment.ReachReturns(peer.endpoint(), nil)
+	workspace := fakeWorkspace("k8s-dev", agentdomain.WorkspaceKindKubernetes)
+	workspace.ReachReturns(peer.endpoint(), nil)
 	store := storage.NewMemoryStorage()
 	s := New(Config{
-		Identity: "laptop", WorkspaceRoot: t.TempDir(), StateDir: t.TempDir(),
-		Entries: []config.EnvironmentEntry{{Name: "k8s-dev", Kind: config.EnvironmentKindKubernetes}},
-	}, Deps{Leases: store, Environments: []agentdomain.Environment{environment}, Launch: importingLaunch})
+		Identity: "laptop", ProjectsRoot: t.TempDir(), StateDir: t.TempDir(),
+		Entries: []config.WorkspaceEntry{{Name: "k8s-dev", Kind: config.WorkspaceKindKubernetes}},
+	}, Deps{Leases: store, Workspaces: []agentdomain.Workspace{workspace}, Launch: importingLaunch})
 	s.dial.Handshake = testHandshake
 	s.AttachRegistry(sessions.NewRegistry(s.LaunchWorker, time.Minute))
-	remote := agentdomain.Lease{ConversationID: "conv-1", Environment: "k8s-dev", Workspace: "/workspace/x", TeleportID: "t-0", Until: time.Now().Add(time.Hour)}
+	remote := agentdomain.Lease{ConversationID: "conv-1", Workspace: "k8s-dev", WorkspaceDir: "/workspace/x", TeleportID: "t-0", Until: time.Now().Add(time.Hour)}
 	if _, ok, err := store.ClaimLease(t.Context(), remote); err != nil || !ok {
 		t.Fatalf("seeding the remote lease: %v", err)
 	}
-	return s, store, peer, environment
+	return s, store, peer, workspace
 }
 
 func requestTeleportBack(s *Service, laptop string) *sessionsmocks.FakeClient {
@@ -153,11 +153,11 @@ func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
 		t.Fatalf("progress = %+v, want it to end ready", progress)
 	}
 	teleported := delivered[sessionTeleportedFrame](client, frameSessionTeleported)
-	if len(teleported) != 1 || teleported[0].Environment != "laptop" || teleported[0].Workspace != laptop {
+	if len(teleported) != 1 || teleported[0].Workspace != "laptop" || teleported[0].WorkspaceDir != laptop {
 		t.Fatalf("teleports = %+v, want one back to the laptop checkout", teleported)
 	}
 	lease, found, err := store.GetLease(t.Context(), "conv-1")
-	if err != nil || !found || lease.Environment != "laptop" || lease.Workspace != laptop {
+	if err != nil || !found || lease.Workspace != "laptop" || lease.WorkspaceDir != laptop {
 		t.Fatalf("lease = %+v, %v, %v, want the laptop's own", lease, found, err)
 	}
 	if got := runGit(t, laptop, "log", "-1", "--format=%s"); got != "done on the pod" {
@@ -171,7 +171,7 @@ func TestBringBackLandsTheSessionAndTakesItsLeaseBack(t *testing.T) {
 
 func TestBringBackRefusesACheckoutThatChangedSinceItLeft(t *testing.T) {
 	laptop := checkout(t)
-	s, store, _, environment := returningService(t, podCheckpoint(t, laptop))
+	s, store, _, workspace := returningService(t, podCheckpoint(t, laptop))
 	runGit(t, laptop, "commit", "--quiet", "--allow-empty", "-m", "edited after the teleport")
 	if err := os.WriteFile(filepath.Join(laptop, "draft.txt"), []byte("draft"), 0o644); err != nil {
 		t.Fatal(err)
@@ -183,11 +183,11 @@ func TestBringBackRefusesACheckoutThatChangedSinceItLeft(t *testing.T) {
 	if len(progress) != 1 || progress[0].Stage != agentdomain.TeleportFailed || !strings.Contains(progress[0].Message, "changed since the session left") {
 		t.Fatalf("progress = %+v, want one refusal naming the changed checkout", progress)
 	}
-	if environment.ReachCallCount() != 0 {
+	if workspace.ReachCallCount() != 0 {
 		t.Error("the refused teleport reached k8s-dev")
 	}
-	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Environment != "k8s-dev" {
-		t.Errorf("the refused teleport left the lease with %s", lease.Environment)
+	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Workspace != "k8s-dev" {
+		t.Errorf("the refused teleport left the lease with %s", lease.Workspace)
 	}
 }
 
@@ -216,23 +216,23 @@ func TestBringBackAcceptsADirtyCheckoutUnchangedSinceItLeft(t *testing.T) {
 
 func TestPackForReturnRefusesWhatItDidNotRestore(t *testing.T) {
 	tests := []struct {
-		name      string
-		owner     string
-		workspace func(root string) string
-		wantErr   string
+		name         string
+		owner        string
+		workspaceDir func(root string) string
+		wantErr      string
 	}{
-		{name: "another owner", owner: "k8s-other", workspace: func(root string) string { return filepath.Join(root, "x", "conv-1") }, wantErr: "runs on k8s-other"},
-		{name: "outside the workspace root", workspace: func(string) string { return "/etc" }, wantErr: "is not a workspace"},
-		{name: "no workspace", workspace: func(string) string { return "" }, wantErr: "is not a workspace"},
+		{name: "another owner", owner: "k8s-other", workspaceDir: func(root string) string { return filepath.Join(root, "x", "conv-1") }, wantErr: "runs on k8s-other"},
+		{name: "outside the projects root", workspaceDir: func(string) string { return "/etc" }, wantErr: "is not a workspace"},
+		{name: "no workspace dir", workspaceDir: func(string) string { return "" }, wantErr: "is not a workspace"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := startReceiver(t, agentinfra.PeerClientKind)
 			if tt.owner != "" {
-				_, _, _ = r.service.leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "conv-1", Environment: tt.owner, Until: time.Now().Add(time.Hour)})
+				_, _, _ = r.service.leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "conv-1", Workspace: tt.owner, Until: time.Now().Add(time.Hour)})
 			}
 
-			r.send(t, returnFrame{Type: frameTeleportReturn, TeleportID: "t-1", ID: "conv-1", Workspace: tt.workspace(r.service.cfg.WorkspaceRoot), Environment: "home"})
+			r.send(t, returnFrame{Type: frameTeleportReturn, TeleportID: "t-1", ID: "conv-1", WorkspaceDir: tt.workspaceDir(r.service.cfg.ProjectsRoot), Workspace: "home"})
 
 			ctx, cancel := contextWithTimeout(t, 5*time.Second)
 			defer cancel()
@@ -273,7 +273,7 @@ func TestStartTeleportRefusesAConversationIDThatIsNotAPlainName(t *testing.T) {
 
 func TestBringBackRefusesAnotherCheckoutThanTheOneItLeft(t *testing.T) {
 	laptop := checkout(t)
-	s, store, _, environment := returningService(t, podCheckpoint(t, laptop))
+	s, store, _, workspace := returningService(t, podCheckpoint(t, laptop))
 	s.rememberOrigin("conv-1", "/somewhere/else", "fingerprint")
 
 	client := requestTeleportBack(s, laptop)
@@ -282,10 +282,10 @@ func TestBringBackRefusesAnotherCheckoutThanTheOneItLeft(t *testing.T) {
 	if len(progress) != 1 || progress[0].Stage != agentdomain.TeleportFailed || !strings.Contains(progress[0].Message, "/somewhere/else") {
 		t.Fatalf("progress = %+v, want a refusal naming the checkout the session left", progress)
 	}
-	if environment.ReachCallCount() != 0 {
+	if workspace.ReachCallCount() != 0 {
 		t.Error("the refused teleport reached k8s-dev")
 	}
-	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Environment != "k8s-dev" {
-		t.Errorf("the refused teleport left the lease with %s", lease.Environment)
+	if lease, _, _ := store.GetLease(t.Context(), "conv-1"); lease.Workspace != "k8s-dev" {
+		t.Errorf("the refused teleport left the lease with %s", lease.Workspace)
 	}
 }

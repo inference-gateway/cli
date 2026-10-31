@@ -7,27 +7,27 @@ import (
 )
 
 // SessionPlacement is where a daemon chat's session runs: Local is the
-// environment of the daemon the TUI talks to and Environment the one the
+// workspace of the daemon the TUI talks to and Workspace the one the
 // session lives on. The zero value is an in-process chat.
 type SessionPlacement struct {
-	Daemon      bool
-	Local       string
-	Environment string
-	Workspace   string
-	Teleporting string
-	Offline     bool
+	Daemon       bool
+	Local        string
+	Workspace    string
+	WorkspaceDir string
+	Teleporting  string
+	Offline      bool
 }
 
-// Remote reports whether the session runs on an environment other than the
+// Remote reports whether the session runs on a workspace other than the
 // daemon the TUI talks to, so laptop-only features do not apply to it.
 func (p SessionPlacement) Remote() bool {
-	return p.Daemon && p.Environment != "" && p.Environment != p.Local
+	return p.Daemon && p.Workspace != "" && p.Workspace != p.Local
 }
 
-// Where names the environment the session runs on.
+// Where names the workspace the session runs on.
 func (p SessionPlacement) Where() string {
-	if p.Environment != "" {
-		return p.Environment
+	if p.Workspace != "" {
+		return p.Workspace
 	}
 	return p.Local
 }
@@ -59,7 +59,7 @@ func (p SessionPlacement) Unavailable(feature Feature) string {
 	switch feature {
 	case FeatureLocalFiles:
 		if p.Remote() {
-			return "the session runs on " + p.Environment + ", whose checkout is not this one"
+			return "the session runs on " + p.Workspace + ", whose checkout is not this one"
 		}
 	case FeatureCompaction:
 		return "the daemon's worker compacts the session itself at compact.auto_at"
@@ -73,11 +73,11 @@ func (p SessionPlacement) Unavailable(feature Feature) string {
 	return ""
 }
 
-// SessionTeleporter lists the environments a daemon chat's session can teleport to and
-// teleports it there, for /environments and /teleport.
+// SessionTeleporter lists the workspaces a daemon chat's session can teleport to and
+// teleports it there, for /workspaces and /teleport.
 type SessionTeleporter interface {
 	Placement() SessionPlacement
-	ListEnvironments(ctx context.Context) ([]agentdomain.EnvironmentStatus, error)
+	ListWorkspaces(ctx context.Context) ([]agentdomain.WorkspaceStatus, error)
 	Teleport(target string, files []string) error
 	CancelTeleport() error
 }
@@ -94,14 +94,14 @@ type SessionPlacementChangedEvent struct {
 // another client's turn, or a run suspended on a prompt it should answer.
 type FollowRunEvent struct{}
 
-// ShowEnvironmentsEvent opens the environments picker.
-type ShowEnvironmentsEvent struct{}
+// ShowWorkspacesEvent opens the workspaces picker.
+type ShowWorkspacesEvent struct{}
 
-// EnvironmentsLoadedEvent carries the environments the session can teleport to,
+// WorkspacesLoadedEvent carries the workspaces the session can teleport to,
 // or why they could not be listed.
-type EnvironmentsLoadedEvent struct {
-	Environments []agentdomain.EnvironmentStatus
-	Err          error
+type WorkspacesLoadedEvent struct {
+	Workspaces []agentdomain.WorkspaceStatus
+	Err        error
 }
 
 // TeleportRequestedEvent asks to teleport the session to Target, with Files

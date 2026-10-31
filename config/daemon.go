@@ -14,10 +14,6 @@ const (
 	DaemonFileName   = "daemon.yaml"
 	DefaultDaemonDir = ConfigDirName + "/" + DaemonFileName
 
-	// WorkspacesDirName is the userspace directory a receiving daemon restores
-	// teleported projects into.
-	WorkspacesDirName = "workspaces"
-
 	defaultKubernetesIdleTTL = 2 * time.Hour
 	defaultDaemonLeaseTTL    = 24 * time.Hour
 	remoteLeaseGrace         = 5 * time.Minute
@@ -33,31 +29,31 @@ const (
 	TLSModeCA    TLSMode = "ca"
 )
 
-// EnvironmentKind names where an agent runs: this daemon, a standalone daemon
+// WorkspaceKind names where an agent runs: this daemon, a standalone daemon
 // reachable over TLS, or a Kubernetes Sandbox per session.
-type EnvironmentKind string
+type WorkspaceKind string
 
 const (
-	EnvironmentKindLocal      EnvironmentKind = "local"
-	EnvironmentKindDaemon     EnvironmentKind = "daemon"
-	EnvironmentKindKubernetes EnvironmentKind = "kubernetes"
+	WorkspaceKindLocal      WorkspaceKind = "local"
+	WorkspaceKindDaemon     WorkspaceKind = "daemon"
+	WorkspaceKindKubernetes WorkspaceKind = "kubernetes"
 )
 
 // DaemonConfig contains settings for the `infer daemon` command itself, the
 // long-running host of the channels, scheduler, heartbeat and the AG-UI
-// binding, and the environments sessions can be teleported to. Stored in its own
+// binding, and the workspaces sessions can be teleported to. Stored in its own
 // daemon.yaml sidecar.
 type DaemonConfig struct {
-	// Environment is this daemon's identity in session leases. Empty takes the
-	// name of the local environment entry, else the hostname.
-	Environment string `yaml:"environment,omitempty" mapstructure:"environment"`
-	// WorkspaceRoot is where a receiving daemon restores teleported projects.
-	WorkspaceRoot string `yaml:"workspace_root,omitempty" mapstructure:"workspace_root"`
+	// Workspace is this daemon's identity in session leases. Empty takes the
+	// name of the local workspace entry, else the hostname.
+	Workspace string `yaml:"workspace,omitempty" mapstructure:"workspace"`
+	// ProjectsRoot is where a receiving daemon restores teleported projects.
+	ProjectsRoot string `yaml:"projects_root,omitempty" mapstructure:"projects_root"`
 	// IdleExit stops the daemon after this long with no threads and no clients.
 	// Zero keeps it running.
-	IdleExit     time.Duration      `yaml:"idle_exit,omitempty" mapstructure:"idle_exit"`
-	Binding      BindingConfig      `yaml:"binding" mapstructure:"binding"`
-	Environments []EnvironmentEntry `yaml:"environments" mapstructure:"environments"`
+	IdleExit   time.Duration    `yaml:"idle_exit,omitempty" mapstructure:"idle_exit"`
+	Binding    BindingConfig    `yaml:"binding" mapstructure:"binding"`
+	Workspaces []WorkspaceEntry `yaml:"workspaces" mapstructure:"workspaces"`
 }
 
 // BindingConfig configures the AG-UI WebSocket binding the daemon hosts for
@@ -90,7 +86,7 @@ type BindingTLSConfig struct {
 	ClientAuth bool    `yaml:"client_auth" mapstructure:"client_auth"`
 }
 
-// PeerTLSConfig is how this daemon reaches a daemon-kind environment over TLS:
+// PeerTLSConfig is how this daemon reaches a daemon-kind workspace over TLS:
 // the CA that signed its certificate, else the system roots, and a client
 // certificate when the peer requires one.
 type PeerTLSConfig struct {
@@ -99,15 +95,15 @@ type PeerTLSConfig struct {
 	KeyFile  string `yaml:"key_file,omitempty" mapstructure:"key_file"`
 }
 
-// EnvironmentEntry registers one environment sessions can teleport to. The daemon kind
+// WorkspaceEntry registers one workspace sessions can teleport to. The daemon kind
 // uses Address, Token and TLS, the kubernetes kind the cluster fields, and
 // Address overrides the port-forward when an Ingress exposes the pods.
-type EnvironmentEntry struct {
-	Name    string          `yaml:"name" mapstructure:"name"`
-	Kind    EnvironmentKind `yaml:"kind" mapstructure:"kind"`
-	Address string          `yaml:"address,omitempty" mapstructure:"address"`
-	Token   string          `yaml:"token,omitempty" mapstructure:"token"`
-	TLS     PeerTLSConfig   `yaml:"tls,omitempty" mapstructure:"tls"`
+type WorkspaceEntry struct {
+	Name    string        `yaml:"name" mapstructure:"name"`
+	Kind    WorkspaceKind `yaml:"kind" mapstructure:"kind"`
+	Address string        `yaml:"address,omitempty" mapstructure:"address"`
+	Token   string        `yaml:"token,omitempty" mapstructure:"token"`
+	TLS     PeerTLSConfig `yaml:"tls,omitempty" mapstructure:"tls"`
 
 	Kubeconfig string            `yaml:"kubeconfig,omitempty" mapstructure:"kubeconfig"`
 	Context    string            `yaml:"context,omitempty" mapstructure:"context"`
@@ -121,17 +117,17 @@ type EnvironmentEntry struct {
 	// done before agent-sandbox deletes it with its volumes. Zero keeps it until
 	// the session is stopped.
 	Retention time.Duration `yaml:"retention,omitempty" mapstructure:"retention"`
-	// LeaseTTL is how long this daemon's lease row for a session the environment
+	// LeaseTTL is how long this daemon's lease row for a session the workspace
 	// owns stays live without contact. Empty derives it from the kind.
 	LeaseTTL time.Duration `yaml:"lease_ttl,omitempty" mapstructure:"lease_ttl"`
 	// ForwardEnv names the environment variables sealed into a handoff for
-	// the target's workers, never written to the environment's own objects.
+	// the target's workers, never written to the workspace's own objects.
 	ForwardEnv []string `yaml:"forward_env,omitempty" mapstructure:"forward_env"`
 }
 
 // EffectiveIdleTTL is how long a Kubernetes pod daemon idles before it
 // suspends its Sandbox.
-func (e EnvironmentEntry) EffectiveIdleTTL() time.Duration {
+func (e WorkspaceEntry) EffectiveIdleTTL() time.Duration {
 	if e.IdleTTL > 0 {
 		return e.IdleTTL
 	}
@@ -140,55 +136,55 @@ func (e EnvironmentEntry) EffectiveIdleTTL() time.Duration {
 
 // EffectiveLeaseTTL is the configured lease TTL, else the idle TTL plus a
 // grace for Kubernetes and a day for a standalone daemon.
-func (e EnvironmentEntry) EffectiveLeaseTTL() time.Duration {
+func (e WorkspaceEntry) EffectiveLeaseTTL() time.Duration {
 	if e.LeaseTTL > 0 {
 		return e.LeaseTTL
 	}
-	if e.Kind == EnvironmentKindKubernetes {
+	if e.Kind == WorkspaceKindKubernetes {
 		return e.EffectiveIdleTTL() + remoteLeaseGrace
 	}
 	return defaultDaemonLeaseTTL
 }
 
-// Identity is this daemon's name in session leases: the configured environment,
-// else the local environment entry's name, else the hostname.
+// Identity is this daemon's name in session leases: the configured workspace,
+// else the local workspace entry's name, else the hostname.
 func (d DaemonConfig) Identity() string {
-	if d.Environment != "" {
-		return d.Environment
+	if d.Workspace != "" {
+		return d.Workspace
 	}
-	for _, environment := range d.Environments {
-		if environment.Kind == EnvironmentKindLocal {
-			return environment.Name
+	for _, workspace := range d.Workspaces {
+		if workspace.Kind == WorkspaceKindLocal {
+			return workspace.Name
 		}
 	}
 	if host, err := os.Hostname(); err == nil && host != "" {
 		return host
 	}
-	return string(EnvironmentKindLocal)
+	return string(WorkspaceKindLocal)
 }
 
-// WorkspaceDir is where a receiving daemon restores teleported projects.
-func (d DaemonConfig) WorkspaceDir() string {
-	if d.WorkspaceRoot == "" {
-		return filepath.Join(UserSpaceConfigDir(), WorkspacesDirName)
+// ProjectsDir is where a receiving daemon restores teleported projects.
+func (d DaemonConfig) ProjectsDir() string {
+	if d.ProjectsRoot == "" {
+		return filepath.Join(UserSpaceConfigDir(), ProjectsDirName)
 	}
-	if rest, ok := strings.CutPrefix(d.WorkspaceRoot, "~/"); ok {
+	if rest, ok := strings.CutPrefix(d.ProjectsRoot, "~/"); ok {
 		if home, err := os.UserHomeDir(); err == nil {
 			return filepath.Join(home, rest)
 		}
 	}
-	return d.WorkspaceRoot
+	return d.ProjectsRoot
 }
 
-// Remote returns the environment entry of that name, false when it is unknown or
+// Remote returns the workspace entry of that name, false when it is unknown or
 // the local one.
-func (d DaemonConfig) Remote(name string) (EnvironmentEntry, bool) {
-	for _, environment := range d.Environments {
-		if environment.Name == name && environment.Kind != EnvironmentKindLocal {
-			return environment, true
+func (d DaemonConfig) Remote(name string) (WorkspaceEntry, bool) {
+	for _, workspace := range d.Workspaces {
+		if workspace.Name == name && workspace.Kind != WorkspaceKindLocal {
+			return workspace, true
 		}
 	}
-	return EnvironmentEntry{}, false
+	return WorkspaceEntry{}, false
 }
 
 // RequiresClientAuth reports whether the binding authenticates peers with
@@ -198,30 +194,30 @@ func (t BindingTLSConfig) RequiresClientAuth() bool {
 }
 
 // Validate checks daemon.yaml: the TLS mode, that a non-loopback binding
-// serves TLS, and that every environment entry carries what its kind needs.
+// serves TLS, and that every workspace entry carries what its kind needs.
 func (d DaemonConfig) Validate() error {
 	if err := d.Binding.validate(); err != nil {
 		return err
 	}
-	seen := make(map[string]bool, len(d.Environments))
+	seen := make(map[string]bool, len(d.Workspaces))
 	locals := 0
-	for _, environment := range d.Environments {
-		if environment.Name == "" {
-			return fmt.Errorf("every environment needs a name")
+	for _, workspace := range d.Workspaces {
+		if workspace.Name == "" {
+			return fmt.Errorf("every workspace needs a name")
 		}
-		if seen[environment.Name] {
-			return fmt.Errorf("environment %q is registered twice", environment.Name)
+		if seen[workspace.Name] {
+			return fmt.Errorf("workspace %q is registered twice", workspace.Name)
 		}
-		seen[environment.Name] = true
-		if environment.Kind == EnvironmentKindLocal {
+		seen[workspace.Name] = true
+		if workspace.Kind == WorkspaceKindLocal {
 			locals++
 		}
-		if err := environment.validate(d.Environment); err != nil {
+		if err := workspace.validate(d.Workspace); err != nil {
 			return err
 		}
 	}
 	if locals > 1 {
-		return fmt.Errorf("only one environment may be of kind %q", EnvironmentKindLocal)
+		return fmt.Errorf("only one workspace may be of kind %q", WorkspaceKindLocal)
 	}
 	return nil
 }
@@ -242,23 +238,23 @@ func (b BindingConfig) validate() error {
 	return nil
 }
 
-func (e EnvironmentEntry) validate(identity string) error {
+func (e WorkspaceEntry) validate(identity string) error {
 	switch e.Kind {
-	case EnvironmentKindLocal:
+	case WorkspaceKindLocal:
 		if identity != "" && identity != e.Name {
-			return fmt.Errorf("environment %q of kind local must be named after daemon.environment %q", e.Name, identity)
+			return fmt.Errorf("workspace %q of kind local must be named after daemon.workspace %q", e.Name, identity)
 		}
-	case EnvironmentKindDaemon:
+	case WorkspaceKindDaemon:
 		if e.Address == "" {
-			return fmt.Errorf("environment %q of kind daemon needs an address", e.Name)
+			return fmt.Errorf("workspace %q of kind daemon needs an address", e.Name)
 		}
-	case EnvironmentKindKubernetes:
+	case WorkspaceKindKubernetes:
 		if e.Namespace == "" || e.Image == "" {
-			return fmt.Errorf("environment %q of kind kubernetes needs a namespace and an image", e.Name)
+			return fmt.Errorf("workspace %q of kind kubernetes needs a namespace and an image", e.Name)
 		}
 	default:
-		return fmt.Errorf("invalid kind %q for environment %q: must be one of %q, %q, or %q",
-			e.Kind, e.Name, EnvironmentKindLocal, EnvironmentKindDaemon, EnvironmentKindKubernetes)
+		return fmt.Errorf("invalid kind %q for workspace %q: must be one of %q, %q, or %q",
+			e.Kind, e.Name, WorkspaceKindLocal, WorkspaceKindDaemon, WorkspaceKindKubernetes)
 	}
 	return nil
 }
@@ -330,12 +326,12 @@ func (c *Config) Binding() Binding {
 
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml
 // exists: the binding is off until the user or the desktop app enables it, no
-// TLS, and no environments beyond this daemon.
+// TLS, and no workspaces beyond this daemon.
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
 		Binding: BindingConfig{
 			TLS: BindingTLSConfig{Mode: TLSModeOff},
 		},
-		Environments: []EnvironmentEntry{},
+		Workspaces: []WorkspaceEntry{},
 	}
 }

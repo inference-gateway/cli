@@ -23,7 +23,7 @@ import (
 const clientKind = "tui"
 
 // requestTimeout bounds one request to the daemon, long enough for the
-// daemon to launch a worker or reach a remote environment first.
+// daemon to launch a worker or reach a remote workspace first.
 const requestTimeout = 2 * time.Minute
 
 // maxBackoff caps the wait between two reconnect attempts.
@@ -137,7 +137,7 @@ func (t *Thread) Connect(ctx context.Context) error {
 	t.generation++
 	t.placement.Daemon = true
 	t.placement.Offline = false
-	t.placement.Local = conn.AckAttr("environment")
+	t.placement.Local = conn.AckAttr("workspace")
 	t.mu.Unlock()
 	return nil
 }
@@ -166,7 +166,7 @@ func (t *Thread) Follow(ctx context.Context, id string, opts sessionsdomain.Thre
 	placement := t.placement
 	t.mu.Unlock()
 	if placement.Remote() {
-		opts.Environment, opts.Workspace = placement.Environment, placement.Workspace
+		opts.Workspace, opts.WorkspaceDir = placement.Workspace, placement.WorkspaceDir
 	}
 	frame := followFrame{Type: "resume_conversation", ProjectDir: t.opts.ProjectDir, ID: id, ThreadOptions: opts}
 	if _, err := t.Request(ctx, frame, "MESSAGES_SNAPSHOT"); err != nil {
@@ -182,7 +182,7 @@ func (t *Thread) Follow(ctx context.Context, id string, opts sessionsdomain.Thre
 }
 
 // SessionProject is the project dir of a session this machine's daemon runs,
-// from its lease, or "" when another environment runs it or no lease names one.
+// from its lease, or "" when another workspace runs it or no lease names one.
 func (t *Thread) SessionProject(ctx context.Context, id string) string {
 	if t.leases == nil {
 		return ""
@@ -191,10 +191,10 @@ func (t *Thread) SessionProject(ctx context.Context, id string) string {
 	t.mu.Lock()
 	local := t.placement.Local
 	t.mu.Unlock()
-	if err != nil || !found || lease.Environment != local {
+	if err != nil || !found || lease.Workspace != local {
 		return ""
 	}
-	return lease.Workspace
+	return lease.WorkspaceDir
 }
 
 // MoveTo makes this a daemon chat in projectDir. It is for attaching, before
@@ -214,19 +214,19 @@ type followFrame struct {
 }
 
 // locate reads where the session of id runs from its lease, so a session
-// another environment owns shows as running there.
+// another workspace owns shows as running there.
 func (t *Thread) locate(ctx context.Context, id string) {
-	environment, workspace := "", ""
+	workspace, workspaceDir := "", ""
 	if t.leases != nil {
 		if lease, found, err := t.leases.GetLease(ctx, id); err == nil && found {
-			environment, workspace = lease.Environment, lease.Workspace
+			workspace, workspaceDir = lease.Workspace, lease.WorkspaceDir
 		}
 	}
 	t.mu.Lock()
-	if environment == "" || environment == t.placement.Local {
-		environment, workspace = t.placement.Local, t.opts.ProjectDir
+	if workspace == "" || workspace == t.placement.Local {
+		workspace, workspaceDir = t.placement.Local, t.opts.ProjectDir
 	}
-	t.placement.Environment, t.placement.Workspace = environment, workspace
+	t.placement.Workspace, t.placement.WorkspaceDir = workspace, workspaceDir
 	placement := t.placement
 	t.mu.Unlock()
 	t.post(tui.SessionPlacementChangedEvent{Placement: placement})

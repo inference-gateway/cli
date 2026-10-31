@@ -508,7 +508,7 @@ func matchesPattern(pattern, path string) bool {
 // Denies reports whether a denied entry of the policy matches a file of a
 // project, given its absolute path and its path relative to the project dir.
 // A session checkpoint uses it to keep denied files, such as *.env and *.key,
-// out of the workspace it packs, wherever the daemon itself runs.
+// out of the repository it packs, wherever the daemon itself runs.
 func Denies(cfg *config.Config, projectDir, absPath string) bool {
 	rel, err := filepath.Rel(projectDir, absPath)
 	if err != nil {

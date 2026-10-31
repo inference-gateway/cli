@@ -81,27 +81,27 @@ func TestBindingAddr(t *testing.T) {
 }
 
 func TestDaemonConfigValidate(t *testing.T) {
-	kubernetes := EnvironmentEntry{Name: "k8s", Kind: EnvironmentKindKubernetes, Namespace: "infer", Image: "infer:local"}
-	daemon := EnvironmentEntry{Name: "ws", Kind: EnvironmentKindDaemon, Address: "ws.lan:52789", TLS: PeerTLSConfig{CAFile: "ca.crt"}}
+	kubernetes := WorkspaceEntry{Name: "k8s", Kind: WorkspaceKindKubernetes, Namespace: "infer", Image: "infer:local"}
+	daemon := WorkspaceEntry{Name: "ws", Kind: WorkspaceKindDaemon, Address: "ws.lan:52789", TLS: PeerTLSConfig{CAFile: "ca.crt"}}
 	tests := []struct {
 		name    string
 		cfg     DaemonConfig
 		wantErr string
 	}{
 		{"defaults", *DefaultDaemonConfig(), ""},
-		{"valid environments", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "laptop", Kind: EnvironmentKindLocal}, kubernetes, daemon}}, ""},
+		{"valid workspaces", DaemonConfig{Workspace: "laptop", Workspaces: []WorkspaceEntry{{Name: "laptop", Kind: WorkspaceKindLocal}, kubernetes, daemon}}, ""},
 		{"unknown tls mode", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: "pem"}}}, "binding.tls.mode"},
 		{"files mode needs files", DaemonConfig{Binding: BindingConfig{TLS: BindingTLSConfig{Mode: TLSModeFiles}}}, "cert_file and key_file"},
 		{"remote host needs tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0"}}, "must not be off"},
 		{"remote host with tls", DaemonConfig{Binding: BindingConfig{Host: "0.0.0.0", TLS: BindingTLSConfig{Mode: TLSModeCA}}}, ""},
-		{"duplicate names", DaemonConfig{Environments: []EnvironmentEntry{kubernetes, kubernetes}}, "twice"},
-		{"nameless", DaemonConfig{Environments: []EnvironmentEntry{{Kind: EnvironmentKindDaemon}}}, "needs a name"},
-		{"unknown kind", DaemonConfig{Environments: []EnvironmentEntry{{Name: "x", Kind: "vm"}}}, "invalid kind"},
-		{"two locals", DaemonConfig{Environments: []EnvironmentEntry{{Name: "a", Kind: EnvironmentKindLocal}, {Name: "b", Kind: EnvironmentKindLocal}}}, "only one environment"},
-		{"local named after the identity", DaemonConfig{Environment: "laptop", Environments: []EnvironmentEntry{{Name: "other", Kind: EnvironmentKindLocal}}}, "named after daemon.environment"},
-		{"daemon kind needs an address", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
-		{"daemon kind trusts the system roots without a ca_file", DaemonConfig{Environments: []EnvironmentEntry{{Name: "ws", Kind: EnvironmentKindDaemon, Address: "a:1"}}}, ""},
-		{"kubernetes needs namespace and image", DaemonConfig{Environments: []EnvironmentEntry{{Name: "k8s", Kind: EnvironmentKindKubernetes}}}, "namespace and an image"},
+		{"duplicate names", DaemonConfig{Workspaces: []WorkspaceEntry{kubernetes, kubernetes}}, "twice"},
+		{"nameless", DaemonConfig{Workspaces: []WorkspaceEntry{{Kind: WorkspaceKindDaemon}}}, "needs a name"},
+		{"unknown kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "x", Kind: "vm"}}}, "invalid kind"},
+		{"two locals", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "a", Kind: WorkspaceKindLocal}, {Name: "b", Kind: WorkspaceKindLocal}}}, "only one workspace"},
+		{"local named after the identity", DaemonConfig{Workspace: "laptop", Workspaces: []WorkspaceEntry{{Name: "other", Kind: WorkspaceKindLocal}}}, "named after daemon.workspace"},
+		{"daemon kind needs an address", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, TLS: PeerTLSConfig{CAFile: "ca"}}}}, "needs an address"},
+		{"daemon kind trusts the system roots without a ca_file", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1"}}}, ""},
+		{"kubernetes needs namespace and image", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "k8s", Kind: WorkspaceKindKubernetes}}}, "namespace and an image"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,17 +120,17 @@ func TestDaemonConfigValidate(t *testing.T) {
 }
 
 func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
-	if got := (DaemonConfig{Environment: "laptop"}).Identity(); got != "laptop" {
+	if got := (DaemonConfig{Workspace: "laptop"}).Identity(); got != "laptop" {
 		t.Fatalf("Identity() = %q, want laptop", got)
 	}
-	if got := (DaemonConfig{Environments: []EnvironmentEntry{{Name: "desk", Kind: EnvironmentKindLocal}}}).Identity(); got != "desk" {
+	if got := (DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "desk", Kind: WorkspaceKindLocal}}}).Identity(); got != "desk" {
 		t.Fatalf("Identity() = %q, want the local entry's name", got)
 	}
 	if got := (DaemonConfig{}).Identity(); got == "" {
 		t.Fatal("Identity() falls back to the hostname, never empty")
 	}
 
-	k8s := EnvironmentEntry{Kind: EnvironmentKindKubernetes}
+	k8s := WorkspaceEntry{Kind: WorkspaceKindKubernetes}
 	if got := k8s.EffectiveLeaseTTL(); got != 2*time.Hour+5*time.Minute {
 		t.Fatalf("kubernetes lease ttl = %v", got)
 	}
@@ -138,10 +138,10 @@ func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	if got := k8s.EffectiveLeaseTTL(); got != time.Hour+5*time.Minute {
 		t.Fatalf("kubernetes lease ttl follows idle ttl: %v", got)
 	}
-	if got := (EnvironmentEntry{Kind: EnvironmentKindDaemon}).EffectiveLeaseTTL(); got != 24*time.Hour {
+	if got := (WorkspaceEntry{Kind: WorkspaceKindDaemon}).EffectiveLeaseTTL(); got != 24*time.Hour {
 		t.Fatalf("daemon lease ttl = %v", got)
 	}
-	if got := (EnvironmentEntry{Kind: EnvironmentKindDaemon, LeaseTTL: time.Minute}).EffectiveLeaseTTL(); got != time.Minute {
+	if got := (WorkspaceEntry{Kind: WorkspaceKindDaemon, LeaseTTL: time.Minute}).EffectiveLeaseTTL(); got != time.Minute {
 		t.Fatalf("configured lease ttl wins: %v", got)
 	}
 }

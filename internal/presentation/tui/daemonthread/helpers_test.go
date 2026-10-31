@@ -44,7 +44,7 @@ func startDaemon(t *testing.T, port int) *fakeDaemon {
 	d := &fakeDaemon{t: t, handler: &aguimocks.FakeHandler{}, reply: map[string]string{}}
 	d.handler.HandleCalls(d.handle)
 	d.binding = agui.NewBinding(agui.BindingConfig{
-		Port: port, Token: testToken, Handshake: browserinfra.BindingHandshake, AckAttrs: map[string]any{"environment": "laptop"},
+		Port: port, Token: testToken, Handshake: browserinfra.BindingHandshake, AckAttrs: map[string]any{"workspace": "laptop"},
 	}, d.handler)
 	if err := d.binding.Start(); err != nil {
 		t.Fatalf("starting the binding: %v", err)
