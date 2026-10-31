@@ -136,12 +136,14 @@ workspaces:
     every pod at it. Each teleport writes the `gateway_env` values into the gateway's Secret, so the keys
     never enter the agent's pod and the agent cannot read them into its context. A variable this daemon
     resolves no value for keeps the value an earlier teleport wrote, and a changed value rolls the gateway. Every
-    session's Orchestrator owns the Gateway and its Secret, so both go with the last session. Without
+    session's Orchestrator owns the Gateway and its Secret, so both go with the last session. Each Orchestrator
+    links the Gateway by `spec.gateway.ref`, so the operator runs it with no pod while every session is suspended.
+    The next teleport or turn resumes the session and waits for the gateway to serve again. Without
     `gateway_env` no gateway is deployed, and the pod calls whatever `INFER_GATEWAY_URL` names.
   - `all-in-one` deploys nothing beside the pod. A teleport seals the `gateway_env` values with
     `forward_env`, and the pod's workers run the gateway binary on `127.0.0.1:8080` themselves. It costs one
     pod less, but the keys sit in the agent's environment.
-- The cluster needs the operator v0.28.1 or later, agent-sandbox, and the Gateway API CRDs the operator
+- The cluster needs the operator v0.29.0 or later, agent-sandbox, and the Gateway API CRDs the operator
   requires. Install agent-sandbox first, because the operator looks for it only when it starts. A teleport
   to a cluster without the operator fails before it creates anything:
   `the Inference Gateway operator is not installed in the cluster of workspace <name>`. Your kubeconfig

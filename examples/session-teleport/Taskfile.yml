@@ -4,7 +4,7 @@ vars:
   CLUSTER: infer-workspaces
   NAMESPACE: infer-workspaces
   AGENT_SANDBOX_VERSION: v1.0.8
-  OPERATOR_VERSION: v0.28.1
+  OPERATOR_VERSION: v0.29.0
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
   INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
 

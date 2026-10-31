@@ -43,11 +43,11 @@ func TestOrchestratorPointsTheWorkersAtTheGateway(t *testing.T) {
 		name       string
 		mode       config.WorkspaceMode
 		gatewayEnv []string
-		want       string
+		want       map[string]any
 	}{
-		{"standard reaches the workspace gateway", "", []string{"OLLAMA_CLOUD_API_KEY"}, "http://" + gatewayName("k8s") + ".ns.svc:8080"},
-		{"all-in-one reaches the gateway inside the pod", config.WorkspaceModeAllInOne, []string{"OLLAMA_CLOUD_API_KEY"}, inPodGatewayURL},
-		{"without gateway_env the image or env decides", config.WorkspaceModeStandard, nil, ""},
+		{"standard links the workspace gateway", "", []string{"OLLAMA_CLOUD_API_KEY"}, map[string]any{"ref": gatewayName("k8s")}},
+		{"all-in-one reaches the gateway inside the pod", config.WorkspaceModeAllInOne, []string{"OLLAMA_CLOUD_API_KEY"}, map[string]any{"url": inPodGatewayURL}},
+		{"without gateway_env the image or env decides", config.WorkspaceModeStandard, nil, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -57,8 +57,8 @@ func TestOrchestratorPointsTheWorkersAtTheGateway(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if url, _, _ := k8sunstructured.NestedString(orchestrator.Object, "spec", "gateway", "url"); url != tt.want {
-				t.Fatalf("spec.gateway.url = %q, want %q", url, tt.want)
+			if gateway, _, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "gateway"); !maps.Equal(gateway, tt.want) {
+				t.Fatalf("spec.gateway = %v, want %v", gateway, tt.want)
 			}
 			if raw, _ := json.Marshal(orchestrator.Object); strings.Contains(string(raw), "ollama-secret") {
 				t.Fatal("the Orchestrator carries the provider key")
@@ -78,9 +78,6 @@ func TestEnsureGatewayKeepsCredentialsOnTheGateway(t *testing.T) {
 	secret, gateway := ensureGatewayFor(t, e, dynamic, typed, first)
 	assertCredentials(t, secret, "key-1")
 	assertOwners(t, secret.OwnerReferences, gateway.GetOwnerReferences(), "uid-infer-1")
-	if port, _, _ := k8sunstructured.NestedInt64(gateway.Object, "spec", "server", "port"); port != gatewayPort {
-		t.Fatalf("spec.server.port = %d, want the %d gatewayURL names", port, gatewayPort)
-	}
 	if got := providerNames(gateway); !slices.Equal(got, []string{"ollama_cloud", "openai", "credentials"}) {
 		t.Fatalf("providers = %v", got)
 	}
@@ -210,6 +207,19 @@ func TestAwaitGateway(t *testing.T) {
 				t.Fatalf("awaitGateway = %v, want %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestReachWaitsForAParkedGateway(t *testing.T) {
+	name := orchestratorName("k8s", "conv-1")
+	running := testOrchestrator(name, map[string]any{"sandbox": map[string]any{"operatingMode": modeRunning}}, readyStatus(2, "True", "SandboxReady"))
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: "ns"}, Data: map[string][]byte{secretTokenKey: []byte("token")}}
+	e, _, _ := testWorkspace(t, true, []*k8sunstructured.Unstructured{running}, secret, gatewayDeployment(0))
+	e.entry.GatewayEnv = []string{"OLLAMA_CLOUD_API_KEY"}
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := e.Reach(ctx, agentdomain.Session{ConversationID: "conv-1"}); err == nil || !strings.Contains(err.Error(), "has no available pod in time") {
+		t.Fatalf("Reach while the gateway is parked = %v, want it to wait for the gateway", err)
 	}
 }
 
