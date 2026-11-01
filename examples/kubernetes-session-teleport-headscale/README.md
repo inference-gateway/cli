@@ -14,7 +14,7 @@ infer-local    Docker container beside the cluster, "your machine"
 infer-k8s      pod on agent-1, binding only on its tailnet address
     │          ACL tag:infer-k8s → tag:gateway:8443, mTLS with infer-k8s's client certificate
     ▼
-gateway        tailscale proxy pod on agent-0, forwards TCP 8443 to the gateway's Service, which is one of:
+gateway        pod on agent-0 with a tailscale sidecar, one of:
                - tokenless, a mock gateway, so no API key is needed (task up)
                - the Inference Gateway in front of a real provider (task gateway:real)
 ```
@@ -37,7 +37,7 @@ Everything runs in a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declar
 - an attacker node and a packet sniffer
 
 `task gateway:real` swaps tokenless for the [Inference Gateway](https://github.com/inference-gateway/inference-gateway)
-0.61.1, run by the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.31.0 from a `Gateway`
+0.61.1, run by the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.32.0 from a `Gateway`
 resource, in front of a real provider.
 
 The default run needs no account and no API key, `task gateway:real` needs your provider's key. See
@@ -66,9 +66,8 @@ tailscale sidecar where NetBird's operator injected one.
 | `k8s/namespace.yaml` | The `infer-peers` namespace, labelled so the Inference Gateway operator manages it |
 | `k8s/certificates.yaml` | The demo CA `peers-ca`, a ClusterIssuer, and the `infer-k8s`, `gateway` and `infer-local` certificates, ECDSA P-256 |
 | `k8s/infer-k8s.yaml` | The `infer-k8s` daemon and its tailscale sidecar: the binding on its tailnet address, the gateway as its model, both mTLS |
-| `k8s/gateway-tailnet.yaml` | The `gateway` tailnet node: a tailscale proxy that forwards TCP 8443 to the Service `gateway` |
-| `k8s/gateway.yaml` | tokenless with mTLS behind the Service `gateway`, and a NetworkPolicy that admits only the proxy to the gateway's pods |
-| `k8s/gateway-real.yaml` | The `Gateway` resource `task gateway:real` fills in with your provider |
+| `k8s/gateway.yaml` | tokenless with mTLS and its tailscale sidecar, and a NetworkPolicy that admits only WireGuard to the gateway's pods |
+| `k8s/gateway-real.yaml` | The `Gateway` resource `task gateway:real` fills in with your provider, its tailscale sidecar in `spec.pod.containers` |
 | `k8s/attacker.yaml` | A tailnet node that no ACL admits |
 | `k8s/sniffer.yaml` | `tcpdump` on the host network of the `infer-k8s` node |
 | `local/compose.yaml` | `infer-local`: the daemon and its tailscale client, two containers sharing one network namespace |
@@ -131,8 +130,8 @@ The `task up` steps, one by one:
 | `secrets` | The `infer-k8s`, `gateway` and `infer-local` certificates, the demo CA as the ConfigMap `tailnet-ca`, and the demo secret |
 | `headscale:install` | Headscale with its certificate, its config and its policy |
 | `headscale:keys` | The user `infer` and one tagged, ephemeral, reusable pre-auth key per node, each in a Secret `tailnet-key-<node>` |
-| `deploy` | The mock gateway and its tailnet proxy, `infer-k8s` and the attacker |
-| `local:up` | `infer-local`, once its tailscale client resolves `infer-k8s.tailnet.internal` |
+| `deploy` | The mock gateway, `infer-k8s` and the attacker, each with its tailscale sidecar |
+| `local:up` | `infer-local`, once it reaches `infer-k8s.tailnet.internal:52789` |
 
 ## Use a real model
 
@@ -154,14 +153,14 @@ OLLAMA_CLOUD_API_KEY=... task gateway:real PROVIDER=ollama_cloud MODEL=ollama_cl
 
 1. installs the Inference Gateway operator
 2. stores the key in the Secret `gateway-provider`
-3. removes tokenless and its Service
-4. creates the `Gateway` from `k8s/gateway-real.yaml` with the same `app: gateway` label, port 8443 and `gateway`
-   certificate, requiring a client certificate through `spec.server.tls.clientCARef`. The operator creates the
-   Service `gateway`
-5. recreates `infer-k8s` with the model in the ConfigMap `infer-k8s-model`, after removing its offline node from
-   Headscale
+3. removes tokenless (or the `Gateway` of an earlier run) and `infer-k8s`, then their offline nodes from Headscale, so
+   the new pods get the plain names
+4. creates the `Gateway` from `k8s/gateway-real.yaml` with the same tailscale sidecar in `spec.pod.containers`, the
+   same `app: gateway` label, port 8443 and `gateway` certificate, requiring a client certificate through
+   `spec.server.tls.clientCARef`
+5. recreates `infer-k8s` with the model in the ConfigMap `infer-k8s-model`
 
-The tailnet proxy, the ACLs, the name `gateway.tailnet.internal` and the certificates stay as they are, so
+The ACLs, the name `gateway.tailnet.internal` and the certificates stay as they are, so
 `task attack` and `task sniff:report` work the same, except that the capture looks for tokenless's line. Recreating
 `infer-k8s` drops the sessions that live there, so teleport them back first. The key reaches only the gateway's pod,
 and the gateway reaches the provider over the provider's public HTTPS, outside the tailnet. `task cleanup` and
@@ -169,14 +168,14 @@ and the gateway reaches the provider over the provider's public HTTPS, outside t
 
 ## How the pieces fit
 
-- **Joining the tailnet.** `infer-k8s` and the attacker each carry a tailscale sidecar in kernel mode (privileged, for
-  `/dev/net/tun`). Each logs in to `https://headscale.headscale.svc.cluster.local:9443` with its pre-auth key, and
+- **Joining the tailnet.** `infer-k8s`, the gateway and the attacker each carry a tailscale sidecar in kernel mode
+  (privileged, for `/dev/net/tun`). Each logs in to `https://headscale.headscale.svc.cluster.local:9443` with its pre-auth key, and
   trusts Headscale's certificate through `SSL_CERT_FILE` pointing at the demo CA. Beside the cluster, `infer-local` runs
   the same client in its own container. It reaches Headscale through the k3d server node under the name the pods use.
 - **Keys and names.** Each pre-auth key carries one tag, so the node it enrolls is owned by `tagged-devices` and named
   after its hostname (`infer-k8s`). The keys are ephemeral, so a node is removed once it goes offline, and reusable, so
-  a recreated pod joins again with the same key. `task gateway:real` removes the old offline node right away, so the
-  new one gets the plain name.
+  a recreated pod joins again with the same key. `task gateway:real` removes the old offline nodes right away, so the
+  new ones get the plain names.
 - **Resolving tailnet names.** The sidecar rewrites the pod's `resolv.conf` to Tailscale's resolver `100.100.100.100`,
   and all containers of a pod share that file. Beside the cluster, `infer-local` shares its client's network namespace,
   and with it the same file. Tailnet names resolve through MagicDNS under `tailnet.internal`. With
@@ -188,14 +187,10 @@ and the gateway reaches the provider over the provider's public HTTPS, outside t
   gateway.
 - **Off the pod network.** `infer-k8s` waits until `tailscale0` has an address, then starts the daemon with
   `INFER_DAEMON_BINDING_HOST` set to it, so nothing listens on its pod address.
-- **The gateway node.** The operator's `Gateway` has no field for a sidecar container
-  ([operator#316](https://github.com/inference-gateway/operator/issues/316)), so the `gateway` tailnet node is a
-  separate pod: tailscale in userspace mode with a serve config that forwards TCP 8443 to the Service `gateway`. Both
-  gateways sit behind that Service, tokenless with its own Service, the real one with the operator's. The proxy and
-  both gateways run on agent-0. The NetworkPolicy `gateway-from-tailnet-proxy` admits only the proxy to the gateway's
-  pods on 8443, and `gateway-tailnet-wireguard-only` admits only WireGuard (UDP 41641) to the proxy. The forward is a
-  TCP stream, so TLS still runs end to end between `infer-k8s` and the gateway, and the gateway checks
-  `infer-k8s`'s client certificate itself.
+- **The gateway node.** Both gateways carry the same sidecar: tokenless in its Deployment, the Inference Gateway
+  through the `Gateway`'s `spec.pod.containers` and `spec.pod.volumes`. It skips MagicDNS (`TS_ACCEPT_DNS=false`),
+  since the gateway dials no tailnet name. The gateway listens on every address of its pod, so the NetworkPolicy
+  `gateway-wireguard-only` admits only WireGuard (UDP 41641) to it, and port 8443 is reachable over the tailnet alone.
 - **Relays.** Headscale's embedded DERP server and STUN are the only ones in the DERP map (`derp.urls: []`). The nodes
   connect directly where they can and fall back to that relay, which only ever sees WireGuard.
 - **Mutual TLS on both hops.** See [TLS on every hop](#tls-on-every-hop). TLS runs inside the WireGuard tunnel, so
@@ -219,8 +214,8 @@ attacker     tag:attacker     100.64.0.3  online
 infer-local  tag:infer-local  100.64.0.4  online
 == infer-k8s: the peers the policy lets it see, and how it reaches them
 100.64.0.1  infer-k8s    tagged-devices  linux  -
-100.64.0.2  gateway      tagged-devices  linux  active; direct 10.42.1.7:41641, tx 92048 rx 27336
-100.64.0.4  infer-local  tagged-devices  linux  active; direct 172.18.0.2:41641, tx 31980 rx 27572
+100.64.0.2  gateway      tagged-devices  linux  active; direct 10.42.1.6:41641, tx 81444 rx 15372
+100.64.0.4  infer-local  tagged-devices  linux  active; direct 172.18.0.2:41641, tx 22292 rx 22404
 ```
 
 Headscale ships no web UI, and has no flow log of who connected to which port, so the capture below shows what crosses
@@ -234,12 +229,12 @@ a plaintext canary from `infer-local` to Headscale's metrics port on that node, 
 when there is any. `task sniff:report` reads the capture after `task demo`:
 
 ```text
-WireGuard packets (udp port 41641):  411
+WireGuard packets (udp port 41641):  489
 binding packets (tcp port 52789):    0
 gateway packets (tcp port 8443):     0
 DEMO_SECRET in the capture:          0
 the gateway's reply in the capture:  0
-plaintext canary in the capture:     27
+plaintext canary in the capture:     15
 ```
 
 The teleport, the turn and the model's reply only exist inside WireGuard. The capture is saved to
@@ -289,7 +284,7 @@ cert-manager's `peers-ca` issues every certificate, and every server asks for a 
 - **`infer-k8s` → `gateway`.** tokenless with `--tls-client-ca`, or the `Gateway` with `spec.server.tls.clientCARef`,
   serves the `gateway` certificate (`gateway.tailnet.internal`). infer adds the CA to its roots
   (`INFER_GATEWAY_TLS_CA_FILE`) and presents the `infer-k8s` certificate (`INFER_GATEWAY_TLS_CERT_FILE`,
-  `INFER_GATEWAY_TLS_KEY_FILE`). The tailnet proxy forwards the TCP stream and never sees inside it.
+  `INFER_GATEWAY_TLS_KEY_FILE`).
 - **`gateway` → provider**, with `task gateway:real` only. The provider's public HTTPS, with your API key.
 - **Every tailscale client → Headscale.** Headscale serves the `headscale-tls` certificate from `peers-ca` for its
   control API and its DERP relay. The clients trust that CA through `SSL_CERT_FILE`, and the control protocol is
@@ -350,8 +345,7 @@ an option for a daemon that needs neither: keep the binding on loopback with a t
 
 ## Security notes
 
-- The tailscale sidecars run privileged for `/dev/net/tun`. The gateway's proxy runs in userspace mode and needs no
-  privileges.
+- The tailscale sidecars run privileged for `/dev/net/tun`.
 - The pre-auth keys are reusable for 30 days, so a leaked one enrolls new nodes with its tag until it expires.
   `headscale preauthkeys expire` revokes one early.
 - Headscale keeps its database and keys on an `emptyDir`, so a restarted Headscale forgets every node. Use a volume in
@@ -376,11 +370,11 @@ task cleanup
 | A tailscale container logs `authkey already used` | The keys come from an older run. Delete the `tailnet-key-*` Secrets, run `task headscale:keys` |
 | tailscale logs `certificate signed by unknown authority` | `SSL_CERT_FILE` misses the demo CA. `task secrets` creates the `tailnet-ca` ConfigMap |
 | A tailscale client never gets an address | Your Docker VM lacks `/dev/net/tun`. Docker Desktop and OrbStack have it |
-| `task local:up` cannot resolve `infer-k8s.tailnet.internal` | Check `docker logs infer-local-tailscale` for the login to Headscale |
+| `task local:up` cannot reach `infer-k8s.tailnet.internal:52789` | Check `docker logs infer-local-tailscale` for the login to Headscale |
 | `infer-k8s` is `REACHABLE false` | Check `task tailnet:status`: both nodes online, and `infer-local` listed as a peer of `infer-k8s` |
 | A node is named `infer-k8s-<suffix>` | An offline node still holds the name. Delete it with `headscale nodes delete`, then recreate the pod |
 | `task demo` hangs before `provisioning` | The daemons run an older infer. Run `task image:import`, recreate the `infer-k8s` pod, `task local:up` |
-| The turn on `infer-k8s` fails to reach the model | Read the logs of `deploy/gateway-tailnet`, then of `deploy/gateway-mock` or `deploy/gateway` |
+| The turn on `infer-k8s` fails to reach the model | Read the logs of `deploy/gateway-mock` or `deploy/gateway`, its `tailscale` container first |
 | `task gateway:real` stops with `Set OPENAI_API_KEY first` | Export your provider's key in the same shell, named after `PROVIDER` |
 | No `gateway` Deployment after `task gateway:real` | The namespace lacks `inference-gateway.com/managed=true`, or the operator is down |
 | `tls: certificate required` from infer on `infer-k8s` | `INFER_GATEWAY_TLS_CERT_FILE` or `_KEY_FILE` is unset, or not from `peers-ca` |
