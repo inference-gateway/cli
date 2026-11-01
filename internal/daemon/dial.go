@@ -11,14 +11,17 @@ import (
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-// ErrNoBinding is the refusal to dial a daemon whose binding is off or cannot
-// tell who a client is.
-var ErrNoBinding = errors.New("the daemon binding is off or has neither a token nor TLS client certificates: enable daemon.binding in daemon.yaml with a token or a client-certificate TLS mode")
+// ErrNoBinding is the refusal to dial a daemon whose binding is off.
+var ErrNoBinding = errors.New("the daemon binding is off: enable daemon.binding in daemon.yaml")
 
 // LocalDialConfig is how a client of kind dials the daemon cfg describes: the
-// binding's address and token, over TLS with this machine's client
+// binding's address and token, or this machine's local token the daemon also
+// uses when daemon.yaml sets none, over TLS with this machine's client
 // certificate when the binding serves one.
 func LocalDialConfig(ctx context.Context, cfg *config.Config, kind string) (agui.DialConfig, error) {
+	if err := FillBindingToken(cfg); err != nil {
+		return agui.DialConfig{}, err
+	}
 	binding := cfg.Binding()
 	if !binding.Dialable() {
 		return agui.DialConfig{}, ErrNoBinding
