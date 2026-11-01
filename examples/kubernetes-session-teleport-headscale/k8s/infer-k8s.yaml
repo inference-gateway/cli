@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infer-k8s-daemon
+  namespace: infer-peers
+data:
+  daemon.yaml: |
+    workspace: infer-k8s
+    workspaces:
+      - name: infer-k8s
+        kind: local
+    binding:
+      enabled: true
+      port: 52789
+      tls:
+        mode: files
+        cert_file: /etc/infer/tls/tls.crt
+        key_file: /etc/infer/tls/tls.key
+        ca_file: /etc/infer/tls/ca.crt
+        client_auth: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: infer-k8s
+  namespace: infer-peers
+  labels:
+    app: infer-k8s
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k3d-infer-headscale-agent-1
+  containers:
+    - name: daemon
+      image: ghcr.io/inference-gateway/cli:local
+      imagePullPolicy: Never
+      command:
+        - sh
+        - -c
+        - |
+          until TAILNET_IP=$(ip -4 -o addr show tailscale0 2>/dev/null | awk '{print $4}' | cut -d/ -f1) && [ -n "$TAILNET_IP" ]; do sleep 1; done
+          echo "binding on the tailnet address $TAILNET_IP"
+          INFER_DAEMON_BINDING_HOST=$TAILNET_IP exec infer daemon
+      env:
+        - name: INFER_GATEWAY_URL
+          value: https://gateway.tailnet.internal:8443
+        - name: INFER_GATEWAY_TLS_CA_FILE
+          value: /etc/infer/tls/ca.crt
+        - name: INFER_GATEWAY_TLS_CERT_FILE
+          value: /etc/infer/tls/tls.crt
+        - name: INFER_GATEWAY_TLS_KEY_FILE
+          value: /etc/infer/tls/tls.key
+        - name: INFER_AGENT_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: infer-k8s-model
+              key: model
+      readinessProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - nc -z "$(ip -4 -o addr show tailscale0 | awk '{print $4}' | cut -d/ -f1)" 52789
+        periodSeconds: 3
+      volumeMounts:
+        - name: daemon-config
+          mountPath: /home/infer/.infer/daemon.yaml
+          subPath: daemon.yaml
+        - name: tls
+          mountPath: /etc/infer/tls
+          readOnly: true
+    - name: tailscale
+      image: tailscale/tailscale:v1.104.4
+      env:
+        - name: TS_AUTHKEY
+          valueFrom:
+            secretKeyRef:
+              name: tailnet-key-infer-k8s
+              key: authkey
+        - name: TS_HOSTNAME
+          value: infer-k8s
+        - name: TS_EXTRA_ARGS
+          value: --login-server=https://headscale.headscale.svc.cluster.local:9443
+        - name: TS_TAILSCALED_EXTRA_ARGS
+          value: --port=41641
+        - name: TS_USERSPACE
+          value: "false"
+        - name: TS_ACCEPT_DNS
+          value: "true"
+        - name: TS_KUBE_SECRET
+          value: ""
+        - name: SSL_CERT_FILE
+          value: /etc/tailnet-ca/ca.crt
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: tailnet-ca
+          mountPath: /etc/tailnet-ca
+          readOnly: true
+  volumes:
+    - name: daemon-config
+      configMap:
+        name: infer-k8s-daemon
+    - name: tls
+      secret:
+        secretName: infer-k8s-tls
+        items:
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+          - key: ca.crt
+            path: ca.crt
+    - name: tailnet-ca
+      configMap:
+        name: tailnet-ca

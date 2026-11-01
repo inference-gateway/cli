@@ -1,0 +1,66 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway
+  namespace: infer-peers
+spec:
+  image: ghcr.io/inference-gateway/inference-gateway:0.61.1
+  environment: development
+  replicas: 1
+  pod:
+    nodeSelector:
+      kubernetes.io/hostname: k3d-infer-headscale-agent-0
+    containers:
+      - name: tailscale
+        image: tailscale/tailscale:v1.104.4
+        env:
+          - name: TS_AUTHKEY
+            valueFrom:
+              secretKeyRef:
+                name: tailnet-key-gateway
+                key: authkey
+          - name: TS_HOSTNAME
+            value: gateway
+          - name: TS_EXTRA_ARGS
+            value: --login-server=https://headscale.headscale.svc.cluster.local:9443
+          - name: TS_TAILSCALED_EXTRA_ARGS
+            value: --port=41641
+          - name: TS_USERSPACE
+            value: "false"
+          - name: TS_ACCEPT_DNS
+            value: "false"
+          - name: TS_KUBE_SECRET
+            value: ""
+          - name: SSL_CERT_FILE
+            value: /etc/tailnet-ca/ca.crt
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: tailnet-ca
+            mountPath: /etc/tailnet-ca
+            readOnly: true
+    volumes:
+      - name: tailnet-ca
+        configMap:
+          name: tailnet-ca
+  server:
+    port: 8443
+    tls:
+      enabled: true
+      certificateRef:
+        name: gateway-tls
+        key: tls.crt
+      keyRef:
+        name: gateway-tls
+        key: tls.key
+      clientCARef:
+        name: gateway-tls
+        key: ca.crt
+  providers:
+    - name: PROVIDER_NAME
+      env:
+        - name: PROVIDER_KEY_ENV
+          valueFrom:
+            secretKeyRef:
+              name: gateway-provider
+              key: api-key

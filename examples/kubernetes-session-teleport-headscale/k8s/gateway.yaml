@@ -1,0 +1,127 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-wireguard-only
+  namespace: infer-peers
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: UDP
+          port: 41641
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tokenless-scenarios
+  namespace: infer-peers
+data:
+  scenarios.yaml: |
+    fallback:
+      content: "Hello from tokenless, the mock gateway, reached over the tailnet."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-mock
+  namespace: infer-peers
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+        gateway: tokenless
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3d-infer-headscale-agent-0
+      containers:
+        - name: tokenless
+          image: alpine:3.24.3
+          workingDir: /opt/tokenless
+          command:
+            - sh
+            - -c
+            - |
+              BINARY=tokenless-linux-$(uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/')
+              RELEASE=https://github.com/inference-gateway/tokenless/releases/download/v0.11.0
+              wget -q "$RELEASE/$BINARY" "$RELEASE/checksums.txt"
+              grep " $BINARY\$" checksums.txt | sha256sum -c -
+              chmod +x "$BINARY"
+              exec "./$BINARY" --host 0.0.0.0 --port 8443 --model openai/gpt-4o \
+                --scenarios /etc/tokenless/scenarios.yaml \
+                --tls-cert /etc/tokenless/tls/tls.crt \
+                --tls-key /etc/tokenless/tls/tls.key \
+                --tls-client-ca /etc/tokenless/tls/ca.crt
+          ports:
+            - name: https
+              containerPort: 8443
+          readinessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 3
+          volumeMounts:
+            - name: scenarios
+              mountPath: /etc/tokenless/scenarios.yaml
+              subPath: scenarios.yaml
+            - name: tls
+              mountPath: /etc/tokenless/tls
+              readOnly: true
+            - name: bin
+              mountPath: /opt/tokenless
+        - name: tailscale
+          image: tailscale/tailscale:v1.104.4
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailnet-key-gateway
+                  key: authkey
+            - name: TS_HOSTNAME
+              value: gateway
+            - name: TS_EXTRA_ARGS
+              value: --login-server=https://headscale.headscale.svc.cluster.local:9443
+            - name: TS_TAILSCALED_EXTRA_ARGS
+              value: --port=41641
+            - name: TS_USERSPACE
+              value: "false"
+            - name: TS_ACCEPT_DNS
+              value: "false"
+            - name: TS_KUBE_SECRET
+              value: ""
+            - name: SSL_CERT_FILE
+              value: /etc/tailnet-ca/ca.crt
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: tailnet-ca
+              mountPath: /etc/tailnet-ca
+              readOnly: true
+      volumes:
+        - name: scenarios
+          configMap:
+            name: tokenless-scenarios
+        - name: tls
+          secret:
+            secretName: gateway-tls
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+              - key: ca.crt
+                path: ca.crt
+        - name: bin
+          emptyDir: {}
+        - name: tailnet-ca
+          configMap:
+            name: tailnet-ca

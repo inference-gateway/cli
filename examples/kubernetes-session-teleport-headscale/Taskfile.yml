@@ -1,0 +1,474 @@
+version: '3'
+
+vars:
+  CLUSTER: infer-headscale
+  KUBECTL: kubectl --context k3d-infer-headscale
+  NAMESPACE: infer-peers
+  CERT_MANAGER_VERSION: v1.21.3
+  INFERENCE_GATEWAY_OPERATOR_VERSION: v0.32.0
+  STATE_DIR: '{{.TASKFILE_DIR}}/.state'
+  TAILNET:
+    sh: echo '{{.TAILNET}}' | grep . || cat {{.STATE_DIR}}/tailnet 2>/dev/null || echo headscale
+  HEADSCALE: kubectl --context k3d-infer-headscale -n headscale exec deploy/headscale -- headscale
+  NODES: infer-local infer-k8s gateway attacker
+  TAILSCALE:
+    sh: command -v tailscale || echo /Applications/Tailscale.app/Contents/MacOS/Tailscale
+  DOMAIN:
+    sh: |
+      if [ "{{.TAILNET}}" = tailscale ]; then
+        {{.TAILSCALE}} status --json 2>/dev/null | jq -r '.MagicDNSSuffix // empty'
+      else
+        echo tailnet.internal
+      fi
+  LOGIN_SERVER: '{{if eq .TAILNET "tailscale"}}https://controlplane.tailscale.com{{else}}https://headscale.headscale.svc.cluster.local:9443{{end}}'
+  RENDER: sed -e 's|tailnet\.internal|{{.DOMAIN}}|g' -e 's|https://headscale\.headscale\.svc\.cluster\.local:9443|{{.LOGIN_SERVER}}|g'
+  PROJECT: '{{if eq .TAILNET "tailscale"}}{{.STATE_DIR}}/infer-local/src/project{{else}}/home/infer/src/project{{end}}'
+  LOCAL: '{{if eq .TAILNET "tailscale"}}{{.STATE_DIR}}/bin/infer-local{{else}}docker exec infer-local{{end}}'
+  TAILSCALE_CREDENTIALS: '[ "{{.TAILNET}}" = headscale ] || { printenv TAILSCALE_OAUTH_CLIENT_ID && printenv TAILSCALE_OAUTH_CLIENT_SECRET; } >/dev/null'
+  TAILSCALE_API: |
+    set -o pipefail
+    mkdir -p {{.STATE_DIR}}
+    token=$(printenv TAILSCALE_OAUTH_CLIENT_SECRET | tr -d '\n' \
+      | curl -fsS -d "client_id=$TAILSCALE_OAUTH_CLIENT_ID" --data-urlencode client_secret@- https://api.tailscale.com/api/v2/oauth/token \
+      | jq -r '.access_token // empty')
+    [ -n "$token" ] || { echo "the Tailscale API refused TAILSCALE_OAUTH_CLIENT_ID and TAILSCALE_OAUTH_CLIENT_SECRET" >&2; exit 1; }
+    : > {{.STATE_DIR}}/tailscale-api.curlrc
+    chmod 600 {{.STATE_DIR}}/tailscale-api.curlrc
+    printf 'header = "Authorization: Bearer %s"\n' "$token" > {{.STATE_DIR}}/tailscale-api.curlrc
+    ts_api() { curl -sS --fail-with-body -K {{.STATE_DIR}}/tailscale-api.curlrc "$@"; }
+    demo_devices() {
+      ts_api 'https://api.tailscale.com/api/v2/tailnet/-/devices?fields=all' | jq -c '.devices[]
+        | select(.isEphemeral and (.hostname | IN("infer-k8s", "gateway", "attacker")))
+        | select((.tags // []) | length > 0 and all(IN("tag:infer-k8s", "tag:gateway", "tag:attacker")))'
+    }
+
+tasks:
+  up:
+    desc: Run every setup step in order, from an empty machine to infer-local, infer-k8s and the mock gateway on one tailnet - Headscale, or your Tailscale account with TAILNET=tailscale
+    preconditions:
+      - sh: '[ "{{.TAILNET}}" = headscale ] || [ "{{.TAILNET}}" = tailscale ]'
+        msg: TAILNET is headscale (the default) or tailscale
+      - sh: '[ "{{.TAILNET}}" = headscale ] || [ -n "{{.DOMAIN}}" ]'
+        msg: Connect the Tailscale app on this machine first, TAILNET=tailscale reads your tailnet's DNS name from it
+      - sh: '{{.TAILSCALE_CREDENTIALS}}'
+        msg: Export TAILSCALE_OAUTH_CLIENT_ID and TAILSCALE_OAUTH_CLIENT_SECRET, an OAuth client with the auth_keys and devices:core scopes
+    cmds:
+      - mkdir -p {{.STATE_DIR}} && printf '%s' {{.TAILNET}} > {{.STATE_DIR}}/tailnet
+      - task: cluster:create
+      - task: image:import
+      - task: certs:install
+      - task: secrets
+      - task: headscale:install
+        if: '[ "{{.TAILNET}}" = headscale ]'
+      - task: '{{.TAILNET}}:keys'
+      - task: deploy
+      - task: local:up
+
+  cluster:create:
+    desc: Create the k3d cluster with ctlptl, one server and two agents, and the infer-peers namespace
+    cmds:
+      - ctlptl apply -f Cluster.yaml
+      - '{{.KUBECTL}} apply -f k8s/namespace.yaml'
+
+  image:import:
+    desc: Build the infer image from this checkout and import it into the cluster
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. container:build
+      - k3d image import ghcr.io/inference-gateway/cli:local -c {{.CLUSTER}}
+
+  certs:install:
+    desc: Install cert-manager, which issues every certificate from one demo CA
+    cmds:
+      - '{{.KUBECTL}} apply -f https://github.com/cert-manager/cert-manager/releases/download/{{.CERT_MANAGER_VERSION}}/cert-manager.yaml'
+      - '{{.KUBECTL}} -n cert-manager wait --for=condition=Available deployment --all --timeout=300s'
+
+  secrets:
+    desc: Issue the infer-k8s, gateway and infer-local certificates, publish the demo CA for the tailscale clients, and create the forwarded demo secret
+    cmds:
+      - '{{.RENDER}} k8s/certificates.yaml | {{.KUBECTL}} apply -f -'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready certificate --all --timeout=180s'
+      - |
+        {{.KUBECTL}} -n {{.NAMESPACE}} get secret infer-k8s-tls -o jsonpath='{.data.ca\.crt}' | base64 -d \
+          | {{.KUBECTL}} -n {{.NAMESPACE}} create configmap tailnet-ca --from-file=ca.crt=/dev/stdin --dry-run=client -o yaml \
+          | {{.KUBECTL}} apply -f -
+      - |
+        {{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret >/dev/null 2>&1 || \
+          {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic demo-secret --from-literal=DEMO_SECRET="sealed-$(openssl rand -hex 16)"
+
+  headscale:install:
+    desc: Deploy Headscale, the self-hosted control server, with its embedded DERP relay and STUN, its DNS and its policy
+    cmds:
+      - '{{.KUBECTL}} apply -f headscale/server.yaml'
+      - |
+        {{.KUBECTL}} -n headscale create configmap headscale \
+          --from-file=config.yaml=headscale/config.yaml --from-file=policy.hujson=headscale/policy.hujson \
+          --dry-run=client -o yaml | {{.KUBECTL}} apply -f -
+      - '{{.KUBECTL}} -n headscale wait --for=condition=Ready certificate/headscale-tls --timeout=180s'
+      - '{{.KUBECTL}} -n headscale rollout status deployment/headscale --timeout=300s'
+
+  headscale:keys:
+    desc: Create one tagged, ephemeral, reusable pre-auth key per node and keep each in a Secret, so a recreated pod joins again
+    cmds:
+      - '{{.HEADSCALE}} users list -o json | jq -e ''any(.[]?; .name == "infer")'' >/dev/null || {{.HEADSCALE}} users create infer >/dev/null'
+      - |
+        USER_ID=$({{.HEADSCALE}} users list -o json | jq -r '.[] | select(.name == "infer") | .id')
+        for node in {{.NODES}}; do
+          {{.KUBECTL}} -n {{.NAMESPACE}} get secret tailnet-key-$node >/dev/null 2>&1 && continue
+          {{.HEADSCALE}} preauthkeys create --user "$USER_ID" --tags tag:$node --ephemeral --reusable --expiration 720h -o json \
+            | jq -j .key \
+            | {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic tailnet-key-$node --from-file=authkey=/dev/stdin >/dev/null
+          echo "pre-auth key for $node: tag:$node, ephemeral, reusable"
+        done
+
+  tailscale:policy:
+    desc: Print tailscale/policy.hujson with your login filled in, to merge into your tailnet policy file
+    cmds:
+      - |
+        LOGIN=$({{.TAILSCALE}} status --json 2>/dev/null | jq -r '.User[(.Self.UserID | tostring)].LoginName // empty')
+        [ -n "$LOGIN" ] || { echo "Connect the Tailscale app on this machine first" >&2; exit 1; }
+        sed "s|YOUR_LOGIN|$LOGIN|" tailscale/policy.hujson
+
+  tailscale:keys:
+    desc: Mint one tagged, ephemeral, reusable, pre-approved auth key per cluster node from your OAuth client and keep each in a Secret
+    vars:
+      MISSING:
+        sh: for node in infer-k8s gateway attacker; do {{.KUBECTL}} -n {{.NAMESPACE}} get secret tailnet-key-$node >/dev/null 2>&1 || printf '%s ' $node; done
+    cmds:
+      - task: tailscale:forget
+        vars:
+          HOSTS: '{{.MISSING}}'
+      - |
+        {{.TAILSCALE_API}}
+        taken=$(ts_api 'https://api.tailscale.com/api/v2/tailnet/-/devices?fields=all' \
+          | jq -r --arg hosts '{{.MISSING}}' '.devices[] | select(.name | split(".")[0] | IN($hosts | splits("\\s+"))) | .name')
+        [ -z "$taken" ] || { echo "rename or remove these devices in your tailnet first, the demo needs their names: $taken" >&2; exit 1; }
+        for node in {{.MISSING}}; do
+          response=$(jq -n --arg tag "tag:$node" \
+            '{description: "infer teleport demo", expirySeconds: 2592000, capabilities: {devices: {create: {reusable: true, ephemeral: true, preauthorized: true, tags: [$tag]}}}}' \
+            | ts_api -X POST -H 'Content-Type: application/json' -d @- https://api.tailscale.com/api/v2/tailnet/-/keys) \
+            || { printf 'minting the key for %s failed: %s\n' $node "$response" >&2; exit 1; }
+          printf '%s' "$response" | jq -r .id >> {{.STATE_DIR}}/tailscale-key-ids
+          printf '%s' "$response" | jq -j .key \
+            | {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic tailnet-key-$node --from-file=authkey=/dev/stdin >/dev/null
+          echo "auth key for $node: tag:$node, ephemeral, reusable, pre-approved"
+        done
+
+  deploy:
+    desc: Start the mock gateway (tokenless), the infer-k8s daemon and the attacker node, each with its tailscale sidecar
+    cmds:
+      - task: model
+        vars:
+          MODEL: openai/gpt-4o
+      - for file in k8s/gateway.yaml k8s/infer-k8s.yaml k8s/attacker.yaml; do {{.RENDER}} $file | {{.KUBECTL}} apply -f -; done
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/gateway-mock --timeout=300s'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/infer-k8s pod/attacker --timeout=300s'
+
+  model:
+    internal: true
+    cmds:
+      - |
+        {{.KUBECTL}} -n {{.NAMESPACE}} create configmap infer-k8s-model --from-literal=model={{.MODEL}} \
+          --dry-run=client -o yaml | {{.KUBECTL}} apply -f -
+
+  operator:install:
+    desc: Install the Inference Gateway operator, which runs the real gateway from a Gateway resource
+    cmds:
+      - '{{.KUBECTL}} apply --server-side -f https://github.com/inference-gateway/operator/releases/download/{{.INFERENCE_GATEWAY_OPERATOR_VERSION}}/install.yaml'
+      - '{{.KUBECTL}} -n inference-gateway-system wait --for=condition=Available deployment --all --timeout=180s'
+
+  gateway:real:
+    desc: Replace the mock with the Inference Gateway and a real provider - needs <PROVIDER>_API_KEY in your environment
+    vars:
+      PROVIDER: '{{default "openai" .PROVIDER}}'
+      MODEL: '{{default "openai/gpt-4o-mini" .MODEL}}'
+      KEY_ENV: '{{upper .PROVIDER}}_API_KEY'
+    preconditions:
+      - sh: printenv {{.KEY_ENV}} >/dev/null
+        msg: 'Set {{.KEY_ENV}} first, for example {{.KEY_ENV}}=... task gateway:real PROVIDER={{.PROVIDER}} MODEL={{.MODEL}}'
+      - sh: '{{.TAILSCALE_CREDENTIALS}}'
+        msg: Export TAILSCALE_OAUTH_CLIENT_ID and TAILSCALE_OAUTH_CLIENT_SECRET, to remove the old gateway and infer-k8s nodes from your tailnet
+    cmds:
+      - task: operator:install
+      - |
+        printenv {{.KEY_ENV}} | tr -d '\n' \
+          | {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic gateway-provider --from-file=api-key=/dev/stdin --dry-run=client -o yaml \
+          | {{.KUBECTL}} apply -f -
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} delete deployment/gateway-mock gateways.core.inference-gateway.com/gateway pod/infer-k8s --ignore-not-found --wait'
+      - until [ -z "$({{.KUBECTL}} -n {{.NAMESPACE}} get pod -l app=gateway -o name)" ]; do sleep 2; done
+      - task: '{{.TAILNET}}:forget'
+        vars:
+          HOSTS: gateway infer-k8s
+      - |
+        {{.RENDER}} k8s/gateway-real.yaml | sed -e "s|PROVIDER_NAME|{{.PROVIDER}}|" -e "s|PROVIDER_KEY_ENV|{{.KEY_ENV}}|" \
+          | {{.KUBECTL}} apply -f -
+      - until {{.KUBECTL}} -n {{.NAMESPACE}} get deployment gateway >/dev/null 2>&1; do sleep 2; done
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/gateway --timeout=300s'
+      - task: model
+        vars:
+          MODEL: '{{.MODEL}}'
+      - '{{.RENDER}} k8s/infer-k8s.yaml | {{.KUBECTL}} apply -f -'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/infer-k8s --timeout=300s'
+      - task: local:wait
+      - echo "infer-k8s now asks {{.MODEL}} through the Inference Gateway"
+
+  headscale:forget:
+    internal: true
+    cmds:
+      - |
+        for id in $({{.HEADSCALE}} nodes list -o json | jq -r '.[] | select(.online != true) | .id'); do
+          {{.HEADSCALE}} nodes delete --identifier "$id" --force >/dev/null
+        done
+
+  tailscale:forget:
+    internal: true
+    cmds:
+      - |
+        {{.TAILSCALE_API}}
+        devices=$(demo_devices) || exit 1
+        for id in $(printf '%s\n' "$devices" | jq -r --arg hosts '{{.HOSTS}}' 'select(.hostname | IN($hosts | splits("\\s+"))) | .id'); do
+          ts_api -X DELETE "https://api.tailscale.com/api/v2/device/$id" || exit 1
+        done
+
+  local:up:
+    desc: Start infer-local, the daemon on "your machine" - a Docker container with its own tailscale client, or with TAILNET=tailscale this machine and its Tailscale app
+    cmds:
+      - |
+        mkdir -p {{.STATE_DIR}}/infer-local-tls
+        for file in ca.crt tls.crt tls.key; do
+          {{.KUBECTL}} -n {{.NAMESPACE}} get secret infer-local-tls -o json | jq -r --arg key $file '.data[$key]' | base64 -d > {{.STATE_DIR}}/infer-local-tls/$file
+        done
+      - task: 'local:up:{{.TAILNET}}'
+      - task: local:wait
+      - |
+        {{.LOCAL}} sh -c '
+          mkdir -p {{.PROJECT}} && cd {{.PROJECT}} && [ -d .git ] && exit 0
+          git init --quiet -b main
+          git config user.email demo@example.com
+          git config user.name demo
+          git config commit.gpgsign false
+          echo "# teleport me" > README.md
+          git add README.md
+          git commit --quiet -m init'
+
+  local:up:headscale:
+    internal: true
+    cmds:
+      - |
+        secret() { {{.KUBECTL}} -n {{.NAMESPACE}} get secret "$1" -o json | jq -r --arg key "$2" '.data[$key]' | base64 -d; }
+        export TS_AUTHKEY=$(secret tailnet-key-infer-local authkey)
+        export DEMO_SECRET=$(secret demo-secret DEMO_SECRET)
+        export HEADSCALE_NODE_IP=$(docker inspect k3d-{{.CLUSTER}}-server-0 | jq -r '.[0].NetworkSettings.Networks["k3d-{{.CLUSTER}}"].IPAddress')
+        docker compose -f local/compose.yaml up -d --wait
+
+  local:up:tailscale:
+    internal: true
+    preconditions:
+      - sh: '[ -n "{{.DOMAIN}}" ]'
+        msg: Connect the Tailscale app on this machine first
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+      - |
+        mkdir -p {{.STATE_DIR}}/bin {{.STATE_DIR}}/infer-local/.infer
+        ln -sf {{.TASKFILE_DIR}}/../../infer {{.STATE_DIR}}/bin/infer
+        : > {{.STATE_DIR}}/demo-secret
+        chmod 600 {{.STATE_DIR}}/demo-secret
+        {{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret -o jsonpath='{.data.DEMO_SECRET}' | base64 -d > {{.STATE_DIR}}/demo-secret
+        sed -e 's|/etc/infer/tls|{{.STATE_DIR}}/infer-local-tls|' -e 's|^  port: 52789$|  port: 52790|' local/daemon.yaml \
+          | {{.RENDER}} > {{.STATE_DIR}}/infer-local/.infer/daemon.yaml
+        printf '%s\n' '#!/bin/sh' \
+          'export HOME={{.STATE_DIR}}/infer-local PATH={{.STATE_DIR}}/bin:$PATH' \
+          'export INFER_GATEWAY_MOCK=true INFER_AGENT_MODEL=mock/openai/gpt-4o' \
+          'export DEMO_SECRET="$(cat {{.STATE_DIR}}/demo-secret)"' \
+          'exec "$@"' > {{.STATE_DIR}}/bin/infer-local
+        chmod +x {{.STATE_DIR}}/bin/infer-local
+      - |
+        {{.LOCAL}} sh -c '
+          nc -z 127.0.0.1 52790 2>/dev/null && exit 0
+          for fd in $(seq 3 31); do eval "exec $fd>&-"; done
+          nohup infer daemon </dev/null >"$HOME/daemon.log" 2>&1 &'
+
+  local:wait:
+    internal: true
+    cmds:
+      - |
+        for attempt in $(seq 60); do
+          {{.LOCAL}} infer daemon workspaces 2>/dev/null | grep -q -E '^infer-k8s +daemon +true' && exit 0
+          sleep 2
+        done
+        echo "infer-local cannot reach infer-k8s.{{.DOMAIN}}:52789, see task workspaces and task tailnet:status" >&2
+        exit 1
+
+  local:down:
+    desc: Stop infer-local - its container and tailscale client, or with TAILNET=tailscale the daemon on this machine
+    cmds:
+      - task: 'local:down:{{.TAILNET}}'
+
+  local:down:headscale:
+    internal: true
+    cmds:
+      - docker compose -f local/compose.yaml down --volumes
+
+  local:down:tailscale:
+    internal: true
+    cmds:
+      - |
+        PID=$(cat {{.STATE_DIR}}/infer-local/.infer/run/daemon.pid 2>/dev/null) || exit 0
+        kill "$PID" 2>/dev/null || exit 0
+        for attempt in $(seq 50); do kill -0 "$PID" 2>/dev/null || exit 0; sleep 0.2; done
+
+  workspaces:
+    desc: List the workspaces infer-local can teleport to and their reachability
+    cmds:
+      - '{{.LOCAL}} infer daemon workspaces'
+
+  sniff:start:
+    desc: Start a packet capture in front of the infer-k8s node, then send that node a plaintext canary from beside the cluster so the capture proves it reads plaintext
+    cmds:
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} delete pod sniffer --ignore-not-found --wait'
+      - '{{.KUBECTL}} apply -f k8s/sniffer.yaml'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/sniffer --timeout=180s'
+      - sleep 2
+      - |
+        CANARY="plaintext-canary-$(openssl rand -hex 4)"
+        mkdir -p {{.STATE_DIR}}
+        printf '%s' "$CANARY" > {{.STATE_DIR}}/canary
+        NODE_IP=$(docker inspect k3d-{{.CLUSTER}}-agent-1 | jq -r '.[0].NetworkSettings.Networks["k3d-{{.CLUSTER}}"].IPAddress')
+        docker run --rm -q --network k3d-{{.CLUSTER}} nicolaka/netshoot:v0.15 sh -c "printf %s $CANARY | nc -u -w 1 $NODE_IP 9"
+
+  demo:
+    desc: Create a conversation on infer-local, teleport it to infer-k8s over the tailnet and continue it there through the gateway
+    vars:
+      PROMPT: '{{default "say hello again" .PROMPT}}'
+      ID:
+        sh: uuidgen | tr 'A-Z' 'a-z'
+    cmds:
+      - mkdir -p {{.STATE_DIR}}
+      - printf '%s' {{.ID}} > {{.STATE_DIR}}/session
+      - '{{.LOCAL}} sh -c "cd {{.PROJECT}} && infer headless --session-id {{.ID}} \"say hello\""'
+      - '{{.LOCAL}} infer daemon workspaces'
+      - '{{.LOCAL}} infer daemon teleport {{.ID}} --to infer-k8s --project-dir {{.PROJECT}}'
+      - '{{.LOCAL}} infer daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.PROJECT}}'
+      - echo "conversation {{.ID}} now lives on infer-k8s"
+
+  secret:check:
+    desc: Show that DEMO_SECRET reached the session's worker on infer-k8s, and no Kubernetes object there
+    cmds:
+      - |
+        echo "infer-local DEMO_SECRET sha256: $({{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret -o jsonpath='{.data.DEMO_SECRET}' | base64 -d | sha256sum | cut -c1-16)"
+      - |
+        {{.KUBECTL}} -n {{.NAMESPACE}} exec infer-k8s -c daemon -- sh -c '
+          for pid in $(pgrep -f "infer headless --serve"); do
+            value=$(tr "\0" "\n" < /proc/$pid/environ 2>/dev/null | sed -n "s/^DEMO_SECRET=//p")
+            [ -n "$value" ] && echo "infer-k8s worker $pid sha256:   $(printf %s "$value" | sha256sum | cut -c1-16)"
+          done
+          true'
+      - |
+        echo "DEMO_SECRET in the infer-k8s pod spec: $({{.KUBECTL}} -n {{.NAMESPACE}} get pod infer-k8s -o yaml | grep -c DEMO_SECRET || true)"
+
+  sniff:report:
+    desc: Read the capture back - no binding or gateway traffic in clear, no token, no secret, no model reply, but the plaintext canary
+    cmds:
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} exec sniffer -- cat /captures/teleport.pcap > {{.STATE_DIR}}/teleport.pcap'
+      - |
+        count() { {{.KUBECTL}} -n {{.NAMESPACE}} exec sniffer -- sh -c "tcpdump -nn -r /captures/teleport.pcap '$1' 2>/dev/null | wc -l"; }
+        matches() { grep -c -a -F "$1" {{.STATE_DIR}}/teleport.pcap || true; }
+        SECRET=$({{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret -o jsonpath='{.data.DEMO_SECRET}' | base64 -d)
+        echo "WireGuard packets (udp port 41641):  $(count 'udp port 41641')"
+        echo "binding packets (tcp port 52789):    $(count 'tcp port 52789')"
+        echo "gateway packets (tcp port 8443):     $(count 'tcp port 8443')"
+        echo "DEMO_SECRET in the capture:          $(matches "$SECRET")"
+        echo "the gateway's reply in the capture:  $(matches 'Hello from tokenless')"
+        echo "plaintext canary in the capture:     $(matches "$(cat {{.STATE_DIR}}/canary)")"
+        echo "capture saved to {{.STATE_DIR}}/teleport.pcap"
+
+  attack:
+    desc: Try infer-k8s and the gateway from the attacker, a tailnet node no policy admits, then each hop from the node its policy admits, without the client certificate
+    cmds:
+      - |
+        pod() { {{.KUBECTL}} -n {{.NAMESPACE}} get pod -l "app=$1" -o name | head -n 1; }
+        tailnet_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} exec "$(pod $1)" -c tailscale -- tailscale ip -4; }
+        pod_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} get pod -l "app=$1" -o jsonpath='{.items[0].status.podIP}'; }
+        attacker() { echo "== attacker: $1"; {{.KUBECTL}} -n {{.NAMESPACE}} exec attacker -c attacker -- sh -c "$1 2>&1 || true"; }
+        attacker "nslookup infer-k8s.{{.DOMAIN}} | tail -n 2"
+        attacker "nc -z -v -w 3 $(tailnet_ip infer-k8s) 52789"
+        attacker "nc -z -v -w 3 $(pod_ip infer-k8s) 52789"
+        attacker "nslookup gateway.{{.DOMAIN}} | tail -n 2"
+        attacker "nc -z -v -w 3 $(tailnet_ip gateway) 8443"
+        attacker "nc -z -v -w 3 $(pod_ip gateway) 8443"
+        echo "== attacker: its tailnet peers"
+        {{.KUBECTL}} -n {{.NAMESPACE}} exec attacker -c tailscale -- tailscale status
+        echo "== infer-local: the gateway, two hops away"
+        {{.LOCAL}} sh -c "nc -z -w 3 {{if eq .TAILNET "tailscale"}}-G 3 {{end}}gateway.{{.DOMAIN}} 8443 2>&1 || echo 'gateway.{{.DOMAIN}}: unreachable from infer-local'"
+        echo "== infer-local's network, the policy admits it, but no client certificate"
+        {{if eq .TAILNET "tailscale"}}curl -sS --max-time 5 --cacert {{.STATE_DIR}}/infer-local-tls/ca.crt https://infer-k8s.{{.DOMAIN}}:52789/ws 2>&1 || true{{else}}docker run --rm -q --network container:infer-local-tailscale -v {{.STATE_DIR}}/infer-local-tls/ca.crt:/ca.crt:ro nicolaka/netshoot:v0.15 \
+          sh -c 'curl -sS --max-time 5 --cacert /ca.crt https://infer-k8s.{{.DOMAIN}}:52789/ws 2>&1 || true'{{end}}
+        echo "== infer on infer-k8s, the policy admits it, but without its client certificate"
+        {{.KUBECTL}} -n {{.NAMESPACE}} exec infer-k8s -c daemon -- \
+          env -u INFER_GATEWAY_TLS_CERT_FILE -u INFER_GATEWAY_TLS_KEY_FILE infer status 2>&1 | grep "Gateway Status" || true
+
+  tailnet:status:
+    desc: Show the tailnet from its control server and from infer-k8s - every node, its tags, and how infer-k8s reaches each neighbour (direct or relayed)
+    cmds:
+      - task: '{{.TAILNET}}:nodes'
+      - |
+        echo "== infer-k8s: the peers the policy lets it see, and how it reaches them"
+        {{.KUBECTL}} -n {{.NAMESPACE}} exec infer-k8s -c tailscale -- tailscale status
+
+  headscale:nodes:
+    internal: true
+    cmds:
+      - |
+        echo "== Headscale: every node"
+        {{.HEADSCALE}} nodes list -o json | jq -r '
+          ["NAME", "TAGS", "ADDRESS", "STATE"],
+          (.[] | [.given_name, (.tags | join(",")), .ip_addresses[0], (if .online then "online" else "offline" end)])
+          | @tsv' | column -t
+
+  tailscale:nodes:
+    internal: true
+    cmds:
+      - |
+        {{.TAILSCALE_API}}
+        echo "== Tailscale: the demo's nodes in your tailnet"
+        devices=$(demo_devices) || exit 1
+        printf '%s\n' "$devices" | jq -r -s '
+          ["NAME", "TAGS", "ADDRESS", "STATE"],
+          (.[] | [.name, (.tags | join(",")), .addresses[0], (if .connectedToControl then "online" else "offline" end)])
+          | @tsv' | column -t
+
+  teleport:back:
+    desc: Bring the session of the last demo (or ID) back to infer-local
+    vars:
+      ID:
+        sh: echo '{{.ID}}' | grep . || cat {{.STATE_DIR}}/session 2>/dev/null || true
+    preconditions:
+      - sh: test -n "{{.ID}}"
+        msg: No session to bring back. Run task demo first, or pass ID=<conversation id>
+    cmds:
+      - '{{.LOCAL}} infer daemon teleport {{.ID}} --to infer-local --project-dir {{.PROJECT}}'
+      - '{{.LOCAL}} infer daemon run {{.ID}} "and back home" --project-dir {{.PROJECT}}'
+
+  cleanup:
+    desc: Remove infer-local, delete the cluster and the local state (certificates, session, capture), and with TAILNET=tailscale the demo's nodes and auth keys in your tailnet
+    preconditions:
+      - sh: '{{.TAILSCALE_CREDENTIALS}}'
+        msg: Export TAILSCALE_OAUTH_CLIENT_ID and TAILSCALE_OAUTH_CLIENT_SECRET, so cleanup removes the demo's nodes and auth keys from your tailnet
+    cmds:
+      - task: local:down
+      - ctlptl delete -f Cluster.yaml
+      - task: tailscale:cleanup
+        if: '[ "{{.TAILNET}}" = tailscale ]'
+      - rm -rf {{.STATE_DIR}}
+
+  tailscale:cleanup:
+    internal: true
+    cmds:
+      - task: tailscale:forget
+        vars:
+          HOSTS: infer-k8s gateway attacker
+      - |
+        {{.TAILSCALE_API}}
+        for id in $(cat {{.STATE_DIR}}/tailscale-key-ids 2>/dev/null); do
+          ts_api -X DELETE "https://api.tailscale.com/api/v2/tailnet/-/keys/$id" >/dev/null || exit 1
+        done
+        echo "removed the demo's nodes and auth keys from your tailnet"

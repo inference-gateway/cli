@@ -1,0 +1,20 @@
+{
+  "tagOwners": {
+    "tag:infer-local": ["infer@"],
+    "tag:infer-k8s": ["infer@"],
+    "tag:gateway": ["infer@"],
+    "tag:attacker": ["infer@"],
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["tag:infer-local"],
+      "dst": ["tag:infer-k8s:52789"],
+    },
+    {
+      "action": "accept",
+      "src": ["tag:infer-k8s"],
+      "dst": ["tag:gateway:8443"],
+    },
+  ],
+}

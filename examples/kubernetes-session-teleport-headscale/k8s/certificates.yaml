@@ -1,0 +1,92 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: peers-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: infer peers demo CA
+  secretName: peers-ca
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: peers-ca
+spec:
+  ca:
+    secretName: peers-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-k8s-tls
+  namespace: infer-peers
+spec:
+  commonName: infer-k8s.tailnet.internal
+  secretName: infer-k8s-tls
+  duration: 720h
+  dnsNames:
+    - infer-k8s.tailnet.internal
+    - infer-k8s
+    - localhost
+  usages:
+    - server auth
+    - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-local-tls
+  namespace: infer-peers
+spec:
+  commonName: infer-local
+  secretName: infer-local-tls
+  duration: 720h
+  usages:
+    - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-tls
+  namespace: infer-peers
+spec:
+  commonName: gateway.tailnet.internal
+  secretName: gateway-tls
+  duration: 720h
+  dnsNames:
+    - gateway.tailnet.internal
+  usages:
+    - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: ClusterIssuer
