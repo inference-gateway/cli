@@ -38,6 +38,7 @@ spec:
     metadata:
       labels:
         app: gateway
+        gateway: tokenless
     spec:
       nodeSelector:
         kubernetes.io/hostname: k3d-infer-netbird-agent-0

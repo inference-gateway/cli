@@ -84,11 +84,8 @@ spec:
   duration: 720h
   dnsNames:
     - gateway.netbird.internal
-  ipAddresses:
-    - 0.0.0.0
   usages:
     - server auth
-    - client auth
   privateKey:
     algorithm: ECDSA
     size: 256

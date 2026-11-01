@@ -35,7 +35,7 @@ Everything runs in a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declar
 - an attacker peer and a packet sniffer
 
 `task gateway:real` swaps tokenless for the [Inference Gateway](https://github.com/inference-gateway/inference-gateway)
-0.61.0, run by the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.31.0 from a `Gateway`
+0.61.1, run by the [Inference Gateway operator](https://github.com/inference-gateway/operator) v0.31.0 from a `Gateway`
 resource, in front of a real provider.
 
 The default run needs no account and no API key, `task gateway:real` needs your provider's key. See
@@ -157,24 +157,14 @@ ANTHROPIC_API_KEY=sk-ant-... task gateway:real PROVIDER=anthropic MODEL=anthropi
 2. stores the key in the Secret `gateway-provider`
 3. removes tokenless and its offline NetBird peer
 4. creates the `Gateway` from `k8s/gateway-real.yaml` with the same `app: gateway` label, port 8443 and `gateway`
-   certificate, requiring a client certificate through `spec.server.tls.clientCARef`, and presenting the `gateway`
-   certificate to itself through `spec.client.tls`
+   certificate, requiring a client certificate through `spec.server.tls.clientCARef`
 5. recreates `infer-k8s` with the model in the ConfigMap `infer-k8s-model`
 
 The NetBird policy, the name `gateway.netbird.internal` and the certificates stay as they are, so
 `task attack` and `task sniff:report` work the same, except that the capture looks for tokenless's line. Recreating
 `infer-k8s` drops the sessions that live there, so teleport them back first. The key reaches only the gateway's pod,
 and the gateway reaches the provider over the provider's public HTTPS, outside WireGuard. `task cleanup` and
-`task up` bring the mock back.
-
-The Inference Gateway sends every provider call through its own `/proxy/<provider>` route at
-`SERVER_HOST:SERVER_PORT`, here `https://0.0.0.0:8443`. With mutual TLS on its listener, that call has to verify the
-gateway's own certificate and present a client certificate. So the `gateway` certificate also names the IP address
-`0.0.0.0` and has client usage, and `spec.client.tls` trusts `peers-ca` and presents the `gateway` certificate. The gateway
-adds that CA to the system roots, so the provider's public certificate still verifies. The gateway's own
-[mTLS example](https://github.com/inference-gateway/inference-gateway/tree/main/examples/kubernetes/mtls) does the same.
-[inference-gateway#822](https://github.com/inference-gateway/inference-gateway/issues/822) tracks dropping the need for
-it.
+`task up` bring the mock back. Run `task gateway:real` again to switch to another provider or model.
 
 ## How the pieces fit
 
@@ -309,8 +299,7 @@ cert-manager's `peers-ca` issues every certificate, and every server asks for a 
   serves the `gateway` certificate (`gateway.netbird.internal`). infer adds the CA to its roots
   (`INFER_GATEWAY_TLS_CA_FILE`) and presents the `infer-k8s` certificate (`INFER_GATEWAY_TLS_CERT_FILE`,
   `INFER_GATEWAY_TLS_KEY_FILE`).
-- **`gateway` → provider**, with `task gateway:real` only. The gateway first calls its own `/proxy/<provider>` route
-  on `0.0.0.0:8443` with the `gateway` certificate, then the provider's public HTTPS with your API key.
+- **`gateway` → provider**, with `task gateway:real` only. The provider's public HTTPS, with your API key.
 
 The binding accepts `infer-local`'s verified certificate in place of a token, so there is none. `infer-k8s` holds one
 certificate with both server and client usage, so it is one identity whether it serves `infer-local` or calls the
@@ -379,4 +368,4 @@ task cleanup
 | `task gateway:real` stops with `Set OPENAI_API_KEY first` | Export your provider's key in the same shell, named after `PROVIDER` |
 | No `gateway` Deployment after `task gateway:real` | The namespace lacks `inference-gateway.com/managed=true`, or the operator is down |
 | `tls: certificate required` from infer on `infer-k8s` | `INFER_GATEWAY_TLS_CERT_FILE` or `_KEY_FILE` is unset, or not from `peers-ca` |
-| `no models available` after `task gateway:real` | In the `deploy/gateway` logs, `401` is a wrong key, `0.0.0.0` an old certificate |
+| `no models available` after `task gateway:real` | A `401` in the `deploy/gateway` logs is a wrong key. The gateway must be 0.61.1 or later |

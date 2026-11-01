@@ -182,7 +182,7 @@ tasks:
           | {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic gateway-provider --from-file=api-key=/dev/stdin --dry-run=client -o yaml \
           | {{.KUBECTL}} apply -f -
       - '{{.KUBECTL}} -n {{.NAMESPACE}} delete deployment gateway-mock --ignore-not-found --wait'
-      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=delete pod -l app=gateway --timeout=120s'
+      - until [ -z "$({{.KUBECTL}} -n {{.NAMESPACE}} get pod -l gateway=tokenless -o name)" ]; do sleep 2; done
       - |
         sed -e "s|PROVIDER_NAME|{{.PROVIDER}}|" -e "s|PROVIDER_KEY_ENV|{{.KEY_ENV}}|" k8s/gateway-real.yaml \
           | {{.KUBECTL}} apply -f -
