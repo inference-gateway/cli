@@ -1,0 +1,27 @@
+server:
+  listenAddress: ":18080"
+  exposedAddress: "http://netbird.netbird.svc.cluster.local:18080"
+  stunPorts:
+    - 3478
+  metricsPort: 9090
+  healthcheckAddress: ":9000"
+  logLevel: "info"
+  logFile: "console"
+  authSecret: "RELAY_AUTH_SECRET"
+  dataDir: "/var/lib/netbird"
+  disableAnonymousMetrics: true
+  disableGeoliteUpdate: true
+  auth:
+    issuer: "http://localhost:18080/oauth2"
+    signKeyRefreshEnabled: true
+    sessionCookieEncryptionKey: "SESSION_COOKIE_ENCRYPTION_KEY"
+    dashboardRedirectURIs:
+      - "http://localhost:18081/nb-auth"
+      - "http://localhost:18081/nb-silent-auth"
+    dashboardPostLogoutRedirectURIs:
+      - "http://localhost:18081/"
+    cliRedirectURIs:
+      - "http://localhost:53000/"
+  store:
+    engine: "sqlite"
+    encryptionKey: "DATASTORE_ENCRYPTION_KEY"

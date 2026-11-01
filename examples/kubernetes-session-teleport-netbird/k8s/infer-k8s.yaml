@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: infer-k8s-daemon
+  namespace: infer-peers
+data:
+  daemon.yaml: |
+    workspace: infer-k8s
+    workspaces:
+      - name: infer-k8s
+        kind: local
+    binding:
+      enabled: true
+      port: 52789
+      tls:
+        mode: files
+        cert_file: /etc/infer/tls/tls.crt
+        key_file: /etc/infer/tls/tls.key
+        ca_file: /etc/infer/tls/ca.crt
+        client_auth: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: infer-k8s
+  namespace: infer-peers
+  labels:
+    app: infer-k8s
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k3d-infer-netbird-agent-1
+  containers:
+    - name: daemon
+      image: ghcr.io/inference-gateway/cli:local
+      imagePullPolicy: Never
+      command:
+        - sh
+        - -c
+        - |
+          until NETBIRD_IP=$(ip -4 -o addr show wt0 2>/dev/null | awk '{print $4}' | cut -d/ -f1) && [ -n "$NETBIRD_IP" ]; do sleep 1; done
+          echo "binding on the NetBird address $NETBIRD_IP"
+          INFER_DAEMON_BINDING_HOST=$NETBIRD_IP exec infer daemon
+      env:
+        - name: INFER_GATEWAY_URL
+          value: https://gateway.netbird.internal:8443
+        - name: INFER_GATEWAY_TLS_CA_FILE
+          value: /etc/infer/tls/ca.crt
+        - name: INFER_GATEWAY_TLS_CERT_FILE
+          value: /etc/infer/tls/tls.crt
+        - name: INFER_GATEWAY_TLS_KEY_FILE
+          value: /etc/infer/tls/tls.key
+        - name: INFER_AGENT_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: infer-k8s-model
+              key: model
+      readinessProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - nc -z "$(ip -4 -o addr show wt0 | awk '{print $4}' | cut -d/ -f1)" 52789
+        periodSeconds: 3
+      volumeMounts:
+        - name: daemon-config
+          mountPath: /home/infer/.infer/daemon.yaml
+          subPath: daemon.yaml
+        - name: tls
+          mountPath: /etc/infer/tls
+          readOnly: true
+        - name: resolv-conf
+          mountPath: /etc/resolv.conf
+          subPath: resolv.conf
+  volumes:
+    - name: daemon-config
+      configMap:
+        name: infer-k8s-daemon
+    - name: tls
+      secret:
+        secretName: infer-k8s-tls
+        items:
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+          - key: ca.crt
+            path: ca.crt

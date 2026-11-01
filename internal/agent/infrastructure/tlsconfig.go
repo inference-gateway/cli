@@ -9,6 +9,7 @@ import (
 	"os"
 
 	config "github.com/inference-gateway/cli/config"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // TLSProvider builds every tls.Config the daemon needs from daemon.yaml: the
@@ -38,7 +39,7 @@ func (p *TLSProvider) Server(cfg config.BindingTLSConfig) (*tls.Config, error) {
 	case "", config.TLSModeOff:
 		return nil, nil
 	case config.TLSModeFiles:
-		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+		cert, err := loadKeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("loading the binding certificate: %w", err)
 		}
@@ -93,7 +94,7 @@ func (p *TLSProvider) ClientForDaemon(entry config.WorkspaceEntry) (*tls.Config,
 		}
 	}
 	if entry.TLS.CertFile != "" {
-		cert, err := tls.LoadX509KeyPair(entry.TLS.CertFile, entry.TLS.KeyFile)
+		cert, err := loadKeyPair(entry.TLS.CertFile, entry.TLS.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("loading the client certificate for workspace %s: %w", entry.Name, err)
 		}
@@ -119,11 +120,17 @@ func (p *TLSProvider) ClientForKubernetes(serverName string) (*tls.Config, error
 	return &tls.Config{RootCAs: p.pki.Pool(), Certificates: []tls.Certificate{cert}, ServerName: serverName, MinVersion: tls.VersionTLS13}, nil
 }
 
+// loadKeyPair loads a certificate and its key from daemon.yaml paths, which
+// may start with ~ like every other path in the config.
+func loadKeyPair(certFile, keyFile string) (tls.Certificate, error) {
+	return tls.LoadX509KeyPair(utils.ExpandHome(certFile), utils.ExpandHome(keyFile))
+}
+
 func poolFromFile(path string) (*x509.CertPool, error) {
 	if path == "" {
 		return nil, errors.New("a CA file is required to verify TLS peers")
 	}
-	pem, err := os.ReadFile(path)
+	pem, err := os.ReadFile(utils.ExpandHome(path))
 	if err != nil {
 		return nil, fmt.Errorf("reading the CA file: %w", err)
 	}
