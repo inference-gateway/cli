@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.240.0](https://github.com/inference-gateway/cli/compare/v0.239.0...v0.240.0) (2026-11-01)
+
+### 🚀 Features
+
+* **teleport:** link session Orchestrators to the workspace Gateway by ref ([#1670](https://github.com/inference-gateway/cli/issues/1670)) ([8a9c63a](https://github.com/inference-gateway/cli/commit/8a9c63a3c00294e606fd0cdf67cd46956054bbf8)), closes [#1669](https://github.com/inference-gateway/cli/issues/1669), references [inference-gateway/operator#307](https://github.com/inference-gateway/operator/issues/307)
+* **gateway:** trust a private CA and present a client certificate to the gateway ([#1673](https://github.com/inference-gateway/cli/issues/1673)) ([f45c70d](https://github.com/inference-gateway/cli/commit/f45c70d07fdf8f695f615994d67f7f3b456f2305)), closes [#1672](https://github.com/inference-gateway/cli/issues/1672), references [#1671](https://github.com/inference-gateway/cli/issues/1671) [inference-gateway/inference-gateway#818](https://github.com/inference-gateway/inference-gateway/issues/818)
+
+### 🐛 Bug Fixes
+
+* **daemon:** dial the local binding with the token the daemon generates ([#1676](https://github.com/inference-gateway/cli/issues/1676)) ([226257b](https://github.com/inference-gateway/cli/commit/226257b000d5e9b40532458bc9a783e5f1b80f8e)), references [#1674](https://github.com/inference-gateway/cli/issues/1674)
+
+### 📚 Documentation
+
+* **examples:** add kubernetes-session-teleport-headscale to teleport over a self-hosted Headscale tailnet ([#1674](https://github.com/inference-gateway/cli/issues/1674)) ([9a6926b](https://github.com/inference-gateway/cli/commit/9a6926b7992f42def033df60cba78013bde3e0bf)), closes [#1665](https://github.com/inference-gateway/cli/issues/1665) [#1675](https://github.com/inference-gateway/cli/issues/1675), references [inference-gateway/operator#317](https://github.com/inference-gateway/operator/issues/317) [juanfont/headscale#3554](https://github.com/juanfont/headscale/issues/3554)
+
 ## [0.239.0](https://github.com/inference-gateway/cli/compare/v0.238.0...v0.239.0) (2026-10-31)
 
 ### 🚀 Features
