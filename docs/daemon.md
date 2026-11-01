@@ -281,6 +281,10 @@ client certificate:
 [kubernetes-session-teleport-netbird](../examples/kubernetes-session-teleport-netbird/) example runs both daemons as
 NetBird peers on k3d against a self-hosted NetBird, and shows what an attacker on the wire and on the overlay gets.
 
+The workers on the remote daemon call its gateway with that daemon's config and environment. When that gateway
+requires mutual TLS, give the daemon `gateway.tls` with the CA and a client certificate
+([configuration reference](configuration-reference.md#gateway-settings)). The example runs mTLS on that hop too.
+
 ## Session workers
 
 A thread is a project dir plus a conversation id. The daemon runs each thread in its own worker,

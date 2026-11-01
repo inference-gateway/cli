@@ -47,6 +47,7 @@ spec:
     - localhost
   usages:
     - server auth
+    - client auth
   privateKey:
     algorithm: ECDSA
     size: 256
@@ -64,6 +65,29 @@ spec:
   secretName: infer-local-tls
   duration: 720h
   usages:
+    - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-tls
+  namespace: infer-peers
+spec:
+  commonName: gateway.netbird.internal
+  secretName: gateway-tls
+  duration: 720h
+  dnsNames:
+    - gateway.netbird.internal
+  ipAddresses:
+    - 0.0.0.0
+  usages:
+    - server auth
     - client auth
   privateKey:
     algorithm: ECDSA

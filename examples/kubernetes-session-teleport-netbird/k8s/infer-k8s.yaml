@@ -42,9 +42,18 @@ spec:
           INFER_DAEMON_BINDING_HOST=$NETBIRD_IP exec infer daemon
       env:
         - name: INFER_GATEWAY_URL
-          value: http://gateway.netbird.internal:8080
+          value: https://gateway.netbird.internal:8443
+        - name: INFER_GATEWAY_TLS_CA_FILE
+          value: /etc/infer/tls/ca.crt
+        - name: INFER_GATEWAY_TLS_CERT_FILE
+          value: /etc/infer/tls/tls.crt
+        - name: INFER_GATEWAY_TLS_KEY_FILE
+          value: /etc/infer/tls/tls.key
         - name: INFER_AGENT_MODEL
-          value: openai/gpt-4o
+          valueFrom:
+            configMapKeyRef:
+              name: infer-k8s-model
+              key: model
       readinessProbe:
         exec:
           command:

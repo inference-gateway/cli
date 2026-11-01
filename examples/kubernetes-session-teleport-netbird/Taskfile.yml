@@ -6,7 +6,7 @@ vars:
   NAMESPACE: infer-peers
   CERT_MANAGER_VERSION: v1.21.3
   NETBIRD_OPERATOR_VERSION: 0.9.0
-  INFERENCE_GATEWAY_OPERATOR_VERSION: v0.30.0
+  INFERENCE_GATEWAY_OPERATOR_VERSION: v0.31.0
   API: http://localhost:18080/api
   STATE_DIR: '{{.TASKFILE_DIR}}/.state'
   NB: 'curl -fsS -H "Authorization: Token $(cat {{.TASKFILE_DIR}}/.state/pat)" -H "Content-Type: application/json"'
@@ -17,14 +17,13 @@ vars:
 
 tasks:
   up:
-    desc: Run every setup step in order, from an empty machine to infer-local, infer-k8s and the gateway on one NetBird network
+    desc: Run every setup step in order, from an empty machine to infer-local, infer-k8s and the mock gateway on one NetBird network
     cmds:
       - task: cluster:create
       - task: image:import
       - task: netbird:install
       - task: netbird:bootstrap
       - task: netbird:operator
-      - task: operator:install
       - task: netbird:peers
       - task: secrets
       - task: deploy
@@ -99,7 +98,7 @@ tasks:
           -n netbird-operator -f netbird/operator-values.yaml --wait --timeout 5m
 
   operator:install:
-    desc: Install the Inference Gateway operator, which runs the gateway from a Gateway resource
+    desc: Install the Inference Gateway operator, which runs the real gateway from a Gateway resource
     cmds:
       - '{{.KUBECTL}} apply -f https://github.com/inference-gateway/operator/releases/download/{{.INFERENCE_GATEWAY_OPERATOR_VERSION}}/install.yaml'
       - '{{.KUBECTL}} -n inference-gateway-system wait --for=condition=Available deployment --all --timeout=180s'
@@ -117,7 +116,7 @@ tasks:
       - |
         GROUPS_JSON=$({{.NB}} {{.API}}/groups)
         POLICIES_JSON=$({{.NB}} {{.API}}/policies)
-        for hop in "infer-local infer-k8s 52789" "infer-k8s gateway 8080"; do
+        for hop in "infer-local infer-k8s 52789" "infer-k8s gateway 8443"; do
           set -- $hop
           NAME="$1-to-$2"
           echo "$POLICIES_JSON" | jq -e --arg name "$NAME" 'any(.[]; .name == $name)' >/dev/null && continue
@@ -142,7 +141,7 @@ tasks:
         done
 
   secrets:
-    desc: Issue the infer-k8s server and infer-local client certificates with cert-manager, and create the forwarded demo secret
+    desc: Issue the infer-k8s, gateway and infer-local certificates with cert-manager, and create the forwarded demo secret
     cmds:
       - '{{.KUBECTL}} apply -f k8s/certificates.yaml'
       - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready certificate --all --timeout=180s'
@@ -151,13 +150,60 @@ tasks:
           {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic demo-secret --from-literal=DEMO_SECRET="sealed-$(openssl rand -hex 16)"
 
   deploy:
-    desc: Start the gateway (an operator Gateway) with its mock provider, the infer-k8s daemon and the attacker peer
+    desc: Start the mock gateway (tokenless), the infer-k8s daemon and the attacker peer
     cmds:
+      - task: model
+        vars:
+          MODEL: openai/gpt-4o
       - '{{.KUBECTL}} apply -f k8s/gateway.yaml -f k8s/infer-k8s.yaml -f k8s/attacker.yaml'
-      - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/tokenless --timeout=300s'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/gateway-mock --timeout=300s'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/infer-k8s pod/attacker --timeout=300s'
+
+  model:
+    internal: true
+    cmds:
+      - |
+        {{.KUBECTL}} -n {{.NAMESPACE}} create configmap infer-k8s-model --from-literal=model={{.MODEL}} \
+          --dry-run=client -o yaml | {{.KUBECTL}} apply -f -
+
+  gateway:real:
+    desc: Replace the mock with the Inference Gateway and a real provider - needs <PROVIDER>_API_KEY in your environment
+    vars:
+      PROVIDER: '{{default "openai" .PROVIDER}}'
+      MODEL: '{{default "openai/gpt-4o-mini" .MODEL}}'
+      KEY_ENV: '{{upper .PROVIDER}}_API_KEY'
+    preconditions:
+      - sh: printenv {{.KEY_ENV}} >/dev/null
+        msg: 'Set {{.KEY_ENV}} first, for example {{.KEY_ENV}}=... task gateway:real PROVIDER={{.PROVIDER}} MODEL={{.MODEL}}'
+    cmds:
+      - task: operator:install
+      - |
+        printenv {{.KEY_ENV}} | tr -d '\n' \
+          | {{.KUBECTL}} -n {{.NAMESPACE}} create secret generic gateway-provider --from-file=api-key=/dev/stdin --dry-run=client -o yaml \
+          | {{.KUBECTL}} apply -f -
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} delete deployment gateway-mock --ignore-not-found --wait'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=delete pod -l app=gateway --timeout=120s'
+      - |
+        sed -e "s|PROVIDER_NAME|{{.PROVIDER}}|" -e "s|PROVIDER_KEY_ENV|{{.KEY_ENV}}|" k8s/gateway-real.yaml \
+          | {{.KUBECTL}} apply -f -
       - until {{.KUBECTL}} -n {{.NAMESPACE}} get deployment gateway >/dev/null 2>&1; do sleep 2; done
       - '{{.KUBECTL}} -n {{.NAMESPACE}} rollout status deployment/gateway --timeout=300s'
-      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/infer-k8s pod/attacker --timeout=300s'
+      - task: model
+        vars:
+          MODEL: '{{.MODEL}}'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} delete pod infer-k8s --wait'
+      - task: netbird:forget-offline
+      - '{{.KUBECTL}} apply -f k8s/infer-k8s.yaml'
+      - '{{.KUBECTL}} -n {{.NAMESPACE}} wait --for=condition=Ready pod/infer-k8s --timeout=300s'
+      - echo "infer-k8s now asks {{.MODEL}} through the Inference Gateway"
+
+  netbird:forget-offline:
+    internal: true
+    cmds:
+      - |
+        for id in $({{.NB}} {{.API}}/peers | jq -r '.[] | select(.connected == false) | .id'); do
+          {{.NB}} -X DELETE {{.API}}/peers/$id >/dev/null
+        done
 
   local:up:
     desc: Start infer-local, the daemon on "your machine" - a Docker container beside the cluster with its own NetBird client
@@ -251,14 +297,14 @@ tasks:
         SECRET=$({{.KUBECTL}} -n {{.NAMESPACE}} get secret demo-secret -o jsonpath='{.data.DEMO_SECRET}' | base64 -d)
         echo "WireGuard packets (udp port 51820):  $(count 'udp port 51820')"
         echo "binding packets (tcp port 52789):    $(count 'tcp port 52789')"
-        echo "gateway packets (tcp port 8080):     $(count 'tcp port 8080')"
+        echo "gateway packets (tcp port 8443):     $(count 'tcp port 8443')"
         echo "DEMO_SECRET in the capture:          $(matches "$SECRET")"
-        echo "the gateway's reply in the capture:  $(matches 'Hello from the Inference Gateway')"
+        echo "the gateway's reply in the capture:  $(matches 'Hello from tokenless')"
         echo "plaintext canary in the capture:     $(matches "$(cat {{.STATE_DIR}}/canary)")"
         echo "capture saved to {{.STATE_DIR}}/teleport.pcap"
 
   attack:
-    desc: Try infer-k8s and the gateway from the attacker, a NetBird peer no policy admits, then from infer-local's own network without its client certificate
+    desc: Try infer-k8s and the gateway from the attacker, a NetBird peer no policy admits, then each hop from the peer its policy admits, without the client certificate
     cmds:
       - |
         netbird_ip() { {{.KUBECTL}} -n {{.NAMESPACE}} exec "$1" -c netbird -- netbird status --json | jq -r .netbirdIp | cut -d/ -f1; }
@@ -268,15 +314,18 @@ tasks:
         attacker "nc -z -v -w 3 $(netbird_ip pod/infer-k8s) 52789"
         attacker "nc -z -v -w 3 $(pod_ip infer-k8s) 52789"
         attacker "nslookup gateway.netbird.internal | tail -n 2"
-        attacker "nc -z -v -w 3 $(netbird_ip deployment/gateway) 8080"
-        attacker "nc -z -v -w 3 $(pod_ip gateway) 8080"
+        attacker "nc -z -v -w 3 $(netbird_ip "$({{.KUBECTL}} -n {{.NAMESPACE}} get pod -l app=gateway -o name)") 8443"
+        attacker "nc -z -v -w 3 $(pod_ip gateway) 8443"
         echo "== attacker: its NetBird peers"
         {{.KUBECTL}} -n {{.NAMESPACE}} exec attacker -c netbird -- netbird status | grep "Peers count"
         echo "== infer-local: the gateway, two hops away"
-        {{.LOCAL}} sh -c "nc -z -w 3 gateway.netbird.internal 8080 2>&1 || echo 'gateway.netbird.internal: unreachable from infer-local'"
+        {{.LOCAL}} sh -c "nc -z -w 3 gateway.netbird.internal 8443 2>&1 || echo 'gateway.netbird.internal: unreachable from infer-local'"
         echo "== infer-local's network, the policy admits it, but no client certificate"
         docker run --rm --network container:infer-local-netbird -v {{.STATE_DIR}}/infer-local-tls/ca.crt:/ca.crt:ro nicolaka/netshoot:v0.15 \
           sh -c 'curl -sS --max-time 5 --cacert /ca.crt https://infer-k8s.netbird.internal:52789/ws 2>&1 || true'
+        echo "== infer on infer-k8s, the policy admits it, but without its client certificate"
+        {{.KUBECTL}} -n {{.NAMESPACE}} exec infer-k8s -c daemon -- \
+          env -u INFER_GATEWAY_TLS_CERT_FILE -u INFER_GATEWAY_TLS_KEY_FILE infer status 2>&1 | grep "Gateway Status" || true
 
   netbird:status:
     desc: Show infer-k8s's NetBird view of both its neighbours - connection type, handshake and bytes sent and received

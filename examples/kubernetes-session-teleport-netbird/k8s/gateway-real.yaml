@@ -1,0 +1,44 @@
+apiVersion: core.inference-gateway.com/v1alpha1
+kind: Gateway
+metadata:
+  name: gateway
+  namespace: infer-peers
+spec:
+  image: ghcr.io/inference-gateway/inference-gateway:0.61.0
+  environment: development
+  replicas: 1
+  pod:
+    nodeSelector:
+      kubernetes.io/hostname: k3d-infer-netbird-agent-0
+  server:
+    port: 8443
+    tls:
+      enabled: true
+      certificateRef:
+        name: gateway-tls
+        key: tls.crt
+      keyRef:
+        name: gateway-tls
+        key: tls.key
+      clientCARef:
+        name: gateway-tls
+        key: ca.crt
+  client:
+    tls:
+      caRef:
+        name: gateway-tls
+        key: ca.crt
+      certificateRef:
+        name: gateway-tls
+        key: tls.crt
+      keyRef:
+        name: gateway-tls
+        key: tls.key
+  providers:
+    - name: PROVIDER_NAME
+      env:
+        - name: PROVIDER_KEY_ENV
+          valueFrom:
+            secretKeyRef:
+              name: gateway-provider
+              key: api-key
