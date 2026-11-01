@@ -1,0 +1,16 @@
+workspace: infer-local
+workspaces:
+  - name: infer-local
+    kind: local
+  - name: infer-k8s
+    kind: daemon
+    address: infer-k8s.tailnet.internal:52789
+    tls:
+      ca_file: /etc/infer/tls/ca.crt
+      cert_file: /etc/infer/tls/tls.crt
+      key_file: /etc/infer/tls/tls.key
+    forward_env:
+      - DEMO_SECRET
+binding:
+  enabled: true
+  port: 52789

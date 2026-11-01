@@ -1,0 +1,111 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-from-tailnet-proxy
+  namespace: infer-peers
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway-tailnet
+      ports:
+        - protocol: TCP
+          port: 8443
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: infer-peers
+spec:
+  selector:
+    app: gateway
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tokenless-scenarios
+  namespace: infer-peers
+data:
+  scenarios.yaml: |
+    fallback:
+      content: "Hello from tokenless, the mock gateway, reached over Headscale."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-mock
+  namespace: infer-peers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+        gateway: tokenless
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3d-infer-headscale-agent-0
+      containers:
+        - name: tokenless
+          image: alpine:3.24.3
+          workingDir: /opt/tokenless
+          command:
+            - sh
+            - -c
+            - |
+              BINARY=tokenless-linux-$(uname -m | sed -e 's/aarch64/arm64/' -e 's/x86_64/amd64/')
+              RELEASE=https://github.com/inference-gateway/tokenless/releases/download/v0.11.0
+              wget -q "$RELEASE/$BINARY" "$RELEASE/checksums.txt"
+              grep " $BINARY\$" checksums.txt | sha256sum -c -
+              chmod +x "$BINARY"
+              exec "./$BINARY" --host 0.0.0.0 --port 8443 --model openai/gpt-4o \
+                --scenarios /etc/tokenless/scenarios.yaml \
+                --tls-cert /etc/tokenless/tls/tls.crt \
+                --tls-key /etc/tokenless/tls/tls.key \
+                --tls-client-ca /etc/tokenless/tls/ca.crt
+          ports:
+            - name: https
+              containerPort: 8443
+          readinessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 3
+          volumeMounts:
+            - name: scenarios
+              mountPath: /etc/tokenless/scenarios.yaml
+              subPath: scenarios.yaml
+            - name: tls
+              mountPath: /etc/tokenless/tls
+              readOnly: true
+            - name: bin
+              mountPath: /opt/tokenless
+      volumes:
+        - name: scenarios
+          configMap:
+            name: tokenless-scenarios
+        - name: tls
+          secret:
+            secretName: gateway-tls
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+              - key: ca.crt
+                path: ca.crt
+        - name: bin
+          emptyDir: {}
