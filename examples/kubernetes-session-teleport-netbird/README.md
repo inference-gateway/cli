@@ -173,6 +173,8 @@ gateway's own certificate and present a client certificate. So the `gateway` cer
 `0.0.0.0` and has client usage, and `spec.client.tls` trusts `peers-ca` and presents the `gateway` certificate. The gateway
 adds that CA to the system roots, so the provider's public certificate still verifies. The gateway's own
 [mTLS example](https://github.com/inference-gateway/inference-gateway/tree/main/examples/kubernetes/mtls) does the same.
+[inference-gateway#822](https://github.com/inference-gateway/inference-gateway/issues/822) tracks dropping the need for
+it.
 
 ## How the pieces fit
 
