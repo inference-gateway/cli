@@ -1,0 +1,20 @@
+{
+  "tagOwners": {
+    "tag:infer-demo": ["autogroup:admin"],
+    "tag:infer-k8s": ["tag:infer-demo"],
+    "tag:gateway": ["tag:infer-demo"],
+    "tag:attacker": ["tag:infer-demo"],
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["YOUR_LOGIN"],
+      "dst": ["tag:infer-k8s:52789"],
+    },
+    {
+      "action": "accept",
+      "src": ["tag:infer-k8s"],
+      "dst": ["tag:gateway:8443"],
+    },
+  ],
+}

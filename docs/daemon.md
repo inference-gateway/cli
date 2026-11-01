@@ -282,7 +282,7 @@ client certificate:
 NetBird peers on k3d against a self-hosted NetBird, and shows what an attacker on the wire and on the overlay gets.
 [kubernetes-session-teleport-headscale](../examples/kubernetes-session-teleport-headscale/) does the same on a
 self-hosted [Headscale](https://github.com/juanfont/headscale) tailnet, with a tailnet policy in place of the NetBird
-policies, and its README shows the same setup against Tailscale.
+policies, or with `TAILNET=tailscale` on your own Tailscale account, your machine as the local daemon.
 
 The workers on the remote daemon call its gateway with that daemon's config and environment. When that gateway
 requires mutual TLS, give the daemon `gateway.tls` with the CA and a client certificate

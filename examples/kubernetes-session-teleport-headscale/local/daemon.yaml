@@ -14,3 +14,5 @@ workspaces:
 binding:
   enabled: true
   port: 52789
+  tls:
+    mode: ca

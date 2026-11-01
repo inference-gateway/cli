@@ -4,8 +4,8 @@ Teleport a session from an `infer daemon` on your machine to one in Kubernetes, 
 every hop on a self-hosted [Headscale](https://github.com/juanfont/headscale) tailnet, admitted by the tailnet policy and
 running mutual TLS. Then watch an attacker fail to read or reach any of it. This is the twin of
 [kubernetes-session-teleport-netbird](../kubernetes-session-teleport-netbird/): the same chain and the same checks, with
-Headscale and [Tailscale](https://tailscale.com/) clients in place of NetBird. [Use Tailscale instead](#use-tailscale-instead-of-headscale)
-shows the same setup against Tailscale's own control plane.
+Headscale and [Tailscale](https://tailscale.com/) clients in place of NetBird. With `TAILNET=tailscale` it runs
+[on your Tailscale account](#run-it-on-your-tailscale-account) instead, with your own machine as `infer-local`.
 
 ```text
 infer-local    Docker container beside the cluster, "your machine"
@@ -22,7 +22,7 @@ gateway        pod on agent-0 with a tailscale sidecar, one of:
 `infer-local` registers `infer-k8s` as a `kind: daemon` workspace by its MagicDNS name. A session starts on
 `infer-local`, where turns are answered by the in-process mock model. After the teleport, the turns run on `infer-k8s`,
 whose agent calls `gateway.tailnet.internal:8443`. The reply proves which path it took:
-*Hello from tokenless, the mock gateway, reached over Headscale.* With [a real model](#use-a-real-model), the model
+*Hello from tokenless, the mock gateway, reached over the tailnet.* With [a real model](#use-a-real-model), the model
 answers instead.
 
 Everything runs in a local [k3d](https://k3d.io/) cluster on k3s v1.37.1, declared in `Cluster.yaml` and created by
@@ -63,6 +63,7 @@ tailscale sidecar where NetBird's operator injected one.
 | `headscale/server.yaml` | Headscale in namespace `headscale`: its certificate, its Service (HTTPS 9443, STUN 3478, metrics 9090), its Deployment |
 | `headscale/config.yaml` | Headscale's config: HTTPS, the embedded DERP and STUN, MagicDNS under `tailnet.internal`, the policy file |
 | `headscale/policy.hujson` | The tailnet policy: tag owners and the two ACLs that chain `infer-local` to `infer-k8s` to the gateway |
+| `tailscale/policy.hujson` | The same policy for your Tailscale account, with your own login in place of `tag:infer-local` |
 | `k8s/namespace.yaml` | The `infer-peers` namespace, labelled so the Inference Gateway operator manages it |
 | `k8s/certificates.yaml` | The demo CA `peers-ca`, a ClusterIssuer, and the `infer-k8s`, `gateway` and `infer-local` certificates, ECDSA P-256 |
 | `k8s/infer-k8s.yaml` | The `infer-k8s` daemon and its tailscale sidecar: the binding on its tailnet address, the gateway as its model, both mTLS |
@@ -73,7 +74,7 @@ tailscale sidecar where NetBird's operator injected one.
 | `local/compose.yaml` | `infer-local`: the daemon and its tailscale client, two containers sharing one network namespace |
 | `local/daemon.yaml` | `infer-local`'s config, with `infer-k8s` as a `kind: daemon` workspace |
 | `Taskfile.yml` | Every step below |
-| `.state/` | Created by the tasks: `infer-local`'s client certificate, the last session and capture |
+| `.state/` | Created by the tasks: `infer-local`'s client certificate, the last session and capture, and infer-local's home on Tailscale |
 
 The example builds infer from this checkout (`task image:import`), because `gateway.tls`, the client certificate
 `infer-k8s` presents to the gateway, is newer than the last infer release.
@@ -117,7 +118,7 @@ checkpointing
 restoring
 ready
 session now lives on infer-k8s in /home/infer/.infer/projects/project/<conversation id>
-Hello from tokenless, the mock gateway, reached over Headscale.
+Hello from tokenless, the mock gateway, reached over the tailnet.
 ```
 
 The `task up` steps, one by one:
@@ -225,16 +226,16 @@ the wire instead.
 
 **On the wire.** `sniffer` runs `tcpdump` on the host network of the `infer-k8s` node, so it sees both hops:
 `infer-local` to `infer-k8s`, and `infer-k8s` to the gateway on the other agent. `task sniff:start` starts it and sends
-a plaintext canary from `infer-local` to Headscale's metrics port on that node, to prove the capture reads plaintext
+that node a plaintext UDP canary from a throwaway container beside the cluster, to prove the capture reads plaintext
 when there is any. `task sniff:report` reads the capture after `task demo`:
 
 ```text
-WireGuard packets (udp port 41641):  489
+WireGuard packets (udp port 41641):  498
 binding packets (tcp port 52789):    0
 gateway packets (tcp port 8443):     0
 DEMO_SECRET in the capture:          0
 the gateway's reply in the capture:  0
-plaintext canary in the capture:     15
+plaintext canary in the capture:     25
 ```
 
 The teleport, the turn and the model's reply only exist inside WireGuard. The capture is saved to
@@ -286,6 +287,10 @@ cert-manager's `peers-ca` issues every certificate, and every server asks for a 
   (`INFER_GATEWAY_TLS_CA_FILE`) and presents the `infer-k8s` certificate (`INFER_GATEWAY_TLS_CERT_FILE`,
   `INFER_GATEWAY_TLS_KEY_FILE`).
 - **`gateway` → provider**, with `task gateway:real` only. The provider's public HTTPS, with your API key.
+- **The infer commands → `infer-local`'s daemon.** `infer daemon workspaces`, `teleport` and `run` reach their own
+  daemon on loopback. That binding serves `binding.tls.mode: ca`: the daemon makes its own CA, and the commands on the
+  same machine present a client certificate from it. Loopback alone would let any local process or web page drive the
+  daemon.
 - **Every tailscale client → Headscale.** Headscale serves the `headscale-tls` certificate from `peers-ca` for its
   control API and its DERP relay. The clients trust that CA through `SSL_CERT_FILE`, and the control protocol is
   encrypted end to end on top of it.
@@ -319,23 +324,76 @@ shows: `forward_env`, because a teleport seals the variables to the certificate 
 key, and client certificates, because Serve terminates TLS before the daemon sees the handshake. So the binding serves
 `binding.tls.mode: files` on its tailnet address with a certificate from your own CA.
 
-`binding.tls.mode: ca` does not fit either: its certificate names only the workspace, the hostname and `localhost`,
-and the binding then requires client certificates from that daemon's own CA, which nothing issues to a second daemon.
+`binding.tls.mode: ca` does not fit `infer-k8s` either: its certificate names only the workspace, the hostname and
+`localhost`, and the binding then requires client certificates from that daemon's own CA, which nothing issues to a
+second daemon. It does fit `infer-local`'s own binding, which only the infer commands on the same machine dial.
 
-## Use Tailscale instead of Headscale
+## Run it on your Tailscale account
 
-The tasks run only the Headscale variant. To run the same chain on [Tailscale](https://tailscale.com/)'s control plane:
+`TAILNET=tailscale` runs the same chain on your own [Tailscale](https://tailscale.com/) tailnet instead of Headscale,
+with this machine as `infer-local`, on the Tailscale app you already run. The cluster's nodes show up in your admin
+console's Machines list, tagged and ephemeral, and `task cleanup` removes them again.
 
-1. Skip `task headscale:install` and `task headscale:keys`.
-2. In the admin console, put the contents of `headscale/policy.hujson` into the tailnet policy file, with your own
-   login in place of `infer@` as the tag owner, and turn on MagicDNS.
-3. Create one auth key per node under **Settings → Keys**, tagged `tag:infer-local`, `tag:infer-k8s`, `tag:gateway` or
-   `tag:attacker`, ephemeral and reusable, and store each as `authkey` in the Secret `tailnet-key-<node>` in
-   `infer-peers`. Pass infer-local's as `TS_AUTHKEY` to `local/compose.yaml`.
-4. In every tailscale container, drop `--login-server` from `TS_EXTRA_ARGS` and drop `SSL_CERT_FILE`, so the client
-   logs in to Tailscale and trusts the system roots again.
-5. Replace `tailnet.internal` with your tailnet's DNS name (`<tailnet>.ts.net`) in `k8s/certificates.yaml`,
-   `INFER_GATEWAY_URL` in `k8s/infer-k8s.yaml`, and `address` in `local/daemon.yaml`. Then run the remaining tasks.
+| | Headscale (default) | `TAILNET=tailscale` |
+| --- | --- | --- |
+| `infer-local` | A Docker container with its own tailscale client, `tag:infer-local` | This machine as your own user, through its Tailscale app |
+| Control server and relays | Headscale in the cluster and its embedded DERP | Tailscale's control plane and its public DERP relays |
+| Names | `<node>.tailnet.internal` | `<node>.<tailnet>.ts.net`, read from the Tailscale app |
+| Keys | `headscale preauthkeys create` | Minted per node through the Tailscale API from your OAuth client |
+| Policy | `headscale/policy.hujson`, applied by `task up` | `tailscale/policy.hujson`, merged into your policy file by you |
+
+Set up your account once:
+
+1. Connect the Tailscale app on this machine, with MagicDNS on.
+2. Run `task tailscale:policy TAILNET=tailscale`. It prints `tailscale/policy.hujson` with your login as the source of
+   the first ACL. Add its `tagOwners` and `acls` entries to your tailnet policy file in the admin console. The tasks
+   never write your policy file.
+3. Create an OAuth client in the admin console under **Settings → Trust credentials**, with the `auth_keys` and
+   `devices:core` write scopes and the one tag `tag:infer-demo`. The policy makes that tag the owner of the three node
+   tags, so the client can mint a key for each node with only that node's tag. A client holding the three node tags
+   itself is refused one with a single tag.
+4. Export it in the shell that runs the tasks:
+
+   ```bash
+   export TAILSCALE_OAUTH_CLIENT_ID=... TAILSCALE_OAUTH_CLIENT_SECRET=...
+   ```
+
+Then pass `TAILNET=tailscale` to the first `task up`. It records the choice in `.state/`, so the other tasks need no
+flag:
+
+```bash
+task up TAILNET=tailscale
+task workspaces
+task sniff:start
+task demo
+task secret:check
+task sniff:report
+task attack
+task teleport:back
+task cleanup
+```
+
+What the tasks do differently:
+
+- **Keys.** `task up` mints one auth key per cluster node through the Tailscale API: tagged with that node's tag,
+  ephemeral, reusable and pre-approved. Each goes into the Secret `tailnet-key-<node>`, as with Headscale. Your OAuth
+  client secret stays in your shell, and the cluster only gets those keys. First, `task up` removes demo nodes an
+  earlier run left behind, and it stops if another device in your tailnet already holds `infer-k8s`, `gateway` or
+  `attacker`.
+- **infer-local.** It is `infer` built from this checkout, run with `HOME` set to `.state/infer-local`, so its daemon,
+  its `daemon.yaml` and its sessions stay apart from your own `~/.infer`. `task local:up` writes that `daemon.yaml`
+  with `infer-k8s` as a `kind: daemon` workspace under your tailnet's name, starts the daemon in the background, and
+  waits until `infer-k8s` is reachable. Its
+  binding listens on loopback port 52790, so it does not clash with a daemon of your own on 52789. `task local:down`
+  stops it.
+- **Old nodes.** `task gateway:real` and `task cleanup` remove the demo's old nodes through the API, and
+  `task cleanup` also revokes the auth keys. They only touch ephemeral devices named `infer-k8s`, `gateway` or
+  `attacker` that carry nothing but the demo's tags.
+
+Your policy file decides what the attacker reaches. If it still has a rule that lets every device reach every other
+(`"src": ["*"]`), the attacker and your other devices reach both ports over the tailnet. Then only mutual TLS turns
+them away, and `task attack` shows the TLS refusals but connections where Headscale shows timeouts. Narrow that rule,
+for example to `autogroup:member`, to get the Headscale result.
 
 The binding keeps its own TLS, so mutual TLS and `forward_env` work the same. On Tailscale, `tailscale serve` is also
 an option for a daemon that needs neither: keep the binding on loopback with a token, run
@@ -350,8 +408,10 @@ an option for a daemon that needs neither: keep the binding on loopback with a t
   `headscale preauthkeys expire` revokes one early.
 - Headscale keeps its database and keys on an `emptyDir`, so a restarted Headscale forgets every node. Use a volume in
   production.
-- Headscale's metrics port 9090 is plain HTTP on every node, which is what the canary hits. Keep it off the load
-  balancer in production.
+- Headscale's metrics port 9090 is plain HTTP on every node. Keep it off the load balancer in production.
+- With `TAILNET=tailscale`, the OAuth client can mint keys for the demo's tags and remove devices from your tailnet.
+  The tasks read it from your environment, pipe it into curl and keep the one-hour API token in a file only you can
+  read, under `.state/`. Delete the client in the admin console once you are done with the example.
 - tokenless has no container image, so its pod downloads the v0.11.0 release binary and checks it against the
   release's `checksums.txt` before it runs it.
 - `task gateway:real` reads your provider key from the environment and pipes it into the Secret `gateway-provider`, so
@@ -370,7 +430,7 @@ task cleanup
 | A tailscale container logs `authkey already used` | The keys come from an older run. Delete the `tailnet-key-*` Secrets, run `task headscale:keys` |
 | tailscale logs `certificate signed by unknown authority` | `SSL_CERT_FILE` misses the demo CA. `task secrets` creates the `tailnet-ca` ConfigMap |
 | A tailscale client never gets an address | Your Docker VM lacks `/dev/net/tun`. Docker Desktop and OrbStack have it |
-| `task local:up` cannot reach `infer-k8s.tailnet.internal:52789` | Check `docker logs infer-local-tailscale` for the login to Headscale |
+| `task local:up` cannot reach `infer-k8s` | Check `docker logs infer-local-tailscale`. On Tailscale, check your policy file for the first ACL |
 | `infer-k8s` is `REACHABLE false` | Check `task tailnet:status`: both nodes online, and `infer-local` listed as a peer of `infer-k8s` |
 | A node is named `infer-k8s-<suffix>` | An offline node still holds the name. Delete it with `headscale nodes delete`, then recreate the pod |
 | `task demo` hangs before `provisioning` | The daemons run an older infer. Run `task image:import`, recreate the `infer-k8s` pod, `task local:up` |
@@ -379,3 +439,6 @@ task cleanup
 | No `gateway` Deployment after `task gateway:real` | The namespace lacks `inference-gateway.com/managed=true`, or the operator is down |
 | `tls: certificate required` from infer on `infer-k8s` | `INFER_GATEWAY_TLS_CERT_FILE` or `_KEY_FILE` is unset, or not from `peers-ca` |
 | Image pulls or `task image:import` time out on DNS | Docker's resolver is stuck. Restart Docker Desktop |
+| `the Tailscale API refused ...` | The OAuth client is deleted, or its secret was copied wrong. Create a new one with both scopes |
+| `requested tags [...] are invalid or not permitted` | The OAuth client's tag is not `tag:infer-demo`, or that tag owns no node tag |
+| `rename or remove these devices in your tailnet first` | A device of yours holds a name the demo needs. Rename it in the admin console |

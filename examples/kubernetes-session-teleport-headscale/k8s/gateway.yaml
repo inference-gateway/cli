@@ -22,7 +22,7 @@ metadata:
 data:
   scenarios.yaml: |
     fallback:
-      content: "Hello from tokenless, the mock gateway, reached over Headscale."
+      content: "Hello from tokenless, the mock gateway, reached over the tailnet."
 ---
 apiVersion: apps/v1
 kind: Deployment
