@@ -36,6 +36,7 @@ type Supervisor struct {
 	isRunning        bool
 	binaryCmd        *exec.Cmd
 	assignedPort     int
+	transport        http.RoundTripper
 }
 
 // NewSupervisor creates a new gateway manager
@@ -44,6 +45,7 @@ func NewSupervisor(sessionID convdomain.SessionID, cfg *config.Config, runtime c
 		sessionID:        sessionID,
 		config:           cfg,
 		containerRuntime: runtime,
+		transport:        Transport(cfg.Gateway.TLS),
 	}
 }
 
@@ -581,7 +583,8 @@ func (gm *Supervisor) waitForReady(ctx context.Context) error {
 	defer ticker.Stop()
 
 	client := &http.Client{
-		Timeout: 2 * time.Second,
+		Timeout:   2 * time.Second,
+		Transport: gm.transport,
 	}
 
 	for {
@@ -616,7 +619,7 @@ func (gm *Supervisor) needsAudioRestart() bool {
 // audio is off; any other response (400, 401, 503, ...) means it is served.
 func (gm *Supervisor) audioAPIEnabled() bool {
 	url := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/v1/audio/speech"
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 2 * time.Second, Transport: gm.transport}
 	resp, err := client.Post(url, "application/json", strings.NewReader("{}"))
 	if err != nil {
 		return true
@@ -643,7 +646,7 @@ func (gm *Supervisor) waitForStopped(ctx context.Context) {
 // modes fall back to the cached binary or the configured container image tag.
 // Externally managed gateways (Gateway.Run off) have no local source to ask.
 func (gm *Supervisor) Version(ctx context.Context) string {
-	if v := probeVersionEndpoint(ctx, gm.GetGatewayURL()); v != "" {
+	if v := probeVersionEndpoint(ctx, gm.transport, gm.GetGatewayURL()); v != "" {
 		return v
 	}
 
@@ -661,7 +664,7 @@ func (gm *Supervisor) Version(ctx context.Context) string {
 // probeVersionEndpoint asks the gateway's /version endpoint, accepting a JSON
 // payload with a "version" field or a plain-text body. Anything else (a 404
 // on gateways without the endpoint, HTML, connection errors) yields "".
-func probeVersionEndpoint(ctx context.Context, gatewayURL string) string {
+func probeVersionEndpoint(ctx context.Context, transport http.RoundTripper, gatewayURL string) string {
 	probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -670,7 +673,7 @@ func probeVersionEndpoint(ctx context.Context, gatewayURL string) string {
 		return ""
 	}
 
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 2 * time.Second, Transport: transport}
 	resp, err := client.Do(req)
 	if err != nil {
 		return ""
@@ -755,7 +758,7 @@ func gatewayBinaryPath() string {
 // isBinaryRunning checks if the gateway is already running on the port
 func (gm *Supervisor) isBinaryRunning() bool {
 	healthURL := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/health"
-	client := &http.Client{Timeout: 1 * time.Second}
+	client := &http.Client{Timeout: 1 * time.Second, Transport: gm.transport}
 	resp, err := client.Get(healthURL)
 	if err == nil {
 		_ = resp.Body.Close()

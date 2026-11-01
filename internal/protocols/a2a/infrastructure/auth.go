@@ -127,19 +127,23 @@ func configuredAgent(agentURL string) (config.AgentEntry, bool) {
 	return agents.EntryForURL(agentURL)
 }
 
-// gatewayCredential is the bearer token the gateway expects, and the origin it belongs to.
+// gatewayCredential is the bearer token the gateway expects, the transport
+// that reaches it, and the origin they belong to.
 // ponytail: one process-wide value set at startup. Pass it through NewClient
 // if clients ever need different gateways.
 var gatewayCredential struct {
-	origin string
-	token  string
+	origin    string
+	token     string
+	transport http.RoundTripper
 }
 
 // UseGatewayCredential makes apiKey the bearer token of A2A requests to the
-// gateway at gatewayURL, the token the gateway also expects on inference.
-func UseGatewayCredential(gatewayURL, apiKey string) {
+// gateway at gatewayURL, the token the gateway also expects on inference, and
+// sends them over transport, which carries the gateway's TLS settings.
+func UseGatewayCredential(gatewayURL, apiKey string, transport http.RoundTripper) {
 	gatewayCredential.origin = config.URLOrigin(gatewayURL)
 	gatewayCredential.token = apiKey
+	gatewayCredential.transport = transport
 }
 
 // authTransport adds an agent's credentials to the requests sent to its
@@ -153,14 +157,23 @@ type authTransport struct {
 
 // newAuthTransport returns the transport for the agent at agentURL. It
 // authenticates with the credentials agents.yaml gives the agent, or with the
-// gateway credential when the agent is the gateway. Any other agent gets the default.
+// gateway credential when the agent is the gateway. The gateway is reached
+// over its own transport, any other agent over the default.
 func newAuthTransport(agentURL string) http.RoundTripper {
 	origin := config.URLOrigin(runningURL(agentURL))
+	base := baseTransport(agentURL)
 	if agent, ok := configuredAgent(agentURL); ok && agent.Auth != nil {
-		return authTransport{base: http.DefaultTransport, origin: origin, token: func() (string, error) { return bearerToken(agent) }}
+		return authTransport{base: base, origin: origin, token: func() (string, error) { return bearerToken(agent) }}
 	}
 	if token := gatewayCredential.token; token != "" && isGateway(agentURL) {
-		return authTransport{base: http.DefaultTransport, origin: origin, token: func() (string, error) { return token, nil }}
+		return authTransport{base: base, origin: origin, token: func() (string, error) { return token, nil }}
+	}
+	return base
+}
+
+func baseTransport(agentURL string) http.RoundTripper {
+	if isGateway(agentURL) && gatewayCredential.transport != nil {
+		return gatewayCredential.transport
 	}
 	return http.DefaultTransport
 }

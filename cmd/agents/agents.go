@@ -16,6 +16,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	container "github.com/inference-gateway/cli/internal/container"
+	gateway "github.com/inference-gateway/cli/internal/gateway"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	a2a "github.com/inference-gateway/cli/internal/protocols/a2a"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
@@ -600,8 +601,8 @@ func (c *command) agentsStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	gateway := c.state.Config().Gateway
-	a2ainfra.UseGatewayCredential(gateway.URL, gateway.APIKey)
+	gatewayConfig := c.state.Config().Gateway
+	a2ainfra.UseGatewayCredential(gatewayConfig.URL, gatewayConfig.APIKey, gateway.Transport(gatewayConfig.TLS))
 	report := a2a.ProbeAgents(context.Background(), local, external)
 
 	format, _ := cmd.Flags().GetString("format")

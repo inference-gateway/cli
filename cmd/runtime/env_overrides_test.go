@@ -34,6 +34,9 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 		"INFER_CHANNELS_MAX_WORKERS":                            " 9 ",
 		"INFER_CHANNELS_REQUIRE_APPROVAL":                       " false ",
 		"INFER_CHAT_KEYBINDINGS_BINDINGS_HELP_TOGGLE_HELP_KEYS": "ctrl+h, f1",
+		"INFER_GATEWAY_TLS_CA_FILE":                             "~/gateway-ca.crt",
+		"INFER_GATEWAY_TLS_CERT_FILE":                           "~/gateway-client.crt",
+		"INFER_GATEWAY_TLS_KEY_FILE":                            "~/gateway-client.key",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -58,6 +61,7 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 	assert.Equal(t, 9, cfg.Channels.MaxWorkers, "padded numbers parse")
 	assert.False(t, cfg.Channels.RequireApproval)
 	assert.Equal(t, []string{"ctrl+h", "f1"}, cfg.Chat.Keybindings.Bindings["help_toggle_help"].Keys)
+	assert.Equal(t, config.PeerTLSConfig{CAFile: "~/gateway-ca.crt", CertFile: "~/gateway-client.crt", KeyFile: "~/gateway-client.key"}, cfg.Gateway.TLS)
 }
 
 // A set-but-empty variable is the zero value, a value that does not parse

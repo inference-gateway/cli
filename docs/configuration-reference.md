@@ -106,6 +106,10 @@ gateway:
   standalone_binary: true  # Run the gateway as a standalone binary (default; set false for Docker mode)
   include_models: []  # Optional: only allow specific models (allowlist)
   exclude_models: []  # Optional: blocklist of specific models (opt-in; the picker already hides non-chat models by modalities)
+  tls:                # Optional: a private gateway CA and a client certificate for mTLS
+    ca_file: ""
+    cert_file: ""
+    key_file: ""
 client:
   timeout: 200
   stall_threshold_sec: 30
@@ -212,6 +216,24 @@ telemetry:
   - Example: `["openai/gpt-4", "anthropic/claude-4-opus"]`
   - This is passed to the gateway as the `DISALLOWED_MODELS` environment variable
   - Note: `include_models` and `exclude_models` can be used together - the gateway will apply both filters
+- **gateway.tls.ca_file**: A PEM CA bundle trusted for gateway calls on top of the system roots, for a gateway whose
+  certificate comes from a private CA. Every other HTTPS call keeps the system roots alone.
+  Set via `INFER_GATEWAY_TLS_CA_FILE`.
+- **gateway.tls.cert_file** and **gateway.tls.key_file**: The client certificate and key infer presents to a gateway that
+  requires mutual TLS. Set both or neither. Set via `INFER_GATEWAY_TLS_CERT_FILE` and `INFER_GATEWAY_TLS_KEY_FILE`.
+  - Paths may start with `~`
+  - Every gateway call uses them: the agent loop, model listing, titles, summaries, media, the gateway version probe and
+    A2A requests to the gateway. Daemon workers inherit them, since they read the same config and environment
+  - A file that cannot be loaded fails each gateway call with the reason, naming the setting
+
+```yaml
+gateway:
+  url: https://gateway.example.internal:8443
+  tls:
+    ca_file: ~/.infer/gateway-ca.crt
+    cert_file: ~/.infer/gateway-client.crt
+    key_file: ~/.infer/gateway-client.key
+```
 
 ### Client Settings
 
@@ -1133,6 +1155,8 @@ ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.y
 - `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
 - `INFER_GATEWAY_STANDALONE_BINARY`: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
+- `INFER_GATEWAY_TLS_CA_FILE`: CA bundle trusted for gateway calls on top of the system roots
+- `INFER_GATEWAY_TLS_CERT_FILE`, `INFER_GATEWAY_TLS_KEY_FILE`: Client certificate and key for a gateway that requires mTLS
 
 ### Client Configuration
 
