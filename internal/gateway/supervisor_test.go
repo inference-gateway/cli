@@ -185,7 +185,7 @@ func TestProbeVersionEndpoint(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			if got := probeVersionEndpoint(context.Background(), srv.URL); got != tt.want {
+			if got := probeVersionEndpoint(context.Background(), nil, srv.URL); got != tt.want {
 				t.Errorf("probeVersionEndpoint() = %q, want %q", got, tt.want)
 			}
 		})

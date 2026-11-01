@@ -101,9 +101,10 @@ type BindingTLSConfig struct {
 	ClientAuth bool    `yaml:"client_auth" mapstructure:"client_auth"`
 }
 
-// PeerTLSConfig is how this daemon reaches a daemon-kind workspace over TLS:
-// the CA that signed its certificate, else the system roots, and a client
-// certificate when the peer requires one.
+// PeerTLSConfig is how infer reaches a TLS peer, a daemon-kind workspace or the
+// gateway: the CA that signed its certificate and a client certificate when
+// the peer requires one. A set CA replaces the system roots for a workspace and
+// is added to them for the gateway.
 type PeerTLSConfig struct {
 	CAFile   string `yaml:"ca_file,omitempty" mapstructure:"ca_file"`
 	CertFile string `yaml:"cert_file,omitempty" mapstructure:"cert_file"`

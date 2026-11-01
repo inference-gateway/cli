@@ -1,0 +1,125 @@
+apiVersion: netbird.io/v1alpha1
+kind: Group
+metadata:
+  name: infer-local
+  namespace: infer-peers
+spec:
+  name: infer-local
+---
+apiVersion: netbird.io/v1alpha1
+kind: SetupKey
+metadata:
+  name: infer-local
+  namespace: infer-peers
+spec:
+  name: infer-local
+  ephemeral: true
+  allowExtraDnsLabels: true
+  autoGroups:
+    - localRef:
+        name: infer-local
+---
+apiVersion: netbird.io/v1alpha1
+kind: Group
+metadata:
+  name: infer-k8s
+  namespace: infer-peers
+spec:
+  name: infer-k8s
+---
+apiVersion: netbird.io/v1alpha1
+kind: SetupKey
+metadata:
+  name: infer-k8s
+  namespace: infer-peers
+spec:
+  name: infer-k8s
+  ephemeral: true
+  allowExtraDnsLabels: true
+  autoGroups:
+    - localRef:
+        name: infer-k8s
+---
+apiVersion: netbird.io/v1alpha1
+kind: SidecarProfile
+metadata:
+  name: infer-k8s
+  namespace: infer-peers
+spec:
+  setupKeyRef:
+    name: infer-k8s
+  extraDNSLabels:
+    - infer-k8s
+  podSelector:
+    matchLabels:
+      app: infer-k8s
+---
+apiVersion: netbird.io/v1alpha1
+kind: Group
+metadata:
+  name: gateway
+  namespace: infer-peers
+spec:
+  name: gateway
+---
+apiVersion: netbird.io/v1alpha1
+kind: SetupKey
+metadata:
+  name: gateway
+  namespace: infer-peers
+spec:
+  name: gateway
+  ephemeral: true
+  allowExtraDnsLabels: true
+  autoGroups:
+    - localRef:
+        name: gateway
+---
+apiVersion: netbird.io/v1alpha1
+kind: SidecarProfile
+metadata:
+  name: gateway
+  namespace: infer-peers
+spec:
+  setupKeyRef:
+    name: gateway
+  extraDNSLabels:
+    - gateway
+  podSelector:
+    matchLabels:
+      app: gateway
+---
+apiVersion: netbird.io/v1alpha1
+kind: Group
+metadata:
+  name: attacker
+  namespace: infer-peers
+spec:
+  name: attacker
+---
+apiVersion: netbird.io/v1alpha1
+kind: SetupKey
+metadata:
+  name: attacker
+  namespace: infer-peers
+spec:
+  name: attacker
+  ephemeral: true
+  allowExtraDnsLabels: true
+  autoGroups:
+    - localRef:
+        name: attacker
+---
+apiVersion: netbird.io/v1alpha1
+kind: SidecarProfile
+metadata:
+  name: attacker
+  namespace: infer-peers
+spec:
+  setupKeyRef:
+    name: attacker
+  extraDNSLabels:
+    - attacker
+  podSelector:
+    matchLabels:
+      app: attacker

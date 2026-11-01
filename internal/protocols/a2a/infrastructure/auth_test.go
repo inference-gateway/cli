@@ -339,8 +339,8 @@ func fetchTask(t *testing.T, c client.A2AClient) error {
 // useGatewayCredential makes key the credential of the gateway at gatewayURL for one test.
 func useGatewayCredential(t *testing.T, gatewayURL, key string) {
 	t.Helper()
-	UseGatewayCredential(gatewayURL, key)
-	t.Cleanup(func() { UseGatewayCredential("", "") })
+	UseGatewayCredential(gatewayURL, key, nil)
+	t.Cleanup(func() { UseGatewayCredential("", "", nil) })
 }
 
 func TestNewClient_SendsGatewayKeyOnEveryRequestType(t *testing.T) {
@@ -409,6 +409,26 @@ func TestNewClient_AgentCredentialsBeatTheGatewayKey(t *testing.T) {
 	}
 	if got := gateway.headers(); len(got) != 1 || got[0] != "Bearer agent-token" {
 		t.Fatalf("Authorization headers = %q, want one Bearer agent-token", got)
+	}
+}
+
+// TestNewClient_ReachesOnlyTheGatewayOverItsTransport relies on every httptest
+// TLS server sharing one certificate: the gateway's transport would trust the
+// other agent too, so the other agent failing proves it got the default.
+func TestNewClient_ReachesOnlyTheGatewayOverItsTransport(t *testing.T) {
+	gateway := httptest.NewTLSServer(&authRecorder{})
+	defer gateway.Close()
+	other := httptest.NewTLSServer(&authRecorder{})
+	defer other.Close()
+	writeAgentsYAML(t, "agents: []\n")
+	UseGatewayCredential(gateway.URL, "", gateway.Client().Transport)
+	t.Cleanup(func() { UseGatewayCredential("", "", nil) })
+
+	if _, err := NewClient(gateway.URL).GetAgentCard(t.Context()); err != nil {
+		t.Fatalf("gateway card fetch without an API key: %v", err)
+	}
+	if _, err := NewClient(other.URL).GetAgentCard(t.Context()); err == nil || !strings.Contains(err.Error(), "certificate") {
+		t.Fatalf("other agent card fetch err = %v, want a certificate error from the default transport", err)
 	}
 }
 

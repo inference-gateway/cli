@@ -85,17 +85,18 @@ type ContainerRuntimeConfig struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL              string   `yaml:"url" mapstructure:"url"`
-	APIKey           string   `yaml:"api_key" mapstructure:"api_key"`
-	Timeout          int      `yaml:"timeout" mapstructure:"timeout"`
-	OCI              string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
-	Run              bool     `yaml:"run" mapstructure:"run"`
-	Mock             bool     `yaml:"mock,omitempty" mapstructure:"mock,omitempty"`
-	StandaloneBinary bool     `yaml:"standalone_binary" mapstructure:"standalone_binary"`
-	Debug            bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
-	IncludeModels    []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
-	ExcludeModels    []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
-	VisionEnabled    bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
+	URL              string        `yaml:"url" mapstructure:"url"`
+	APIKey           string        `yaml:"api_key" mapstructure:"api_key"`
+	Timeout          int           `yaml:"timeout" mapstructure:"timeout"`
+	OCI              string        `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
+	Run              bool          `yaml:"run" mapstructure:"run"`
+	Mock             bool          `yaml:"mock,omitempty" mapstructure:"mock,omitempty"`
+	StandaloneBinary bool          `yaml:"standalone_binary" mapstructure:"standalone_binary"`
+	Debug            bool          `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
+	IncludeModels    []string      `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
+	ExcludeModels    []string      `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
+	VisionEnabled    bool          `yaml:"vision_enabled" mapstructure:"vision_enabled"`
+	TLS              PeerTLSConfig `yaml:"tls,omitempty" mapstructure:"tls"`
 }
 
 // SpeechToTextConfig contains speech-to-text (Whisper) integration settings.

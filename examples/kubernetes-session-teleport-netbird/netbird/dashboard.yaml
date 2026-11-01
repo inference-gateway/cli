@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: netbird
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3d-infer-netbird-server-0
+      containers:
+        - name: dashboard
+          image: netbirdio/dashboard:v2.96.0
+          env:
+            - name: NETBIRD_MGMT_API_ENDPOINT
+              value: http://localhost:18080
+            - name: NETBIRD_MGMT_GRPC_API_ENDPOINT
+              value: http://localhost:18080
+            - name: AUTH_AUDIENCE
+              value: netbird-dashboard
+            - name: AUTH_CLIENT_ID
+              value: netbird-dashboard
+            - name: AUTH_CLIENT_SECRET
+              value: ""
+            - name: AUTH_AUTHORITY
+              value: http://localhost:18080/oauth2
+            - name: USE_AUTH0
+              value: "false"
+            - name: AUTH_SUPPORTED_SCOPES
+              value: openid profile email groups
+            - name: AUTH_REDIRECT_URI
+              value: /nb-auth
+            - name: AUTH_SILENT_REDIRECT_URI
+              value: /nb-silent-auth
+            - name: NGINX_SSL_PORT
+              value: "443"
+            - name: LETSENCRYPT_DOMAIN
+              value: none
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: netbird
+spec:
+  type: LoadBalancer
+  selector:
+    app: dashboard
+  ports:
+    - name: http
+      port: 18081
+      targetPort: http

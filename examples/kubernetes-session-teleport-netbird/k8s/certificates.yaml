@@ -1,0 +1,94 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+  namespace: infer-peers
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: peers-ca
+  namespace: infer-peers
+spec:
+  isCA: true
+  commonName: infer peers demo CA
+  secretName: peers-ca
+  duration: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: peers-ca
+  namespace: infer-peers
+spec:
+  ca:
+    secretName: peers-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-k8s-tls
+  namespace: infer-peers
+spec:
+  commonName: infer-k8s.netbird.internal
+  secretName: infer-k8s-tls
+  duration: 720h
+  dnsNames:
+    - infer-k8s.netbird.internal
+    - infer-k8s
+    - localhost
+  usages:
+    - server auth
+    - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infer-local-tls
+  namespace: infer-peers
+spec:
+  commonName: infer-local
+  secretName: infer-local-tls
+  duration: 720h
+  usages:
+    - client auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gateway-tls
+  namespace: infer-peers
+spec:
+  commonName: gateway.netbird.internal
+  secretName: gateway-tls
+  duration: 720h
+  dnsNames:
+    - gateway.netbird.internal
+  usages:
+    - server auth
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: peers-ca
+    kind: Issuer

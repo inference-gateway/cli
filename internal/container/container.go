@@ -124,6 +124,7 @@ type ServiceContainer struct {
 	taskRetentionService   a2adomain.TaskRetentionService
 	backgroundTaskService  a2adomain.BackgroundTaskService
 	gatewayManager         *gateway.Supervisor
+	gatewayTransport       http.RoundTripper
 	mockGateway            *http.Server
 	agentSupervisor        a2adomain.AgentSupervisor
 
@@ -231,7 +232,8 @@ func newServiceContainer(cfg *config.Config, daemonOpts *daemonthread.Options) *
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
 
-	a2ainfra.UseGatewayCredential(cfg.Gateway.URL, cfg.Gateway.APIKey)
+	container.gatewayTransport = gateway.Transport(cfg.Gateway.TLS)
+	a2ainfra.UseGatewayCredential(cfg.Gateway.URL, cfg.Gateway.APIKey, container.gatewayTransport)
 
 	if cfg.Gateway.Mock && daemonOpts == nil {
 		container.startMockGateway()
@@ -1146,7 +1148,7 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Dur
 		APIKey:      c.config.Gateway.APIKey,
 		Timeout:     timeout,
 		RetryConfig: retry,
-		Transport:   telemetry.PropagationTransport(nil),
+		Transport:   telemetry.PropagationTransport(c.gatewayTransport),
 	})
 }
 

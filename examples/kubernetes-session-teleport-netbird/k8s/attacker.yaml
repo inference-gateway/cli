@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attacker
+  namespace: infer-peers
+  labels:
+    app: attacker
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k3d-infer-netbird-agent-0
+  containers:
+    - name: attacker
+      image: nicolaka/netshoot:v0.15
+      command:
+        - sleep
+        - infinity
+      volumeMounts:
+        - name: resolv-conf
+          mountPath: /etc/resolv.conf
+          subPath: resolv.conf
