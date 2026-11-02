@@ -1,0 +1,13 @@
+workspace: workstation
+away_exit: 0s
+workspaces:
+  - name: workstation
+    kind: local
+binding:
+  enabled: true
+  port: 52792
+  token: daemon-session-artifacts-demo
+  tls:
+    mode: files
+    cert_file: __ROOT__/tls/server.crt
+    key_file: __ROOT__/tls/server.key
