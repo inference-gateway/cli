@@ -128,7 +128,12 @@ workspaces:
   the pod daemon's binding requires them. The pod daemon idles out after `idle_ttl`, or after `away_ttl`
   once its session teleported away with no client attached, the operator suspends the Orchestrator, and
   the next teleport resumes it. `env` is the pod daemon's non-secret environment, such as the agent's
-  model. `address` replaces the port-forward when an Ingress or Gateway exposes the pods.
+  model. `address` replaces the port-forward when an Ingress or Gateway exposes the pods. It may name each
+  session: `{{.Orchestrator}}` in it expands to the session's Orchestrator name, and a fixed `address` keeps
+  reaching one host for every session. `binding_service.annotations` and `binding_service.labels` land as
+  given on each session's binding Service, with `{{.Orchestrator}}` expanded in the values, for a controller
+  that acts on Service metadata such as a VPN operator. The CLI ships no such keys, and `binding_service`
+  needs the operator v0.33.0 or later. See [sessions on the VPN](#sessions-on-the-vpn).
 - `mode` says where a Kubernetes workspace runs the gateway its agents call, and `gateway_env` names the
   variables that gateway gets, such as provider keys. A teleport resolves them like the local gateway does:
   this daemon's environment first, then `~/.infer/auth.yaml`.
@@ -287,6 +292,52 @@ policies, or with `TAILNET=tailscale` on your own Tailscale account, your machin
 The workers on the remote daemon call its gateway with that daemon's config and environment. When that gateway
 requires mutual TLS, give the daemon `gateway.tls` with the CA and a client certificate
 ([configuration reference](configuration-reference.md#gateway-settings)). The example runs mTLS on that hop too.
+
+### Sessions on the VPN
+
+A `kind: kubernetes` workspace can dial each session on the overlay instead of port-forwarding through the kube
+API, when a VPN operator in the cluster puts the session's pod or its binding Service there. The workspace knows
+no VPN: `binding_service` carries whatever that operator reads, and `address` names the session with
+`{{.Orchestrator}}`. The dial still pins this daemon's CA and verifies the Orchestrator name, which the pod's
+certificate carries, so the overlay name needs no certificate of its own. The kube API stays in use for the
+Orchestrator's lifecycle.
+
+With the [Tailscale Kubernetes operator](https://tailscale.com/kb/1236/kubernetes-operator), annotating the
+binding Service makes each session a tailnet device named after its Orchestrator:
+
+```yaml
+  - name: k8s-dev
+    kind: kubernetes
+    context: build-cluster
+    namespace: infer-workspaces
+    image: ghcr.io/inference-gateway/cli:latest
+    address: "{{.Orchestrator}}.example.ts.net:52789"
+    binding_service:
+      annotations:
+        tailscale.com/expose: "true"
+        tailscale.com/hostname: "{{.Orchestrator}}"
+    gateway_env:
+      - ANTHROPIC_API_KEY
+```
+
+With [NetBird](https://docs.netbird.io/how-to/kubernetes-operator), the operator selects pods, not Services, so
+`binding_service` stays empty. A `SidecarProfile` whose `podSelector` matches `inference-gateway.com/workspace: k8s-dev`
+injects a peer into every session's pod, since Sandbox pods carry the Orchestrator's labels. The peer takes the
+pod's hostname as its DNS name, so set `address` to the name your NetBird setup assigns to that pod:
+
+```yaml
+  - name: k8s-dev
+    kind: kubernetes
+    context: k3d-infer-netbird
+    namespace: infer-workspaces
+    image: ghcr.io/inference-gateway/cli:latest
+    address: "{{.Orchestrator}}.netbird.internal:52789"
+    gateway_env:
+      - ANTHROPIC_API_KEY
+```
+
+A policy on the overlay decides which machines reach the binding port. `infer daemon workspaces` still reports
+the workspace through the kube API, and a teleport fails if the overlay name does not resolve.
 
 ## Session workers
 

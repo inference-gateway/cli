@@ -106,6 +106,10 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"unknown mode", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(kubernetes, "sidecar")}}, "invalid mode"},
 		{"mode on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(daemon, WorkspaceModeStandard)}}, "only a kubernetes workspace"},
 		{"gateway_env on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", GatewayEnv: []string{"OPENAI_API_KEY"}}}}, "only a kubernetes workspace"},
+		{"binding_service on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", BindingService: BindingServiceConfig{Labels: map[string]string{"a": "b"}}}}}, "only a kubernetes workspace"},
+		{"kubernetes address template", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Orchestrator}}.ts.net:52789")}}, ""},
+		{"kubernetes address template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Pod}}.ts.net:52789")}}, "address of workspace"},
+		{"kubernetes annotation template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAnnotation(kubernetes, "vpn/hostname", "{{.Orchestrator")}}, "binding_service.annotations"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -185,4 +189,45 @@ func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
 func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
 	entry.Mode = mode
 	return entry
+}
+
+func withAddress(entry WorkspaceEntry, address string) WorkspaceEntry {
+	entry.Address = address
+	return entry
+}
+
+func withAnnotation(entry WorkspaceEntry, key, value string) WorkspaceEntry {
+	entry.BindingService.Annotations = map[string]string{key: value}
+	return entry
+}
+
+func TestWorkspaceEntryForOrchestrator(t *testing.T) {
+	entry := WorkspaceEntry{Name: "k8s", Address: "{{.Orchestrator}}.ts.net:52789", BindingService: BindingServiceConfig{
+		Annotations: map[string]string{"vpn/hostname": "{{.Orchestrator}}", "vpn/expose": "true"},
+		Labels:      map[string]string{"session": "{{.Orchestrator}}"},
+	}}
+	expanded, err := entry.ForOrchestrator("infer-abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expanded.Address != "infer-abc.ts.net:52789" {
+		t.Fatalf("Address = %q", expanded.Address)
+	}
+	if expanded.BindingService.Annotations["vpn/hostname"] != "infer-abc" || expanded.BindingService.Annotations["vpn/expose"] != "true" {
+		t.Fatalf("Annotations = %v", expanded.BindingService.Annotations)
+	}
+	if expanded.BindingService.Labels["session"] != "infer-abc" {
+		t.Fatalf("Labels = %v", expanded.BindingService.Labels)
+	}
+	if entry.Address != "{{.Orchestrator}}.ts.net:52789" || entry.BindingService.Annotations["vpn/hostname"] != "{{.Orchestrator}}" {
+		t.Fatal("ForOrchestrator mutated the entry")
+	}
+	fixed, err := (WorkspaceEntry{Address: "pods.lan:52789"}).ForOrchestrator("infer-abc")
+	if err != nil || fixed.Address != "pods.lan:52789" {
+		t.Fatalf("fixed address = %q, %v", fixed.Address, err)
+	}
+	typo := WorkspaceEntry{Address: "{{.Pod}}.lan"}
+	if _, err := typo.ForOrchestrator("infer-abc"); err == nil {
+		t.Fatal("an unknown field expanded")
+	}
 }

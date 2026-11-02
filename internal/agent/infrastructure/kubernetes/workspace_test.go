@@ -136,6 +136,33 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 	if orchestrator.GetLabels()[labelConversation] != "conv-1" || orchestrator.GetLabels()[labelWorkspace] != "k8s" {
 		t.Fatalf("labels = %v", orchestrator.GetLabels())
 	}
+	if _, found, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "daemon", "binding", "service"); found {
+		t.Fatal("spec.daemon.binding.service is set without binding_service")
+	}
+}
+
+func TestOrchestratorCarriesTheBindingServiceMetadata(t *testing.T) {
+	e, _, _ := testWorkspace(t, true, nil)
+	e.entry.Image = "infer:local"
+	e.entry.BindingService = config.BindingServiceConfig{
+		Annotations: map[string]string{"vpn/expose": "true", "vpn/hostname": "{{.Orchestrator}}"},
+		Labels:      map[string]string{"session": "{{.Orchestrator}}"},
+	}
+	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, _, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "daemon", "binding", "service")
+	want := map[string]any{
+		"annotations": map[string]any{"vpn/expose": "true", "vpn/hostname": "infer-1"},
+		"labels":      map[string]any{"session": "infer-1"},
+	}
+	if !reflect.DeepEqual(service, want) {
+		t.Fatalf("spec.daemon.binding.service = %v, want %v", service, want)
+	}
+	if orchestrator.DeepCopy() == nil {
+		t.Fatal("the Orchestrator is not deep-copyable")
+	}
 }
 
 func TestAwaitReady(t *testing.T) {

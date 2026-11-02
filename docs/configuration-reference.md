@@ -1114,7 +1114,8 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   `client_auth`) and `workspaces`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
   `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
   and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
-  `forward_env`, `mode` (standard|all-in-one) and `gateway_env` for a Kubernetes workspace. See
+  `forward_env`, `mode` (standard|all-in-one), `gateway_env` and `binding_service` (`annotations`, `labels`, with
+  `{{.Orchestrator}}` expanded per session, as in `address`) for a Kubernetes workspace. See
   [infer daemon](daemon.md#workspaces-and-teleports).
 - **`prompts.yaml`** - `agent`, `git`, `conversation`, `init`, `vision`. Prompts are edited directly
   rather than through `config set`. See the [Commands Reference](commands-reference.md).
