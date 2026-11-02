@@ -75,9 +75,11 @@ type Thread struct {
 	done  chan struct{}
 }
 
-// waiter is a request waiting for its reply type.
+// waiter is a request waiting for its reply type, and for its own id when
+// replies of that type carry the request's id.
 type waiter struct {
 	replyType string
+	id        string
 	reply     chan reply
 }
 
@@ -91,6 +93,7 @@ type header struct {
 	Type     string `json:"type"`
 	RunID    string `json:"runId"`
 	ThreadID string `json:"threadId"`
+	ID       string `json:"id"`
 	Message  string `json:"message"`
 	Outcome  struct {
 		Type string `json:"type"`
@@ -168,7 +171,7 @@ func (t *Thread) Follow(ctx context.Context, id string, opts sessionsdomain.Thre
 	if placement.Remote() {
 		opts.Workspace, opts.WorkspaceDir = placement.Workspace, placement.WorkspaceDir
 	}
-	frame := followFrame{Type: "resume_conversation", ProjectDir: t.opts.ProjectDir, ID: id, ThreadOptions: opts}
+	frame := followFrame{Type: "resume_conversation", ProjectDir: t.projectDir(), ID: id, ThreadOptions: opts}
 	if _, err := t.Request(ctx, frame, "MESSAGES_SNAPSHOT"); err != nil {
 		return err
 	}
@@ -195,6 +198,13 @@ func (t *Thread) SessionProject(ctx context.Context, id string) string {
 		return ""
 	}
 	return lease.WorkspaceDir
+}
+
+// projectDir is the project every request names, which MoveTo changes.
+func (t *Thread) projectDir() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.opts.ProjectDir
 }
 
 // MoveTo makes this a daemon chat in projectDir. It is for attaching, before
@@ -312,7 +322,13 @@ func (t *Thread) Send(frame any) error {
 // Request sends frame and returns the first reply of replyType, or the error a
 // RUN_ERROR without a run carries in its place.
 func (t *Thread) Request(ctx context.Context, frame any, replyType string) ([]byte, error) {
-	w := &waiter{replyType: replyType, reply: make(chan reply, 1)}
+	return t.request(ctx, frame, replyType, "")
+}
+
+// request is Request for the reply of replyType carrying id, or for the first
+// one of that type when id is "".
+func (t *Thread) request(ctx context.Context, frame any, replyType, id string) ([]byte, error) {
+	w := &waiter{replyType: replyType, id: id, reply: make(chan reply, 1)}
 	t.mu.Lock()
 	if t.conn == nil {
 		t.mu.Unlock()
@@ -331,6 +347,11 @@ func (t *Thread) Request(ctx context.Context, frame any, replyType string) ([]by
 		t.dropWaiter(w)
 		return nil, ctx.Err()
 	}
+}
+
+// awaits reports whether the reply h is the one w waits for.
+func (w *waiter) awaits(h header) bool {
+	return w.replyType == h.Type && (w.id == "" || w.id == h.ID)
 }
 
 func (t *Thread) dropWaiter(w *waiter) {
@@ -515,23 +536,26 @@ func (t *Thread) rejoin() error {
 	return nil
 }
 
-// answer hands a reply to the oldest request waiting for its type. A
-// RUN_ERROR without a run is the refusal of the oldest request.
+// answer hands a reply to the oldest request waiting for it. A RUN_ERROR
+// without a run fails every waiting request: the daemon sends one when the
+// thread's worker failed, which drops every request it had.
 func (t *Thread) answer(h header, frame []byte) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for i, w := range t.waiters {
-		refused := h.Type == "RUN_ERROR" && h.RunID == ""
-		if !refused && w.replyType != h.Type {
-			continue
-		}
-		t.waiters = slices.Delete(t.waiters, i, i+1)
-		if refused {
+	if h.Type == "RUN_ERROR" && h.RunID == "" {
+		refused := t.waiters
+		t.waiters = nil
+		for _, w := range refused {
 			w.reply <- reply{err: errors.New(h.Message)}
-		} else {
-			w.reply <- reply{frame: frame}
 		}
-		return true
+		return len(refused) > 0
+	}
+	for i, w := range t.waiters {
+		if w.awaits(h) {
+			t.waiters = slices.Delete(t.waiters, i, i+1)
+			w.reply <- reply{frame: frame}
+			return true
+		}
 	}
 	return false
 }

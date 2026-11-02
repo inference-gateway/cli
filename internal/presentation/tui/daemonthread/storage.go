@@ -36,7 +36,7 @@ func (s *Storage) LoadConversation(ctx context.Context, conversationID string) (
 			return nil, convdomain.ConversationMetadata{}, err
 		}
 	}
-	frame := map[string]string{"type": "export_conversation", "id": conversationID, "project_dir": s.thread.opts.ProjectDir}
+	frame := map[string]string{"type": "export_conversation", "id": conversationID, "project_dir": s.thread.projectDir()}
 	data, err := s.thread.Request(ctx, frame, "conversation_export")
 	if err != nil {
 		return nil, convdomain.ConversationMetadata{}, err
@@ -62,7 +62,7 @@ func (s *Storage) ListConversations(ctx context.Context, _ string, _, offset int
 	if offset > 0 {
 		return nil, nil
 	}
-	data, err := s.thread.Request(ctx, map[string]string{"type": "list_conversations", "project_dir": s.thread.opts.ProjectDir}, "conversations")
+	data, err := s.thread.Request(ctx, map[string]string{"type": "list_conversations", "project_dir": s.thread.projectDir()}, "conversations")
 	if err != nil {
 		return nil, err
 	}

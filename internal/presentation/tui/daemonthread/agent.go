@@ -153,7 +153,7 @@ func (a *Agent) syncWorker(ctx context.Context) error {
 	if synced {
 		return nil
 	}
-	project := a.thread.opts.ProjectDir
+	project := a.thread.projectDir()
 	if _, err := a.thread.Request(ctx, map[string]string{"type": "set_mode", "mode": want.mode.ModeKey(), "project_dir": project}, "mode"); err != nil {
 		return err
 	}

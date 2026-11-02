@@ -344,13 +344,14 @@ only back to this machine.
 | `/compact` | Off, the worker compacts the session itself at `compact.auto_at` |
 | `/effort` | Off, the worker's config sets the reasoning effort |
 | `/tasks`, `ctrl+b` and rewinding or editing the history | Off, the conversation and its commands live on the worker |
-| Model-backed custom shortcuts and next-step suggestions | Off, the TUI runs no model of its own |
+| Snippet shortcuts such as `/git commit` and the `/diff` commit key | Ask the session's model on the worker |
+| Next-step suggestions | Off, the TUI runs no model of its own |
 | `/copy`, `/context`, `/cost`, `/help`, `/theme`, `/stats`, `/traces`, `/tools`, `/agents`, `#issue` | Work in the TUI |
 
 An unavailable feature says why in the status line. The TUI's `INFER_` overrides reach the worker only as its
 model and agent mode, and notes only the TUI shows, such as `/cost` output, are gone after the next turn,
 when the TUI reloads the conversation the worker stored. A pod image older than the daemon may lack the
-richer interrupts, tool progress and plan approval, and cannot send a session back.
+richer interrupts, tool progress, plan approval and snippet shortcuts, and cannot send a session back.
 
 ## Starting it
 

@@ -1,7 +1,11 @@
 package daemonthread
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +17,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -22,6 +27,7 @@ import (
 var (
 	_ agentdomain.AgentService    = (*Agent)(nil)
 	_ convdomain.ModelService     = (*Models)(nil)
+	_ llm.Completer               = (*Completer)(nil)
 	_ storage.ConversationStorage = (*Storage)(nil)
 	_ tui.SessionTeleporter       = (*Thread)(nil)
 	_ agui.Handler                = (*Thread)(nil)
@@ -245,6 +251,79 @@ func TestModelsRecordWhatTheWorkersGatewaySaysAboutEachModel(t *testing.T) {
 	}
 	if label := models.ModalitiesLabel("daemon/seer"); label != "vision" {
 		t.Errorf("modalities = %q, want vision", label)
+	}
+}
+
+func TestCompleterGetsEachAnswerFromTheWorker(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	var mu sync.Mutex
+	var held []map[string]any
+	d.setCompletions(func(conn *agui.Conn, request map[string]any) {
+		mu.Lock()
+		defer mu.Unlock()
+		held = append(held, request)
+		if len(held) < 2 {
+			return
+		}
+		for _, r := range slices.Backward(held) {
+			answer, _ := json.Marshal(map[string]any{
+				"type": "completion_result", "id": r["id"],
+				"content": fmt.Sprintf("%v on %v in %v", r["prompt"], r["model"], r["project_dir"]),
+			})
+			send(conn, string(answer))
+		}
+	})
+	completer := NewCompleter(thread)
+
+	var wg sync.WaitGroup
+	answers := make([]string, 2)
+	for i, prompt := range []string{"first", "second"} {
+		wg.Go(func() {
+			resp, err := completer.Complete(t.Context(), llm.Request{Model: "m1", Prompt: prompt, MaxTokens: 1000})
+			if err != nil {
+				t.Errorf("Complete(%s): %v", prompt, err)
+			}
+			answers[i] = resp.Answer()
+		})
+	}
+	wg.Wait()
+
+	want := []string{"first on m1 in /proj", "second on m1 in /proj"}
+	if !slices.Equal(answers, want) {
+		t.Errorf("answers = %q, want %q", answers, want)
+	}
+}
+
+func TestCompleterFailsEveryRequestTheWorkerDroppedAtOnce(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	var mu sync.Mutex
+	held := 0
+	d.setCompletions(func(conn *agui.Conn, _ map[string]any) {
+		mu.Lock()
+		defer mu.Unlock()
+		if held++; held == 2 {
+			send(conn, `{"type":"RUN_ERROR","message":"the session worker exited before it answered"}`)
+		}
+	})
+	completer := NewCompleter(thread)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i := range errs {
+		wg.Go(func() {
+			_, errs[i] = completer.Complete(ctx, llm.Request{Prompt: "commit message"})
+		})
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err == nil || err.Error() != "the session worker exited before it answered" {
+			t.Errorf("request %d failed with %v, want the worker's exit", i, err)
+		}
 	}
 }
 

@@ -32,10 +32,11 @@ type fakeDaemon struct {
 	handler *aguimocks.FakeHandler
 	port    int
 
-	mu     sync.Mutex
-	runs   func(conn *agui.Conn, input map[string]any)
-	export []convdomain.ConversationEntry
-	reply  map[string]string
+	mu          sync.Mutex
+	runs        func(conn *agui.Conn, input map[string]any)
+	completions func(conn *agui.Conn, request map[string]any)
+	export      []convdomain.ConversationEntry
+	reply       map[string]string
 }
 
 // startDaemon starts the scripted daemon on port, a free one when 0.
@@ -69,7 +70,7 @@ func (d *fakeDaemon) handle(conn *agui.Conn, frame []byte) {
 		return
 	}
 	d.mu.Lock()
-	runs, export, canned := d.runs, d.export, d.reply[f["type"].(string)]
+	runs, completions, export, canned := d.runs, d.completions, d.export, d.reply[f["type"].(string)]
 	d.mu.Unlock()
 	switch f["type"] {
 	case "resume_conversation":
@@ -85,6 +86,10 @@ func (d *fakeDaemon) handle(conn *agui.Conn, frame []byte) {
 		if runs != nil {
 			input, _ := f["input"].(map[string]any)
 			runs(conn, input)
+		}
+	case "completion_request":
+		if completions != nil {
+			completions(conn, f)
 		}
 	default:
 		if canned != "" {
@@ -104,6 +109,12 @@ func (d *fakeDaemon) setRuns(runs func(conn *agui.Conn, input map[string]any)) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.runs = runs
+}
+
+func (d *fakeDaemon) setCompletions(completions func(conn *agui.Conn, request map[string]any)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.completions = completions
 }
 
 func (d *fakeDaemon) setExport(entries []convdomain.ConversationEntry) {

@@ -3,13 +3,17 @@ package daemonthread
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
 
+	uuid "github.com/google/uuid"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	conversation "github.com/inference-gateway/cli/internal/conversation"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 )
 
 // Models is the chat TUI's model service in daemon mode: the models the
@@ -32,7 +36,7 @@ func NewModels(thread *Thread) *Models {
 // modalities, which the worker fetched from its gateway, are recorded here
 // too, so the model picker shows them.
 func (m *Models) ListModels(ctx context.Context) ([]string, error) {
-	data, err := m.thread.Request(ctx, map[string]string{"type": "list_models", "project_dir": m.thread.opts.ProjectDir}, "models")
+	data, err := m.thread.Request(ctx, map[string]string{"type": "list_models", "project_dir": m.thread.projectDir()}, "models")
 	if err != nil {
 		return nil, err
 	}
@@ -87,4 +91,55 @@ func (m *Models) ValidateModel(modelID string) error {
 		return fmt.Errorf("model %q is not available on the daemon worker", modelID)
 	}
 	return nil
+}
+
+// Completer is the chat TUI's model side call in daemon mode, such as a
+// shortcut's snippet. The thread's worker answers it with the session's
+// gateway and model, on whichever workspace the session runs.
+type Completer struct {
+	thread *Thread
+}
+
+// NewCompleter builds the daemon-mode side call over thread.
+func NewCompleter(thread *Thread) *Completer {
+	return &Completer{thread: thread}
+}
+
+// completionRequest asks the worker for one side call, answered by the
+// completion_result carrying the same id.
+type completionRequest struct {
+	Type       string `json:"type"`
+	ProjectDir string `json:"project_dir"`
+	ID         string `json:"id"`
+	Model      string `json:"model,omitempty"`
+	System     string `json:"system,omitempty"`
+	Prompt     string `json:"prompt"`
+	MaxTokens  int    `json:"max_tokens,omitempty"`
+}
+
+// Complete asks the worker and waits at most requestTimeout, so a daemon too
+// old to know the frame fails the call instead of leaving it waiting.
+func (c *Completer) Complete(ctx context.Context, req llm.Request) (llm.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	frame := completionRequest{
+		Type: "completion_request", ProjectDir: c.thread.projectDir(), ID: uuid.NewString(),
+		Model: req.Model, System: req.System, Prompt: req.Prompt, MaxTokens: req.MaxTokens,
+	}
+	data, err := c.thread.request(ctx, frame, "completion_result", frame.ID)
+	if err != nil {
+		return llm.Response{}, err
+	}
+	var result struct {
+		Content   string `json:"content"`
+		Reasoning string `json:"reasoning"`
+		Error     string `json:"error"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return llm.Response{}, err
+	}
+	if result.Error != "" {
+		return llm.Response{}, errors.New(result.Error)
+	}
+	return llm.Response{Content: result.Content, Reasoning: result.Reasoning}, nil
 }

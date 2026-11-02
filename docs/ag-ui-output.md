@@ -186,7 +186,7 @@ on the serve worker's stdin and the daemon binding, with their shapes in the
 
 - The handshake (`browser_hello`, `browser_hello_ack`), which carries the token and the version
 - Opening a thread (`new_session`, `resume_conversation`) and stopping a run (`interrupt`)
-- The panel requests and their replies (`list_*`, `select_model`, `set_mode`, `tool_request`)
+- The panel requests and their replies (`list_*`, `select_model`, `set_mode`, `tool_request`, `completion_request`)
 - The browser commands (`browser_command`, `browser_result`), which a worker exchanges with the
   user's browser through the daemon
 - The state of the extension connection (`browser_extension_status`), which belongs to a
@@ -218,7 +218,7 @@ lines without translating them.
 | `{"type":"interrupt"}` | Cancels the running turn, which ends with `RUN_FINISHED` outcome `cancelled` |
 | `{"type":"browser_result","id":"...",...}` | Answers the `browser_command` carrying the same `id` |
 | `new_session`, `resume_conversation` | Answered with a `MESSAGES_SNAPSHOT` of the worker's conversation |
-| `list_*`, `select_model`, `set_mode`, `tool_request` | Answered with the [panel frames](browser-extension-protocol.md) for the worker's dir |
+| `list_*`, `select_model`, `set_mode`, `tool_request`, `completion_request` | Answered with the [panel frames](browser-extension-protocol.md) for the worker's dir |
 | `approval_response` | Answers a pending `tool_request`'s CUSTOM `approval_request` |
 | `plan_approval_response` | Decides the plan a `plan_approval` interrupt waits on, like its resume entry |
 

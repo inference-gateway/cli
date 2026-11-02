@@ -302,6 +302,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Modes:         c.stateManager,
 		History:       c.GetShellHistoryStorage(),
 		Storage:       c.storage,
+		Completer:     llm.New(c.createRawSDKClient()),
 		DefaultModel:  c.config.Agent.Model,
 	}, out)
 }
@@ -852,7 +853,9 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 
 	var completer llm.Completer
-	if c.daemonThread == nil {
+	if c.daemonThread != nil {
+		completer = daemonthread.NewCompleter(c.daemonThread)
+	} else {
 		completer = llm.New(c.createRawSDKClient())
 	}
 	configDirs := config.ConfigLookupDirs()
