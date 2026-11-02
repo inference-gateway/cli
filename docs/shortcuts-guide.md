@@ -92,7 +92,8 @@ These shortcuts are available out of the box:
 
 In a daemon chat (`infer chat --daemon`) `/compact`, `/effort` and `/tasks` are off, and `/diff` and `/explorer`
 are off while the session runs on another workspace. Each says why in the status line, see
-[the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon).
+[the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon). Snippet shortcuts such as `/git commit` ask the
+session's model wherever the session runs.
 
 A `/name` no shortcut answers for (a skill mention such as `/opentask`, or a typo) is sent to the agent as a regular message.
 

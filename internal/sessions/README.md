@@ -30,9 +30,10 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   (`RouteBrowser`, which the daemon wires to the browser context's extension relay) and the `browser_result` carrying the command's `id` goes
   back to that worker's stdin, so the worker's Browser tools resolve without binding a port. Commands serialize
   across threads, because one browser serves them, and the thread's clients never see the frames.
-- **Panel requests** - `list_*`, `select_model`, `set_mode` and `tool_request` run on the client's thread
-  when it is in the frame's `project_dir`, else on any live worker there, else on a fresh idle one. The reply
-  (`conversations`, `models`, `tool_result`, ...) goes back to the requester only.
+- **Panel requests** - `list_*`, `select_model`, `set_mode`, `tool_request` and `completion_request` run on the
+  client's thread when it is in the frame's `project_dir`, else on any live worker there, else on a fresh idle
+  one. The reply (`conversations`, `models`, `tool_result`, `completion_result`, ...) goes back to the requester
+  only. A `tool_result` and a `completion_result` reach the request with the same `id`, so concurrent ones never cross.
 - **Panel approvals** - a `tool_request`'s CUSTOM `approval_request` reaches its requester. The first
   `approval_response` for a `tool_call_id` goes to the worker, and any other client of the thread that saw it
   gets CUSTOM `approval_resolved`.

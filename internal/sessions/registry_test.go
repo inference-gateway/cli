@@ -262,6 +262,27 @@ func TestRegistryPanelRequestsAnswerTheRequester(t *testing.T) {
 	}
 }
 
+func TestRegistryCompletionResultsReachTheirOwnRequester(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	follower, a, b := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	handle(r, follower, `{"type":"new_session","project_dir":"/proj"}`)
+	_, lines := l.worker(0)
+
+	handle(r, a, `{"type":"completion_request","project_dir":"/proj","id":"c-1","prompt":"one"}`)
+	handle(r, b, `{"type":"completion_request","project_dir":"/proj","id":"c-2","prompt":"two"}`)
+	second := `{"type":"completion_result","id":"c-2","content":"two","error":""}`
+	first := `{"type":"completion_result","id":"c-1","content":"one","error":""}`
+	lines <- []byte(second)
+	lines <- []byte(first)
+
+	receives(t, a, first)
+	receives(t, b, second)
+	if follower.DeliverCallCount() != 0 {
+		t.Fatalf("the thread's follower got another client's completions: %q", delivered(follower))
+	}
+}
+
 func TestRegistryPanelRequestLaunchesInProjectDir(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)

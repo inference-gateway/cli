@@ -75,9 +75,11 @@ type Thread struct {
 	done  chan struct{}
 }
 
-// waiter is a request waiting for its reply type.
+// waiter is a request waiting for its reply type, and for its own id when
+// replies of that type carry the request's id.
 type waiter struct {
 	replyType string
+	id        string
 	reply     chan reply
 }
 
@@ -91,6 +93,7 @@ type header struct {
 	Type     string `json:"type"`
 	RunID    string `json:"runId"`
 	ThreadID string `json:"threadId"`
+	ID       string `json:"id"`
 	Message  string `json:"message"`
 	Outcome  struct {
 		Type string `json:"type"`
@@ -312,7 +315,13 @@ func (t *Thread) Send(frame any) error {
 // Request sends frame and returns the first reply of replyType, or the error a
 // RUN_ERROR without a run carries in its place.
 func (t *Thread) Request(ctx context.Context, frame any, replyType string) ([]byte, error) {
-	w := &waiter{replyType: replyType, reply: make(chan reply, 1)}
+	return t.request(ctx, frame, replyType, "")
+}
+
+// request is Request for the reply of replyType carrying id, or for the first
+// one of that type when id is "".
+func (t *Thread) request(ctx context.Context, frame any, replyType, id string) ([]byte, error) {
+	w := &waiter{replyType: replyType, id: id, reply: make(chan reply, 1)}
 	t.mu.Lock()
 	if t.conn == nil {
 		t.mu.Unlock()
@@ -331,6 +340,11 @@ func (t *Thread) Request(ctx context.Context, frame any, replyType string) ([]by
 		t.dropWaiter(w)
 		return nil, ctx.Err()
 	}
+}
+
+// awaits reports whether the reply h is the one w waits for.
+func (w *waiter) awaits(h header) bool {
+	return w.replyType == h.Type && (w.id == "" || w.id == h.ID)
 }
 
 func (t *Thread) dropWaiter(w *waiter) {
@@ -522,7 +536,7 @@ func (t *Thread) answer(h header, frame []byte) bool {
 	defer t.mu.Unlock()
 	for i, w := range t.waiters {
 		refused := h.Type == "RUN_ERROR" && h.RunID == ""
-		if !refused && w.replyType != h.Type {
+		if !refused && !w.awaits(h) {
 			continue
 		}
 		t.waiters = slices.Delete(t.waiters, i, i+1)

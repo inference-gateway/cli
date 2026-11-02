@@ -365,7 +365,8 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 ### Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_models`,
-`select_model`, `set_mode` and `tool_request` carry an optional `project_dir`.
+`select_model`, `set_mode`, `tool_request` and `completion_request` carry an
+optional `project_dir`.
 They run on the connection's thread when it is in that project, else on any
 running worker there, else on a fresh worker started in that project. Without
 `project_dir` they run on the connection's thread. Their replies go to the
@@ -447,6 +448,32 @@ Client → CLI, switch the thread's model for its next turns (same effect as
 ```json
 {"type": "select_model", "model": "openai/gpt-4o"}
 ```
+
+## Completions
+
+A client can ask the thread's model one question outside any run, the way the
+chat TUI's snippet shortcuts (`/git commit`) do in a daemon chat. The worker
+answers with its own gateway and model, so the call runs wherever the session
+runs, a remote workspace included.
+
+Client → CLI:
+
+```json
+{"type": "completion_request", "project_dir": "/abs/path/to/project", "id": "<uuid>", "model": "openai/gpt-4o", "prompt": "...", "max_tokens": 1000}
+```
+
+CLI → client, exactly one result per request id:
+
+```json
+{"type": "completion_result", "id": "<uuid>", "content": "...", "reasoning": "", "error": ""}
+```
+
+- `model` is optional. Without it the call runs on the thread's current model.
+  `system` and `max_tokens` are optional too.
+- `content` is the answer. A reasoning model that put its whole answer in its
+  reasoning leaves `content` empty and the answer in `reasoning`.
+- `error != ""` means the call failed. The result is matched by `id`, so
+  concurrent requests each get their own.
 
 ## Agent mode
 

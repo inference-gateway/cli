@@ -28,6 +28,8 @@ const (
 	frameRunAgentInput      = "run_agent_input"
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
+	frameCompletionRequest  = "completion_request"
+	frameCompletionResult   = "completion_result"
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
 	frameThreadActivity     = "thread_activity"
 
@@ -46,15 +48,16 @@ var forwarded = map[string]bool{
 // replyTypes maps each panel request to the reply frames its worker answers
 // with, which go back to the requester instead of the whole thread.
 var replyTypes = map[string][]string{
-	"list_conversations":  {"conversations"},
-	"list_history":        {"history"},
-	"list_skills":         {"skills"},
-	"list_models":         {"models"},
-	"select_model":        {"models", "mode"},
-	"set_mode":            {"mode"},
-	"export_conversation": {"conversation_export"},
-	"import_conversation": {"conversation_imported"},
-	frameToolRequest:      {frameToolResult},
+	"list_conversations":   {"conversations"},
+	"list_history":         {"history"},
+	"list_skills":          {"skills"},
+	"list_models":          {"models"},
+	"select_model":         {"models", "mode"},
+	"set_mode":             {"mode"},
+	"export_conversation":  {"conversation_export"},
+	"import_conversation":  {"conversation_imported"},
+	frameToolRequest:       {frameToolResult},
+	frameCompletionRequest: {frameCompletionResult},
 }
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
@@ -659,6 +662,8 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 	case frameToolResult:
 		delete(r.approvals, l.ID)
 		key = replyKey(frameToolResult, l.ID)
+	case frameCompletionResult:
+		key = replyKey(frameCompletionResult, l.ID)
 	case "CUSTOM":
 		if l.Name == "approval_request" {
 			id := approvalToolCallID(l.Value)
@@ -862,10 +867,10 @@ func (t *thread) clientsExcept(c sessionsdomain.Client) []sessionsdomain.Client 
 	return others
 }
 
-// replyKey names a reply queue. A tool_result is matched by its request id,
-// every other reply by its type.
+// replyKey names a reply queue. A tool_result and a completion_result are
+// matched by their request id, every other reply by its type.
 func replyKey(reply, id string) string {
-	if reply == frameToolResult {
+	if reply == frameToolResult || reply == frameCompletionResult {
 		return reply + ":" + id
 	}
 	return reply

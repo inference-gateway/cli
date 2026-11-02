@@ -3,12 +3,14 @@ package headless
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	llmmocks "github.com/inference-gateway/cli/tests/mocks/llm"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
@@ -17,6 +19,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
@@ -302,6 +305,72 @@ func TestPanelToolRequestUnknownTool(t *testing.T) {
 	frame := readFrame(t, sink, "tool_result")
 	if frame["id"] != "req-1" || frame["success"] != false || frame["error"] == "" {
 		t.Fatalf("unexpected tool_result: %v", frame)
+	}
+}
+
+func TestPanelCompletionRequest(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     string
+		answer    llm.Response
+		err       error
+		wantModel string
+		wantFrame map[string]any
+	}{
+		{
+			name:      "runs on the model the request names",
+			model:     "openai/gpt-4o",
+			answer:    llm.Response{Content: "feat: add x"},
+			wantModel: "openai/gpt-4o",
+			wantFrame: map[string]any{"content": "feat: add x", "error": ""},
+		},
+		{
+			name:      "runs on the worker's model when the request names none",
+			answer:    llm.Response{Reasoning: "fix: y"},
+			wantModel: "ollama_cloud/glm-5.3-flash",
+			wantFrame: map[string]any{"reasoning": "fix: y", "error": ""},
+		},
+		{
+			name:      "reports a failed call",
+			model:     "openai/gpt-4o",
+			err:       errors.New("gateway down"),
+			wantModel: "openai/gpt-4o",
+			wantFrame: map[string]any{"content": "", "error": "gateway down"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			completer := &llmmocks.FakeCompleter{}
+			completer.CompleteReturns(tt.answer, tt.err)
+			models := &convmocks.FakeModelService{}
+			models.GetCurrentModelReturns("ollama_cloud/glm-5.3-flash")
+			deps := panelDeps()
+			deps.Completer, deps.Models = completer, models
+			p, sink := startPanel(deps)
+
+			consumed := handle(t, p, map[string]any{
+				"type": "completion_request", "id": "c-1", "model": tt.model,
+				"system": "be terse", "prompt": "write a commit message", "max_tokens": 1000,
+			})
+			frame := readFrame(t, sink, "completion_result")
+
+			if !consumed {
+				t.Fatal("the panel left its completion_request to the turn loop")
+			}
+			_, req := completer.CompleteArgsForCall(0)
+			want := llm.Request{Model: tt.wantModel, System: "be terse", Prompt: "write a commit message", MaxTokens: 1000}
+			if req != want {
+				t.Errorf("Complete(%+v), want %+v", req, want)
+			}
+			if frame["id"] != "c-1" {
+				t.Errorf("completion_result id = %v, want c-1", frame["id"])
+			}
+			for key, value := range tt.wantFrame {
+				if frame[key] != value {
+					t.Errorf("completion_result %s = %v, want %v", key, frame[key], value)
+				}
+			}
+		})
 	}
 }
 

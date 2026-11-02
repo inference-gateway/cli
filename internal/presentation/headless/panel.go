@@ -12,6 +12,7 @@ import (
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
@@ -31,13 +32,15 @@ const (
 	inboundSetMode            = "set_mode"
 	inboundToolRequest        = "tool_request"
 	inboundApprovalResponse   = "approval_response"
+	inboundCompletionRequest  = "completion_request"
 
-	outboundConversations = "conversations"
-	outboundSkills        = "skills"
-	outboundHistory       = "history"
-	outboundModels        = "models"
-	outboundMode          = "mode"
-	outboundToolResult    = "tool_result"
+	outboundConversations    = "conversations"
+	outboundSkills           = "skills"
+	outboundHistory          = "history"
+	outboundModels           = "models"
+	outboundMode             = "mode"
+	outboundToolResult       = "tool_result"
+	outboundCompletionResult = "completion_result"
 )
 
 // conversationListLimit caps list_conversations, mirroring the TUI selector.
@@ -59,6 +62,9 @@ type panelFrame struct {
 	ToolArgs   string `json:"tool_args"`
 	ToolCallID string `json:"tool_call_id"`
 	Approved   bool   `json:"approved"`
+	System     string `json:"system"`
+	Prompt     string `json:"prompt"`
+	MaxTokens  int    `json:"max_tokens"`
 }
 
 type modeFrame struct {
@@ -137,6 +143,7 @@ type PanelDeps struct {
 	Modes         agentdomain.AgentModeState
 	History       storage.ShellHistoryStorage
 	Storage       storage.ConversationStorage
+	Completer     llm.Completer
 	DefaultModel  string
 }
 
@@ -152,6 +159,7 @@ type Panel struct {
 	models        *modelPicker
 	modes         *modes
 	tools         *toolRequests
+	completions   *completions
 	teleports     *teleports
 }
 
@@ -165,6 +173,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
 	p.tools = newToolRequests(p.write, p.out, deps)
+	p.completions = &completions{write: p.write, completer: deps.Completer, models: deps.Models}
 	p.teleports = &teleports{write: p.write, store: deps.Storage}
 	return p
 }
@@ -204,6 +213,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.modes.set(msg.Mode)
 	case inboundToolRequest:
 		go p.tools.run(msg)
+	case inboundCompletionRequest:
+		go p.completions.run(msg)
 	case inboundExportConversation:
 		p.teleports.export(msg.ID)
 	case inboundImportConversation:
