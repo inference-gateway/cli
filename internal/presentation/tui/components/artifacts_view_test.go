@@ -2,6 +2,8 @@ package components
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -80,8 +82,8 @@ func TestArtifactsViewKeysSaveOpenReloadAndClose(t *testing.T) {
 			if !ok || chosen.Name != tt.chosen || chosen.Open != tt.open {
 				t.Fatalf("chose %+v, want %s open=%v", chosen, tt.chosen, tt.open)
 			}
-			if !strings.Contains(b.view.list.Title, "Saving "+tt.chosen) {
-				t.Fatalf("title = %q", b.view.list.Title)
+			if !strings.Contains(b.view.View().Content, "Saving "+tt.chosen) {
+				t.Fatalf("view = %q", b.view.View().Content)
 			}
 		})
 	}
@@ -89,14 +91,21 @@ func TestArtifactsViewKeysSaveOpenReloadAndClose(t *testing.T) {
 
 func TestArtifactsViewShowsWhereTheArtifactLandedOrFailed(t *testing.T) {
 	b := openArtifacts(sessionArtifacts, 0)
+	b.view.SetWidth(40)
+	home, _ := os.UserHomeDir()
+	long := filepath.Join(home, ".infer", "projects", "-Users-me-Repositories-very-long-project-name", "artifacts", "c1", "shot.png")
 
-	b.view.Update(tui.ArtifactSavedEvent{Name: "shot.png", Path: "/home/me/shot.png"})
-	if b.view.list.Title != "✓ Saved /home/me/shot.png" {
-		t.Fatalf("title = %q", b.view.list.Title)
+	b.view.Update(tui.ArtifactSavedEvent{Name: "shot.png", Path: long})
+	view := b.view.View().Content
+	if !strings.Contains(view, "✓ Saved ~/.infer/projects/") || !strings.Contains(view, "artifacts/c1/shot.png") {
+		t.Fatalf("view =\n%s", view)
+	}
+	if strings.Contains(b.view.list.Title, "Saved") {
+		t.Fatalf("the path must wrap under the list, not truncate in the title:\n%s", view)
 	}
 	b.view.Update(tui.ArtifactSavedEvent{Name: "shot.png", Err: errors.New("the workspace hung up")})
-	if !strings.Contains(b.view.list.Title, "Could not save shot.png: the workspace hung up") {
-		t.Fatalf("title = %q", b.view.list.Title)
+	if !strings.Contains(strings.Join(strings.Fields(b.view.View().Content), " "), "Could not save shot.png: the workspace hung up") {
+		t.Fatalf("view = %q", b.view.View().Content)
 	}
 }
 

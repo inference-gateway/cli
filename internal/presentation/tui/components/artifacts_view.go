@@ -3,6 +3,8 @@ package components
 import (
 	"fmt"
 	"io"
+	"os"
+	"strings"
 	"time"
 
 	key "charm.land/bubbles/v2/key"
@@ -141,23 +143,33 @@ func (m *ArtifactsView) loaded(event tui.ArtifactsLoadedEvent) tea.Cmd {
 	return cmd
 }
 
-// saved shows where the artifact landed, or why it did not, in the title.
+// saved shows where the artifact landed, or why it did not, under the list.
 func (m *ArtifactsView) saved(event tui.ArtifactSavedEvent) {
 	switch {
 	case event.Err != nil:
 		m.hint = "Could not save " + event.Name + ": " + event.Err.Error()
 	case event.Open:
-		m.hint = "✓ Saved and opened " + event.Path
+		m.hint = "✓ Saved and opened " + homeTilde(event.Path)
 	default:
-		m.hint = "✓ Saved " + event.Path
+		m.hint = "✓ Saved " + homeTilde(event.Path)
 	}
 	m.list.Title = m.title()
 }
 
+// homeTilde shortens a path under the home dir to ~/..., so it reads at a glance.
+func homeTilde(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rest, ok := strings.CutPrefix(path, home+string(os.PathSeparator)); ok {
+		return "~/" + rest
+	}
+	return path
+}
+
 func (m *ArtifactsView) title() string {
 	switch {
-	case m.hint != "":
-		return m.hint
 	case m.loading:
 		return "Artifacts · listing " + spinnerFrame(time.Now(), SpinnerFrameInterval)
 	case m.err != nil:
@@ -224,8 +236,27 @@ func (m *ArtifactsView) choose(open bool) tea.Cmd {
 	return func() tea.Msg { return tui.ArtifactChosenEvent{Name: name, Open: open} }
 }
 
+// View is the list, with the last save's outcome word-wrapped under it so a
+// long path stays readable.
 func (m *ArtifactsView) View() tea.View {
-	return tea.NewView(m.list.View())
+	hint := m.hintLines()
+	m.list.SetSize(m.width, m.height-len(hint))
+	if len(hint) == 0 {
+		return tea.NewView(m.list.View())
+	}
+	color := m.styleProvider.GetThemeColor("success")
+	if strings.HasPrefix(m.hint, "Could not") {
+		color = m.styleProvider.GetThemeColor("error")
+	}
+	return tea.NewView(m.list.View() + "\n" + m.styleProvider.RenderWithColor(strings.Join(hint, "\n"), color))
+}
+
+// hintLines wraps the hint to the view's width, at path separators too.
+func (m *ArtifactsView) hintLines() []string {
+	if m.hint == "" {
+		return nil
+	}
+	return strings.Split(ansi.Wordwrap(m.hint, max(m.width-2, 8), "/"), "\n")
 }
 
 // IsCancelled reports whether the view closed.
