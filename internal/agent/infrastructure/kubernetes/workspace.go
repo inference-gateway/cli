@@ -180,8 +180,12 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
-	if e.entry.Address != "" {
-		return agentdomain.Endpoint{Addr: e.entry.Address, TLS: tlsConfig, Token: token}, nil
+	entry, err := e.entry.ForOrchestrator(name)
+	if err != nil {
+		return agentdomain.Endpoint{}, err
+	}
+	if entry.Address != "" {
+		return agentdomain.Endpoint{Addr: entry.Address, TLS: tlsConfig, Token: token}, nil
 	}
 	addr, stop, err := e.portForward(ctx, pod)
 	if err != nil {
@@ -206,6 +210,17 @@ func (e *Workspace) requireOperator(ctx context.Context) error {
 // minOperatorVersion is the first operator release that runs an Orchestrator
 // in a Sandbox from the image's own entrypoint and links it to a Gateway by ref.
 const minOperatorVersion = "v0.29.0"
+
+// bindingServiceOperatorVersion is the first operator release that copies
+// binding_service metadata onto the binding Service.
+const bindingServiceOperatorVersion = "v0.33.0"
+
+func (e *Workspace) requiredOperatorVersion() string {
+	if e.entry.BindingService.IsZero() {
+		return minOperatorVersion
+	}
+	return bindingServiceOperatorVersion
+}
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // and the certificates the daemon CA issued.
@@ -293,7 +308,7 @@ func (e *Workspace) create(ctx context.Context, name string, session agentdomain
 	}
 	created, err := e.orchestrators().Create(ctx, orchestrator, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict})
 	if k8serrors.IsBadRequest(err) {
-		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s may predate %s, upgrade it: %w", name, e.entry.Name, minOperatorVersion, err)
+		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s may predate %s, upgrade it: %w", name, e.entry.Name, e.requiredOperatorVersion(), err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("creating Orchestrator %s: %w", name, err)
@@ -429,18 +444,26 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8s
 		sandbox["retention"] = e.entry.Retention.String()
 	}
 	secret := name + tlsSecretSuffix
+	binding := map[string]any{
+		"port":           int64(bindingPort),
+		"tokenSecretRef": map[string]any{"name": secret, "key": secretTokenKey},
+		"tls":            map[string]any{"secretName": secret, "clientAuth": true},
+	}
+	if !e.entry.BindingService.IsZero() {
+		entry, err := e.entry.ForOrchestrator(name)
+		if err != nil {
+			return nil, err
+		}
+		binding["service"] = bindingService(entry.BindingService)
+	}
 	spec := map[string]any{
 		"image":   e.entry.Image,
 		"runtime": "Sandbox",
 		"sandbox": sandbox,
-		"daemon": map[string]any{"binding": map[string]any{
-			"port":           int64(bindingPort),
-			"tokenSecretRef": map[string]any{"name": secret, "key": secretTokenKey},
-			"tls":            map[string]any{"secretName": secret, "clientAuth": true},
-		}},
-		"tools": map[string]any{"enabled": true},
-		"a2a":   map[string]any{"enabled": true},
-		"env":   e.env(),
+		"daemon":  map[string]any{"binding": binding},
+		"tools":   map[string]any{"enabled": true},
+		"a2a":     map[string]any{"enabled": true},
+		"env":     e.env(),
 	}
 	if gateway := e.orchestratorGateway(); gateway != nil {
 		spec["gateway"] = gateway
@@ -475,6 +498,27 @@ func (e *Workspace) env() []any {
 
 func envVar(name, value string) map[string]any {
 	return map[string]any{"name": name, "value": value}
+}
+
+// bindingService is the Service metadata as an unstructured value, which
+// takes map[string]any and no empty sub-map.
+func bindingService(service config.BindingServiceConfig) map[string]any {
+	out := map[string]any{}
+	if len(service.Annotations) > 0 {
+		out["annotations"] = stringMap(service.Annotations)
+	}
+	if len(service.Labels) > 0 {
+		out["labels"] = stringMap(service.Labels)
+	}
+	return out
+}
+
+func stringMap(values map[string]string) map[string]any {
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
 }
 
 func portAddr(port int) string {

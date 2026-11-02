@@ -46,7 +46,7 @@ var sidecars = []sidecar{
 	{key: "heartbeat", file: config.HeartbeatFileName},
 	{key: "computer_use", file: config.ComputerUseFileName},
 	{key: "browser_use", file: config.BrowserUseFileName},
-	{key: "daemon", file: config.DaemonFileName, fixup: keepWorkspaceEnvCase},
+	{key: "daemon", file: config.DaemonFileName, fixup: keepWorkspaceMapCase},
 	{key: "memory", file: config.MemoryConfigFileName},
 	{key: "plugins", file: config.PluginsFileName, homeOnly: true},
 }
@@ -205,15 +205,27 @@ func keepMCPEnvCase(m map[string]any) error {
 	return nil
 }
 
-// keepWorkspaceEnvCase retypes every workspace's env map so Viper keeps the
-// variable names' case, as keepMCPEnvCase does for MCP servers.
-func keepWorkspaceEnvCase(m map[string]any) error {
+// keepWorkspaceMapCase retypes every workspace's env and binding Service
+// metadata maps so Viper keeps their keys' case, as keepMCPEnvCase does.
+func keepWorkspaceMapCase(m map[string]any) error {
 	workspaces, _ := m["workspaces"].([]any)
 	for _, workspace := range workspaces {
-		if entry, ok := workspace.(map[string]any); ok {
-			if err := retype[map[string]string](entry, "env"); err != nil {
-				return err
-			}
+		entry, ok := workspace.(map[string]any)
+		if !ok {
+			continue
+		}
+		if err := retype[map[string]string](entry, "env"); err != nil {
+			return err
+		}
+		service, ok := entry["binding_service"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if err := retype[map[string]string](service, "annotations"); err != nil {
+			return err
+		}
+		if err := retype[map[string]string](service, "labels"); err != nil {
+			return err
 		}
 	}
 	return nil

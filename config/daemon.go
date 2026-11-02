@@ -2,11 +2,13 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -149,6 +151,62 @@ type WorkspaceEntry struct {
 	// GatewayEnv names the environment variables a teleport hands the gateway,
 	// such as provider keys: its Secret in standard, the pod in all-in-one.
 	GatewayEnv []string `yaml:"gateway_env,omitempty" mapstructure:"gateway_env"`
+	// BindingService is metadata for the session's binding Service, for
+	// controllers that act on Service metadata such as a VPN operator.
+	BindingService BindingServiceConfig `yaml:"binding_service,omitempty" mapstructure:"binding_service"`
+}
+
+// BindingServiceConfig is copied verbatim onto each session's binding Service,
+// with {{.Orchestrator}} expanded in the values.
+type BindingServiceConfig struct {
+	Annotations map[string]string `yaml:"annotations,omitempty" mapstructure:"annotations"`
+	Labels      map[string]string `yaml:"labels,omitempty" mapstructure:"labels"`
+}
+
+func (s BindingServiceConfig) IsZero() bool {
+	return len(s.Annotations) == 0 && len(s.Labels) == 0
+}
+
+// ForOrchestrator returns the entry with {{.Orchestrator}} expanded to the
+// session's Orchestrator name in address and the binding Service metadata.
+func (e WorkspaceEntry) ForOrchestrator(name string) (WorkspaceEntry, error) {
+	var err error
+	if e.Address, err = expandOrchestrator(e.Address, name); err != nil {
+		return e, fmt.Errorf("address of workspace %q: %w", e.Name, err)
+	}
+	if e.BindingService.Annotations, err = expandOrchestratorValues(e.BindingService.Annotations, name); err != nil {
+		return e, fmt.Errorf("binding_service.annotations of workspace %q: %w", e.Name, err)
+	}
+	if e.BindingService.Labels, err = expandOrchestratorValues(e.BindingService.Labels, name); err != nil {
+		return e, fmt.Errorf("binding_service.labels of workspace %q: %w", e.Name, err)
+	}
+	return e, nil
+}
+
+func expandOrchestratorValues(values map[string]string, name string) (map[string]string, error) {
+	expanded := maps.Clone(values)
+	for key, value := range expanded {
+		var err error
+		if expanded[key], err = expandOrchestrator(value, name); err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+	}
+	return expanded, nil
+}
+
+func expandOrchestrator(value, name string) (string, error) {
+	if !strings.Contains(value, "{{") {
+		return value, nil
+	}
+	tmpl, err := template.New("").Option("missingkey=error").Parse(value)
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	if err := tmpl.Execute(&out, struct{ Orchestrator string }{name}); err != nil {
+		return "", err
+	}
+	return out.String(), nil
 }
 
 // DeploysGateway reports whether the workspace runs a gateway of its own
@@ -285,8 +343,8 @@ func (e WorkspaceEntry) validate(identity string) error {
 	default:
 		return fmt.Errorf("invalid mode %q for workspace %q: must be %q or %q", e.Mode, e.Name, WorkspaceModeStandard, WorkspaceModeAllInOne)
 	}
-	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0) {
-		return fmt.Errorf("workspace %q sets mode or gateway_env, which only a kubernetes workspace uses", e.Name)
+	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || !e.BindingService.IsZero()) {
+		return fmt.Errorf("workspace %q sets mode, gateway_env or binding_service, which only a kubernetes workspace uses", e.Name)
 	}
 	switch e.Kind {
 	case WorkspaceKindLocal:
@@ -300,6 +358,9 @@ func (e WorkspaceEntry) validate(identity string) error {
 	case WorkspaceKindKubernetes:
 		if e.Namespace == "" || e.Image == "" {
 			return fmt.Errorf("workspace %q of kind kubernetes needs a namespace and an image", e.Name)
+		}
+		if _, err := e.ForOrchestrator("infer-000000000000"); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("invalid kind %q for workspace %q: must be one of %q, %q, or %q",
