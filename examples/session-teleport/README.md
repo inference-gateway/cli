@@ -215,6 +215,11 @@ task artifacts:console
 The listing runs in a pod of its own against RustFS, so it still shows the recording after the session's
 Orchestrator is suspended or deleted.
 
+From the chat TUI, `/artifacts` (or selecting the `⇄ k8s-desktop` indicator in the status bar) lists the
+session's artifacts in its pod through the daemon, resuming a suspended Orchestrator first, and `enter` saves
+one under `~/.infer/projects/<project>/artifacts/<session id>/` on your machine (`o` opens it too). That is
+the way to grab one file without `kubectl`. RustFS stays the bulk, durable copy.
+
 The upload is a `post_session` [command hook](../../docs/hooks.md) baked into the desktop image
 (`desktop/hooks.yaml`). It runs `desktop/upload-artifacts` after every finished run, which reads the session
 id from the hook's stdin and mirrors both artifact directories to `infer-artifacts/<session id>/` with the

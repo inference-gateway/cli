@@ -279,6 +279,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowAgentsSideEffect()
 	case shortcuts.SideEffectShowWorkspaces:
 		return tui.ShowWorkspacesEvent{}
+	case shortcuts.SideEffectShowArtifacts:
+		return tui.ShowArtifactsEvent{}
 	case shortcuts.SideEffectTeleportSession:
 		if request, ok := data.(tui.TeleportRequestedEvent); ok {
 			return request

@@ -57,7 +57,11 @@ These shortcuts are available out of the box:
 - `/conversations` - Open the conversation selection dropdown. In a daemon chat it lists the sessions where the current one runs,
   with a Workspace column naming where each session runs now
 - `/workspaces` - Show where a daemon chat's session runs and every workspace it can teleport to, with their reachability and details.
-  `enter` teleports the session to the selected one. Selecting the status bar's workspace indicator opens the same picker
+  `enter` teleports the session to the selected one
+- `/artifacts` - Browse the current session's artifacts (recordings, generated images, downloads) on the workspace it runs on,
+  newest first with size and modification time. `enter` saves the selected one under this machine's artifacts dir for the
+  session, `o` saves and opens it with the system viewer, `r` lists again. A teleported session's artifacts are read from
+  its pod through the daemon, no `kubectl` needed. Selecting the status bar's workspace indicator opens the same view
 - `/teleport [workspace] [file...]` - Teleport a daemon chat's session to a workspace, carrying the listed files git does not track.
   Without a workspace it opens the `/workspaces` picker. A remote session teleports only back to this machine
 - `/context` - Show context-window usage

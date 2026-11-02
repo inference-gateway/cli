@@ -82,6 +82,7 @@ const (
 	ViewStateToolsList
 	ViewStateAgents
 	ViewStateWorkspaces
+	ViewStateArtifacts
 )
 
 func (v ViewState) String() string {
@@ -110,6 +111,8 @@ func (v ViewState) String() string {
 		return "Agents"
 	case ViewStateWorkspaces:
 		return "Workspaces"
+	case ViewStateArtifacts:
+		return "Artifacts"
 	default:
 		return "Unknown"
 	}
@@ -217,6 +220,7 @@ var validViewTransitions = map[ViewState][]ViewState{
 		ViewStateToolsList,
 		ViewStateAgents,
 		ViewStateWorkspaces,
+		ViewStateArtifacts,
 	},
 	ViewStateConversationSelection: {ViewStateChat},
 	ViewStateThemeSelection:        {ViewStateChat},
@@ -228,6 +232,7 @@ var validViewTransitions = map[ViewState][]ViewState{
 	ViewStateToolsList:             {ViewStateChat},
 	ViewStateAgents:                {ViewStateChat},
 	ViewStateWorkspaces:            {ViewStateChat},
+	ViewStateArtifacts:             {ViewStateChat},
 }
 
 // isValidTransition validates if a view transition is allowed

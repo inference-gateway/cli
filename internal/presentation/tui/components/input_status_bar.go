@@ -478,7 +478,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("workspace") {
 		if text, color := isb.buildWorkspaceIndicator(); text != "" {
-			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionWorkspaces, color: color})
+			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionArtifacts, color: color})
 		}
 	}
 

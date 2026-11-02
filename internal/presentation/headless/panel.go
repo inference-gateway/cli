@@ -65,6 +65,7 @@ type panelFrame struct {
 	System     string `json:"system"`
 	Prompt     string `json:"prompt"`
 	MaxTokens  int    `json:"max_tokens"`
+	Name       string `json:"name"`
 }
 
 type modeFrame struct {
@@ -145,6 +146,7 @@ type PanelDeps struct {
 	Storage       storage.ConversationStorage
 	Completer     llm.Completer
 	DefaultModel  string
+	ArtifactsDir  func(sessionID string) string
 }
 
 // Panel answers the panel frames a session worker reads on stdin: listings,
@@ -161,6 +163,7 @@ type Panel struct {
 	tools         *toolRequests
 	completions   *completions
 	teleports     *teleports
+	artifacts     *artifacts
 }
 
 // NewPanel builds the panel units, one per frame family, each holding only the
@@ -175,6 +178,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.tools = newToolRequests(p.write, p.out, deps)
 	p.completions = &completions{write: p.write, completer: deps.Completer, models: deps.Models}
 	p.teleports = &teleports{write: p.write, store: deps.Storage}
+	p.artifacts = &artifacts{write: p.write, dir: deps.ArtifactsDir}
 	return p
 }
 
@@ -219,6 +223,10 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.teleports.export(msg.ID)
 	case inboundImportConversation:
 		p.teleports.importFrom(line)
+	case inboundListArtifacts:
+		p.artifacts.list(msg.ID)
+	case inboundReadArtifact:
+		p.artifacts.read(msg.ID, msg.Name)
 	default:
 		return false
 	}

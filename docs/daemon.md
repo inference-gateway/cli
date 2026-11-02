@@ -62,7 +62,8 @@ Env overrides follow the usual scheme: `INFER_DAEMON_BINDING_ENABLED`, `INFER_DA
 `INFER_DAEMON_BINDING_PORT`, `INFER_DAEMON_BINDING_TOKEN`, `INFER_DAEMON_BINDING_TLS_MODE`. The wire
 contract is the [Daemon Binding Protocol](browser-extension-protocol.md), and the events on it are the
 [AG-UI output](ag-ui-output.md). The same listener serves generated images read-only at
-`GET /artifacts/<project-slug>/<relative-path>`.
+`GET /artifacts/<project-slug>/<relative-path>`, and the socket answers `list_artifacts` and
+`read_artifact` for a session's artifacts wherever the session runs.
 
 A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 

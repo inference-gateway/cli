@@ -104,7 +104,10 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	if err := w.Send([]byte(`{"type":"set_mode","mode":"standard","project_dir":"/proj"}`)); err != nil {
 		t.Fatal(err)
 	}
-	frames := peer.received(t, 3)
+	if err := w.Send([]byte(`{"type":"read_artifact","project_dir":"/proj","id":"conv-1","name":"shot.png"}`)); err != nil {
+		t.Fatal(err)
+	}
+	frames := peer.received(t, 4)
 	var resume map[string]any
 	_ = json.Unmarshal(frames[0], &resume)
 	if resume["project_dir"] != "/remote/ws" || resume["id"] != "conv-1" {
@@ -117,6 +120,11 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	_ = json.Unmarshal(frames[2], &mode)
 	if mode["project_dir"] != "/remote/ws" {
 		t.Fatalf("set_mode reached the peer naming the client's project dir: %s", frames[2])
+	}
+	var read map[string]any
+	_ = json.Unmarshal(frames[3], &read)
+	if read["project_dir"] != "/remote/ws" || read["name"] != "shot.png" {
+		t.Fatalf("read_artifact reached the peer as %s, want it on the workspace dir", frames[3])
 	}
 
 	conn := peer.conn(t)

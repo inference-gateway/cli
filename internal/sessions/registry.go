@@ -56,6 +56,8 @@ var replyTypes = map[string][]string{
 	"set_mode":             {"mode"},
 	"export_conversation":  {"conversation_export"},
 	"import_conversation":  {"conversation_imported"},
+	"list_artifacts":       {"artifacts"},
+	"read_artifact":        {"artifact"},
 	frameToolRequest:       {frameToolResult},
 	frameCompletionRequest: {frameCompletionResult},
 }

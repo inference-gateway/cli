@@ -27,6 +27,7 @@ func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg.Register(NewDiffShortcut())
 	reg.Register(NewExplorerShortcut())
 	reg.Register(NewWorkspacesShortcut())
+	reg.Register(NewArtifactsShortcut())
 	reg.Register(NewTeleportShortcut(cfg.Daemon.Workspaces))
 	reg.Register(NewReleaseNotesShortcut())
 	reg.Register(NewStatsShortcut())

@@ -304,6 +304,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Storage:       c.storage,
 		Completer:     llm.New(c.createRawSDKClient()),
 		DefaultModel:  c.config.Agent.Model,
+		ArtifactsDir:  c.config.SessionArtifactsDir,
 	}, out)
 }
 
@@ -822,6 +823,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewDiffShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewExplorerShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewWorkspacesShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewArtifactsShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewTeleportShortcut(c.config.Daemon.Workspaces))
 	c.shortcutRegistry.Register(shortcuts.NewReleaseNotesShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewStatsShortcut())
@@ -1172,6 +1174,21 @@ func (c *ServiceContainer) GetSessionTeleporter() tui.SessionTeleporter {
 		return nil
 	}
 	return c.daemonThread
+}
+
+// GetArtifactBrowser browses the session's artifacts: a daemon chat's from
+// the workspace its session runs on, an in-process chat's from this machine.
+func (c *ServiceContainer) GetArtifactBrowser() tui.ArtifactBrowser {
+	if c.daemonThread != nil {
+		return daemonthread.NewArtifacts(c.daemonThread, c.config)
+	}
+	return tui.LocalArtifactBrowser{Dir: func() string {
+		sessionID := ""
+		if repo, ok := c.conversationRepo.(convdomain.PersistentConversationRepository); ok {
+			sessionID = repo.GetCurrentConversationID()
+		}
+		return c.config.SessionArtifactsDir(sessionID)
+	}}
 }
 
 // GetStorage returns the conversation storage
