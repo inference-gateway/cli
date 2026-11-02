@@ -51,9 +51,19 @@ func projectRuntimeSlug() string {
 		return "default"
 	}
 	if rel, err := filepath.Rel(UserSpaceConfigDir(), cwd); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
-		return strings.ReplaceAll(rel, string(filepath.Separator), "-")
+		return slugOfPath(rel)
 	}
-	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+	return slugOfPath(cwd)
+}
+
+// slugOfPath joins the path's segments with "-", dropping the dot a hidden
+// segment starts with, so /home/alice/.work/repo becomes -home-alice-work-repo.
+func slugOfPath(path string) string {
+	segments := strings.Split(path, string(filepath.Separator))
+	for i, segment := range segments {
+		segments[i] = strings.TrimPrefix(segment, ".")
+	}
+	return strings.Join(segments, "-")
 }
 
 // ProjectRuntimeDir is the per-project runtime root, ~/.infer/projects/<project-slug>.
