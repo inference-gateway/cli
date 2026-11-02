@@ -18,7 +18,7 @@ type Artifact struct {
 
 // ArtifactBrowser lists the current session's artifacts from the workspace
 // that owns it and fetches one to this machine, for /artifacts and the
-// workspace indicator.
+// artifacts indicator.
 type ArtifactBrowser interface {
 	List(ctx context.Context) ([]Artifact, error)
 	Fetch(ctx context.Context, name string) (string, error)

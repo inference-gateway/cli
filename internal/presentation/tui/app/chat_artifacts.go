@@ -23,7 +23,7 @@ const artifactFetchTimeout = 5 * time.Minute
 const noArtifactBrowserHint = "This chat has no session artifacts to browse"
 
 // SetArtifactBrowser gives the chat the browser behind /artifacts and the
-// workspace indicator.
+// artifacts indicator.
 func (app *ChatApplication) SetArtifactBrowser(browser tui.ArtifactBrowser) {
 	app.artifactBrowser = browser
 }

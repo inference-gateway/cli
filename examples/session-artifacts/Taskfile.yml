@@ -24,7 +24,7 @@ tasks:
       - '{{.INFER}} chat'
 
   chat:daemon:
-    desc: The same as a daemon chat, where the status bar's workspace indicator opens the artifacts too
+    desc: The same as a daemon chat, whose session can teleport and still be browsed
     interactive: true
     cmds:
       - '{{.INFER}} chat --daemon'

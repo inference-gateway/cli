@@ -1003,6 +1003,8 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 				StatusType: tui.StatusDefault,
 			}
 		}}
+	case tui.StatusIndicatorActionWorkspaces:
+		return []tea.Cmd{app.openWorkspaces()}
 	case tui.StatusIndicatorActionArtifacts:
 		return []tea.Cmd{app.openArtifacts()}
 	case tui.StatusIndicatorActionA2AAgents:

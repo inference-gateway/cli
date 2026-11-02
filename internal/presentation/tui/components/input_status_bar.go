@@ -478,7 +478,7 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("workspace") {
 		if text, color := isb.buildWorkspaceIndicator(); text != "" {
-			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionArtifacts, color: color})
+			parts = append(parts, indicatorPart{text: text, action: tui.StatusIndicatorActionWorkspaces, color: color})
 		}
 	}
 
@@ -510,6 +510,10 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		if toolInfo := isb.getToolInfo(); toolInfo != "" {
 			parts = append(parts, indicatorPart{text: toolInfo, action: tui.StatusIndicatorActionToolsList})
 		}
+	}
+
+	if isb.shouldShowIndicator("artifacts") {
+		parts = append(parts, indicatorPart{text: icons.SessionArtifacts + " artifacts", action: tui.StatusIndicatorActionArtifacts})
 	}
 
 	if isb.shouldShowIndicator("queue") {
@@ -730,6 +734,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.GitPR
 	case "workspace":
 		return indicators.Workspace
+	case "artifacts":
+		return indicators.Artifacts
 	default:
 		return true
 	}

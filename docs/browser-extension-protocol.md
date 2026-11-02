@@ -366,7 +366,7 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 
 Client → CLI, list the files a session saved under its artifacts dir
 (`~/.infer/projects/<project-slug>/artifacts/<conversation id>/`), which is
-what the chat TUI's `/artifacts` view and its workspace indicator ask for:
+what the chat TUI's `/artifacts` view and its `⬇ artifacts` indicator ask for:
 
 ```json
 {"type": "list_artifacts", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}

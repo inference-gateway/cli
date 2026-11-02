@@ -22,6 +22,9 @@ const (
 	TeleportingSession = "⇢"
 )
 
+// SessionArtifacts marks the status bar entry to the session's artifacts
+const SessionArtifacts = "⬇"
+
 // Tool execution icons - modern Unicode symbols
 const (
 	QueuedIcon = "•"

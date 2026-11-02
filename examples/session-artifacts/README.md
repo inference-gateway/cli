@@ -1,7 +1,7 @@
 # Session artifacts
 
 Browse what a session produced (generated images, recordings, downloads) from the chat TUI and save one file on
-your machine, with `/artifacts` or by selecting the status bar's workspace indicator (`⌂ laptop`, `⇄ k8s-desktop`).
+your machine, with `/artifacts` or by selecting the status bar's `⬇ artifacts` indicator.
 
 The model is a [tokenless](https://github.com/inference-gateway/tokenless) mock scripted in
 [`scenarios.yaml`](scenarios.yaml): asked for a lighthouse, it calls `ImageGeneration`, and the mock's image endpoint
@@ -21,8 +21,7 @@ Then, in the chat:
 3. `enter` saves the selected file under this machine's artifacts dir for the session and shows the path, `o` saves
    and opens it with the system viewer, `r` lists again, `esc` closes
 
-`task chat:daemon` runs the same chat through `infer daemon`. There the status bar shows where the session runs and
-selecting that indicator opens the same view. Once a session teleports to another workspace (see
+`task chat:daemon` runs the same chat through `infer daemon`. Once a session teleports to another workspace (see
 [session-teleport](../session-teleport/)), the view lists and reads the artifacts in that workspace through the daemon,
 no `kubectl` needed.
 
