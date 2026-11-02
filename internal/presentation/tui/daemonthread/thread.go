@@ -171,7 +171,7 @@ func (t *Thread) Follow(ctx context.Context, id string, opts sessionsdomain.Thre
 	if placement.Remote() {
 		opts.Workspace, opts.WorkspaceDir = placement.Workspace, placement.WorkspaceDir
 	}
-	frame := followFrame{Type: "resume_conversation", ProjectDir: t.opts.ProjectDir, ID: id, ThreadOptions: opts}
+	frame := followFrame{Type: "resume_conversation", ProjectDir: t.projectDir(), ID: id, ThreadOptions: opts}
 	if _, err := t.Request(ctx, frame, "MESSAGES_SNAPSHOT"); err != nil {
 		return err
 	}
@@ -198,6 +198,13 @@ func (t *Thread) SessionProject(ctx context.Context, id string) string {
 		return ""
 	}
 	return lease.WorkspaceDir
+}
+
+// projectDir is the project every request names, which MoveTo changes.
+func (t *Thread) projectDir() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.opts.ProjectDir
 }
 
 // MoveTo makes this a daemon chat in projectDir. It is for attaching, before
@@ -529,23 +536,26 @@ func (t *Thread) rejoin() error {
 	return nil
 }
 
-// answer hands a reply to the oldest request waiting for its type. A
-// RUN_ERROR without a run is the refusal of the oldest request.
+// answer hands a reply to the oldest request waiting for it. A RUN_ERROR
+// without a run fails every waiting request: the daemon sends one when the
+// thread's worker failed, which drops every request it had.
 func (t *Thread) answer(h header, frame []byte) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for i, w := range t.waiters {
-		refused := h.Type == "RUN_ERROR" && h.RunID == ""
-		if !refused && !w.awaits(h) {
-			continue
-		}
-		t.waiters = slices.Delete(t.waiters, i, i+1)
-		if refused {
+	if h.Type == "RUN_ERROR" && h.RunID == "" {
+		refused := t.waiters
+		t.waiters = nil
+		for _, w := range refused {
 			w.reply <- reply{err: errors.New(h.Message)}
-		} else {
-			w.reply <- reply{frame: frame}
 		}
-		return true
+		return len(refused) > 0
+	}
+	for i, w := range t.waiters {
+		if w.awaits(h) {
+			t.waiters = slices.Delete(t.waiters, i, i+1)
+			w.reply <- reply{frame: frame}
+			return true
+		}
 	}
 	return false
 }

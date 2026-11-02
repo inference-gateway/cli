@@ -1,6 +1,7 @@
 package daemonthread
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -291,6 +292,38 @@ func TestCompleterGetsEachAnswerFromTheWorker(t *testing.T) {
 	want := []string{"first on m1 in /proj", "second on m1 in /proj"}
 	if !slices.Equal(answers, want) {
 		t.Errorf("answers = %q, want %q", answers, want)
+	}
+}
+
+func TestCompleterFailsEveryRequestTheWorkerDroppedAtOnce(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	var mu sync.Mutex
+	held := 0
+	d.setCompletions(func(conn *agui.Conn, _ map[string]any) {
+		mu.Lock()
+		defer mu.Unlock()
+		if held++; held == 2 {
+			send(conn, `{"type":"RUN_ERROR","message":"the session worker exited before it answered"}`)
+		}
+	})
+	completer := NewCompleter(thread)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i := range errs {
+		wg.Go(func() {
+			_, errs[i] = completer.Complete(ctx, llm.Request{Prompt: "commit message"})
+		})
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err == nil || err.Error() != "the session worker exited before it answered" {
+			t.Errorf("request %d failed with %v, want the worker's exit", i, err)
+		}
 	}
 }
 

@@ -36,7 +36,7 @@ func NewModels(thread *Thread) *Models {
 // modalities, which the worker fetched from its gateway, are recorded here
 // too, so the model picker shows them.
 func (m *Models) ListModels(ctx context.Context) ([]string, error) {
-	data, err := m.thread.Request(ctx, map[string]string{"type": "list_models", "project_dir": m.thread.opts.ProjectDir}, "models")
+	data, err := m.thread.Request(ctx, map[string]string{"type": "list_models", "project_dir": m.thread.projectDir()}, "models")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (c *Completer) Complete(ctx context.Context, req llm.Request) (llm.Response
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	frame := completionRequest{
-		Type: "completion_request", ProjectDir: c.thread.opts.ProjectDir, ID: uuid.NewString(),
+		Type: "completion_request", ProjectDir: c.thread.projectDir(), ID: uuid.NewString(),
 		Model: req.Model, System: req.System, Prompt: req.Prompt, MaxTokens: req.MaxTokens,
 	}
 	data, err := c.thread.request(ctx, frame, "completion_result", frame.ID)
