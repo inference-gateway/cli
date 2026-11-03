@@ -9,13 +9,11 @@ import (
 	"strings"
 	"sync"
 
-	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
-
+	version "github.com/inference-gateway/cli/cmd/version"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	agentteleport "github.com/inference-gateway/cli/internal/agent/teleport"
 	sessions "github.com/inference-gateway/cli/internal/sessions"
-
-	version "github.com/inference-gateway/cli/cmd/version"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 // maxPeerA2ABytes caps one request body the a2a peer endpoint takes, the same
@@ -201,7 +199,7 @@ type peerA2AStream struct {
 }
 
 var (
-	_ agentinfra.PeerConn = (*peerA2AStream)(nil)
+	_ agentinfra.PeerConn   = (*peerA2AStream)(nil)
 	_ sessionsdomain.Client = (*peerA2AStream)(nil)
 )
 
@@ -240,5 +238,5 @@ func (c *peerA2AStream) Close() {
 	c.mu.Unlock()
 }
 
-func (c *peerA2AStream) AckAttr(string) string                       { return "" }
-func (c *peerA2AStream) PeerCertificates() []*x509.Certificate      { return nil }
+func (c *peerA2AStream) AckAttr(string) string                 { return "" }
+func (c *peerA2AStream) PeerCertificates() []*x509.Certificate { return nil }

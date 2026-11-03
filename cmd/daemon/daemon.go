@@ -389,16 +389,16 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 			return threadHost{}, fmt.Errorf("configuring the AG-UI binding's TLS: %w", err)
 		}
 		binding = agui.NewBinding(agui.BindingConfig{
-			Host:      b.ListenHost(),
-			Port:      b.Port,
-			Token:     b.Token,
-			TLS:       serverTLS,
-			AckAttrs:  teleports.AckAttrs(),
-			Handshake: browserinfra.BindingHandshake,
+			Host:        b.ListenHost(),
+			Port:        b.Port,
+			Token:       b.Token,
+			TLS:         serverTLS,
+			AckAttrs:    teleports.AckAttrs(),
+			Handshake:   browserinfra.BindingHandshake,
 			AllowOrigin: browserinfra.AllowExtensionOrigin,
 			Routes: map[string]http.Handler{
-                "/artifacts/": newArtifactsHandler(),
-                agentinfra.PeerA2APath: newPeerA2AHost(registry, teleports, b.Token, b.TLS.RequiresClientAuth()),
+				"/artifacts/":          newArtifactsHandler(),
+				agentinfra.PeerA2APath: newPeerA2AHost(registry, teleports, b.Token, b.TLS.RequiresClientAuth()),
 			},
 		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
 		if err := binding.Start(); err != nil {
