@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,8 @@ var binPath string
 // Model IDs used in tests — no "mock/" prefix so production code (parseProvider)
 // never needs to know about mock-specific prefixes.
 const (
-	testModel = "openai/gpt-4o"
+	testModel     = "openai/gpt-4o"
+	decisionModel = "ollama_cloud/clef:27b"
 )
 
 // TestMain builds the CLI once for all tests. Set INFER_E2E_BINARY to reuse
@@ -82,7 +84,15 @@ func inferEnv(gatewayURL string) map[string]string {
 // runCLI executes the built binary hermetically via harness.App.
 func runCLI(t *testing.T, gatewayURL, dir, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	res := tokenless.Orchestrator{Bin: binPath, Dir: dir, Stdin: stdin, Env: inferEnv(gatewayURL)}.Run(t, args...)
+	return runCLIWithEnv(t, gatewayURL, dir, stdin, nil, args...)
+}
+
+// runCLIWithEnv is runCLI with extra INFER_* variables layered over the preset.
+func runCLIWithEnv(t *testing.T, gatewayURL, dir, stdin string, extra map[string]string, args ...string) (string, string, int) {
+	t.Helper()
+	env := inferEnv(gatewayURL)
+	maps.Copy(env, extra)
+	res := tokenless.Orchestrator{Bin: binPath, Dir: dir, Stdin: stdin, Env: env}.Run(t, args...)
 	return res.Stdout, res.Stderr, res.ExitCode
 }
 
@@ -284,6 +294,26 @@ func TestAgentJudgeModeRejectsOffListCommand(t *testing.T) {
 	require.Equal(t, testModel, verdict["model"])
 	require.Contains(t, contentsByRole(lines, "assistant"), "Understood, the command was not permitted.",
 		"a judge rejection must feed the driver instead of ending the turn")
+}
+
+func TestAgentJudgeDecisionsBackendRejectsOffListCommand(t *testing.T) {
+	m := startMock(t)
+	env := map[string]string{"INFER_JUDGE_BACKEND": "decisions", "INFER_JUDGE_MODEL": decisionModel}
+
+	stdout, _, code := runCLIWithEnv(t, m.URL, t.TempDir(), "", env, "headless", "--mode", "auto-with-judge", "run the forbidden command")
+	require.Zero(t, code)
+
+	lines := jsonLines(t, stdout)
+	verdict := statusOfType(lines, "judge_verdict")
+	require.NotNil(t, verdict, "a judge_verdict line must be emitted")
+	require.Equal(t, "rejected", verdict["decision"])
+	require.Equal(t, decisionModel, verdict["model"])
+	require.Contains(t, verdict["reason"], "decisions: p_approve=0.05, risk: destructive, below min_confidence 0.70")
+
+	toolResults := contentsByRole(lines, "tool")
+	require.Len(t, toolResults, 1)
+	require.Contains(t, toolResults[0], "rejected by judge: "+decisionModel+": rejected by the judge (decisions: p_approve=0.05")
+	require.Contains(t, contentsByRole(lines, "assistant"), "Understood, the command was not permitted.")
 }
 
 func TestAgentEscalationWithoutApprover(t *testing.T) {
