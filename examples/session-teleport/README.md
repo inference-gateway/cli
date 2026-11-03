@@ -261,6 +261,26 @@ Deployment and Secret but runs no pod, and the next turn starts it again.
 the pod's workers start the gateway binary on `127.0.0.1:8080` with it, so the agent can read it.
 Credentials the agent itself needs, such as a token to push with, go under `forward_env`.
 
+## Over A2A: the peer protocol
+
+Every workspace entry picks how the laptop daemon talks to the workspace's daemon. The default is the
+AG-UI WebSocket binding, and `protocol: a2a` carries the same teleport vocabulary over A2A JSON-RPC on
+the same listener instead:
+
+```yaml
+  - name: k8s-dev
+    kind: kubernetes
+    protocol: a2a
+    # the entry's other keys as above
+```
+
+The teleport and the relay ride the frames the [Daemon to daemon](../../docs/browser-extension-protocol.md#daemon-to-daemon)
+section defines either way, and `infer daemon workspaces` and the chat TUI show what each workspace
+picked. A workspace that serves nothing over its chosen protocol fails the teleport at the provisioning
+stage, before it creates anything: the pod image in `daemon.yaml` must be new enough to serve the `/a2a`
+peer endpoint on its binding, so run `task image:import` after changing the protocol. See the
+[A2A peer endpoint](../../docs/browser-extension-protocol.md#a2a-peer-endpoint).
+
 ## Cleanup
 
 ```bash
