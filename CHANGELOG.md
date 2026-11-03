@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.241.0](https://github.com/inference-gateway/cli/compare/v0.240.0...v0.241.0) (2026-11-03)
+
+### 🚀 Features
+
+* **chat:** browse the session's artifacts from the workspace indicator ([#1683](https://github.com/inference-gateway/cli/issues/1683)) ([a60b22e](https://github.com/inference-gateway/cli/commit/a60b22e2ecd2754567c4d9ad700de5226bf0b72f)), closes [#1662](https://github.com/inference-gateway/cli/issues/1662), references [inference-gateway/docs#1078](https://github.com/inference-gateway/docs/issues/1078)
+* **daemon:** dial each kubernetes session at its own address and pass binding Service metadata ([#1682](https://github.com/inference-gateway/cli/issues/1682)) ([dab8735](https://github.com/inference-gateway/cli/commit/dab8735ffdd2e3f812984055ac5e82dd4bf265c9)), closes [#1677](https://github.com/inference-gateway/cli/issues/1677), references [inference-gateway/operator#320](https://github.com/inference-gateway/operator/issues/320) [#320](https://github.com/inference-gateway/cli/issues/320) [#320](https://github.com/inference-gateway/cli/issues/320) [#320](https://github.com/inference-gateway/cli/issues/320) [inference-gateway/cli#1677](https://github.com/inference-gateway/cli/issues/1677)
+
+### 🐛 Bug Fixes
+
+* **chat:** generate snippet shortcuts with the session's model in a daemon chat ([#1681](https://github.com/inference-gateway/cli/issues/1681)) ([8eb9329](https://github.com/inference-gateway/cli/commit/8eb93296fbde1f615519da81cf691747b6774151)), closes [#1678](https://github.com/inference-gateway/cli/issues/1678)
+* **docker:** ship gh in the cli image, which the agent's prompt relies on for GitHub ([#1680](https://github.com/inference-gateway/cli/issues/1680)) ([0507986](https://github.com/inference-gateway/cli/commit/0507986036048da8f87356bc698b984b64db9565)), closes [#1679](https://github.com/inference-gateway/cli/issues/1679)
+
+### ♻️ Code Refactoring
+
+* **kubernetes:** drop the typed clientset to shrink the binary by 26MB ([#1686](https://github.com/inference-gateway/cli/issues/1686)) ([d2d70ad](https://github.com/inference-gateway/cli/commit/d2d70ad81ad61cf7a5ecf8ed7fb0231769bdb84e)), closes [#1649](https://github.com/inference-gateway/cli/issues/1649)
+* **agui:** drop the unenforced protocol_version from the binding handshake ([#1685](https://github.com/inference-gateway/cli/issues/1685)) ([6387b46](https://github.com/inference-gateway/cli/commit/6387b463a91799c44c4223aaf192d2754349e5da)), closes [#1684](https://github.com/inference-gateway/cli/issues/1684)
+
+### 🧹 Maintenance
+
+* **flox:** bump claude-code and infer versions ([8b343e0](https://github.com/inference-gateway/cli/commit/8b343e0740d9e1b5bff7ec459410e8aecc88a201))
+
 ## [0.240.0](https://github.com/inference-gateway/cli/compare/v0.239.0...v0.240.0) (2026-11-01)
 
 ### 🚀 Features
