@@ -12,13 +12,10 @@ import (
 	"testing"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sdynamicfake "k8s.io/client-go/dynamic/fake"
-	k8sclientfake "k8s.io/client-go/kubernetes/fake"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -51,7 +48,7 @@ func TestOrchestratorPointsTheWorkersAtTheGateway(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e, _, _ := testWorkspace(t, true, nil)
+			e, _ := testWorkspace(t, true)
 			e.entry.Mode, e.entry.GatewayEnv = tt.mode, tt.gatewayEnv
 			orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"})
 			if err != nil {
@@ -69,13 +66,13 @@ func TestOrchestratorPointsTheWorkersAtTheGateway(t *testing.T) {
 
 func TestEnsureGatewayKeepsCredentialsOnTheGateway(t *testing.T) {
 	authFile := isolateAuthFile(t)
-	e, dynamic, typed := testWorkspace(t, true, nil)
+	e, dynamic := testWorkspace(t, true)
 	e.entry.GatewayEnv = []string{"OLLAMA_CLOUD_API_KEY", "OPENAI_API_KEY"}
 	first, second := testOrchestrator("infer-1", map[string]any{}, nil), testOrchestrator("infer-2", map[string]any{}, nil)
 	t.Setenv("OPENAI_API_KEY", "")
 
 	t.Setenv("OLLAMA_CLOUD_API_KEY", "key-1")
-	secret, gateway := ensureGatewayFor(t, e, dynamic, typed, first)
+	secret, gateway := ensureGatewayFor(t, e, dynamic, first)
 	assertCredentials(t, secret, "key-1")
 	assertOwners(t, secret.OwnerReferences, gateway.GetOwnerReferences(), "uid-infer-1")
 	if got := providerNames(gateway); !slices.Equal(got, []string{"ollama_cloud", "openai", "credentials"}) {
@@ -90,38 +87,35 @@ func TestEnsureGatewayKeepsCredentialsOnTheGateway(t *testing.T) {
 		t.Fatal("the Gateway carries the provider key")
 	}
 
-	secret, gateway = ensureGatewayFor(t, e, dynamic, typed, second)
+	secret, gateway = ensureGatewayFor(t, e, dynamic, second)
 	assertCredentials(t, secret, "key-1")
 	assertOwners(t, secret.OwnerReferences, gateway.GetOwnerReferences(), "uid-infer-1", "uid-infer-2")
 	assertRevision(t, secret, gateway, "1")
 
 	t.Setenv("OLLAMA_CLOUD_API_KEY", "key-2")
-	secret, gateway = ensureGatewayFor(t, e, dynamic, typed, first)
+	secret, gateway = ensureGatewayFor(t, e, dynamic, first)
 	assertCredentials(t, secret, "key-2")
 	assertRevision(t, secret, gateway, "2")
 
 	t.Setenv("OLLAMA_CLOUD_API_KEY", "")
-	secret, gateway = ensureGatewayFor(t, e, dynamic, typed, first)
+	secret, gateway = ensureGatewayFor(t, e, dynamic, first)
 	assertCredentials(t, secret, "key-2")
 	assertRevision(t, secret, gateway, "2")
 
 	if err := os.WriteFile(authFile, []byte("OLLAMA_CLOUD_API_KEY: key-from-auth\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	secret, gateway = ensureGatewayFor(t, e, dynamic, typed, first)
+	secret, gateway = ensureGatewayFor(t, e, dynamic, first)
 	assertCredentials(t, secret, "key-from-auth")
 	assertRevision(t, secret, gateway, "3")
 }
 
-func ensureGatewayFor(t *testing.T, e *Workspace, dynamic *k8sdynamicfake.FakeDynamicClient, typed *k8sclientfake.Clientset, orchestrator *k8sunstructured.Unstructured) (*corev1.Secret, *k8sunstructured.Unstructured) {
+func ensureGatewayFor(t *testing.T, e *Workspace, dynamic *k8sdynamicfake.FakeDynamicClient, orchestrator *k8sunstructured.Unstructured) (*corev1.Secret, *k8sunstructured.Unstructured) {
 	t.Helper()
 	if err := e.ensureGateway(t.Context(), orchestrator); err != nil {
 		t.Fatal(err)
 	}
-	secret, err := typed.CoreV1().Secrets("ns").Get(t.Context(), gatewayName("k8s")+credentialsSuffix, metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	secret := storedSecret(t, e, gatewayName("k8s")+credentialsSuffix)
 	gateway, err := dynamic.Resource(gatewayGVR).Namespace("ns").Get(t.Context(), gatewayName("k8s"), metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -186,7 +180,7 @@ func revisionOf(gateway *k8sunstructured.Unstructured) string {
 func TestAwaitGateway(t *testing.T) {
 	tests := []struct {
 		name       string
-		deployment *appsv1.Deployment
+		deployment *k8sunstructured.Unstructured
 		wantErr    string
 	}{
 		{"a pod serves", gatewayDeployment(1), ""},
@@ -195,11 +189,11 @@ func TestAwaitGateway(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var objects []k8sruntime.Object
+			var objects []*k8sunstructured.Unstructured
 			if tt.deployment != nil {
 				objects = append(objects, tt.deployment)
 			}
-			e, _, _ := testWorkspace(t, true, nil, objects...)
+			e, _ := testWorkspace(t, true, objects...)
 			ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 			defer cancel()
 			err := e.awaitGateway(ctx)
@@ -214,7 +208,7 @@ func TestReachWaitsForAParkedGateway(t *testing.T) {
 	name := orchestratorName("k8s", "conv-1")
 	running := testOrchestrator(name, map[string]any{"sandbox": map[string]any{"operatingMode": modeRunning}}, readyStatus(2, "True", "SandboxReady"))
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: "ns"}, Data: map[string][]byte{secretTokenKey: []byte("token")}}
-	e, _, _ := testWorkspace(t, true, []*k8sunstructured.Unstructured{running}, secret, gatewayDeployment(0))
+	e, _ := testWorkspace(t, true, running, testSecret(t, secret), gatewayDeployment(0))
 	e.entry.GatewayEnv = []string{"OLLAMA_CLOUD_API_KEY"}
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
@@ -223,9 +217,11 @@ func TestReachWaitsForAParkedGateway(t *testing.T) {
 	}
 }
 
-func gatewayDeployment(available int32) *appsv1.Deployment {
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: gatewayName("k8s"), Namespace: "ns"},
-		Status:     appsv1.DeploymentStatus{AvailableReplicas: available},
-	}
+func gatewayDeployment(available int64) *k8sunstructured.Unstructured {
+	return &k8sunstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "apps/v1",
+		"kind":       "Deployment",
+		"metadata":   map[string]any{"name": gatewayName("k8s"), "namespace": "ns"},
+		"status":     map[string]any{"availableReplicas": available},
+	}}
 }
