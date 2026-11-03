@@ -2,8 +2,10 @@ package infrastructure
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
@@ -24,15 +26,31 @@ type PeerInfo struct {
 	StorageID string
 }
 
+// PeerConn is the daemon-to-daemon link the teleports and relays speak
+// through: the workspace's frames over its binding, whichever protocol the
+// workspace serves. The AG-UI WebSocket binding and the A2A JSON-RPC peer
+// endpoint both implement it.
+type PeerConn interface {
+	Kind() string
+	Send(frame []byte) error
+	Deliver(frame []byte)
+	AckAttr(key string) string
+	PeerCertificates() []*x509.Certificate
+	Close()
+}
+
 // PeerDialer dials other daemons as this one, over their binding.
 type PeerDialer struct {
 	Me        string
 	Handshake agui.Handshake
 }
 
-// Dial connects to the binding an endpoint reaches and returns the connection
-// with what the peer declared about itself.
-func (d PeerDialer) Dial(ctx context.Context, endpoint agentdomain.Endpoint, handler agui.Handler) (*agui.Conn, PeerInfo, error) {
+// Dial connects to the workspace's binding over the endpoint's protocol and
+// returns the connection with what the peer declared about itself.
+func (d PeerDialer) Dial(ctx context.Context, endpoint agentdomain.Endpoint, handler agui.Handler) (PeerConn, PeerInfo, error) {
+	if endpoint.Protocol == string(config.WorkspaceProtocolA2A) {
+		return dialPeerA2A(ctx, endpoint, handler, d.Me)
+	}
 	conn, err := agui.Dial(ctx, agui.DialConfig{
 		Addr:       endpoint.Addr,
 		Token:      endpoint.Token,

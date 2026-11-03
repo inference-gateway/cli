@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
@@ -33,7 +34,10 @@ func (e *LocalWorkspace) Reach(ctx context.Context, session agentdomain.Session)
 }
 
 func (e *LocalWorkspace) Probe(context.Context) agentdomain.WorkspaceStatus {
-	return agentdomain.WorkspaceStatus{Name: e.name, Kind: agentdomain.WorkspaceKindLocal, Reachable: true, Capabilities: e.capabilities}
+	return agentdomain.WorkspaceStatus{
+		Name: e.name, Kind: agentdomain.WorkspaceKindLocal, Protocol: string(config.WorkspaceProtocolAGUI), Reachable: true,
+		Capabilities: e.capabilities,
+	}
 }
 
 func (e *LocalWorkspace) Suspend(context.Context, agentdomain.Session) error { return nil }

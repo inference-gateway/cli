@@ -14,7 +14,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -80,8 +79,9 @@ func decodeCheckpoint(payload []byte) (agentdomain.Checkpoint, error) {
 	return checkpoint, nil
 }
 
-// receive handles the peer frames of an incoming teleport.
-func (s *Service) receive(conn *agui.Conn, typ string, frame []byte) {
+// receive handles the peer frames of an incoming teleport, over whichever
+// protocol the peer rode in on.
+func (s *Service) receive(conn agentinfra.PeerConn, typ string, frame []byte) {
 	switch typ {
 	case frameTeleportChunk:
 		s.receiveChunk(conn, frame)
@@ -112,7 +112,7 @@ func (s *Service) receive(conn *agui.Conn, typ string, frame []byte) {
 	}
 }
 
-func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
+func (s *Service) receiveChunk(conn agentinfra.PeerConn, frame []byte) {
 	var chunk chunkFrame
 	if err := json.Unmarshal(frame, &chunk); err != nil {
 		return
@@ -132,7 +132,7 @@ func (s *Service) receiveChunk(conn *agui.Conn, frame []byte) {
 
 // receiveImport assembles and validates the checkpoint, restores the
 // repository and the conversation, claims the lease and answers.
-func (s *Service) receiveImport(conn *agui.Conn, f importFrame) {
+func (s *Service) receiveImport(conn agentinfra.PeerConn, f importFrame) {
 	reply := func(workspaceDir string, err error) {
 		frame := importedFrame{Type: frameTeleportImported, TeleportID: f.TeleportID, OK: err == nil, WorkspaceDir: workspaceDir}
 		if err != nil {

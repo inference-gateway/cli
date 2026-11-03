@@ -13,7 +13,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -116,7 +115,7 @@ func (s *Service) checkoutReady(ctx context.Context, session agentdomain.Session
 // fetchCheckpoint asks the session's owner to pack it and collects the
 // checkpoint it streams back. An owner that does not answer at once runs an
 // infer that cannot send sessions back.
-func (s *Service) fetchCheckpoint(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TeleportRequest, remote agentdomain.Lease) (agentdomain.Checkpoint, error) {
+func (s *Service) fetchCheckpoint(ctx context.Context, conn agentinfra.PeerConn, frames *peerFrames, req agentdomain.TeleportRequest, remote agentdomain.Lease) (agentdomain.Checkpoint, error) {
 	owner := remote.Workspace
 	ask := returnFrame{Type: frameTeleportReturn, TeleportID: req.TeleportID, ID: req.Session.ConversationID, WorkspaceDir: remote.WorkspaceDir, Workspace: s.me}
 	if err := conn.Send(encode(ask)); err != nil {
@@ -220,7 +219,7 @@ func (s *Service) reclaim(ctx context.Context, req agentdomain.TeleportRequest, 
 
 // packForReturn answers teleport_return from the daemon a session came from:
 // it brings the session to rest here, packs it and streams it back.
-func (s *Service) packForReturn(conn *agui.Conn, f returnFrame) {
+func (s *Service) packForReturn(conn agentinfra.PeerConn, f returnFrame) {
 	_ = conn.Send(encode(returnFrame{Type: frameTeleportReturning, TeleportID: f.TeleportID, ID: f.ID}))
 	ctx, cancel := context.WithTimeout(context.Background(), replyTimeout)
 	defer cancel()

@@ -125,8 +125,9 @@ func (s *Service) AckAttrs() map[string]any {
 }
 
 // Handle claims the workspaces and teleports frames: the client requests, and
-// the peer frames when the connection is another daemon's.
-func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
+// the peer frames when the connection is another daemon's, whichever protocol
+// the connection rides.
+func (s *Service) Handle(conn agentinfra.PeerConn, frame []byte) bool {
 	var f clientFrame
 	if json.Unmarshal(frame, &f) != nil {
 		return false
@@ -152,7 +153,7 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 
 // listWorkspaces answers list_workspaces with every workspace's reachability,
 // this daemon first, probing the others in parallel.
-func (s *Service) listWorkspaces(conn *agui.Conn) {
+func (s *Service) listWorkspaces(conn agentinfra.PeerConn) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout+time.Second)
 	defer cancel()
 	names := slices.Sorted(maps.Keys(s.workspaces))

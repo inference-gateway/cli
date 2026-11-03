@@ -10,6 +10,7 @@ import (
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
@@ -74,7 +75,7 @@ func (p *peerFrames) await(ctx context.Context, types ...string) ([]byte, error)
 // remoteWorker relays a thread's frames to the daemon of the workspace that
 // owns the session, as if that daemon were the worker.
 type remoteWorker struct {
-	conn         *agui.Conn
+	conn         agentinfra.PeerConn
 	endpoint     agentdomain.Endpoint
 	workspaceDir string
 	lines        chan []byte

@@ -38,12 +38,14 @@ func (s Session) Validate() error {
 }
 
 // Endpoint is a reachable daemon binding on a workspace. Close releases what
-// made it reachable, such as a port-forward, and may be nil.
+// made it reachable, such as a port-forward, and may be nil. Protocol is the
+// peer protocol the workspace serves, agui unless its entry chose a2a.
 type Endpoint struct {
-	Addr  string
-	TLS   *tls.Config
-	Token string
-	Close func()
+	Addr     string
+	TLS      *tls.Config
+	Token    string
+	Close    func()
+	Protocol string
 }
 
 // Release closes the endpoint when it holds anything to close.
@@ -57,6 +59,7 @@ func (e Endpoint) Release() {
 type WorkspaceStatus struct {
 	Name         string            `json:"name"`
 	Kind         WorkspaceKind     `json:"kind"`
+	Protocol     string            `json:"protocol"`
 	Reachable    bool              `json:"reachable"`
 	Error        string            `json:"error,omitempty"`
 	Capabilities map[string]string `json:"capabilities,omitempty"`
