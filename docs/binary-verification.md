@@ -34,9 +34,9 @@ This method verifies that the binary hasn't been corrupted during download.
 ### Step 1: Download the Binary and Checksums
 
 ```bash
-# Download binary (replace with your platform)
-curl -L -o infer-darwin-amd64 \
-  https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64
+# Download the archive (replace with your platform)
+curl -L -o infer-darwin-amd64.tar.gz \
+  https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64.tar.gz
 
 # Download checksums file
 curl -L -o checksums.txt \
@@ -46,22 +46,22 @@ curl -L -o checksums.txt \
 ### Step 2: Verify the Checksum
 
 ```bash
-# Calculate checksum of downloaded binary
-shasum -a 256 infer-darwin-amd64
+# Calculate checksum of the downloaded archive
+shasum -a 256 infer-darwin-amd64.tar.gz
 
 # Compare with checksums in checksums.txt
-grep infer-darwin-amd64 checksums.txt
+grep infer-darwin-amd64.tar.gz checksums.txt
 ```
 
-The output from both commands should match exactly. If they differ, **do not use the binary** and try downloading again.
+The output from both commands should match exactly. If they differ, **do not use the archive** and try downloading again.
 
 ### Step 3: Install the Binary
 
-Once verified, make the binary executable and install it:
+Once verified, extract the archive and install the `infer` executable it holds:
 
 ```bash
-chmod +x infer-darwin-amd64
-sudo mv infer-darwin-amd64 /usr/local/bin/infer
+tar -xzf infer-darwin-amd64.tar.gz
+sudo mv infer /usr/local/bin/infer
 ```
 
 ---
@@ -91,9 +91,9 @@ go install github.com/sigstore/cosign/v2/cmd/cosign@latest
 ### Step 1: Download All Verification Files
 
 ```bash
-# Download binary (replace with your platform)
-curl -L -o infer-darwin-amd64 \
-  https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64
+# Download the archive (replace with your platform)
+curl -L -o infer-darwin-amd64.tar.gz \
+  https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64.tar.gz
 
 # Download checksums file and Sigstore bundle
 curl -L -o checksums.txt \
@@ -107,11 +107,11 @@ curl -L -o checksums.txt.sigstore.json \
 First, verify the basic checksum as described in the SHA256 section above:
 
 ```bash
-# Calculate checksum of downloaded binary
-shasum -a 256 infer-darwin-amd64
+# Calculate checksum of the downloaded archive
+shasum -a 256 infer-darwin-amd64.tar.gz
 
 # Compare with checksums in checksums.txt
-grep infer-darwin-amd64 checksums.txt
+grep infer-darwin-amd64.tar.gz checksums.txt
 ```
 
 ### Step 3: Verify Cosign Signature
@@ -157,27 +157,28 @@ If verification fails, **do not use the binary**. This could indicate:
 
 ### Step 4: Install the Verified Binary
 
-Once both SHA256 and Cosign verification pass, install the binary:
+Once both SHA256 and Cosign verification pass, extract the archive and install the binary:
 
 ```bash
-chmod +x infer-darwin-amd64
-sudo mv infer-darwin-amd64 /usr/local/bin/infer
+tar -xzf infer-darwin-amd64.tar.gz
+sudo mv infer /usr/local/bin/infer
 ```
 
 ---
 
-## Platform-Specific Binary Names
+## Platform-Specific Archive Names
 
-Replace `infer-darwin-amd64` with your platform's binary name:
+Replace `infer-darwin-amd64.tar.gz` with your platform's archive. Each holds one file, `infer`
+(`infer.exe` on Windows):
 
-| Platform | Architecture | Binary Name |
+| Platform | Architecture | Archive Name |
 | ---------- | ------------- | ------------- |
-| macOS | Intel (amd64) | `infer-darwin-amd64` |
-| macOS | Apple Silicon (arm64) | `infer-darwin-arm64` |
-| Linux | amd64 | `infer-linux-amd64` |
-| Linux | arm64 | `infer-linux-arm64` |
-| Windows | amd64 | `infer-windows-amd64` |
-| Windows | arm64 | `infer-windows-arm64` |
+| macOS | Intel (amd64) | `infer-darwin-amd64.tar.gz` |
+| macOS | Apple Silicon (arm64) | `infer-darwin-arm64.tar.gz` |
+| Linux | amd64 | `infer-linux-amd64.tar.gz` |
+| Linux | arm64 | `infer-linux-arm64.tar.gz` |
+| Windows | amd64 | `infer-windows-amd64.tar.gz` |
+| Windows | arm64 | `infer-windows-arm64.tar.gz` |
 
 ---
 
@@ -185,12 +186,12 @@ Replace `infer-darwin-amd64` with your platform's binary name:
 
 To verify a specific release version instead of the latest:
 
-Replace `latest` in the download URLs with the version tag (e.g., `v0.77.0`):
+Replace `latest` in the download URLs with the version tag (e.g., `v0.242.0`):
 
 ```bash
-# Example for version v0.77.0
-curl -L -o infer-darwin-amd64 \
-  https://github.com/inference-gateway/cli/releases/download/v0.77.0/infer-darwin-amd64
+# Example for version v0.242.0
+curl -L -o infer-darwin-amd64.tar.gz \
+  https://github.com/inference-gateway/cli/releases/download/v0.242.0/infer-darwin-amd64.tar.gz
 ```
 
 ---

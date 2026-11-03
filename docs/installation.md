@@ -113,21 +113,22 @@ iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercon
 
 ## Manual Download
 
-Download the latest release binary for your platform from the [releases page](https://github.com/inference-gateway/cli/releases).
+Download the latest release archive for your platform from the [releases page](https://github.com/inference-gateway/cli/releases).
+Each archive holds a single executable, `infer` (`infer.exe` on Windows).
 
-Available binaries:
+Available archives:
 
-| Platform | Binary |
-| -------- | ------ |
-| Linux amd64 | `infer-linux-amd64` |
-| Linux arm64 | `infer-linux-arm64` |
-| macOS amd64 (Intel) | `infer-darwin-amd64` |
-| macOS arm64 (Apple Silicon) | `infer-darwin-arm64` |
-| Windows amd64 | `infer-windows-amd64` (rename to `infer.exe`) |
-| Windows arm64 | `infer-windows-arm64` (rename to `infer.exe`) |
+| Platform | Archive |
+| -------- | ------- |
+| Linux amd64 | `infer-linux-amd64.tar.gz` |
+| Linux arm64 | `infer-linux-arm64.tar.gz` |
+| macOS amd64 (Intel) | `infer-darwin-amd64.tar.gz` |
+| macOS arm64 (Apple Silicon) | `infer-darwin-arm64.tar.gz` |
+| Windows amd64 | `infer-windows-amd64.tar.gz` |
+| Windows arm64 | `infer-windows-arm64.tar.gz` |
 
-Verify the download against `checksums.txt` or its Cosign signature before installing - see the
-[Binary Verification Guide](binary-verification.md) - then `chmod +x` it and move it onto your `PATH` as `infer`.
+Verify the archive against `checksums.txt` or its Cosign signature before installing - see the
+[Binary Verification Guide](binary-verification.md) - then extract it with `tar -xzf` and move `infer` onto your `PATH`.
 
 ## Build from Source
 

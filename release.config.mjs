@@ -68,7 +68,7 @@ docker run --rm -it ghcr.io/inference-gateway/cli:${version}
 
 ### Binary Download
 
-Download the appropriate binary for your platform from the release assets, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
+Download the \`infer-<os>-<arch>.tar.gz\` for your platform from the release assets and extract it with \`tar -xzf\`, or see the [verification guide](https://github.com/inference-gateway/cli/blob/main/docs/binary-verification.md).
 `;
 };
 
@@ -178,12 +178,12 @@ export default {
       {
         releaseNameTemplate: '🚀 Version <%= nextRelease.version %>',
         assets: [
-          { path: 'dist/infer-linux-amd64' },
-          { path: 'dist/infer-linux-arm64' },
-          { path: 'dist/infer-darwin-amd64' },
-          { path: 'dist/infer-darwin-arm64' },
-          { path: 'dist/infer-windows-amd64' },
-          { path: 'dist/infer-windows-arm64' },
+          { path: 'dist/infer-linux-amd64.tar.gz' },
+          { path: 'dist/infer-linux-arm64.tar.gz' },
+          { path: 'dist/infer-darwin-amd64.tar.gz' },
+          { path: 'dist/infer-darwin-arm64.tar.gz' },
+          { path: 'dist/infer-windows-amd64.tar.gz' },
+          { path: 'dist/infer-windows-arm64.tar.gz' },
           { path: 'dist/checksums.txt' },
           { path: 'dist/checksums.txt.sigstore.json' },
         ],

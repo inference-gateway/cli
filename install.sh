@@ -155,7 +155,7 @@ install_cli() {
 
     print_status "Installing version: $VERSION"
 
-    FILENAME="${BINARY_NAME}-${PLATFORM}-${ARCH}"
+    FILENAME="${BINARY_NAME}-${PLATFORM}-${ARCH}.tar.gz"
     DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$VERSION/$FILENAME"
 
     print_status "Download URL: $DOWNLOAD_URL"
@@ -169,6 +169,12 @@ install_cli() {
         exit 1
     fi
 
+    print_status "Extracting $FILENAME..."
+    if ! tar -xzf "$TEMP_DIR/$FILENAME" -C "$TEMP_DIR"; then
+        print_error "Failed to extract $FILENAME"
+        exit 1
+    fi
+
     if [ ! -d "$INSTALL_DIR" ]; then
         print_status "Creating installation directory: $INSTALL_DIR"
         if ! mkdir -p "$INSTALL_DIR"; then
@@ -179,7 +185,7 @@ install_cli() {
     fi
 
     print_status "Installing binary to $INSTALL_DIR/$BINARY_NAME..."
-    if ! cp "$TEMP_DIR/$FILENAME" "$INSTALL_DIR/$BINARY_NAME"; then
+    if ! cp "$TEMP_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"; then
         print_error "Failed to install binary to $INSTALL_DIR"
         print_warning "Try running with sudo or set INSTALL_DIR to a writable directory"
         exit 1

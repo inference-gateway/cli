@@ -271,11 +271,18 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Prepare and sign release artifacts
+      - name: Archive and sign release artifacts
         run: |
           cd dist
           chmod +x infer-*
-          sha256sum infer-* > checksums.txt
+          for binary in infer-*; do
+            case "$binary" in
+              *windows*) name=infer.exe ;;
+              *) name=infer ;;
+            esac
+            tar -czf "$binary.tar.gz" --owner=0 --group=0 --transform "s|^$binary$|$name|" "$binary"
+          done
+          sha256sum infer-*.tar.gz > checksums.txt
           cosign sign-blob --yes checksums.txt --bundle checksums.txt.sigstore.json
 
       - name: Verify all assets present
@@ -283,12 +290,12 @@ jobs:
           cd dist
           missing=0
           for f in \
-            infer-linux-amd64 \
-            infer-linux-arm64 \
-            infer-darwin-amd64 \
-            infer-darwin-arm64 \
-            infer-windows-amd64 \
-            infer-windows-arm64 \
+            infer-linux-amd64.tar.gz \
+            infer-linux-arm64.tar.gz \
+            infer-darwin-amd64.tar.gz \
+            infer-darwin-arm64.tar.gz \
+            infer-windows-amd64.tar.gz \
+            infer-windows-arm64.tar.gz \
             checksums.txt \
             checksums.txt.sigstore.json; do
             if [ ! -f "$f" ]; then
