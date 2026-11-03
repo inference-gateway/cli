@@ -87,6 +87,12 @@ func gitProject(t *testing.T) string {
 // peers starts daemon A, which registers daemon B as a workspace of kind
 // daemon, and daemon B, which serves its binding over TLS as workspace "b".
 func peers(t *testing.T) (a, b *daemonProc, projectsRoot string) {
+	return peersOver(t, "")
+}
+
+// peersOver is peers whose workspace entry on A picks a peer protocol, a2a to
+// carry the teleport and its relay over the A2A JSON-RPC peer endpoint.
+func peersOver(t *testing.T, protocol string) (a, b *daemonProc, projectsRoot string) {
 	t.Helper()
 	homeA, homeB := t.TempDir(), t.TempDir()
 	certFile, keyFile, caFile, clientTLS := peerCA(t, homeB)
@@ -98,16 +104,20 @@ func peers(t *testing.T) (a, b *daemonProc, projectsRoot string) {
 		"INFER_DAEMON_BINDING_TLS_CERT_FILE="+certFile,
 		"INFER_DAEMON_BINDING_TLS_KEY_FILE="+keyFile,
 	)
+	protocolYAML := ""
+	if protocol != "" {
+		protocolYAML = "    protocol: " + protocol + "\n"
+	}
 	daemonYAML := fmt.Sprintf(`workspace: a
 workspaces:
   - name: b
     kind: daemon
-    address: 127.0.0.1:%d
+%s    address: 127.0.0.1:%d
     token: %s
     lease_ttl: 1h
     tls:
       ca_file: %s
-`, b.port, daemonToken, caFile)
+`, protocolYAML, b.port, daemonToken, caFile)
 	require.NoError(t, os.MkdirAll(filepath.Join(homeA, ".infer"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(homeA, ".infer", "daemon.yaml"), []byte(daemonYAML), 0644))
 	a = startDaemon(t, homeA)
@@ -141,7 +151,21 @@ func teleport(c *daemonClient, project, threadID, target, teleportID string) []s
 }
 
 func TestTeleportSendsASessionToAnotherDaemon(t *testing.T) {
-	a, b, projectsRoot := peers(t)
+	teleportRoundTrip(t, "")
+}
+
+// TestTeleportSendsASessionOverA2A rides the same saga over the A2A JSON-RPC
+// peer endpoint, since the workspace entry picks protocol a2a: a dial that
+// cannot serve it fails the provisioning stage before anything else.
+func TestTeleportSendsASessionOverA2A(t *testing.T) {
+	teleportRoundTrip(t, "a2a")
+}
+
+// teleportRoundTrip opens a session at home, teleports it to the peer, follows
+// it through the relay and the peer's own binding, and retires the daemon it
+// left.
+func teleportRoundTrip(t *testing.T, protocol string) {
+	a, b, projectsRoot := peersOver(t, protocol)
 	project := gitProject(t)
 	desktop := dialDaemon(t, a, "desktop")
 	threadID := openThread(desktop, project, "auto")
