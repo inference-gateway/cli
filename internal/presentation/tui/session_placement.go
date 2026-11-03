@@ -8,14 +8,18 @@ import (
 
 // SessionPlacement is where a daemon chat's session runs: Local is the
 // workspace of the daemon the TUI talks to and Workspace the one the
-// session lives on. The zero value is an in-process chat.
+// session lives on. The zero value is an in-process chat. Protocol is the
+// peer protocol the workspace the session runs on serves and TeleportProtocol
+// the one the teleport's target did, both "" where they do not apply.
 type SessionPlacement struct {
-	Daemon       bool
-	Local        string
-	Workspace    string
-	WorkspaceDir string
-	Teleporting  string
-	Offline      bool
+	Daemon           bool
+	Local            string
+	Workspace        string
+	WorkspaceDir     string
+	Teleporting      string
+	TeleportProtocol string
+	Protocol         string
+	Offline          bool
 }
 
 // Remote reports whether the session runs on a workspace other than the

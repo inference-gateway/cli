@@ -16,9 +16,9 @@ var (
 	onK8sDev         = tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}
 	teleportingToDev = tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev"}
 	workspaces       = []agentdomain.WorkspaceStatus{
-		{Name: "laptop", Kind: agentdomain.WorkspaceKindLocal, Reachable: true},
-		{Name: "k8s-dev", Kind: agentdomain.WorkspaceKindKubernetes, Reachable: true, Capabilities: map[string]string{"namespace": "infer"}},
-		{Name: "k8s-gone", Kind: agentdomain.WorkspaceKindKubernetes, Error: "connection refused"},
+		{Name: "laptop", Kind: agentdomain.WorkspaceKindLocal, Protocol: "agui", Reachable: true},
+		{Name: "k8s-dev", Kind: agentdomain.WorkspaceKindKubernetes, Protocol: "a2a", Reachable: true, Capabilities: map[string]string{"namespace": "infer"}},
+		{Name: "k8s-gone", Kind: agentdomain.WorkspaceKindKubernetes, Protocol: "agui", Error: "connection refused"},
 	}
 )
 
@@ -126,6 +126,18 @@ func TestWorkspacesViewSaysWhyItCannotTeleportThere(t *testing.T) {
 				t.Error("a refusal closed the picker")
 			}
 		})
+	}
+}
+
+func TestWorkspacesViewShowsTheProtocol(t *testing.T) {
+	p := openPicker(onLaptop, 0)
+
+	content := p.view.View().Content
+	if !strings.Contains(content, "[agui]") {
+		t.Errorf("the picker does not show the agui workspaces' protocol:\n%s", content)
+	}
+	if !strings.Contains(content, "[a2a]") {
+		t.Errorf("the picker does not show k8s-dev's a2a protocol:\n%s", content)
 	}
 }
 

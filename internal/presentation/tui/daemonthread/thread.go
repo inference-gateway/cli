@@ -53,6 +53,11 @@ type Thread struct {
 	opts   Options
 	leases agentdomain.LeaseStore
 
+	// protocols is the peer protocol each workspace entry chose, so the TUI can
+	// show how the daemon reaches the one the session runs on or teleports to.
+	// The daemon's own workspace is not in it, since it serves every protocol.
+	protocols map[string]string
+
 	mu         sync.Mutex
 	conn       *agui.Conn
 	notifier   agentdomain.UINotifier
@@ -101,10 +106,15 @@ type header struct {
 }
 
 // New builds the thread connection for a daemon chat in opts.ProjectDir. It
-// reads the session's lease from leases to tell where it runs.
+// reads the session's lease from leases to tell where it runs, and the
+// workspaces' peer protocols from the config the local daemon shares.
 func New(cfg *config.Config, opts Options, leases agentdomain.LeaseStore) *Thread {
+	protocols := make(map[string]string, len(cfg.Daemon.Workspaces))
+	for _, entry := range cfg.Daemon.Workspaces {
+		protocols[entry.Name] = string(entry.EffectiveProtocol())
+	}
 	t := &Thread{
-		cfg: cfg, opts: opts, leases: leases,
+		cfg: cfg, opts: opts, leases: leases, protocols: protocols,
 		synced: make(map[string]int),
 		wake:   make(chan struct{}, 1),
 		notes:  make(chan struct{}, 1),
@@ -237,6 +247,7 @@ func (t *Thread) locate(ctx context.Context, id string) {
 		workspace, workspaceDir = t.placement.Local, t.opts.ProjectDir
 	}
 	t.placement.Workspace, t.placement.WorkspaceDir = workspace, workspaceDir
+	t.placement.Protocol = t.protocols[workspace]
 	placement := t.placement
 	t.mu.Unlock()
 	t.post(tui.SessionPlacementChangedEvent{Placement: placement})

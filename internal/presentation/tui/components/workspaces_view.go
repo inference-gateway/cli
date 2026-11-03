@@ -57,7 +57,11 @@ func (d workspaceDelegate) Render(w io.Writer, m list.Model, index int, item lis
 	if !it.status.Reachable {
 		reach = d.styleProvider.RenderWithColor("[unreachable]", color("error"))
 	}
-	row := name + " " + kind + " " + reach
+	row := name + " " + kind
+	if it.status.Protocol != "" {
+		row += " " + d.styleProvider.RenderWithColor("["+it.status.Protocol+"]", color("dim"))
+	}
+	row += " " + reach
 	switch {
 	case it.teleporting:
 		row += " " + d.styleProvider.RenderWithColor(icons.TeleportingSession+" teleporting", color("warning"))

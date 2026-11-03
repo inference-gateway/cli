@@ -1360,8 +1360,11 @@ func TestInputStatusBar_BuildWorkspaceIndicator(t *testing.T) {
 		{name: "in process", placement: tui.SessionPlacement{}},
 		{name: "on the local daemon", placement: tui.SessionPlacement{Daemon: true, Local: "laptop"}, text: icons.LocalSession + " laptop", color: "dim"},
 		{name: "on another workspace", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}, text: icons.RemoteSession + " k8s-dev", color: "accent"},
+		{name: "on another workspace over a2a", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev", Protocol: "a2a"}, text: icons.RemoteSession + " k8s-dev (a2a)", color: "accent"},
 		{name: "teleporting", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev"}, text: icons.TeleportingSession + " k8s-dev", color: "warning"},
+		{name: "teleporting over a2a", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Teleporting: "k8s-dev", TeleportProtocol: "a2a"}, text: icons.TeleportingSession + " k8s-dev (a2a)", color: "warning"},
 		{name: "offline", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Offline: true}, text: icons.LocalSession + " laptop · offline", color: "error"},
+		{name: "offline over a2a", placement: tui.SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev", Protocol: "a2a", Offline: true}, text: icons.RemoteSession + " k8s-dev (a2a) · offline", color: "error"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
