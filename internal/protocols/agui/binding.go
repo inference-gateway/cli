@@ -24,13 +24,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// protocolVersion is the wire contract version the hello and its ack report.
-// Version 2 replaces the CLI's CUSTOM events and app frames with the standard
-// AG-UI ones: interrupts, run usage, the one state object, ACTIVITY_SNAPSHOT
-// and RunAgentInput frames. The handshake is lenient: clients show an update
-// state on a mismatch, and the binding never rejects a hello over its version.
-const protocolVersion = 2
-
 // handshakeTimeout bounds the hello and its ack on a fresh socket.
 const handshakeTimeout = 5 * time.Second
 
@@ -49,9 +42,6 @@ const maxInboundFrameBytes = 64 << 20
 // its socket at least that fast, or it is closed for a reconnect.
 const outboundQueue = 64
 
-// protocolVersionField is the hello field naming the wire contract version.
-const protocolVersionField = "protocol_version"
-
 // Handshake names the first frame a client sends and the frame that acks it.
 type Handshake struct {
 	Hello string
@@ -59,10 +49,9 @@ type Handshake struct {
 }
 
 type helloFrame struct {
-	Type            string          `json:"type"`
-	Token           string          `json:"token"`
-	Client          string          `json:"client"`
-	ProtocolVersion json.RawMessage `json:"protocol_version"`
+	Type   string `json:"type"`
+	Token  string `json:"token"`
+	Client string `json:"client"`
 }
 
 // loopbackHost is where the binding listens unless its config names a host.
@@ -314,15 +303,12 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = ws.SetReadDeadline(time.Time{})
 
-	if len(hello.ProtocolVersion) == 0 {
-		logger.Warn("binding accepted a hello without protocol_version", "client", hello.Client)
-	}
 	if err := ws.WriteJSON(b.ackFrame()); err != nil {
 		_ = ws.Close()
 		return
 	}
 	c := newConn(ws, hello.Client, declaredHelloAttrs(helloRaw), nil)
-	logger.Info("binding client connected", "client", c.kind, "protocol_version", c.HelloAttr(protocolVersionField))
+	logger.Info("binding client connected", "client", c.kind)
 	b.adopt(c)
 }
 
@@ -335,15 +321,14 @@ func (b *Binding) authenticated(r *http.Request, token string) bool {
 	return b.cfg.requiresClientCert() && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 
-// ackFrame is the hello's answer: the ack type, the protocol version and the
-// host facts the config declares.
+// ackFrame is the hello's answer: the ack type and the host facts the config
+// declares.
 func (b *Binding) ackFrame() map[string]any {
-	ack := make(map[string]any, len(b.cfg.AckAttrs)+2)
+	ack := make(map[string]any, len(b.cfg.AckAttrs)+1)
 	for key, value := range b.cfg.AckAttrs {
 		ack[key] = value
 	}
 	ack["type"] = b.cfg.Handshake.Ack
-	ack[protocolVersionField] = protocolVersion
 	return ack
 }
 
@@ -381,7 +366,7 @@ func (b *Binding) drop(c *Conn) {
 	b.mu.Unlock()
 
 	c.Close()
-	logger.Info("binding client disconnected", "client", c.kind, "protocol_version", c.HelloAttr(protocolVersionField))
+	logger.Info("binding client disconnected", "client", c.kind)
 	b.handler.Detach(c)
 }
 
@@ -462,14 +447,13 @@ func Dial(ctx context.Context, cfg DialConfig, handler Handler) (*Conn, error) {
 
 // sayHello sends the hello and returns the other fields the ack declared.
 func sayHello(ws *websocket.Conn, cfg DialConfig) (map[string]string, error) {
-	hello := make(map[string]any, len(cfg.HelloAttrs)+4)
+	hello := make(map[string]any, len(cfg.HelloAttrs)+3)
 	for key, value := range cfg.HelloAttrs {
 		hello[key] = value
 	}
 	hello["type"] = cfg.Handshake.Hello
 	hello["token"] = cfg.Token
 	hello["client"] = cfg.Kind
-	hello[protocolVersionField] = protocolVersion
 	raw, _ := json.Marshal(hello)
 	if err := ws.WriteMessage(websocket.TextMessage, raw); err != nil {
 		return nil, fmt.Errorf("the binding on %s did not take the hello: %w", cfg.Addr, err)

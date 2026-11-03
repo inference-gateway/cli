@@ -126,11 +126,10 @@ func dialDaemon(t *testing.T, d *daemonProc, client string) *daemonClient {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
 
-	require.NoError(t, conn.WriteJSON(map[string]any{"type": "browser_hello", "token": daemonToken, "client": client, "protocol_version": 2}))
+	require.NoError(t, conn.WriteJSON(map[string]any{"type": "browser_hello", "token": daemonToken, "client": client}))
 	var ack map[string]any
 	require.NoError(t, conn.ReadJSON(&ack))
 	require.Equal(t, "browser_hello_ack", ack["type"])
-	require.Equal(t, float64(2), ack["protocol_version"])
 
 	c := &daemonClient{t: t, d: d, conn: conn, frames: make(chan map[string]any, 256)}
 	go func() {

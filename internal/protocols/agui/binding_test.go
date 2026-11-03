@@ -45,7 +45,7 @@ func dial(t *testing.T, binding *agui.Binding) *websocket.Conn {
 // helloAs authenticates as the given client kind and returns the ack.
 func helloAs(t *testing.T, conn *websocket.Conn, token, client string) map[string]any {
 	t.Helper()
-	if err := conn.WriteJSON(map[string]any{"type": "hello", "token": token, "client": client, "protocol_version": 1}); err != nil {
+	if err := conn.WriteJSON(map[string]any{"type": "hello", "token": token, "client": client, "extension_version": "1.9.2"}); err != nil {
 		t.Fatalf("hello: %v", err)
 	}
 	var ack map[string]any
@@ -71,25 +71,13 @@ func eventually(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-func TestBindingAckCarriesProtocolVersion(t *testing.T) {
+func TestBindingAcksAHelloOfAnyClientKind(t *testing.T) {
 	binding, _ := testBinding(t)
 	for _, client := range []string{"", "panel", "viewer"} {
 		ack := helloAs(t, dial(t, binding), "test-token", client)
-		if ack["protocol_version"] != float64(agui.ProtocolVersion) {
-			t.Fatalf("client %q: ack protocol_version = %v, want %d", client, ack["protocol_version"], agui.ProtocolVersion)
+		if _, versioned := ack["protocol_version"]; versioned || len(ack) != 1 {
+			t.Fatalf("client %q: ack = %v, want the type alone", client, ack)
 		}
-	}
-}
-
-func TestBindingAcceptsHelloWithoutProtocolVersion(t *testing.T) {
-	binding, _ := testBinding(t)
-	conn := dial(t, binding)
-	if err := conn.WriteJSON(map[string]string{"type": "hello", "token": "test-token"}); err != nil {
-		t.Fatalf("hello: %v", err)
-	}
-	var ack map[string]any
-	if err := conn.ReadJSON(&ack); err != nil || ack["type"] != "hello_ack" {
-		t.Fatalf("expected an ack for a versionless hello, got %v (%v)", ack, err)
 	}
 }
 
@@ -99,8 +87,8 @@ func TestConnAnswersTheHelloAttrsWithoutTheToken(t *testing.T) {
 	eventually(t, "the connection to attach", func() bool { return handler.AttachCallCount() == 1 })
 
 	conn := handler.AttachArgsForCall(0)
-	if got := conn.HelloAttr("protocol_version"); got != "1" {
-		t.Fatalf("protocol_version attr = %q, want 1", got)
+	if got := conn.HelloAttr("extension_version"); got != "1.9.2" {
+		t.Fatalf("extension_version attr = %q, want 1.9.2", got)
 	}
 	if got := conn.HelloAttr("token"); got != "" {
 		t.Fatalf("the token is readable as a hello attr: %q", got)
