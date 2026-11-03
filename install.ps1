@@ -72,7 +72,7 @@ function Install-CLI {
 
     Write-Status "Installing version: $Version"
 
-    $filename = "${BinaryName}-windows-${arch}"
+    $filename = "${BinaryName}-windows-${arch}.tar.gz"
     $downloadUrl = "https://github.com/$GithubRepo/releases/download/$Version/$filename"
 
     Write-Status "Download URL: $downloadUrl"
@@ -96,11 +96,19 @@ function Install-CLI {
         New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     }
 
+    Write-Status "Extracting $filename..."
+    tar -xzf $tempFile -C $tempDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to extract $filename"
+        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
+        exit 1
+    }
+
     $targetPath = Join-Path $InstallDir "$BinaryName.exe"
     Write-Status "Installing binary to $targetPath..."
 
     try {
-        Move-Item -Force $tempFile $targetPath
+        Move-Item -Force (Join-Path $tempDir "$BinaryName.exe") $targetPath
     } catch {
         Write-Error "Failed to install binary to $targetPath`: $_"
         Write-Warning "Try running as Administrator or set InstallDir to a writable directory"

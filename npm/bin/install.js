@@ -5,13 +5,17 @@
 // GitHub release matching this package's version, and places it next to this
 // script so `bin/run.js` can exec it. Runs as an npm `postinstall` hook.
 //
-// The CLI publishes raw executables (e.g. `infer-linux-amd64`) plus a
-// `checksums.txt`, so this downloads the binary directly - no archive to extract.
+// The CLI publishes one `infer-<os>-<arch>.tar.gz` per platform holding the
+// executable as `infer` (`infer.exe` on Windows), plus a `checksums.txt` over
+// the archives. The system `tar` extracts it: macOS, Linux and Windows 10+
+// all ship one.
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const https = require("https");
 const crypto = require("crypto");
+const { execFileSync } = require("child_process");
 
 const REPO = "inference-gateway/cli";
 const { version } = require("../package.json");
@@ -41,7 +45,15 @@ function resolveAsset() {
         `Install from source instead: https://github.com/${REPO}#installation`
     );
   }
-  return `infer-${goos}-${goarch}`;
+  return `infer-${goos}-${goarch}.tar.gz`;
+}
+
+function extract(archive) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "infer-cli-"));
+  const archivePath = path.join(dir, "infer.tar.gz");
+  fs.writeFileSync(archivePath, archive);
+  execFileSync("tar", ["-xzf", archivePath, "-C", dir], { stdio: "inherit" });
+  return fs.readFileSync(path.join(dir, binName));
 }
 
 function download(url) {
@@ -67,7 +79,7 @@ function download(url) {
   });
 }
 
-async function verifyChecksum(binary, assetName) {
+async function verifyChecksum(archive, assetName) {
   let checksums;
   try {
     checksums = (await download(`${BASE_URL}/checksums.txt`)).toString("utf8");
@@ -85,7 +97,7 @@ async function verifyChecksum(binary, assetName) {
     return;
   }
   const expected = line.trim().split(/\s+/)[0];
-  const actual = crypto.createHash("sha256").update(binary).digest("hex");
+  const actual = crypto.createHash("sha256").update(archive).digest("hex");
   if (expected !== actual) {
     fail(`checksum mismatch for ${assetName} (expected ${expected}, got ${actual})`);
   }
@@ -104,9 +116,9 @@ async function main() {
   const url = `${BASE_URL}/${assetName}`;
   console.log(`@inference-gateway/cli: downloading ${assetName} (v${version})`);
 
-  let binary;
+  let archive;
   try {
-    binary = await download(url);
+    archive = await download(url);
   } catch (err) {
     fail(
       `failed to download ${url}: ${err.message}. ` +
@@ -114,8 +126,9 @@ async function main() {
     );
   }
 
-  await verifyChecksum(binary, assetName);
+  await verifyChecksum(archive, assetName);
 
+  const binary = extract(archive);
   fs.mkdirSync(path.dirname(binPath), { recursive: true });
   fs.writeFileSync(binPath, binary, { mode: 0o755 });
   fs.chmodSync(binPath, 0o755);
