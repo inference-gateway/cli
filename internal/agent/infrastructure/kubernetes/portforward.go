@@ -21,7 +21,7 @@ func (e *Workspace) portForward(ctx context.Context, pod string) (string, func()
 	if err != nil {
 		return "", nil, fmt.Errorf("preparing the port-forward: %w", err)
 	}
-	url := e.typed.CoreV1().RESTClient().Post().Resource("pods").Namespace(e.entry.Namespace).Name(pod).SubResource("portforward").URL()
+	url := e.core.Post().Resource("pods").Namespace(e.entry.Namespace).Name(pod).SubResource("portforward").URL()
 	dialer := k8sspdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, url)
 	stop := make(chan struct{})
 	ready := make(chan struct{})

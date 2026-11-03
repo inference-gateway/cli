@@ -87,19 +87,24 @@ func (e *Workspace) writeCredentials(ctx context.Context, orchestrator *k8sunstr
 }
 
 func (e *Workspace) upsertCredentials(ctx context.Context, name string, orchestrator *k8sunstructured.Unstructured) (*corev1.Secret, error) {
-	secrets := e.typed.CoreV1().Secrets(e.entry.Namespace)
-	secret, err := secrets.Get(ctx, name, metav1.GetOptions{})
+	stored, err := e.secrets().Get(ctx, name, metav1.GetOptions{})
 	switch {
 	case k8serrors.IsNotFound(err):
-		return secrets.Create(ctx, &corev1.Secret{
+		return writeSecret(&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: name, Namespace: e.entry.Namespace, Labels: map[string]string{labelWorkspace: e.entry.Name},
 				Annotations:     map[string]string{revisionKey: "1"},
 				OwnerReferences: []metav1.OwnerReference{ownerOf(orchestrator)},
 			},
 			Data: e.credentials(nil),
-		}, metav1.CreateOptions{})
+		}, func(object *k8sunstructured.Unstructured) (*k8sunstructured.Unstructured, error) {
+			return e.secrets().Create(ctx, object, metav1.CreateOptions{})
+		})
 	case err != nil:
+		return nil, err
+	}
+	secret, err := secretFrom(stored)
+	if err != nil {
 		return nil, err
 	}
 	data, owners := e.credentials(secret.Data), addOwner(secret.OwnerReferences, orchestrator)
@@ -112,7 +117,23 @@ func (e *Workspace) upsertCredentials(ctx context.Context, name string, orchestr
 		metav1.SetMetaDataAnnotation(&secret.ObjectMeta, revisionKey, strconv.Itoa(revision+1))
 	}
 	secret.Data, secret.OwnerReferences = data, owners
-	return secrets.Update(ctx, secret, metav1.UpdateOptions{})
+	return writeSecret(secret, func(object *k8sunstructured.Unstructured) (*k8sunstructured.Unstructured, error) {
+		return e.secrets().Update(ctx, object, metav1.UpdateOptions{})
+	})
+}
+
+// writeSecret sends a typed Secret through a dynamic client call and returns
+// what the server stored.
+func writeSecret(secret *corev1.Secret, write func(*k8sunstructured.Unstructured) (*k8sunstructured.Unstructured, error)) (*corev1.Secret, error) {
+	object, err := unstructuredSecret(secret)
+	if err != nil {
+		return nil, err
+	}
+	written, err := write(object)
+	if err != nil {
+		return nil, err
+	}
+	return secretFrom(written)
 }
 
 // credentials are the gateway_env values this daemon's environment or auth
@@ -186,8 +207,8 @@ func (e *Workspace) awaitGateway(ctx context.Context) error {
 	name := gatewayName(e.entry.Name)
 	deployed := false
 	for {
-		deployment, err := e.typed.AppsV1().Deployments(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
-		if err == nil && deployment.Status.AvailableReplicas > 0 {
+		deployment, err := e.dynamic.Resource(deploymentGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
+		if err == nil && availableReplicas(deployment) > 0 {
 			return nil
 		}
 		if err != nil && !k8serrors.IsNotFound(err) && ctx.Err() == nil {
@@ -203,6 +224,11 @@ func (e *Workspace) awaitGateway(ctx context.Context) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+func availableReplicas(deployment *k8sunstructured.Unstructured) int64 {
+	available, _, _ := k8sunstructured.NestedInt64(deployment.Object, "status", "availableReplicas")
+	return available
 }
 
 // gatewaySpec reads every gateway_env variable from the credentials Secret,

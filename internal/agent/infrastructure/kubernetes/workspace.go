@@ -20,10 +20,10 @@ import (
 	k8sresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	k8sdynamic "k8s.io/client-go/dynamic"
-	k8sclient "k8s.io/client-go/kubernetes"
 	k8srest "k8s.io/client-go/rest"
 	k8sclientcmd "k8s.io/client-go/tools/clientcmd"
 
@@ -59,7 +59,11 @@ const (
 	modeSuspended = "Suspended"
 )
 
-var orchestratorGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: orchestratorResource}
+var (
+	orchestratorGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: orchestratorResource}
+	secretGVR       = k8sschema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+	deploymentGVR   = k8sschema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+)
 
 // unrecoverableReasons are the Ready reasons the operator reports for an
 // Orchestrator that never runs without a change to the cluster or its spec.
@@ -75,7 +79,7 @@ type Workspace struct {
 	pki      *agentinfra.PKI
 	rest     *k8srest.Config
 	dynamic  k8sdynamic.Interface
-	typed    k8sclient.Interface
+	core     *k8srest.RESTClient
 }
 
 // New connects to the cluster the entry names and returns the workspace.
@@ -88,11 +92,22 @@ func New(entry config.WorkspaceEntry, identity string, tls *agentinfra.TLSProvid
 	if err != nil {
 		return nil, fmt.Errorf("building the Kubernetes client for workspace %s: %w", entry.Name, err)
 	}
-	typedClient, err := k8sclient.NewForConfig(restConfig)
+	core, err := coreClientFor(restConfig)
 	if err != nil {
 		return nil, fmt.Errorf("building the Kubernetes client for workspace %s: %w", entry.Name, err)
 	}
-	return &Workspace{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, typed: typedClient}, nil
+	return &Workspace{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, core: core}, nil
+}
+
+// coreClientFor is a core/v1 REST client for the calls no resource client
+// makes, the port-forward URL and the server version. Unlike the typed
+// clientset it carries no scheme, which keeps every other API group out of
+// the binary.
+func coreClientFor(restConfig *k8srest.Config) (*k8srest.RESTClient, error) {
+	coreConfig := k8sdynamic.ConfigFor(restConfig)
+	coreConfig.APIPath = "/api"
+	coreConfig.GroupVersion = &k8sschema.GroupVersion{Version: "v1"}
+	return k8srest.RESTClientFor(coreConfig)
 }
 
 func restConfigFor(entry config.WorkspaceEntry) (*k8srest.Config, error) {
@@ -122,6 +137,27 @@ func orchestratorName(workspace, conversationID string) string {
 
 func (e *Workspace) orchestrators() k8sdynamic.ResourceInterface {
 	return e.dynamic.Resource(orchestratorGVR).Namespace(e.entry.Namespace)
+}
+
+func (e *Workspace) secrets() k8sdynamic.ResourceInterface {
+	return e.dynamic.Resource(secretGVR).Namespace(e.entry.Namespace)
+}
+
+func secretFrom(object *k8sunstructured.Unstructured) (*corev1.Secret, error) {
+	var secret corev1.Secret
+	if err := k8sruntime.DefaultUnstructuredConverter.FromUnstructured(object.Object, &secret); err != nil {
+		return nil, fmt.Errorf("reading Secret %s: %w", object.GetName(), err)
+	}
+	return &secret, nil
+}
+
+func unstructuredSecret(secret *corev1.Secret) (*k8sunstructured.Unstructured, error) {
+	secret.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"}
+	object, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(secret)
+	if err != nil {
+		return nil, fmt.Errorf("encoding Secret %s: %w", secret.Name, err)
+	}
+	return &k8sunstructured.Unstructured{Object: object}, nil
 }
 
 // Ensure creates or resumes the session's Orchestrator, waits for its daemon to
@@ -196,13 +232,14 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 
 // requireOperator fails unless the cluster serves Orchestrators, so a teleport
 // aborts before it leaves anything behind in a cluster without the operator.
+// A cluster without the CRD answers the list with not found.
 func (e *Workspace) requireOperator(ctx context.Context) error {
-	resources, err := e.typed.Discovery().ServerResourcesForGroupVersionWithContext(ctx, orchestratorGroup+"/"+orchestratorVersion)
-	if err != nil && !k8serrors.IsNotFound(err) {
-		return fmt.Errorf("looking for the Inference Gateway operator in the cluster of workspace %s: %w", e.entry.Name, err)
-	}
-	if err == nil && slices.ContainsFunc(resources.APIResources, func(r metav1.APIResource) bool { return r.Name == orchestratorResource }) {
+	_, err := e.orchestrators().List(ctx, metav1.ListOptions{Limit: 1})
+	if err == nil {
 		return nil
+	}
+	if !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("looking for the Inference Gateway operator in the cluster of workspace %s: %w", e.entry.Name, err)
 	}
 	return fmt.Errorf("the Inference Gateway operator is not installed in the cluster of workspace %s: install %s or later from https://github.com/inference-gateway/operator/releases", e.entry.Name, minOperatorVersion)
 }
@@ -225,10 +262,13 @@ func (e *Workspace) requiredOperatorVersion() string {
 // ensureSecret holds what the pod daemon authenticates with: a binding token
 // and the certificates the daemon CA issued.
 func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, error) {
-	secrets := e.typed.CoreV1().Secrets(e.entry.Namespace)
-	existing, err := secrets.Get(ctx, name+tlsSecretSuffix, metav1.GetOptions{})
+	existing, err := e.secrets().Get(ctx, name+tlsSecretSuffix, metav1.GetOptions{})
 	if err == nil {
-		return string(existing.Data[secretTokenKey]), nil
+		secret, err := secretFrom(existing)
+		if err != nil {
+			return "", err
+		}
+		return string(secret.Data[secretTokenKey]), nil
 	}
 	if !k8serrors.IsNotFound(err) {
 		return "", fmt.Errorf("reading Secret %s: %w", name+tlsSecretSuffix, err)
@@ -260,7 +300,11 @@ func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, erro
 		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelWorkspace: e.entry.Name}},
 		Data:       data,
 	}
-	if _, err := secrets.Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+	object, err := unstructuredSecret(secret)
+	if err != nil {
+		return "", err
+	}
+	if _, err := e.secrets().Create(ctx, object, metav1.CreateOptions{}); err != nil {
 		return "", fmt.Errorf("creating Secret %s: %w", secret.Name, err)
 	}
 	return token, nil
@@ -271,7 +315,7 @@ func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, erro
 func (e *Workspace) ownSecret(ctx context.Context, orchestrator *k8sunstructured.Unstructured) error {
 	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"ownerReferences": []metav1.OwnerReference{ownerOf(orchestrator)}}})
 	name := orchestrator.GetName() + tlsSecretSuffix
-	if _, err := e.typed.CoreV1().Secrets(e.entry.Namespace).Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
+	if _, err := e.secrets().Patch(ctx, name, k8stypes.MergePatchType, patch, metav1.PatchOptions{}); err != nil {
 		return fmt.Errorf("making Orchestrator %s the owner of Secret %s: %w", orchestrator.GetName(), name, err)
 	}
 	return nil
@@ -405,10 +449,19 @@ func (e *Workspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
 	}
 	status.Reachable = true
 	status.Capabilities["orchestrators"] = strconv.Itoa(len(list.Items))
-	if version, err := e.typed.Discovery().ServerVersion(); err == nil {
-		status.Capabilities["kubernetes"] = version.GitVersion
+	if version, err := e.serverVersion(ctx); err == nil {
+		status.Capabilities["kubernetes"] = version
 	}
 	return status
+}
+
+func (e *Workspace) serverVersion(ctx context.Context) (string, error) {
+	raw, err := e.core.Get().AbsPath("/version").DoRaw(ctx)
+	if err != nil {
+		return "", err
+	}
+	var version struct{ GitVersion string }
+	return version.GitVersion, json.Unmarshal(raw, &version)
 }
 
 // Suspend parks the session's Orchestrator, keeping its volumes.
@@ -423,7 +476,7 @@ func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) err
 	if err := e.orchestrators().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 		return fmt.Errorf("deleting Orchestrator %s: %w", name, err)
 	}
-	if err := e.typed.CoreV1().Secrets(e.entry.Namespace).Delete(ctx, name+tlsSecretSuffix, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
+	if err := e.secrets().Delete(ctx, name+tlsSecretSuffix, metav1.DeleteOptions{}); err != nil && !k8serrors.IsNotFound(err) {
 		return fmt.Errorf("deleting Secret %s: %w", name+tlsSecretSuffix, err)
 	}
 	return nil

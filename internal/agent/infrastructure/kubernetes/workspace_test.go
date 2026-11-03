@@ -10,36 +10,61 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	k8smeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	k8sfakediscovery "k8s.io/client-go/discovery/fake"
 	k8sdynamicfake "k8s.io/client-go/dynamic/fake"
-	k8sclientfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-func testWorkspace(t *testing.T, operator bool, orchestrators []*k8sunstructured.Unstructured, secrets ...k8sruntime.Object) (*Workspace, *k8sdynamicfake.FakeDynamicClient, *k8sclientfake.Clientset) {
+// testWorkspace backs a workspace with a fake dynamic client holding the given
+// objects. Without the operator, listing Orchestrators answers not found as a
+// cluster without the CRD does.
+func testWorkspace(t *testing.T, operator bool, objects ...*k8sunstructured.Unstructured) (*Workspace, *k8sdynamicfake.FakeDynamicClient) {
 	t.Helper()
 	dynamic := k8sdynamicfake.NewSimpleDynamicClientWithCustomListKinds(k8sruntime.NewScheme(), map[k8sschema.GroupVersionResource]string{orchestratorGVR: "OrchestratorList", gatewayGVR: "GatewayList"})
-	for _, orchestrator := range orchestrators {
-		if _, err := dynamic.Resource(orchestratorGVR).Namespace("ns").Create(t.Context(), orchestrator, metav1.CreateOptions{}); err != nil {
+	for _, object := range objects {
+		gvr, _ := k8smeta.UnsafeGuessKindToResource(object.GroupVersionKind())
+		if _, err := dynamic.Resource(gvr).Namespace("ns").Create(t.Context(), object, metav1.CreateOptions{}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	dynamic.ClearActions()
-	typed := k8sclientfake.NewClientset(secrets...)
-	if operator {
-		typed.Discovery().(*k8sfakediscovery.FakeDiscovery).Resources = []*metav1.APIResourceList{{
-			GroupVersion: orchestratorGroup + "/" + orchestratorVersion,
-			APIResources: []metav1.APIResource{{Name: orchestratorResource, Kind: orchestratorKind, Namespaced: true}},
-		}}
+	if !operator {
+		dynamic.PrependReactor("list", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+			return true, nil, k8serrors.NewNotFound(orchestratorGVR.GroupResource(), "")
+		})
 	}
-	return &Workspace{entry: config.WorkspaceEntry{Name: "k8s", Namespace: "ns"}, dynamic: dynamic, typed: typed}, dynamic, typed
+	return &Workspace{entry: config.WorkspaceEntry{Name: "k8s", Namespace: "ns"}, dynamic: dynamic}, dynamic
+}
+
+func testSecret(t *testing.T, secret *corev1.Secret) *k8sunstructured.Unstructured {
+	t.Helper()
+	object, err := unstructuredSecret(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return object
+}
+
+func storedSecret(t *testing.T, e *Workspace, name string) *corev1.Secret {
+	t.Helper()
+	object, err := e.secrets().Get(t.Context(), name, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := secretFrom(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return secret
 }
 
 func testOrchestrator(name string, spec, status map[string]any) *k8sunstructured.Unstructured {
@@ -65,16 +90,13 @@ func readyStatus(observedGeneration int64, status, reason string) map[string]any
 }
 
 func TestEnsureAbortsWhenTheOperatorIsNotInstalled(t *testing.T) {
-	e, dynamic, typed := testWorkspace(t, false, nil)
+	e, dynamic := testWorkspace(t, false)
 	_, err := e.Ensure(t.Context(), agentdomain.Session{ConversationID: "conv-1"})
 	if err == nil || !strings.Contains(err.Error(), "the Inference Gateway operator is not installed") {
 		t.Fatalf("Ensure without the operator = %v", err)
 	}
-	if actions := dynamic.Actions(); len(actions) != 0 {
-		t.Fatalf("Ensure without the operator touched Orchestrators: %v", actions)
-	}
-	for _, action := range typed.Actions() {
-		if action.GetVerb() != "get" || action.GetResource().Resource == "secrets" {
+	for _, action := range dynamic.Actions() {
+		if action.GetVerb() != "list" || action.GetResource() != orchestratorGVR {
 			t.Fatalf("Ensure without the operator did %s %s", action.GetVerb(), action.GetResource().Resource)
 		}
 	}
@@ -84,20 +106,20 @@ func TestEnsureAbortsWhenTheOperatorIsNotInstalled(t *testing.T) {
 }
 
 func TestReachNeverCreatesAMissingOrchestrator(t *testing.T) {
-	e, dynamic, typed := testWorkspace(t, true, nil)
+	e, dynamic := testWorkspace(t, true)
 	_, err := e.Reach(t.Context(), agentdomain.Session{ConversationID: "conv-1"})
 	if err == nil || !strings.Contains(err.Error(), "is gone") {
 		t.Fatalf("Reach of a missing Orchestrator = %v", err)
 	}
-	for _, action := range append(dynamic.Actions(), typed.Actions()...) {
-		if action.GetVerb() != "get" {
+	for _, action := range dynamic.Actions() {
+		if action.GetVerb() != "get" && action.GetVerb() != "list" {
 			t.Fatalf("Reach of a missing Orchestrator did %s %s", action.GetVerb(), action.GetResource().Resource)
 		}
 	}
 }
 
 func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
-	e, _, _ := testWorkspace(t, true, nil)
+	e, _ := testWorkspace(t, true)
 	e.entry.Image = "infer:local"
 	e.entry.Storage = "1Gi"
 	e.entry.Retention = 24 * time.Hour
@@ -142,7 +164,7 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 }
 
 func TestOrchestratorCarriesTheBindingServiceMetadata(t *testing.T) {
-	e, _, _ := testWorkspace(t, true, nil)
+	e, _ := testWorkspace(t, true)
 	e.entry.Image = "infer:local"
 	e.entry.BindingService = config.BindingServiceConfig{
 		Annotations: map[string]string{"vpn/expose": "true", "vpn/hostname": "{{.Orchestrator}}"},
@@ -181,7 +203,7 @@ func TestAwaitReady(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			running := testOrchestrator("infer-1", map[string]any{"sandbox": map[string]any{"operatingMode": modeRunning}}, tt.status)
-			e, _, _ := testWorkspace(t, true, []*k8sunstructured.Unstructured{running})
+			e, _ := testWorkspace(t, true, running)
 			ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 			defer cancel()
 			pod, err := e.awaitReady(ctx, "infer-1")
@@ -194,7 +216,7 @@ func TestAwaitReady(t *testing.T) {
 
 func TestAwaitReadyResumesASuspendedOrchestrator(t *testing.T) {
 	suspended := testOrchestrator("infer-1", map[string]any{"sandbox": map[string]any{"operatingMode": modeSuspended, "retention": "24h"}}, readyStatus(2, "False", "SandboxSuspended"))
-	e, dynamic, _ := testWorkspace(t, true, []*k8sunstructured.Unstructured{suspended})
+	e, dynamic := testWorkspace(t, true, suspended)
 	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 	if _, err := e.awaitReady(ctx, "infer-1"); err == nil {
@@ -212,15 +234,11 @@ func TestAwaitReadyResumesASuspendedOrchestrator(t *testing.T) {
 
 func TestOwnSecretMakesTheOrchestratorItsOwner(t *testing.T) {
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "infer-1" + tlsSecretSuffix, Namespace: "ns"}}
-	e, _, typed := testWorkspace(t, true, nil, secret)
+	e, _ := testWorkspace(t, true, testSecret(t, secret))
 	if err := e.ownSecret(t.Context(), testOrchestrator("infer-1", map[string]any{}, nil)); err != nil {
 		t.Fatal(err)
 	}
-	owned, err := typed.CoreV1().Secrets("ns").Get(t.Context(), secret.Name, metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	owners := owned.GetOwnerReferences()
+	owners := storedSecret(t, e, secret.Name).GetOwnerReferences()
 	if len(owners) != 1 || owners[0].Kind != orchestratorKind || owners[0].Name != "infer-1" || owners[0].UID != "uid-infer-1" {
 		t.Fatalf("ownerReferences = %+v", owners)
 	}
