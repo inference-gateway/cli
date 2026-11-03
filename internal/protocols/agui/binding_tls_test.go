@@ -127,9 +127,6 @@ func TestBindingServesTLSAndTheDialerReadsTheAck(t *testing.T) {
 	if got := conn.AckAttr("storage_id"); got != "abc" {
 		t.Fatalf("storage_id ack attr = %q, want abc", got)
 	}
-	if got := conn.AckAttr("protocol_version"); got == "" {
-		t.Fatal("the protocol version is not an ack attr")
-	}
 	if len(conn.PeerCertificates()) == 0 {
 		t.Fatal("the dialer sees no server certificate")
 	}

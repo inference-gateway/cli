@@ -68,26 +68,24 @@ extension:
 Client → CLI, first frame, within 5 seconds of connecting:
 
 ```json
-{"type": "browser_hello", "token": "<shared secret>", "client": "extension", "protocol_version": 2, "extension_version": "1.9.2"}
+{"type": "browser_hello", "token": "<shared secret>", "client": "extension", "extension_version": "1.9.2"}
 ```
 
 - `client` names the kind of client: `extension`, `desktop`, `browser`, `tui` (`infer chat --daemon`),
   `cli` (`infer daemon` subcommands), `subagent-parent` or `daemon` (a peer daemon). Only `extension`, or
   an absent value, is the browser extension. Every other value is a client and never takes the
   extension's place.
-- The handshake is lenient: any hello with a valid token is accepted. A hello
-  without `protocol_version` is logged as a warning.
+- Any hello with a valid token is accepted.
 
 CLI → client on success (on failure the socket is closed):
 
 ```json
-{"type": "browser_hello_ack", "protocol_version": 2}
+{"type": "browser_hello_ack"}
 ```
 
-A client that expects another `protocol_version` should show an "update" state
-instead of refusing to work. Version 2 replaced the CLI's CUSTOM events and app
-frames with the standard AG-UI 1.0 ones: interrupts, run `usage`, the one state
-object, `ACTIVITY_SNAPSHOT` and `run_agent_input` frames.
+The ack carries the host facts the daemon declares, such as `workspace`, `version` and `storage_id`
+(see [Daemon to daemon](#daemon-to-daemon)). The frames are the AG-UI 1.0 ones: interrupts, run
+`usage`, the one state object, `ACTIVITY_SNAPSHOT` and `run_agent_input`.
 
 ## Browser extension status
 

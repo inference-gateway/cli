@@ -30,8 +30,6 @@ belongs to a run. A frame with a lowercase `type` is an app frame, in either dir
 | `infer headless --serve` stdio | Events on stdout, app frames on stdin, one run per turn. See [Serve worker](#serve-worker) |
 | The `infer daemon` WebSocket binding | Both, relayed unchanged between the thread's worker and its clients. See [Daemon Binding Protocol](browser-extension-protocol.md) |
 
-The binding's handshake carries `protocol_version` 2, the version of this contract.
-
 ## Event mapping
 
 | Agent lifecycle moment | AG-UI event(s) |
