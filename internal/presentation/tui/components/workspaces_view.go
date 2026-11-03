@@ -59,7 +59,7 @@ func (d workspaceDelegate) Render(w io.Writer, m list.Model, index int, item lis
 	}
 	row := name + " " + kind
 	if it.status.Protocol != "" {
-		row += " " + d.styleProvider.RenderWithColor("["+it.status.Protocol+"]", color("dim"))
+		row += " " + d.styleProvider.RenderWithColor("["+string(it.status.Protocol)+"]", color("dim"))
 	}
 	row += " " + reach
 	switch {

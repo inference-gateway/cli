@@ -33,8 +33,15 @@ type requester interface {
 	Deliver(frame []byte)
 }
 
+// teleportRun is a saga in flight: how to cancel it and when it ended.
+type teleportRun struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 // startTeleport validates a teleport_session frame and runs the saga under a
-// cancellable context registered by teleport id.
+// cancellable context registered by teleport id. A retry of a teleport still
+// in flight waits for it, then no-ops through the precondition.
 func (s *Service) startTeleport(to requester, f clientFrame) {
 	if f.TeleportID == "" || f.ProjectDir == "" || f.ID == "" || f.Target == "" {
 		to.Deliver(runError("teleport_session needs teleport_id, project_dir, id and target"))
@@ -45,21 +52,21 @@ func (s *Service) startTeleport(to requester, f clientFrame) {
 		refuseTeleport(to, f.TeleportID, err.Error())
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), teleportTimeout)
 	s.mu.Lock()
-	if _, running := s.teleports[f.TeleportID]; running {
+	if earlier, running := s.teleports[f.TeleportID]; running {
 		s.mu.Unlock()
-		cancel()
-		refuseTeleport(to, f.TeleportID, "a teleport with this id is already running")
+		<-earlier.done
+		s.startTeleport(to, f)
 		return
 	}
 	if s.conversations[f.ID] != "" {
 		s.mu.Unlock()
-		cancel()
 		refuseTeleport(to, f.TeleportID, "a teleport of this session is already running")
 		return
 	}
-	s.teleports[f.TeleportID] = cancel
+	ctx, cancel := context.WithTimeout(context.Background(), teleportTimeout)
+	run := teleportRun{cancel: cancel, done: make(chan struct{})}
+	s.teleports[f.TeleportID] = run
 	s.conversations[f.ID] = f.TeleportID
 	s.mu.Unlock()
 	defer func() {
@@ -68,6 +75,7 @@ func (s *Service) startTeleport(to requester, f clientFrame) {
 		delete(s.teleports, f.TeleportID)
 		delete(s.conversations, f.ID)
 		s.mu.Unlock()
+		close(run.done)
 	}()
 	req := agentdomain.TeleportRequest{
 		TeleportID: f.TeleportID,
@@ -80,10 +88,10 @@ func (s *Service) startTeleport(to requester, f clientFrame) {
 
 func (s *Service) cancelTeleport(teleportID string) {
 	s.mu.Lock()
-	cancel := s.teleports[teleportID]
+	run := s.teleports[teleportID]
 	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if run.cancel != nil {
+		run.cancel()
 	}
 }
 

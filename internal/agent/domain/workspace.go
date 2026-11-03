@@ -17,6 +17,15 @@ const (
 	WorkspaceKindKubernetes WorkspaceKind = "kubernetes"
 )
 
+// WorkspaceProtocol is the peer protocol a daemon reaches a workspace's daemon
+// over: the AG-UI WebSocket binding, or A2A JSON-RPC.
+type WorkspaceProtocol string
+
+const (
+	WorkspaceProtocolAGUI WorkspaceProtocol = "agui"
+	WorkspaceProtocolA2A  WorkspaceProtocol = "a2a"
+)
+
 // Session names one conversation and the project it belongs to. Slug is the
 // project's stable name, which a receiving workspace restores it under.
 type Session struct {
@@ -45,7 +54,7 @@ type Endpoint struct {
 	TLS      *tls.Config
 	Token    string
 	Close    func()
-	Protocol string
+	Protocol WorkspaceProtocol
 }
 
 // Release closes the endpoint when it holds anything to close.
@@ -59,7 +68,7 @@ func (e Endpoint) Release() {
 type WorkspaceStatus struct {
 	Name         string            `json:"name"`
 	Kind         WorkspaceKind     `json:"kind"`
-	Protocol     string            `json:"protocol"`
+	Protocol     WorkspaceProtocol `json:"protocol"`
 	Reachable    bool              `json:"reachable"`
 	Error        string            `json:"error,omitempty"`
 	Capabilities map[string]string `json:"capabilities,omitempty"`

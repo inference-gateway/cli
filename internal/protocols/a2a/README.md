@@ -27,6 +27,9 @@ and the tools return normal tool results.
   difference as `AgentChanges`. A removed agent is announced as `AgentStateRemoved` on the status stream once its
   goroutines have exited, and the TUI readiness drops it.
 - The `/agents` and `/tasks` shortcuts read the same state.
+- `infrastructure/peer.go` is the peer wire: the A2A 1.0 envelopes two daemons exchange when a workspace entry
+  picks `protocol: a2a`. The agent context's `PeerDialer` and the daemon's `/a2a` route build their requests, stream
+  events, acks and agent card with it, so no other package shapes an A2A message by hand.
 
 ## Related
 

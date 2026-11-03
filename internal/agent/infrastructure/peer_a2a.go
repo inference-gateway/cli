@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,161 +17,14 @@ import (
 	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
-// The a2a peer transport: the endpoints and JSON-RPC methods two infer daemons
-// speak when a workspace serves its teleport vocabulary over A2A JSON-RPC
-// instead of the AG-UI WebSocket. Frames travel as text parts of A2A messages
-// on a streamed exchange; every message/send POST puts one on it.
 const (
-	PeerA2APath         = "/a2a"
-	PeerA2AMethodSend   = "message/send"
-	PeerA2AMethodStream = "message/stream"
-
 	peerA2AHandshakeTimeout = 10 * time.Second
 	peerA2ASendTimeout      = 30 * time.Second
 )
-
-// The roles a peer's messages carry.
-const (
-	peerA2ARoleUser  = "ROLE_USER"
-	peerA2ARoleAgent = "ROLE_AGENT"
-)
-
-type peerA2APart struct {
-	Kind string `json:"kind"`
-	Text string `json:"text"`
-}
-
-type peerA2AMessage struct {
-	Kind      string            `json:"kind"`
-	MessageID string            `json:"messageId"`
-	Role      string            `json:"role"`
-	Parts     []peerA2APart     `json:"parts"`
-	ContextID string            `json:"contextId,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-}
-
-type peerA2AParams struct {
-	Message peerA2AMessage `json:"message"`
-}
-
-type peerA2ARequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	ID      string        `json:"id"`
-	Method  string        `json:"method"`
-	Params  peerA2AParams `json:"params"`
-}
-
-type peerA2ATaskStatus struct {
-	State string `json:"state"`
-}
-
-type peerA2ATask struct {
-	ID        string            `json:"id"`
-	ContextID string            `json:"contextId"`
-	Kind      string            `json:"kind"`
-	Status    peerA2ATaskStatus `json:"status"`
-}
-
-type peerA2ARPCError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-type peerA2AResponse struct {
-	JSONRPC string           `json:"jsonrpc"`
-	ID      string           `json:"id"`
-	Result  *peerA2ATask     `json:"result,omitempty"`
-	Error   *peerA2ARPCError `json:"error,omitempty"`
-}
-
-// ParsePeerA2ARequest reads a JSON-RPC request the a2a peer endpoint receives
-// and returns its id, method, the exchange in the message's contextId, the
-// teleport frame in the message's first text part and the workspace the caller
-// announced. Non peer methods are not ok.
-func ParsePeerA2ARequest(body []byte) (id, method, exchange string, frame []byte, caller string, ok bool) {
-	var req peerA2ARequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		return "", "", "", nil, "", false
-	}
-	switch req.Method {
-	case PeerA2AMethodSend, PeerA2AMethodStream:
-	default:
-		return "", "", "", nil, "", false
-	}
-	exchange = req.Params.Message.ContextID
-	caller = req.Params.Message.Metadata[AttrWorkspace]
-	if text := peerA2ATextPart(req.Params.Message.Parts); text != "" {
-		frame = []byte(text)
-	}
-	return req.ID, req.Method, exchange, frame, caller, true
-}
-
-// PeerA2AEvent wraps one teleport frame as the A2A message event a peer stream
-// carries. The event that announces the host carries metadata and no frame.
-func PeerA2AEvent(frame []byte, metadata map[string]string) []byte {
-	event := peerA2AMessage{
-		Kind:      "message",
-		MessageID: uuid.NewString(),
-		Role:      peerA2ARoleAgent,
-		Metadata:  metadata,
-	}
-	if len(frame) > 0 {
-		event.Parts = []peerA2APart{{Kind: "text", Text: string(frame)}}
-	}
-	raw, _ := json.Marshal(event)
-	return raw
-}
-
-// PeerA2AAck answers a message/send with the completed task A2A returns. The
-// task's artifacts stay empty, because every frame rides the stream.
-func PeerA2AAck(id string) []byte {
-	raw, _ := json.Marshal(peerA2AResponse{
-		JSONRPC: "2.0",
-		ID:      id,
-		Result: &peerA2ATask{
-			ID:        "task-" + id,
-			ContextID: "infer-peer-" + id,
-			Kind:      "task",
-			Status:    peerA2ATaskStatus{State: "completed"},
-		},
-	})
-	return raw
-}
-
-// PeerA2AError answers an a2a request it cannot serve with the JSON-RPC error
-// A2A returns for an invalid request.
-func PeerA2AError(id, message string) []byte {
-	raw, _ := json.Marshal(peerA2AResponse{
-		JSONRPC: "2.0",
-		ID:      id,
-		Error:   &peerA2ARPCError{Code: -32602, Message: message},
-	})
-	return raw
-}
-
-// peerA2ATextPart is the message's first text part, "" without one.
-func peerA2ATextPart(parts []peerA2APart) string {
-	if len(parts) > 0 && parts[0].Kind == "text" {
-		return parts[0].Text
-	}
-	return ""
-}
-
-// unwrapPeerA2AEvent reads the A2A message one SSE data line carries, returning
-// its frame and the metadata, which only the announcing event carries.
-func unwrapPeerA2AEvent(data []byte) (frame []byte, metadata map[string]string, hasFrame bool) {
-	var event peerA2AMessage
-	if err := json.Unmarshal(data, &event); err != nil || event.Kind != "message" {
-		return nil, nil, false
-	}
-	if text := peerA2ATextPart(event.Parts); text != "" {
-		return []byte(text), event.Metadata, true
-	}
-	return nil, event.Metadata, false
-}
 
 // readSSEData reads the payload of the next `data:` line, skipping the SSE
 // framing lines of everything else.
@@ -199,7 +51,7 @@ func a2aPeerInfo(metadata map[string]string) PeerInfo {
 
 // a2aPeerClient is the dialing end of an a2a peer exchange. Its stream carries
 // every frame the peer puts on it, announced first, and every Send is a
-// message/send whose produced frames the peer streams back. It lives until it
+// SendMessage whose produced frames the peer streams back. It lives until it
 // is closed, beyond the context that dialed it, which sagas and relays
 // outlive only through the exchange itself.
 type a2aPeerClient struct {
@@ -233,7 +85,7 @@ func dialPeerA2A(ctx context.Context, endpoint agentdomain.Endpoint, handler agu
 		scheme = "https"
 	}
 	c := &a2aPeerClient{
-		url:      fmt.Sprintf("%s://%s%s", scheme, endpoint.Addr, PeerA2APath),
+		url:      fmt.Sprintf("%s://%s%s", scheme, endpoint.Addr, a2ainfra.PeerPath),
 		me:       me,
 		token:    endpoint.Token,
 		exchange: uuid.NewString(),
@@ -250,28 +102,26 @@ func dialPeerA2A(ctx context.Context, endpoint agentdomain.Endpoint, handler agu
 		return nil, PeerInfo{}, err
 	}
 	reader := bufio.NewReader(resp.Body)
-	if err := c.announce(reader, resp); err != nil {
+	handler.Attach(nil)
+	if err := c.announce(reader); err != nil {
 		_ = resp.Body.Close()
 		c.cancel()
+		handler.Detach(nil)
 		return nil, PeerInfo{}, err
 	}
 	c.certificates = peerCertificatesOf(resp)
-	handler.Attach(nil)
 	go c.readFrames(reader, resp.Body)
 	return c, a2aPeerInfo(c.attrs), nil
 }
 
-// stream posts the message/stream request that binds the exchange, whose
+// stream posts the SendStreamingMessage request that binds the exchange, whose
 // response body carries the peer's frames as server-sent events. The bearer
 // token stands in for the hello when the binding has one.
 func (c *a2aPeerClient) stream() (*http.Response, error) {
-	body := c.requestBody(PeerA2AMethodStream, []byte(`{"type":"peer_bind"}`))
-	req, err := http.NewRequestWithContext(c.streamCtx, http.MethodPost, c.url, bytes.NewReader(body))
+	req, err := c.request(c.streamCtx, a2ainfra.PeerMethodStream, []byte(`{"type":"peer_bind"}`))
 	if err != nil {
 		return nil, fmt.Errorf("reaching the workspace's daemon: %w", err)
 	}
-	c.authorize(req)
-	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -290,18 +140,18 @@ func (c *a2aPeerClient) stream() (*http.Response, error) {
 
 // announce reads the stream's first event, which the host answers with what
 // hello's ack declares over the AG-UI binding: its identity facts.
-func (c *a2aPeerClient) announce(reader *bufio.Reader, resp *http.Response) error {
+func (c *a2aPeerClient) announce(reader *bufio.Reader) error {
 	c.attrs = make(map[string]string, 3)
 	for {
 		data, err := readSSEData(reader)
 		if err != nil {
 			return fmt.Errorf("the workspace's daemon did not announce itself over a2a: %w", err)
 		}
-		frame, metadata, hasFrame := unwrapPeerA2AEvent(data)
+		frame, metadata, hasFrame := a2ainfra.DecodePeerEvent(data)
 		for key, value := range metadata {
 			c.attrs[key] = value
 		}
-		if hasFrame && c.handler != nil {
+		if hasFrame {
 			c.handler.Handle(nil, frame)
 		}
 		if c.attrs[AttrWorkspace] != "" {
@@ -323,14 +173,13 @@ func (c *a2aPeerClient) readFrames(reader *bufio.Reader, body io.ReadCloser) {
 		if err != nil {
 			return
 		}
-		frame, _, hasFrame := unwrapPeerA2AEvent(data)
-		if hasFrame {
+		if frame, _, hasFrame := a2ainfra.DecodePeerEvent(data); hasFrame {
 			c.handler.Handle(nil, frame)
 		}
 	}
 }
 
-// Send puts one frame on the peer as a message/send. The frames its handling
+// Send puts one frame on the peer as a SendMessage. The frames its handling
 // produces arrive on the stream, not in the reply, which is the completed task
 // A2A answers with.
 func (c *a2aPeerClient) Send(frame []byte) error {
@@ -341,12 +190,10 @@ func (c *a2aPeerClient) Send(frame []byte) error {
 	}
 	requestCtx, cancel := context.WithTimeout(c.streamCtx, peerA2ASendTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, c.url, bytes.NewReader(c.requestBody(PeerA2AMethodSend, frame)))
+	req, err := c.request(requestCtx, a2ainfra.PeerMethodSend, frame)
 	if err != nil {
 		return err
 	}
-	c.authorize(req)
-	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("the workspace's daemon did not take the frame: %w", err)
@@ -356,18 +203,14 @@ func (c *a2aPeerClient) Send(frame []byte) error {
 	if readErr != nil {
 		return fmt.Errorf("the workspace's daemon did not take the frame: %w", readErr)
 	}
-	var acknowledgement peerA2AResponse
-	_ = json.Unmarshal(reply, &acknowledgement)
-	if resp.StatusCode != http.StatusOK {
-		if acknowledgement.Error != nil {
-			return fmt.Errorf("the workspace's daemon refused the frame: %s", acknowledgement.Error.Message)
-		}
+	refused := a2ainfra.DecodePeerReply(reply)
+	switch {
+	case resp.StatusCode != http.StatusOK && refused != nil:
+		return fmt.Errorf("the workspace's daemon refused the frame: %w", refused)
+	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("the workspace's daemon refused the frame: %s", resp.Status)
 	}
-	if acknowledgement.Error != nil {
-		return errors.New(acknowledgement.Error.Message)
-	}
-	return nil
+	return refused
 }
 
 // Deliver is the host role of a peer conn. The dialing end receives frames on
@@ -400,35 +243,20 @@ func (c *a2aPeerClient) Close() {
 	})
 }
 
-// requestBody encodes one JSON-RPC request carrying the frame, which the
-// bind's peer_bind placeholder stands in for on the opening stream.
-func (c *a2aPeerClient) requestBody(method string, frame []byte) []byte {
-	message := peerA2AMessage{
-		Kind:      "message",
-		MessageID: uuid.NewString(),
-		Role:      peerA2ARoleUser,
-		ContextID: c.exchange,
-		Metadata:  map[string]string{AttrWorkspace: c.me},
+// request is one JSON-RPC POST to the peer endpoint carrying the frame on this
+// exchange, authenticated by the bearer token when the workspace's entry has
+// one, else by the client certificate its TLS config already presents.
+func (c *a2aPeerClient) request(ctx context.Context, method a2ainfra.PeerMethod, frame []byte) (*http.Request, error) {
+	body := a2ainfra.EncodePeerRequest(method, c.exchange, frame, map[string]string{AttrWorkspace: c.me})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
 	}
-	if len(frame) > 0 {
-		message.Parts = []peerA2APart{{Kind: "text", Text: string(frame)}}
-	}
-	raw, _ := json.Marshal(peerA2ARequest{
-		JSONRPC: "2.0",
-		ID:      uuid.NewString(),
-		Method:  method,
-		Params:  peerA2AParams{Message: message},
-	})
-	return raw
-}
-
-// authorize authenticates the request to the binding: a bearer token when the
-// workspace's entry carries one, else the client certificate its TLS config
-// already presents.
-func (c *a2aPeerClient) authorize(req *http.Request) {
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	req.Header.Set("Content-Type", "application/json")
+	return req, nil
 }
 
 // peerCertificatesOf are the certificates the server presented on a TLS

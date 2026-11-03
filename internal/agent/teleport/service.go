@@ -73,7 +73,7 @@ type Service struct {
 	registry   *sessions.Registry
 
 	mu            sync.Mutex
-	teleports     map[string]context.CancelFunc
+	teleports     map[string]teleportRun
 	conversations map[string]string
 	imports       map[string]*pendingImport
 	installed     map[string]agentdomain.Lease
@@ -93,7 +93,7 @@ func New(cfg Config, deps Deps) *Service {
 		keyring:       deps.Keyring,
 		launch:        deps.Launch,
 		dial:          agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
-		teleports:     make(map[string]context.CancelFunc),
+		teleports:     make(map[string]teleportRun),
 		conversations: make(map[string]string),
 		imports:       make(map[string]*pendingImport),
 		installed:     make(map[string]agentdomain.Lease),

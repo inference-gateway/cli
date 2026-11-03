@@ -808,20 +808,13 @@ func (isb *InputStatusBar) buildWorkspaceIndicator() (string, string) {
 	if placement.Remote() {
 		glyph, color = icons.RemoteSession, isb.styleProvider.GetThemeColor("accent")
 	}
-	name, target := placement.Where(), placement.Teleporting
-	if placement.Protocol != "" {
-		name += " (" + placement.Protocol + ")"
-	}
-	if placement.TeleportProtocol != "" {
-		target += " (" + placement.TeleportProtocol + ")"
-	}
 	switch {
 	case placement.Offline:
-		return glyph + " " + name + " · offline", isb.styleProvider.GetThemeColor("error")
+		return glyph + " " + placement.Label() + " · offline", isb.styleProvider.GetThemeColor("error")
 	case placement.Teleporting != "":
-		return icons.TeleportingSession + " " + target, isb.styleProvider.GetThemeColor("warning")
+		return icons.TeleportingSession + " " + placement.TeleportLabel(), isb.styleProvider.GetThemeColor("warning")
 	}
-	return glyph + " " + name, color
+	return glyph + " " + placement.Label(), color
 }
 
 // a2aIndicatorColor color-codes the A2A segment: green once all agents are

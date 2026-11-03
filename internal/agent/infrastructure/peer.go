@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
@@ -48,7 +47,7 @@ type PeerDialer struct {
 // Dial connects to the workspace's binding over the endpoint's protocol and
 // returns the connection with what the peer declared about itself.
 func (d PeerDialer) Dial(ctx context.Context, endpoint agentdomain.Endpoint, handler agui.Handler) (PeerConn, PeerInfo, error) {
-	if endpoint.Protocol == string(config.WorkspaceProtocolA2A) {
+	if endpoint.Protocol == agentdomain.WorkspaceProtocolA2A {
 		return dialPeerA2A(ctx, endpoint, handler, d.Me)
 	}
 	conn, err := agui.Dial(ctx, agui.DialConfig{

@@ -11,6 +11,7 @@ import (
 	aguimocks "github.com/inference-gateway/cli/tests/mocks/agui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 )
 
 // fakePeerA2A is the a2a peer protocol in miniature: its stream announces the
@@ -37,26 +38,26 @@ func newFakePeerA2A(t *testing.T, attrs map[string]string) *fakePeerA2A {
 				break
 			}
 		}
-		id, method, exchange, frame, caller, ok := ParsePeerA2ARequest(raw)
-		if !ok || (method != PeerA2AMethodSend && method != PeerA2AMethodStream) || caller != "a" || exchange == "" {
+		req, ok := a2ainfra.ParsePeerRequest(raw)
+		if !ok || req.Metadata[AttrWorkspace] != "a" || req.Exchange == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if method == PeerA2AMethodSend {
-			fake.sent <- string(frame)
+		if req.Method == a2ainfra.PeerMethodSend {
+			fake.sent <- string(req.Frame)
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(PeerA2AAck(id))
+			_, _ = w.Write(a2ainfra.PeerAck(req.ID, req.Exchange))
 			return
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, _ := w.(http.Flusher)
-		_, _ = w.Write(sseData(PeerA2AEvent(nil, fake.attrs)))
+		_, _ = w.Write(a2ainfra.SSE(a2ainfra.PeerEvent(nil, fake.attrs)))
 		if flusher != nil {
 			flusher.Flush()
 		}
 		for frame := range fake.emit {
-			_, _ = w.Write(sseData(PeerA2AEvent([]byte(frame), nil)))
+			_, _ = w.Write(a2ainfra.SSE(a2ainfra.PeerEvent([]byte(frame), nil)))
 			if flusher != nil {
 				flusher.Flush()
 			}
@@ -68,11 +69,6 @@ func newFakePeerA2A(t *testing.T, attrs map[string]string) *fakePeerA2A {
 		fake.Close()
 	})
 	return fake
-}
-
-// sseData renders one event as a server-sent events data line.
-func sseData(event []byte) []byte {
-	return append(append([]byte("data: "), event...), '\n', '\n')
 }
 
 // endpointAt is the dial endpoint a test server's URL reaches, without TLS.

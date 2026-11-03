@@ -221,13 +221,13 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 		return agentdomain.Endpoint{}, err
 	}
 	if entry.Address != "" {
-		return agentdomain.Endpoint{Addr: entry.Address, TLS: tlsConfig, Token: token, Protocol: string(e.entry.EffectiveProtocol())}, nil
+		return agentdomain.Endpoint{Addr: entry.Address, TLS: tlsConfig, Token: token, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol())}, nil
 	}
 	addr, stop, err := e.portForward(ctx, pod)
 	if err != nil {
 		return agentdomain.Endpoint{}, err
 	}
-	return agentdomain.Endpoint{Addr: addr, TLS: tlsConfig, Token: token, Close: stop, Protocol: string(e.entry.EffectiveProtocol())}, nil
+	return agentdomain.Endpoint{Addr: addr, TLS: tlsConfig, Token: token, Close: stop, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol())}, nil
 }
 
 // requireOperator fails unless the cluster serves Orchestrators, so a teleport
@@ -436,7 +436,7 @@ func readyCondition(orchestrator *k8sunstructured.Unstructured) condition {
 // operator or an unreachable cluster is the error.
 func (e *Workspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
 	status := agentdomain.WorkspaceStatus{
-		Name: e.entry.Name, Kind: agentdomain.WorkspaceKindKubernetes, Protocol: string(e.entry.EffectiveProtocol()),
+		Name: e.entry.Name, Kind: agentdomain.WorkspaceKindKubernetes, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol()),
 		Capabilities: map[string]string{
 			"namespace": e.entry.Namespace, "image": e.entry.Image,
 		},

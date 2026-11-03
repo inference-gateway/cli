@@ -759,15 +759,15 @@ An owner packs only a workspace dir under its own projects root and refuses a se
 ### A2A peer endpoint
 
 A workspace whose entry names `protocol: a2a` carries this same daemon-to-daemon frame vocabulary over
-A2A JSON-RPC instead of the WebSocket. Its binding serves `POST /a2a` on the same listener, behind the
+A2A 1.0 JSON-RPC instead of the WebSocket. Its binding serves `POST /a2a` on the same listener, behind the
 same auth (the bearer token or a client certificate the listener verified), and the daemon at the far
 end speaks the frames of [Daemon to daemon](#daemon-to-daemon) unchanged.
 
-- `GET /a2a` is the agent card of the peer endpoint, naming its version and the facts the ack declares.
-- `message/stream` binds one exchange: the reply is a server-sent events stream whose first event
+- `GET /a2a` is the agent card of the peer endpoint, an A2A 1.0 card naming its version and interface.
+- `SendStreamingMessage` binds one exchange: the reply is a server-sent events stream whose first event
   announces the host (workspace, version, storage id, the ack's facts) and whose further events carry
   one frame each as a text part of an A2A message. The stream stays open for the exchange's life.
-- `message/send` puts one frame on the exchange the message's `contextId` names, and answers with a
+- `SendMessage` puts one frame on the exchange the message's `contextId` names, and answers with a
   completed task. Frames the frame handling produces ride the stream, never the reply.
 
 A dial into an endpoint that serves nothing over a2a fails before the exchange can carry anything, so a

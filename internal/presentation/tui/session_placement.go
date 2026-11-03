@@ -36,6 +36,24 @@ func (p SessionPlacement) Where() string {
 	return p.Local
 }
 
+// Label names the workspace the session runs on with its peer protocol, like
+// "k8s-dev (a2a)", bare when the placement does not know the protocol.
+func (p SessionPlacement) Label() string {
+	return withProtocol(p.Where(), p.Protocol)
+}
+
+// TeleportLabel names the teleport's target with its peer protocol.
+func (p SessionPlacement) TeleportLabel() string {
+	return withProtocol(p.Teleporting, p.TeleportProtocol)
+}
+
+func withProtocol(name, protocol string) string {
+	if protocol == "" {
+		return name
+	}
+	return name + " (" + protocol + ")"
+}
+
 // Feature is a chat feature that acts in the TUI's own process, so whether it
 // applies depends on where the session runs.
 type Feature int
