@@ -163,6 +163,7 @@ chat:
       git_pr: true
       subagents: true
       workspace: true
+      artifacts: true
 compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (1-80)
@@ -831,6 +832,8 @@ Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDG
     - **workspace**: Where a daemon chat's session runs (default: `true`): `⌂ laptop` on this machine's
       daemon, `⇄ k8s-dev` on another workspace, `⇢ k8s-dev` while it teleports and `· offline` while the
       daemon is unreachable. Selecting it opens `/workspaces`. An in-process chat shows none
+    - **artifacts**: The `⬇ artifacts` entry to the session's artifacts (default: `true`). Selecting it
+      opens `/artifacts`
 
 - **chat.daemon**: Run the chat TUI as a client of the local infer daemon, the way `infer chat --daemon` does
   (default: `false`, env `INFER_CHAT_DAEMON`). See [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)

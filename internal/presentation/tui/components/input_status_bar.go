@@ -512,6 +512,10 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 		}
 	}
 
+	if isb.shouldShowIndicator("artifacts") {
+		parts = append(parts, indicatorPart{text: icons.SessionArtifacts + " artifacts", action: tui.StatusIndicatorActionArtifacts})
+	}
+
 	if isb.shouldShowIndicator("queue") {
 		if queuePart := isb.buildQueueIndicator(); queuePart != "" {
 			parts = append(parts, indicatorPart{text: queuePart, color: isb.queueIndicatorColor()})
@@ -730,6 +734,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.GitPR
 	case "workspace":
 		return indicators.Workspace
+	case "artifacts":
+		return indicators.Artifacts
 	default:
 		return true
 	}

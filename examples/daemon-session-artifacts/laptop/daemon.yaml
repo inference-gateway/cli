@@ -1,0 +1,15 @@
+workspace: laptop
+away_exit: 0s
+workspaces:
+  - name: laptop
+    kind: local
+  - name: workstation
+    kind: daemon
+    address: 127.0.0.1:52792
+    token: daemon-session-artifacts-demo
+    tls:
+      ca_file: __ROOT__/tls/server.crt
+binding:
+  enabled: true
+  port: 52791
+  token: daemon-session-artifacts-demo

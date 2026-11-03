@@ -18,7 +18,11 @@ func wantSlug(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
 	}
-	return strings.ReplaceAll(cwd, string(filepath.Separator), "-")
+	segments := strings.Split(cwd, string(filepath.Separator))
+	for i, segment := range segments {
+		segments[i] = strings.TrimPrefix(segment, ".")
+	}
+	return strings.Join(segments, "-")
 }
 
 func TestProjectRuntimeDir(t *testing.T) {
@@ -29,6 +33,21 @@ func TestProjectRuntimeDir(t *testing.T) {
 		want := filepath.Join(home, ".infer", "projects", wantSlug(t))
 		if got := config.ProjectRuntimeDir(); got != want {
 			t.Fatalf("ProjectRuntimeDir() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("a hidden dir in the cwd loses its dot", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		project := filepath.Join(home, ".work", "repo")
+		if err := os.MkdirAll(project, 0755); err != nil {
+			t.Fatal(err)
+		}
+		t.Chdir(project)
+
+		got := filepath.Base(config.ProjectRuntimeDir())
+		if strings.Contains(got, ".") || !strings.HasSuffix(got, "-work-repo") {
+			t.Fatalf("slug = %q, want it to end in -work-repo with no dot", got)
 		}
 	})
 

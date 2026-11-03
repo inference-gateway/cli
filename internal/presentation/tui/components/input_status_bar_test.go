@@ -840,6 +840,7 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 	statusBar = newSelectableStatusBar()
 	statusBar.config.Chat.StatusBar.Indicators.Model = false
 	statusBar.config.Chat.StatusBar.Indicators.Theme = false
+	statusBar.config.Chat.StatusBar.Indicators.Artifacts = false
 	if statusBar.Focus() {
 		t.Error("Focus should fail when no visible indicator opens a view")
 	}
@@ -893,13 +894,18 @@ func TestInputStatusBar_SelectionCyclesActionableIndicators(t *testing.T) {
 	}
 
 	statusBar.SelectNext()
+	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionArtifacts {
+		t.Errorf("after fourth SelectNext: %v, want artifacts", got)
+	}
+
+	statusBar.SelectNext()
 	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionModelSelection {
 		t.Errorf("SelectNext should wrap back to model selection, got %v", got)
 	}
 
 	statusBar.SelectPrev()
-	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionToolsList {
-		t.Errorf("SelectPrev should wrap to the tools list, got %v", got)
+	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionArtifacts {
+		t.Errorf("SelectPrev should wrap to the artifacts, got %v", got)
 	}
 }
 
@@ -914,6 +920,7 @@ func TestInputStatusBar_SelectionClampsWhenIndicatorsDisappear(t *testing.T) {
 	}
 
 	statusBar.themeService = nil
+	statusBar.config.Chat.StatusBar.Indicators.Artifacts = false
 
 	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionModelSelection {
 		t.Errorf("selection should clamp to the last remaining indicator, got %v", got)
@@ -1368,5 +1375,24 @@ func TestInputStatusBar_BuildWorkspaceIndicator(t *testing.T) {
 				t.Errorf("indicator = %q in %q, want %q in %q", text, color, tt.text, tt.color)
 			}
 		})
+	}
+}
+
+func TestInputStatusBar_ArtifactsIndicatorFollowsTools(t *testing.T) {
+	themeService := &tuimocks.FakeThemeService{}
+	themeService.GetCurrentThemeReturns(&tuimocks.FakeTheme{})
+	statusBar := &InputStatusBar{stateManager: tui.NewApplicationState(), styleProvider: styles.NewProvider(themeService), config: config.DefaultConfig()}
+
+	parts := statusBar.buildIndicatorParts("mock/openai/gpt-4o")
+
+	last := parts[len(parts)-1]
+	if last.text != icons.SessionArtifacts+" artifacts" || last.action != tui.StatusIndicatorActionArtifacts {
+		t.Fatalf("last indicator = %+v, want the artifacts entry", last)
+	}
+	statusBar.config.Chat.StatusBar.Indicators.Artifacts = false
+	for _, part := range statusBar.buildIndicatorParts("mock/openai/gpt-4o") {
+		if part.action == tui.StatusIndicatorActionArtifacts {
+			t.Fatal("the artifacts indicator ignored its switch")
+		}
 	}
 }

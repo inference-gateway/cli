@@ -362,11 +362,52 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 - The array is empty when the project runs without conversation persistence
   (`storage.enabled: false`).
 
+## Session artifacts
+
+Client → CLI, list the files a session saved under its artifacts dir
+(`~/.infer/projects/<project-slug>/artifacts/<conversation id>/`), which is
+what the chat TUI's `/artifacts` view and its `⬇ artifacts` indicator ask for:
+
+```json
+{"type": "list_artifacts", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
+```
+
+CLI → client, newest-first (sorted by `modified_at` descending):
+
+```json
+{"type": "artifacts", "id": "<conversation id>", "artifacts": [{"name": "20261028-202514.mp4", "size": 60416, "modified_at": "2026-10-28T20:25:18Z"}]}
+```
+
+Client → CLI, read one of them:
+
+```json
+{"type": "read_artifact", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "name": "20261028-202514.mp4"}
+```
+
+CLI → client:
+
+```json
+{"type": "artifact", "id": "<conversation id>", "name": "20261028-202514.mp4", "data": "<base64>"}
+```
+
+- Both run on the worker of the workspace that owns the session, so a session
+  that teleported lists and reads the artifacts in its pod. The daemon relays
+  them there like any other project-scoped request, resuming a suspended
+  Orchestrator on the way, and an unreachable owner answers with a `RUN_ERROR`
+  without a `runId`.
+- Only the files directly under the session's artifacts dir are listed or read.
+  `name` is one file name, so a path, `..` or an empty name is refused and a
+  session that saved nothing yet lists as empty.
+- `data` carries the whole file in one frame, capped at 64 MiB, the binding's
+  frame limit. A larger file answers `error` naming its size.
+- `error` replaces the payload when the dir cannot be read or the file is
+  missing.
+
 ### Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_models`,
-`select_model`, `set_mode`, `tool_request` and `completion_request` carry an
-optional `project_dir`.
+`select_model`, `set_mode`, `tool_request`, `completion_request`,
+`list_artifacts` and `read_artifact` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on any
 running worker there, else on a fresh worker started in that project. Without
 `project_dir` they run on the connection's thread. Their replies go to the
@@ -513,6 +554,9 @@ but it rides the binding's loopback listener and answers only from inside
 `~/.infer/projects/<project-slug>/artifacts/`: a slug that is not a single
 local path segment, or a relative path that does not stay under the artifacts
 dir (`filepath.IsLocal`), answers 404, as do missing files and directories.
+Listing a session's artifacts, or reading one from the workspace that owns the
+session, goes over the authenticated socket instead, see
+[Session artifacts](#session-artifacts).
 
 ## Tool approvals
 

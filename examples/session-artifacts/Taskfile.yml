@@ -1,0 +1,35 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TOOLS_IMAGE_GENERATION_ENABLED: 'true'
+  INFER_TOOLS_IMAGE_GENERATION_MODEL: mock/openai/gpt-image-2
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  chat:
+    desc: Chat with the mock model, ask for the lighthouse, then open /artifacts and press enter or o
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  chat:daemon:
+    desc: The same as a daemon chat, whose session can teleport and still be browsed
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat --daemon'
+
+  headless:
+    desc: Generate the lighthouse without the TUI and print where it landed
+    cmds:
+      - "{{.INFER}} headless \"generate an image of a lighthouse at dusk\" | grep '\"role\":\"tool\"'"

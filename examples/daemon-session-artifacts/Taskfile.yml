@@ -1,0 +1,93 @@
+version: '3'
+
+vars:
+  ROOT: '{{.TASKFILE_DIR}}/.home'
+  LAPTOP: '{{.TASKFILE_DIR}}/.home/laptop'
+  WORKSTATION: '{{.TASKFILE_DIR}}/.home/workstation'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TOOLS_IMAGE_GENERATION_ENABLED: 'true'
+  INFER_TOOLS_IMAGE_GENERATION_MODEL: mock/openai/gpt-image-2
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  home:
+    desc: Seed the two demo HOMEs, the workstation's self-signed certificate and a small git project to teleport
+    cmds:
+      - mkdir -p {{.LAPTOP}}/.infer {{.WORKSTATION}}/.infer {{.ROOT}}/tls {{.LAPTOP}}/project
+      - sed 's|__ROOT__|{{.ROOT}}|g' laptop/daemon.yaml > {{.LAPTOP}}/.infer/daemon.yaml
+      - sed 's|__ROOT__|{{.ROOT}}|g' workstation/daemon.yaml > {{.WORKSTATION}}/.infer/daemon.yaml
+      - |
+        if [ ! -f {{.ROOT}}/tls/server.crt ]; then
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 365 \
+            -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 \
+            -keyout {{.ROOT}}/tls/server.key -out {{.ROOT}}/tls/server.crt 2>/dev/null
+        fi
+      - |
+        cd {{.LAPTOP}}/project
+        if [ ! -d .git ]; then
+          git init --quiet -b main
+          git config user.email demo@example.com
+          git config user.name demo
+          git config commit.gpgsign false
+          echo "# teleport me" > README.md
+          git add README.md
+          git commit --quiet -m "init"
+        fi
+
+  daemon:workstation:
+    desc: Run the workstation daemon (foreground, keep it in its own shell)
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.WORKSTATION}} {{.INFER}} daemon
+
+  daemon:laptop:
+    desc: Run the laptop daemon (foreground, keep it in its own shell)
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.LAPTOP}} {{.INFER}} daemon
+
+  chat:
+    desc: Chat in the demo project through the laptop daemon, /teleport workstation, ask for the lighthouse, then /artifacts
+    deps:
+      - build
+      - home
+    interactive: true
+    cmds:
+      - cd {{.LAPTOP}}/project && HOME={{.LAPTOP}} {{.INFER}} chat --daemon {{.CLI_ARGS}}
+
+  workspaces:
+    desc: List the laptop daemon's workspaces and whether the workstation is reachable
+    deps:
+      - build
+    cmds:
+      - HOME={{.LAPTOP}} {{.INFER}} daemon workspaces
+
+  artifacts:
+    desc: Show the artifacts each daemon holds, per session
+    cmds:
+      - 'echo "workstation:"; find {{.WORKSTATION}}/.infer/projects -path "*/artifacts/*" -type f 2>/dev/null || true'
+      - 'echo "laptop:"; find {{.LAPTOP}}/.infer/projects -path "*/artifacts/*" -type f 2>/dev/null || true'
+
+  clean:
+    desc: Remove both demo HOMEs
+    cmds:
+      - rm -rf {{.ROOT}}

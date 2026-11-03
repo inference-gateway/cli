@@ -48,6 +48,7 @@ const (
 	SideEffectShowToolsList
 	SideEffectShowAgents
 	SideEffectShowWorkspaces
+	SideEffectShowArtifacts
 	// SideEffectTeleportSession moves the session, Data is a tui.TeleportRequestedEvent.
 	SideEffectTeleportSession
 )

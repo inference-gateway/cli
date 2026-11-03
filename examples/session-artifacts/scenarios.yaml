@@ -1,0 +1,11 @@
+fallback:
+  content: 'Try "generate an image of a lighthouse at dusk", then open /artifacts.'
+scenarios:
+  - name: lighthouse
+    match: '(?i)generate an image of a lighthouse'
+    turns:
+      - tool_calls:
+          - name: ImageGeneration
+            args:
+              prompt: A lighthouse at dusk, warm light on the rocks
+      - content: I saved the lighthouse under this session's artifacts. Open /artifacts to browse and save it.
