@@ -27,8 +27,8 @@ import (
 // on a streamed exchange; every message/send POST puts one on it.
 const (
 	PeerA2APath         = "/a2a"
-	peerA2AMethodSend   = "message/send"
-	peerA2AMethodStream = "message/stream"
+	PeerA2AMethodSend   = "message/send"
+	PeerA2AMethodStream = "message/stream"
 
 	peerA2AHandshakeTimeout = 10 * time.Second
 	peerA2ASendTimeout      = 30 * time.Second
@@ -50,6 +50,7 @@ type peerA2AMessage struct {
 	MessageID string            `json:"messageId"`
 	Role      string            `json:"role"`
 	Parts     []peerA2APart     `json:"parts"`
+	ContextID string            `json:"contextId,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
@@ -88,23 +89,25 @@ type peerA2AResponse struct {
 }
 
 // ParsePeerA2ARequest reads a JSON-RPC request the a2a peer endpoint receives
-// and returns its id, method, the teleport frame in the message's first text
-// part and the workspace the caller announced. Non peer methods are not ok.
-func ParsePeerA2ARequest(body []byte) (id, method string, frame []byte, caller string, ok bool) {
+// and returns its id, method, the exchange in the message's contextId, the
+// teleport frame in the message's first text part and the workspace the caller
+// announced. Non peer methods are not ok.
+func ParsePeerA2ARequest(body []byte) (id, method, exchange string, frame []byte, caller string, ok bool) {
 	var req peerA2ARequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		return "", "", nil, "", false
+		return "", "", "", nil, "", false
 	}
 	switch req.Method {
-	case peerA2AMethodSend, peerA2AMethodStream:
+	case PeerA2AMethodSend, PeerA2AMethodStream:
 	default:
-		return "", "", nil, "", false
+		return "", "", "", nil, "", false
 	}
+	exchange = req.Params.Message.ContextID
 	caller = req.Params.Message.Metadata[AttrWorkspace]
 	if text := peerA2ATextPart(req.Params.Message.Parts); text != "" {
 		frame = []byte(text)
 	}
-	return req.ID, req.Method, frame, caller, true
+	return req.ID, req.Method, exchange, frame, caller, true
 }
 
 // PeerA2AEvent wraps one teleport frame as the A2A message event a peer stream
@@ -200,10 +203,11 @@ func a2aPeerInfo(metadata map[string]string) PeerInfo {
 // is closed, beyond the context that dialed it, which sagas and relays
 // outlive only through the exchange itself.
 type a2aPeerClient struct {
-	url     string
-	me      string
-	token   string
-	handler agui.Handler
+	url      string
+	me       string
+	token    string
+	exchange string
+	handler  agui.Handler
 
 	http      *http.Client
 	streamCtx context.Context
@@ -229,11 +233,12 @@ func dialPeerA2A(ctx context.Context, endpoint agentdomain.Endpoint, handler agu
 		scheme = "https"
 	}
 	c := &a2aPeerClient{
-		url:     fmt.Sprintf("%s://%s%s", scheme, endpoint.Addr, PeerA2APath),
-		me:      me,
-		token:   endpoint.Token,
-		handler: handler,
-		done:    make(chan struct{}),
+		url:      fmt.Sprintf("%s://%s%s", scheme, endpoint.Addr, PeerA2APath),
+		me:       me,
+		token:    endpoint.Token,
+		exchange: uuid.NewString(),
+		handler:  handler,
+		done:     make(chan struct{}),
 		http: &http.Client{
 			Transport: &http.Transport{TLSClientConfig: endpoint.TLS, ResponseHeaderTimeout: peerA2AHandshakeTimeout},
 		},
@@ -252,7 +257,7 @@ func dialPeerA2A(ctx context.Context, endpoint agentdomain.Endpoint, handler agu
 	}
 	c.certificates = peerCertificatesOf(resp)
 	handler.Attach(nil)
-	go c.exchange(reader, resp.Body)
+	go c.readFrames(reader, resp.Body)
 	return c, a2aPeerInfo(c.attrs), nil
 }
 
@@ -260,7 +265,7 @@ func dialPeerA2A(ctx context.Context, endpoint agentdomain.Endpoint, handler agu
 // response body carries the peer's frames as server-sent events. The bearer
 // token stands in for the hello when the binding has one.
 func (c *a2aPeerClient) stream() (*http.Response, error) {
-	body := c.requestBody(peerA2AMethodStream, []byte(`{"type":"peer_bind"}`))
+	body := c.requestBody(PeerA2AMethodStream, []byte(`{"type":"peer_bind"}`))
 	req, err := http.NewRequestWithContext(c.streamCtx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("reaching the workspace's daemon: %w", err)
@@ -305,9 +310,9 @@ func (c *a2aPeerClient) announce(reader *bufio.Reader, resp *http.Response) erro
 	}
 }
 
-// exchange reads the frames the peer puts on the stream until it ends, and
+// readFrames reads the frames the peer puts on the stream until it ends, and
 // hands them to the handler, exactly as the AG-UI binding does per socket.
-func (c *a2aPeerClient) exchange(reader *bufio.Reader, body io.ReadCloser) {
+func (c *a2aPeerClient) readFrames(reader *bufio.Reader, body io.ReadCloser) {
 	defer func() {
 		_ = body.Close()
 		c.Close()
@@ -336,7 +341,7 @@ func (c *a2aPeerClient) Send(frame []byte) error {
 	}
 	requestCtx, cancel := context.WithTimeout(c.streamCtx, peerA2ASendTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, c.url, bytes.NewReader(c.requestBody(peerA2AMethodSend, frame)))
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, c.url, bytes.NewReader(c.requestBody(PeerA2AMethodSend, frame)))
 	if err != nil {
 		return err
 	}
@@ -402,6 +407,7 @@ func (c *a2aPeerClient) requestBody(method string, frame []byte) []byte {
 		Kind:      "message",
 		MessageID: uuid.NewString(),
 		Role:      peerA2ARoleUser,
+		ContextID: c.exchange,
 		Metadata:  map[string]string{AttrWorkspace: c.me},
 	}
 	if len(frame) > 0 {

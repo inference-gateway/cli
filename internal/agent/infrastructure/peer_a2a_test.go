@@ -37,12 +37,12 @@ func newFakePeerA2A(t *testing.T, attrs map[string]string) *fakePeerA2A {
 				break
 			}
 		}
-		id, method, frame, caller, ok := ParsePeerA2ARequest(raw)
-		if !ok || (method != peerA2AMethodSend && method != peerA2AMethodStream) || caller != "a" {
+		id, method, exchange, frame, caller, ok := ParsePeerA2ARequest(raw)
+		if !ok || (method != PeerA2AMethodSend && method != PeerA2AMethodStream) || caller != "a" || exchange == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if method == peerA2AMethodSend {
+		if method == PeerA2AMethodSend {
 			fake.sent <- string(frame)
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(PeerA2AAck(id))
