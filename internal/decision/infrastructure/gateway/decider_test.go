@@ -43,7 +43,6 @@ func TestDecider_BuildsRequestAndParsesAnswers(t *testing.T) {
 	questions := []decisiondomain.Question{
 		{Name: "call-0", Type: decisiondomain.Predicate, Instructions: "safe?"},
 		{Name: "risk", Type: decisiondomain.Choice, Instructions: "class?", Choices: []decisiondomain.Option{{Value: "benign", Description: "fine"}}},
-		{Name: "tone", Type: decisiondomain.Score, Instructions: "rate", Levels: []decisiondomain.Level{{Label: "rude"}, {Label: "kind", Description: "warm"}}},
 	}
 
 	out, err := New(client).Decide(context.Background(), testModel, testEvidence, questions)
@@ -58,14 +57,11 @@ func TestDecider_BuildsRequestAndParsesAnswers(t *testing.T) {
 	if input, _ := request.Input.AsCreateDecisionRequestInput0(); input != testEvidence {
 		t.Fatalf("input = %q", input)
 	}
-	if len(request.Questions) != 3 || request.Questions[0].Type != sdk.Predicate || request.Questions[0].Name != "call-0" {
+	if len(request.Questions) != 2 || request.Questions[0].Type != sdk.Predicate || request.Questions[0].Name != "call-0" {
 		t.Fatalf("questions = %+v", request.Questions)
 	}
 	if choices := *request.Questions[1].Choices; *choices[0].Value != "benign" || *choices[0].Description != "fine" {
 		t.Fatalf("choices = %+v", choices)
-	}
-	if levels := *request.Questions[2].Levels; *levels[1].Label != "kind" || *levels[1].Description != "warm" {
-		t.Fatalf("levels = %+v", levels)
 	}
 
 	if out.InputTokens != testTokens || len(out.Answers) != 3 {
@@ -76,12 +72,8 @@ func TestDecider_BuildsRequestAndParsesAnswers(t *testing.T) {
 		t.Fatalf("predicate answer = %+v", approve)
 	}
 	risk, _ := out.ByName("risk")
-	if risk.Choice != "benign" || risk.Confidence != 0.8 || risk.Probabilities["destructive"] != 0.1 {
+	if risk.Choice != "benign" {
 		t.Fatalf("choice answer = %+v", risk)
-	}
-	tone, _ := out.ByName("tone")
-	if tone.Score != 1.5 {
-		t.Fatalf("score answer = %+v", tone)
 	}
 }
 

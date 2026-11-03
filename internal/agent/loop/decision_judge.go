@@ -13,7 +13,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	decisiondomain "github.com/inference-gateway/cli/internal/decision/domain"
 	decisiongateway "github.com/inference-gateway/cli/internal/decision/infrastructure/gateway"
-	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
@@ -76,9 +75,9 @@ func (j *DecisionJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (a
 	return out, nil
 }
 
-// judgeBatch asks the decision model once for every action in batch. A
-// failed request applies on_error to the whole batch, a missing answer to
-// that call only.
+// judgeBatch sends one decision request per batch, with one predicate per
+// action in it. A failed request applies on_error to the whole batch, a
+// missing answer to that call only.
 func (j *DecisionJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction) ([]agentdomain.JudgeVerdict, *sdk.CompletionUsage) {
 	jcfg := j.config.Judge.Effective()
 	decisions, err := j.decide(ctx, in, batch, jcfg)
@@ -86,12 +85,12 @@ func (j *DecisionJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInpu
 	verdicts := make([]agentdomain.JudgeVerdict, len(batch))
 	for i, id := range actionIDs(batch) {
 		if err != nil {
-			verdicts[i] = j.onError(id, err, jcfg.OnError)
+			verdicts[i] = onErrorVerdict(id, err, jcfg.OnError)
 			continue
 		}
 		answer, ok := decisions.ByName(id)
 		if !ok {
-			verdicts[i] = j.onError(id, fmt.Errorf("judge gave no answer for call %s", id), jcfg.OnError)
+			verdicts[i] = onErrorVerdict(id, fmt.Errorf("judge gave no answer for call %s", id), jcfg.OnError)
 			continue
 		}
 		verdicts[i] = verdictFor(id, answer.Probability, jcfg.MinConfidence, risk)
@@ -161,13 +160,4 @@ func decisionUsage(decisions decisiondomain.Decisions) *sdk.CompletionUsage {
 		return nil
 	}
 	return &sdk.CompletionUsage{PromptTokens: int64(decisions.InputTokens), TotalTokens: int64(decisions.InputTokens)}
-}
-
-func (j *DecisionJudge) onError(id string, err error, onError string) agentdomain.JudgeVerdict {
-	reason := fmt.Sprintf("judge unavailable: %v", err)
-	logger.Warn("decision judge call failed, applying on_error policy", "on_error", onError, "call", id, "error", err)
-	if onError == config.JudgeOnErrorAllow {
-		return agentdomain.JudgeVerdict{ID: id, Decision: agentdomain.JudgeDecisionApproved, Reason: reason}
-	}
-	return agentdomain.JudgeVerdict{ID: id, Decision: agentdomain.JudgeDecisionRejected, Reason: reason}
 }

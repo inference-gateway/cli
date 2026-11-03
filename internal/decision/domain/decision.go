@@ -6,12 +6,10 @@ import "context"
 type QuestionType string
 
 // Question kinds: a predicate answers with one probability, a choice picks
-// one option with a probability per option, a score places the evidence on an
-// ordered scale.
+// one option.
 const (
 	Predicate QuestionType = "predicate"
 	Choice    QuestionType = "choice"
-	Score     QuestionType = "score"
 )
 
 // Option is one answer of a choice question.
@@ -20,34 +18,22 @@ type Option struct {
 	Description string
 }
 
-// Level is one step of a score question's scale, lowest first.
-type Level struct {
-	Label       string
-	Description string
-}
-
 // Question is one typed question asked about shared evidence. Name identifies
-// its answer. Choices apply to Choice questions and Levels to Score questions.
+// its answer. Choices apply to Choice questions only.
 type Question struct {
 	Name         string
 	Type         QuestionType
 	Instructions string
 	Choices      []Option
-	Levels       []Level
 }
 
 // Answer is the decision model's answer to one question. Probability holds a
-// predicate's p(true). Choice and Probabilities hold a choice's pick and its
-// distribution. Score holds the expected level of a score question.
-// Confidence is the model's own certainty, 0 when the backend reports none.
+// predicate's p(true), Choice a choice's pick.
 type Answer struct {
-	Name          string
-	Type          QuestionType
-	Probability   float64
-	Choice        string
-	Probabilities map[string]float64
-	Score         float64
-	Confidence    float64
+	Name        string
+	Type        QuestionType
+	Probability float64
+	Choice      string
 }
 
 // Decisions is the answer set of one request plus the input tokens it cost.

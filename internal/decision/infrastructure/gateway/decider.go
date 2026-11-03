@@ -12,13 +12,10 @@ import (
 
 // Answer field names of the Decisions API response.
 const (
-	fieldName          = "name"
-	fieldType          = "type"
-	fieldProbability   = "probability"
-	fieldChoice        = "choice"
-	fieldProbabilities = "probabilities"
-	fieldScore         = "score"
-	fieldConfidence    = "confidence"
+	fieldName        = "name"
+	fieldType        = "type"
+	fieldProbability = "probability"
+	fieldChoice      = "choice"
 )
 
 // Decider answers questions through the gateway's Decisions API, so the
@@ -77,16 +74,6 @@ func buildQuestion(question decisiondomain.Question) sdk.DecisionQuestion {
 		}
 		out.Choices = &choices
 	}
-	if len(question.Levels) > 0 {
-		levels := make([]struct {
-			Description *string `json:"description,omitempty"`
-			Label       *string `json:"label,omitempty"`
-		}, len(question.Levels))
-		for i, level := range question.Levels {
-			levels[i].Label, levels[i].Description = ptr(level.Label), ptr(level.Description)
-		}
-		out.Levels = &levels
-	}
 	return out
 }
 
@@ -109,21 +96,12 @@ func parseDecision(decision *sdk.Decision) decisiondomain.Decisions {
 }
 
 func parseAnswer(raw map[string]any) decisiondomain.Answer {
-	answer := decisiondomain.Answer{
+	return decisiondomain.Answer{
 		Name:        text(raw[fieldName]),
 		Type:        decisiondomain.QuestionType(text(raw[fieldType])),
 		Probability: number(raw[fieldProbability]),
 		Choice:      text(raw[fieldChoice]),
-		Score:       number(raw[fieldScore]),
-		Confidence:  number(raw[fieldConfidence]),
 	}
-	if distribution, ok := raw[fieldProbabilities].(map[string]any); ok {
-		answer.Probabilities = make(map[string]float64, len(distribution))
-		for option, p := range distribution {
-			answer.Probabilities[option] = number(p)
-		}
-	}
-	return answer
 }
 
 func text(v any) string {

@@ -739,10 +739,12 @@ The judge is configured in its own file, **`judge.yaml`** (project
 absent the built-in defaults are used).
 
 ```yaml
+backend: llm # llm (default, prose verdict) or decisions (p(approve) through /v1/decisions)
 model: "" # "provider/model" id for judge calls; empty falls back to agent.model
+min_confidence: 0.7 # decisions backend only: approve when p(approve) >= this, reject below
 gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
 timeout: 30 # per-call timeout in seconds
-max_tokens: 2048 # response budget; reasoning models spend their thinking against it too
+max_tokens: 2048 # llm backend only: response budget; reasoning models spend their thinking against it too
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
       You are the approver for an autonomous coding agent. ...
@@ -758,23 +760,28 @@ prompt: |- # user message template with {root_intent} (first user message), {int
       {action}
 ```
 
+- **judge.backend**: `llm` (default) asks a chat model for a prose verdict, `decisions`
+      asks a decision model through the gateway's `/v1/decisions` and thresholds its
+      `p(approve)`. See [Judge Mode](judge-mode.md#decision-model-judge-backend-decisions).
 - **judge.model**: `provider/model` reference for judge calls; empty falls back to
       `agent.model` (same precedent as conversation title generation). Selecting the
       judge with neither resolvable fails config validation at startup.
+- **judge.min_confidence**: decisions backend only - the `p(approve)` a call must reach
+      to be approved, below it is rejected (default: 0.7, must be between 0 and 1)
 - **judge.timeout**: per-call timeout in seconds (default: 30)
-- **judge.max_tokens**: response budget per judge call (default: 2048; reasoning models spend their thinking against it)
+- **judge.max_tokens**: llm backend only - response budget per judge call (default: 2048; reasoning models spend their thinking against it)
 - **judge.on_error**: what a failed judge call means - `deny` (default, fail closed,
       same default as the no-approver block path) or `allow`
-- **judge.system_prompt**: the judge's instructions, sent as the system message so
-      the user text and tool arguments stay data rather than instructions
+- **judge.system_prompt**: llm backend only - the judge's instructions, sent as the
+      system message so the user text and tool arguments stay data rather than instructions
 - **judge.prompt**: user-message template; `{root_intent}` is the first non-hidden
       user message of the session, `{intent}` the latest one (a bare "continue" is
       judged next to the root it continues) and `{action}` every pending tool call of
       the turn, one `<tool_call id="...">` block each (at most 20 per request). The
       judge answers with a JSON array of `{"id", "decision", "reason"}` objects
 
-Environment overrides (env wins over the file): `INFER_JUDGE_MODEL`, `INFER_JUDGE_GATEWAY_URL`,
-`INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,
+Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JUDGE_MODEL`,
+`INFER_JUDGE_MIN_CONFIDENCE`, `INFER_JUDGE_GATEWAY_URL`, `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`,
 `INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`.
 
 ### Web Search Settings
@@ -1098,8 +1105,8 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
 - **`reminders.yaml`** - `enabled`, `merge`, `reminders`. See
   [Reminders & Command Hooks](hooks.md).
 - **`hooks.yaml`** - `enabled`, `hooks`. See [Reminders & Command Hooks](hooks.md).
-- **`judge.yaml`** - `model`, `gateway_url`, `timeout`, `max_tokens`, `on_error`, `system_prompt`,
-  `prompt`. See [Judge Mode](judge-mode.md).
+- **`judge.yaml`** - `backend`, `model`, `min_confidence`, `gateway_url`, `timeout`, `max_tokens`,
+  `on_error`, `system_prompt`, `prompt`. See [Judge Mode](judge-mode.md).
 - **`memory.yaml`** - `enabled`, `dir`, `max_chars`, `max_entry_chars`, `backend`. See
   [Persistent Memory](memory.md).
 - **`plugins.yaml`** - `enabled`, `dir`, `max_instructions_chars`, `max_instructions_lines`,

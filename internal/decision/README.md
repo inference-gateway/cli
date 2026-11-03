@@ -1,9 +1,9 @@
 # decision
 
-**What** - the decision bounded context: typed questions (`predicate`, `choice`, `score`) asked about shared
+**What** - the decision bounded context: typed questions (`predicate`, `choice`) asked about shared
 evidence and answered with native probabilities by a decision model.
 **Why** - an approval gate needs a number to threshold on, not prose to parse. A generative judge writes a
-verdict it may or may not justify, a decision model returns `p(approve)` and a confidence, so fail-closed
+verdict it may or may not justify, a decision model returns `p(approve)`, so fail-closed
 semantics mean something. Keeping the contract in its own context lets other consumers (routing, triage,
 answer adequacy) ask typed questions without borrowing the judge's prompt.
 **How** - `domain/` holds the `Question`, `Answer` and `Decisions` value objects and the `Decider` port.

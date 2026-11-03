@@ -103,12 +103,12 @@ func (j *LLMJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, ba
 	verdicts := make([]agentdomain.JudgeVerdict, len(batch))
 	for i, id := range actionIDs(batch) {
 		if err != nil {
-			verdicts[i] = j.onError(id, err, jcfg.OnError)
+			verdicts[i] = onErrorVerdict(id, err, jcfg.OnError)
 			continue
 		}
 		verdict, ok := byID[id]
 		if !ok {
-			verdict = j.onError(id, fmt.Errorf("judge gave no verdict for call %s", id), jcfg.OnError)
+			verdict = onErrorVerdict(id, fmt.Errorf("judge gave no verdict for call %s", id), jcfg.OnError)
 		}
 		verdicts[i] = verdict
 	}
@@ -156,11 +156,11 @@ func actionIDs(batch []agentdomain.JudgeAction) []string {
 	return ids
 }
 
-// onError applies judge.on_error to a call the judge failed to decide. deny
-// rejects with a distinguishable "judge unavailable" reason so the driver can
-// retry or route around; allow approves. The error itself is swallowed: the
-// verdict carries everything downstream needs.
-func (j *LLMJudge) onError(id string, err error, onError string) agentdomain.JudgeVerdict {
+// onErrorVerdict applies judge.on_error to a call the judge failed to decide.
+// deny rejects with a distinguishable "judge unavailable" reason so the driver
+// can retry or route around, allow approves. The error itself is swallowed:
+// the verdict carries everything downstream needs.
+func onErrorVerdict(id string, err error, onError string) agentdomain.JudgeVerdict {
 	reason := fmt.Sprintf("judge unavailable: %v", err)
 	logger.Warn("judge call failed, applying on_error policy", "on_error", onError, "call", id, "error", err)
 	if onError == config.JudgeOnErrorAllow {
