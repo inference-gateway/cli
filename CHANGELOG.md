@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.242.0](https://github.com/inference-gateway/cli/compare/v0.241.0...v0.242.0) (2026-11-03)
+
+### 🚀 Features
+
+* **release:** publish the binaries as gzip tarballs ([#1688](https://github.com/inference-gateway/cli/issues/1688)) ([10ab7d6](https://github.com/inference-gateway/cli/commit/10ab7d6b3a8bc2d1e1d22e003ba495cda9edf12f)), closes [#1687](https://github.com/inference-gateway/cli/issues/1687), references [#1686](https://github.com/inference-gateway/cli/issues/1686) [inference-gateway/infer-action#433](https://github.com/inference-gateway/infer-action/issues/433) [inference-gateway/desktop#420](https://github.com/inference-gateway/desktop/issues/420)
+
+### 🧹 Maintenance
+
+* **release:** 0.242.0 [skip ci] ([62b7482](https://github.com/inference-gateway/cli/commit/62b7482dfbe9bfa12d8ec804186f708046058da4))
+* **changelog:** drop the 0.242.0 entry of the release that never published ([#1689](https://github.com/inference-gateway/cli/issues/1689)) ([ce67f26](https://github.com/inference-gateway/cli/commit/ce67f26224bf29b7d0e42957fd4bd74ec2a97e0d))
+
 ## [0.241.0](https://github.com/inference-gateway/cli/compare/v0.240.0...v0.241.0) (2026-11-03)
 
 ### 🚀 Features
