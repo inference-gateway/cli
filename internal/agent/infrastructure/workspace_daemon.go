@@ -37,7 +37,7 @@ func (e *DaemonWorkspace) Kind() agentdomain.WorkspaceKind {
 }
 
 func (e *DaemonWorkspace) Ensure(context.Context, agentdomain.Session) (agentdomain.Endpoint, error) {
-	return agentdomain.Endpoint{Addr: e.entry.Address, TLS: e.tls, Token: e.entry.Token}, nil
+	return agentdomain.Endpoint{Addr: e.entry.Address, TLS: e.tls, Token: e.entry.Token, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol())}, nil
 }
 
 func (e *DaemonWorkspace) Reach(ctx context.Context, session agentdomain.Session) (agentdomain.Endpoint, error) {
@@ -46,7 +46,9 @@ func (e *DaemonWorkspace) Reach(ctx context.Context, session agentdomain.Session
 
 // Probe dials the daemon and reports what its ack declared.
 func (e *DaemonWorkspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
-	status := agentdomain.WorkspaceStatus{Name: e.entry.Name, Kind: agentdomain.WorkspaceKindDaemon}
+	status := agentdomain.WorkspaceStatus{
+		Name: e.entry.Name, Kind: agentdomain.WorkspaceKindDaemon, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol()),
+	}
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	endpoint, _ := e.Ensure(ctx, agentdomain.Session{})

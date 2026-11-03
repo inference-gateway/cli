@@ -131,7 +131,7 @@ func (app *ChatApplication) requestTeleport(request tui.TeleportRequestedEvent) 
 		return errorCmd(fmt.Sprintf("Could not teleport the session to %s: %v", request.Target, err), false)
 	}
 	app.stateManager.SetSessionPlacement(app.sessionTeleporter.Placement())
-	return teleportStatusCmd(request.Target, "requesting the teleport", 0)
+	return teleportStatusCmd(app.stateManager.GetSessionPlacement().TeleportLabel(), "requesting the teleport", 0)
 }
 
 // teleportRefusal is why the session cannot teleport to target now, or "".
@@ -162,7 +162,7 @@ func (app *ChatApplication) teleportProgressed(progress agentdomain.TeleportProg
 	if progress.Stage == agentdomain.TeleportFailed {
 		return errorCmd(fmt.Sprintf("Teleport to %s failed: %s. The session stays on %s.", target, progress.Message, placement.Where()), true)
 	}
-	return teleportStatusCmd(target, teleportStage(placement, progress.Stage), teleportSteps[progress.Stage])
+	return teleportStatusCmd(placement.TeleportLabel(), teleportStage(placement, progress.Stage), teleportSteps[progress.Stage])
 }
 
 // placementChanged records where the session runs now and says so when it

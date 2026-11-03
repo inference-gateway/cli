@@ -56,7 +56,7 @@ func (t *Thread) Teleport(target string, files []string) error {
 	}
 	frame := teleportFrame{Type: "teleport_session", TeleportID: uuid.NewString(), ProjectDir: t.opts.ProjectDir, ID: t.following, Target: target, Files: files}
 	t.teleport = frame.TeleportID
-	t.placement.Teleporting = target
+	t.placement.Teleporting, t.placement.TeleportProtocol = target, t.protocolOf(target)
 	placement := t.placement
 	t.mu.Unlock()
 	if err := t.Send(frame); err != nil {
@@ -82,7 +82,7 @@ func (t *Thread) endTeleport() tui.SessionPlacement {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.teleport = ""
-	t.placement.Teleporting = ""
+	t.placement.Teleporting, t.placement.TeleportProtocol = "", ""
 	return t.placement
 }
 
@@ -119,8 +119,9 @@ func (t *Thread) onTeleported(frame []byte) {
 		return
 	}
 	t.teleport = ""
-	t.placement.Teleporting = ""
+	t.placement.Teleporting, t.placement.TeleportProtocol = "", ""
 	t.placement.Workspace, t.placement.WorkspaceDir = teleported.Workspace, teleported.WorkspaceDir
+	t.placement.Protocol = t.protocolOf(teleported.Workspace)
 	id := t.following
 	t.mu.Unlock()
 	var cancelled []json.RawMessage

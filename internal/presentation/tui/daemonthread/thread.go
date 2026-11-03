@@ -101,7 +101,8 @@ type header struct {
 }
 
 // New builds the thread connection for a daemon chat in opts.ProjectDir. It
-// reads the session's lease from leases to tell where it runs.
+// reads the session's lease from leases to tell where it runs, and the
+// workspaces' peer protocols from the config the local daemon shares.
 func New(cfg *config.Config, opts Options, leases agentdomain.LeaseStore) *Thread {
 	t := &Thread{
 		cfg: cfg, opts: opts, leases: leases,
@@ -237,6 +238,7 @@ func (t *Thread) locate(ctx context.Context, id string) {
 		workspace, workspaceDir = t.placement.Local, t.opts.ProjectDir
 	}
 	t.placement.Workspace, t.placement.WorkspaceDir = workspace, workspaceDir
+	t.placement.Protocol = t.protocolOf(workspace)
 	placement := t.placement
 	t.mu.Unlock()
 	t.post(tui.SessionPlacementChangedEvent{Placement: placement})
@@ -258,6 +260,16 @@ func (t *Thread) Live() string {
 		return t.live
 	}
 	return t.following
+}
+
+// protocolOf is the peer protocol the local daemon reaches a workspace over,
+// from the config it shares, "" for its own workspace.
+func (t *Thread) protocolOf(workspace string) string {
+	entry, ok := t.cfg.Daemon.Remote(workspace)
+	if !ok {
+		return ""
+	}
+	return string(entry.EffectiveProtocol())
 }
 
 // Placement is where the followed session runs.

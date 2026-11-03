@@ -33,8 +33,15 @@ type requester interface {
 	Deliver(frame []byte)
 }
 
+// teleportRun is a saga in flight: how to cancel it and when it ended.
+type teleportRun struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 // startTeleport validates a teleport_session frame and runs the saga under a
-// cancellable context registered by teleport id.
+// cancellable context registered by teleport id. A retry of a teleport still
+// in flight waits for it, then no-ops through the precondition.
 func (s *Service) startTeleport(to requester, f clientFrame) {
 	if f.TeleportID == "" || f.ProjectDir == "" || f.ID == "" || f.Target == "" {
 		to.Deliver(runError("teleport_session needs teleport_id, project_dir, id and target"))
@@ -45,21 +52,21 @@ func (s *Service) startTeleport(to requester, f clientFrame) {
 		refuseTeleport(to, f.TeleportID, err.Error())
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), teleportTimeout)
 	s.mu.Lock()
-	if _, running := s.teleports[f.TeleportID]; running {
+	if earlier, running := s.teleports[f.TeleportID]; running {
 		s.mu.Unlock()
-		cancel()
-		refuseTeleport(to, f.TeleportID, "a teleport with this id is already running")
+		<-earlier.done
+		s.startTeleport(to, f)
 		return
 	}
 	if s.conversations[f.ID] != "" {
 		s.mu.Unlock()
-		cancel()
 		refuseTeleport(to, f.TeleportID, "a teleport of this session is already running")
 		return
 	}
-	s.teleports[f.TeleportID] = cancel
+	ctx, cancel := context.WithTimeout(context.Background(), teleportTimeout)
+	run := teleportRun{cancel: cancel, done: make(chan struct{})}
+	s.teleports[f.TeleportID] = run
 	s.conversations[f.ID] = f.TeleportID
 	s.mu.Unlock()
 	defer func() {
@@ -68,6 +75,7 @@ func (s *Service) startTeleport(to requester, f clientFrame) {
 		delete(s.teleports, f.TeleportID)
 		delete(s.conversations, f.ID)
 		s.mu.Unlock()
+		close(run.done)
 	}()
 	req := agentdomain.TeleportRequest{
 		TeleportID: f.TeleportID,
@@ -80,10 +88,10 @@ func (s *Service) startTeleport(to requester, f clientFrame) {
 
 func (s *Service) cancelTeleport(teleportID string) {
 	s.mu.Lock()
-	cancel := s.teleports[teleportID]
+	run := s.teleports[teleportID]
 	s.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	if run.cancel != nil {
+		run.cancel()
 	}
 }
 
@@ -195,7 +203,7 @@ func (s *Service) discard(ctx context.Context, workspace agentdomain.Workspace, 
 // handOver writes the target's lease row and announces the teleport, or aborts
 // the restore there when the row will not yield. It reports whether the
 // session teleported.
-func (s *Service) handOver(ctx context.Context, peer *agui.Conn, to requester, req agentdomain.TeleportRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) bool {
+func (s *Service) handOver(ctx context.Context, peer agentinfra.PeerConn, to requester, req agentdomain.TeleportRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) bool {
 	holder, ok, err := s.leases.ClaimLease(ctx, lease)
 	if err == nil && !ok {
 		err = fmt.Errorf("workspace %s holds the session's lease", holder.Workspace)
@@ -253,7 +261,7 @@ func (s *Service) precondition(ctx context.Context, req agentdomain.TeleportRequ
 // checkpoint quiesces the source worker and captures the session: its
 // conversation unless the target shares this daemon's storage, its open
 // interrupts, its repository and its sealed credentials.
-func (s *Service) checkpoint(ctx context.Context, req agentdomain.TeleportRequest, peer agentinfra.PeerInfo, conn *agui.Conn) (agentdomain.Checkpoint, error) {
+func (s *Service) checkpoint(ctx context.Context, req agentdomain.TeleportRequest, peer agentinfra.PeerInfo, conn agentinfra.PeerConn) (agentdomain.Checkpoint, error) {
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
 	defer cancel()
@@ -307,7 +315,7 @@ func (s *Service) export(ctx context.Context, session agentdomain.Session) (expo
 
 // sealCredentials encrypts the environment the target's workers need to the
 // peer's certificate, so it travels only to the daemon that presented it.
-func (s *Service) sealCredentials(req agentdomain.TeleportRequest, conn *agui.Conn) ([]byte, error) {
+func (s *Service) sealCredentials(req agentdomain.TeleportRequest, conn agentinfra.PeerConn) ([]byte, error) {
 	env := workerEnv(s.entries[req.Target])
 	if len(env) == 0 {
 		return nil, nil
@@ -344,7 +352,7 @@ func workerEnv(entry config.WorkspaceEntry) map[string]string {
 
 // restore streams the checkpoint to the peer, waits for it to import, then
 // resumes the conversation there and checks the snapshot matches.
-func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFrames, req agentdomain.TeleportRequest, checkpoint agentdomain.Checkpoint) (string, error) {
+func (s *Service) restore(ctx context.Context, conn agentinfra.PeerConn, frames *peerFrames, req agentdomain.TeleportRequest, checkpoint agentdomain.Checkpoint) (string, error) {
 	if err := sendCheckpoint(conn, req.TeleportID, req.Target, checkpoint); err != nil {
 		return "", err
 	}
@@ -378,7 +386,7 @@ func (s *Service) restore(ctx context.Context, conn *agui.Conn, frames *peerFram
 
 // sendCheckpoint streams a checkpoint to conn in chunks and closes it with the
 // import frame naming the workspace it is meant for.
-func sendCheckpoint(conn *agui.Conn, teleportID, workspace string, checkpoint agentdomain.Checkpoint) error {
+func sendCheckpoint(conn agentinfra.PeerConn, teleportID, workspace string, checkpoint agentdomain.Checkpoint) error {
 	payload := encode(checkpoint)
 	sum := sha256.Sum256(payload)
 	chunks := 0

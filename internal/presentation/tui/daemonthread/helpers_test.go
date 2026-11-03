@@ -63,6 +63,13 @@ func (d *fakeDaemon) config() *config.Config {
 	return cfg
 }
 
+// configWith dials this daemon from a chat config naming workspaces.
+func (d *fakeDaemon) configWith(workspaces ...config.WorkspaceEntry) *config.Config {
+	cfg := d.config()
+	cfg.Daemon.Workspaces = workspaces
+	return cfg
+}
+
 func (d *fakeDaemon) handle(conn *agui.Conn, frame []byte) {
 	var f map[string]any
 	if json.Unmarshal(frame, &f) != nil {
@@ -163,8 +170,14 @@ func encodeRun(t *testing.T, events ...agentdomain.ChatEvent) []string {
 // connected is a thread connected to d that follows conv-1, with the notifier
 // it reports to.
 func connected(t *testing.T, d *fakeDaemon) (*Thread, *agentdomainmocks.FakeUINotifier) {
+	return connectedWith(t, d, d.config())
+}
+
+// connectedWith is a thread connected to d under a custom config that follows
+// conv-1, with the notifier it reports to.
+func connectedWith(t *testing.T, d *fakeDaemon, cfg *config.Config) (*Thread, *agentdomainmocks.FakeUINotifier) {
 	t.Helper()
-	thread := New(d.config(), Options{ProjectDir: "/proj"}, nil)
+	thread := New(cfg, Options{ProjectDir: "/proj"}, nil)
 	t.Cleanup(thread.Close)
 	notifier := &agentdomainmocks.FakeUINotifier{}
 	thread.SetNotifier(notifier)

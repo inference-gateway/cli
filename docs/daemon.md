@@ -26,7 +26,7 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Scheduler | `tools.schedule.enabled` | Skipped with `scheduler.backend: github`. See [Scheduling](scheduling.md) |
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
-| AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peer daemons and `/artifacts/` |
+| AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peer daemons, `/artifacts/` and `/a2a` |
 | Workspaces | `daemon.workspaces` | Where sessions can be teleported to, see [Workspaces and teleports](#workspaces-and-teleports) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
@@ -121,6 +121,11 @@ workspaces:
 - `kind: daemon` is a standalone `infer daemon` reached over TLS. `tls.ca_file` pins its certificate,
   without one the system roots verify it, and `tls.cert_file` with `tls.key_file` present a client
   certificate when it requires one. Its `workspace` must match the entry's `name`.
+- `protocol` is how this daemon dials the workspace's daemon, on either kind: `agui` (the default) rides
+  the AG-UI WebSocket binding, `a2a` carries the same teleport vocabulary over A2A JSON-RPC on the same
+  listener, see the [A2A peer endpoint](browser-extension-protocol.md#a2a-peer-endpoint). A workspace
+  that serves nothing over its chosen protocol fails a teleport at the provisioning stage, before it
+  creates anything.
 - `kind: kubernetes` creates one [Inference Gateway operator](https://github.com/inference-gateway/operator)
   `Orchestrator` per session in `namespace`, with `runtime: Sandbox`. The operator runs `image` as an
   `infer daemon` in an agent-sandbox `Sandbox`, with its binding on the pod network. The Sandbox keeps a
@@ -201,7 +206,8 @@ otherwise, and reclaims a lapsed lease whose owner cannot be reached. The owner 
 workspace's `lease_ttl`, and a teleport is a compare-and-swap keyed by `teleport_id`, so a retry is a
 no-op once it succeeded. With `storage.type` jsonl the leases are machine-local
 (`~/.infer/leases.json`), with a shared Postgres or Redis every daemon sees them. The wire frames are in
-the [Daemon Binding Protocol](browser-extension-protocol.md#workspaces).
+the [Daemon Binding Protocol](browser-extension-protocol.md#workspaces), and a workspace whose entry names
+`protocol: a2a` carries them over JSON-RPC instead ([A2A peer endpoint](browser-extension-protocol.md#a2a-peer-endpoint)).
 
 Two daemons that teleport sessions between them should point `storage.type` at a backend they share -
 Postgres, Redis or D1. On jsonl or memory each machine keeps its own lease rows, so the one-owner
@@ -378,7 +384,8 @@ approval or a question left open is asked again on reattach. The in-process chat
 A fresh session opens the model picker unless `agent.model` is set, and a reattached one keeps its model.
 The status bar shows where the session runs: `⌂ laptop` on this machine's daemon, `⇄ k8s-dev` on another
 workspace, `⇢ k8s-dev` while it teleports and `· offline` while the daemon is unreachable, which the TUI
-reconnects to with backoff. Selecting that indicator, `/workspaces`, or `/teleport` without a target opens
+reconnects to with backoff. Both the status bar and the `/workspaces` picker name the peer protocol the workspace
+serves next to its name, like `⇄ k8s-dev (a2a)`. Selecting that indicator, `/workspaces`, or `/teleport` without a target opens
 a picker of every workspace with its reachability and details, and `enter` teleports the session there.
 `/teleport <workspace> [file...]` teleports it directly, carrying the files git does not track. A teleport is
 refused while a turn runs, `esc` cancels a running one, and from a remote workspace the session teleports

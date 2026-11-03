@@ -396,7 +396,10 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 			AckAttrs:    teleports.AckAttrs(),
 			Handshake:   browserinfra.BindingHandshake,
 			AllowOrigin: browserinfra.AllowExtensionOrigin,
-			Routes:      map[string]http.Handler{"/artifacts/": newArtifactsHandler()},
+			Routes: map[string]http.Handler{
+				"/artifacts/":     newArtifactsHandler(),
+				a2ainfra.PeerPath: newPeerA2AHost(registry, teleports, b.Token, b.TLS.RequiresClientAuth()),
+			},
 		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
 		if err := binding.Start(); err != nil {
 			return threadHost{}, fmt.Errorf("failed to start the AG-UI binding: %w", err)

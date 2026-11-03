@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
@@ -118,10 +119,15 @@ func TestThreadLeavesNoMarkersForTheNextTurnAfterAnIdleReconnect(t *testing.T) {
 
 func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 	d := startDaemon(t, 0)
-	thread, notifier := connected(t, d)
+	thread, notifier := connectedWith(t, d, d.configWith(config.WorkspaceEntry{
+		Name: "k8s-dev", Kind: config.WorkspaceKindDaemon, Protocol: config.WorkspaceProtocolA2A,
+	}))
 
 	if err := thread.Teleport("k8s-dev", []string{"build/out.bin"}); err != nil {
 		t.Fatalf("Teleport: %v", err)
+	}
+	if placement := thread.Placement(); placement.Teleporting != "k8s-dev" || placement.TeleportProtocol != "a2a" {
+		t.Fatalf("placement under way = %+v, want the teleport to k8s-dev over a2a", placement)
 	}
 	eventually(t, "the teleport request", func() bool { return len(d.frames("teleport_session")) == 1 })
 	request := d.frames("teleport_session")[0]
@@ -146,6 +152,9 @@ func TestThreadTeleportsAndFollowsTheTeleportedSession(t *testing.T) {
 	last := changes[len(changes)-1]
 	if last.Placement.Workspace != "k8s-dev" || last.Placement.WorkspaceDir != "/workspace/proj" || !last.Placement.Remote() || last.CancelledInterrupts != 1 {
 		t.Fatalf("teleported placement = %+v", last)
+	}
+	if last.Placement.Protocol != "a2a" {
+		t.Errorf("teleported placement protocol = %q, want a2a", last.Placement.Protocol)
 	}
 	progress := notified[tui.TeleportProgressEvent](notifier)
 	if len(progress) != 1 || progress[0].Progress.Stage != agentdomain.TeleportCheckpointing {
@@ -187,8 +196,10 @@ func TestThreadFindsTheProjectOfASessionItsDaemonRuns(t *testing.T) {
 	d := startDaemon(t, 0)
 	leases := storage.NewMemoryStorage()
 	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "here", Workspace: "laptop", WorkspaceDir: "/proj/other", Until: time.Now().Add(time.Hour)})
-	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "away", Workspace: "k8s-dev", WorkspaceDir: "/workspace/x", Until: time.Now().Add(time.Hour)})
-	thread := New(d.config(), Options{ProjectDir: "/proj"}, leases)
+	_, _, _ = leases.ClaimLease(t.Context(), agentdomain.Lease{ConversationID: "away", Workspace: "k8s-a2a", WorkspaceDir: "/workspace/x", Until: time.Now().Add(time.Hour)})
+	thread := New(d.configWith(config.WorkspaceEntry{
+		Name: "k8s-a2a", Kind: config.WorkspaceKindDaemon, Protocol: config.WorkspaceProtocolA2A,
+	}), Options{ProjectDir: "/proj"}, leases)
 	t.Cleanup(thread.Close)
 	if err := thread.Connect(t.Context()); err != nil {
 		t.Fatal(err)
@@ -209,6 +220,15 @@ func TestThreadFindsTheProjectOfASessionItsDaemonRuns(t *testing.T) {
 	}
 	if follow := d.frames("resume_conversation"); follow[0]["project_dir"] != "/proj/other" {
 		t.Errorf("followed in %v, want the session's own project", follow[0]["project_dir"])
+	}
+
+	thread.MoveTo("/proj")
+	if err := thread.Follow(t.Context(), "away", sessionsdomain.ThreadOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	placement := thread.Placement()
+	if placement.Where() != "k8s-a2a" || !placement.Remote() || placement.Protocol != "a2a" {
+		t.Errorf("placement = %+v, want the session on k8s-a2a over a2a", placement)
 	}
 }
 

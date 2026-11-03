@@ -793,7 +793,9 @@ func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
 
 // buildWorkspaceIndicator names where a daemon chat's session runs: on the
 // daemon the TUI talks to, relayed to another workspace, teleporting to one, or
-// unreachable while the connection is down. An in-process chat shows none.
+// unreachable while the connection is down. The peer protocol the workspace
+// serves rides in parentheses when the placement knows it. An in-process chat
+// shows none.
 func (isb *InputStatusBar) buildWorkspaceIndicator() (string, string) {
 	if isb.stateManager == nil || isb.styleProvider == nil {
 		return "", ""
@@ -808,11 +810,11 @@ func (isb *InputStatusBar) buildWorkspaceIndicator() (string, string) {
 	}
 	switch {
 	case placement.Offline:
-		return glyph + " " + placement.Where() + " · offline", isb.styleProvider.GetThemeColor("error")
+		return glyph + " " + placement.Label() + " · offline", isb.styleProvider.GetThemeColor("error")
 	case placement.Teleporting != "":
-		return icons.TeleportingSession + " " + placement.Teleporting, isb.styleProvider.GetThemeColor("warning")
+		return icons.TeleportingSession + " " + placement.TeleportLabel(), isb.styleProvider.GetThemeColor("warning")
 	}
-	return glyph + " " + placement.Where(), color
+	return glyph + " " + placement.Label(), color
 }
 
 // a2aIndicatorColor color-codes the A2A segment: green once all agents are

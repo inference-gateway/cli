@@ -73,7 +73,7 @@ type Service struct {
 	registry   *sessions.Registry
 
 	mu            sync.Mutex
-	teleports     map[string]context.CancelFunc
+	teleports     map[string]teleportRun
 	conversations map[string]string
 	imports       map[string]*pendingImport
 	installed     map[string]agentdomain.Lease
@@ -93,7 +93,7 @@ func New(cfg Config, deps Deps) *Service {
 		keyring:       deps.Keyring,
 		launch:        deps.Launch,
 		dial:          agentinfra.PeerDialer{Me: cfg.Identity, Handshake: cfg.Handshake},
-		teleports:     make(map[string]context.CancelFunc),
+		teleports:     make(map[string]teleportRun),
 		conversations: make(map[string]string),
 		imports:       make(map[string]*pendingImport),
 		installed:     make(map[string]agentdomain.Lease),
@@ -125,8 +125,9 @@ func (s *Service) AckAttrs() map[string]any {
 }
 
 // Handle claims the workspaces and teleports frames: the client requests, and
-// the peer frames when the connection is another daemon's.
-func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
+// the peer frames when the connection is another daemon's, whichever protocol
+// the connection rides.
+func (s *Service) Handle(conn agentinfra.PeerConn, frame []byte) bool {
 	var f clientFrame
 	if json.Unmarshal(frame, &f) != nil {
 		return false
@@ -152,7 +153,7 @@ func (s *Service) Handle(conn *agui.Conn, frame []byte) bool {
 
 // listWorkspaces answers list_workspaces with every workspace's reachability,
 // this daemon first, probing the others in parallel.
-func (s *Service) listWorkspaces(conn *agui.Conn) {
+func (s *Service) listWorkspaces(conn agentinfra.PeerConn) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout+time.Second)
 	defer cancel()
 	names := slices.Sorted(maps.Keys(s.workspaces))
