@@ -9,6 +9,21 @@ import (
 )
 
 type FakeClient struct {
+	CreateDecisionStub        func(context.Context, sdk.Provider, sdk.CreateDecisionRequest) (*sdk.Decision, error)
+	createDecisionMutex       sync.RWMutex
+	createDecisionArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateDecisionRequest
+	}
+	createDecisionReturns struct {
+		result1 *sdk.Decision
+		result2 error
+	}
+	createDecisionReturnsOnCall map[int]struct {
+		result1 *sdk.Decision
+		result2 error
+	}
 	CreateImageStub        func(context.Context, sdk.Provider, sdk.CreateImageRequest) (*sdk.ImagesResponse, error)
 	createImageMutex       sync.RWMutex
 	createImageArgsForCall []struct {
@@ -327,6 +342,72 @@ type FakeClient struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeClient) CreateDecision(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateDecisionRequest) (*sdk.Decision, error) {
+	fake.createDecisionMutex.Lock()
+	ret, specificReturn := fake.createDecisionReturnsOnCall[len(fake.createDecisionArgsForCall)]
+	fake.createDecisionArgsForCall = append(fake.createDecisionArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 sdk.CreateDecisionRequest
+	}{arg1, arg2, arg3})
+	stub := fake.CreateDecisionStub
+	fakeReturns := fake.createDecisionReturns
+	fake.recordInvocation("CreateDecision", []interface{}{arg1, arg2, arg3})
+	fake.createDecisionMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeClient) CreateDecisionCallCount() int {
+	fake.createDecisionMutex.RLock()
+	defer fake.createDecisionMutex.RUnlock()
+	return len(fake.createDecisionArgsForCall)
+}
+
+func (fake *FakeClient) CreateDecisionCalls(stub func(context.Context, sdk.Provider, sdk.CreateDecisionRequest) (*sdk.Decision, error)) {
+	fake.createDecisionMutex.Lock()
+	defer fake.createDecisionMutex.Unlock()
+	fake.CreateDecisionStub = stub
+}
+
+func (fake *FakeClient) CreateDecisionArgsForCall(i int) (context.Context, sdk.Provider, sdk.CreateDecisionRequest) {
+	fake.createDecisionMutex.RLock()
+	defer fake.createDecisionMutex.RUnlock()
+	argsForCall := fake.createDecisionArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+}
+
+func (fake *FakeClient) CreateDecisionReturns(result1 *sdk.Decision, result2 error) {
+	fake.createDecisionMutex.Lock()
+	defer fake.createDecisionMutex.Unlock()
+	fake.CreateDecisionStub = nil
+	fake.createDecisionReturns = struct {
+		result1 *sdk.Decision
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeClient) CreateDecisionReturnsOnCall(i int, result1 *sdk.Decision, result2 error) {
+	fake.createDecisionMutex.Lock()
+	defer fake.createDecisionMutex.Unlock()
+	fake.CreateDecisionStub = nil
+	if fake.createDecisionReturnsOnCall == nil {
+		fake.createDecisionReturnsOnCall = make(map[int]struct {
+			result1 *sdk.Decision
+			result2 error
+		})
+	}
+	fake.createDecisionReturnsOnCall[i] = struct {
+		result1 *sdk.Decision
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeClient) CreateImage(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {

@@ -65,6 +65,11 @@ tasks:
     cmds:
       - go test -tags "{{.GOTAGS}}" -race ./...
 
+  test:judge-eval:
+    desc: Run the labelled judge cases through a decision model (INFER_JUDGE_EVAL_MODEL=provider/model, gateway at INFER_GATEWAY_URL with DECISIONS_ENABLED=true)
+    cmds:
+      - go test -tags "{{.GOTAGS}}" -run TestDecisionJudge_Eval -v ./internal/agent/loop/
+
   test:e2e:
     desc: Run hermetic end-to-end tests of the built CLI against the mock gateway
     cmds:
@@ -281,6 +286,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ToolService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain CallApprover
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain JudgeApprover
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/decision internal/decision/domain Decider
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain BashDetachChannelHolder
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain FileService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agentdomain internal/agent/domain ImageService

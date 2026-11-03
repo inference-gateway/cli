@@ -86,6 +86,28 @@ GPU and responds in seconds.
 A host-installed `infer` works too - from this directory:
 `INFER_GATEWAY_URL=http://localhost:8080 infer chat`.
 
+## Judge mode with a local decision model
+
+Judge mode (`Auto+Judge`) gates dangerous tool calls behind a model instead of a human.
+Offline, that model can be a small native **decision model** rather than a second chat
+model: Ollama serves `clef` (and `nimble`, `tev1`, `clef-flash`) as decision models, and the
+gateway exposes them through `POST /v1/decisions`, so the judge gets a real `p(approve)` to
+threshold on instead of prose to parse.
+
+```bash
+ollama pull clef               # the decision model, next to the chat model from above
+docker compose up -d           # the gateway starts with DECISIONS_ENABLED=true
+docker compose run --rm cli chat
+```
+
+The `cli` service already sets `INFER_JUDGE_BACKEND=decisions` and
+`INFER_JUDGE_MODEL=ollama/clef`. Switch to judge mode in the TUI (cycle the agent mode to
+Auto+Judge) and off-list commands, writes and deletes are decided by `clef`. Rejections show
+up as `rejected by the judge (decisions: p_approve=0.31, risk: destructive, ...)`.
+
+With network, `INFER_JUDGE_MODEL=ollama_cloud/clef:27b` uses the hosted model instead
+(`OLLAMA_CLOUD_API_KEY` in `.env`). See [docs/judge-mode.md](../../docs/judge-mode.md).
+
 ## Performance tips for local models
 
 Local prefill is the enemy: the agent sends an ~8k-token system prompt + tool

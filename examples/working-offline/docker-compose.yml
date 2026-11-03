@@ -11,6 +11,8 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      DECISIONS_ENABLED: "true" # the judge example below asks a local decision model through /v1/decisions
     extra_hosts:
       - host.docker.internal:host-gateway # reach a native model server on Linux too
     restart: unless-stopped
@@ -35,6 +37,9 @@ services:
       # is re-processed from scratch whenever git status or the file tree changes
       INFER_AGENT_CONTEXT_GIT_CONTEXT_ENABLED: "false"
       INFER_AGENT_CONTEXT_TREE_ENABLED: "false"
+      # Judge mode with a local decision model (ollama pull clef), see the README
+      INFER_JUDGE_BACKEND: decisions
+      INFER_JUDGE_MODEL: ollama/clef
     volumes:
       - cli_data:/home/infer/.infer # persists conversations across runs
     profiles:
