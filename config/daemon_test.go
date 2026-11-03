@@ -104,6 +104,9 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"kubernetes needs namespace and image", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "k8s", Kind: WorkspaceKindKubernetes}}}, "namespace and an image"},
 		{"kubernetes runs the gateway all-in-one", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(kubernetes, WorkspaceModeAllInOne)}}, ""},
 		{"unknown mode", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(kubernetes, "sidecar")}}, "invalid mode"},
+		{"protocol a2a", DaemonConfig{Workspaces: []WorkspaceEntry{withProtocol(kubernetes, WorkspaceProtocolA2A)}}, ""},
+		{"protocol agui", DaemonConfig{Workspaces: []WorkspaceEntry{withProtocol(kubernetes, WorkspaceProtocolAGUI)}}, ""},
+		{"unknown protocol", DaemonConfig{Workspaces: []WorkspaceEntry{withProtocol(kubernetes, "grpc")}}, "invalid protocol"},
 		{"mode on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(daemon, WorkspaceModeStandard)}}, "only a kubernetes workspace"},
 		{"gateway_env on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", GatewayEnv: []string{"OPENAI_API_KEY"}}}}, "only a kubernetes workspace"},
 		{"binding_service on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", BindingService: BindingServiceConfig{Labels: map[string]string{"a": "b"}}}}}, "only a kubernetes workspace"},
@@ -188,6 +191,11 @@ func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
 
 func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
 	entry.Mode = mode
+	return entry
+}
+
+func withProtocol(entry WorkspaceEntry, protocol WorkspaceProtocol) WorkspaceEntry {
+	entry.Protocol = protocol
 	return entry
 }
 

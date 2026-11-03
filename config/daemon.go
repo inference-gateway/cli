@@ -42,6 +42,15 @@ const (
 	WorkspaceKindKubernetes WorkspaceKind = "kubernetes"
 )
 
+// WorkspaceProtocol is the machine-to-machine protocol a daemon talks to a
+// workspace's daemon over: the AG-UI WebSocket binding, or A2A JSON-RPC.
+type WorkspaceProtocol string
+
+const (
+	WorkspaceProtocolAGUI WorkspaceProtocol = "agui"
+	WorkspaceProtocolA2A  WorkspaceProtocol = "a2a"
+)
+
 // WorkspaceMode is where a Kubernetes workspace runs the gateway: standard
 // deploys one beside the workspace so the provider keys never enter the
 // agent's pod, all-in-one runs it inside the pod. Empty is standard.
@@ -117,11 +126,12 @@ type PeerTLSConfig struct {
 // uses Address, Token and TLS, the kubernetes kind the cluster fields, and
 // Address overrides the port-forward when an Ingress exposes the pods.
 type WorkspaceEntry struct {
-	Name    string        `yaml:"name" mapstructure:"name"`
-	Kind    WorkspaceKind `yaml:"kind" mapstructure:"kind"`
-	Address string        `yaml:"address,omitempty" mapstructure:"address"`
-	Token   string        `yaml:"token,omitempty" mapstructure:"token"`
-	TLS     PeerTLSConfig `yaml:"tls,omitempty" mapstructure:"tls"`
+	Name     string            `yaml:"name" mapstructure:"name"`
+	Kind     WorkspaceKind     `yaml:"kind" mapstructure:"kind"`
+	Protocol WorkspaceProtocol `yaml:"protocol,omitempty" mapstructure:"protocol"`
+	Address  string            `yaml:"address,omitempty" mapstructure:"address"`
+	Token    string            `yaml:"token,omitempty" mapstructure:"token"`
+	TLS      PeerTLSConfig     `yaml:"tls,omitempty" mapstructure:"tls"`
 
 	Kubeconfig string            `yaml:"kubeconfig,omitempty" mapstructure:"kubeconfig"`
 	Context    string            `yaml:"context,omitempty" mapstructure:"context"`
@@ -213,6 +223,15 @@ func expandOrchestrator(value, name string) (string, error) {
 // beside its sessions, which takes standard mode and variables to hand it.
 func (e WorkspaceEntry) DeploysGateway() bool {
 	return e.Mode != WorkspaceModeAllInOne && len(e.GatewayEnv) > 0
+}
+
+// EffectiveProtocol is the configured protocol, else the AG-UI WebSocket
+// relay that empty keeps.
+func (e WorkspaceEntry) EffectiveProtocol() WorkspaceProtocol {
+	if e.Protocol == "" {
+		return WorkspaceProtocolAGUI
+	}
+	return e.Protocol
 }
 
 // EffectiveIdleTTL is how long a Kubernetes pod daemon idles before it
@@ -338,6 +357,11 @@ func (b BindingConfig) validate() error {
 }
 
 func (e WorkspaceEntry) validate(identity string) error {
+	switch e.Protocol {
+	case "", WorkspaceProtocolAGUI, WorkspaceProtocolA2A:
+	default:
+		return fmt.Errorf("invalid protocol %q for workspace %q: must be %q or %q", e.Protocol, e.Name, WorkspaceProtocolAGUI, WorkspaceProtocolA2A)
+	}
 	switch e.Mode {
 	case "", WorkspaceModeStandard, WorkspaceModeAllInOne:
 	default:
