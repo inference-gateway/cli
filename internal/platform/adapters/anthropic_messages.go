@@ -121,6 +121,10 @@ func (a *AnthropicMessages) CreateImage(ctx context.Context, provider sdk.Provid
 	return a.inner.CreateImage(ctx, provider, request)
 }
 
+func (a *AnthropicMessages) CreateDecision(ctx context.Context, provider sdk.Provider, request sdk.CreateDecisionRequest) (*sdk.Decision, error) {
+	return a.inner.CreateDecision(ctx, provider, request)
+}
+
 func (a *AnthropicMessages) CreateImageEdit(ctx context.Context, provider sdk.Provider, request sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error) {
 	return a.inner.CreateImageEdit(ctx, provider, request)
 }

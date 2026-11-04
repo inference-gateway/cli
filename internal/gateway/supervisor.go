@@ -513,6 +513,10 @@ func (gm *Supervisor) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "VIDEOS_ENABLED=true")
 	}
 
+	if gm.config.Judge.UsesDecisions() {
+		args = append(args, "-e", "DECISIONS_ENABLED=true")
+	}
+
 	if gm.config.NeedsGatewayAudio() {
 		args = append(args, "-e", "AUDIO_ENABLED=true")
 		args = append(args, "-e", fmt.Sprintf("AUDIO_LOCAL_AUTO_DOWNLOAD=%t", gm.config.TextToSpeech.AutoDownload))
@@ -1075,6 +1079,10 @@ func (gm *Supervisor) runBinary(binaryPath string) error {
 
 	if gm.config.TextToVideo.Enabled {
 		cmd.Env = append(cmd.Env, "VIDEOS_ENABLED=true")
+	}
+
+	if gm.config.Judge.UsesDecisions() {
+		cmd.Env = append(cmd.Env, "DECISIONS_ENABLED=true")
 	}
 
 	if gm.config.NeedsGatewayAudio() {

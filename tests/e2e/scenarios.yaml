@@ -59,6 +59,13 @@ models:
       source: "provider"
     modalities: { input: [text], output: [text] }
 
+# The decisions judge (judge.backend: decisions) asks /v1/decisions. A curl in
+# the evidence answers p_approve 0.05 and the destructive risk class.
+decisions:
+  - match: 'curl'
+    probability: 0.05
+    choice: destructive
+
 fallback:
   content: "Done."
 

@@ -18,6 +18,18 @@ const (
 	JudgeOnErrorAllow = "allow"
 )
 
+// Judge backends for JudgeConfig.Backend: llm asks a generative model for a
+// JSON verdict, decisions asks a decision model through the gateway's
+// Decisions API and thresholds its p(approve).
+const (
+	JudgeBackendLLM       = "llm"
+	JudgeBackendDecisions = "decisions"
+)
+
+// DefaultJudgeMinConfidence is the p(approve) a decision model must reach for
+// a call to pass under the decisions backend.
+const DefaultJudgeMinConfidence = 0.7
+
 // Default judge settings: the agent's own model decides, calls time out after
 // 30s, and a failing judge denies - this is an approval gate and the existing
 // no-approver behaviour is also block. The verdict itself is tiny, but on
@@ -53,9 +65,14 @@ const DefaultJudgePrompt = `<root_request>
 // separate file per concern. There is no enabled key - the judge runs only
 // when the mode (or tools.safety.approval_behaviour) selects it.
 type JudgeConfig struct {
+	// Backend selects how verdicts are produced: llm (default) or decisions.
+	Backend string `yaml:"backend" mapstructure:"backend"`
 	// Model is the "provider/model" id used for judge calls. Empty falls
 	// back to agent.model (same precedent as conversation.title_generation.model).
 	Model string `yaml:"model" mapstructure:"model"`
+	// MinConfidence is the p(approve) a decision model must reach to approve
+	// a call under the decisions backend. 0 -> default.
+	MinConfidence float64 `yaml:"min_confidence" mapstructure:"min_confidence"`
 	// GatewayURL sends judge calls to a different gateway than the agent's
 	// (e.g. a real gateway while the driver runs against the mock). Empty
 	// shares the agent's client.
@@ -79,11 +96,13 @@ type JudgeConfig struct {
 // tokens, deny-on-error, and the built-in prompts.
 func DefaultJudgeConfig() *JudgeConfig {
 	return &JudgeConfig{
-		Timeout:      DefaultJudgeTimeoutSeconds,
-		MaxTokens:    DefaultJudgeMaxTokens,
-		OnError:      JudgeOnErrorDeny,
-		SystemPrompt: DefaultJudgeSystemPrompt,
-		Prompt:       DefaultJudgePrompt,
+		Backend:       JudgeBackendLLM,
+		MinConfidence: DefaultJudgeMinConfidence,
+		Timeout:       DefaultJudgeTimeoutSeconds,
+		MaxTokens:     DefaultJudgeMaxTokens,
+		OnError:       JudgeOnErrorDeny,
+		SystemPrompt:  DefaultJudgeSystemPrompt,
+		Prompt:        DefaultJudgePrompt,
 	}
 }
 
@@ -106,6 +125,12 @@ func (j JudgeConfig) ResolveModel(agentModel string) string {
 // an empty on_error or prompt fall back to the built-ins.
 func (j JudgeConfig) Effective() JudgeConfig {
 	out := j
+	if out.Backend == "" {
+		out.Backend = JudgeBackendLLM
+	}
+	if out.MinConfidence <= 0 {
+		out.MinConfidence = DefaultJudgeMinConfidence
+	}
 	out.Timeout = orPositive(j.Timeout, DefaultJudgeTimeoutSeconds)
 	out.MaxTokens = orPositive(j.MaxTokens, DefaultJudgeMaxTokens)
 	if out.OnError == "" {
@@ -127,12 +152,26 @@ func orPositive(v, def int) int {
 	return def
 }
 
-// Validate checks the judge config: on_error must be deny or allow.
+// Validate checks the judge config: on_error must be deny or allow, backend
+// llm or decisions, and min_confidence a probability.
 func (j JudgeConfig) Validate() error {
 	switch j.OnError {
 	case "", JudgeOnErrorDeny, JudgeOnErrorAllow:
 	default:
 		return fmt.Errorf("judge.on_error %q: must be %q or %q", j.OnError, JudgeOnErrorDeny, JudgeOnErrorAllow)
 	}
+	switch j.Backend {
+	case "", JudgeBackendLLM, JudgeBackendDecisions:
+	default:
+		return fmt.Errorf("judge.backend %q: must be %q or %q", j.Backend, JudgeBackendLLM, JudgeBackendDecisions)
+	}
+	if j.MinConfidence < 0 || j.MinConfidence > 1 {
+		return fmt.Errorf("judge.min_confidence %v: must be between 0 and 1", j.MinConfidence)
+	}
 	return nil
+}
+
+// UsesDecisions reports whether the judge answers through the Decisions API.
+func (j JudgeConfig) UsesDecisions() bool {
+	return j.Backend == JudgeBackendDecisions
 }

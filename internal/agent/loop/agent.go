@@ -445,7 +445,7 @@ func NewAgent(
 		optimizer:          optimizer,
 		tokenizer:          tokenizer,
 		approvalPolicy:     approvalPolicy,
-		judge:              NewLLMJudge(judgeCompleter(client, cfg), cfg),
+		judge:              newJudge(client, cfg),
 		escalations:        newJudgeEscalations(),
 		bgRegistry:         bgRegistry,
 		rolloverManager:    rolloverManager,

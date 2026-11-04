@@ -91,7 +91,8 @@ func TestLoadJudge(t *testing.T) {
 func TestJudgeConfig_Effective(t *testing.T) {
 	zero := JudgeConfig{}.Effective()
 	if zero.Timeout != DefaultJudgeTimeoutSeconds || zero.MaxTokens != DefaultJudgeMaxTokens ||
-		zero.OnError != JudgeOnErrorDeny || zero.Prompt != DefaultJudgePrompt {
+		zero.OnError != JudgeOnErrorDeny || zero.Prompt != DefaultJudgePrompt ||
+		zero.Backend != JudgeBackendLLM || zero.MinConfidence != DefaultJudgeMinConfidence {
 		t.Errorf("Effective() of zero value = %+v, want all defaults applied", zero)
 	}
 
@@ -139,6 +140,21 @@ func TestJudgeConfig_Validate(t *testing.T) {
 	cfg.OnError = "bogus"
 	if err := cfg.Validate(); err == nil {
 		t.Error(`Validate() with on_error "bogus" should return an error`)
+	}
+
+	invalid := []JudgeConfig{
+		{Backend: "systemone"},
+		{Backend: JudgeBackendDecisions, MinConfidence: 1.5},
+		{MinConfidence: -0.1},
+	}
+	for _, cfg := range invalid {
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("Validate() of %+v should return an error", cfg)
+		}
+	}
+	decisions := JudgeConfig{Backend: JudgeBackendDecisions, MinConfidence: 0.5}
+	if err := decisions.Validate(); err != nil || !decisions.UsesDecisions() {
+		t.Errorf("Validate() of %+v = %v, want valid decisions backend", decisions, err)
 	}
 }
 

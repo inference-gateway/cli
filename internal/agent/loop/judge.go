@@ -47,22 +47,27 @@ func NewLLMJudge(completer llm.Completer, cfg *config.Config) *LLMJudge {
 	return &LLMJudge{llm: completer, config: cfg}
 }
 
-// judgeCompleter answers judge calls from judge.gateway_url when set (same
-// API key and timeout as the agent's client) so the judge can live on a
-// different gateway than the driver, and from the agent's client otherwise.
+// judgeCompleter wraps judgeClient as the completer of the LLM judge.
 func judgeCompleter(client sdk.Client, cfg *config.Config) llm.Completer {
+	return llm.New(judgeClient(client, cfg))
+}
+
+// judgeClient answers judge calls from judge.gateway_url when set (same API
+// key and timeout as the agent's client) so the judge can live on a different
+// gateway than the driver, and from the agent's client otherwise.
+func judgeClient(client sdk.Client, cfg *config.Config) sdk.Client {
 	url := cfg.Judge.GatewayURL
 	if url == "" {
-		return llm.New(client)
+		return client
 	}
 	if !strings.HasSuffix(url, "/v1") {
 		url = strings.TrimSuffix(url, "/") + "/v1"
 	}
-	return llm.New(sdk.NewClient(&sdk.ClientOptions{
+	return sdk.NewClient(&sdk.ClientOptions{
 		BaseURL: url,
 		APIKey:  cfg.Gateway.APIKey,
 		Timeout: time.Duration(cmp.Or(cfg.Client.Timeout, 200)) * time.Second,
-	}))
+	})
 }
 
 // Judge decides the pending tool calls: does each serve the user's intent and
@@ -98,12 +103,12 @@ func (j *LLMJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, ba
 	verdicts := make([]agentdomain.JudgeVerdict, len(batch))
 	for i, id := range actionIDs(batch) {
 		if err != nil {
-			verdicts[i] = j.onError(id, err, jcfg.OnError)
+			verdicts[i] = onErrorVerdict(id, err, jcfg.OnError)
 			continue
 		}
 		verdict, ok := byID[id]
 		if !ok {
-			verdict = j.onError(id, fmt.Errorf("judge gave no verdict for call %s", id), jcfg.OnError)
+			verdict = onErrorVerdict(id, fmt.Errorf("judge gave no verdict for call %s", id), jcfg.OnError)
 		}
 		verdicts[i] = verdict
 	}
@@ -151,11 +156,11 @@ func actionIDs(batch []agentdomain.JudgeAction) []string {
 	return ids
 }
 
-// onError applies judge.on_error to a call the judge failed to decide. deny
-// rejects with a distinguishable "judge unavailable" reason so the driver can
-// retry or route around; allow approves. The error itself is swallowed: the
-// verdict carries everything downstream needs.
-func (j *LLMJudge) onError(id string, err error, onError string) agentdomain.JudgeVerdict {
+// onErrorVerdict applies judge.on_error to a call the judge failed to decide.
+// deny rejects with a distinguishable "judge unavailable" reason so the driver
+// can retry or route around, allow approves. The error itself is swallowed:
+// the verdict carries everything downstream needs.
+func onErrorVerdict(id string, err error, onError string) agentdomain.JudgeVerdict {
 	reason := fmt.Sprintf("judge unavailable: %v", err)
 	logger.Warn("judge call failed, applying on_error policy", "on_error", onError, "call", id, "error", err)
 	if onError == config.JudgeOnErrorAllow {

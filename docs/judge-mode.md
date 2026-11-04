@@ -143,8 +143,9 @@ run `infer init --overwrite` to refresh it (or edit the two prompts by hand).
 
 Environment overrides (env wins over the file):
 
-- `INFER_JUDGE_MODEL`, `INFER_JUDGE_GATEWAY_URL`, `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`,
-  `INFER_JUDGE_ON_ERROR`, `INFER_JUDGE_SYSTEM_PROMPT`, `INFER_JUDGE_PROMPT`
+- `INFER_JUDGE_BACKEND`, `INFER_JUDGE_MODEL`, `INFER_JUDGE_MIN_CONFIDENCE`, `INFER_JUDGE_GATEWAY_URL`,
+  `INFER_JUDGE_TIMEOUT`, `INFER_JUDGE_MAX_TOKENS`, `INFER_JUDGE_ON_ERROR`, `INFER_JUDGE_SYSTEM_PROMPT`,
+  `INFER_JUDGE_PROMPT`
 
 Defaults: the agent's own model decides, calls time out after 30s, responses are
 capped at 2048 tokens, and a failing judge **denies**.
@@ -158,6 +159,51 @@ judge is a convenience and availability matters more than the gate.
 **Model resolution.** `judge.model` falls back to `agent.model` (same precedent as
 conversation title generation). Selecting the judge with neither set is a
 configuration error caught at startup.
+
+## Decision-model judge (backend: decisions)
+
+A generative judge writes a verdict you parse. A **decision model** returns a
+probability you threshold. `backend: decisions` switches the judge to the gateway's
+`POST /v1/decisions` endpoint, through the Go SDK, so the cli never speaks a vendor's
+decision format and never holds a vendor credential: the `provider/model` prefix picks
+the upstream exactly as for chat completions.
+
+```yaml
+backend: decisions # llm (default) | decisions
+model: ollama_cloud/clef:27b # or ollama/clef for a local pull, or openai/gpt-6-luna
+min_confidence: 0.7 # approve only when p(approve) >= this, below is rejected (fail-closed)
+on_error: deny
+```
+
+What it asks, per batch of gated calls, over the same evidence the LLM judge sees
+(`prompt` rendered with the intents and every `<tool_call id="...">` block):
+
+- one `predicate` per pending call, named by its tool call id: does the call serve the
+  root and latest request, and is it safe to run unattended?
+- one `choice` named `risk` over `benign`, `destructive`, `network`, `secrets` and
+  `out_of_scope`, each with its own criterion.
+
+A call is approved when its probability reaches `min_confidence`. The reason reads
+`decisions: p_approve=0.93, risk: benign`, or
+`rejected by the judge (decisions: p_approve=0.31, risk: destructive, below min_confidence 0.70)`,
+so the agent still gets something to adjust on and `RequestApproval` escalation keeps
+working. Failed calls honour `on_error` exactly as the LLM backend does, and the
+`judge_verdict` events, usage accounting and TUI indicator are unchanged.
+`system_prompt` and `max_tokens` do not apply: decision models run no tools and
+generate no text.
+
+The gateway serves `/v1/decisions` only when started with `DECISIONS_ENABLED=true`.
+The cli-managed local gateway sets it whenever `backend: decisions` is configured. An
+externally managed gateway needs the variable in its own environment, and the model
+must list `decisions` among its output modalities (`GET /v1/models?include=modalities`),
+otherwise the gateway answers `400` and the judge fails closed.
+
+Decision models read criteria literally and are weak at indirection, counting and
+adversarial content (the vendors say so themselves), so keep the evidence small and
+expect "does `git push` serve a bare `continue`" to be the hard case. The eval under
+`internal/agent/loop/testdata/judge_eval.jsonl` runs the same labelled cases through
+any decision model: `INFER_JUDGE_EVAL_MODEL=ollama_cloud/clef:27b task test:judge-eval`
+against a running gateway prints accuracy, false approves and latency.
 
 ## Judge as the approval behaviour, without the mode
 
