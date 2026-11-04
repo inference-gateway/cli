@@ -201,16 +201,6 @@ func (t *Thread) SessionProject(ctx context.Context, id string) string {
 	return lease.WorkspaceDir
 }
 
-// SessionKnown reports whether any workspace recorded the session, so a chat
-// given a new id starts it fresh instead of resuming it.
-func (t *Thread) SessionKnown(ctx context.Context, id string) bool {
-	if t.leases == nil {
-		return false
-	}
-	_, found, err := t.leases.GetLease(ctx, id)
-	return err == nil && found
-}
-
 // projectDir is the project every request names, which MoveTo changes.
 func (t *Thread) projectDir() string {
 	t.mu.Lock()
