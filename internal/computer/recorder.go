@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -175,6 +176,7 @@ func (r *ScreenRecorder) prepare(ctx context.Context, req recordRequest) (string
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", nil, nil, fmt.Errorf("create recordings directory: %w", err)
 	}
+	pruneRecordings(dir, int64(rc.MaxStorageMB)<<20)
 	out := filepath.Join(dir, time.Now().Format("20060102-150405.000")+".mp4")
 	args, err := ffmpegArgs(runtime.GOOS, os.Getenv("DISPLAY"), rect, screen, rc, out)
 	if err != nil {
@@ -523,4 +525,42 @@ func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen,
 	}
 	return append(args, "-t", strconv.Itoa(rc.MaxDuration), "-r", rate,
 		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-y", out), nil
+}
+
+// pruneRecordings deletes the oldest recordings in dir until the ones left fit
+// in maxBytes, so recordings never grow past computer_use.recording.max_storage_mb.
+// Zero or less keeps everything.
+func pruneRecordings(dir string, maxBytes int64) {
+	if maxBytes <= 0 {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	type file struct {
+		path    string
+		size    int64
+		modTime time.Time
+	}
+	var files []file
+	var total int64
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil || entry.IsDir() || filepath.Ext(entry.Name()) != ".mp4" {
+			continue
+		}
+		files = append(files, file{filepath.Join(dir, entry.Name()), info.Size(), info.ModTime()})
+		total += info.Size()
+	}
+	slices.SortFunc(files, func(a, b file) int { return a.modTime.Compare(b.modTime) })
+	for _, f := range files {
+		if total <= maxBytes {
+			return
+		}
+		if os.Remove(f.path) == nil {
+			total -= f.size
+			logger.Info("pruned an old recording to stay under max_storage_mb", "path", f.path)
+		}
+	}
 }

@@ -976,7 +976,8 @@ Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickT
   stops on its own (the max duration, an ffmpeg exit, or a stop from `/tasks`) queues a note asking
   the agent to collect it with `RecordStop`.
 - A recording stops and finalizes itself at `computer_use.recording.max_duration` (default 120s);
-  `RecordStop` still returns that file.
+  `RecordStop` still returns that file. Before one starts, the oldest recordings are deleted until
+  the directory fits `computer_use.recording.max_storage_mb` (default 1024).
 - When the CLI exits (normal exit, Ctrl+C, SIGTERM) an active recording is finalized, and no ffmpeg
   process is left behind. Call `RecordStop` in the same session: channel and scheduled runs each
   start a fresh process. `infer tools execute` refuses both tools.

@@ -522,6 +522,7 @@ userspace `~/.infer/computer_use.yaml`). Recording works without `computer_use.e
 recording:
   enabled: false # register RecordStart/RecordStop
   max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
+  max_storage_mb: 1024 # the oldest recordings are deleted before a new one starts to stay under it (0 = unbounded)
   output_dir: "" # empty = <media root>/recordings
   framerate: 24 # frames per second
   require_approval: true # unset = true; false lets RecordStart run unattended (headless CI)
@@ -531,6 +532,9 @@ recording:
 - **computer_use.recording.enabled**: Register the recording tools (default: false)
 - **computer_use.recording.max_duration**: Maximum recording length in seconds (default: 120; must
   be positive when enabled)
+- **computer_use.recording.max_storage_mb**: How much the recordings directory may hold in MiB.
+  Before a recording starts, the oldest `.mp4` files there are deleted until the rest fit (default:
+  1024; 0 keeps everything)
 - **computer_use.recording.output_dir**: Where recordings are written (default:
   `recordings` under the [media root](directory-structure.md#media-directories), created on first use)
 - **computer_use.recording.framerate**: Capture frame rate (default: 24; must be positive when enabled)
