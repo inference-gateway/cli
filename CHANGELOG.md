@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.243.0](https://github.com/inference-gateway/cli/compare/v0.242.0...v0.243.0) (2026-11-04)
+
+### 🚀 Features
+
+* **daemon:** choose agui or a2a per workspace and show it in the tui ([#1690](https://github.com/inference-gateway/cli/issues/1690)) ([a465d55](https://github.com/inference-gateway/cli/commit/a465d5591412bddbd5878e5bcb6ff7a77c953b92)), closes [#1668](https://github.com/inference-gateway/cli/issues/1668)
+* **judge:** decide tool approvals with a decision model through /v1/decisions ([#1691](https://github.com/inference-gateway/cli/issues/1691)) ([5404ccb](https://github.com/inference-gateway/cli/commit/5404ccbb39746e55027f3b3820c9e66c08aafe86)), closes [#1342](https://github.com/inference-gateway/cli/issues/1342), references [inference-gateway/tokenless#94](https://github.com/inference-gateway/tokenless/issues/94) [inference-gateway/inference-gateway#831](https://github.com/inference-gateway/inference-gateway/issues/831) [#832](https://github.com/inference-gateway/cli/issues/832)
+
+### 🔧 Build System
+
+* **deps:** bump the gomod group across 1 directory with 4 updates ([#1693](https://github.com/inference-gateway/cli/issues/1693)) ([1e21a10](https://github.com/inference-gateway/cli/commit/1e21a10065bda38a4c0115ca98b4146c2a7dbf33))
+
+### 🧹 Maintenance
+
+* **deps:** bump flox deps ([eeb18ed](https://github.com/inference-gateway/cli/commit/eeb18eda8703d37503622bf368ef10d88d4262c7))
+
 ## [0.242.0](https://github.com/inference-gateway/cli/compare/v0.241.0...v0.242.0) (2026-11-03)
 
 ### 🚀 Features
