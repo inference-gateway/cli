@@ -588,3 +588,23 @@ func TestRegistryBroadcastsThreadActivity(t *testing.T) {
 		t.Fatalf("the follower got %q, want its own run events untouched", joined)
 	}
 }
+
+func TestRegistryPanelRequestsPreferTheSessionsOwnThread(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	first, second, requester := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	handle(r, first, `{"type":"new_session","project_dir":"/proj"}`)
+	handle(r, second, `{"type":"resume_conversation","project_dir":"/proj","id":"c-2"}`)
+	_, lines := l.worker(1)
+
+	handle(r, requester, `{"type":"read_frame","project_dir":"/proj","id":"c-2"}`)
+	if l.count() != 2 {
+		t.Fatalf("a request naming a live session must run on its thread, launched %d", l.count())
+	}
+	frame := `{"type":"frame","id":"c-2","frame":{"data":"anBlZw==","format":"jpeg"}}`
+	lines <- []byte(frame)
+	receives(t, requester, frame)
+	if second.DeliverCallCount() != 0 || first.DeliverCallCount() != 0 {
+		t.Fatalf("the frame must reach the requester only, followers got %q and %q", delivered(first), delivered(second))
+	}
+}

@@ -58,6 +58,7 @@ var replyTypes = map[string][]string{
 	"import_conversation":  {"conversation_imported"},
 	"list_artifacts":       {"artifacts"},
 	"read_artifact":        {"artifact"},
+	"read_frame":           {"frame"},
 	frameToolRequest:       {frameToolResult},
 	frameCompletionRequest: {frameCompletionResult},
 }
@@ -314,7 +315,7 @@ func (r *Registry) route(c sessionsdomain.Client, f clientFrame, frame []byte) (
 		w, err := r.workerLocked(t)
 		return t, w, err
 	case replyTypes[f.Type] != nil:
-		t, err := r.pickLocked(c, f.ProjectDir)
+		t, err := r.pickLocked(c, f.ProjectDir, f.ID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -357,9 +358,10 @@ func (r *Registry) openLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 }
 
 // pickLocked picks the thread a panel request runs on: the client's own when
-// it is in the requested project dir, else any live one there, else a fresh
-// thread in that dir that nobody follows.
-func (r *Registry) pickLocked(c sessionsdomain.Client, requested string) (*thread, error) {
+// it is in the requested project dir, else the live thread of the session the
+// request names, else any live one there, else a fresh thread in that dir that
+// nobody follows.
+func (r *Registry) pickLocked(c sessionsdomain.Client, requested, id string) (*thread, error) {
 	own := r.subs[c]
 	if requested == "" {
 		if own == nil {
@@ -373,6 +375,9 @@ func (r *Registry) pickLocked(c sessionsdomain.Client, requested string) (*threa
 	}
 	if own != nil && own.key.ProjectDir == dir {
 		return own, nil
+	}
+	if t := r.threads[sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: id}]; t != nil && t.worker != nil {
+		return t, nil
 	}
 	for _, t := range r.threads {
 		if t.key.ProjectDir == dir && t.worker != nil {

@@ -86,6 +86,74 @@
         #new-tab-btn:hover {
             background: #414868;
         }
+        #screen-btn {
+            margin-left: auto;
+            margin-right: 8px;
+            padding: 4px 12px;
+            background: #24283b;
+            border: 1px solid #414868;
+            border-radius: 4px;
+            color: #a9b1d6;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        #screen-btn:hover {
+            border-color: #7aa2f7;
+        }
+        #screen-btn.active {
+            background: #7aa2f7;
+            color: #1a1b26;
+        }
+        .screen-view {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40%;
+            min-width: 320px;
+            background: rgba(22, 22, 30, 0.98);
+            border: 1px solid #414868;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            overflow: hidden;
+        }
+        .screen-view.hidden {
+            display: none;
+        }
+        .screen-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid #414868;
+        }
+        .screen-header h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #7aa2f7;
+        }
+        .screen-close {
+            background: transparent;
+            border: none;
+            color: #a9b1d6;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .screen-status {
+            padding: 12px;
+            font-size: 12px;
+            color: #7a7f9a;
+        }
+        .screen-status.hidden {
+            display: none;
+        }
+        .screen-image {
+            display: block;
+            width: 100%;
+        }
+        .screen-image.hidden {
+            display: none;
+        }
         #terminal-area {
             flex: 1;
             position: relative;
@@ -166,6 +234,7 @@
 <body>
     <div id="tab-bar">
         <button id="new-tab-btn" title="New terminal">+</button>
+        <button id="screen-btn" title="Show the session's screen">Screen</button>
     </div>
     <div id="terminal-area">
         <div id="welcome-message">

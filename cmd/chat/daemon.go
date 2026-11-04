@@ -71,8 +71,8 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 	if err := thread.Connect(ctx); err != nil {
 		return attachError(err)
 	}
-	fresh := sessionID == ""
-	if fresh {
+	fresh := sessionID == "" || !thread.SessionKnown(ctx, sessionID)
+	if sessionID == "" {
 		sessionID = uuid.NewString()
 	}
 

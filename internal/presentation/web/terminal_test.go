@@ -33,12 +33,19 @@ func TestTerminalRunsCommandForTokenHolders(t *testing.T) {
 	}
 	server := httptest.NewServer(&web.Terminal{
 		Token:   "secret",
-		Command: func() *exec.Cmd { return exec.Command("sh", "-c", "echo hello; cat") },
+		Command: func(string) *exec.Cmd { return exec.Command("sh", "-c", "echo hello; cat") },
 	})
 	defer server.Close()
 
 	t.Run("token", func(t *testing.T) {
 		conn := dial(t, server, "secret")
+		var init struct {
+			Type      string `json:"type"`
+			SessionID string `json:"session_id"`
+		}
+		if err := conn.ReadJSON(&init); err != nil || init.Type != "init_response" || init.SessionID == "" {
+			t.Fatalf("want an init_response with the tab's session id, got %+v err %v", init, err)
+		}
 		kind, data, err := conn.ReadMessage()
 		if err != nil || kind != websocket.BinaryMessage || !strings.Contains(string(data), "hello") {
 			t.Fatalf("want binary hello, got kind %d %q err %v", kind, data, err)

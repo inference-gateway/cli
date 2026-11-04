@@ -7,9 +7,19 @@ class TerminalManager {
         this.terminalArea = document.getElementById('terminal-area');
         this.newTabBtn = document.getElementById('new-tab-btn');
         this.welcomeMessage = document.getElementById('welcome-message');
+        this.screenBtn = document.getElementById('screen-btn');
         this.token = this.readToken();
 
         this.newTabBtn.addEventListener('click', () => this.createTab());
+        this.screenBtn.addEventListener('click', () => this.toggleScreen());
+    }
+
+    toggleScreen() {
+        const tab = this.tabs.get(this.activeTabId);
+        if (tab) {
+            tab.screen.toggle();
+            this.screenBtn.classList.toggle('active', tab.screen.enabled);
+        }
     }
 
     // The daemon's binding token arrives once as ?token= and stays in this tab's
@@ -57,6 +67,7 @@ class TerminalManager {
         const newTab = this.tabs.get(tabId);
         if (newTab) {
             newTab.activate();
+            this.screenBtn.classList.toggle('active', newTab.screen.enabled);
         }
     }
 
@@ -89,9 +100,11 @@ class TerminalTab {
         this.tabElement = null;
         this.containerElement = null;
         this.connected = false;
+        this.sessionID = null;
 
         this.createUI();
         this.createTerminal();
+        this.screen = new ScreenView(this);
         this.connect();
     }
 
@@ -196,6 +209,11 @@ class TerminalTab {
                     this.term.write(new Uint8Array(buffer));
                 });
             } else {
+                const msg = this.parseFrame(event.data);
+                if (msg && msg.type === 'init_response') {
+                    this.sessionID = msg.session_id;
+                    return;
+                }
                 this.term.write(event.data);
             }
         };
@@ -210,6 +228,14 @@ class TerminalTab {
             this.connected = false;
             this.term.write('\r\n\x1b[1;33mConnection closed\x1b[0m\r\n');
         };
+    }
+
+    parseFrame(text) {
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return null;
+        }
     }
 
     sendResize() {
@@ -238,6 +264,7 @@ class TerminalTab {
     }
 
     destroy() {
+        this.screen.stop();
         if (this.socket) {
             this.socket.close();
         }
@@ -249,6 +276,73 @@ class TerminalTab {
         }
         if (this.containerElement) {
             this.containerElement.remove();
+        }
+    }
+}
+
+// ScreenView shows the latest frame of the tab's session worker, polled from
+// the daemon's /screen/ route, which answers wherever the session runs.
+class ScreenView {
+    constructor(tab) {
+        this.tab = tab;
+        this.enabled = false;
+        this.timer = null;
+        this.element = document.createElement('div');
+        this.element.className = 'screen-view hidden';
+        this.element.innerHTML = `
+            <div class="screen-header"><h3>Screen</h3><button class="screen-close" title="Hide">×</button></div>
+            <div class="screen-status">Waiting for the first frame…</div>
+            <img class="screen-image hidden" alt="The session's screen" />
+        `;
+        this.status = this.element.querySelector('.screen-status');
+        this.image = this.element.querySelector('.screen-image');
+        this.element.querySelector('.screen-close').addEventListener('click', () => this.toggle());
+        tab.containerElement.appendChild(this.element);
+    }
+
+    toggle() {
+        this.enabled = !this.enabled;
+        this.element.classList.toggle('hidden', !this.enabled);
+        if (this.enabled) {
+            this.fetchFrame();
+            this.timer = setInterval(() => this.fetchFrame(), 2000);
+        } else {
+            this.stop();
+        }
+    }
+
+    stop() {
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+    }
+
+    async fetchFrame() {
+        if (!this.tab.sessionID) {
+            return;
+        }
+        const base = window.location.pathname.replace(/terminal\/?$/, '');
+        try {
+            const response = await fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, {
+                headers: { Authorization: `Bearer ${this.tab.manager.token}` }
+            });
+            if (!response.ok) {
+                this.status.textContent = await response.text();
+                this.status.classList.remove('hidden');
+                return;
+            }
+            const url = URL.createObjectURL(await response.blob());
+            const previous = this.image.src;
+            this.image.src = url;
+            this.image.classList.remove('hidden');
+            this.status.classList.add('hidden');
+            if (previous) {
+                URL.revokeObjectURL(previous);
+            }
+        } catch (error) {
+            this.status.textContent = `Could not reach the daemon: ${error}`;
+            this.status.classList.remove('hidden');
         }
     }
 }
