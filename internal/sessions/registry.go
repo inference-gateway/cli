@@ -32,6 +32,7 @@ const (
 	frameCompletionResult   = "completion_result"
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
 	frameThreadActivity     = "thread_activity"
+	frameReadFrame          = "read_frame"
 
 	outboundBrowserCommand = "browser_command"
 )
@@ -58,7 +59,7 @@ var replyTypes = map[string][]string{
 	"import_conversation":  {"conversation_imported"},
 	"list_artifacts":       {"artifacts"},
 	"read_artifact":        {"artifact"},
-	"read_frame":           {"frame"},
+	frameReadFrame:         {"frame"},
 	frameToolRequest:       {frameToolResult},
 	frameCompletionRequest: {frameCompletionResult},
 }
@@ -315,7 +316,7 @@ func (r *Registry) route(c sessionsdomain.Client, f clientFrame, frame []byte) (
 		w, err := r.workerLocked(t)
 		return t, w, err
 	case replyTypes[f.Type] != nil:
-		t, err := r.pickLocked(c, f.ProjectDir, f.ID)
+		t, err := r.pickLocked(c, f)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -360,24 +361,32 @@ func (r *Registry) openLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 // pickLocked picks the thread a panel request runs on: the client's own when
 // it is in the requested project dir, else the live thread of the session the
 // request names, else any live one there, else a fresh thread in that dir that
-// nobody follows.
-func (r *Registry) pickLocked(c sessionsdomain.Client, requested, id string) (*thread, error) {
+// nobody follows. A screen belongs to one session, so read_frame runs on the
+// thread it names or fails.
+func (r *Registry) pickLocked(c sessionsdomain.Client, f clientFrame) (*thread, error) {
 	own := r.subs[c]
-	if requested == "" {
+	if f.ProjectDir == "" {
 		if own == nil {
 			return nil, errNoThread
 		}
 		return own, nil
 	}
-	dir, err := projectDir(requested)
+	dir, err := projectDir(f.ProjectDir)
 	if err != nil {
 		return nil, err
+	}
+	named := r.threads[sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: f.ID}]
+	if f.Type == frameReadFrame {
+		if named == nil {
+			return nil, fmt.Errorf("session %s is not open in %s", f.ID, dir)
+		}
+		return named, nil
 	}
 	if own != nil && own.key.ProjectDir == dir {
 		return own, nil
 	}
-	if t := r.threads[sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: id}]; t != nil && t.worker != nil {
-		return t, nil
+	if named != nil && named.worker != nil {
+		return named, nil
 	}
 	for _, t := range r.threads {
 		if t.key.ProjectDir == dir && t.worker != nil {

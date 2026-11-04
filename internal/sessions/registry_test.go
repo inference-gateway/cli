@@ -608,3 +608,29 @@ func TestRegistryPanelRequestsPreferTheSessionsOwnThread(t *testing.T) {
 		t.Fatalf("the frame must reach the requester only, followers got %q and %q", delivered(first), delivered(second))
 	}
 }
+
+func TestRegistryReadFrameRunsOnlyOnTheSessionItNames(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	follower, requester := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	handle(r, follower, `{"type":"resume_conversation","project_dir":"/proj","id":"c-1"}`)
+
+	handle(r, requester, `{"type":"read_frame","project_dir":"/proj","id":"c-2"}`)
+	receives(t, requester, `{"message":"session c-2 is not open in /proj","type":"RUN_ERROR"}`)
+	if l.count() != 1 {
+		t.Fatalf("a frame for a session that is not open must not borrow or launch a worker, launched %d", l.count())
+	}
+
+	w, _ := l.worker(0)
+	w.Stop()
+	key := sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "c-1"}
+	eventually(t, "the worker exit", func() bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.threads[key].worker == nil
+	})
+	handle(r, requester, `{"type":"read_frame","project_dir":"/proj","id":"c-1"}`)
+	if l.count() != 2 || l.keys[1] != key {
+		t.Fatalf("a frame for an open session must relaunch its own worker, launched %v", l.keys)
+	}
+}

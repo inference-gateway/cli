@@ -425,18 +425,22 @@ CLI → client:
 - The frame comes from the worker that runs the session, so it is the screen
   of the workspace the session teleported to, relayed by the daemon like
   `read_artifact`.
+- With `project_dir` it runs only on the thread of the session `id` names,
+  relaunching that session's worker when it is not running. A session that is
+  not open there answers a `RUN_ERROR`, never another session's screen.
 - `error` replaces `frame` when the worker streams no screen or captured
   nothing yet.
 
-### Project-scoped requests
+## Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_models`,
 `select_model`, `set_mode`, `tool_request`, `completion_request`,
 `list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on the
 live thread of the session `id` names, else on any running worker there, else
-on a fresh worker started in that project. Without `project_dir` they run on
-the connection's thread. Their replies go to the requesting connection only.
+on a fresh worker started in that project, except `read_frame` (see
+[Session screen](#session-screen)). Without `project_dir` they run on the
+connection's thread. Their replies go to the requesting connection only.
 
 ## Input history
 
