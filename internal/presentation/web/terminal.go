@@ -87,11 +87,14 @@ type initFrame struct {
 	Rows  uint16 `json:"rows"`
 }
 
-func (t *Terminal) authorized(r *http.Request, token string) bool {
-	if t.Token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(t.Token)) == 1 {
+// authorized reports whether a request presents the binding token, or a
+// verified client certificate when the listener asks for one. The terminal
+// socket and the screen route share it so both admit the same callers.
+func authorized(r *http.Request, presented, token string, clientCerts bool) bool {
+	if token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1 {
 		return true
 	}
-	return t.ClientCerts && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+	return clientCerts && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 
 func (t *Terminal) serveSocket(w http.ResponseWriter, r *http.Request) {
@@ -104,7 +107,7 @@ func (t *Terminal) serveSocket(w http.ResponseWriter, r *http.Request) {
 
 	_ = conn.SetReadDeadline(time.Now().Add(initTimeout))
 	var init initFrame
-	if conn.ReadJSON(&init) != nil || init.Type != "init" || !t.authorized(r, init.Token) {
+	if conn.ReadJSON(&init) != nil || init.Type != "init" || !authorized(r, init.Token, t.Token, t.ClientCerts) {
 		logger.Warn("web terminal rejected a socket with a bad or missing init", "remote", r.RemoteAddr)
 		return
 	}

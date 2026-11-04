@@ -16,8 +16,11 @@ func TestScreenServesTheSessionsFrame(t *testing.T) {
 	var asked string
 	server := httptest.NewServer(&web.Screen{Token: "secret", Frame: func(_ context.Context, id string) (*agentdomain.Frame, error) {
 		asked = id
-		if id == "gone" {
+		switch id {
+		case "gone":
 			return nil, errors.New("no live session")
+		case "svg":
+			return &agentdomain.Frame{Data: "anBlZw==", Format: "svg+xml"}, nil
 		}
 		return &agentdomain.Frame{Data: "anBlZw==", Format: "jpeg", Width: 4, Height: 2}, nil
 	}})
@@ -44,6 +47,9 @@ func TestScreenServesTheSessionsFrame(t *testing.T) {
 	}
 	if resp := get("s1", "nope"); resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("want 401 for a wrong token, got %d", resp.StatusCode)
+	}
+	if resp := get("svg", "secret"); resp.Header.Get("Content-Type") != "image/jpeg" {
+		t.Fatalf("a format the screen sources never produce must be served as image/jpeg, got %q", resp.Header.Get("Content-Type"))
 	}
 	if resp := get("gone", "secret"); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404 when the session has no frame, got %d", resp.StatusCode)

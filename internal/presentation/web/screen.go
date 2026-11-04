@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/base64"
 	"net/http"
 	"strconv"
@@ -32,7 +31,8 @@ func (s *Screen) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !s.authorized(r) {
+	bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !authorized(r, bearer, s.Token, s.ClientCerts) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -53,7 +53,7 @@ func (s *Screen) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "frame is not base64", http.StatusBadGateway)
 		return
 	}
-	w.Header().Set("Content-Type", "image/"+frame.Format)
+	w.Header().Set("Content-Type", imageType(frame.Format))
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Frame-Width", strconv.Itoa(frame.Width))
 	w.Header().Set("X-Frame-Height", strconv.Itoa(frame.Height))
@@ -61,10 +61,12 @@ func (s *Screen) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (s *Screen) authorized(r *http.Request) bool {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if s.Token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(s.Token)) == 1 {
-		return true
+// imageType is the Content-Type a frame is served with. The format comes from
+// the session's worker, which may run on another daemon, so only the image
+// types the screen sources produce pass and anything else is served as jpeg.
+func imageType(format string) string {
+	if format == "png" {
+		return "image/png"
 	}
-	return s.ClientCerts && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+	return "image/jpeg"
 }
