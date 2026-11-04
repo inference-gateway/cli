@@ -82,7 +82,8 @@ judge's reason and the model's justification above it.
   steer it.
 - Each rejected call can be escalated once; a second `RequestApproval` for the same
   call is refused, and calls the judge never rejected cannot be escalated at all.
-- Headless runs have no interactive approver, so the tool returns a distinguishable
+- A daemon session's worker relays the escalation to the chat attached to it. A plain
+  headless run has no interactive approver, so the tool returns a distinguishable
   `no_approver` result and tells the model not to retry.
 
 The tool is advertised in Standard, Auto-Accept and Auto+Judge modes, so a human

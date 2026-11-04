@@ -1197,7 +1197,7 @@ func (s *Agent) executeToolOnce(
 		execCtx = agentdomain.WithUserQuestionBroker(execCtx, &chatQuestionBroker{publisher: eventPublisher, toolCallID: tc.ID})
 	}
 
-	if tc.Function.Name == tools.ToolRequestApproval && agentdomain.GetChatHandler(ctx) != nil {
+	if tc.Function.Name == tools.ToolRequestApproval && (agentdomain.GetChatHandler(ctx) != nil || agentdomain.SandboxApprovalAvailable(ctx)) {
 		execCtx = agentdomain.WithApprovalEscalation(execCtx, &approvalEscalator{svc: s, publisher: eventPublisher})
 	}
 
