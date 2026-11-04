@@ -245,6 +245,8 @@ class TerminalTab {
         this.socket.onclose = () => {
             console.log(`Tab ${this.id}: WebSocket closed`);
             this.connected = false;
+            this.screen.stop();
+            this.screen.setAvailable(false, 'the terminal connection closed');
             this.term.write('\r\n\x1b[1;33mConnection closed\x1b[0m\r\n');
         };
     }
@@ -325,23 +327,21 @@ class ScreenView {
     toggle() {
         this.enabled = !this.enabled;
         this.element.classList.toggle('hidden', !this.enabled);
-        if (this.enabled) {
+        clearInterval(this.timer);
+        this.timer = null;
+        if (this.enabled && this.tab.connected) {
             this.fetchFrame();
             this.timer = setInterval(() => this.fetchFrame(), 2000);
-        } else {
-            this.stop();
         }
     }
 
+    // stop ends all polling for good, once the tab's terminal is gone, so a
+    // page left open never keeps the session's worker from going idle.
     stop() {
-        if (this.timer) {
-            clearInterval(this.timer);
-            this.timer = null;
-        }
-        if (this.probeTimer) {
-            clearInterval(this.probeTimer);
-            this.probeTimer = null;
-        }
+        clearInterval(this.timer);
+        clearInterval(this.probeTimer);
+        this.timer = null;
+        this.probeTimer = null;
     }
 
     // watch probes the session's screen once it has an id, and every ten
