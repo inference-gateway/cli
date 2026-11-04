@@ -1098,7 +1098,7 @@ func (a *Autocomplete) renderItem(b *strings.Builder, selected bool, leftPadding
 	}
 	paddedKind := ""
 	if kindWidth > 0 {
-		paddedKind = formatting.PadText(kind, kindWidth)
+		paddedKind = "  " + formatting.PadText(kind, kindWidth)
 	}
 	if selected {
 		line := fmt.Sprintf("%s%s%s%s%s%s%s%s%s",
