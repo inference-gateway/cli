@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{.Title}} - Web Terminal</title>
+    <title>Inference Gateway CLI - Web Terminal</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/static/xterm.css">
+    <link rel="stylesheet" href="static/xterm.css">
     <style>
         * {
             margin: 0;
@@ -68,35 +68,6 @@
             opacity: 1;
             color: #1a1b26;
         }
-        #server-selector-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-right: 12px;
-            padding: 0 8px;
-        }
-        #server-selector-label {
-            font-size: 13px;
-            color: #a9b1d6;
-        }
-        #server-selector {
-            background: #24283b;
-            color: #a9b1d6;
-            border: 1px solid #414868;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 13px;
-            min-width: 150px;
-            cursor: pointer;
-        }
-        #server-selector:focus {
-            outline: none;
-            border-color: #7aa2f7;
-        }
-        #server-selector option {
-            background: #1a1b26;
-            color: #a9b1d6;
-        }
         #new-tab-btn {
             display: flex;
             align-items: center;
@@ -114,34 +85,6 @@
         }
         #new-tab-btn:hover {
             background: #414868;
-        }
-        #screenshot-toggle-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 4px 12px;
-            margin-left: auto;
-            margin-right: 8px;
-            background: #24283b;
-            border: 1px solid #414868;
-            border-radius: 4px;
-            color: #a9b1d6;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.15s;
-            gap: 6px;
-        }
-        #screenshot-toggle-btn:hover {
-            background: #414868;
-            border-color: #7aa2f7;
-        }
-        #screenshot-toggle-btn.active {
-            background: #7aa2f7;
-            color: #1a1b26;
-            border-color: #7aa2f7;
-        }
-        #screenshot-toggle-btn.hidden {
-            display: none;
         }
         #terminal-area {
             flex: 1;
@@ -218,182 +161,31 @@
             font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
             font-size: 13px;
         }
-        /* Screenshot overlay styles */
-        .screenshot-overlay {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 600px;
-            max-height: 85vh;
-            background: rgba(22, 22, 30, 0.98);
-            border: 1px solid #414868;
-            border-radius: 8px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            backdrop-filter: blur(10px);
-        }
-        .screenshot-overlay.hidden {
-            display: none;
-        }
-        .screenshot-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: #1a1b26;
-            border-bottom: 1px solid #414868;
-        }
-        .screenshot-header h3 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #7aa2f7;
-            margin: 0;
-        }
-        .screenshot-close {
-            background: transparent;
-            border: none;
-            color: #a9b1d6;
-            font-size: 24px;
-            line-height: 1;
-            cursor: pointer;
-            padding: 0;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            transition: all 0.15s;
-        }
-        .screenshot-close:hover {
-            background: #f7768e;
-            color: #1a1b26;
-        }
-        .screenshot-content {
-            padding: 16px;
-            overflow-y: auto;
-            flex: 1;
-        }
-        .screenshot-status {
-            font-size: 12px;
-            color: #9ece6a;
-            margin-bottom: 12px;
-            padding: 6px 10px;
-            background: rgba(158, 206, 106, 0.1);
-            border-radius: 4px;
-            text-align: center;
-        }
-        .screenshot-error {
-            font-size: 12px;
-            color: #f7768e;
-            margin-bottom: 12px;
-            padding: 6px 10px;
-            background: rgba(247, 118, 142, 0.1);
-            border-radius: 4px;
-            text-align: center;
-        }
-        .screenshot-error.hidden {
-            display: none;
-        }
-        .screenshot-image {
-            width: 100%;
-            height: auto;
-            border-radius: 4px;
-            border: 1px solid #414868;
-            display: block;
-            margin-bottom: 12px;
-        }
-        .screenshot-image.hidden {
-            display: none;
-        }
-        .screenshot-skeleton {
-            width: 100%;
-            height: 400px;
-            border-radius: 4px;
-            border: 1px solid #414868;
-            margin-bottom: 12px;
-            background: linear-gradient(
-                90deg,
-                #1a1b26 0%,
-                #24283b 50%,
-                #1a1b26 100%
-            );
-            background-size: 200% 100%;
-            animation: loading 1.5s ease-in-out infinite;
-            position: relative;
-            overflow: hidden;
-        }
-        .screenshot-skeleton::after {
-            content: 'Loading preview...';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #7a7f9a;
-            font-size: 14px;
-        }
-        .screenshot-skeleton.hidden {
-            display: none;
-        }
-        @keyframes loading {
-            0% {
-                background-position: 200% 0;
-            }
-            100% {
-                background-position: -200% 0;
-            }
-        }
-        .screenshot-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            color: #7a7f9a;
-            padding-top: 8px;
-            border-top: 1px solid #414868;
-        }
-        .screenshot-timestamp,
-        .screenshot-dimensions {
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-        }
     </style>
 </head>
 <body>
     <div id="tab-bar">
-        <div id="server-selector-container">
-            <label id="server-selector-label" for="server-selector">Server:</label>
-            <select id="server-selector">
-                <option value="local">Local</option>
-            </select>
-        </div>
         <button id="new-tab-btn" title="New terminal">+</button>
-        <button id="screenshot-toggle-btn" class="hidden" title="Toggle preview overlay">
-            Preview
-        </button>
     </div>
     <div id="terminal-area">
         <div id="welcome-message">
             <h1>Welcome to Infer Web Terminal</h1>
             <p>A browser-based terminal interface for interactive AI chat sessions.</p>
-            <p>Connect to local or remote servers and start chatting with AI models through the <code>infer chat</code> command.</p>
+            <p>Every tab is an <code>infer chat --daemon</code> session on this daemon. Teleport it to another workspace with <code>/teleport</code>.</p>
 
             <div class="instructions">
                 <h2>Getting Started</h2>
                 <ol>
-                    <li>Select a server from the <strong>Server</strong> dropdown above</li>
                     <li>Click the <code>+</code> button to create a new terminal tab</li>
                     <li>Start chatting with the AI in your terminal</li>
-                    <li>Create multiple tabs to work with different servers simultaneously</li>
+                    <li>Close the tab whenever you like, the session keeps running in the daemon</li>
                 </ol>
             </div>
         </div>
     </div>
 
-    <script src="/static/xterm.js"></script>
-    <script src="/static/xterm-addon-fit.js"></script>
-    <script src="/static/preview-overlay.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="static/xterm.js"></script>
+    <script src="static/xterm-addon-fit.js"></script>
+    <script src="static/app.js"></script>
 </body>
 </html>

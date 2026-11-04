@@ -3,6 +3,7 @@
 `infer daemon` is the long-lived hub every external system reaches the agent through. The desktop
 app and the opentask extension connect to its AG-UI WebSocket binding, Telegram drives it in
 process, `infer chat` and a standalone `infer headless` reach the user's browser through it,
+`infer chat --web` opens the chat TUI in a browser tab it serves,
 scheduled jobs and heartbeat wake-ups run inside it, and a peer agent can task it through its
 A2A server. One daemon serves every project on the machine.
 
@@ -26,7 +27,7 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Scheduler | `tools.schedule.enabled` | Skipped with `scheduler.backend: github`. See [Scheduling](scheduling.md) |
 | Heartbeat | `heartbeat.enabled` | See [Heartbeat](heartbeat.md) |
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
-| AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peer daemons, `/artifacts/` and `/a2a` |
+| AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peers, the HTTP routes |
 | Workspaces | `daemon.workspaces` | Where sessions can be teleported to, see [Workspaces and teleports](#workspaces-and-teleports) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
@@ -63,7 +64,9 @@ Env overrides follow the usual scheme: `INFER_DAEMON_BINDING_ENABLED`, `INFER_DA
 contract is the [Daemon Binding Protocol](browser-extension-protocol.md), and the events on it are the
 [AG-UI output](ag-ui-output.md). The same listener serves generated images read-only at
 `GET /artifacts/<project-slug>/<relative-path>`, and the socket answers `list_artifacts` and
-`read_artifact` for a session's artifacts wherever the session runs.
+`read_artifact` for a session's artifacts wherever the session runs. It also serves the
+[web terminal](web-terminal.md) at `/terminal/`, where every browser tab runs an `infer chat --daemon` of this
+daemon in a PTY, authorized by the same token or client certificate.
 
 A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 

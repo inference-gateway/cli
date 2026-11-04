@@ -53,7 +53,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.1
 	go.uber.org/zap v1.28.0
-	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0
 	golang.org/x/oauth2 v0.37.0
 	google.golang.org/protobuf v1.36.12
@@ -143,6 +142,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/arch v0.30.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect

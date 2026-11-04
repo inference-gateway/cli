@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	daemonthread "github.com/inference-gateway/cli/internal/presentation/tui/daemonthread"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
+	web "github.com/inference-gateway/cli/internal/presentation/web"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
@@ -119,6 +122,35 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 	return runChatProgram(services, cfg, models, defaultModel, version.GetVersionInfo(), func(id string) string {
 		return daemonExitMessage(thread.Placement(), id)
 	})
+}
+
+// openWebTerminal starts the local daemon when needed and hands the browser
+// its terminal page, where every tab is an infer chat --daemon session.
+func openWebTerminal(cfg *config.Config) error {
+	cfg.Daemon.Binding.Enabled = true
+	if err := daemon.FillBindingToken(cfg); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), attachTimeout)
+	defer cancel()
+	binding := cfg.Binding()
+	dim(fmt.Sprintf("• Connecting to infer daemon on %s…", binding.Addr()))
+	if err := daemon.EnsureRunning(ctx, binding.Port); err != nil {
+		return attachError(err)
+	}
+	url := web.URL(binding, binding.Token)
+	fmt.Printf("\nWeb terminal available at: %s\n\n", url)
+	if err := openBrowser(url); err != nil {
+		dim("• Open it in your browser: " + err.Error())
+	}
+	return nil
+}
+
+func openBrowser(url string) error {
+	if runtime.GOOS == "darwin" {
+		return exec.Command("open", url).Start()
+	}
+	return exec.Command("xdg-open", url).Start()
 }
 
 // attachError explains why the TUI could not reach its daemon.

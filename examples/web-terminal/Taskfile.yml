@@ -1,0 +1,54 @@
+version: '3'
+
+vars:
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  web:
+    desc: Open the web terminal on this machine (loopback, plain http, the daemon starts on demand)
+    deps:
+      - build
+    cmds:
+      - '{{.INFER}} chat --web'
+
+  home:
+    desc: Seed a HOME whose daemon serves the binding on every interface over a self-signed certificate
+    cmds:
+      - mkdir -p {{.HOME_DIR}}/.infer {{.HOME_DIR}}/tls
+      - sed 's|__HOME__|{{.HOME_DIR}}|g' daemon.yaml > {{.HOME_DIR}}/.infer/daemon.yaml
+      - |
+        if [ ! -f {{.HOME_DIR}}/tls/server.crt ]; then
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 365 \
+            -subj /CN=infer -addext "subjectAltName=IP:127.0.0.1,DNS:localhost,DNS:$(hostname)" \
+            -keyout {{.HOME_DIR}}/tls/server.key -out {{.HOME_DIR}}/tls/server.crt 2>/dev/null
+        fi
+
+  web:lan:
+    desc: Open the web terminal from a daemon that other devices on the network can reach (https, token in the URL)
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} chat --web
+
+  clean:
+    desc: Remove the LAN demo HOME
+    cmds:
+      - rm -rf {{.HOME_DIR}}

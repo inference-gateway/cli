@@ -1,0 +1,15 @@
+fallback:
+  content: 'Try "where am I running?" or "list this directory".'
+scenarios:
+  - name: where
+    match: '(?i)where am i running'
+    turns:
+      - content: On the infer daemon this web terminal is served from. Open another tab for a second session, close this one and the session keeps running, or /teleport it to another workspace.
+  - name: list
+    match: '(?i)list this directory'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: ls -la
+      - content: That is the project directory the daemon runs in, listed from the session's worker.
