@@ -1,0 +1,31 @@
+---
+services:
+  laptop:
+    environment:
+      INFER_GATEWAY_MOCK: "false"
+      INFER_GATEWAY_URL: http://gateway:8080
+      INFER_AGENT_MODEL: ollama_cloud/glm-5.3-flash
+      INFER_AGENT_MODE: auto-with-judge
+      INFER_JUDGE_BACKEND: decisions
+      INFER_JUDGE_MODEL: ollama_cloud/clef:27b
+    depends_on:
+      - gateway
+
+  desktop:
+    environment:
+      INFER_GATEWAY_MOCK: "false"
+      INFER_GATEWAY_URL: http://gateway:8080
+      INFER_AGENT_MODEL: ollama_cloud/glm-5.3-flash
+      INFER_AGENT_MODE: auto-with-judge
+      INFER_JUDGE_BACKEND: decisions
+      INFER_JUDGE_MODEL: ollama_cloud/clef:27b
+      INFER_COMPUTER_USE_APPROVAL: destructive
+    depends_on:
+      - gateway
+
+  gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    environment:
+      OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY:?set OLLAMA_CLOUD_API_KEY in .env first}
+      DECISIONS_ENABLED: "true"
+    restart: unless-stopped
