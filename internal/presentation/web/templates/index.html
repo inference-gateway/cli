@@ -89,16 +89,28 @@
         #screen-btn {
             margin-left: auto;
             margin-right: 8px;
-            padding: 4px 12px;
+            padding: 4px 8px;
+            display: inline-flex;
+            align-items: center;
             background: #24283b;
             border: 1px solid #414868;
             border-radius: 4px;
             color: #a9b1d6;
-            font-size: 13px;
             cursor: pointer;
         }
         #screen-btn:hover {
             border-color: #7aa2f7;
+        }
+        #screen-btn:disabled {
+            opacity: 0.3;
+            cursor: default;
+        }
+        #screen-btn.available {
+            color: #9ece6a;
+            border-color: #9ece6a;
+        }
+        #screen-btn.unavailable {
+            opacity: 0.45;
         }
         #screen-btn.active {
             background: #7aa2f7;
@@ -234,7 +246,13 @@
 <body>
     <div id="tab-bar">
         <button id="new-tab-btn" title="New terminal">+</button>
-        <button id="screen-btn" title="Show the session's screen">Screen</button>
+        <button id="screen-btn" title="Show the session's screen" aria-label="Show the session's screen">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="13" rx="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+        </button>
     </div>
     <div id="terminal-area">
         <div id="welcome-message">

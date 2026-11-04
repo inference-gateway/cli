@@ -12,14 +12,31 @@ class TerminalManager {
 
         this.newTabBtn.addEventListener('click', () => this.createTab());
         this.screenBtn.addEventListener('click', () => this.toggleScreen());
+        this.refreshScreenButton(null);
     }
 
     toggleScreen() {
         const tab = this.tabs.get(this.activeTabId);
         if (tab) {
             tab.screen.toggle();
-            this.screenBtn.classList.toggle('active', tab.screen.enabled);
+            this.refreshScreenButton(tab);
         }
+    }
+
+    // The screen button shows whether the active tab's session streams a
+    // screen: lit when it does, dimmed with the reason as its tooltip when not,
+    // disabled without a tab.
+    refreshScreenButton(tab) {
+        if (tab && tab.id !== this.activeTabId) {
+            return;
+        }
+        const screen = tab ? tab.screen : null;
+        this.screenBtn.disabled = !tab;
+        this.screenBtn.classList.toggle('active', !!screen && screen.enabled);
+        this.screenBtn.classList.toggle('available', !!screen && screen.available === true);
+        this.screenBtn.classList.toggle('unavailable', !!screen && screen.available === false);
+        this.screenBtn.title = screen ? screen.describe() : 'Open a tab to see its screen';
+        this.screenBtn.setAttribute('aria-label', this.screenBtn.title);
     }
 
     // The daemon's binding token arrives once as ?token= and stays in this tab's
@@ -67,8 +84,8 @@ class TerminalManager {
         const newTab = this.tabs.get(tabId);
         if (newTab) {
             newTab.activate();
-            this.screenBtn.classList.toggle('active', newTab.screen.enabled);
         }
+        this.refreshScreenButton(newTab);
     }
 
     closeTab(tabId) {
@@ -85,6 +102,7 @@ class TerminalManager {
             } else {
                 this.activeTabId = null;
                 this.showWelcomeMessage();
+                this.refreshScreenButton(null);
             }
         }
     }
@@ -212,6 +230,7 @@ class TerminalTab {
                 const msg = this.parseFrame(event.data);
                 if (msg && msg.type === 'init_response') {
                     this.sessionID = msg.session_id;
+                    this.screen.watch();
                     return;
                 }
                 this.term.write(event.data);
@@ -287,6 +306,9 @@ class ScreenView {
         this.tab = tab;
         this.enabled = false;
         this.timer = null;
+        this.probeTimer = null;
+        this.available = null;
+        this.reason = 'Waiting for the session to start';
         this.element = document.createElement('div');
         this.element.className = 'screen-view hidden';
         this.element.innerHTML = `
@@ -316,22 +338,65 @@ class ScreenView {
             clearInterval(this.timer);
             this.timer = null;
         }
+        if (this.probeTimer) {
+            clearInterval(this.probeTimer);
+            this.probeTimer = null;
+        }
+    }
+
+    // watch probes the session's screen once it has an id, and every ten
+    // seconds after, so the screen button reflects it before the view opens.
+    watch() {
+        this.probe();
+        this.probeTimer = setInterval(() => {
+            if (!this.enabled) {
+                this.probe();
+            }
+        }, 10000);
+    }
+
+    async probe() {
+        try {
+            const response = await this.fetchScreen();
+            this.setAvailable(response.ok, response.ok ? '' : await response.text());
+        } catch (error) {
+            this.setAvailable(false, `Could not reach the daemon: ${error}`);
+        }
+    }
+
+    setAvailable(available, reason) {
+        this.available = available;
+        this.reason = reason;
+        this.tab.manager.refreshScreenButton(this.tab);
+    }
+
+    describe() {
+        if (this.available === true) {
+            return this.enabled ? "Hide the session's screen" : "Show the session's screen";
+        }
+        return `Screen unavailable: ${this.reason}`;
+    }
+
+    fetchScreen() {
+        const base = window.location.pathname.replace(/terminal\/?$/, '');
+        return fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, {
+            headers: { Authorization: `Bearer ${this.tab.manager.token}` }
+        });
     }
 
     async fetchFrame() {
         if (!this.tab.sessionID) {
             return;
         }
-        const base = window.location.pathname.replace(/terminal\/?$/, '');
         try {
-            const response = await fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, {
-                headers: { Authorization: `Bearer ${this.tab.manager.token}` }
-            });
+            const response = await this.fetchScreen();
             if (!response.ok) {
                 this.status.textContent = await response.text();
                 this.status.classList.remove('hidden');
+                this.setAvailable(false, this.status.textContent);
                 return;
             }
+            this.setAvailable(true, '');
             const url = URL.createObjectURL(await response.blob());
             const previous = this.image.src;
             this.image.src = url;
@@ -343,6 +408,7 @@ class ScreenView {
         } catch (error) {
             this.status.textContent = `Could not reach the daemon: ${error}`;
             this.status.classList.remove('hidden');
+            this.setAvailable(false, this.status.textContent);
         }
     }
 }
