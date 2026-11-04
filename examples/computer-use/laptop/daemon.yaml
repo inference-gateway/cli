@@ -18,3 +18,4 @@ binding:
     mode: files
     cert_file: /home/infer/.infer/tls/server.crt
     key_file: /home/infer/.infer/tls/server.key
+    ca_file: /home/infer/.infer/tls/server.crt
