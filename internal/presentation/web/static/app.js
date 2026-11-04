@@ -7,9 +7,36 @@ class TerminalManager {
         this.terminalArea = document.getElementById('terminal-area');
         this.newTabBtn = document.getElementById('new-tab-btn');
         this.welcomeMessage = document.getElementById('welcome-message');
+        this.screenBtn = document.getElementById('screen-btn');
         this.token = this.readToken();
 
         this.newTabBtn.addEventListener('click', () => this.createTab());
+        this.screenBtn.addEventListener('click', () => this.toggleScreen());
+        this.refreshScreenButton(null);
+    }
+
+    toggleScreen() {
+        const tab = this.tabs.get(this.activeTabId);
+        if (tab) {
+            tab.screen.toggle();
+            this.refreshScreenButton(tab);
+        }
+    }
+
+    // The screen button shows whether the active tab's session streams a
+    // screen: lit when it does, dimmed with the reason as its tooltip when not,
+    // disabled without a tab.
+    refreshScreenButton(tab) {
+        if (tab && tab.id !== this.activeTabId) {
+            return;
+        }
+        const screen = tab ? tab.screen : null;
+        this.screenBtn.disabled = !tab;
+        this.screenBtn.classList.toggle('active', !!screen && screen.enabled);
+        this.screenBtn.classList.toggle('available', !!screen && screen.available === true);
+        this.screenBtn.classList.toggle('unavailable', !!screen && screen.available === false);
+        this.screenBtn.title = screen ? screen.describe() : 'Open a tab to see its screen';
+        this.screenBtn.setAttribute('aria-label', this.screenBtn.title);
     }
 
     // The daemon's binding token arrives once as ?token= and stays in this tab's
@@ -58,6 +85,7 @@ class TerminalManager {
         if (newTab) {
             newTab.activate();
         }
+        this.refreshScreenButton(newTab);
     }
 
     closeTab(tabId) {
@@ -74,6 +102,7 @@ class TerminalManager {
             } else {
                 this.activeTabId = null;
                 this.showWelcomeMessage();
+                this.refreshScreenButton(null);
             }
         }
     }
@@ -89,9 +118,11 @@ class TerminalTab {
         this.tabElement = null;
         this.containerElement = null;
         this.connected = false;
+        this.sessionID = null;
 
         this.createUI();
         this.createTerminal();
+        this.screen = new ScreenView(this);
         this.connect();
     }
 
@@ -196,6 +227,12 @@ class TerminalTab {
                     this.term.write(new Uint8Array(buffer));
                 });
             } else {
+                const msg = this.parseFrame(event.data);
+                if (msg && msg.type === 'init_response') {
+                    this.sessionID = msg.session_id;
+                    this.screen.watch();
+                    return;
+                }
                 this.term.write(event.data);
             }
         };
@@ -208,8 +245,18 @@ class TerminalTab {
         this.socket.onclose = () => {
             console.log(`Tab ${this.id}: WebSocket closed`);
             this.connected = false;
+            this.screen.stop();
+            this.screen.setAvailable(false, 'the terminal connection closed');
             this.term.write('\r\n\x1b[1;33mConnection closed\x1b[0m\r\n');
         };
+    }
+
+    parseFrame(text) {
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            return null;
+        }
     }
 
     sendResize() {
@@ -238,6 +285,7 @@ class TerminalTab {
     }
 
     destroy() {
+        this.screen.stop();
         if (this.socket) {
             this.socket.close();
         }
@@ -249,6 +297,118 @@ class TerminalTab {
         }
         if (this.containerElement) {
             this.containerElement.remove();
+        }
+    }
+}
+
+// ScreenView shows the latest frame of the tab's session worker, polled from
+// the daemon's /screen/ route, which answers wherever the session runs.
+class ScreenView {
+    constructor(tab) {
+        this.tab = tab;
+        this.enabled = false;
+        this.timer = null;
+        this.probeTimer = null;
+        this.available = null;
+        this.reason = 'Waiting for the session to start';
+        this.element = document.createElement('div');
+        this.element.className = 'screen-view hidden';
+        this.element.innerHTML = `
+            <div class="screen-header"><h3>Screen</h3><button class="screen-close" title="Hide">×</button></div>
+            <div class="screen-status">Waiting for the first frame…</div>
+            <img class="screen-image hidden" alt="The session's screen" />
+        `;
+        this.status = this.element.querySelector('.screen-status');
+        this.image = this.element.querySelector('.screen-image');
+        this.element.querySelector('.screen-close').addEventListener('click', () => this.toggle());
+        tab.containerElement.appendChild(this.element);
+    }
+
+    toggle() {
+        this.enabled = !this.enabled;
+        this.element.classList.toggle('hidden', !this.enabled);
+        clearInterval(this.timer);
+        this.timer = null;
+        if (this.enabled && this.tab.connected) {
+            this.fetchFrame();
+            this.timer = setInterval(() => this.fetchFrame(), 2000);
+        }
+    }
+
+    // stop ends all polling for good, once the tab's terminal is gone, so a
+    // page left open never keeps the session's worker from going idle.
+    stop() {
+        clearInterval(this.timer);
+        clearInterval(this.probeTimer);
+        this.timer = null;
+        this.probeTimer = null;
+    }
+
+    // watch probes the session's screen once it has an id, and every ten
+    // seconds after, so the screen button reflects it before the view opens.
+    watch() {
+        this.probe();
+        this.probeTimer = setInterval(() => {
+            if (!this.enabled) {
+                this.probe();
+            }
+        }, 10000);
+    }
+
+    async probe() {
+        try {
+            const response = await this.fetchScreen();
+            this.setAvailable(response.ok, response.ok ? '' : await response.text());
+        } catch (error) {
+            this.setAvailable(false, `Could not reach the daemon: ${error}`);
+        }
+    }
+
+    setAvailable(available, reason) {
+        this.available = available;
+        this.reason = reason;
+        this.tab.manager.refreshScreenButton(this.tab);
+    }
+
+    describe() {
+        if (this.available === true) {
+            return this.enabled ? "Hide the session's screen" : "Show the session's screen";
+        }
+        return `Screen unavailable: ${this.reason}`;
+    }
+
+    fetchScreen() {
+        const base = window.location.pathname.replace(/terminal\/?$/, '');
+        return fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, {
+            headers: { Authorization: `Bearer ${this.tab.manager.token}` }
+        });
+    }
+
+    async fetchFrame() {
+        if (!this.tab.sessionID) {
+            return;
+        }
+        try {
+            const response = await this.fetchScreen();
+            if (!response.ok) {
+                this.status.textContent = await response.text();
+                this.status.classList.remove('hidden');
+                this.setAvailable(false, this.status.textContent);
+                return;
+            }
+            this.setAvailable(true, '');
+            const url = URL.createObjectURL(await response.blob());
+            const previous = this.image.src;
+            this.image.src = url;
+            this.image.classList.remove('hidden');
+            this.status.classList.add('hidden');
+            if (previous) {
+                URL.revokeObjectURL(previous);
+            }
+        } catch (error) {
+            this.status.textContent = `Could not reach the daemon: ${error}`;
+            this.status.classList.remove('hidden');
+            this.setAvailable(false, this.status.textContent);
         }
     }
 }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	pty "github.com/creack/pty"
+	uuid "github.com/google/uuid"
 	websocket "github.com/gorilla/websocket"
 
 	config "github.com/inference-gateway/cli/config"
@@ -52,13 +53,14 @@ const (
 )
 
 // Terminal serves the browser terminal under Path on the daemon's binding
-// listener: the xterm page, and one PTY running Command per socket. A token
+// listener: the xterm page, and one PTY per socket running Command on a session
+// id of the tab's own, which the tab learns from the init reply. A token
 // matching Token, or a verified client certificate when ClientCerts is set,
 // authorizes a socket.
 type Terminal struct {
 	Token       string
 	ClientCerts bool
-	Command     func() *exec.Cmd
+	Command     func(sessionID string) *exec.Cmd
 
 	once sync.Once
 	mux  *http.ServeMux
@@ -85,11 +87,14 @@ type initFrame struct {
 	Rows  uint16 `json:"rows"`
 }
 
-func (t *Terminal) authorized(r *http.Request, token string) bool {
-	if t.Token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(t.Token)) == 1 {
+// authorized reports whether a request presents the binding token, or a
+// verified client certificate when the listener asks for one. The terminal
+// socket and the screen route share it so both admit the same callers.
+func authorized(r *http.Request, presented, token string, clientCerts bool) bool {
+	if token != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1 {
 		return true
 	}
-	return t.ClientCerts && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+	return clientCerts && r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 
 func (t *Terminal) serveSocket(w http.ResponseWriter, r *http.Request) {
@@ -102,19 +107,21 @@ func (t *Terminal) serveSocket(w http.ResponseWriter, r *http.Request) {
 
 	_ = conn.SetReadDeadline(time.Now().Add(initTimeout))
 	var init initFrame
-	if conn.ReadJSON(&init) != nil || init.Type != "init" || !t.authorized(r, init.Token) {
+	if conn.ReadJSON(&init) != nil || init.Type != "init" || !authorized(r, init.Token, t.Token, t.ClientCerts) {
 		logger.Warn("web terminal rejected a socket with a bad or missing init", "remote", r.RemoteAddr)
 		return
 	}
 	_ = conn.SetReadDeadline(time.Time{})
 
-	cmd := t.Command()
+	sessionID := uuid.NewString()
+	cmd := t.Command(sessionID)
 	cmd.Env = append(cmd.Environ(), "TERM=xterm-256color")
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: max(init.Rows, 1), Cols: max(init.Cols, 1)})
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("Failed to start terminal: "+err.Error()))
 		return
 	}
+	_ = conn.WriteJSON(map[string]string{"type": "init_response", "session_id": sessionID})
 	logger.Info("web terminal session started", "pid", cmd.Process.Pid, "remote", r.RemoteAddr)
 	defer stop(cmd, ptmx)
 

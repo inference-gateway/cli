@@ -66,7 +66,8 @@ contract is the [Daemon Binding Protocol](browser-extension-protocol.md), and th
 `GET /artifacts/<project-slug>/<relative-path>`, and the socket answers `list_artifacts` and
 `read_artifact` for a session's artifacts wherever the session runs. It also serves the
 [web terminal](web-terminal.md) at `/terminal/`, where every browser tab runs an `infer chat --daemon` of this
-daemon in a PTY, authorized by the same token or client certificate.
+daemon in a PTY, and a session's latest screen frame at `/screen/`, both authorized by the same token or client
+certificate.
 
 A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 

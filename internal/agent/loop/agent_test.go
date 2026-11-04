@@ -21,6 +21,7 @@ import (
 	convinfra "github.com/inference-gateway/cli/internal/conversation/infrastructure"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func TestAgentServiceImpl_GetMetrics(t *testing.T) {
@@ -1517,4 +1518,36 @@ func TestAgentServiceImpl_BatchDrainQueue_IdempotentOnRepairedConversation(t *te
 		}
 	}
 	assert.Equal(t, 0, cancelled, "validator must be a no-op on already-repaired conversation")
+}
+
+func TestExecuteToolInternal_EscalationGateFollowsApprover(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		wantGate bool
+	}{
+		{name: "serve worker relaying approvals", ctx: agentdomain.WithSandboxApprovalAvailable(context.Background(), true), wantGate: true},
+		{name: "plain headless run", ctx: context.Background(), wantGate: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeToolService := &agentdomainmocks.FakeToolService{}
+			fakeToolService.ExecuteToolReturns(&agentdomain.ToolExecutionResult{ToolName: tools.ToolRequestApproval, Success: true}, nil)
+			fakeRepo := &convmocks.FakeConversationRepository{}
+			fakeRepo.FormatToolResultForLLMReturns("formatted result")
+			s := &Agent{toolService: fakeToolService, conversationRepo: fakeRepo}
+			publisher := newEventPublisher("request-123", make(chan agentdomain.ChatEvent, 32), nil)
+			tc := sdk.ChatCompletionMessageToolCall{
+				ID:       "call-1",
+				Function: sdk.ChatCompletionMessageToolCallFunction{Name: tools.ToolRequestApproval, Arguments: "{}"},
+			}
+
+			s.executeToolInternal(tt.ctx, tc, publisher, true, time.Now())
+
+			require.Equal(t, 1, fakeToolService.ExecuteToolCallCount())
+			execCtx, _ := fakeToolService.ExecuteToolArgsForCall(0)
+			assert.Equal(t, tt.wantGate, agentdomain.GetApprovalEscalation(execCtx) != nil)
+		})
+	}
 }

@@ -34,6 +34,7 @@ type ComputerUseConfig struct {
 type RecordingConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	MaxDuration     int    `yaml:"max_duration" mapstructure:"max_duration"`
+	MaxStorageMB    int    `yaml:"max_storage_mb" mapstructure:"max_storage_mb"`
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	Framerate       int    `yaml:"framerate" mapstructure:"framerate"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
@@ -117,9 +118,10 @@ func DefaultComputerUseConfig() *ComputerUseConfig {
 			WindowSeconds:       60,
 		},
 		Recording: RecordingConfig{
-			Enabled:     false,
-			MaxDuration: 120,
-			Framerate:   24,
+			Enabled:      false,
+			MaxDuration:  120,
+			MaxStorageMB: 1024,
+			Framerate:    24,
 		},
 	}
 }

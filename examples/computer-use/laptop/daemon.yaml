@@ -1,0 +1,21 @@
+workspace: laptop
+away_exit: 0s
+workspaces:
+  - name: laptop
+    kind: local
+  - name: desktop
+    kind: daemon
+    address: desktop:52790
+    token: computer-use-demo
+    tls:
+      ca_file: /desktop/.infer/tls/server.crt
+binding:
+  enabled: true
+  host: 0.0.0.0
+  port: 52789
+  token: computer-use-demo
+  tls:
+    mode: files
+    cert_file: /home/infer/.infer/tls/server.crt
+    key_file: /home/infer/.infer/tls/server.key
+    ca_file: /home/infer/.infer/tls/server.crt

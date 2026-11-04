@@ -402,6 +402,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 				"/artifacts/":     newArtifactsHandler(),
 				a2ainfra.PeerPath: newPeerA2AHost(registry, teleports, b.Token, b.TLS.RequiresClientAuth()),
 				web.Path:          &web.Terminal{Token: b.Token, ClientCerts: b.TLS.RequiresClientAuth(), Command: chatDaemonCommand},
+				web.ScreenPath:    &web.Screen{Token: b.Token, ClientCerts: b.TLS.RequiresClientAuth(), Frame: screenFrame(registry)},
 			},
 		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
 		if err := binding.Start(); err != nil {
@@ -935,11 +936,12 @@ func registerChannels(cm *telegram.ChannelManagerService, cfg *config.Config, co
 }
 
 // chatDaemonCommand is what each web terminal tab runs: this binary's chat
-// TUI as a client of this daemon, in the daemon's project dir.
-func chatDaemonCommand() *exec.Cmd {
+// TUI as a client of this daemon, in the daemon's project dir, on the session
+// the tab was given so the tab can watch its screen.
+func chatDaemonCommand(sessionID string) *exec.Cmd {
 	exe, err := os.Executable()
 	if err != nil {
 		exe = "infer"
 	}
-	return exec.Command(exe, "chat", "--daemon")
+	return exec.Command(exe, "chat", "--daemon", "--session-id", sessionID)
 }

@@ -91,14 +91,11 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 	if err := thread.Follow(ctx, sessionID, sessionsdomain.ThreadOptions{Model: cfg.Agent.Model, Mode: mode.ModeKey()}); err != nil {
 		return fmt.Errorf("opening session %s on infer daemon: %w (check it with: infer daemon workspaces)", sessionID, err)
 	}
-	dim(placementLine(thread.Placement(), sessionID, fresh))
-
 	repo := services.GetConversationRepository()
 	if !fresh {
-		if err := repo.LoadConversation(ctx, sessionID); err != nil {
-			dim("• Could not load the session's history: " + err.Error())
-		}
+		fresh = repo.LoadConversation(ctx, sessionID) != nil
 	}
+	dim(placementLine(thread.Placement(), sessionID, fresh))
 	if setter, ok := repo.(interface{ SetConversationID(string) }); ok && repo.GetCurrentConversationID() == "" {
 		setter.SetConversationID(sessionID)
 	}

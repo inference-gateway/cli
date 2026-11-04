@@ -25,9 +25,10 @@ contract the clients implement. The events themselves are defined in
   worker's `browser_command` stdout lines are routed to the extension connection
   by the daemon, and each `browser_result` goes back to that worker by `id`.
   Commands serialize across threads because one browser serves them.
-- The same listener serves plain HTTP routes beside `/ws`: `/artifacts/`, `/a2a`
-  and the [web terminal](web-terminal.md) at `/terminal/`. A terminal tab is not
-  a binding client itself, the `infer chat --daemon` it runs in a PTY is.
+- The same listener serves plain HTTP routes beside `/ws`: `/artifacts/`, `/a2a`,
+  the [web terminal](web-terminal.md) at `/terminal/` and a session's latest
+  screen frame at `/screen/`. A terminal tab is not a binding client itself,
+  the `infer chat --daemon` it runs in a PTY is.
 - The daemon started this way runs in the background and outlives the `infer`
   process that started it. It shares that process's terminal, so closing the
   terminal stops it too, and the next browser call starts another. It loads the
@@ -404,15 +405,42 @@ CLI → client:
 - `error` replaces the payload when the dir cannot be read or the file is
   missing.
 
-### Project-scoped requests
+## Session screen
+
+Client → CLI, the latest frame of the screen a session's worker streams
+(`computer_use.screenshot.streaming_enabled`), which the web terminal's live
+view polls through `GET /screen/?id=<conversation id>` on the same listener:
+
+```json
+{"type": "read_frame", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
+```
+
+CLI → client:
+
+```json
+{"type": "frame", "id": "<conversation id>",
+ "frame": {"id": "f-1", "timestamp": "2026-11-04T12:00:00Z", "data": "<base64>", "width": 1280, "height": 800, "format": "jpeg"}}
+```
+
+- The frame comes from the worker that runs the session, so it is the screen
+  of the workspace the session teleported to, relayed by the daemon like
+  `read_artifact`.
+- With `project_dir` it runs only on the thread of the session `id` names,
+  relaunching that session's worker when it is not running. A session that is
+  not open there answers a `RUN_ERROR`, never another session's screen.
+- `error` replaces `frame` when the worker streams no screen or captured
+  nothing yet.
+
+## Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_models`,
 `select_model`, `set_mode`, `tool_request`, `completion_request`,
-`list_artifacts` and `read_artifact` carry an optional `project_dir`.
-They run on the connection's thread when it is in that project, else on any
-running worker there, else on a fresh worker started in that project. Without
-`project_dir` they run on the connection's thread. Their replies go to the
-requesting connection only.
+`list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
+They run on the connection's thread when it is in that project, else on the
+live thread of the session `id` names, else on any running worker there, else
+on a fresh worker started in that project, except `read_frame` (see
+[Session screen](#session-screen)). Without `project_dir` they run on the
+connection's thread. Their replies go to the requesting connection only.
 
 ## Input history
 

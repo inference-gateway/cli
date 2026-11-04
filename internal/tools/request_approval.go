@@ -17,8 +17,10 @@ import (
 // RequestApprovalTool lets the agent ask the user to override a judge-rejected
 // tool call: it presents the rejected call, the judge's reason and the agent's
 // justification through the regular approval box and returns the decision, with
-// a one-shot bypass on approval. The escalation gate is chat-only; headless runs
-// see a nil gate and degrade with a "no approver reachable" result.
+// a one-shot bypass on approval. The gate is present wherever a human approver
+// is reachable, the chat TUI or a serve worker relaying approvals to the chat
+// attached to it. A plain headless run sees a nil gate and degrades with a "no
+// approver reachable" result.
 type RequestApprovalTool struct {
 	config    *config.Config
 	enabled   bool

@@ -1,8 +1,26 @@
 ---
 services:
+  laptop:
+    build:
+      context: laptop
+      args:
+        INFER_IMAGE: ${INFER_IMAGE:-ghcr.io/inference-gateway/cli:latest}
+    hostname: laptop
+    environment:
+      INFER_GATEWAY_MOCK: "true"
+      INFER_AGENT_MODEL: mock/openai/gpt-4o
+    ports:
+      - "52789:52789"
+    volumes:
+      - laptop-home:/home/infer/.infer
+      - desktop-home:/desktop/.infer:ro
+    depends_on:
+      - desktop
+    restart: unless-stopped
+
   desktop:
     build:
-      context: .
+      context: desktop
       args:
         INFER_IMAGE: ${INFER_IMAGE:-ghcr.io/inference-gateway/cli:latest}
     hostname: desktop
@@ -11,19 +29,21 @@ services:
       INFER_GATEWAY_MOCK_SCENARIOS: /opt/infer-desktop/scenarios.yaml
       INFER_AGENT_MODEL: mock/openai/gpt-4o
       INFER_COMPUTER_USE_ENABLED: "true"
+      INFER_COMPUTER_USE_SCREENSHOT_STREAMING_ENABLED: "true"
+      INFER_DAEMON_WORKSPACE: desktop
       INFER_DAEMON_BINDING_ENABLED: "true"
       INFER_DAEMON_BINDING_HOST: 0.0.0.0
-      INFER_DAEMON_BINDING_PORT: "52789"
-      INFER_DAEMON_BINDING_TOKEN: ${INFER_DAEMON_BINDING_TOKEN:-computer-use-demo}
+      INFER_DAEMON_BINDING_PORT: "52790"
+      INFER_DAEMON_BINDING_TOKEN: computer-use-demo
       INFER_DAEMON_BINDING_TLS_MODE: files
       INFER_DAEMON_BINDING_TLS_CERT_FILE: /home/infer/.infer/tls/server.crt
       INFER_DAEMON_BINDING_TLS_KEY_FILE: /home/infer/.infer/tls/server.key
-    ports:
-      - "52789:52789"
     volumes:
       - desktop-home:/home/infer/.infer
     restart: unless-stopped
 
 volumes:
+  laptop-home:
+    driver: local
   desktop-home:
     driver: local

@@ -963,6 +963,21 @@ func TestAutocomplete_KindLabels(t *testing.T) {
 		assert.Contains(t, ac.Render(), "\x1b[33m", "remote skill names stay status-colored")
 	})
 
+	t.Run("a name that fills its column keeps a gap before the label", func(t *testing.T) {
+		long := &shortcutsmocks.FakeShortcut{}
+		long.GetNameReturns("teleport")
+		long.GetDescriptionReturns("Teleport the session")
+		long.GetUsageReturns("/teleport desktop")
+		registry := &tuimocks.FakeShortcutRegistry{}
+		registry.GetAllReturns([]shortcuts.Shortcut{long})
+		ac := autocomplete.NewAutocomplete(theme, registry)
+		ac.SetWidth(120)
+		ac.Update("/tele", 5)
+		assert.True(t, ac.IsVisible())
+		rendered := strings.ReplaceAll(ansi.Strip(ac.Render()), "#808080", "")
+		assert.Contains(t, rendered, "/teleport desktop  command")
+	})
+
 	t.Run("labels stay readable at narrow widths", func(t *testing.T) {
 		ac := autocomplete.NewAutocomplete(theme, mockRegistry)
 		ac.SetSkillsService(skillsSvc)
