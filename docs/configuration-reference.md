@@ -1053,8 +1053,6 @@ entry lists its keys and points at the guide that owns the behaviour.
   images pasted straight from the clipboard.
 - **`client`**: `timeout` (seconds), `stall_threshold_sec`, and `retry` for gateway calls.
 - **`export`**: `output_dir` - where exported conversations are written.
-- **`web`**: `enabled`, `port`, `host`, `session_inactivity_mins`, `tmux`, `ssh`, `servers`. See
-  [Web Terminal](web-terminal.md).
 - **`pricing`**: `enabled`, `currency`, and `custom_prices.<model>` overrides. See
   [Cost Tracking](cost-tracking.md).
 - **`context_windows`**: a map of model id to context window in tokens, for models the CLI does not

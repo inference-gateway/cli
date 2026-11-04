@@ -1,0 +1,10 @@
+workspace: laptop
+binding:
+  enabled: true
+  host: 0.0.0.0
+  port: 52789
+  token: web-terminal-demo
+  tls:
+    mode: files
+    cert_file: __HOME__/tls/server.crt
+    key_file: __HOME__/tls/server.key

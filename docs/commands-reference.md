@@ -450,22 +450,13 @@ select models and have conversations.
 
 **Options:**
 
-- `--web`: Start the web terminal interface instead of the in-terminal TUI
-- `--port <port>`: Web server port (default 3000)
-- `--host <host>`: Web server host (default localhost)
-- `--ssh-host <host>`: Remote SSH server hostname, which runs the TUI on the remote host
-- `--ssh-user <user>`: Remote SSH username
-- `--ssh-port <port>`: Remote SSH port (default 22)
-- `--ssh-no-install`: Disable auto-installation of infer on the remote host
-- `--ssh-command <path>`: Path to the infer binary on the remote host (default infer)
+- `--web`: Open the daemon's web terminal in the browser instead of the in-terminal TUI. The daemon starts when
+  needed, and every tab is an `infer chat --daemon` session. See [Web Terminal](web-terminal.md)
 - `--session-id <id>`: Resume an existing chat session by conversation ID. With `--daemon` it attaches to the
   session wherever it runs
 - `--daemon`: Run every turn through the local infer daemon, started when needed, so the session can teleport between
   workspaces and keeps running after the TUI exits (`chat.daemon`, `INFER_CHAT_DAEMON`). See
   [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
-
-The web terminal flags are covered in [Web Terminal](web-terminal.md). With `--daemon` the chat it starts runs in
-daemon mode too, on this machine or over SSH.
 
 The chat interface supports four operational modes that can be toggled with **shift+tab**:
 

@@ -6,48 +6,28 @@ class TerminalManager {
         this.tabBar = document.getElementById('tab-bar');
         this.terminalArea = document.getElementById('terminal-area');
         this.newTabBtn = document.getElementById('new-tab-btn');
-        this.serverSelector = document.getElementById('server-selector');
         this.welcomeMessage = document.getElementById('welcome-message');
-        this.screenshotToggleBtn = document.getElementById('screenshot-toggle-btn');
-        this.servers = [];
-        this.currentServerID = 'local';
+        this.token = this.readToken();
 
-        this.loadServers();
         this.newTabBtn.addEventListener('click', () => this.createTab());
-        this.serverSelector.addEventListener('change', (e) => {
-            this.currentServerID = e.target.value;
-        });
-        this.screenshotToggleBtn.addEventListener('click', () => this.toggleScreenshot());
     }
 
-    async loadServers() {
-        try {
-            const response = await fetch('/api/servers');
-            const data = await response.json();
-            this.servers = data.servers;
-
-            this.serverSelector.innerHTML = '';
-            this.servers.forEach(server => {
-                const option = document.createElement('option');
-                option.value = server.id;
-                option.textContent = server.name;
-                if (server.description) {
-                    option.title = server.description;
-                }
-                this.serverSelector.appendChild(option);
-            });
-
-            this.serverSelector.value = 'local';
-            this.currentServerID = 'local';
-        } catch (error) {
-            console.error('Failed to load servers:', error);
+    // The daemon's binding token arrives once as ?token= and stays in this tab's
+    // sessionStorage, off the address bar.
+    readToken() {
+        const url = new URL(window.location.href);
+        const fromURL = url.searchParams.get('token');
+        if (fromURL) {
+            sessionStorage.setItem('infer-token', fromURL);
+            url.searchParams.delete('token');
+            history.replaceState(null, '', url.toString());
         }
+        return sessionStorage.getItem('infer-token') || '';
     }
 
     createTab() {
         const tabId = this.nextTabId++;
-        const serverID = this.currentServerID;
-        const tab = new TerminalTab(tabId, this, serverID);
+        const tab = new TerminalTab(tabId, this);
         this.tabs.set(tabId, tab);
         this.switchTab(tabId);
         this.hideWelcomeMessage();
@@ -77,39 +57,6 @@ class TerminalManager {
         const newTab = this.tabs.get(tabId);
         if (newTab) {
             newTab.activate();
-            this.updateScreenshotButton(newTab);
-        }
-    }
-
-    updateScreenshotButton(tab) {
-        if (tab && tab.screenshotOverlay) {
-            // Show button for tabs with screenshot overlay
-            this.screenshotToggleBtn.classList.remove('hidden');
-            // Update active state
-            if (tab.screenshotOverlay.enabled) {
-                this.screenshotToggleBtn.classList.add('active');
-            } else {
-                this.screenshotToggleBtn.classList.remove('active');
-            }
-        } else {
-            // Hide button for tabs without screenshot overlay
-            this.screenshotToggleBtn.classList.add('hidden');
-            this.screenshotToggleBtn.classList.remove('active');
-        }
-    }
-
-    toggleScreenshot() {
-        if (this.activeTabId === null) return;
-
-        const activeTab = this.tabs.get(this.activeTabId);
-        if (activeTab && activeTab.screenshotOverlay) {
-            activeTab.screenshotOverlay.toggle();
-            // Update button state
-            if (activeTab.screenshotOverlay.enabled) {
-                this.screenshotToggleBtn.classList.add('active');
-            } else {
-                this.screenshotToggleBtn.classList.remove('active');
-            }
         }
     }
 
@@ -133,32 +80,26 @@ class TerminalManager {
 }
 
 class TerminalTab {
-    constructor(id, manager, serverID = 'local') {
+    constructor(id, manager) {
         this.id = id;
         this.manager = manager;
-        this.serverID = serverID;
         this.socket = null;
         this.term = null;
         this.fitAddon = null;
         this.tabElement = null;
         this.containerElement = null;
         this.connected = false;
-        this.screenshotOverlay = null;
 
         this.createUI();
         this.createTerminal();
-        this.createScreenshotOverlay();
         this.connect();
     }
 
     createUI() {
-        const server = this.manager.servers.find(s => s.id === this.serverID);
-        const serverName = server ? server.name : 'Local';
-
         this.tabElement = document.createElement('div');
         this.tabElement.className = 'tab';
         this.tabElement.innerHTML = `
-            <span class="tab-title">Terminal ${this.id} (${serverName})</span>
+            <span class="tab-title">Terminal ${this.id}</span>
             <span class="tab-close">×</span>
         `;
 
@@ -225,30 +166,21 @@ class TerminalTab {
         });
     }
 
-    createScreenshotOverlay() {
-        // Only create overlay for remote SSH sessions
-        if (this.serverID !== 'local' && typeof ScreenshotOverlay !== 'undefined') {
-            this.screenshotOverlay = new ScreenshotOverlay(this);
-            console.log(`Tab ${this.id}: Screenshot overlay created for ${this.serverID}`);
-        }
-    }
-
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        const wsUrl = `${protocol}//${window.location.host}${window.location.pathname.replace(/\/?$/, '/')}ws`;
 
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = () => {
-            console.log(`Tab ${this.id}: WebSocket connected to server: ${this.serverID}`);
+            console.log(`Tab ${this.id}: WebSocket connected`);
             this.connected = true;
 
             this.fitAddon.fit();
 
-            // Send init message with server selection
             this.socket.send(JSON.stringify({
                 type: 'init',
-                server_id: this.serverID,
+                token: this.manager.token,
                 cols: this.term.cols,
                 rows: this.term.rows
             }));
@@ -264,23 +196,6 @@ class TerminalTab {
                     this.term.write(new Uint8Array(buffer));
                 });
             } else {
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'init_response') {
-                        this.sessionID = msg.session_id;
-                        console.log(`Tab ${this.id}: Session initialized with ID: ${this.sessionID}`);
-                        return;
-                    }
-                    if (msg.type === 'screenshot_port') {
-                        console.log(`Tab ${this.id}: Received screenshot port: ${msg.port}, session: ${this.sessionID}`);
-                        if (this.screenshotOverlay && this.sessionID) {
-                            this.screenshotOverlay.startPolling(this.sessionID);
-                        }
-                        return;
-                    }
-                } catch (e) {
-                    // Not JSON, treat as terminal data
-                }
                 this.term.write(event.data);
             }
         };
@@ -323,10 +238,6 @@ class TerminalTab {
     }
 
     destroy() {
-        if (this.screenshotOverlay) {
-            this.screenshotOverlay.destroy();
-            this.screenshotOverlay = null;
-        }
         if (this.socket) {
             this.socket.close();
         }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -38,6 +39,7 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	telegram "github.com/inference-gateway/cli/internal/presentation/telegram"
+	web "github.com/inference-gateway/cli/internal/presentation/web"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
@@ -399,11 +401,13 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 			Routes: map[string]http.Handler{
 				"/artifacts/":     newArtifactsHandler(),
 				a2ainfra.PeerPath: newPeerA2AHost(registry, teleports, b.Token, b.TLS.RequiresClientAuth()),
+				web.Path:          &web.Terminal{Token: b.Token, ClientCerts: b.TLS.RequiresClientAuth(), Command: chatDaemonCommand},
 			},
 		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
 		if err := binding.Start(); err != nil {
 			return threadHost{}, fmt.Errorf("failed to start the AG-UI binding: %w", err)
 		}
+		logger.Info("web terminal available", "url", web.URL(b, b.Token))
 	}
 
 	stopped := make(chan struct{})
@@ -928,4 +932,14 @@ func registerChannels(cm *telegram.ChannelManagerService, cfg *config.Config, co
 	}
 
 	return nil
+}
+
+// chatDaemonCommand is what each web terminal tab runs: this binary's chat
+// TUI as a client of this daemon, in the daemon's project dir.
+func chatDaemonCommand() *exec.Cmd {
+	exe, err := os.Executable()
+	if err != nil {
+		exe = "infer"
+	}
+	return exec.Command(exe, "chat", "--daemon")
 }

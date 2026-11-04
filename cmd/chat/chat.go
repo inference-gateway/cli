@@ -32,7 +32,6 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
-	web "github.com/inference-gateway/cli/internal/presentation/web"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -48,26 +47,16 @@ and have a conversational interface with the inference gateway.`,
 
 			sessionID, _ := cmd.Flags().GetString("session-id")
 
-			if os.Getenv("INFER_WEB_MODE") == "true" {
-				cfg.Web.Enabled = true
-				state.Viper().Set("web.enabled", true)
-			}
-
 			if daemonMode, _ := cmd.Flags().GetBool("daemon"); daemonMode {
 				cfg.Chat.Daemon = true
 				state.Viper().Set("chat.daemon", true)
 			}
 
-			webMode, _ := cmd.Flags().GetBool("web")
-			if webMode {
-				cfg.Web.Enabled = true
-				state.Viper().Set("web.enabled", true)
-				applyWebFlags(cmd, cfg)
-
+			if webMode, _ := cmd.Flags().GetBool("web"); webMode {
 				if sessionID != "" {
 					fmt.Println(colors.CreateColoredText("--session-id is not supported in web mode; ignoring.", colors.DimColor))
 				}
-				return StartWebChatSession(cfg)
+				return openWebTerminal(cfg)
 			}
 
 			if !isInteractiveTerminal() {
@@ -87,62 +76,10 @@ and have a conversational interface with the inference gateway.`,
 		},
 	}
 
-	command.Flags().Bool("web", false, "Start web terminal interface")
-	command.Flags().Int("port", 0, "Web server port (default: 3000)")
-	command.Flags().String("host", "", "Web server host (default: localhost)")
-	command.Flags().String("ssh-host", "", "Remote SSH server hostname")
-	command.Flags().String("ssh-user", "", "Remote SSH username")
-	command.Flags().Int("ssh-port", 22, "Remote SSH port")
-	command.Flags().Bool("ssh-no-install", false, "Disable auto-installation of infer on remote")
-	command.Flags().String("ssh-command", "infer", "Path to infer binary on remote")
+	command.Flags().Bool("web", false, "Open the daemon's web terminal in the browser (started when needed), every tab a daemon chat")
 	command.Flags().String("session-id", "", "Resume an existing chat session by conversation ID")
 	command.Flags().Bool("daemon", false, "Run every turn through the local infer daemon (started when needed), so the session can teleport between workspaces and outlive this terminal")
 	return command
-}
-
-func applyWebFlags(cmd *cobra.Command, cfg *config.Config) {
-	defer passDaemonMode(cfg)
-	if cmd.Flags().Changed("port") {
-		cfg.Web.Port, _ = cmd.Flags().GetInt("port")
-	}
-	if cmd.Flags().Changed("host") {
-		cfg.Web.Host, _ = cmd.Flags().GetString("host")
-	}
-	if !cmd.Flags().Changed("ssh-host") {
-		return
-	}
-
-	cfg.Web.SSH.Enabled = true
-	sshHost, _ := cmd.Flags().GetString("ssh-host")
-	sshUser, _ := cmd.Flags().GetString("ssh-user")
-	sshPort, _ := cmd.Flags().GetInt("ssh-port")
-	sshCommand, _ := cmd.Flags().GetString("ssh-command")
-	noInstall, _ := cmd.Flags().GetBool("ssh-no-install")
-	cfg.Web.Servers = []config.SSHServerConfig{
-		{
-			Name:        "CLI Remote Server",
-			ID:          "cli-remote",
-			RemoteHost:  sshHost,
-			RemotePort:  sshPort,
-			RemoteUser:  sshUser,
-			CommandPath: sshCommand,
-			AutoInstall: func() *bool { b := !noInstall; return &b }(),
-			Description: "Remote server configured via CLI flags",
-		},
-	}
-}
-
-// passDaemonMode has every SSH server start its infer chat in daemon mode when
-// this one runs in it.
-func passDaemonMode(cfg *config.Config) {
-	if !cfg.Chat.Daemon {
-		return
-	}
-	for i, server := range cfg.Web.Servers {
-		if !slices.Contains(server.CommandArgs, "--daemon") {
-			cfg.Web.Servers[i].CommandArgs = append(server.CommandArgs, "--daemon")
-		}
-	}
 }
 
 // StartChatSession starts a chat session. loadConfig re-reads the
@@ -282,12 +219,6 @@ func refuseForeignSession(ctx context.Context, leases agentdomain.LeaseStore, wo
 	}
 	return fmt.Errorf("session %s runs on workspace %s, attach to it with: infer chat --daemon --session-id %s",
 		sessionID, lease.Workspace, sessionID)
-}
-
-// StartWebChatSession starts a web-based chat session with PTY and WebSocket
-func StartWebChatSession(cfg *config.Config) error {
-	server := web.NewWebTerminalServer(cfg)
-	return server.Start()
 }
 
 func validateAndSetDefaultModel(modelService convdomain.ModelService, models []string, defaultModel string) string {

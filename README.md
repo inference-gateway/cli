@@ -91,7 +91,7 @@ One line per feature, each linking to its full guide:
 
 ### Remote and automation
 
-- **Web terminal** - browser-based, tabbed sessions - [Web Terminal](docs/web-terminal.md)
+- **Web terminal** - the chat TUI in browser tabs, served by the daemon - [Web Terminal](docs/web-terminal.md)
 - **Remote messaging channels** - drive the agent from Telegram - [Channels](docs/channels.md)
 - **Scheduled tasks** - cron prompts that deliver back through the channel - [Scheduling](docs/scheduling.md)
 - **Heartbeat** - periodic wake-up to check pending work - [Heartbeat](docs/heartbeat.md)

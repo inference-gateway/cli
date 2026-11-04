@@ -25,6 +25,9 @@ contract the clients implement. The events themselves are defined in
   worker's `browser_command` stdout lines are routed to the extension connection
   by the daemon, and each `browser_result` goes back to that worker by `id`.
   Commands serialize across threads because one browser serves them.
+- The same listener serves plain HTTP routes beside `/ws`: `/artifacts/`, `/a2a`
+  and the [web terminal](web-terminal.md) at `/terminal/`. A terminal tab is not
+  a binding client itself, the `infer chat --daemon` it runs in a PTY is.
 - The daemon started this way runs in the background and outlives the `infer`
   process that started it. It shares that process's terminal, so closing the
   terminal stops it too, and the next browser call starts another. It loads the

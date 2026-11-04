@@ -61,7 +61,6 @@ type Config struct {
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
 	ContextWindows   map[string]int         `yaml:"context_windows" mapstructure:"context_windows"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
-	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	Vision           VisionConfig           `yaml:"vision" mapstructure:"vision"`
 	Provisioner      ProvisionerConfig      `yaml:"provisioner,omitempty" mapstructure:"provisioner"`
 	ComputerUse      ComputerUseConfig      `yaml:"-" mapstructure:"computer_use"`
@@ -684,41 +683,6 @@ type ProvisionerConfig struct {
 // provisioner.runpod.* (env: INFER_PROVISIONER_RUNPOD_API_KEY).
 type ProvisionerRunPodConfig struct {
 	APIKey string `yaml:"api_key,omitempty" mapstructure:"api_key"`
-}
-
-// WebConfig contains web terminal settings
-type WebConfig struct {
-	Enabled               bool              `yaml:"enabled" mapstructure:"enabled"`
-	Port                  int               `yaml:"port" mapstructure:"port"`
-	Host                  string            `yaml:"host" mapstructure:"host"`
-	SessionInactivityMins int               `yaml:"session_inactivity_mins" mapstructure:"session_inactivity_mins"`
-	Tmux                  bool              `yaml:"tmux" mapstructure:"tmux"`
-	SSH                   WebSSHConfig      `yaml:"ssh" mapstructure:"ssh"`
-	Servers               []SSHServerConfig `yaml:"servers" mapstructure:"servers"`
-}
-
-// WebSSHConfig contains SSH connection settings for remote servers
-type WebSSHConfig struct {
-	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
-	KnownHostsPath string `yaml:"known_hosts_path" mapstructure:"known_hosts_path"`
-	AutoInstall    bool   `yaml:"auto_install" mapstructure:"auto_install"`
-	InstallVersion string `yaml:"install_version" mapstructure:"install_version"`
-	InstallDir     string `yaml:"install_dir" mapstructure:"install_dir"`
-}
-
-// SSHServerConfig contains configuration for a single remote SSH server
-type SSHServerConfig struct {
-	Name        string   `yaml:"name" mapstructure:"name"`
-	ID          string   `yaml:"id" mapstructure:"id"`
-	RemoteHost  string   `yaml:"remote_host" mapstructure:"remote_host"`
-	RemotePort  int      `yaml:"remote_port" mapstructure:"remote_port"`
-	RemoteUser  string   `yaml:"remote_user" mapstructure:"remote_user"`
-	CommandPath string   `yaml:"command_path" mapstructure:"command_path"`
-	CommandArgs []string `yaml:"command_args" mapstructure:"command_args"`
-	AutoInstall *bool    `yaml:"auto_install,omitempty" mapstructure:"auto_install"`
-	InstallPath string   `yaml:"install_path" mapstructure:"install_path"`
-	Description string   `yaml:"description" mapstructure:"description"`
-	Tags        []string `yaml:"tags" mapstructure:"tags"`
 }
 
 // AgentContextConfig contains settings for agent context enrichment
@@ -1450,21 +1414,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			RolloverOnIdleMinutes: 30,
 			SummaryMaxTokens:      1024,
 			Strategy:              CompactStrategySummary,
-		},
-		Web: WebConfig{
-			Enabled:               false,
-			Port:                  3000,
-			Host:                  "localhost",
-			SessionInactivityMins: 5,
-			Tmux:                  true,
-			SSH: WebSSHConfig{
-				Enabled:        false,
-				KnownHostsPath: "~/.ssh/known_hosts",
-				AutoInstall:    true,
-				InstallVersion: "latest",
-				InstallDir:     "~/.local/bin",
-			},
-			Servers: []SSHServerConfig{},
 		},
 	}
 }

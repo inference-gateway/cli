@@ -18,10 +18,10 @@ Most examples ship a Docker Compose file:
 | [tools](../examples/tools/) | Custom tools in Python and shell, run offline against a scripted mock model |
 | [session-artifacts](../examples/session-artifacts/) | Browsing and saving a session's artifacts from the chat TUI, offline against a scripted mock model |
 | [daemon-session-artifacts](../examples/daemon-session-artifacts/) | Two daemons: a session teleported to the second one generates an artifact there, and the chat pulls it home |
-| [computer-use](../examples/computer-use/) | Computer Use driving a sandboxed Ubuntu GUI container |
+| [computer-use](../examples/computer-use/) | Computer Use on a sandboxed desktop container, driven from the web terminal its daemon serves |
 | [model-switching](../examples/model-switching/) | Switching models mid-session, with a small frontend |
 | [shortcuts](../examples/shortcuts/) | Custom `/`-shortcuts wired through config |
-| [web-terminal](../examples/web-terminal/) | Browser-based, multi-tab web terminal |
+| [web-terminal](../examples/web-terminal/) | The chat TUI in browser tabs served by the daemon, on loopback and over TLS for the LAN |
 | [telegram-channel](../examples/telegram-channel/) | Driving the agent from a Telegram channel |
 | [working-offline](../examples/working-offline/) | Fully offline usage with local models via Ollama or llama.cpp |
 | [gpu-provisioning](../examples/gpu-provisioning/) | Renting an on-demand cloud GPU running llama.cpp via `infer gpu` (RunPod) |
