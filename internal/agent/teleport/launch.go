@@ -43,7 +43,7 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 		s.launchLocal(ctx, w, key, opts, lease.TeleportID)
 		return
 	}
-	remote, err := s.connectRemote(ctx, key, lease)
+	remote, err := s.connectRemote(ctx, key, opts, lease)
 	if err == nil {
 		w.attach(remote)
 		return
@@ -64,7 +64,7 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 // conversation empty here.
 func (s *Service) relayNamed(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) {
 	placed := agentdomain.Lease{ConversationID: key.ConversationID, Workspace: opts.Workspace, WorkspaceDir: opts.WorkspaceDir}
-	remote, err := s.connectRemote(ctx, key, placed)
+	remote, err := s.connectRemote(ctx, key, opts, placed)
 	if err != nil {
 		w.fail(fmt.Sprintf("session %s cannot be reached on workspace %s: %v", key.ConversationID, opts.Workspace, err))
 		return

@@ -91,7 +91,7 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	s.dial.Handshake = testHandshake
 
 	lease := agentdomain.Lease{ConversationID: "conv-1", Workspace: "peer", WorkspaceDir: "/remote/ws", Until: time.Now().Add(time.Hour)}
-	w, err := s.connectRemote(t.Context(), testKey, lease)
+	w, err := s.connectRemote(t.Context(), testKey, sessionsdomain.ThreadOptions{}, lease)
 	if err != nil {
 		t.Fatalf("connectRemote: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestRemoteWorkerRefusesAPeerWithAnotherIdentity(t *testing.T) {
 	s, _ := newService(t, &launcher{}, workspace)
 	s.dial.Handshake = testHandshake
 
-	_, err := s.connectRemote(t.Context(), testKey, agentdomain.Lease{Workspace: "peer"})
+	_, err := s.connectRemote(t.Context(), testKey, sessionsdomain.ThreadOptions{}, agentdomain.Lease{Workspace: "peer"})
 	if err == nil || !strings.Contains(err.Error(), "identifies as") {
 		t.Fatalf("connectRemote = %v", err)
 	}
@@ -179,4 +179,37 @@ func TestLaunchRelaysToTheOwningWorkspace(t *testing.T) {
 		t.Fatal("a process worker was launched for a remote session")
 	}
 	w.Stop()
+}
+
+func TestARelayOpensTheSessionBeforeAFrameThatIsNotAnOpen(t *testing.T) {
+	peer := startPeer(t, "peer", func(conn *agui.Conn, frame []byte) {
+		if frameType(frame) == frameResumeConversation {
+			conn.Deliver([]byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`))
+			return
+		}
+		conn.Deliver([]byte(`{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`))
+	})
+	workspace := fakeWorkspace("peer", agentdomain.WorkspaceKindDaemon)
+	workspace.ReachReturns(peer.endpoint(), nil)
+	s, store := newService(t, &launcher{}, workspace)
+	s.dial.Handshake = testHandshake
+	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: "peer", WorkspaceDir: "/remote", Until: time.Now().Add(time.Hour)})
+
+	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{Model: "provider/model"})
+	t.Cleanup(w.Stop)
+	if err := w.Send([]byte(`{"type":"run_agent_input","input":{"threadId":"conv-1"}}`)); err != nil {
+		t.Fatal(err)
+	}
+	frames := peer.received(t, 2)
+	var open map[string]any
+	_ = json.Unmarshal(frames[0], &open)
+	if open["type"] != frameResumeConversation || open["project_dir"] != "/remote" || open["id"] != "conv-1" || open["model"] != "provider/model" {
+		t.Fatalf("the peer got %s first, want the session opened in its workspace dir with the thread's options", frames[0])
+	}
+	if frameType(frames[1]) != "run_agent_input" {
+		t.Fatalf("the peer got %s after the open, want the client's frame", frames[1])
+	}
+	if got := firstLine(t, w); frameType([]byte(got)) != "RUN_STARTED" {
+		t.Fatalf("relayed %q, the snapshot answering the relay's own open must stay with the relay", got)
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -73,11 +74,16 @@ func (p *peerFrames) await(ctx context.Context, types ...string) ([]byte, error)
 }
 
 // remoteWorker relays a thread's frames to the daemon of the workspace that
-// owns the session, as if that daemon were the worker.
+// owns the session, as if that daemon were the worker. That daemon runs
+// frames only on a session its connection opened, so the relay opens the
+// session itself when the first frame it is sent does not.
 type remoteWorker struct {
 	conn         agentinfra.PeerConn
 	endpoint     agentdomain.Endpoint
 	workspaceDir string
+	open         []byte
+	opened       sync.Once
+	ownSnapshot  atomic.Bool
 	lines        chan []byte
 	cancel       context.CancelFunc
 	once         sync.Once
@@ -85,7 +91,7 @@ type remoteWorker struct {
 
 // connectRemote reaches the workspace named by a lease and relays the thread
 // to it, refreshing this daemon's row for that owner while connected.
-func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKey, lease agentdomain.Lease) (sessionsdomain.Worker, error) {
+func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions, lease agentdomain.Lease) (sessionsdomain.Worker, error) {
 	workspace, ok := s.workspaces[lease.Workspace]
 	if !ok {
 		return nil, fmt.Errorf("workspace %s is not registered in daemon.yaml", lease.Workspace)
@@ -106,7 +112,8 @@ func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKe
 		return nil, fmt.Errorf("the daemon reached for workspace %s identifies as %q", lease.Workspace, info.Workspace)
 	}
 	refreshCtx, cancel := context.WithCancel(context.Background())
-	w := &remoteWorker{conn: conn, endpoint: endpoint, workspaceDir: lease.WorkspaceDir, lines: make(chan []byte, 64), cancel: cancel}
+	open := encode(resumeFrame{Type: frameResumeConversation, ProjectDir: lease.WorkspaceDir, ID: key.ConversationID, ThreadOptions: opts.Portable()})
+	w := &remoteWorker{conn: conn, endpoint: endpoint, workspaceDir: lease.WorkspaceDir, open: open, lines: make(chan []byte, 64), cancel: cancel}
 	go w.relay(frames)
 	go s.refreshRemote(refreshCtx, key.ConversationID, lease.Workspace, w)
 	return w, nil
@@ -136,7 +143,11 @@ func (s *Service) refreshRemote(ctx context.Context, conversationID, workspace s
 // relay forwards the peer's frames as worker lines until it hangs up.
 func (w *remoteWorker) relay(frames *peerFrames) {
 	for frame := range frames.frames {
-		if daemonFrames[frameType(frame)] {
+		typ := frameType(frame)
+		if daemonFrames[typ] {
+			continue
+		}
+		if typ == frameMessagesSnapshot && w.ownSnapshot.CompareAndSwap(true, false) {
 			continue
 		}
 		w.lines <- frame
@@ -148,6 +159,11 @@ func (w *remoteWorker) relay(frames *peerFrames) {
 // Send forwards one client frame, naming the workspace dir where the frame
 // named the client's project dir.
 func (w *remoteWorker) Send(frame []byte) error {
+	var opening error
+	w.opened.Do(func() { opening = w.openUnlessOpenedBy(frame) })
+	if opening != nil {
+		return opening
+	}
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, frame); err != nil {
 		return err
@@ -162,6 +178,17 @@ func (w *remoteWorker) Send(frame []byte) error {
 		frame = encode(fields)
 	}
 	return w.conn.Send(frame)
+}
+
+// openUnlessOpenedBy opens the session on the peer ahead of a first frame
+// that is not itself an open, and keeps the snapshot answering it from the
+// thread's clients, who asked for none.
+func (w *remoteWorker) openUnlessOpenedBy(first []byte) error {
+	if typ := frameType(first); typ == frameResumeConversation || typ == frameNewSession {
+		return nil
+	}
+	w.ownSnapshot.Store(true)
+	return w.conn.Send(w.open)
 }
 
 func (w *remoteWorker) Lines() <-chan []byte {
