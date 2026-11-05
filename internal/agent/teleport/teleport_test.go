@@ -18,6 +18,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	sessions "github.com/inference-gateway/cli/internal/sessions"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 // handOverRequest is the request the handOver tests teleport, with its lease row.
@@ -204,5 +206,25 @@ func TestWorkerEnv(t *testing.T) {
 				t.Fatalf("workerEnv() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResumeOnOpensTheSessionWithItsThreadsPortableOptions(t *testing.T) {
+	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir()}, Deps{})
+	launch := func(sessionsdomain.ThreadKey, sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
+		worker := &sessionsmocks.FakeWorker{}
+		worker.LinesReturns(make(chan []byte))
+		return worker, nil
+	}
+	registry := sessions.NewRegistry(launch, time.Minute)
+	s.AttachRegistry(registry)
+	registry.Handle(&sessionsmocks.FakeClient{}, []byte(`{"type":"resume_conversation","project_dir":"/proj","id":"conv-1",`+
+		`"model":"provider/model","max_turns":500,"sandbox_directories":["/home/me"],"workspace":"remote"}`))
+
+	frame := encode(s.resumeOn("/w", agentdomain.Session{ProjectDir: "/proj", ConversationID: "conv-1"}))
+
+	want := `{"type":"resume_conversation","project_dir":"/w","id":"conv-1","model":"provider/model","max_turns":500}`
+	if string(frame) != want {
+		t.Fatalf("resume frame = %s, want %s", frame, want)
 	}
 }
