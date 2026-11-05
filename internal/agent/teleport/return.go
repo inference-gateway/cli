@@ -68,6 +68,7 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 	s.report(to, req, agentdomain.TeleportCheckpointing, "")
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
 	defer cancel()
+	defer s.registry.Settle(key)
 	if _, err := s.registry.Quiesce(quiesceCtx, key); err != nil {
 		fail(describe(err, "quiescing the session's relay"))
 		return
@@ -254,6 +255,7 @@ func (s *Service) packOwned(ctx context.Context, f returnFrame) (agentdomain.Che
 	key := sessionsdomain.ThreadKey{ProjectDir: filepath.Clean(f.WorkspaceDir), ConversationID: f.ID}
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
 	defer cancel()
+	defer s.registry.Settle(key)
 	interrupts, err := s.registry.Quiesce(quiesceCtx, key)
 	if err != nil {
 		return agentdomain.Checkpoint{}, key, describe(err, "quiescing the session")

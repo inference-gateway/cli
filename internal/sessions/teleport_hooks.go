@@ -19,7 +19,7 @@ const hookPollInterval = 10 * time.Millisecond
 // Quiesce brings a thread to rest for a teleport: it interrupts an open run,
 // waits for it to end, stops the worker so its storage is flushed, and returns
 // the interrupts the run was suspended on, as the worker wrote them. The
-// thread and its clients stay, so a later frame relaunches a worker.
+// thread and its clients stay at rest, launching no worker, until Settle.
 func (r *Registry) Quiesce(ctx context.Context, key sessionsdomain.ThreadKey) (json.RawMessage, error) {
 	r.mu.Lock()
 	t := r.threads[key]
@@ -27,6 +27,7 @@ func (r *Registry) Quiesce(ctx context.Context, key sessionsdomain.ThreadKey) (j
 		r.mu.Unlock()
 		return nil, nil
 	}
+	t.atRest = true
 	w, running := t.worker, t.runID != ""
 	r.mu.Unlock()
 	if w == nil {
@@ -48,6 +49,17 @@ func (r *Registry) Quiesce(ctx context.Context, key sessionsdomain.ThreadKey) (j
 		return nil, fmt.Errorf("waiting for the worker to exit: %w", err)
 	}
 	return interrupts, nil
+}
+
+// Settle ends the rest Quiesce put a thread in, once its teleport handed the
+// session over or gave up, so the next frame launches a worker where the
+// session lives now.
+func (r *Registry) Settle(key sessionsdomain.ThreadKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t := r.threads[key]; t != nil {
+		t.atRest = false
+	}
 }
 
 // await polls cond under the registry lock until it holds or ctx ends.

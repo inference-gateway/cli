@@ -71,6 +71,8 @@ var replyTypes = map[string][]string{
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
 
+var errAtRest = errors.New("the session is moving to another workspace, try again once it arrived")
+
 type clientFrame struct {
 	Type       string `json:"type"`
 	ID         string `json:"id"`
@@ -175,6 +177,9 @@ type thread struct {
 	jobs      int
 	active    time.Time
 	launchErr error
+	// atRest holds the thread without a worker while its session teleports,
+	// from Quiesce until Settle.
+	atRest bool
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
@@ -416,6 +421,9 @@ func (r *Registry) workerLocked(t *thread) (sessionsdomain.Worker, error) {
 	}
 	if t.launchErr != nil {
 		return nil, t.launchErr
+	}
+	if t.atRest {
+		return nil, errAtRest
 	}
 	w, err := r.launch(t.key, t.opts)
 	if err != nil {
