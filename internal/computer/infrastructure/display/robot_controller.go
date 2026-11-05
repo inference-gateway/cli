@@ -56,7 +56,12 @@ var (
 		"home":      "home",
 		"end":       "end",
 		"pageup":    "pageup",
+		"page_up":   "pageup",
+		"pgup":      "pageup",
 		"pagedown":  "pagedown",
+		"page_down": "pagedown",
+		"pgdn":      "pagedown",
+		"pgdown":    "pagedown",
 		"f1":        "f1",
 		"f2":        "f2",
 		"f3":        "f3",
@@ -194,27 +199,20 @@ func (c *robotController) ScrollMouse(ctx context.Context, clicks int, direction
 	if clicks == 0 {
 		return nil
 	}
+	return robot.ScrollDir(max(clicks, -clicks), wheelDirection(clicks, direction))
+}
 
-	scrollAmount := clicks * 100
-	absAmount := scrollAmount
-	if scrollAmount < 0 {
-		absAmount = -scrollAmount
+// wheelDirection names the way the wheel turns: positive clicks go down on
+// the vertical axis and right on the horizontal one, negative ones reverse.
+func wheelDirection(clicks int, axis string) string {
+	forward, backward := "down", "up"
+	if axis == "horizontal" {
+		forward, backward = "right", "left"
 	}
-
-	var scrollDir string
-	if direction == "horizontal" {
-		scrollDir = "right"
-		if scrollAmount < 0 {
-			scrollDir = "left"
-		}
-	} else {
-		scrollDir = "down"
-		if scrollAmount < 0 {
-			scrollDir = "up"
-		}
+	if clicks < 0 {
+		return backward
 	}
-
-	return robot.ScrollDir(absAmount, scrollDir)
+	return forward
 }
 
 func (c *robotController) TypeText(ctx context.Context, text string, delayMs int) error {
@@ -260,7 +258,7 @@ func (c *robotController) SendKeyCombo(ctx context.Context, combo string) error 
 	}
 
 	if err := robot.KeyTap(key, modifiers...); err != nil {
-		return fmt.Errorf("failed to send key combo: %w", err)
+		return fmt.Errorf("failed to send key %q of combo %q, check that it is a known key name: %w", key, combo, err)
 	}
 	return nil
 }
