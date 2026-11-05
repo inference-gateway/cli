@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.244.0](https://github.com/inference-gateway/cli/compare/v0.243.0...v0.244.0) (2026-11-05)
+
+### 🚀 Features
+
+* **web:** serve the web terminal from the daemon and drop the ssh transport ([#1694](https://github.com/inference-gateway/cli/issues/1694)) ([367698b](https://github.com/inference-gateway/cli/commit/367698b8fd8626ffb5bc95e97e2377e186c2fb1d))
+* **web:** show a session's screen live in the web terminal ([#1695](https://github.com/inference-gateway/cli/issues/1695)) ([5a09edb](https://github.com/inference-gateway/cli/commit/5a09edbc977c9f7369724afe95ea9aa5b658548f))
+
+### 🐛 Bug Fixes
+
+* **insights:** fold repeated failures and explain rejected hellos ([#1698](https://github.com/inference-gateway/cli/issues/1698)) ([d11f1d7](https://github.com/inference-gateway/cli/commit/d11f1d742862c89acf57470f04a807b4c11fad9d))
+
 ## [0.243.0](https://github.com/inference-gateway/cli/compare/v0.242.0...v0.243.0) (2026-11-04)
 
 ### 🚀 Features
