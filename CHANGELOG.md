@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.245.0](https://github.com/inference-gateway/cli/compare/v0.244.0...v0.245.0) (2026-11-05)
+
+### 🚀 Features
+
+* **computer:** take over a session's screen from the web terminal ([#1699](https://github.com/inference-gateway/cli/issues/1699)) ([c8c8fa6](https://github.com/inference-gateway/cli/commit/c8c8fa6d1c811a7d82c8270cfa5e696910e5e0d0)), closes [#1697](https://github.com/inference-gateway/cli/issues/1697)
+
 ## [0.244.0](https://github.com/inference-gateway/cli/compare/v0.243.0...v0.244.0) (2026-11-05)
 
 ### 🚀 Features
