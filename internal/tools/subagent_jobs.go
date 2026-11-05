@@ -287,18 +287,20 @@ func (j *headlessSubagentJob) armIdleLocked() {
 	}
 }
 
-// closeIdle hangs up on a subagent that sat idle past the timeout and
-// announces it, then kills the child if it ignores the hang-up.
+// closeIdle announces a subagent that sat idle past the timeout and hangs up
+// on it, then kills the child if it ignores the hang-up. The note goes first:
+// the hang-up ends Run, and a note emitted after it could be lost.
 func (j *headlessSubagentJob) closeIdle() {
-	note := j.hangUpIdleLocked()
+	note := j.markIdleClosing()
 	if note == "" {
 		return
 	}
 	j.emit(scheddomain.JobSignal{Note: note, Enqueue: true})
+	j.hangUp()
 	time.AfterFunc(idleKillGrace, j.cancelRun)
 }
 
-func (j *headlessSubagentJob) hangUpIdleLocked() string {
+func (j *headlessSubagentJob) markIdleClosing() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	if j.closing || !j.openLocked() {
@@ -306,7 +308,6 @@ func (j *headlessSubagentJob) hangUpIdleLocked() string {
 	}
 	j.closing = true
 	logger.Debug("keep-alive headless subagent idle, hanging up", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "idle_timeout", j.idleTimeout)
-	j.hangUpLocked()
 	return closedMessage(j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout), j.output)
 }
 
