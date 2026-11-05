@@ -36,6 +36,9 @@ certificate, click `+` for a tab, then:
 2. Click **Screen**. The view shows Chromium on the desktop container, refreshed every two seconds.
 3. `browse to example.com`. The mock model takes a screenshot, clicks into the browser, presses `ctrl+l`, types the
    URL and presses `enter`, each a `Computer` call on the desktop, and the Screen view follows along.
+4. When the model gets stuck on something only a person can do, click **Take over** on the view and drive the
+   desktop yourself - click, wheel and type right in the image, `Done` (or `Esc` twice) hands the screen back and
+   the agent continues from what you left on it.
 
 Close the tab whenever you like, the session keeps running on the desktop. `infer chat --daemon --session-id <id>`
 from a shell in the laptop container (`docker compose exec laptop sh`) reattaches to it.

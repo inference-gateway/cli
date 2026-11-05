@@ -431,6 +431,33 @@ CLI → client:
 - `error` replaces `frame` when the worker streams no screen or captured
   nothing yet.
 
+The same listener takes the screen's take-over, for the web terminal's
+**Take over**: `POST /screen/?id=<conversation id>` with the same bearer token
+(the body also accepts `{"type": "screen_control", "project_dir": "...", "id": "...",
+"action": "take_over" | "hand_back"}` and `{"type": "screen_input", "project_dir":
+"...", "id": "...", "input": {...}}` in the `frame`-response shape of the panel):
+
+```json
+{"type": "screen_control", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "action": "take_over"}
+```
+
+CLI → client, one reply per request id:
+
+```json
+{"type": "screen_result", "id": "<request id>", "held": true}
+```
+
+- `take_over` claims the screen for the person - the second claim while it is
+  held, from another tab or viewer, errors - and resolves as rejected the
+  approval box the worker's `Computer` call parks on, so the person decides.
+- `hand_back` releases the screen and queues the worker's continue message.
+- `screen_input` carries one person input in the frame space the GET's image
+  answers in: `{"kind": "move" | "click" | "double_click" | "scroll" | "type" |
+  "key", "x", "y", "text", "combo", "button", "direction", "amount"}`. It drives
+  the display directly - no approval, no judge and no conversation entry.
+- An input for a screen nobody holds errors, and the HTTP POST answers it with
+  `409 Conflict`, so a stale tab cannot drive what it handed back.
+
 ## Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_models`,
