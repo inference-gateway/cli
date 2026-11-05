@@ -69,6 +69,17 @@ func (r *Registry) await(ctx context.Context, cond func() bool) error {
 	}
 }
 
+// Options returns the options the thread was opened with, zero when no such
+// thread is open, so a teleport can open the session elsewhere the same way.
+func (r *Registry) Options(key sessionsdomain.ThreadKey) sessionsdomain.ThreadOptions {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t := r.threads[key]; t != nil {
+		return t.opts
+	}
+	return sessionsdomain.ThreadOptions{}
+}
+
 // Deliver sends one frame to every client following the thread.
 func (r *Registry) Deliver(key sessionsdomain.ThreadKey, frame []byte) {
 	r.mu.Lock()

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 // The frames of the workspaces and teleports vocabulary. Clients send the
@@ -59,6 +60,15 @@ type progressFrame struct {
 type sessionTeleportedFrame struct {
 	Type string `json:"type"`
 	agentdomain.SessionTeleported
+}
+
+// resumeFrame opens a teleported session on its new workspace with the
+// options its thread had here, so the worker there runs the same agent.
+type resumeFrame struct {
+	Type       string `json:"type"`
+	ProjectDir string `json:"project_dir"`
+	ID         string `json:"id"`
+	sessionsdomain.ThreadOptions
 }
 
 // threadStoppedFrame answers stop_thread: the workspace whose runtime of the

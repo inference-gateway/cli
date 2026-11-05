@@ -331,3 +331,17 @@ func TestAgentsDoneIgnoresTheRunAReapedWorkerDrains(t *testing.T) {
 		t.Fatal("AgentsDone() = true after a reaped worker drained its approval")
 	}
 }
+
+func TestOptionsReturnsWhatTheThreadWasOpenedWith(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	handle(r, &sessionsmocks.FakeClient{}, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1","model":"provider/model","max_turns":500}`)
+
+	opts := r.Options(hooksKey)
+	if opts.Model != "provider/model" || opts.MaxTurns != 500 {
+		t.Fatalf("Options = %+v, want the model and turn limit the thread was opened with", opts)
+	}
+	if unknown := r.Options(sessionsdomain.ThreadKey{ProjectDir: "/none", ConversationID: "x"}); unknown.MaxTurns != 0 || unknown.Model != "" {
+		t.Fatalf("Options of a thread that is not open = %+v, want zero", unknown)
+	}
+}

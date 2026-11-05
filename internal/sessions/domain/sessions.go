@@ -33,6 +33,19 @@ type ThreadOptions struct {
 	Env []string `json:"-"`
 }
 
+// Portable is what of the options follows a session to another workspace: the
+// agent's model, mode, prompts and turn limit. Placement, sandbox paths, the
+// spawn and Env belong to the daemon the thread was opened on.
+func (o ThreadOptions) Portable() ThreadOptions {
+	return ThreadOptions{
+		Model:              o.Model,
+		Mode:               o.Mode,
+		SystemPrompt:       o.SystemPrompt,
+		CustomInstructions: o.CustomInstructions,
+		MaxTurns:           o.MaxTurns,
+	}
+}
+
 // Subagent is what a spawned thread knows about its spawn: the parent it
 // reports to, its depth under the top-level session for the depth guard, and
 // the tool allowlist a Markdown agent preset gave it (nil inherits the

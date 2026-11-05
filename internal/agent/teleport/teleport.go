@@ -369,7 +369,7 @@ func (s *Service) restore(ctx context.Context, conn agentinfra.PeerConn, frames 
 	if !imported.OK {
 		return "", fmt.Errorf("%s refused the checkpoint: %s", req.Target, imported.Error)
 	}
-	if err := conn.Send(encode(map[string]string{"type": frameResumeConversation, "project_dir": imported.WorkspaceDir, "id": req.Session.ConversationID})); err != nil {
+	if err := conn.Send(encode(s.resumeOn(imported.WorkspaceDir, req.Session))); err != nil {
 		return "", describe(err, "resuming the conversation on %s", req.Target)
 	}
 	snapshotCtx, snapshotCancel := context.WithTimeout(ctx, replyTimeout)
@@ -382,6 +382,15 @@ func (s *Service) restore(ctx context.Context, conn agentinfra.PeerConn, frames 
 		return "", fmt.Errorf("the conversation on %s renders to digest %s, not the checkpoint's %s", req.Target, digest, checkpoint.Digest)
 	}
 	return imported.WorkspaceDir, nil
+}
+
+// resumeOn is the frame that opens the session in workspaceDir of the target,
+// carrying the portable options of its thread here.
+func (s *Service) resumeOn(workspaceDir string, session agentdomain.Session) resumeFrame {
+	frame := resumeFrame{Type: frameResumeConversation, ProjectDir: workspaceDir, ID: session.ConversationID}
+	key := sessionsdomain.ThreadKey{ProjectDir: session.ProjectDir, ConversationID: session.ConversationID}
+	frame.ThreadOptions = s.registry.Options(key).Portable()
+	return frame
 }
 
 // sendCheckpoint streams a checkpoint to conn in chunks and closes it with the
