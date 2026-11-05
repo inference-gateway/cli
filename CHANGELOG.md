@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.245.1](https://github.com/inference-gateway/cli/compare/v0.245.0...v0.245.1) (2026-11-05)
+
+### 🐛 Bug Fixes
+
+* **teleport:** open a teleported session with its thread's options ([#1705](https://github.com/inference-gateway/cli/issues/1705)) ([cb6e3df](https://github.com/inference-gateway/cli/commit/cb6e3df9bd2ee26b2297fb3153bb689c59181fe5)), closes [#1701](https://github.com/inference-gateway/cli/issues/1701)
+* **computer:** scroll one wheel notch per click and accept page key aliases ([#1706](https://github.com/inference-gateway/cli/issues/1706)) ([c47d23e](https://github.com/inference-gateway/cli/commit/c47d23e2bbe8e0683b92b1760105b32d5800d770)), closes [#1703](https://github.com/inference-gateway/cli/issues/1703)
+* **conversation:** store a tool's screenshot once ([#1704](https://github.com/inference-gateway/cli/issues/1704)) ([d8bb9a1](https://github.com/inference-gateway/cli/commit/d8bb9a1dbefea205b15f3a8d75f6b02a726aa157)), closes [#1702](https://github.com/inference-gateway/cli/issues/1702)
+
 ## [0.245.0](https://github.com/inference-gateway/cli/compare/v0.244.0...v0.245.0) (2026-11-05)
 
 ### 🚀 Features
