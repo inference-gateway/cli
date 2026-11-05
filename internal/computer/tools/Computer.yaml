@@ -20,7 +20,7 @@ parameters:
         - key
     amount:
       type: integer
-      description: 'scroll: wheel clicks (default 3); negative scrolls up / left.'
+      description: 'scroll: wheel clicks (default 3), each a small step of a few lines; negative scrolls up / left. To move a whole page, use key with "pagedown" or "pageup".'
     button:
       type: string
       description: 'click actions: mouse button (default left).'
@@ -30,7 +30,7 @@ parameters:
         - middle
     combo:
       type: string
-      description: 'key: a key combination such as "enter", "cmd+a", "ctrl+shift+t".'
+      description: 'key: a key combination such as "enter", "cmd+a", "ctrl+shift+t", "pagedown".'
     direction:
       type: string
       description: 'scroll: axis (default vertical).'
