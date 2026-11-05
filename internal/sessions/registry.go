@@ -71,6 +71,8 @@ var replyTypes = map[string][]string{
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
 
+var errAtRest = errors.New("the session is moving to another workspace, try again once it arrived")
+
 type clientFrame struct {
 	Type       string `json:"type"`
 	ID         string `json:"id"`
@@ -157,7 +159,8 @@ type Registry struct {
 
 // thread is one project dir plus conversation id and the worker running it.
 // A client follows at most one thread, because bare AG-UI events carry no
-// thread id. The worker is nil until launched and after it exits.
+// thread id. The worker is nil until launched, after it exits and while the
+// thread is at rest for a teleport, from Quiesce until Settle.
 type thread struct {
 	key        sessionsdomain.ThreadKey
 	opts       sessionsdomain.ThreadOptions
@@ -175,6 +178,7 @@ type thread struct {
 	jobs      int
 	active    time.Time
 	launchErr error
+	atRest    bool
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
@@ -416,6 +420,9 @@ func (r *Registry) workerLocked(t *thread) (sessionsdomain.Worker, error) {
 	}
 	if t.launchErr != nil {
 		return nil, t.launchErr
+	}
+	if t.atRest {
+		return nil, errAtRest
 	}
 	w, err := r.launch(t.key, t.opts)
 	if err != nil {

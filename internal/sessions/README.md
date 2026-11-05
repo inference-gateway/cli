@@ -18,7 +18,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   tool allowlist, which the worker gets as its subagent env. `workspace` and `workspace_dir` place a thread no lease places on a
   remote workspace, which the launch seam relays it to.
 - **Forwarded frames** - `run_agent_input`, `interrupt` and `user_question_response` go to the client's
-  thread unchanged. A `run_agent_input` relaunches a thread whose worker exited.
+  thread unchanged. A `run_agent_input` relaunches a thread whose worker exited. A thread at rest for a teleport
+  launches no worker: every frame that needs one is refused with `RUN_ERROR` until the teleport settles, so a
+  screen poll cannot start the session here while it moves.
 - **Resumes** - a run that ends with the `interrupt` outcome leaves its interrupts open on the thread. The
   first `run_agent_input` whose `resume` answers all of them goes to the worker, and the other clients learn
   the decision from the continuation run's `RUN_STARTED`. A resume that misses an open interrupt is refused
@@ -68,8 +70,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   daemon owns the subagent's worker and the desktop follows the same thread live. The subagent worker reports
   each finished turn to its parent as a CUSTOM `subagent_turn` event. Without a configured binding the tool
   falls back to spawning `infer headless --keep-alive` itself.
-- `Quiesce`, `Deliver`, `Request`, `TeleportedHere`, `TeleportedAway`, `AllTeleportedAway` and `Idle` are the hooks a
-  session teleport uses: end a thread's run and stop its worker while keeping its clients, tell a thread's followers
+- `Quiesce`, `Settle`, `Deliver`, `Request`, `TeleportedHere`, `TeleportedAway`, `AllTeleportedAway` and `Idle` are the hooks a
+  session teleport uses: end a thread's run and stop its worker while keeping its clients, let the thread launch a
+  worker again once the teleport handed the session over or gave up, tell a thread's followers
   something, ask a worker in a project dir one panel question, record a session arriving or leaving so it stops
   holding `AgentsDone` back, learn whether every one left, and whether the daemon sits idle. The agent context's
   `teleport` package drives them.

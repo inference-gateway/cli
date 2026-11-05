@@ -28,6 +28,7 @@ const (
 	frameSessionTeleported = "session_teleported"
 	frameThreadStopped     = "thread_stopped"
 
+	frameNewSession           = "new_session"
 	frameResumeConversation   = "resume_conversation"
 	frameMessagesSnapshot     = "MESSAGES_SNAPSHOT"
 	frameRunError             = "RUN_ERROR"

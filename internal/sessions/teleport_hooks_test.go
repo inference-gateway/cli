@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -51,9 +52,45 @@ func TestQuiesceInterruptsTheOpenRunAndStopsTheWorker(t *testing.T) {
 		t.Fatalf("after Quiesce the thread must stay with its client and no worker: %+v", thread)
 	}
 
+	r.Settle(hooksKey)
 	handle(r, c, `{"type":"run_agent_input","input":{"threadId":"conv-1","messages":[{"id":"m","role":"user","content":"again"}]}}`)
 	if l.count() != 2 {
-		t.Fatalf("a frame after Quiesce launched %d workers in total, want a relaunch", l.count())
+		t.Fatalf("a frame after Settle launched %d workers in total, want a relaunch", l.count())
+	}
+}
+
+func TestAThreadAtRestLaunchesNoWorkerUntilItSettles(t *testing.T) {
+	frames := map[string]string{
+		"a screen poll naming the session": `{"type":"read_frame","project_dir":"/proj","id":"conv-1"}`,
+		"the follower's next message":      `{"type":"run_agent_input","input":{"threadId":"conv-1","messages":[{"id":"m","role":"user","content":"again"}]}}`,
+	}
+	for name, frame := range frames {
+		t.Run(name, func(t *testing.T) {
+			l := &launcher{}
+			r := NewRegistry(l.launch, time.Hour)
+			follower := &sessionsmocks.FakeClient{}
+			handle(r, follower, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+			if _, err := r.Quiesce(t.Context(), hooksKey); err != nil {
+				t.Fatalf("Quiesce: %v", err)
+			}
+
+			sender := follower
+			if strings.Contains(frame, "read_frame") {
+				sender = &sessionsmocks.FakeClient{}
+			}
+			handle(r, sender, frame)
+			if l.count() != 1 {
+				t.Fatalf("a frame for a thread at rest launched a worker: %d launches, want 1", l.count())
+			}
+			refusal := string(runError("", errAtRest.Error()))
+			eventually(t, "the refusal to reach the sender", func() bool { return slices.Contains(delivered(sender), refusal) })
+
+			r.Settle(hooksKey)
+			handle(r, sender, frame)
+			if l.count() != 2 {
+				t.Fatalf("a frame after Settle launched %d workers in total, want 2", l.count())
+			}
+		})
 	}
 }
 

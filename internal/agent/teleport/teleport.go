@@ -158,6 +158,7 @@ func (s *Service) teleport(ctx context.Context, to requester, req agentdomain.Te
 	}
 
 	report(agentdomain.TeleportCheckpointing, "")
+	defer s.registry.Settle(key)
 	checkpoint, err := s.checkpoint(ctx, req, info, conn)
 	if err != nil {
 		fail(err)
