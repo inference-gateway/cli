@@ -7,10 +7,10 @@ import (
 	"testing"
 	"testing/synctest"
 
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestScreenControlTakeOverClaimsAndRefusesASecondClaim(t *testing.T) {

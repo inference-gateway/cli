@@ -12,7 +12,7 @@ import (
 	web "github.com/inference-gateway/cli/internal/presentation/web"
 )
 
-func TestScreenPOSTTakesTheScreenOverAndGuardsStaleInputs(t *testing.T) {
+func TestScreenPOSTTakesTheScreenOverAndGuardsStaleInputs(t *testing.T) { //nolint:gocyclo,cyclop // one POST per asserted outcome, in order
 	var controls []string
 	var inputs []web.ScreenInput
 	server := httptest.NewServer(&web.Screen{

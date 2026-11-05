@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
+
 	web "github.com/inference-gateway/cli/internal/presentation/web"
 	sessions "github.com/inference-gateway/cli/internal/sessions"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
-	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 )
 
 // relayLauncher is the sessions launcher the screen relay test runs through:

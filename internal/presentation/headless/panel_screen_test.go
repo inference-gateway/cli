@@ -5,12 +5,13 @@ import (
 	"strings"
 	"testing"
 
+	computermocks "github.com/inference-gateway/cli/tests/mocks/computer"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	computermocks "github.com/inference-gateway/cli/tests/mocks/computer"
-	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func errorText(frame map[string]any) string {
