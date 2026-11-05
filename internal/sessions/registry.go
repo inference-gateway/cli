@@ -159,7 +159,8 @@ type Registry struct {
 
 // thread is one project dir plus conversation id and the worker running it.
 // A client follows at most one thread, because bare AG-UI events carry no
-// thread id. The worker is nil until launched and after it exits.
+// thread id. The worker is nil until launched, after it exits and while the
+// thread is at rest for a teleport, from Quiesce until Settle.
 type thread struct {
 	key        sessionsdomain.ThreadKey
 	opts       sessionsdomain.ThreadOptions
@@ -177,9 +178,7 @@ type thread struct {
 	jobs      int
 	active    time.Time
 	launchErr error
-	// atRest holds the thread without a worker while its session teleports,
-	// from Quiesce until Settle.
-	atRest bool
+	atRest    bool
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops
