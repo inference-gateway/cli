@@ -258,16 +258,12 @@ func foldFailures(entries []convdomain.ConversationEntry, byTool map[string]*too
 			f = &toolFailure{Tool: exec.ToolName, Errors: map[string]int{}, Sample: map[string]string{}}
 			byTool[exec.ToolName] = f
 		}
-		key := normalizeError(exec.Error)
+		key := normalizeLog(exec.Error)
 		f.Errors[key]++
 		if _, seen := f.Sample[key]; !seen {
 			f.Sample[key] = oneLine(exec.Error, maxIntentChars)
 		}
 	}
-}
-
-func normalizeError(err string) string {
-	return digitRun.ReplaceAllString(strings.ToLower(strings.TrimSpace(err)), "N")
 }
 
 func totalErrors(f toolFailure) int {

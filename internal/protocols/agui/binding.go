@@ -293,11 +293,10 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	ws.SetReadLimit(MaxInboundFrameBytes)
 
 	_ = ws.SetReadDeadline(time.Now().Add(handshakeTimeout))
-	var helloRaw json.RawMessage
-	var hello helloFrame
-	if ws.ReadJSON(&helloRaw) != nil || json.Unmarshal(helloRaw, &hello) != nil || hello.Type != b.cfg.Handshake.Hello ||
-		!b.authenticated(r, hello.Token) {
-		logger.Warn("binding rejected a connection with a bad or missing hello")
+	hello, helloRaw, refusal := b.readHello(ws, r)
+	if refusal != "" {
+		logger.Warn("binding rejected a connection with a bad or missing hello",
+			"reason", refusal, "remote", r.RemoteAddr, "client", hello.Client)
 		_ = ws.Close()
 		return
 	}
@@ -310,6 +309,24 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	c := newConn(ws, hello.Client, declaredHelloAttrs(helloRaw), nil)
 	logger.Info("binding client connected", "client", c.kind)
 	b.adopt(c)
+}
+
+// readHello reads the opening frame and says why it is refused, or nothing when
+// the client may proceed. The reason never carries the token.
+func (b *Binding) readHello(ws *websocket.Conn, r *http.Request) (helloFrame, json.RawMessage, string) {
+	var raw json.RawMessage
+	var hello helloFrame
+	switch {
+	case ws.ReadJSON(&raw) != nil:
+		return hello, raw, "no hello frame"
+	case json.Unmarshal(raw, &hello) != nil:
+		return hello, raw, "malformed hello"
+	case hello.Type != b.cfg.Handshake.Hello:
+		return hello, raw, "unexpected frame type"
+	case !b.authenticated(r, hello.Token):
+		return hello, raw, "not authenticated"
+	}
+	return hello, raw, ""
 }
 
 // authenticated accepts the configured token, or a client certificate the TLS
