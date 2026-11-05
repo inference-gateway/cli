@@ -21,9 +21,15 @@ type FakeScreenControl struct {
 	driveReturnsOnCall map[int]struct {
 		result1 error
 	}
-	HandBackStub        func()
+	HandBackStub        func() bool
 	handBackMutex       sync.RWMutex
 	handBackArgsForCall []struct {
+	}
+	handBackReturns struct {
+		result1 bool
+	}
+	handBackReturnsOnCall map[int]struct {
+		result1 bool
 	}
 	HeldStub        func() bool
 	heldMutex       sync.RWMutex
@@ -122,16 +128,22 @@ func (fake *FakeScreenControl) DriveReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeScreenControl) HandBack() {
+func (fake *FakeScreenControl) HandBack() bool {
 	fake.handBackMutex.Lock()
+	ret, specificReturn := fake.handBackReturnsOnCall[len(fake.handBackArgsForCall)]
 	fake.handBackArgsForCall = append(fake.handBackArgsForCall, struct {
 	}{})
 	stub := fake.HandBackStub
+	fakeReturns := fake.handBackReturns
 	fake.recordInvocation("HandBack", []interface{}{})
 	fake.handBackMutex.Unlock()
 	if stub != nil {
-		fake.HandBackStub()
+		return stub()
 	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
 }
 
 func (fake *FakeScreenControl) HandBackCallCount() int {
@@ -140,10 +152,33 @@ func (fake *FakeScreenControl) HandBackCallCount() int {
 	return len(fake.handBackArgsForCall)
 }
 
-func (fake *FakeScreenControl) HandBackCalls(stub func()) {
+func (fake *FakeScreenControl) HandBackCalls(stub func() bool) {
 	fake.handBackMutex.Lock()
 	defer fake.handBackMutex.Unlock()
 	fake.HandBackStub = stub
+}
+
+func (fake *FakeScreenControl) HandBackReturns(result1 bool) {
+	fake.handBackMutex.Lock()
+	defer fake.handBackMutex.Unlock()
+	fake.HandBackStub = nil
+	fake.handBackReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeScreenControl) HandBackReturnsOnCall(i int, result1 bool) {
+	fake.handBackMutex.Lock()
+	defer fake.handBackMutex.Unlock()
+	fake.HandBackStub = nil
+	if fake.handBackReturnsOnCall == nil {
+		fake.handBackReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.handBackReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
 }
 
 func (fake *FakeScreenControl) Held() bool {

@@ -104,8 +104,7 @@ func (s *screenUnit) takeOver(id string) {
 // screen queues the continue message and wakes the turn loop, so the agent's
 // next turn starts from a fresh screenshot of what the person left behind.
 func (s *screenUnit) handBack(id string) {
-	wasHeld := s.held()
-	s.control.HandBack()
+	wasHeld := s.control.HandBack()
 	s.write(screenResultFrame{Type: outboundScreenResult, ID: id})
 	if !wasHeld {
 		return
@@ -128,8 +127,8 @@ func (s *screenUnit) queueContinueMessage() {
 	}
 }
 
-// input lands one person input on the held screen. An input for a screen
-// nobody holds fails, so a stale tab cannot drive the screen it handed back.
+// input lands one person input on the held screen. The screen control
+// refuses an input for a screen nobody holds.
 func (s *screenUnit) input(id string, line []byte) {
 	var frame struct {
 		Input computerdomain.ScreenInput `json:"input"`
@@ -140,10 +139,6 @@ func (s *screenUnit) input(id string, line []byte) {
 	}
 	if json.Unmarshal(line, &frame) != nil {
 		s.write(screenResultFrame{Type: outboundScreenResult, ID: id, Held: s.held(), Error: "unreadable screen input"})
-		return
-	}
-	if !s.held() {
-		s.write(screenResultFrame{Type: outboundScreenResult, ID: id, Error: "the screen is not held"})
 		return
 	}
 	if err := s.control.Drive(context.Background(), frame.Input); err != nil {

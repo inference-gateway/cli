@@ -54,14 +54,14 @@ func screenControl(registry *sessions.Registry) func(ctx context.Context, sessio
 
 // screenInput relays one person input on a held screen to the session's
 // worker, in the frame space the Screen view's image is served in.
-func screenInput(registry *sessions.Registry) func(ctx context.Context, sessionID string, input web.ScreenInput) (*web.ScreenOutcome, error) {
+func screenInput(registry *sessions.Registry) func(ctx context.Context, sessionID string, input json.RawMessage) (*web.ScreenOutcome, error) {
 	projectDir, _ := os.Getwd()
-	return func(ctx context.Context, sessionID string, input web.ScreenInput) (*web.ScreenOutcome, error) {
+	return func(ctx context.Context, sessionID string, input json.RawMessage) (*web.ScreenOutcome, error) {
 		request, err := json.Marshal(struct {
 			Type       string          `json:"type"`
 			ProjectDir string          `json:"project_dir"`
 			ID         string          `json:"id"`
-			Input      web.ScreenInput `json:"input"`
+			Input      json.RawMessage `json:"input"`
 		}{Type: "screen_input", ProjectDir: projectDir, ID: sessionID, Input: input})
 		if err != nil {
 			return nil, err

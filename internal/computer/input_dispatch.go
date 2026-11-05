@@ -10,9 +10,9 @@ import (
 
 // inputDispatch drives one input action against the display: pointer kinds
 // move and click, scroll wheels, type types, key taps a combo. The publish
-// hook, when set, reports the action just before it runs - the computer-use
-// activity the agent's tool call publishes; a person driving a taken-over
-// screen publishes nothing. Coordinates go in, in frame space.
+// hook reports the action just before it runs - the computer-use activity of
+// the agent's tool call. A person driving a taken-over screen passes a no-op.
+// Coordinates go in, in frame space.
 func inputDispatch(ctx context.Context, controller display.DisplayController, a computerdomain.Action, obs *computerdomain.Observation, screenW, screenH int, publish func(kind computerdomain.ActionKind, x, y int)) error {
 	switch a.Kind {
 	case computerdomain.ActionMove, computerdomain.ActionClick, computerdomain.ActionDoubleClick, computerdomain.ActionTripleClick:
@@ -38,9 +38,7 @@ func dispatchPointer(ctx context.Context, controller display.DisplayController, 
 	if err != nil {
 		return err
 	}
-	if publish != nil {
-		publish(a.Kind, x, y)
-	}
+	publish(a.Kind, x, y)
 	if err := controller.MoveMouse(ctx, x, y); err != nil {
 		return err
 	}
@@ -92,9 +90,7 @@ func dispatchType(ctx context.Context, controller display.DisplayController, a c
 	if len(a.Text) > maxTypeTextLength {
 		return fmt.Errorf("text exceeds the %d character limit", maxTypeTextLength)
 	}
-	if publish != nil {
-		publish(a.Kind, 0, 0)
-	}
+	publish(a.Kind, 0, 0)
 	if err := controller.TypeText(ctx, a.Text, 0); err != nil {
 		return err
 	}
@@ -107,9 +103,7 @@ func dispatchKey(ctx context.Context, controller display.DisplayController, a co
 	if a.Combo == "" {
 		return fmt.Errorf("key action requires combo")
 	}
-	if publish != nil {
-		publish(a.Kind, 0, 0)
-	}
+	publish(a.Kind, 0, 0)
 	if err := controller.SendKeyCombo(ctx, a.Combo); err != nil {
 		return err
 	}

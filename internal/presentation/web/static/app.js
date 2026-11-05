@@ -317,6 +317,7 @@ class ScreenView {
         this.frameWidth = 0;
         this.frameHeight = 0;
         this.lastEsc = 0;
+        this.sending = Promise.resolve();
         this.element = document.createElement('div');
         this.element.className = 'screen-view hidden';
         this.element.innerHTML = `
@@ -341,6 +342,9 @@ class ScreenView {
     toggle() {
         this.enabled = !this.enabled;
         this.element.classList.toggle('hidden', !this.enabled);
+        if (!this.enabled) {
+            this.release();
+        }
         this.resetPoll();
     }
 
@@ -464,6 +468,12 @@ class ScreenView {
     async takeOver() {
         try {
             const response = await this.postScreen({ action: 'take_over' });
+            if (response.status === 409) {
+                // Another tab of this person holds the screen, or one that
+                // died holding it: adopt the hold so Done can hand it back.
+                this.setHeld(true);
+                return;
+            }
             if (!response.ok) {
                 this.status.textContent = await response.text();
                 this.status.classList.remove('hidden');
@@ -521,7 +531,14 @@ class ScreenView {
         });
     }
 
-    async postInput(input) {
+    // postInput sends the inputs one at a time, in the order the person
+    // made them, so fast typing never lands scrambled.
+    postInput(input) {
+        this.sending = this.sending.then(() => this.sendInput(input));
+        return this.sending;
+    }
+
+    async sendInput(input) {
         try {
             const response = await this.postScreen({ input });
             if (response.status === 409) {

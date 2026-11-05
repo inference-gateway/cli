@@ -327,7 +327,7 @@ func (c *headlessControl) Forget(id string) {
 // rejectComputerApprovals answers every open approval interrupt of a Computer
 // tool call as rejected, the decision a take-over makes for the agent: the
 // person now decides what happens on that screen. The broker's wait matches
-// by tool call id; a full broker drops the answer, the way Notify drops.
+// by tool call id. A full broker drops the answer, the way Notify drops.
 func (c *headlessControl) rejectComputerApprovals() {
 	c.pendingMu.Lock()
 	var ids []string

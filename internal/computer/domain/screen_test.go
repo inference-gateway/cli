@@ -12,39 +12,29 @@ func TestScreenInputBuildsTheActionsItDrives(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:  "click defaults its button and scroll defaults",
+			name:  "click carries its frame target",
 			input: ScreenInput{Kind: ActionClick, X: 64, Y: 32},
-			want:  Action{Kind: ActionClick, Target: &Target{X: 64, Y: 32}, Button: "left", Direction: "vertical", Amount: 3},
+			want:  Action{Kind: ActionClick, Target: &Target{X: 64, Y: 32}},
 		},
 		{
 			name:  "double click keeps its frame target",
 			input: ScreenInput{Kind: ActionDoubleClick, X: 2, Y: 3, Button: "left"},
-			want:  Action{Kind: ActionDoubleClick, Target: &Target{X: 2, Y: 3}, Button: "left", Direction: "vertical", Amount: 3},
+			want:  Action{Kind: ActionDoubleClick, Target: &Target{X: 2, Y: 3}, Button: "left"},
 		},
 		{
 			name:  "scroll keeps a reversed amount",
 			input: ScreenInput{Kind: ActionScroll, Amount: -2, Direction: "horizontal"},
-			want:  Action{Kind: ActionScroll, Button: "left", Direction: "horizontal", Amount: -2},
+			want:  Action{Kind: ActionScroll, Direction: "horizontal", Amount: -2},
 		},
 		{
 			name:  "a move carries its target",
 			input: ScreenInput{Kind: ActionMove, X: 5, Y: 6},
-			want:  Action{Kind: ActionMove, Target: &Target{X: 5, Y: 6}, Button: "left", Direction: "vertical", Amount: 3},
+			want:  Action{Kind: ActionMove, Target: &Target{X: 5, Y: 6}},
 		},
 		{
 			name:  "type carries its text",
 			input: ScreenInput{Kind: ActionType, Text: "hello"},
-			want:  Action{Kind: ActionType, Text: "hello", Button: "left", Direction: "vertical", Amount: 3},
-		},
-		{
-			name:    "type without text is refused",
-			input:   ScreenInput{Kind: ActionType},
-			wantErr: "screen input type requires text",
-		},
-		{
-			name:    "key without a combo is refused",
-			input:   ScreenInput{Kind: ActionKey},
-			wantErr: "screen input key requires combo",
+			want:  Action{Kind: ActionType, Text: "hello"},
 		},
 		{
 			name:    "what the person never drives is refused",

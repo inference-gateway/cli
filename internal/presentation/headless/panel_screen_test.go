@@ -66,7 +66,7 @@ func TestPanelScreenTakeOverRefusedWhenSomeoneElseHolds(t *testing.T) {
 
 func TestPanelScreenHandBackQueuesTheContinueMessage(t *testing.T) {
 	control := &computermocks.FakeScreenControl{}
-	control.HeldReturns(true)
+	control.HandBackReturns(true)
 	queue := &convmocks.FakeMessageQueue{}
 	panel, sink := startPanel(screenDeps(control, queue))
 	woken := 0
@@ -135,6 +135,7 @@ func TestPanelScreenInputDrivesTheHeldScreen(t *testing.T) {
 
 func TestPanelScreenInputRefusedWhenNotHeld(t *testing.T) {
 	control := &computermocks.FakeScreenControl{}
+	control.DriveReturns(computerdomain.ErrScreenNotHeld)
 	panel, sink := startPanel(screenDeps(control, nil))
 
 	if !handle(t, panel, map[string]any{"type": "screen_input", "id": "ireq", "input": map[string]any{"kind": "click", "x": 1, "y": 2}}) {
@@ -144,9 +145,6 @@ func TestPanelScreenInputRefusedWhenNotHeld(t *testing.T) {
 	frame := readFrame(t, sink, "screen_result")
 	if frame["held"] != false || !strings.Contains(errorText(frame), "not held") {
 		t.Fatalf("screen_result = %v, want the not-held refusal", frame)
-	}
-	if control.DriveCallCount() != 0 {
-		t.Fatal("a stale tab drove a screen it handed back")
 	}
 }
 

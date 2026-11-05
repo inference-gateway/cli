@@ -30,20 +30,6 @@ const (
 	ScreenActionHandBack = "hand_back"
 )
 
-// ScreenInput is one person-driven input the Screen view sends while it holds
-// the session's screen, in the frame space the image is served in. The field
-// names are the worker's ScreenInput contract on the wire.
-type ScreenInput struct {
-	Kind      string `json:"kind"` // move, click, double_click, scroll, type, key
-	X         int    `json:"x,omitempty"`
-	Y         int    `json:"y,omitempty"`
-	Text      string `json:"text,omitempty"`
-	Combo     string `json:"combo,omitempty"`
-	Button    string `json:"button,omitempty"`
-	Direction string `json:"direction,omitempty"`
-	Amount    int    `json:"amount,omitempty"`
-}
-
 // ScreenOutcome is the worker's answer to a screen control or input call: the
 // screen's held state after it and what failed, if it came to that.
 type ScreenOutcome struct {
@@ -54,13 +40,14 @@ type ScreenOutcome struct {
 // Screen serves the latest screen frame of a session's worker as an image, for
 // the web terminal's live view, and its take-over: the control action and the
 // person's inputs while held. Frame asks the daemon for it wherever the
-// session runs; Control and Input relay to the same worker.
+// session runs. Control and Input relay to the same worker, the input as the
+// raw JSON of the worker's ScreenInput contract, which the worker validates.
 type Screen struct {
 	Token       string
 	ClientCerts bool
 	Frame       func(ctx context.Context, sessionID string) (*agentdomain.Frame, error)
 	Control     func(ctx context.Context, sessionID, action string) (*ScreenOutcome, error)
-	Input       func(ctx context.Context, sessionID string, input ScreenInput) (*ScreenOutcome, error)
+	Input       func(ctx context.Context, sessionID string, input json.RawMessage) (*ScreenOutcome, error)
 }
 
 func (s *Screen) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -129,15 +116,15 @@ func (s *Screen) serveControl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		Action string       `json:"action"`
-		Input  *ScreenInput `json:"input"`
+		Action string          `json:"action"`
+		Input  json.RawMessage `json:"input"`
 	}
 	if json.Unmarshal(body, &request) != nil {
 		http.Error(w, "unreadable body", http.StatusBadRequest)
 		return
 	}
 
-	isControl := request.Input == nil
+	isControl := len(request.Input) == 0
 	if isControl && request.Action != ScreenActionTakeOver && request.Action != ScreenActionHandBack {
 		http.Error(w, "unknown screen action "+request.Action, http.StatusBadRequest)
 		return
@@ -149,7 +136,7 @@ func (s *Screen) serveControl(w http.ResponseWriter, r *http.Request) {
 	if isControl {
 		outcome, err = s.Control(ctx, id, request.Action)
 	} else {
-		outcome, err = s.Input(ctx, id, *request.Input)
+		outcome, err = s.Input(ctx, id, request.Input)
 	}
 	if err != nil {
 		status := http.StatusBadGateway
@@ -169,7 +156,7 @@ func (s *Screen) serveControl(w http.ResponseWriter, r *http.Request) {
 }
 
 // screenStatus resolves a reply's status. Both held-state conflicts are 409s,
-// which is the stale-tab guard; anything the worker could not drive is a
+// which is the stale-tab guard. Anything the worker could not drive is a
 // failure of this screen call.
 func screenStatus(outcome *ScreenOutcome, isControl bool) (int, string) {
 	if outcome.Error == "" {

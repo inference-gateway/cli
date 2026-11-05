@@ -14,7 +14,12 @@ import (
 
 func TestScreenPOSTTakesTheScreenOverAndGuardsStaleInputs(t *testing.T) { //nolint:gocyclo,cyclop // one POST per asserted outcome, in order
 	var controls []string
-	var inputs []web.ScreenInput
+	type sentInput struct {
+		Kind   string `json:"kind"`
+		X      int    `json:"x"`
+		Button string `json:"button"`
+	}
+	var inputs []sentInput
 	server := httptest.NewServer(&web.Screen{
 		Token: "secret",
 		Control: func(_ context.Context, id, action string) (*web.ScreenOutcome, error) {
@@ -29,7 +34,11 @@ func TestScreenPOSTTakesTheScreenOverAndGuardsStaleInputs(t *testing.T) { //noli
 			}
 			return &web.ScreenOutcome{Held: action == web.ScreenActionTakeOver}, nil
 		},
-		Input: func(_ context.Context, id string, input web.ScreenInput) (*web.ScreenOutcome, error) {
+		Input: func(_ context.Context, id string, raw json.RawMessage) (*web.ScreenOutcome, error) {
+			var input sentInput
+			if err := json.Unmarshal(raw, &input); err != nil {
+				return nil, err
+			}
 			inputs = append(inputs, input)
 			switch input.Kind {
 			case "scroll":

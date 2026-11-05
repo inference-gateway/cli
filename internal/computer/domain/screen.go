@@ -2,16 +2,19 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 )
 
-// ScreenInputKind lists the input kinds a person drives a held screen with:
-// the pointer, wheel and keyboard, in frame coordinate space. The observation
-// kinds stay out; so does the accessibility press, which the person's own
-// click replaces.
-func ScreenInputKinds() []ActionKind {
-	return []ActionKind{ActionMove, ActionClick, ActionDoubleClick, ActionScroll, ActionType, ActionKey}
-}
+// ErrScreenNotHeld refuses an input for a screen nobody holds, so a stale
+// tab cannot drive what it handed back.
+var ErrScreenNotHeld = errors.New("the screen is not held")
+
+// screenInputKinds are the kinds a person drives a held screen with: the
+// pointer, wheel and keyboard. Observations stay out, and so does the
+// accessibility press, which the person's own click replaces.
+var screenInputKinds = []ActionKind{ActionMove, ActionClick, ActionDoubleClick, ActionScroll, ActionType, ActionKey}
 
 // IsInputAction reports whether the agent executes the kind by driving the
 // pointer, keyboard or clipboard, so it waits while the person holds the
@@ -35,21 +38,13 @@ type ScreenInput struct {
 	Combo     string     `json:"combo,omitempty"`     // key: a combo such as "ctrl+shift+t" or a key name
 	Button    string     `json:"button,omitempty"`    // click kinds: left (default), right, middle
 	Direction string     `json:"direction,omitempty"` // scroll: vertical (default) or horizontal
-	Amount    int        `json:"amount,omitempty"`    // scroll: wheel clicks; negative reverses
+	Amount    int        `json:"amount,omitempty"`    // scroll: wheel clicks, negative reverses
 }
 
 // Action builds the action this input drives the screen with, so the display
-// dispatch stays one code path with the Computer tool's. A person sends only
-// what they hold the screen for.
+// dispatch stays one code path with the Computer tool's and validates both.
 func (s ScreenInput) Action() (Action, error) {
-	kindOK := false
-	for _, kind := range ScreenInputKinds() {
-		if kind == s.Kind {
-			kindOK = true
-			break
-		}
-	}
-	if !kindOK {
+	if !slices.Contains(screenInputKinds, s.Kind) {
 		return Action{}, fmt.Errorf("unsupported screen input %q", s.Kind)
 	}
 	a := Action{
@@ -60,23 +55,8 @@ func (s ScreenInput) Action() (Action, error) {
 		Direction: s.Direction,
 		Amount:    s.Amount,
 	}
-	if a.Button == "" {
-		a.Button = "left"
-	}
-	if a.Direction == "" {
-		a.Direction = "vertical"
-	}
-	if a.Amount == 0 {
-		a.Amount = 3
-	}
-	if a.Target == nil && (a.Kind == ActionMove || a.Kind == ActionClick || a.Kind == ActionDoubleClick) {
+	if a.Kind == ActionMove || a.Kind == ActionClick || a.Kind == ActionDoubleClick {
 		a.Target = &Target{X: s.X, Y: s.Y}
-	}
-	switch {
-	case a.Kind == ActionType && a.Text == "":
-		return a, fmt.Errorf("screen input type requires text")
-	case a.Kind == ActionKey && a.Combo == "":
-		return a, fmt.Errorf("screen input key requires combo")
 	}
 	return a, nil
 }
@@ -89,14 +69,15 @@ type ScreenControl interface {
 	// TakeOver claims the screen for the person. It fails while the person
 	// already holds it, from another tab of the same session or another one.
 	TakeOver() error
-	// HandBack releases the screen to the agent. Releasing an unheld screen
-	// is a no-op.
-	HandBack()
+	// HandBack releases the screen to the agent and reports whether it was
+	// held. Releasing an unheld screen is a no-op.
+	HandBack() bool
 	// Held reports whether the person currently drives the screen.
 	Held() bool
 	// WaitRelease blocks while the person drives the screen and returns when
 	// the agent may act again, or the context's error when its turn ends.
 	WaitRelease(ctx context.Context) error
-	// Drive performs one person input on the screen in frame space.
+	// Drive performs one person input on the held screen in frame space,
+	// and refuses with ErrScreenNotHeld when nobody holds it.
 	Drive(ctx context.Context, input ScreenInput) error
 }

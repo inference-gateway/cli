@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 )
 
 func TestScreenControlTakeOverClaimsAndRefusesASecondClaim(t *testing.T) {
@@ -43,11 +44,12 @@ func TestScreenControlHandBackReleasesOnce(t *testing.T) {
 		t.Fatalf("TakeOver: %v", err)
 	}
 
-	control.HandBack()
-	if control.Held() {
-		t.Fatal("the hand-back released the screen, Held is still true")
+	if !control.HandBack() || control.Held() {
+		t.Fatal("the hand-back did not release the held screen")
 	}
-	control.HandBack()
+	if control.HandBack() {
+		t.Fatal("handing back an unheld screen reported a release")
+	}
 
 	notifies := notifier.Invocations()["Notify"]
 	if len(notifies) != 2 {
@@ -125,5 +127,13 @@ func TestScreenControlWaitReleaseHonoursTheContext(t *testing.T) {
 	cancel()
 	if err := control.WaitRelease(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("WaitRelease = %v, want the turn's cancellation", err)
+	}
+}
+
+func TestScreenControlDriveRefusesAnUnheldScreen(t *testing.T) {
+	control := NewScreenControl(config.DefaultConfig(), &agentdomainmocks.FakeUINotifier{})
+	err := control.Drive(t.Context(), computerdomain.ScreenInput{Kind: computerdomain.ActionClick})
+	if !errors.Is(err, computerdomain.ErrScreenNotHeld) {
+		t.Fatalf("Drive on an unheld screen = %v, want ErrScreenNotHeld", err)
 	}
 }

@@ -15,10 +15,8 @@ import (
 
 // ScreenControl keeps the take-over invariant this context owns: exactly one
 // actor, the person at the keyboard or the agent, drives the screen at a
-// time. Takeover claims it for the person, HandBack releases it and wakes the
-// executor actions waiting on it, and Drive runs one person input against the
-// display. The screen lock is the worker's, either from an action it already
-// took or because the person is the authority here, so Drive takes none.
+// time. HandBack wakes the executor actions waiting on the hold. Drive takes
+// no screen lock - the person is the authority on the worker's screen.
 type ScreenControl struct {
 	cfg      *config.Config
 	notifier agentdomain.UINotifier
@@ -28,7 +26,7 @@ type ScreenControl struct {
 	released chan struct{}
 }
 
-// NewScreenControl creates the screen control; the notifier may be nil, in
+// NewScreenControl creates the screen control. The notifier may be nil, in
 // which case take-overs publish nothing.
 func NewScreenControl(cfg *config.Config, notifier agentdomain.UINotifier) *ScreenControl {
 	if notifier == nil {
@@ -52,19 +50,20 @@ func (s *ScreenControl) TakeOver() error {
 	return nil
 }
 
-// HandBack releases the screen to the agent and lets go of every action the
-// executor parked on Held. Releasing an unheld screen is a no-op.
-func (s *ScreenControl) HandBack() {
+// HandBack releases the screen to the agent, lets go of every action the
+// executor parked on Held and reports whether the screen was held.
+func (s *ScreenControl) HandBack() bool {
 	s.mu.Lock()
 	if !s.held {
 		s.mu.Unlock()
-		return
+		return false
 	}
 	released := s.released
 	s.held = false
 	s.mu.Unlock()
 	close(released)
 	s.notifier.Notify(agentdomain.ScreenHandedBackEvent{Timestamp: time.Now()})
+	return true
 }
 
 // Held reports whether the person currently drives the screen.
@@ -93,12 +92,13 @@ func (s *ScreenControl) WaitRelease(ctx context.Context) error {
 	}
 }
 
-// Drive performs one person input in the frame space the Screen view sends:
-// it scales the frame coordinates to the display the way the Computer tool's
-// observations map back, and runs the action without the tool layer - no
-// approval, no judge, no conversation entry. The person at the keyboard is
-// the authority.
+// Drive performs one person input on the held screen, in the frame space the
+// Screen view sends. It runs without the tool layer - no approval, no judge,
+// no conversation entry - because the person at the keyboard is the authority.
 func (s *ScreenControl) Drive(ctx context.Context, input computerdomain.ScreenInput) error {
+	if !s.Held() {
+		return computerdomain.ErrScreenNotHeld
+	}
 	action, err := input.Action()
 	if err != nil {
 		return err
@@ -122,5 +122,5 @@ func (s *ScreenControl) Drive(ctx context.Context, input computerdomain.ScreenIn
 	}
 	frameW, frameH := s.cfg.ComputerUse.Screenshot.FitDims(screenW, screenH)
 	obs := &computerdomain.Observation{Width: frameW, Height: frameH}
-	return inputDispatch(ctx, controller, action, obs, screenW, screenH, nil)
+	return inputDispatch(ctx, controller, action, obs, screenW, screenH, func(computerdomain.ActionKind, int, int) {})
 }
