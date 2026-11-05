@@ -141,6 +141,16 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 	return nil
 }
 
+// withoutToolImageData is the entry as it is stored: a tool execution keeps
+// its record of the images it captured, and their bytes stay in the image
+// message the model read them from.
+func withoutToolImageData(entry convdomain.ConversationEntry) convdomain.ConversationEntry {
+	if entry.ToolExecution != nil {
+		entry.ToolExecution = entry.ToolExecution.WithoutImageData()
+	}
+	return entry
+}
+
 // SaveConversation saves the current conversation to persistent storage
 func (r *PersistentConversationRepository) SaveConversation(ctx context.Context) error {
 	r.metadataMutex.RLock()
@@ -159,7 +169,7 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	entries := make([]convdomain.ConversationEntry, 0, len(allEntries))
 	for _, entry := range allEntries {
 		if entry.PendingToolCall == nil {
-			entries = append(entries, entry)
+			entries = append(entries, withoutToolImageData(entry))
 		}
 	}
 

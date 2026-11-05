@@ -85,6 +85,22 @@ type ToolExecutionResult struct {
 	Images     []ImageAttachment `json:"images,omitempty"`
 }
 
+// WithoutImageData copies the result with every attachment's bytes blanked.
+// A record of the execution keeps what was captured, not the megabytes of
+// base64 the model already received as an image message.
+func (r *ToolExecutionResult) WithoutImageData() *ToolExecutionResult {
+	if len(r.Images) == 0 {
+		return r
+	}
+	out := *r
+	out.Images = make([]ImageAttachment, len(r.Images))
+	for i, img := range r.Images {
+		img.Data = ""
+		out.Images[i] = img
+	}
+	return &out
+}
+
 // BashToolResult represents the result of a bash command execution
 type BashToolResult struct {
 	Command  string `json:"command"`
