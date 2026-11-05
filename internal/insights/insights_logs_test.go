@@ -248,6 +248,7 @@ func TestNormalizeLogMasksNoise(t *testing.T) {
 		{"paths", "open /Users/a/x.go: no such file", "open /home/b/y.go: no such file", true},
 		{"numbers", "dial tcp 127.0.0.1:8080: refused", "dial tcp 10.0.0.2:9090: refused", true},
 		{"hex ids", "session 3f9a2b7c1d4e5f60 aborted", "session 0011223344556677 aborted", true},
+		{"uuids", "judge rejected conversation_id=d3acda36-422c-4626-89d9-c3a437206d91", "judge rejected conversation_id=49d44a50-9378-42ed-8f34-40808ec39356", true},
 		{"distinct messages", "failed to start gateway", "failed to stop gateway", false},
 	}
 	for _, tt := range tests {
@@ -274,5 +275,28 @@ func TestCollectLogsKeepsStructuredFields(t *testing.T) {
 	}
 	if s := digest.Groups[0].Sample; !strings.Contains(s, "event=tea.KeyPressMsg") || !strings.Contains(s, "ms=412") {
 		t.Errorf("sample must carry the structured fields, got %q", s)
+	}
+}
+
+// TestCollectLogsFoldsRepeatedToolFailures pins that the ids of one tool call
+// do not split a recurring failure, and that tool groups rank after the rest.
+func TestCollectLogsFoldsRepeatedToolFailures(t *testing.T) {
+	dir := t.TempDir()
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	toolLine := func(conversation, call string) string {
+		return fmt.Sprintf(`{"level":"warn","ts":%f,"msg":"tool call failed","error":"fatal: not a git repository","gen_ai.tool.name":"Bash","gen_ai.conversation.id":%q,"gen_ai.tool.call.id":%q}`,
+			float64(base.UnixNano())/float64(time.Second), conversation, call) + "\n"
+	}
+	writeLog(t, dir, "app-2026-09-23.log",
+		toolLine("49d44a50-9378-42ed-8f34-40808ec39356", "call_bercclri")+
+			toolLine("d4263856-40ef-47b4-bf46-5ffc2db07053", "call_zzqqwwee")+
+			logLine("warn", base, "binding rejected a connection", ""))
+
+	digest := collectLogs(dir, time.Time{}, "warn")
+	if len(digest.Groups) != 2 {
+		t.Fatalf("expected the two tool failures to fold, got %d groups: %+v", len(digest.Groups), digest.Groups)
+	}
+	if digest.Groups[0].Tool != "" || digest.Groups[1].Tool != "Bash" || digest.Groups[1].Count != 2 {
+		t.Errorf("want the session-less group first, then Bash x2, got %+v", digest.Groups)
 	}
 }

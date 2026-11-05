@@ -70,6 +70,8 @@ func TestCollectAndBuildDigest(t *testing.T) {
 				toolEntry("Grep", "ripgrep execution failed: exit status 2", false, false),
 				toolEntry("Grep", "ripgrep execution failed: exit status 127", false, false),
 				toolEntry("Read", "", true, false),
+				toolEntry("Read", "NOT_FOUND: /repos/cli/internal/a/formatter.go", false, false),
+				toolEntry("Read", "NOT_FOUND: /repos/cli/internal/b/utils.go", false, false),
 			},
 			"b": {
 				userEntry("add an insights flag to reset"),
@@ -95,8 +97,11 @@ func TestCollectAndBuildDigest(t *testing.T) {
 		t.Errorf("intent not taken from the first user message: %q", sessions[0].Intent)
 	}
 
-	if len(failures) != 1 {
-		t.Fatalf("expected only Grep to have failures, got %d entries: %+v", len(failures), failures)
+	if len(failures) != 2 {
+		t.Fatalf("expected Grep and Read to have failures, got %d entries: %+v", len(failures), failures)
+	}
+	if len(failures[1].Errors) != 1 {
+		t.Errorf("two missing paths should fold into one key, got %d: %+v", len(failures[1].Errors), failures[1].Errors)
 	}
 	if failures[0].Tool != "Grep" {
 		t.Errorf("expected Grep, got %s", failures[0].Tool)

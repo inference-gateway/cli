@@ -2,6 +2,7 @@ package insights
 
 import (
 	"bufio"
+	"cmp"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -27,10 +28,14 @@ const (
 // to parse a string the JSON already hands us as a string.
 var logLevels = []string{"debug", "info", "warn", "error", "dpanic", "panic", "fatal"}
 
-// logNoise masks what varies per occurrence - absolute paths and hex ids - so
-// "open /a/b.go: no such file" and "open /c/d.go: no such file" fold into one
-// group. digitRun then takes the numbers (ports, durations, exit codes).
-var logNoise = regexp.MustCompile(`(/[\w.\-/]+)|(\b[0-9a-f]{8,}\b)`)
+// logNoise masks what varies per occurrence - absolute paths, UUIDs and hex
+// ids - so "open /a/b.go: no such file" and "open /c/d.go: no such file" fold
+// into one group. digitRun then takes the numbers (ports, durations, exit codes).
+var logNoise = regexp.MustCompile(`(/[\w.\-/]+)|(\b[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\b)|(\b[0-9a-f]{8,}\b)`)
+
+// perCallFields are the ids that differ on every tool call. They would split
+// one recurring failure into singletons, and the trace id already correlates it.
+var perCallFields = []string{"gen_ai.conversation.id", "gen_ai.tool.call.id"}
 
 // logGroup is one normalized log template and how often it recurred. Count is
 // the load-bearing field: a high count over a short span is a retry loop, the
@@ -79,6 +84,9 @@ func decodeLogRecord(line []byte, rec *logRecord) error {
 		return err
 	}
 	for _, k := range []string{"level", "ts", "msg", "error", "caller", "stacktrace", "gen_ai.tool.name", "trace_id", "span_id"} {
+		delete(rec.Fields, k)
+	}
+	for _, k := range perCallFields {
 		delete(rec.Fields, k)
 	}
 	return nil
@@ -224,13 +232,17 @@ func normalizeLog(s string) string {
 }
 
 // topLogGroups returns the most frequent groups, capped, ordered so the digest
-// is deterministic.
+// is deterministic. Groups naming a tool rank last: the sessions already count
+// those failures, so they never push out one that reached no session.
 func topLogGroups(groups map[string]*logGroup) []logGroup {
 	out := make([]logGroup, 0, len(groups))
 	for _, g := range groups {
 		out = append(out, *g)
 	}
 	slices.SortFunc(out, func(a, b logGroup) int {
+		if (a.Tool == "") != (b.Tool == "") {
+			return cmp.Compare(a.Tool, b.Tool)
+		}
 		if a.Count != b.Count {
 			return b.Count - a.Count
 		}
