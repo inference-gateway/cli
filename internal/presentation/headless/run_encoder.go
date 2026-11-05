@@ -57,11 +57,12 @@ func (s *startupNotes) drain() []agui.Published {
 	return notes
 }
 
-// Interrupts is the registry a run's interrupts are noted under, so the worker
-// answering a resume knows which broker each interrupt belongs to. A nil one
-// belongs to an unattended run, where nothing answers the resume.
+// Interrupts is the registry a run's interrupts are noted under, so the
+// worker answering a resume knows which broker each interrupt belongs to,
+// and a tool-call note carries its tool, which a screen take-over answers
+// by. A nil one belongs to an unattended run, where nothing answers the resume.
 type Interrupts interface {
-	Note(id, reason string)
+	Note(id, reason, tool string)
 	Forget(id string)
 }
 
@@ -310,9 +311,9 @@ func (r *RunEncoder) AcceptedPlan() (string, bool) {
 // suspendFor ends the open run on the one interrupt it waits on: the terminal
 // RUN_FINISHED carries the interrupt for the client to answer with a resume
 // entry, and the run this answers belongs to the caller's continuation.
-func (r *RunEncoder) suspendFor(interrupt agui.Interrupt) {
+func (r *RunEncoder) suspendFor(interrupt agui.Interrupt, tool string) {
 	if r.interrupt != nil {
-		r.interrupt.Note(interrupt.ID, interrupt.Reason)
+		r.interrupt.Note(interrupt.ID, interrupt.Reason, tool)
 	}
 	r.run.Suspend([]agui.Interrupt{interrupt})
 }
@@ -409,11 +410,11 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 			"toolCallId": ev.ToolCallID, "output": ev.Output, "complete": ev.IsComplete,
 		})
 	case agentdomain.ToolApprovalRequestedEvent:
-		r.suspendFor(approvalInterrupt(ev))
+		r.suspendFor(approvalInterrupt(ev), ev.ToolCall.Function.Name)
 		render.AnswerApproval(ev, r.approvals)
 		r.continueRun(ev.ToolCall.ID)
 	case agentdomain.PlanApprovalRequestedEvent:
-		r.suspendFor(planInterrupt(ev))
+		r.suspendFor(planInterrupt(ev), "")
 		action := render.AnswerPlan(ev, r.plans)
 		r.continueRun(planInterruptID(ev))
 		r.decidePlan(ev, action)
@@ -421,7 +422,7 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		r.suspendFor(agui.Interrupt{
 			ID: ev.ToolCallID, Reason: agui.InterruptInputRequired, ResponseSchema: answerSchema,
 			Metadata: map[string]any{"questions": ev.Questions},
-		})
+		}, "")
 		render.AnswerQuestions(ev, r.questions)
 		r.continueRun(ev.ToolCallID)
 	default:

@@ -51,3 +51,24 @@ type ComputerUseActionEvent struct {
 
 func (e ComputerUseActionEvent) GetRequestID() string    { return "" }
 func (e ComputerUseActionEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ScreenTakenOverEvent is pushed through the UI notifier when a person takes
+// a session's screen over: their pointer and keyboard drive it and the agent
+// is held for the action it was on until the hand-back. It is also a ChatEvent
+// so a run streams it, and every client of the thread sees who drives.
+type ScreenTakenOverEvent struct {
+	Timestamp time.Time
+}
+
+func (e ScreenTakenOverEvent) GetRequestID() string    { return "" }
+func (e ScreenTakenOverEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ScreenHandedBackEvent is pushed through the UI notifier when the person
+// hands a held screen back: the agent may drive again and continues from a
+// fresh screenshot of what the person left behind.
+type ScreenHandedBackEvent struct {
+	Timestamp time.Time
+}
+
+func (e ScreenHandedBackEvent) GetRequestID() string    { return "" }
+func (e ScreenHandedBackEvent) GetTimestamp() time.Time { return e.Timestamp }

@@ -27,6 +27,7 @@ import (
 	browserdomain "github.com/inference-gateway/cli/internal/browser/domain"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	computer "github.com/inference-gateway/cli/internal/computer"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
 	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
@@ -168,6 +169,7 @@ type ServiceContainer struct {
 	uiNotifier               *uiNotifierHolder
 	browserDriver            browserdomain.BrowserDriver
 	screenRecorder           *computer.ScreenRecorder
+	screenControl            computerdomain.ScreenControl
 }
 
 // uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
@@ -306,6 +308,8 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		DefaultModel:  c.config.Agent.Model,
 		ArtifactsDir:  c.config.SessionArtifactsDir,
 		Frames:        c.toolRegistry.FrameSource,
+		Screen:        c.screenControl,
+		Queue:         c.messageQueue,
 	}, out)
 }
 
@@ -480,7 +484,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.registerCustomTools()
 	c.toolRegistry.LoadMarkdownAgents()
 	c.screenRecorder = computer.NewScreenRecorder(c.config, c.uiNotifier, c.backgroundTaskRegistry)
-	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder, c.uiNotifier))
+	if c.config.ComputerUse.Enabled {
+		c.screenControl = computer.NewScreenControl(c.config, c.uiNotifier)
+	}
+	c.toolRegistry.RegisterTools(computer.NewTools(c.config, c.toolRegistry, c.imageAnnotator, c.screenRecorder, c.uiNotifier, c.screenControl))
 	c.toolRegistry.SetMemoryBackend(c.memoryBackend)
 
 	for name, srcCfg := range c.config.Vision.Sources {

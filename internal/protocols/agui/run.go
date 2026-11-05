@@ -62,6 +62,7 @@ const (
 	StateUsage           = "usage"
 	StateBackgroundTasks = "backgroundTasks"
 	StateScreenRecording = "screenRecording"
+	StateScreenControl   = "screenControl"
 )
 
 // The state's zero values, per key.
@@ -71,6 +72,7 @@ func seedState() map[string]any {
 		StateUsage:           []any{},
 		StateBackgroundTasks: map[string]any{"running": 0, "jobs": []any{}},
 		StateScreenRecording: map[string]any{"active": false},
+		StateScreenControl:   map[string]any{"held": false},
 	}
 }
 

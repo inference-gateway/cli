@@ -33,6 +33,9 @@ const (
 	frameMessagesSnapshot   = "MESSAGES_SNAPSHOT"
 	frameThreadActivity     = "thread_activity"
 	frameReadFrame          = "read_frame"
+	frameScreenInput        = "screen_input"
+	frameScreenControl      = "screen_control"
+	frameScreenResult       = "screen_result"
 
 	outboundBrowserCommand = "browser_command"
 )
@@ -60,6 +63,8 @@ var replyTypes = map[string][]string{
 	"list_artifacts":       {"artifacts"},
 	"read_artifact":        {"artifact"},
 	frameReadFrame:         {"frame"},
+	frameScreenInput:       {frameScreenResult},
+	frameScreenControl:     {frameScreenResult},
 	frameToolRequest:       {frameToolResult},
 	frameCompletionRequest: {frameCompletionResult},
 }
@@ -361,8 +366,8 @@ func (r *Registry) openLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 // pickLocked picks the thread a panel request runs on: the client's own when
 // it is in the requested project dir, else the live thread of the session the
 // request names, else any live one there, else a fresh thread in that dir that
-// nobody follows. A screen belongs to one session, so read_frame runs on the
-// thread it names or fails.
+// nobody follows. A screen belongs to one session, so read_frame,
+// screen_input and screen_control run on the thread they name or fail.
 func (r *Registry) pickLocked(c sessionsdomain.Client, f clientFrame) (*thread, error) {
 	own := r.subs[c]
 	if f.ProjectDir == "" {
@@ -376,7 +381,7 @@ func (r *Registry) pickLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 		return nil, err
 	}
 	named := r.threads[sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: f.ID}]
-	if f.Type == frameReadFrame {
+	if f.Type == frameReadFrame || f.Type == frameScreenInput || f.Type == frameScreenControl {
 		if named == nil {
 			return nil, fmt.Errorf("session %s is not open in %s", f.ID, dir)
 		}
@@ -678,6 +683,8 @@ func (r *Registry) targets(t *thread, line []byte) ([]sessionsdomain.Client, []b
 	case frameToolResult:
 		delete(r.approvals, l.ID)
 		key = replyKey(frameToolResult, l.ID)
+	case frameScreenResult:
+		key = replyKey(frameScreenResult, l.ID)
 	case frameCompletionResult:
 		key = replyKey(frameCompletionResult, l.ID)
 	case "CUSTOM":
@@ -883,10 +890,10 @@ func (t *thread) clientsExcept(c sessionsdomain.Client) []sessionsdomain.Client 
 	return others
 }
 
-// replyKey names a reply queue. A tool_result and a completion_result are
-// matched by their request id, every other reply by its type.
+// replyKey names a reply queue. A tool_result, a completion_result and a
+// screen_result are matched by their request id, every other reply by its type.
 func replyKey(reply, id string) string {
-	if reply == frameToolResult || reply == frameCompletionResult {
+	if reply == frameToolResult || reply == frameCompletionResult || reply == frameScreenResult {
 		return reply + ":" + id
 	}
 	return reply

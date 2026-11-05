@@ -13,6 +13,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computer "github.com/inference-gateway/cli/internal/computer"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -22,6 +23,13 @@ import (
 // continuePrompt is the message a run input without new messages asks the agent
 // to continue with, the run after one the client interrupted or paused.
 const continuePrompt = "Please continue from where you left off."
+
+// pendingInterrupt is one open interrupt's broker entry: why the run waits
+// and which tool call raised it, empty for the plan and question kinds.
+type pendingInterrupt struct {
+	reason string
+	tool   string
+}
 
 // headlessControl is the single reader of the headless process's stdin. It
 // routes the run inputs a client sends into the message queue and, through
@@ -36,10 +44,12 @@ type headlessControl struct {
 	questions    chan ipc.UserQuestionResponse
 	plans        chan ipc.PlanApprovalResponse
 
-	// pending holds the interrupts the runs raised, keyed by interrupt id and
-	// carrying the reason, so a resume entry routes to its own broker.
+	// pending holds the interrupts the runs raised, keyed by interrupt id
+	// and carrying the reason and the tool call that raised it, so a resume
+	// entry routes to its own broker and a take-over finds the Computer
+	// calls whose approval box is open.
 	pendingMu sync.Mutex
-	pending   map[string]string
+	pending   map[string]pendingInterrupt
 
 	// wake signals the serve loop that a run input landed on the queue.
 	wake    chan struct{}
@@ -55,7 +65,7 @@ func newHeadlessControl(agentService agentdomain.AgentService, messageQueue conv
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
 		plans:        make(chan ipc.PlanApprovalResponse, 4),
-		pending:      make(map[string]string),
+		pending:      make(map[string]pendingInterrupt),
 		wake:         make(chan struct{}, 1),
 	}
 }
@@ -185,10 +195,7 @@ func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 	for _, entry := range input.Resume {
 		c.answerResume(entry)
 	}
-	select {
-	case c.wake <- struct{}{}:
-	default:
-	}
+	c.wakeTurns()
 }
 
 // userMessageText builds the plain user message a run input carries.
@@ -248,12 +255,12 @@ func inputParts(content []any) []agui.InputContent {
 // interrupt the run already let go of must not decide the next one.
 func (c *headlessControl) answerResume(entry agui.ResumeEntry) {
 	c.pendingMu.Lock()
-	reason, open := c.pending[entry.InterruptID]
+	note, open := c.pending[entry.InterruptID]
 	c.pendingMu.Unlock()
 	if !open {
 		return
 	}
-	switch reason {
+	switch note.reason {
 	case agui.InterruptInputRequired:
 		c.questions <- ipc.UserQuestionResponse{
 			Type: "user_question_response", ToolCallID: entry.InterruptID,
@@ -301,12 +308,13 @@ func planDecision(entry agui.ResumeEntry) string {
 	return payload.Action
 }
 
-// Note records the interrupt a run just raised, so the resume entry that
-// answers it routes to its broker.
-func (c *headlessControl) Note(id, reason string) {
+// Note records the interrupt a run just raised and the tool call a tool-call
+// interrupt names, so the resume entry that answers it routes to its broker
+// and a screen take-over finds the open Computer approvals.
+func (c *headlessControl) Note(id, reason, tool string) {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
-	c.pending[id] = reason
+	c.pending[id] = pendingInterrupt{reason: reason, tool: tool}
 }
 
 // Forget drops the interrupt whose answer the run just handled.
@@ -314,6 +322,36 @@ func (c *headlessControl) Forget(id string) {
 	c.pendingMu.Lock()
 	defer c.pendingMu.Unlock()
 	delete(c.pending, id)
+}
+
+// rejectComputerApprovals answers every open approval interrupt of a Computer
+// tool call as rejected, the decision a take-over makes for the agent: the
+// person now decides what happens on that screen. The broker's wait matches
+// by tool call id. A full broker drops the answer, the way Notify drops.
+func (c *headlessControl) rejectComputerApprovals() {
+	c.pendingMu.Lock()
+	var ids []string
+	for id, note := range c.pending {
+		if note.reason == agui.InterruptToolCall && note.tool == computer.ToolComputer {
+			ids = append(ids, id)
+		}
+	}
+	c.pendingMu.Unlock()
+	for _, id := range ids {
+		select {
+		case c.approvals <- ipc.ApprovalResponse{Type: "approval_response", ToolCallID: id, Approved: false}:
+		default:
+		}
+	}
+}
+
+// wakeTurns nudges the serve loop that a run input landed on the queue, the
+// nudge a hand-back's continue message arrives beside.
+func (c *headlessControl) wakeTurns() {
+	select {
+	case c.wake <- struct{}{}:
+	default:
+	}
 }
 
 // awaitTurn blocks until the message queue holds the next turn's input, and
@@ -349,6 +387,12 @@ func (b uiBridge) Notify(event any) {
 		n.Timestamp = time.Now()
 		ev = n
 	case agentdomain.ComputerUseActionEvent:
+		n.Timestamp = time.Now()
+		ev = n
+	case agentdomain.ScreenTakenOverEvent:
+		n.Timestamp = time.Now()
+		ev = n
+	case agentdomain.ScreenHandedBackEvent:
 		n.Timestamp = time.Now()
 		ev = n
 	case agentdomain.BackgroundTasksChangedEvent:

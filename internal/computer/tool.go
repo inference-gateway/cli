@@ -36,9 +36,11 @@ type ComputerTool struct {
 }
 
 // NewComputerTool creates the Computer tool. The notifier receives the
-// computer-use activity each pointer or keyboard action publishes before it runs.
-func NewComputerTool(cfg *config.Config, limiter rateLimiter, notifier agentdomain.UINotifier) *ComputerTool {
-	return &ComputerTool{config: cfg, executor: NewExecutor(cfg, notifier), rateLimiter: limiter}
+// computer-use activity each pointer or keyboard action publishes before it
+// runs. The screen control parks the tool's input actions while a person
+// holds the screen.
+func NewComputerTool(cfg *config.Config, limiter rateLimiter, notifier agentdomain.UINotifier, screen computerdomain.ScreenControl) *ComputerTool {
+	return &ComputerTool{config: cfg, executor: NewExecutor(cfg, notifier, screen), rateLimiter: limiter}
 }
 
 // Manifest returns the tool's manifest so the tool registry knows its policy.

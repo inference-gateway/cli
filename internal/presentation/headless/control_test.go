@@ -120,7 +120,7 @@ func TestHeadlessControl_RunInputResumeAnswersTheQuestion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctl, _, _ := newTestControl()
-			ctl.Note("q1", agui.InterruptInputRequired)
+			ctl.Note("q1", agui.InterruptInputRequired, "")
 			ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"resume":[` + tt.resume + `]}}`))
 			close(ctl.questions)
 
@@ -153,7 +153,7 @@ func TestHeadlessControl_PlanDecisionsReachThePlanBroker(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctl, _, _ := newTestControl()
-			ctl.Note("plan-1", interruptPlanApproval)
+			ctl.Note("plan-1", interruptPlanApproval, "")
 			ctl.dispatchLine([]byte(tt.line))
 			select {
 			case resp := <-ctl.plans:
@@ -169,9 +169,9 @@ func TestHeadlessControl_PlanDecisionsReachThePlanBroker(t *testing.T) {
 
 func TestHeadlessControl_RunInputResumeRoutesToTheBrokers(t *testing.T) {
 	ctl, _, _ := newTestControl()
-	ctl.Note("tc1", agui.InterruptToolCall)
-	ctl.Note("q1", agui.InterruptInputRequired)
-	ctl.Note("gone", agui.InterruptToolCall)
+	ctl.Note("tc1", agui.InterruptToolCall, "Computer")
+	ctl.Note("q1", agui.InterruptInputRequired, "")
+	ctl.Note("gone", agui.InterruptToolCall, "Computer")
 	ctl.Forget("gone")
 
 	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"threadId":"t1","resume":[{"interruptId":"tc1","status":"resolved"}]}}`))
