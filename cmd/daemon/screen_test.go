@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	web "github.com/inference-gateway/cli/internal/presentation/web"
 	sessions "github.com/inference-gateway/cli/internal/sessions"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
-	web "github.com/inference-gateway/cli/internal/presentation/web"
 	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 )
 
