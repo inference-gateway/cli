@@ -340,6 +340,8 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sessions internal/sessions/domain Worker
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sessions internal/sessions/domain Client
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/sessions internal/sessions/domain ThreadRouter
+      - mkdir -p tests/mocks/computer
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/computer internal/computer/domain ScreenControl
       - mkdir -p tests/mocks/agui
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agui internal/protocols/agui Handler
       - mkdir -p tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states
@@ -366,6 +368,7 @@ tasks:
       - "internal/agent/domain/*.go"
       - "internal/agent/loop/states/*.go"
       - "internal/binaries/domain/*.go"
+      - "internal/computer/domain/*.go"
       - "internal/conversation/domain/*.go"
       - "internal/platform/memory/*.go"
       - "internal/platform/storage/*.go"

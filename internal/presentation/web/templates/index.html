@@ -166,6 +166,36 @@
         .screen-image.hidden {
             display: none;
         }
+        .screen-takeover {
+            background: #24283b;
+            border: 1px solid #414868;
+            color: #a9b1d6;
+            font-size: 11px;
+            padding: 2px 10px;
+            margin-left: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .screen-takeover:hover {
+            color: #7aa2f7;
+            border-color: #7aa2f7;
+        }
+        .screen-held {
+            font-size: 11px;
+            color: #e0af68;
+            margin-left: auto;
+            margin-right: 8px;
+        }
+        .screen-held.hidden {
+            display: none;
+        }
+        .screen-view.held {
+            border-color: #e0af68;
+        }
+        .screen-view.held .screen-image:focus {
+            outline: 2px solid rgba(224, 175, 120, 0.6);
+            outline-offset: -3px;
+        }
         #terminal-area {
             flex: 1;
             position: relative;

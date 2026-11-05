@@ -302,7 +302,9 @@ class TerminalTab {
 }
 
 // ScreenView shows the latest frame of the tab's session worker, polled from
-// the daemon's /screen/ route, which answers wherever the session runs.
+// the daemon's /screen/ route, which answers wherever the session runs. Take
+// over drives it: the image takes focus, and the pointer, wheel and keys
+// inside it go to the session's screen; Done, or Esc twice, hands it back.
 class ScreenView {
     constructor(tab) {
         this.tab = tab;
@@ -311,27 +313,49 @@ class ScreenView {
         this.probeTimer = null;
         this.available = null;
         this.reason = 'Waiting for the session to start';
+        this.held = false;
+        this.frameWidth = 0;
+        this.frameHeight = 0;
+        this.lastEsc = 0;
         this.element = document.createElement('div');
         this.element.className = 'screen-view hidden';
         this.element.innerHTML = `
-            <div class="screen-header"><h3>Screen</h3><button class="screen-close" title="Hide">×</button></div>
+            <div class="screen-header"><h3>Screen</h3><span class="screen-held hidden">you are driving</span><button class="screen-takeover" title="Drive the session's screen yourself">Take over</button><button class="screen-close" title="Hide">×</button></div>
             <div class="screen-status">Waiting for the first frame…</div>
-            <img class="screen-image hidden" alt="The session's screen" />
+            <img class="screen-image hidden" alt="The session's screen" tabindex="0" />
         `;
         this.status = this.element.querySelector('.screen-status');
         this.image = this.element.querySelector('.screen-image');
+        this.takeoverBtn = this.element.querySelector('.screen-takeover');
+        this.heldBadge = this.element.querySelector('.screen-held');
         this.element.querySelector('.screen-close').addEventListener('click', () => this.toggle());
+        this.takeoverBtn.addEventListener('click', () => this.toggleHeld());
+        this.image.addEventListener('mousedown', (e) => this.sendClick(e, 'click'));
+        this.image.addEventListener('dblclick', (e) => this.sendClick(e, 'double_click'));
+        this.image.addEventListener('wheel', (e) => this.sendWheel(e), { passive: false });
+        this.image.addEventListener('contextmenu', (e) => e.preventDefault());
+        this.image.addEventListener('keydown', (e) => this.sendKey(e));
         tab.containerElement.appendChild(this.element);
     }
 
     toggle() {
         this.enabled = !this.enabled;
         this.element.classList.toggle('hidden', !this.enabled);
+        this.resetPoll();
+    }
+
+    // pollDelay is how often the view asks for a frame: 250 ms while the
+    // person drives the screen, so typing feels live, two seconds otherwise.
+    pollDelay() {
+        return this.held ? 250 : 2000;
+    }
+
+    resetPoll() {
         clearInterval(this.timer);
         this.timer = null;
         if (this.enabled && this.tab.connected) {
             this.fetchFrame();
-            this.timer = setInterval(() => this.fetchFrame(), 2000);
+            this.timer = setInterval(() => this.fetchFrame(), this.pollDelay());
         }
     }
 
@@ -342,6 +366,19 @@ class ScreenView {
         clearInterval(this.probeTimer);
         this.timer = null;
         this.probeTimer = null;
+        this.release();
+    }
+
+    // release hands a still-held screen back fire-and-forget, so closing
+    // the view or the tab never leaves the worker parked on a screen
+    // nobody drives.
+    release() {
+        if (!this.held) {
+            return;
+        }
+        this.held = false;
+        this.setHeldUI(false);
+        this.postScreen({ action: 'hand_back' }, true).catch(() => {});
     }
 
     // watch probes the session's screen once it has an id, and every ten
@@ -397,11 +434,15 @@ class ScreenView {
                 return;
             }
             this.setAvailable(true, '');
+            this.frameWidth = parseInt(response.headers.get('X-Frame-Width') || '0', 10);
+            this.frameHeight = parseInt(response.headers.get('X-Frame-Height') || '0', 10);
             const url = URL.createObjectURL(await response.blob());
             const previous = this.image.src;
             this.image.src = url;
             this.image.classList.remove('hidden');
-            this.status.classList.add('hidden');
+            if (!this.held) {
+                this.status.classList.add('hidden');
+            }
             if (previous) {
                 URL.revokeObjectURL(previous);
             }
@@ -411,6 +452,198 @@ class ScreenView {
             this.setAvailable(false, this.status.textContent);
         }
     }
+
+    async toggleHeld() {
+        if (this.held) {
+            await this.handBack();
+            return;
+        }
+        await this.takeOver();
+    }
+
+    async takeOver() {
+        try {
+            const response = await this.postScreen({ action: 'take_over' });
+            if (!response.ok) {
+                this.status.textContent = await response.text();
+                this.status.classList.remove('hidden');
+                return;
+            }
+            this.setHeld(true);
+        } catch (error) {
+            this.status.textContent = `Could not reach the daemon: ${error}`;
+            this.status.classList.remove('hidden');
+        }
+    }
+
+    async handBack() {
+        this.lastEsc = 0;
+        try {
+            const response = await this.postScreen({ action: 'hand_back' });
+            if (!response.ok) {
+                this.status.textContent = await response.text();
+                this.status.classList.remove('hidden');
+                return;
+            }
+        } catch (error) {
+            this.status.textContent = `Could not reach the daemon: ${error}`;
+            this.status.classList.remove('hidden');
+            return;
+        }
+        this.setHeld(false);
+    }
+
+    // setHeld flips the held state: the button, the badge, the poll rate
+    // and the image focus, which the frame swap leaves in place.
+    setHeld(held) {
+        this.held = held;
+        this.setHeldUI(held);
+        this.resetPoll();
+        if (held) {
+            this.image.focus();
+        }
+    }
+
+    setHeldUI(held) {
+        this.element.classList.toggle('held', held);
+        this.takeoverBtn.textContent = held ? 'Done' : 'Take over';
+        this.takeoverBtn.title = held ? "Hand the screen back to the agent" : "Drive the session's screen yourself";
+        this.heldBadge.classList.toggle('hidden', !held);
+    }
+
+    postScreen(body, keepalive) {
+        const base = window.location.pathname.replace(/terminal\/?$/, '');
+        return fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, {
+            method: 'POST',
+            keepalive: keepalive === true,
+            headers: { Authorization: `Bearer ${this.tab.manager.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+    }
+
+    async postInput(input) {
+        try {
+            const response = await this.postScreen({ input });
+            if (response.status === 409) {
+                // The tab handed the screen back at the worker, or lost it
+                // to another viewer: stop driving.
+                this.setHeld(false);
+                this.status.textContent = 'The screen is no longer held';
+                this.status.classList.remove('hidden');
+            }
+        } catch (error) {
+            this.status.textContent = `Could not reach the daemon: ${error}`;
+            this.status.classList.remove('hidden');
+        }
+    }
+
+    // framePos maps a pointer position onto the frame space the last frame
+    // answered in, from its X-Frame-Width and X-Frame-Height headers.
+    framePos(event) {
+        const rect = this.image.getBoundingClientRect();
+        const width = this.frameWidth || this.image.naturalWidth;
+        const height = this.frameHeight || this.image.naturalHeight;
+        if (!rect.width || !rect.height || width <= 0 || height <= 0) {
+            return null;
+        }
+        return {
+            x: Math.min(Math.max(Math.round((event.clientX - rect.left) * width / rect.width), 0), width),
+            y: Math.min(Math.max(Math.round((event.clientY - rect.top) * height / rect.height), 0), height)
+        };
+    }
+
+    sendClick(event, kind) {
+        if (!this.held) {
+            return;
+        }
+        event.preventDefault();
+        const at = this.framePos(event);
+        if (!at) {
+            return;
+        }
+        const button = event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left';
+        this.postInput({ kind: kind, x: at.x, y: at.y, button: button });
+    }
+
+    // sendWheel maps the wheel onto scroll inputs, a positive amount
+    // wheeling down or right, the direction the backend scrolls it from.
+    sendWheel(event) {
+        if (!this.held) {
+            return;
+        }
+        event.preventDefault();
+        const clicks = (delta) => Math.sign(delta) * Math.min(Math.max(Math.round(Math.abs(delta) / 100), 1), 10);
+        if (event.deltaY) {
+            this.postInput({ kind: 'scroll', direction: 'vertical', amount: clicks(event.deltaY) });
+        }
+        if (event.deltaX) {
+            this.postInput({ kind: 'scroll', direction: 'horizontal', amount: clicks(event.deltaX) });
+        }
+    }
+
+    // sendKey maps one keydown: printables type, modifiers and specials
+    // tap, and Esc twice hands the screen back - the first still goes to
+    // the screen, so a dialog can be dismissed with it.
+    sendKey(event) {
+        if (!this.held) {
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            const now = Date.now();
+            if (now - this.lastEsc < 2000) {
+                this.handBack();
+                return;
+            }
+            this.lastEsc = now;
+            this.status.textContent = 'Esc again to hand the screen back';
+            this.status.classList.remove('hidden');
+            this.postInput({ kind: 'key', combo: 'escape' });
+            return;
+        }
+        event.preventDefault();
+        if (event.repeat) {
+            return;
+        }
+        const combo = keyCombo(event);
+        if (combo) {
+            this.postInput({ kind: 'key', combo: combo });
+            return;
+        }
+        if (event.key.length === 1) {
+            this.postInput({ kind: 'type', text: event.key });
+        }
+    }
+}
+
+// SCREEN_SPECIAL_KEYS is the robotgo key name a KeyboardEvent's key maps
+// to; anything printable instead types, so the input loop keeps a text
+// path. The names are what the worker's SendKeyCombo understands.
+const SCREEN_SPECIAL_KEYS = {
+    Backspace: 'backspace', Enter: 'enter', Tab: 'tab', Space: 'space',
+    Delete: 'delete', Home: 'home', End: 'end', PageUp: 'pageup', PageDown: 'pagedown',
+    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right'
+};
+
+// keyCombo builds the key input a keydown taps: the modifier prefixes and
+// the key name, or '' when the key is plain printable text.
+function keyCombo(event) {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        return SCREEN_SPECIAL_KEYS[event.key] || (/^F\d{1,2}$/.test(event.key) ? event.key.toLowerCase() : '');
+    }
+    const mods = [];
+    if (event.ctrlKey) { mods.push('ctrl'); }
+    if (event.metaKey) { mods.push('cmd'); }
+    if (event.altKey) { mods.push('alt'); }
+    if (event.shiftKey) { mods.push('shift'); }
+    let key = SCREEN_SPECIAL_KEYS[event.key];
+    if (!key && event.key.length === 1) {
+        key = event.key.toLowerCase();
+    }
+    if (!key) {
+        return '';
+    }
+    return mods.join('+') + '+' + key;
 }
 
 // Initialize when DOM is ready
