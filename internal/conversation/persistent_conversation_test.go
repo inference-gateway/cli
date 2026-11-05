@@ -2,6 +2,7 @@ package conversation
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -468,4 +471,37 @@ func TestPersistentConversationRepository_ErrorCases(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no active conversation to save")
 	})
+}
+
+func TestPersistentConversationRepository_StoresToolImagesWithoutTheirBytes(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
+	ctx := t.Context()
+
+	require.NoError(t, repo.StartNewConversation("Screenshots"))
+	repo.SetAutoSave(false)
+	screenshot := &agentdomain.ToolExecutionResult{
+		ToolName: "Computer",
+		Success:  true,
+		Data:     &computerdomain.Observation{Message: "captured", Image: &computerdomain.Image{Data: "AAAA", MimeType: "image/jpeg", Path: "/shots/1.jpg"}},
+		Images:   []agentdomain.ImageAttachment{{Data: "AAAA", MimeType: "image/jpeg", DisplayName: "computer-screenshot"}},
+	}
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+		Message:       sdk.Message{Role: sdk.Tool, Content: sdk.NewMessageContent("captured")},
+		Time:          time.Now(),
+		ToolExecution: screenshot,
+	}))
+	require.NoError(t, repo.SaveConversation(ctx))
+
+	assert.Equal(t, "AAAA", screenshot.Images[0].Data, "the running turn still reads the bytes")
+
+	conversationID := repo.GetCurrentConversationID()
+	require.NoError(t, repo.LoadConversation(ctx, conversationID))
+	stored := repo.GetMessages()
+	require.Len(t, stored, 1)
+	record, err := json.Marshal(stored[0].ToolExecution)
+	require.NoError(t, err)
+	assert.NotContains(t, string(record), "AAAA")
+	assert.Contains(t, string(record), "/shots/1.jpg")
+	assert.Contains(t, string(record), `"mime_type":"image/jpeg"`)
 }

@@ -13,7 +13,7 @@ type Observation struct {
 
 // Image is a captured frame.
 type Image struct {
-	Data     string // base64-encoded
+	Data     string `json:"-"` // base64-encoded, in memory only - a record keeps Path
 	MimeType string
 	Path     string // on-disk copy, reachable by ImageDecode for non-vision models
 }
