@@ -402,7 +402,10 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 				"/artifacts/":     newArtifactsHandler(),
 				a2ainfra.PeerPath: newPeerA2AHost(registry, teleports, b.Token, b.TLS.RequiresClientAuth()),
 				web.Path:          &web.Terminal{Token: b.Token, ClientCerts: b.TLS.RequiresClientAuth(), Command: chatDaemonCommand},
-				web.ScreenPath:    &web.Screen{Token: b.Token, ClientCerts: b.TLS.RequiresClientAuth(), Frame: screenFrame(registry)},
+				web.ScreenPath: &web.Screen{
+					Token: b.Token, ClientCerts: b.TLS.RequiresClientAuth(),
+					Frame: screenFrame(registry), Control: screenControl(registry), Input: screenInput(registry),
+				},
 			},
 		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
 		if err := binding.Start(); err != nil {

@@ -32,24 +32,27 @@ type Executor struct {
 	cfg           *config.Config
 	accessibility accessibility.Provider
 	notifier      agentdomain.UINotifier
+	screen        computerdomain.ScreenControl
 }
 
-// NewExecutor creates an Executor.
-func NewExecutor(cfg *config.Config, notifier agentdomain.UINotifier) *Executor {
-	return newExecutor(cfg, accessibility.NewProvider(), notifier)
+// NewExecutor creates an Executor. The screen control, when wired, parks input
+// actions while a person holds the screen.
+func NewExecutor(cfg *config.Config, notifier agentdomain.UINotifier, screen computerdomain.ScreenControl) *Executor {
+	return newExecutor(cfg, accessibility.NewProvider(), notifier, screen)
 }
 
-func newExecutor(cfg *config.Config, provider accessibility.Provider, notifier agentdomain.UINotifier) *Executor {
+func newExecutor(cfg *config.Config, provider accessibility.Provider, notifier agentdomain.UINotifier, screen computerdomain.ScreenControl) *Executor {
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
 	}
-	return &Executor{cfg: cfg, accessibility: provider, notifier: notifier}
+	return &Executor{cfg: cfg, accessibility: provider, notifier: notifier, screen: screen}
 }
 
 // Do executes one action and returns the resulting observation.
-//
-//nolint:cyclop // The single switch keeps all Computer action dispatch in one auditable place.
 func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdomain.Observation, error) {
+	if err := e.awaitScreen(ctx, a.Kind); err != nil {
+		return nil, err
+	}
 	if err := acquireScreenLock(); err != nil {
 		return nil, err
 	}
@@ -84,41 +87,10 @@ func (e *Executor) Do(ctx context.Context, a computerdomain.Action) (*computerdo
 			obs.CursorX, obs.CursorY = x*frameW/screenW, y*frameH/screenH
 			obs.Message = fmt.Sprintf("cursor at (%d, %d) in the %dx%d frame space", obs.CursorX, obs.CursorY, frameW, frameH)
 		}
-	case computerdomain.ActionMove, computerdomain.ActionClick, computerdomain.ActionDoubleClick, computerdomain.ActionTripleClick:
-		err = e.pointer(ctx, controller, a, obs, screenW, screenH)
-	case computerdomain.ActionScroll:
-		amount := a.Amount
-		if amount == 0 {
-			amount = 3
-		}
-		direction := a.Direction
-		if direction == "" {
-			direction = "vertical"
-		}
-		if err = controller.ScrollMouse(ctx, amount, direction); err == nil {
-			obs.Message = fmt.Sprintf("scrolled %s by %d", direction, amount)
-		}
-	case computerdomain.ActionType:
-		if a.Text == "" {
-			return nil, fmt.Errorf("type action requires text")
-		}
-		if len(a.Text) > maxTypeTextLength {
-			return nil, fmt.Errorf("text exceeds the %d character limit", maxTypeTextLength)
-		}
-		e.publishActivity(ctx, a.Kind, 0, 0, screenW, screenH)
-		if err = controller.TypeText(ctx, a.Text, 0); err == nil {
-			obs.Message = fmt.Sprintf("typed %d characters", len(a.Text))
-		}
-	case computerdomain.ActionKey:
-		if a.Combo == "" {
-			return nil, fmt.Errorf("key action requires combo")
-		}
-		e.publishActivity(ctx, a.Kind, 0, 0, screenW, screenH)
-		if err = controller.SendKeyCombo(ctx, a.Combo); err == nil {
-			obs.Message = "pressed " + a.Combo
-		}
 	case computerdomain.ActionPress:
 		e.pressAccessibility(ctx, a.Scope, a.Label, obs)
+	case computerdomain.ActionMove, computerdomain.ActionClick, computerdomain.ActionDoubleClick, computerdomain.ActionTripleClick, computerdomain.ActionScroll, computerdomain.ActionType, computerdomain.ActionKey:
+		err = inputDispatch(ctx, controller, a, obs, screenW, screenH, e.publishInput(ctx, screenW, screenH))
 	default:
 		return nil, fmt.Errorf("unknown action %q", a.Kind)
 	}
@@ -238,40 +210,24 @@ func (e *Executor) publishActivity(ctx context.Context, action computerdomain.Ac
 	})
 }
 
-// pointer handles move and the click actions: scale the frame-space target to
-// screen space, move there, then click when requested.
-func (e *Executor) pointer(ctx context.Context, controller display.DisplayController, a computerdomain.Action, obs *computerdomain.Observation, screenW, screenH int) error {
-	if a.Target == nil {
-		return fmt.Errorf("action %q requires x and y", a.Kind)
+// publishInput is the computer-use activity hook of one input action, with
+// the screen size the activity carries.
+func (e *Executor) publishInput(ctx context.Context, screenW, screenH int) func(computerdomain.ActionKind, int, int) {
+	return func(kind computerdomain.ActionKind, x, y int) {
+		e.publishActivity(ctx, kind, x, y, screenW, screenH)
 	}
-	x, y, err := ScaleAPIToScreen(a.Target.X, a.Target.Y, obs.Width, obs.Height, screenW, screenH)
-	if err != nil {
-		return err
-	}
-	e.publishActivity(ctx, a.Kind, x, y, screenW, screenH)
-	if err := controller.MoveMouse(ctx, x, y); err != nil {
-		return err
-	}
-	obs.CursorX, obs.CursorY = a.Target.X, a.Target.Y
+}
 
-	if a.Kind == computerdomain.ActionMove {
-		obs.Message = fmt.Sprintf("moved cursor to (%d, %d)", a.Target.X, a.Target.Y)
+// awaitScreen parks an input action while the person holds the screen, so it
+// runs after hand-back instead of fighting the person's cursor. The wait
+// honours the call's context, so a cancelled turn never hangs on a held
+// screen. Observations read and never wait. An executor without a wired
+// control, as in tests, never waits.
+func (e *Executor) awaitScreen(ctx context.Context, kind computerdomain.ActionKind) error {
+	if !computerdomain.IsInputAction(kind) || e.screen == nil {
 		return nil
 	}
-
-	clicks := 1
-	switch a.Kind {
-	case computerdomain.ActionDoubleClick:
-		clicks = 2
-	case computerdomain.ActionTripleClick:
-		clicks = 3
-	}
-	button := display.ParseMouseButton(a.Button)
-	if err := controller.ClickMouse(ctx, button, clicks); err != nil {
-		return err
-	}
-	obs.Message = fmt.Sprintf("%s at (%d, %d) with the %s button", a.Kind, a.Target.X, a.Target.Y, button)
-	return nil
+	return e.screen.WaitRelease(ctx)
 }
 
 // frameRegionToScreen validates a frame-space rectangle and scales it to

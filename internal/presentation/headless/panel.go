@@ -11,6 +11,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -148,6 +149,11 @@ type PanelDeps struct {
 	DefaultModel  string
 	ArtifactsDir  func(sessionID string) string
 	Frames        func(name string) (agentdomain.FrameSource, bool)
+	// Screen is the worker's screen control, the take-over invariant the
+	// Screen view's control and input frames ride on. Queue is the queue a
+	// hand-back's continue message lands on.
+	Screen computerdomain.ScreenControl
+	Queue  convdomain.MessageQueue
 }
 
 // Panel answers the panel frames a session worker reads on stdin: listings,
@@ -166,6 +172,7 @@ type Panel struct {
 	teleports     *teleports
 	artifacts     *artifacts
 	frames        *frames
+	screen        *screenUnit
 }
 
 // NewPanel builds the panel units, one per frame family, each holding only the
@@ -182,6 +189,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.teleports = &teleports{write: p.write, store: deps.Storage}
 	p.artifacts = &artifacts{write: p.write, dir: deps.ArtifactsDir}
 	p.frames = &frames{write: p.write, sources: deps.Frames}
+	p.screen = newScreenUnit(p.write, deps)
 	return p
 }
 
@@ -232,6 +240,10 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.artifacts.read(msg.ID, msg.Name)
 	case inboundReadFrame:
 		p.frames.read(msg.ID)
+	case inboundScreenControl:
+		p.screen.controlFrame(msg.ID, line)
+	case inboundScreenInput:
+		p.screen.input(msg.ID, line)
 	default:
 		return false
 	}

@@ -28,6 +28,8 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetMessageQueue(), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
 	ctl.panel = svc.NewPanel(os.Stdout)
+	ctl.panel.screen.wake = ctl.wakeTurns
+	ctl.panel.screen.resolve = ctl.rejectComputerApprovals
 	svc.RouteBrowserRequests(ctl.browser.Request)
 	go ctl.readLines(os.Stdin)
 

@@ -32,6 +32,10 @@ func PublishedEvent(event agentdomain.ChatEvent) (agui.Published, bool) {
 			content["x"], content["y"] = ev.X, ev.Y
 		}
 		return agui.Published{ActivityType: "computer_use", MessageID: "computer_use:" + ev.ToolCallID, Content: content}, true
+	case agentdomain.ScreenTakenOverEvent:
+		return agui.Published{StateKey: agui.StateScreenControl, StateValue: map[string]any{"held": true}}, true
+	case agentdomain.ScreenHandedBackEvent:
+		return agui.Published{StateKey: agui.StateScreenControl, StateValue: map[string]any{"held": false}}, true
 	}
 	return agui.Published{}, false
 }
