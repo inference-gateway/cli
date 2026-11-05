@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.245.2](https://github.com/inference-gateway/cli/compare/v0.245.1...v0.245.2) (2026-11-05)
+
+### 🐛 Bug Fixes
+
+* **teleport:** keep a teleporting session on its workspace ([#1708](https://github.com/inference-gateway/cli/issues/1708)) ([2c68adb](https://github.com/inference-gateway/cli/commit/2c68adb2d543fb0eceaa643dee98366bf933b403))
+
 ## [0.245.1](https://github.com/inference-gateway/cli/compare/v0.245.0...v0.245.1) (2026-11-05)
 
 ### 🐛 Bug Fixes
