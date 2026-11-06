@@ -2,7 +2,6 @@ package headless
 
 import (
 	"cmp"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -116,10 +115,7 @@ type RunEncoder struct {
 	// worker executes in a fresh session once the run ends.
 	plan *string
 
-	// suggestNextStep, when wired, yields the finished turn's next-step
-	// suggestion, which the run patches into its state before the terminal
-	// event.
-	suggestNextStep func(ctx context.Context) string
+	suggestNextStep func() string
 
 	// failure is the error the run ends with, which also suppresses the
 	// next-step suggestion.
@@ -142,7 +138,7 @@ type RunEncoderDeps struct {
 	// SuggestNextStep, when wired, yields the finished assistant turn's
 	// one-line next-step suggestion, which the run patches into its state
 	// before the terminal event. nil for a run that publishes none.
-	SuggestNextStep func(ctx context.Context) string
+	SuggestNextStep func() string
 }
 
 // NewRunEncoder builds the encoder for one run over w. History, when non-empty,
@@ -472,7 +468,7 @@ func (r *RunEncoder) publishNextStepSuggestion() {
 	if r.suggestNextStep == nil || r.failure != nil {
 		return
 	}
-	if suggestion := r.suggestNextStep(context.Background()); suggestion != "" {
+	if suggestion := r.suggestNextStep(); suggestion != "" {
 		r.run.PatchState(agui.StateNextStepSuggestion, suggestion)
 	}
 }

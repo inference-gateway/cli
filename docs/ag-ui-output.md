@@ -106,7 +106,8 @@ replaces the others:
 | `screenRecording` | `active` (bool); while a recording runs also `path`, `region` `{x, y, width, height}`, `frameWidth`, `frameHeight` |
 
 A disabled, failed or discarded suggestion publishes nothing, so `nextStepSuggestion` stays at its seeded `""`, and the
-suggestion call's tokens land in the same session totals the terminal event carries.
+suggestion call's tokens land in the same session totals the terminal event carries. A turn with a message already
+queued behind it, a failed or cancelled run and a subagent's worker ask for no suggestion at all.
 
 While a recording runs, its `region` and `frameWidth`/`frameHeight` are in the
 frame space the recorder captures - the same space screenshots and their
