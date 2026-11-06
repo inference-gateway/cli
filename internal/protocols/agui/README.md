@@ -5,7 +5,8 @@ binding with both of its ends.
 **Why** - external orchestrators and clients need a stable published event schema carried over a transport that
 does not care who connects, and the rest of the CLI needs one place that knows the protocol.
 **How** - `Run` writes one run as newline-delimited AG-UI JSON, one event per `Write`, and guarantees exactly one
-terminal `RUN_FINISHED` or `RUN_ERROR`. `Binding` owns the listener, the `Origin` check, the token handshake,
+terminal `RUN_FINISHED` or `RUN_ERROR`. `Decode` reads one such frame back into its typed event, the client
+side of `Run`. `Binding` owns the listener, the `Origin` check, the token handshake,
 the connections and their pings, and hands every frame to its `Handler`. `Dial` is the client end and hands
 the frames it receives to a `Handler` too.
 
@@ -29,7 +30,8 @@ Everything else imports it:
   files, under the same loopback listener as `/ws`. They may serve files and know about clients, the binding
   does not.
 - The AG-UI SDK stays confined here. `Message`, `Role`, `ToolCall` and `FunctionCall` are the types a caller
-  builds a `MESSAGES_SNAPSHOT` from.
+  builds a `MESSAGES_SNAPSHOT` from. The event types `Decode` returns are aliases of the SDK's, so a client
+  switches on them without importing it.
 
 ## Dependencies
 
