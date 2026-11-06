@@ -314,7 +314,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 
 	var ctl *headlessControl
 	if opts.Format != "text" {
-		ctl = newHeadlessControl(agentService, svc.GetMessageQueue(), svc.GetGitHubIssueService(), sessionID)
+		ctl = newHeadlessControl(agentService, svc.GetMessageQueue(), newReferences(svc), sessionID)
 		go ctl.readLines(os.Stdin)
 	}
 	rendered = true

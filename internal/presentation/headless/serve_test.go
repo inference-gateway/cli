@@ -43,7 +43,7 @@ func serveDirect(t *testing.T, tools *agentdomainmocks.FakeToolService, ctl *hea
 	repo := conversation.NewPersistentConversationRepository(nil, nil, storage.NewMemoryStorage())
 	repo.SetConversationID("rolled")
 	if ctl == nil {
-		ctl = newHeadlessControl(&agentdomainmocks.FakeAgentService{}, &convmocks.FakeMessageQueue{}, nil, "first")
+		ctl = newHeadlessControl(&agentdomainmocks.FakeAgentService{}, &convmocks.FakeMessageQueue{}, references{}, "first")
 	}
 	req := agentdomain.AgentRequest{RequestID: "first", Model: "m"}
 	return captureStdout(t, func() {
@@ -101,7 +101,7 @@ func TestRunServeDirectRunsACommandInAnyModeOnTheLiveConversation(t *testing.T) 
 }
 
 func TestInterruptStopsTheDirectCommandTheServeLoopRuns(t *testing.T) {
-	ctl := newHeadlessControl(&agentdomainmocks.FakeAgentService{}, &convmocks.FakeMessageQueue{}, nil, "first")
+	ctl := newHeadlessControl(&agentdomainmocks.FakeAgentService{}, &convmocks.FakeMessageQueue{}, references{}, "first")
 	tools := &agentdomainmocks.FakeToolService{}
 	tools.IsToolEnabledReturns(true)
 	tools.ExecuteToolDirectStub = func(ctx context.Context, _ sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {

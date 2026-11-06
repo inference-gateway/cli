@@ -241,6 +241,11 @@ whose `messages` holds the new messages only, since the worker owns the history:
   by the worker before the run: the issue's title, body and most recent
   comments replace the token, the way the chat TUI expands it. A failed
   fetch leaves the raw token in place.
+- An `@<path>` token in a text part is expanded by the worker before the
+  run, the way the chat TUI expands it: a text file is inlined as a fenced
+  block, a Markdown file as its `## Summary` section when it has one, and an
+  image becomes a note naming its path. A path that does not resolve to a
+  readable file within the size limits stays in place as the raw token.
 
 Client → CLI, stop the turn currently streaming (a no-op when nothing runs):
 
@@ -465,7 +470,7 @@ CLI → client, one reply per request id:
 ## Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_issues`,
-`list_models`, `select_model`, `set_mode`, `tool_request`, `completion_request`,
+`list_files`, `list_models`, `select_model`, `set_mode`, `tool_request`, `completion_request`,
 `list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on the
 live thread of the session `id` names, else on any running worker there, else
@@ -555,6 +560,30 @@ shows nothing - no git repo, no `gh`, no auth, or a failed `gh` call):
   the issue service's list returns it.
 - The list is the service's recent-open-issues list, so its internal cap
   applies.
+
+## Project files
+
+The panel offers an "@" autocomplete of the current project's files, the menu
+the chat TUI's input offers. An `@<path>` token a client sends in a
+`run_agent_input` message is expanded by the worker the same way.
+
+Client → CLI, list the project's files:
+
+```json
+{"type": "list_files", "project_dir": "/abs/path/to/project"}
+```
+
+CLI → client, the files the worker offers for `@<path>` expansion (empty when
+the project dir cannot be walked):
+
+```json
+{"type": "files", "files": ["cmd/infer/main.go", "README.md", "~/.infer/config.yaml"]}
+```
+
+- Paths are relative to the worker's project dir, followed by the user's
+  `~/.infer` files as `~/.infer/<path>`. Each is usable as-is after an "@".
+- Hidden files, ignored directories and files over the expansion size limits
+  are left out, as in the TUI's menu.
 
 ## Models
 

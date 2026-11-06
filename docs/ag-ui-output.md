@@ -232,7 +232,9 @@ history. A user message's `content` is a string or content parts: `{"type":"text
 tmp dir. PNG, JPEG, GIF and WebP images reach the model as image parts, and other files as a note naming
 the saved path. Files over 10 MiB are skipped. A `#N` token in a text part, at the start or after
 whitespace, is expanded by the worker like the chat TUI's: the issue's title, body and most recent
-comments replace it, and a failed fetch leaves the raw token in place.
+comments replace it, and a failed fetch leaves the raw token in place. An `@<path>` token is expanded
+the same way: a text file is inlined as a fenced block, a Markdown file as its `## Summary` section when
+it has one, an image becomes a note naming its path, and an unreadable path stays as the raw token.
 
 Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation the worker holds (a
 rollover or an accepted plan moves it on to a new one, which a client follows), then exactly one

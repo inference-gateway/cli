@@ -58,6 +58,7 @@ var replyTypes = map[string][]string{
 	"list_history":         {"history"},
 	"list_skills":          {"skills"},
 	"list_issues":          {"issues"},
+	"list_files":           {"files"},
 	"list_models":          {"models"},
 	"select_model":         {"models", "mode"},
 	"set_mode":             {"mode"},
