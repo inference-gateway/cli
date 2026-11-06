@@ -192,10 +192,10 @@ type PanelDeps struct {
 	DefaultModel  string
 	ArtifactsDir  func(sessionID string) string
 	Frames        func(name string) (agentdomain.FrameSource, bool)
-	Screen computerdomain.ScreenControl
-	Queue  convdomain.MessageQueue
-	Jobs     scheddomain.BackgroundTaskRegistry
-	A2ATasks a2adomain.BackgroundTaskService
+	Screen        computerdomain.ScreenControl
+	Queue         convdomain.MessageQueue
+	Jobs          scheddomain.BackgroundTaskRegistry
+	A2ATasks      a2adomain.BackgroundTaskService
 }
 
 // Panel answers the panel frames a session worker reads on stdin: listings,
