@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -242,6 +243,36 @@ func TestPanelListIssuesAnswersEmptyWhereTheTUIShowsNothing(t *testing.T) {
 			handle(t, p, map[string]any{"type": "list_issues"})
 			if raw, ok := readFrame(t, sink, "issues")["issues"].([]any); !ok || len(raw) != 0 {
 				t.Fatalf("expected an empty issues list, got %v", raw)
+			}
+		})
+	}
+}
+
+func TestPanelListFiles(t *testing.T) {
+	served := &agentdomainmocks.FakeFileService{}
+	served.ListProjectFilesReturns([]string{"main.go", "docs/readme.md"}, nil)
+	failing := &agentdomainmocks.FakeFileService{}
+	failing.ListProjectFilesReturns(nil, errors.New("walk failed"))
+
+	tests := []struct {
+		name  string
+		files agentdomain.FileService
+		want  []any
+	}{
+		{name: "served list", files: served, want: []any{"main.go", "docs/readme.md"}},
+		{name: "no service", files: nil, want: []any{}},
+		{name: "failed walk", files: failing, want: []any{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := panelDeps()
+			deps.Files = tt.files
+			p, sink := startPanel(deps)
+
+			handle(t, p, map[string]any{"type": "list_files"})
+			got, ok := readFrame(t, sink, "files")["files"].([]any)
+			if !ok || !slices.Equal(got, tt.want) {
+				t.Fatalf("files = %v, want %v", got, tt.want)
 			}
 		})
 	}

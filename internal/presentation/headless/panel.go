@@ -29,6 +29,7 @@ const (
 	inboundListConversations  = "list_conversations"
 	inboundListSkills         = "list_skills"
 	inboundListIssues         = "list_issues"
+	inboundListFiles          = "list_files"
 	inboundListModels         = "list_models"
 	inboundSelectModel        = "select_model"
 	inboundSetMode            = "set_mode"
@@ -40,6 +41,7 @@ const (
 	outboundConversations    = "conversations"
 	outboundSkills           = "skills"
 	outboundIssues           = "issues"
+	outboundFiles            = "files"
 	outboundHistory          = "history"
 	outboundModels           = "models"
 	outboundMode             = "mode"
@@ -128,6 +130,11 @@ type issuesFrame struct {
 	Issues []issueSummary `json:"issues"`
 }
 
+type filesFrame struct {
+	Type  string   `json:"type"`
+	Files []string `json:"files"`
+}
+
 type historyFrame struct {
 	Type    string   `json:"type"`
 	History []string `json:"history"`
@@ -155,6 +162,7 @@ type PanelDeps struct {
 	Conversations convdomain.ConversationRepository
 	Skills        agentdomain.SkillsService
 	Issues        agentdomain.GitHubIssueService
+	Files         agentdomain.FileService
 	Tools         agentdomain.ToolService
 	Approval      agentdomain.ApprovalPolicy
 	Models        convdomain.ModelService
@@ -182,6 +190,7 @@ type Panel struct {
 	history       *history
 	skills        *skills
 	issues        *issues
+	files         *projectFiles
 	models        *modelPicker
 	modes         *modes
 	tools         *toolRequests
@@ -200,6 +209,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.history = newHistory(p.write, deps.History)
 	p.skills = &skills{write: p.write, service: deps.Skills}
 	p.issues = &issues{write: p.write, service: deps.Issues}
+	p.files = &projectFiles{write: p.write, service: deps.Files}
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
 	p.tools = newToolRequests(p.write, p.out, deps)
@@ -239,6 +249,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.skills.list()
 	case inboundListIssues:
 		p.issues.list()
+	case inboundListFiles:
+		p.files.list()
 	case inboundListModels:
 		p.models.list()
 	case inboundSelectModel:
@@ -447,6 +459,31 @@ func (i *issues) list() {
 		frame.Issues = append(frame.Issues, issueSummary{Number: issue.Number, Title: issue.Title, State: issue.State})
 	}
 	i.write(frame)
+}
+
+// projectFiles answers list_files with the files the file service offers for
+// `@<path>` expansion, the "@" menu the chat TUI's input offers.
+type projectFiles struct {
+	write   frameWriter
+	service agentdomain.FileService
+}
+
+// list answers list_files with the service's project files. A missing service
+// or a failed walk still answers with an empty list.
+func (f *projectFiles) list() {
+	frame := filesFrame{Type: outboundFiles, Files: []string{}}
+	if f.service == nil {
+		f.write(frame)
+		return
+	}
+	listed, err := f.service.ListProjectFiles()
+	if err != nil {
+		logger.Debug("panel failed to list project files", "error", err)
+		f.write(frame)
+		return
+	}
+	frame.Files = append(frame.Files, listed...)
+	f.write(frame)
 }
 
 // modelPicker answers the panel's model picker from the worker's model service,

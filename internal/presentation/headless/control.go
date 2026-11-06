@@ -18,6 +18,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	models "github.com/inference-gateway/cli/internal/platform/models"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
@@ -40,7 +41,7 @@ type pendingInterrupt struct {
 type headlessControl struct {
 	agentService agentdomain.AgentService
 	messageQueue convdomain.MessageQueue
-	issues       agentdomain.GitHubIssueService
+	refs         references
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
 	questions    chan ipc.UserQuestionResponse
@@ -72,11 +73,11 @@ type headlessControl struct {
 	deferred []convdomain.QueuedMessage
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, messageQueue convdomain.MessageQueue, issues agentdomain.GitHubIssueService, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, messageQueue convdomain.MessageQueue, refs references, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		messageQueue: messageQueue,
-		issues:       issues,
+		refs:         refs,
 		sessionID:    sessionID,
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
@@ -194,19 +195,15 @@ type runInputFrame struct {
 }
 
 // enqueueRunInput queues the input's new messages for the next turn and routes
-// its resume entries to the brokers the open interrupts wait on: `#N` tokens in
-// the text expand to the issue's block, and attachments save to the project tmp
-// dir as image parts or notes naming the saved path. A run input with no messages
+// its resume entries to the brokers the open interrupts wait on: `@<path>` and
+// `#N` tokens in the text expand, and attachments save to the project tmp dir
+// as image parts or notes naming the saved path. A run input with no messages
 // is the continue run the client asks for after stopping one, which the agent
 // continues from the conversation it kept.
 func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 	for _, msg := range input.Messages {
 		text, attachments := messageParts(msg)
-		expanded, failures := agentdomain.ExpandIssueReferences(context.Background(), c.issues, text)
-		for number, err := range failures {
-			logger.Debug("issue expansion: GetIssue failed - leaving token in place", "number", number, "error", err)
-		}
-		text = expanded
+		text = c.refs.expand(text)
 		images, notes := saveAttachments(attachments)
 		content := strings.Join(append([]string{text}, notes...), "\n")
 		if content == "" && len(images) == 0 {
@@ -232,6 +229,34 @@ func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 		c.answerResume(entry)
 	}
 	c.wakeTurns()
+}
+
+// references expands the tokens a run input's text carries the way the chat
+// TUI's input does: `@<path>` files first, then `#N` issues.
+type references struct {
+	files  agentdomain.FileService
+	images agentdomain.ImageService
+	models convdomain.ModelService
+	issues agentdomain.GitHubIssueService
+}
+
+func newReferences(svc Services) references {
+	return references{
+		files:  svc.GetFileService(),
+		images: svc.GetImageService(),
+		models: svc.GetModelService(),
+		issues: svc.GetGitHubIssueService(),
+	}
+}
+
+func (r references) expand(text string) string {
+	supportsVision := r.models != nil && models.SupportsVision(r.models.GetCurrentModel())
+	text = agentdomain.ExpandFileReferences(text, r.files, r.images, supportsVision)
+	expanded, failures := agentdomain.ExpandIssueReferences(context.Background(), r.issues, text)
+	for number, err := range failures {
+		logger.Debug("issue expansion: GetIssue failed - leaving token in place", "number", number, "error", err)
+	}
+	return expanded
 }
 
 // userMessageText builds the plain user message a run input carries.

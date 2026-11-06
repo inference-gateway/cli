@@ -27,7 +27,7 @@ import (
 // the queue is empty. Mid-turn messages stay queued for the running turn to
 // drain, and panel frames are answered on stdout whenever they arrive.
 func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, notes *startupNotes) {
-	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetMessageQueue(), svc.GetGitHubIssueService(), turn.RequestID)
+	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetMessageQueue(), newReferences(svc), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
 	ctl.panel = svc.NewPanel(os.Stdout)
 	ctl.panel.screen.wake = ctl.wakeTurns

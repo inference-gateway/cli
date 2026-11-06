@@ -1,6 +1,7 @@
 package headless
 
 import (
+	"errors"
 	"io"
 	"slices"
 	"strings"
@@ -23,7 +24,7 @@ import (
 func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *conversationmocks.FakeMessageQueue) {
 	agent := &agentdomainmocks.FakeAgentService{}
 	queue := &conversationmocks.FakeMessageQueue{}
-	return newHeadlessControl(agent, queue, nil, "sess-1"), agent, queue
+	return newHeadlessControl(agent, queue, references{}, "sess-1"), agent, queue
 }
 
 func TestEnqueueRunInputExpandsIssueReferences(t *testing.T) {
@@ -33,7 +34,7 @@ func TestEnqueueRunInputExpandsIssueReferences(t *testing.T) {
 		URL: "https://github.com/o/r/issues/123",
 	}, nil)
 	ctl, _, queue := newTestControl()
-	ctl.issues = gh
+	ctl.refs.issues = gh
 
 	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"messages":[{"id":"m1","role":"user","content":"fix #123 please"}]}}`))
 
@@ -51,6 +52,31 @@ func TestEnqueueRunInputExpandsIssueReferences(t *testing.T) {
 	_, number := gh.GetIssueArgsForCall(0)
 	if number != 123 {
 		t.Errorf("GetIssue number = %d, want 123", number)
+	}
+}
+
+func TestEnqueueRunInputExpandsFileReferences(t *testing.T) {
+	files := &agentdomainmocks.FakeFileService{}
+	files.ValidateFileStub = func(path string) error {
+		if path == "main.go" {
+			return nil
+		}
+		return errors.New("file does not exist")
+	}
+	files.ReadFileReturns("package main", nil)
+	ctl, _, queue := newTestControl()
+	ctl.refs.files = files
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"messages":[{"id":"m1","role":"user","content":"read @main.go and @missing.go"}]}}`))
+
+	if queue.EnqueueCallCount() != 1 {
+		t.Fatalf("enqueued %d messages, want 1", queue.EnqueueCallCount())
+	}
+	_, message, _, _ := queue.EnqueueArgsForCall(0)
+	text, _ := message.Content.AsMessageContent0()
+	want := "read File: main.go\n```main.go\npackage main\n```\n and @missing.go"
+	if text != want {
+		t.Errorf("expanded text = %q, want %q", text, want)
 	}
 }
 

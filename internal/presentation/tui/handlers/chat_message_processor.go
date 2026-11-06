@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -214,79 +213,15 @@ func approvedInstall(answers []agentdomain.UserQuestionAnswer) bool {
 
 // ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)
 func (p *ChatMessageProcessor) ExtractMarkdownSummary(content string) (string, bool) {
-	lines := strings.Split(content, "\n")
-	var summaryLines []string
-	inSummary := false
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "## Summary" {
-			inSummary = true
-			summaryLines = append(summaryLines, line)
-			continue
-		}
-
-		if inSummary {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
-				break
-			}
-			summaryLines = append(summaryLines, line)
-		}
-	}
-
-	if len(summaryLines) > 1 {
-		result := strings.Join(summaryLines, "\n")
-		result = strings.TrimRight(result, " \t\n") + "\n"
-		return result, true
-	}
-
-	return "", false
+	return agentdomain.MarkdownSummary(content)
 }
 
-// expandFileReferences expands @filename references: text files are inlined,
-// images are referenced by path only ("[Image: <path>]").
+// expandFileReferences expands @filename references through the shared
+// agent-domain expansion: text files are inlined, images are referenced by
+// path only, and an invalid reference stays in place.
 func (p *ChatMessageProcessor) expandFileReferences(content string) (string, error) {
-	re := regexp.MustCompile(`@([^\s]+)`)
-	matches := re.FindAllStringSubmatch(content, -1)
-
-	if len(matches) == 0 {
-		return content, nil
-	}
-
-	expandedContent := content
-
-	for _, match := range matches {
-		fullMatch := match[0]
-		filename := match[1]
-
-		if err := p.handler.fileService.ValidateFile(filename); err != nil {
-			continue
-		}
-
-		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
-			supportsVision := p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel())
-			imageRef := agentdomain.ImageFileRef(filename, supportsVision)
-			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
-			continue
-		}
-
-		fileContent, err := p.handler.fileService.ReadFile(filename)
-		if err != nil {
-			continue
-		}
-
-		contentToInclude := fileContent
-		if strings.HasSuffix(strings.ToLower(filename), ".md") {
-			if summaryContent, hasSummary := p.ExtractMarkdownSummary(fileContent); hasSummary {
-				contentToInclude = summaryContent
-			}
-		}
-
-		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, contentToInclude)
-		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
-	}
-
-	return expandedContent, nil
+	supportsVision := p.handler.modelService != nil && models.SupportsVision(p.handler.modelService.GetCurrentModel())
+	return agentdomain.ExpandFileReferences(content, p.handler.fileService, p.handler.imageService, supportsVision), nil
 }
 
 // expandIssueReferences replaces `#N` tokens in the user's message with an

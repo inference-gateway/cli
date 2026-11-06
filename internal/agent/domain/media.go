@@ -1,6 +1,11 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 // FileService handles file operations
 type FileService interface {
@@ -86,4 +91,62 @@ func (r VideoRequest) IsAvatar() bool {
 // completes, fails or the context ends.
 type VideoService interface {
 	Render(ctx context.Context, request VideoRequest, outPath string) error
+}
+
+// fileRefRe matches an `@<path>` token, the path running to the next whitespace.
+var fileRefRe = regexp.MustCompile(`@([^\s]+)`)
+
+// ExpandFileReferences replaces every `@<path>` token in content. A text file
+// is inlined as a fenced block, a Markdown file as its `## Summary` section when
+// it has one, and an image becomes a path note for the image tools. A path the
+// file service rejects or cannot read stays in place as the raw token.
+func ExpandFileReferences(content string, files FileService, images ImageService, supportsVision bool) string {
+	if files == nil {
+		return content
+	}
+	return fileRefRe.ReplaceAllStringFunc(content, func(token string) string {
+		path := strings.TrimPrefix(token, "@")
+		if err := files.ValidateFile(path); err != nil {
+			return token
+		}
+		if images != nil && images.IsImageFile(path) {
+			return ImageFileRef(path, supportsVision)
+		}
+		body, err := files.ReadFile(path)
+		if err != nil {
+			return token
+		}
+		if strings.HasSuffix(strings.ToLower(path), ".md") {
+			if summary, found := MarkdownSummary(body); found {
+				body = summary
+			}
+		}
+		return fmt.Sprintf("File: %s\n```%s\n%s\n```\n", path, path, body)
+	})
+}
+
+// MarkdownSummary returns the `## Summary` section of a Markdown document, up
+// to the next second-level heading or horizontal rule, when it has a body.
+func MarkdownSummary(content string) (string, bool) {
+	var summaryLines []string
+	inSummary := false
+	for line := range strings.SplitSeq(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "## Summary" {
+			inSummary = true
+			summaryLines = append(summaryLines, line)
+			continue
+		}
+		if !inSummary {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
+			break
+		}
+		summaryLines = append(summaryLines, line)
+	}
+	if len(summaryLines) < 2 {
+		return "", false
+	}
+	return strings.TrimRight(strings.Join(summaryLines, "\n"), " \t\n") + "\n", true
 }
