@@ -78,7 +78,7 @@ with the same `messageId`:
 | `bash_output` | `bash:<toolCallId>` | `toolCallId`, `output` (the latest chunk, not the whole output so far), `complete` |
 
 A tool's `status` moves through `queued`, `starting`, `running` and `saving` to `completed` or
-`failed`. A call the user stopped before it ran reports `cancelled` and gets no other status.
+`failed`. A call the user stopped before it ran reports `cancelled` and gets no further status.
 `optimization_status` is written once the worker has optimized the conversation to fit the context window, and
 the counts are the messages before and after. `bash_output` carries one chunk per snapshot, so a client that shows the whole output
 appends each chunk instead of replacing what it has.
