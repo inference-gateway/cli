@@ -13,7 +13,7 @@ license: Apache-2.0
 # Bubble Tea v2
 
 The Elm-Architecture TUI runtime. Import `charm.land/bubbletea/v2` (alias `tea`);
-pinned to v2.0.9. State lives in a `Model`; messages drive `Update`, which returns
+pinned to v2.1.1. State lives in a `Model`; messages drive `Update`, which returns
 a new model and optional commands; `View` renders. The biggest risk here is v1
 muscle memory, so start with what changed.
 
@@ -93,6 +93,15 @@ func (m model) View() tea.View {
 }
 ```
 
+Since v2.1.0 the View also carries `v.ProgramStatus` (a `*tea.ProgramStatus`), the
+Program Status Protocol (OSC 7501) report that tells the terminal what the program is
+doing. Its state is one of `tea.ProgramStateIdle`, `ProgramStateWorking`,
+`ProgramStateBlocked`, `ProgramStateDone`, `ProgramStateError` or `ProgramStateClear`,
+and a blocked program names what it waits for with a `tea.ProgramStatusKind*`
+(permission, question, auth). Terminals without support ignore it, and
+`tea.RequestProgramStatusSupport` probes for it. The status outlives the program, so
+report done, error or idle before quitting. This repo does not set it yet.
+
 `WithAltScreen`, `WithMouseCellMotion`, `WithMouseAllMotion`, `WithReportFocus` no
 longer exist. The real `tea.NewProgram` options are `WithContext`, `WithInput`,
 `WithOutput`, `WithFPS`, `WithFilter`, `WithColorProfile`, `WithWindowSize`,
@@ -160,5 +169,5 @@ func fetch(url string) tea.Cmd {
 - Reaching for `tea.WithAltScreen()`? Gone - set `v.AltScreen = true` in the View.
 
 Pairs with **lipgloss-v2** (styling the strings in your View) and **bubbles-v2**
-(prebuilt components). Pinned to bubbletea v2.0.9 - verify against the installed
+(prebuilt components). Pinned to bubbletea v2.1.1 - verify against the installed
 module, not v1 memory.
