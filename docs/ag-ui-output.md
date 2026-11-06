@@ -47,6 +47,8 @@ belongs to a run. A frame with a lowercase `type` is an app frame, in either dir
 | Background job finished | The landed note as a text message with its conversation role, first line `[<Kind> Completed\|Failed: <label>]` |
 | Screen recording starts or ends | `STATE_DELTA` patching `screenRecording` with `active`, and the frame while it runs |
 | Computer tool pointer or keyboard action | `ACTIVITY_SNAPSHOT` `computer_use` keyed `computer_use:<toolCallId>`, the action and its screen coordinates. See [Activity](#activity) |
+| Tool call cancelled before it ran | `ACTIVITY_SNAPSHOT` `tool_progress` keyed `tool:<toolCallId>` with `status` `cancelled`. See [Activity](#activity) |
+| Conversation optimized to fit the context window | `ACTIVITY_SNAPSHOT` `optimization_status` keyed `optimization`. See [Activity](#activity) |
 | LLM judge verdict (`auto-with-judge`) | `ACTIVITY_SNAPSHOT` `judge_verdict` keyed `judge:<tool>:<turn>`. See [Activity](#activity) |
 | Serve turn ended with a suggested next step | `STATE_DELTA` patching `nextStepSuggestion`, right before the terminal event. See [State](#state) |
 | Approval request (`--require-approval`) | `RUN_FINISHED` with outcome `interrupt`, the interrupt's `reason` `tool_call` and its `toolCallId`. See [Interrupts](#interrupts) |
@@ -72,10 +74,13 @@ with the same `messageId`:
 | `judge_verdict` | `judge:<tool>:<turn>` | `tool`, `model`, `decision`, `reason`, `turn` |
 | `computer_use` | `computer_use:<toolCallId>` | `toolCallId`, `action`, pointer `x`/`y` in screen coordinates, `screenWidth`, `screenHeight` |
 | `tool_progress` | `tool:<toolCallId>` | `toolCallId`, `toolName`, `status`, `message` |
+| `optimization_status` | `optimization` | `message` and the message counts `originalCount` and `optimizedCount` |
 | `bash_output` | `bash:<toolCallId>` | `toolCallId`, `output` (the latest chunk, not the whole output so far), `complete` |
 
 A tool's `status` moves through `queued`, `starting`, `running` and `saving` to `completed` or
-`failed`. `bash_output` carries one chunk per snapshot, so a client that shows the whole output
+`failed`. A call the user stopped before it ran reports `cancelled` and gets no other status.
+`optimization_status` is written once the worker has optimized the conversation to fit the context window, and
+the counts are the messages before and after. `bash_output` carries one chunk per snapshot, so a client that shows the whole output
 appends each chunk instead of replacing what it has.
 
 A computer-use action is written just before the Computer tool performs a

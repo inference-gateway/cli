@@ -377,6 +377,20 @@ func TestRunEncoder_PublishesToolActivity(t *testing.T) {
 			activityType: "bash_output",
 			want:         map[string]any{"toolCallId": "tc1", "output": "line 1\n", "complete": true},
 		},
+		{
+			name:         "tool cancelled before it ran",
+			event:        agentdomain.ToolCancelledEvent{ToolCallID: "tc1", ToolName: "Bash"},
+			messageID:    "tool:tc1",
+			activityType: "tool_progress",
+			want:         map[string]any{"toolCallId": "tc1", "toolName": "Bash", "status": "cancelled", "message": ""},
+		},
+		{
+			name:         "conversation optimization",
+			event:        agentdomain.OptimizationStatusEvent{Message: "Conversation optimized", OriginalCount: 40, OptimizedCount: 12},
+			messageID:    "optimization",
+			activityType: "optimization_status",
+			want:         map[string]any{"message": "Conversation optimized", "originalCount": float64(40), "optimizedCount": float64(12)},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

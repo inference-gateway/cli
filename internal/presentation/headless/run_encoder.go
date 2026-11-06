@@ -412,6 +412,14 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		r.run.Activity("tool:"+ev.ToolCallID, "tool_progress", map[string]any{
 			"toolCallId": ev.ToolCallID, "toolName": ev.ToolName, "status": ev.Status, "message": ev.Message,
 		})
+	case agentdomain.ToolCancelledEvent:
+		r.run.Activity("tool:"+ev.ToolCallID, "tool_progress", map[string]any{
+			"toolCallId": ev.ToolCallID, "toolName": ev.ToolName, "status": "cancelled", "message": "",
+		})
+	case agentdomain.OptimizationStatusEvent:
+		r.run.Activity("optimization", "optimization_status", map[string]any{
+			"message": ev.Message, "originalCount": ev.OriginalCount, "optimizedCount": ev.OptimizedCount,
+		})
 	case agentdomain.BashOutputChunkEvent:
 		r.run.Activity("bash:"+ev.ToolCallID, "bash_output", map[string]any{
 			"toolCallId": ev.ToolCallID, "output": ev.Output, "complete": ev.IsComplete,
