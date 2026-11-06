@@ -116,10 +116,6 @@ type RunEncoder struct {
 	plan *string
 
 	suggestNextStep func() string
-
-	// failure is the error the run ends with, which also suppresses the
-	// next-step suggestion.
-	failure error
 }
 
 // RunEncoderDeps are the collaborators of one run's encoder.
@@ -385,10 +381,10 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 			r.run.PatchState(agui.StateUsage, usage)
 		}
 		if err := render.CompletionErr(ev); err != nil {
-			r.fail(err)
+			r.run.Fail(err)
 		}
 	case agentdomain.ChatErrorEvent:
-		r.fail(ev.Error)
+		r.run.Fail(ev.Error)
 	case agentdomain.UserMessageChatEvent:
 		r.run.Message("user", ev.Content)
 	case agentdomain.ToolExecutionCompletedEvent:
@@ -454,18 +450,11 @@ func (r *RunEncoder) Finish() error {
 	return nil
 }
 
-// fail records the failure the run ends with, which also suppresses the
-// next-step suggestion.
-func (r *RunEncoder) fail(err error) {
-	r.failure = err
-	r.run.Fail(err)
-}
-
 // publishNextStepSuggestion patches the run's state with the one-line
 // next-step suggestion the source yields, the ghost text the chat TUI offers.
 // A failed run, an unwired source and an empty suggestion publish nothing.
 func (r *RunEncoder) publishNextStepSuggestion() {
-	if r.suggestNextStep == nil || r.failure != nil {
+	if r.suggestNextStep == nil || r.run.Err() != nil {
 		return
 	}
 	if suggestion := r.suggestNextStep(); suggestion != "" {

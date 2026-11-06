@@ -314,6 +314,11 @@ func (r *Run) Fail(err error) {
 	r.err = err
 }
 
+// Err is the failure the run ends with, nil while the run is clean.
+func (r *Run) Err() error {
+	return r.err
+}
+
 // Finish writes the run's one terminal event and returns the failure: a
 // cancelled run ends with outcome cancelled, a failed one with RUN_ERROR,
 // both carrying usage, and a clean run with outcome success carrying the
