@@ -849,8 +849,8 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
 - **chat.daemon**: Run the chat TUI as a client of the local infer daemon, the way `infer chat --daemon` does
   (default: `false`, env `INFER_CHAT_DAEMON`). See [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)
 
-- **chat.agui_loopback**: Render a local chat's runs through AG-UI, the path a daemon chat takes, while that path
-  is proven against the direct one (default: `false`, env `INFER_CHAT_AGUI_LOOPBACK`)
+- **chat.agui_loopback**: Render a local chat's runs through AG-UI, the path a daemon chat takes (default: `true`,
+  env `INFER_CHAT_AGUI_LOOPBACK`). Set it to `false` to fall back to the handlers reading the agent directly
 
 - **chat.suggestions.enabled**: Show a one-line next-step suggestion as dim ghost text in the empty
   chat input after an assistant turn completes (default: `false`). The request is sent about two

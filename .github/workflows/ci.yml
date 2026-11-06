@@ -172,6 +172,14 @@ jobs:
         INFER_E2E_BINARY: ${{ runner.temp }}/infer-e2e
       run: go test -race -v -tags "e2e purego" -timeout 8m ./tests/e2e/...
 
+    # A local chat renders through AG-UI by default. Keep the direct path it can
+    # fall back to honest for as long as chat.agui_loopback exists.
+    - name: Run the local chat tests on the direct path
+      env:
+        INFER_E2E_BINARY: ${{ runner.temp }}/infer-e2e
+        INFER_CHAT_AGUI_LOOPBACK: "false"
+      run: go test -race -v -tags "e2e purego" -timeout 8m -run 'TestChatTUI' ./tests/e2e/...
+
   postgres:
     needs:
       - build
