@@ -1,4 +1,4 @@
-package headless
+package runview
 
 import (
 	"errors"
@@ -14,17 +14,18 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
+	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 )
 
 // encodeRun renders events through a RunEncoder and returns its lines.
-func encodeRun(t *testing.T, deps RunEncoderDeps, events ...agentdomain.ChatEvent) []string {
+func encodeRun(t *testing.T, deps headless.RunEncoderDeps, events ...agentdomain.ChatEvent) []string {
 	t.Helper()
 	var out strings.Builder
 	deps.Model = "m"
 	if deps.Repo == nil {
 		deps.Repo = &convmocks.FakeConversationRepository{}
 	}
-	encoder := NewRunEncoder(&out, deps)
+	encoder := headless.NewRunEncoder(&out, deps)
 	encoder.Start("s1", "run-1")
 	for _, event := range events {
 		encoder.Handle(event)
@@ -34,20 +35,20 @@ func encodeRun(t *testing.T, deps RunEncoderDeps, events ...agentdomain.ChatEven
 }
 
 // decodeRun decodes lines and summarizes the events and run ends it saw.
-func decodeRun(t *testing.T, lines []string) ([]string, []RunEnd) {
+func decodeRun(t *testing.T, lines []string) ([]string, []End) {
 	t.Helper()
-	decoder := NewRunDecoder("req-1")
+	reducer := New("req-1")
 	var summaries []string
-	var ends []RunEnd
+	var ends []End
 	for _, line := range lines {
-		events, end := decoder.Decode([]byte(line))
+		events, end := reducer.Decode([]byte(line))
 		for _, event := range events {
 			if event.GetRequestID() != "req-1" {
 				t.Errorf("%T carries request %q, want req-1", event, event.GetRequestID())
 			}
 			summaries = append(summaries, summarize(event))
 		}
-		if end != RunOpen {
+		if end != Open {
 			ends = append(ends, end)
 		}
 	}
@@ -100,6 +101,10 @@ func summarize(event agentdomain.ChatEvent) string {
 		return "progress:" + e.ToolCallID + ":" + e.Status
 	case agentdomain.BashOutputChunkEvent:
 		return fmt.Sprintf("bash:%s:%s:%v", e.ToolCallID, e.Output, e.IsComplete)
+	case agentdomain.ToolCancelledEvent:
+		return "tool-cancelled:" + e.ToolCallID + ":" + e.ToolName
+	case agentdomain.OptimizationStatusEvent:
+		return fmt.Sprintf("optimized:%s:%d>%d", e.Message, e.OriginalCount, e.OptimizedCount)
 	}
 	return fmt.Sprintf("%T", event)
 }
@@ -108,7 +113,7 @@ func bashCall(id, args string) sdk.ChatCompletionMessageToolCall {
 	return sdk.ChatCompletionMessageToolCall{ID: id, Type: "function", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: args}}
 }
 
-func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
+func TestReducerRoundTripsTheEncoder(t *testing.T) {
 	approved := make(chan ipc.ApprovalResponse, 1)
 	approved <- ipc.ApprovalResponse{ToolCallID: "tc1", Approved: true}
 	answered := make(chan ipc.UserQuestionResponse, 1)
@@ -120,23 +125,23 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		deps   RunEncoderDeps
+		deps   headless.RunEncoderDeps
 		events []agentdomain.ChatEvent
 		want   []string
-		ends   []RunEnd
+		ends   []End
 	}{
 		{
 			name:   "streamed text",
 			events: []agentdomain.ChatEvent{agentdomain.ChatChunkEvent{Content: "hel"}, agentdomain.ChatChunkEvent{Content: "lo"}, agentdomain.ChatCompleteEvent{}},
 			want:   []string{"start", "text:hel", "text:lo", "complete:hello||"},
-			ends:   []RunEnd{RunFinished},
+			ends:   []End{Finished},
 		},
 		{
 			name:   "reasoning then text, the step closed by the usage patch",
-			deps:   RunEncoderDeps{Repo: withUsage},
+			deps:   headless.RunEncoderDeps{Repo: withUsage},
 			events: []agentdomain.ChatEvent{agentdomain.ChatChunkEvent{ReasoningContent: "think"}, agentdomain.ChatChunkEvent{Content: "answer"}, agentdomain.ChatCompleteEvent{}},
 			want:   []string{"start", "reasoning:think", "text:answer", "complete:answer|think|"},
-			ends:   []RunEnd{RunFinished},
+			ends:   []End{Finished},
 		},
 		{
 			name: "tool calls and their results",
@@ -148,52 +153,52 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 				agentdomain.ChatCompleteEvent{},
 			},
 			want: []string{"start", "text:run it", `complete:run it||tc1=Bash{"command":"ls"}`, "results:tc1:1/1", "text:done", "complete:done||"},
-			ends: []RunEnd{RunFinished},
+			ends: []End{Finished},
 		},
 		{
 			name: "approval suspends and the answer continues",
-			deps: RunEncoderDeps{Approvals: approved},
+			deps: headless.RunEncoderDeps{Approvals: approved},
 			events: []agentdomain.ChatEvent{
 				agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{bashCall("tc1", `{"command":"rm"}`)}},
 				agentdomain.ToolApprovalRequestedEvent{ToolCall: bashCall("tc1", `{"command":"rm"}`), Context: "judge escalated", ResponseChan: make(chan agentdomain.ApprovalAction, 1)},
 				agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolCallID: "tc1", Success: true}}},
 			},
 			want: []string{"start", `complete:||tc1=Bash{"command":"rm"}`, `approval:tc1:Bash{"command":"rm"}:judge escalated`, "results:tc1:1/1", "complete:||"},
-			ends: []RunEnd{RunSuspended, RunResumed, RunFinished},
+			ends: []End{Suspended, Resumed, Finished},
 		},
 		{
 			name: "question",
-			deps: RunEncoderDeps{Questions: answered},
+			deps: headless.RunEncoderDeps{Questions: answered},
 			events: []agentdomain.ChatEvent{agentdomain.UserQuestionRequestedEvent{
 				ToolCallID: "q1", Questions: []agentdomain.UserQuestion{{Header: "Lang", Question: "Which?"}}, ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1),
 			}},
 			want: []string{"start", "question:q1:1", "complete:||"},
-			ends: []RunEnd{RunSuspended, RunResumed, RunFinished},
+			ends: []End{Suspended, Resumed, Finished},
 		},
 		{
 			name:   "plan approval",
-			deps:   RunEncoderDeps{Plans: rejected},
+			deps:   headless.RunEncoderDeps{Plans: rejected},
 			events: []agentdomain.ChatEvent{agentdomain.PlanApprovalRequestedEvent{PlanID: "plan-1", PlanContent: "1. do it"}},
 			want:   []string{"start", "plan:plan-1:1. do it", "complete:||"},
-			ends:   []RunEnd{RunSuspended, RunResumed, RunFinished},
+			ends:   []End{Suspended, Resumed, Finished},
 		},
 		{
 			name:   "cancelled",
 			events: []agentdomain.ChatEvent{agentdomain.ChatChunkEvent{Content: "partial"}, agentdomain.ChatCompleteEvent{Cancelled: true}},
 			want:   []string{"start", "text:partial", "complete:partial||", "cancelled"},
-			ends:   []RunEnd{RunCancelled},
+			ends:   []End{Cancelled},
 		},
 		{
 			name:   "error",
 			events: []agentdomain.ChatEvent{agentdomain.ChatErrorEvent{Error: errors.New("boom")}},
 			want:   []string{"start", "error:boom"},
-			ends:   []RunEnd{RunFailed},
+			ends:   []End{Failed},
 		},
 		{
 			name:   "queued user message",
 			events: []agentdomain.ChatEvent{agentdomain.MessageQueuedEvent{RequestID: ipc.UserMessageRequestID, Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("also this")}}},
 			want:   []string{"start", "queued:user:also this", "complete:||"},
-			ends:   []RunEnd{RunFinished},
+			ends:   []End{Finished},
 		},
 		{
 			name: "todos, judge, progress and bash output",
@@ -204,7 +209,16 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 				agentdomain.BashOutputChunkEvent{ToolCallID: "tc1", Output: "line"},
 			},
 			want: []string{"start", "todos:1", "judge:Bash:approved", "progress:tc1:running", "bash:tc1:line:false", "complete:||"},
-			ends: []RunEnd{RunFinished},
+			ends: []End{Finished},
+		},
+		{
+			name: "a cancelled call and a conversation optimization",
+			events: []agentdomain.ChatEvent{
+				agentdomain.OptimizationStatusEvent{Message: "Conversation optimized", OriginalCount: 40, OptimizedCount: 12},
+				agentdomain.ToolCancelledEvent{ToolCallID: "tc1", ToolName: "Bash"},
+			},
+			want: []string{"start", "optimized:Conversation optimized:40>12", "tool-cancelled:tc1:Bash", "complete:||"},
+			ends: []End{Finished},
 		},
 	}
 	for _, tt := range tests {
@@ -220,7 +234,7 @@ func TestRunDecoderRoundTripsTheEncoder(t *testing.T) {
 	}
 }
 
-func TestRunDecoderFallsBackToTheStreamedCallForALegacyInterrupt(t *testing.T) {
+func TestReducerFallsBackToTheStreamedCallForALegacyInterrupt(t *testing.T) {
 	lines := []string{
 		`{"type":"RUN_STARTED","threadId":"s1","runId":"r1"}`,
 		`{"type":"TOOL_CALL_START","toolCallId":"tc9","toolCallName":"Write"}`,
@@ -229,40 +243,40 @@ func TestRunDecoderFallsBackToTheStreamedCallForALegacyInterrupt(t *testing.T) {
 		`{"type":"TOOL_CALL_ARGS","toolCallId":"q9","delta":"{\"questions\":[{\"header\":\"H\",\"question\":\"Q\"}]}"}`,
 		`{"type":"RUN_FINISHED","threadId":"s1","runId":"r1","outcome":{"type":"interrupt","interrupts":[{"id":"tc9","reason":"tool_call","toolCallId":"tc9"},{"id":"q9","reason":"input_required"},{"id":"x","reason":"mystery"}]}}`,
 	}
-	decoder := NewRunDecoder("req-1")
+	reducer := New("req-1")
 	var got []string
-	var end RunEnd
+	var end End
 	for _, line := range lines {
 		var events []agentdomain.ChatEvent
-		events, end = decoder.Decode([]byte(line))
+		events, end = reducer.Decode([]byte(line))
 		for _, event := range events {
 			got = append(got, summarize(event))
 		}
 	}
 	want := []string{"start", `complete:||tc9=Write{"path":"a"},q9=AskUserQuestion{"questions":[{"header":"H","question":"Q"}]}`, `approval:tc9:Write{"path":"a"}:`, "question:q9:1"}
-	if !slices.Equal(got, want) || end != RunSuspended {
+	if !slices.Equal(got, want) || end != Suspended {
 		t.Fatalf("events = %q ending %v, want %q suspended", got, end, want)
 	}
-	prompts := decoder.Prompts()
+	prompts := reducer.Prompts()
 	if len(prompts) != 3 || prompts[2].InterruptID != "x" || prompts[2].Event != nil {
 		t.Fatalf("prompts = %+v, want three with the unknown one carrying no event", prompts)
 	}
 }
 
-func TestRunDecoderToleratesAttachingMidRun(t *testing.T) {
+func TestReducerToleratesAttachingMidRun(t *testing.T) {
 	lines := []string{
 		`{"type":"TEXT_MESSAGE_CONTENT","messageId":"m1","delta":"…rest"}`,
 		`{"type":"TEXT_MESSAGE_END","messageId":"m1"}`,
 		`{"type":"RUN_FINISHED","threadId":"s1","runId":"r1","outcome":{"type":"success"}}`,
 	}
 	got, ends := decodeRun(t, lines)
-	if want := []string{"text:…rest", "complete:…rest||"}; !slices.Equal(got, want) || !slices.Equal(ends, []RunEnd{RunFinished}) {
+	if want := []string{"text:…rest", "complete:…rest||"}; !slices.Equal(got, want) || !slices.Equal(ends, []End{Finished}) {
 		t.Fatalf("events = %q ends %v, want %q finished", got, ends, want)
 	}
 }
 
-func TestRunDecoderEndsADirectCallRunWithACompletion(t *testing.T) {
-	lines := encodeRun(t, RunEncoderDeps{},
+func TestReducerEndsADirectCallRunWithACompletion(t *testing.T) {
+	lines := encodeRun(t, headless.RunEncoderDeps{},
 		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{bashCall("tc1", `{"command":"ls"}`)}},
 		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolCallID: "tc1", ToolName: "Bash", Success: true}}, SuccessCount: 1, TotalExecuted: 1},
 	)
@@ -270,13 +284,13 @@ func TestRunDecoderEndsADirectCallRunWithACompletion(t *testing.T) {
 	events, ends := decodeRun(t, lines)
 
 	want := []string{"start", `complete:||tc1=Bash{"command":"ls"}`, "results:tc1:1/1", "complete:||"}
-	if !slices.Equal(events, want) || !slices.Equal(ends, []RunEnd{RunFinished}) {
+	if !slices.Equal(events, want) || !slices.Equal(ends, []End{Finished}) {
 		t.Errorf("events = %q ending %v, want %q ending the turn", events, ends, want)
 	}
 }
 
-func TestRunDecoderShowsADirectCallBeforeItsOutput(t *testing.T) {
-	lines := encodeRun(t, RunEncoderDeps{},
+func TestReducerShowsADirectCallBeforeItsOutput(t *testing.T) {
+	lines := encodeRun(t, headless.RunEncoderDeps{},
 		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{bashCall("tc1", `{"command":"ls"}`)}},
 		agentdomain.ToolExecutionProgressEvent{ToolCallID: "tc1", ToolName: "Bash", Status: "running"},
 		agentdomain.BashOutputChunkEvent{ToolCallID: "tc1", Output: "line 1"},
@@ -291,29 +305,29 @@ func TestRunDecoderShowsADirectCallBeforeItsOutput(t *testing.T) {
 	}
 }
 
-func TestRunDecoderEndsARunWithoutStepsWithACompletion(t *testing.T) {
-	events, ends := decodeRun(t, encodeRun(t, RunEncoderDeps{}))
+func TestReducerEndsARunWithoutStepsWithACompletion(t *testing.T) {
+	events, ends := decodeRun(t, encodeRun(t, headless.RunEncoderDeps{}))
 
-	if want := []string{"start", "complete:||"}; !slices.Equal(events, want) || !slices.Equal(ends, []RunEnd{RunFinished}) {
+	if want := []string{"start", "complete:||"}; !slices.Equal(events, want) || !slices.Equal(ends, []End{Finished}) {
 		t.Errorf("events = %q ending %v, want %q so the turn ends", events, ends, want)
 	}
 }
 
-func TestRunDecoderEndsTheTurnOnlyWithTheRun(t *testing.T) {
+func TestReducerEndsTheTurnOnlyWithTheRun(t *testing.T) {
 	withUsage := &convmocks.FakeConversationRepository{}
 	withUsage.GetSessionTokensReturns(convdomain.SessionTokenStats{RequestCount: 1, TotalInputTokens: 10})
-	lines := encodeRun(t, RunEncoderDeps{Repo: withUsage},
+	lines := encodeRun(t, headless.RunEncoderDeps{Repo: withUsage},
 		agentdomain.ChatChunkEvent{Content: "first"}, agentdomain.ChatCompleteEvent{},
 		agentdomain.MessageQueuedEvent{RequestID: ipc.UserMessageRequestID, Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("more")}},
 		agentdomain.ChatChunkEvent{Content: "second"}, agentdomain.ChatCompleteEvent{},
 	)
-	decoder := NewRunDecoder("req-1")
+	reducer := New("req-1")
 	var events []string
 
 	for _, line := range lines {
-		decoded, end := decoder.Decode([]byte(line))
+		decoded, end := reducer.Decode([]byte(line))
 		for _, event := range decoded {
-			if complete, ok := event.(agentdomain.ChatCompleteEvent); ok && complete.Message == "second" && end != RunFinished {
+			if complete, ok := event.(agentdomain.ChatCompleteEvent); ok && complete.Message == "second" && end != Finished {
 				t.Error("the last step ended the turn before its run finished")
 			}
 			events = append(events, summarize(event))

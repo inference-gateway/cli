@@ -17,8 +17,8 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
-	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	runview "github.com/inference-gateway/cli/internal/presentation/tui/runview"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -232,7 +232,7 @@ func userContent(entry convdomain.ConversationEntry) any {
 	return parts
 }
 
-// pump decodes the run frames into events, mirrors them and answers the
+// pump reduces the run frames into events, mirrors them and answers the
 // prompts the run suspends on, until the run ends. A follow-only request with
 // nothing running completes at once, which ends the TUI's turn. A superseded
 // pump just stops, since the TUI no longer reads its events.
@@ -242,7 +242,7 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 		out <- agentdomain.ChatCompleteEvent{RequestID: requestID, Timestamp: time.Now()}
 		return
 	}
-	decoder := headless.NewRunDecoder(requestID)
+	reducer := runview.New(requestID)
 	var bash *agentdomain.ToolExecutionResult
 	for {
 		frame, err := a.thread.Next(ctx)
@@ -263,11 +263,11 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 			}
 			continue
 		}
-		events, end := decoder.Decode(frame)
+		events, end := reducer.Decode(frame)
 		for _, event := range events {
 			a.mirror(event)
 		}
-		if end == headless.RunFinished || end == headless.RunCancelled || end == headless.RunFailed {
+		if end == runview.Finished || end == runview.Cancelled || end == runview.Failed {
 			a.reconcile()
 		}
 		for _, event := range events {
@@ -277,9 +277,9 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 			out <- event
 		}
 		switch end {
-		case headless.RunSuspended:
-			go a.answer(decoder.Prompts())
-		case headless.RunFinished:
+		case runview.Suspended:
+			go a.answer(reducer.Prompts())
+		case runview.Finished:
 			if bash != nil {
 				out <- tui.BashCommandCompletedEvent{
 					BaseChatEvent: agentdomain.BaseChatEvent{RequestID: requestID, Timestamp: time.Now()},
@@ -287,7 +287,7 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 				}
 			}
 			return
-		case headless.RunCancelled, headless.RunFailed:
+		case runview.Cancelled, runview.Failed:
 			return
 		}
 	}
@@ -396,7 +396,7 @@ func (a *Agent) reconcile() {
 
 // answer waits for the user's answer to every prompt the run suspended on and
 // resumes the run with them, after the agent mode an answer may have changed.
-func (a *Agent) answer(prompts []headless.Prompt) {
+func (a *Agent) answer(prompts []runview.Prompt) {
 	entries := make([]resumeEntry, 0, len(prompts))
 	for _, prompt := range prompts {
 		entries = append(entries, await(prompt))
@@ -413,7 +413,7 @@ func (a *Agent) answer(prompts []headless.Prompt) {
 
 // await turns the user's answer to one prompt into its resume entry. A
 // dismissed prompt, or one the TUI cannot show, is cancelled.
-func await(prompt headless.Prompt) resumeEntry {
+func await(prompt runview.Prompt) resumeEntry {
 	cancelled := resumeEntry{InterruptID: prompt.InterruptID, Status: "cancelled"}
 	resolved := resumeEntry{InterruptID: prompt.InterruptID, Status: "resolved"}
 	switch e := prompt.Event.(type) {

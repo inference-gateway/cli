@@ -498,7 +498,7 @@ func TestRunEncoder_PlanApprovalSuspendsAndAppliesTheDecision(t *testing.T) {
 				t.Fatalf("no interrupt outcome on the wire:\n%s", out.String())
 			}
 			interrupt := events[suspended].Outcome.Interrupts[0]
-			if interrupt.ID != "plan-1" || interrupt.Reason != interruptPlanApproval || interrupt.Metadata["plan"] != "1. do it" || interrupt.ResponseSchema == nil {
+			if interrupt.ID != "plan-1" || interrupt.Reason != agui.InterruptPlanApproval || interrupt.Metadata["plan"] != "1. do it" || interrupt.ResponseSchema == nil {
 				t.Fatalf("interrupt = %+v, want the plan_approval interrupt carrying the plan", interrupt)
 			}
 			if continuationAt(events, suspended+1) < 0 {

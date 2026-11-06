@@ -287,7 +287,7 @@ func TestHeadlessControl_PlanDecisionsReachThePlanBroker(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctl, _, _ := newTestControl()
-			ctl.Note("plan-1", interruptPlanApproval, "")
+			ctl.Note("plan-1", agui.InterruptPlanApproval, "")
 			ctl.dispatchLine([]byte(tt.line))
 			select {
 			case resp := <-ctl.plans:

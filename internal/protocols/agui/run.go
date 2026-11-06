@@ -52,6 +52,7 @@ const (
 const (
 	InterruptToolCall      = "tool_call"
 	InterruptInputRequired = "input_required"
+	InterruptPlanApproval  = "plan_approval"
 )
 
 // The state keys a run publishes. The state is one object: Start seeds every

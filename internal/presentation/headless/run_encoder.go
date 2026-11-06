@@ -247,10 +247,6 @@ func approvalInterrupt(ev agentdomain.ToolApprovalRequestedEvent) agui.Interrupt
 	}
 }
 
-// interruptPlanApproval is the reason of the interrupt a plan the agent asks
-// to execute suspends the run on. Its resume payload is {"action": ...}.
-const interruptPlanApproval = "plan_approval"
-
 // planSchema describes the payload a plan interrupt's resume entry carries.
 var planSchema = map[string]any{
 	"type": "object",
@@ -269,7 +265,7 @@ func planInterruptID(ev agentdomain.PlanApprovalRequestedEvent) string {
 // plan so a client can show it for review.
 func planInterrupt(ev agentdomain.PlanApprovalRequestedEvent) agui.Interrupt {
 	return agui.Interrupt{
-		ID: planInterruptID(ev), Reason: interruptPlanApproval, ResponseSchema: planSchema,
+		ID: planInterruptID(ev), Reason: agui.InterruptPlanApproval, ResponseSchema: planSchema,
 		Message:  "Review the plan and decide whether to execute it",
 		Metadata: map[string]any{"planId": ev.PlanID, "plan": ev.PlanContent},
 	}
