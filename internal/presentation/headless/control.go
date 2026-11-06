@@ -40,6 +40,7 @@ type pendingInterrupt struct {
 type headlessControl struct {
 	agentService agentdomain.AgentService
 	messageQueue convdomain.MessageQueue
+	issues       agentdomain.GitHubIssueService
 	sessionID    string
 	approvals    chan ipc.ApprovalResponse
 	questions    chan ipc.UserQuestionResponse
@@ -71,10 +72,11 @@ type headlessControl struct {
 	deferred []convdomain.QueuedMessage
 }
 
-func newHeadlessControl(agentService agentdomain.AgentService, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
+func newHeadlessControl(agentService agentdomain.AgentService, messageQueue convdomain.MessageQueue, issues agentdomain.GitHubIssueService, sessionID string) *headlessControl {
 	return &headlessControl{
 		agentService: agentService,
 		messageQueue: messageQueue,
+		issues:       issues,
 		sessionID:    sessionID,
 		approvals:    make(chan ipc.ApprovalResponse, 4),
 		questions:    make(chan ipc.UserQuestionResponse, 4),
@@ -192,14 +194,19 @@ type runInputFrame struct {
 }
 
 // enqueueRunInput queues the input's new messages for the next turn and routes
-// its resume entries to the brokers the open interrupts wait on. Attachments
-// arrive as content parts and are saved to the project tmp dir: model-readable
-// images become image parts, other files become notes naming the saved path.
-// A run input with no messages is the continue run the client asks for after
-// stopping one, which the agent continues from the conversation it kept.
+// its resume entries to the brokers the open interrupts wait on: `#N` tokens in
+// the text expand to the issue's block, and attachments save to the project tmp
+// dir as image parts or notes naming the saved path. A run input with no messages
+// is the continue run the client asks for after stopping one, which the agent
+// continues from the conversation it kept.
 func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 	for _, msg := range input.Messages {
 		text, attachments := messageParts(msg)
+		expanded, failures := agentdomain.ExpandIssueReferences(context.Background(), c.issues, text)
+		for number, err := range failures {
+			logger.Debug("issue expansion: GetIssue failed - leaving token in place", "number", number, "error", err)
+		}
+		text = expanded
 		images, notes := saveAttachments(attachments)
 		content := strings.Join(append([]string{text}, notes...), "\n")
 		if content == "" && len(images) == 0 {

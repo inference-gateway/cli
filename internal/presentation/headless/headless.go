@@ -57,6 +57,7 @@ type Services interface {
 	GetToolService() agentdomain.ToolService
 	GetFileService() agentdomain.FileService
 	GetImageService() agentdomain.ImageService
+	GetGitHubIssueService() agentdomain.GitHubIssueService
 	GetModelService() convdomain.ModelService
 	GetConversationRepository() convdomain.ConversationRepository
 	GetMessageQueue() convdomain.MessageQueue
@@ -313,7 +314,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 
 	var ctl *headlessControl
 	if opts.Format != "text" {
-		ctl = newHeadlessControl(agentService, svc.GetMessageQueue(), sessionID)
+		ctl = newHeadlessControl(agentService, svc.GetMessageQueue(), svc.GetGitHubIssueService(), sessionID)
 		go ctl.readLines(os.Stdin)
 	}
 	rendered = true

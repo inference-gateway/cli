@@ -270,6 +270,7 @@ func TestRegistryPanelRequestsAnswerTheRequester(t *testing.T) {
 	_, lines := l.worker(0)
 
 	handle(r, requester, `{"type":"list_conversations","project_dir":"/proj"}`)
+	handle(r, requester, `{"type":"list_issues","project_dir":"/proj"}`)
 	handle(r, requester, `{"type":"list_artifacts","project_dir":"/proj","id":"c-1"}`)
 	handle(r, requester, `{"type":"read_artifact","project_dir":"/proj","id":"c-1","name":"shot.png"}`)
 	handle(r, requester, `{"type":"tool_request","project_dir":"/proj","id":"req-1","tool_name":"Bash","tool_args":"{}"}`)
@@ -278,14 +279,15 @@ func TestRegistryPanelRequestsAnswerTheRequester(t *testing.T) {
 	}
 
 	conversations := `{"type":"conversations","conversations":[]}`
+	issues := `{"type":"issues","issues":[{"number":57,"title":"Fix the flaky test","state":"OPEN"}]}`
 	artifacts := `{"type":"artifacts","id":"c-1","artifacts":[]}`
 	artifact := `{"type":"artifact","id":"c-1","name":"shot.png","data":"cG5n"}`
 	approval := `{"type":"CUSTOM","name":"approval_request","value":{"tool_call_id":"req-1"}}`
 	result := `{"type":"tool_result","id":"req-1","success":true,"output":"","error":""}`
-	for _, line := range []string{conversations, artifacts, artifact, approval, result} {
+	for _, line := range []string{conversations, issues, artifacts, artifact, approval, result} {
 		lines <- []byte(line)
 	}
-	receives(t, requester, conversations, artifacts, artifact, approval, result)
+	receives(t, requester, conversations, issues, artifacts, artifact, approval, result)
 	if follower.DeliverCallCount() != 0 {
 		t.Fatalf("the thread's follower got another client's replies: %q", delivered(follower))
 	}

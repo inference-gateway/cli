@@ -28,6 +28,7 @@ const (
 	inboundListHistory        = "list_history"
 	inboundListConversations  = "list_conversations"
 	inboundListSkills         = "list_skills"
+	inboundListIssues         = "list_issues"
 	inboundListModels         = "list_models"
 	inboundSelectModel        = "select_model"
 	inboundSetMode            = "set_mode"
@@ -38,6 +39,7 @@ const (
 
 	outboundConversations    = "conversations"
 	outboundSkills           = "skills"
+	outboundIssues           = "issues"
 	outboundHistory          = "history"
 	outboundModels           = "models"
 	outboundMode             = "mode"
@@ -115,6 +117,17 @@ type skillsFrame struct {
 	Skills []agentdomain.SkillSummary `json:"skills"`
 }
 
+type issueSummary struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	State  string `json:"state"`
+}
+
+type issuesFrame struct {
+	Type   string         `json:"type"`
+	Issues []issueSummary `json:"issues"`
+}
+
 type historyFrame struct {
 	Type    string   `json:"type"`
 	History []string `json:"history"`
@@ -141,6 +154,7 @@ func (w *lineWriter) Write(line []byte) (int, error) {
 type PanelDeps struct {
 	Conversations convdomain.ConversationRepository
 	Skills        agentdomain.SkillsService
+	Issues        agentdomain.GitHubIssueService
 	Tools         agentdomain.ToolService
 	Approval      agentdomain.ApprovalPolicy
 	Models        convdomain.ModelService
@@ -167,6 +181,7 @@ type Panel struct {
 	conversations *conversations
 	history       *history
 	skills        *skills
+	issues        *issues
 	models        *modelPicker
 	modes         *modes
 	tools         *toolRequests
@@ -184,6 +199,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.conversations = &conversations{write: p.write, out: p.out, repo: deps.Conversations}
 	p.history = newHistory(p.write, deps.History)
 	p.skills = &skills{write: p.write, service: deps.Skills}
+	p.issues = &issues{write: p.write, service: deps.Issues}
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
 	p.modes = &modes{write: p.write, state: deps.Modes}
 	p.tools = newToolRequests(p.write, p.out, deps)
@@ -221,6 +237,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.history.list()
 	case inboundListSkills:
 		p.skills.list()
+	case inboundListIssues:
+		p.issues.list()
 	case inboundListModels:
 		p.models.list()
 	case inboundSelectModel:
@@ -395,6 +413,40 @@ func (s *skills) list() {
 		out = append(out, skill.Summary())
 	}
 	s.write(skillsFrame{Type: outboundSkills, Skills: out})
+}
+
+// issues answers list_issues with the current project's open GitHub issues, the
+// "#" menu the chat TUI's input offers. The service degrades to an empty list
+// wherever gh, a git repo or auth are missing, so the panel mirrors the TUI.
+type issues struct {
+	write   frameWriter
+	service agentdomain.GitHubIssueService
+}
+
+// issueListTimeout bounds the shell-out one list_issues answer waits on, the
+// budget the TUI's "#" trigger already uses.
+const issueListTimeout = 2 * time.Second
+
+// list answers list_issues with the open issues the service serves - number,
+// title and state, newest first. A failed list still answers with an empty one.
+func (i *issues) list() {
+	frame := issuesFrame{Type: outboundIssues, Issues: []issueSummary{}}
+	if i.service == nil || !i.service.IsAvailable() {
+		i.write(frame)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), issueListTimeout)
+	defer cancel()
+	loaded, err := i.service.ListIssues(ctx)
+	if err != nil {
+		logger.Debug("panel failed to list issues", "error", err)
+		i.write(frame)
+		return
+	}
+	for _, issue := range loaded {
+		frame.Issues = append(frame.Issues, issueSummary{Number: issue.Number, Title: issue.Title, State: issue.State})
+	}
+	i.write(frame)
 }
 
 // modelPicker answers the panel's model picker from the worker's model service,
