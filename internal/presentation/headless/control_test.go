@@ -45,9 +45,6 @@ func TestEnqueueRunInputExpandsIssueReferences(t *testing.T) {
 	if !strings.HasPrefix(text, "fix GitHub Issue #123 (OPEN): Add login") {
 		t.Errorf("expanded text = %q, want the issue block replacing the token", text)
 	}
-	if !strings.HasPrefix(strings.Replace(text, "fix ", "", 1), "GitHub") && strings.Contains(text, "#123") {
-		t.Errorf("expanded text = %q, want a failed token left in place, not one here", text)
-	}
 	if !strings.HasPrefix(text, "fix ") || !strings.HasSuffix(text, " please") {
 		t.Errorf("expanded text = %q, want the surrounding content preserved", text)
 	}

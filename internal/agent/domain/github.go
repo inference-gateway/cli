@@ -59,15 +59,15 @@ type GitHubIssueService interface {
 // at the tail prevents partial-number false matches inside longer strings.
 var issueRefRe = regexp.MustCompile(`(^|\s)#([0-9]+)\b`)
 
-// issueFetchTimeout bounds one GetIssue call during expansion, so a message
-// carrying references stays responsive.
-const issueFetchTimeout = 5 * time.Second
+// maxIssueRefsPerMessage caps the distinct issues one message fetches, so a
+// pasted list of references cannot stall the caller on sequential fetches.
+const maxIssueRefsPerMessage = 10
 
-// ExpandIssueReferences replaces every `#N` token in content with an inline
-// block of that issue's title, body and (capped) recent comments, so the model
-// gets the context without spending a turn on `gh issue view`. Duplicate tokens
-// share one fetch. A failed fetch leaves its raw token in place and reports the
-// number, so the caller can log it.
+// ExpandIssueReferences replaces `#N` tokens in content with an inline block of
+// the issue's title, body and (capped) recent comments, so the model gets the
+// context without spending a turn on `gh issue view`. Duplicate tokens share one
+// fetch. A failed fetch is reported by number and, like a token past the first
+// maxIssueRefsPerMessage distinct ones, stays in place as the raw token.
 func ExpandIssueReferences(ctx context.Context, svc GitHubIssueService, content string) (string, map[int]error) {
 	if svc == nil {
 		return content, nil
@@ -87,9 +87,10 @@ func ExpandIssueReferences(ctx context.Context, svc GitHubIssueService, content 
 		if _, ok := fetched[number]; ok {
 			continue
 		}
-		fetchCtx, cancel := context.WithTimeout(ctx, issueFetchTimeout)
-		issue, err := svc.GetIssue(fetchCtx, number)
-		cancel()
+		if len(fetched)+len(failures) >= maxIssueRefsPerMessage {
+			break
+		}
+		issue, err := svc.GetIssue(ctx, number)
 		if err != nil || issue == nil {
 			if failures == nil {
 				failures = map[int]error{}
@@ -97,7 +98,7 @@ func ExpandIssueReferences(ctx context.Context, svc GitHubIssueService, content 
 			failures[number] = err
 			continue
 		}
-		fetched[number] = FormatIssueBlock(issue)
+		fetched[number] = formatIssueBlock(issue)
 	}
 
 	if len(fetched) == 0 {
@@ -118,9 +119,9 @@ func ExpandIssueReferences(ctx context.Context, svc GitHubIssueService, content 
 	}), failures
 }
 
-// FormatIssueBlock renders one issue for the model: title, state and URL, then
+// formatIssueBlock renders one issue for the model: title, state and URL, then
 // the body and the most recent comments.
-func FormatIssueBlock(issue *GitHubIssue) string {
+func formatIssueBlock(issue *GitHubIssue) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "GitHub Issue #%d (%s): %s\nURL: %s\n\n%s\n",
 		issue.Number, issue.State, issue.Title, issue.URL, issue.Body)

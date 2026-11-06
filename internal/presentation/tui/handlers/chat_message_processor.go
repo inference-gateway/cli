@@ -298,7 +298,7 @@ func (p *ChatMessageProcessor) expandIssueReferences(ctx context.Context, conten
 	expanded, failures := agentdomain.ExpandIssueReferences(ctx, p.handler.githubIssueService, content)
 	for number, err := range failures {
 		logger.Debug("issue expansion: GetIssue failed - leaving token in place",
-			"number", number, "err", err)
+			"number", number, "error", err)
 	}
 	return expanded
 }
