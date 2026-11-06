@@ -79,6 +79,27 @@ func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 	}
 }
 
+// TestListToolsForMode_MemoryAvailableEverywhere: Memory reads and writes the
+// agent's own userspace fact files and never touches the project, so every
+// mode - plan and read-only subagents included - must advertise it.
+func TestListToolsForMode_MemoryAvailableEverywhere(t *testing.T) {
+	cfg := config.DefaultConfig()
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewService(cfg, registry)
+
+	for _, mode := range []agentdomain.AgentMode{
+		agentdomain.AgentModeStandard,
+		agentdomain.AgentModePlan,
+		agentdomain.AgentModeAutoAccept,
+		agentdomain.AgentModeAutoWithJudge,
+		agentdomain.AgentModeReadOnly,
+	} {
+		if !slices.Contains(toolNamesForMode(svc, mode), ToolMemory) {
+			t.Errorf("mode %s must advertise the Memory tool", mode.ModeKey())
+		}
+	}
+}
+
 // TestExecuteTool_ModeGuard verifies execution-time mode enforcement: a mode
 // rejects the tools it does not make available, and a context without a mode
 // fails open. Plan mode now admits the file tools and Bash; the sandbox
