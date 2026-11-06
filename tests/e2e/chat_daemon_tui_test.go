@@ -81,6 +81,21 @@ func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
 	expectPane(t, "infer-e2e-daemon-reattach", "⌂ a", d)
 }
 
+// TestChatDaemonFollowsABackgroundJob follows a job a daemon chat's worker runs:
+// its note lands in the chat and the model answers it unprompted.
+func TestChatDaemonFollowsABackgroundJob(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-job"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+	chatSay(t, session, "background idle probe")
+	expectPane(t, session, "IDLE-PROBE-ACK", d)
+	expectPane(t, session, "Background Shell Completed", d)
+	expectPane(t, session, "IDLE-PROBE-FOLLOW-UP", d)
+}
+
 func TestChatDaemonRunsDirectCommandsLikeAPlainChat(t *testing.T) {
 	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
 	project := gitProject(t)

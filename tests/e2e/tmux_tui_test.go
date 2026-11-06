@@ -244,6 +244,40 @@ func TestChatTUIShowsTheModelIsWorkingAfterATool(t *testing.T) {
 		"the next reply must still be on its way when the status shows")
 }
 
+// TestChatTUIFinishedJobWakesAnIdleChat follows a background job that ends after
+// its turn did: its note lands in the chat and the model answers it unprompted.
+func TestChatTUIFinishedJobWakesAnIdleChat(t *testing.T) {
+	const session = "infer-e2e-job-idle"
+	startLocalChat(t, session)
+
+	tmuxSendKeys(t, session, "-l", "background idle probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "IDLE-PROBE-ACK", 25*time.Second),
+		"the turn never finished; last frame:\n%s", capturePane(session))
+	require.True(t, waitForPane(t, session, "Background Shell Completed", 25*time.Second),
+		"the job's note never landed; last frame:\n%s", capturePane(session))
+	require.True(t, waitForPane(t, session, "IDLE-PROBE-FOLLOW-UP", 25*time.Second),
+		"the note never woke the model; last frame:\n%s", capturePane(session))
+}
+
+// TestChatTUIFinishedJobContinuesABusyRun follows a background job that ends
+// while the model is replying: its note waits for the reply, then the run goes on.
+func TestChatTUIFinishedJobContinuesABusyRun(t *testing.T) {
+	const session = "infer-e2e-job-busy"
+	startLocalChat(t, session)
+
+	tmuxSendKeys(t, session, "-l", "background busy probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "BUSY-PROBE-ACK", 25*time.Second),
+		"the reply never came; last frame:\n%s", capturePane(session))
+	require.True(t, waitForPane(t, session, "BUSY-PROBE-FOLLOW-UP", 25*time.Second),
+		"the run never went on after the reply; last frame:\n%s", capturePane(session))
+	frame := capturePane(session)
+	ack, note, followUp := strings.Index(frame, "BUSY-PROBE-ACK"), strings.Index(frame, "Background Shell Completed"), strings.Index(frame, "BUSY-PROBE-FOLLOW-UP")
+	require.True(t, ack >= 0 && ack < note && note < followUp,
+		"want the reply, then the note, then the follow-up; last frame:\n%s", frame)
+}
+
 // startLocalChat launches a local chat on the e2e scenarios in a temp dir and
 // waits for its input.
 func startLocalChat(t *testing.T, session string) {

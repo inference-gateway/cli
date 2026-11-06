@@ -291,6 +291,29 @@ scenarios:
       - content: "SLOW-REPLY-DONE"
         delay_ms: 15000
 
+  - name: background-job-while-idle
+    match: '(?i)background idle probe'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: "sleep 3"
+              detached: true
+      - content: "IDLE-PROBE-ACK"
+      - content: "IDLE-PROBE-FOLLOW-UP"
+
+  - name: background-job-during-reply
+    match: '(?i)background busy probe'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: "sleep 2"
+              detached: true
+      - content: "BUSY-PROBE-ACK"
+        delay_ms: 1500
+      - content: "BUSY-PROBE-FOLLOW-UP"
+
   - name: write-then-read
     match: '(?i)write then read the marker'
     turns:
