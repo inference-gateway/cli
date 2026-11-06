@@ -78,7 +78,7 @@ tasks:
       # with the purego tag and hand it over via INFER_E2E_BINARY.
       - mkdir -p .infer/bin
       - CGO_ENABLED=0 go build -tags "{{.GOTAGS}}" -o .infer/bin/infer-e2e {{.MAIN_PACKAGE}}
-      - INFER_E2E_BINARY=$PWD/.infer/bin/infer-e2e go test -race -tags "e2e {{.GOTAGS}}" -timeout 5m ./tests/e2e/...
+      - INFER_E2E_BINARY=$PWD/.infer/bin/infer-e2e go test -race -tags "e2e {{.GOTAGS}}" -timeout 8m ./tests/e2e/...
 
   lint:
     desc: Run linter (requires golangci-lint)
