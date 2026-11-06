@@ -85,6 +85,17 @@ and have a conversational interface with the inference gateway.`,
 // StartChatSession starts a chat session. loadConfig re-reads the
 // configuration for /reload.
 //
+// envAGUILoopback opts a local chat into rendering its runs through AG-UI
+// while that path is proven against the direct one.
+const envAGUILoopback = "INFER_CHAT_AGUI_LOOPBACK"
+
+func newChatContainer(cfg *config.Config) *container.ServiceContainer {
+	if os.Getenv(envAGUILoopback) == "true" {
+		return container.NewLoopbackChatContainer(cfg)
+	}
+	return container.NewServiceContainer(cfg)
+}
+
 //nolint:funlen // Chat session initialization requires multiple setup steps
 func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*config.Config, error)) error {
 	_ = clipboard.Init()
@@ -92,7 +103,7 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 	_ = streamevent.SetWriter(io.Discard)
 
 	telemetry.ExecutionMode = telemetry.ExecInteractive
-	services := container.NewServiceContainer(cfg)
+	services := newChatContainer(cfg)
 	services.EnableConfigReload(loadConfig)
 
 	telemetryRec := services.GetTelemetryRecorder()

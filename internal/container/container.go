@@ -54,6 +54,7 @@ import (
 	chatcompletion "github.com/inference-gateway/cli/internal/presentation/tui/chatcompletion"
 	daemonthread "github.com/inference-gateway/cli/internal/presentation/tui/daemonthread"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
+	loopback "github.com/inference-gateway/cli/internal/presentation/tui/loopback"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	toolcoordinator "github.com/inference-gateway/cli/internal/presentation/tui/toolcoordinator"
@@ -100,6 +101,7 @@ type ServiceContainer struct {
 	modelService           convdomain.ModelService
 	agent                  agentdomain.AgentService
 	daemonOpts             *daemonthread.Options
+	loopbackChat           bool
 	daemonThread           *daemonthread.Thread
 	toolService            agentdomain.ToolService
 	approvalPolicy         agentdomain.ApprovalPolicy
@@ -202,7 +204,14 @@ func (h *uiNotifierHolder) set(n agentdomain.UINotifier) {
 
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config) *ServiceContainer {
-	return newServiceContainer(cfg, nil)
+	return newServiceContainer(cfg, nil, false)
+}
+
+// NewLoopbackChatContainer builds the container of an infer chat session whose
+// in-process agent runs are rendered through AG-UI: the chat reads each run
+// back from the frames the serve worker would write, the path a daemon chat takes.
+func NewLoopbackChatContainer(cfg *config.Config) *ServiceContainer {
+	return newServiceContainer(cfg, nil, true)
 }
 
 // NewDaemonChatContainer builds the container of an infer chat --daemon
@@ -210,10 +219,10 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 // daemon in opts' project, so the chat starts no agent, gateway, MCP server or
 // A2A agent of its own.
 func NewDaemonChatContainer(cfg *config.Config, opts daemonthread.Options) *ServiceContainer {
-	return newServiceContainer(cfg, &opts)
+	return newServiceContainer(cfg, &opts, false)
 }
 
-func newServiceContainer(cfg *config.Config, daemonOpts *daemonthread.Options) *ServiceContainer {
+func newServiceContainer(cfg *config.Config, daemonOpts *daemonthread.Options, loopbackChat bool) *ServiceContainer {
 	sessionID := convdomain.GenerateSessionID()
 
 	containerRuntime, err := containerruntime.NewContainerRuntime(
@@ -230,6 +239,7 @@ func newServiceContainer(cfg *config.Config, daemonOpts *daemonthread.Options) *
 		containerRuntime: containerRuntime,
 		uiNotifier:       newUINotifierHolder(),
 		daemonOpts:       daemonOpts,
+		loopbackChat:     loopbackChat,
 	}
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
@@ -604,6 +614,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	agentImpl.SetCurrentModelFn(c.modelService.GetCurrentModel)
 	c.agent = agentImpl
+	if c.loopbackChat {
+		c.agent = loopback.New(agentImpl, c.conversationRepo, computer.PublishedEvent)
+	}
 
 	c.initializeBrowserTools()
 }

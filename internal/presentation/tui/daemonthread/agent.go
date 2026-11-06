@@ -15,8 +15,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	render "github.com/inference-gateway/cli/internal/platform/render"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	runview "github.com/inference-gateway/cli/internal/presentation/tui/runview"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
@@ -428,22 +428,11 @@ func await(prompt runview.Prompt) resumeEntry {
 		}
 	case agentdomain.PlanApprovalRequestedEvent:
 		if action, ok := <-e.ResponseChan; ok {
-			resolved.Payload = map[string]any{"action": planAction(action)}
+			resolved.Payload = map[string]any{"action": render.PlanActionName(action)}
 			return resolved
 		}
 	}
 	return cancelled
-}
-
-// planAction is the wire name of a plan decision.
-func planAction(action agentdomain.PlanApprovalAction) string {
-	switch action {
-	case agentdomain.PlanApprovalAccept:
-		return ipc.PlanAccept
-	case agentdomain.PlanApprovalAcceptStandard:
-		return ipc.PlanAcceptStandard
-	}
-	return ipc.PlanReject
 }
 
 // CancelRequest interrupts the thread's open run.

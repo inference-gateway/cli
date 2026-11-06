@@ -98,7 +98,7 @@ func TestChatTUITextToSFX(t *testing.T) {
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" INFER_TEXT_TO_SFX_ENABLED=true INFER_TEXT_TO_SFX_OUTPUT_DIR=" + outDir +
-		" " + binPath + " chat"
+		chatLoopbackEnv() + " " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
 

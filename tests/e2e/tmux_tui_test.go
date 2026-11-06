@@ -33,7 +33,7 @@ func TestChatTUIViaTmux(t *testing.T) {
 	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
-		" " + binPath + " chat"
+		chatLoopbackEnv() + " " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
 
@@ -66,7 +66,7 @@ func TestChatTUIBackgroundShellOutput(t *testing.T) {
 	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
-		" " + binPath + " chat"
+		chatLoopbackEnv() + " " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
 
@@ -127,7 +127,7 @@ func openFinishedSubagentDetail(t *testing.T, session, storageEnabled string, wa
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=" + storageEnabled +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		" INFER_TOOLS_AGENT_MODE=headless INFER_TOOLS_AGENT_WAIT=false" +
-		" INFER_TOOLS_AGENT_REQUIRE_APPROVAL=false " + binPath + " chat"
+		" INFER_TOOLS_AGENT_REQUIRE_APPROVAL=false" + chatLoopbackEnv() + " " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", launch).Run(), "failed to start tmux session")
 
@@ -172,7 +172,7 @@ func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
-		" " + binPath + " chat"
+		chatLoopbackEnv() + " " + binPath + " chat"
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", "-c", t.TempDir(), launch).Run(), "failed to start tmux session")
 
@@ -203,6 +203,21 @@ func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 
 	require.True(t, waitForPane(t, session, "APPROVAL-TAIL-DONE", 25*time.Second),
 		"the final reply stayed below the fold after approval; last frame:\n%s", capturePane(session))
+}
+
+// envChatLoopback opts a local chat into rendering its runs through AG-UI.
+// TestMain reads it before it drops the caller's INFER_* variables, so one run
+// of the suite proves either path.
+const envChatLoopback = "INFER_CHAT_AGUI_LOOPBACK"
+
+var chatLoopback string
+
+// chatLoopbackEnv is the opt-in as the chat under test is launched with it.
+func chatLoopbackEnv() string {
+	if chatLoopback == "" {
+		return ""
+	}
+	return " " + envChatLoopback + "=" + chatLoopback
 }
 
 // startTmuxHome returns a temp HOME for a chat process driven in the tmux

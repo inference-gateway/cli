@@ -229,6 +229,17 @@ func PlanAction(action string) agentdomain.PlanApprovalAction {
 	return agentdomain.PlanApprovalReject
 }
 
+// PlanActionName is the wire name of a plan decision, the inverse of PlanAction.
+func PlanActionName(action agentdomain.PlanApprovalAction) string {
+	switch action {
+	case agentdomain.PlanApprovalAccept:
+		return ipc.PlanAccept
+	case agentdomain.PlanApprovalAcceptStandard:
+		return ipc.PlanAcceptStandard
+	}
+	return ipc.PlanReject
+}
+
 // UserQuestionRequest builds the IPC payload for one question form.
 func UserQuestionRequest(e agentdomain.UserQuestionRequestedEvent) ipc.UserQuestionRequest {
 	questions, _ := json.Marshal(e.Questions)
