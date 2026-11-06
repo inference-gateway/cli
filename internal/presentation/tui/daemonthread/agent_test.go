@@ -336,6 +336,59 @@ func TestAgentKeepsANoteOnTheThreadItFollows(t *testing.T) {
 	}
 }
 
+func TestAgentSendsANoteHeldForANewConversationBeforeItsFirstTurn(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, repo := agentOver(thread)
+	repo.SetConversationID("conv-2")
+	if err := agent.AddNote("shortcut output"); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AddMessage(userEntry("say hello")); err != nil {
+		t.Fatal(err)
+	}
+	notesAtRun := make(chan []map[string]any, 1)
+	d.setRuns(func(conn *agui.Conn, _ map[string]any) {
+		notesAtRun <- d.frames("add_note")
+		for _, line := range encodeRun(t, agentdomain.ChatCompleteEvent{}) {
+			send(conn, line)
+		}
+	})
+
+	events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	collect(t, events, nil)
+
+	notes := <-notesAtRun
+	if len(notes) != 1 || notes[0]["content"] != "shortcut output" {
+		t.Errorf("the worker had %v when the run started, want the held note first", notes)
+	}
+	if left := agent.notes["conv-2"]; len(left) != 0 {
+		t.Errorf("notes still held after the turn: %v", left)
+	}
+}
+
+func TestAgentHoldsANoteItCouldNotSendForTheNextTurn(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread := New(d.config(), Options{ProjectDir: "/proj"}, nil)
+	t.Cleanup(thread.Close)
+	thread.following = "conv-1"
+	agent, _ := agentOver(thread)
+
+	if err := agent.AddNote("first"); !errors.Is(err, ErrOffline) {
+		t.Fatalf("AddNote = %v, want ErrOffline", err)
+	}
+	if err := agent.AddNote("second"); !errors.Is(err, ErrOffline) {
+		t.Fatalf("AddNote = %v, want ErrOffline", err)
+	}
+
+	if got := agent.notes["conv-1"]; !slices.Equal(got, []string{"first", "second"}) {
+		t.Errorf("held notes = %q, want both in order", got)
+	}
+}
+
 func TestAgentFollowOnlyRequestEndsWhenNothingRuns(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, _ := connected(t, d)

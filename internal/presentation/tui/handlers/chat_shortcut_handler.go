@@ -253,7 +253,7 @@ func (s *ChatShortcutHandler) keepNote(output string) {
 		return
 	}
 	if err := s.handler.noteKeeper.AddNote(output); err != nil {
-		logger.Warn("failed to keep a shortcut's output on the worker", "error", err)
+		logger.Warn("could not hand a shortcut's output to the worker yet", "error", err)
 	}
 }
 

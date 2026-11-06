@@ -183,6 +183,39 @@ func TestRunDirectCallRendersTheOutputWhileTheCommandRuns(t *testing.T) {
 		}
 		position += at
 	}
+	if strings.Contains(out, "TEXT_MESSAGE") {
+		t.Errorf("a direct call said something as the assistant:\n%s", out)
+	}
+}
+
+func TestRunDirectCallPrintsItsOutputInTextFormat(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *agentdomain.ToolExecutionResult
+		want   string
+	}{
+		{name: "a command's output", result: &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Data: &agentdomain.BashToolResult{Output: "hi\n"}}, want: "hi\n"},
+		{name: "a failed command's output", result: &agentdomain.ToolExecutionResult{ToolName: "Bash", Data: &agentdomain.BashToolResult{Output: "ls: nope\n", ExitCode: 1}}, want: "ls: nope\n"},
+		{name: "a command that prints nothing", result: &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Data: &agentdomain.BashToolResult{}}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tools := &agentdomainmocks.FakeToolService{}
+			tools.IsToolEnabledReturns(true)
+			tools.ExecuteToolDirectReturns(tt.result, nil)
+			repo := conversation.NewInMemoryConversationRepository(nil, nil)
+
+			out := captureStdout(t, func() {
+				if err := runDirectCall(t.Context(), "text", tools, repo, "s", "m", &config.Config{}, "!ls", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}); err != nil {
+					t.Fatalf("runDirectCall: %v", err)
+				}
+			})
+
+			if out != tt.want {
+				t.Errorf("stdout = %q, want %q", out, tt.want)
+			}
+		})
+	}
 }
 
 func TestRunDirectCallDropsWhatATooLateCallbackReports(t *testing.T) {

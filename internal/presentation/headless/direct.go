@@ -88,7 +88,7 @@ func runDirectCall(ctx context.Context, format string, toolService agentdomain.T
 		return fmt.Errorf("tool %s is not enabled", fn.Name)
 	}
 	run := &directRun{
-		tools: toolService, repo: repo, sessionID: sessionID, task: task,
+		tools: toolService, repo: repo, sessionID: sessionID, task: task, format: format,
 		call:   sdk.ChatCompletionMessageToolCall{ID: directCallID(task), Type: "function", Function: fn},
 		events: newDirectEvents(),
 	}
@@ -143,6 +143,7 @@ type directRun struct {
 	repo      convdomain.ConversationRepository
 	sessionID string
 	task      string
+	format    string
 	call      sdk.ChatCompletionMessageToolCall
 	events    *directEvents
 }
@@ -166,9 +167,20 @@ func (r *directRun) execute(ctx context.Context) {
 		r.progress("failed", "Execution failed: "+result.Error)
 	}
 	r.events.send(completed)
+	if r.format == "text" {
+		r.printOutput(result)
+	}
 	if ctx.Err() != nil {
 		r.events.send(agentdomain.ChatCompleteEvent{RequestID: r.sessionID, Timestamp: time.Now(), Cancelled: true})
 	}
+}
+
+// printOutput gives --format text the tool's output as what the run says, since
+// that format prints only what an agent says and no agent runs here.
+func (r *directRun) printOutput(result *agentdomain.ToolExecutionResult) {
+	output := strings.TrimRight(convdomain.ToolResultOutput(result, r.repo.FormatToolResultForLLM), "\n")
+	r.events.send(agentdomain.ChatChunkEvent{RequestID: r.sessionID, Timestamp: time.Now(), Content: output})
+	r.events.send(agentdomain.ChatCompleteEvent{RequestID: r.sessionID, Timestamp: time.Now()})
 }
 
 // label names what runs in the status line: a `!cmd`'s command or a tool.

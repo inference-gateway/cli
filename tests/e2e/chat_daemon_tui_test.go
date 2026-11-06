@@ -109,6 +109,14 @@ func TestChatDaemonRunsDirectCommandsLikeAPlainChat(t *testing.T) {
 	expectPane(t, session, "tool Nope is not enabled", d)
 	chatSay(t, session, "anything else")
 	expectPane(t, session, "Done.", d)
+
+	chatSay(t, session, "/new")
+	expectPane(t, session, "Starting new conversation", d)
+	chatSay(t, session, "/say")
+	expectPane(t, session, "kept-note", d)
+	chatSay(t, session, "say hello")
+	expectPane(t, session, "Hello! How can I help?", d)
+	require.Contains(t, capturePane(session), "kept-note", "the first turn of a new conversation dropped the shortcut's output")
 }
 
 func TestChatDaemonTeleportsTheSessionAndBringsItBack(t *testing.T) {

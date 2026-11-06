@@ -39,6 +39,8 @@ type Agent struct {
 	mu       sync.Mutex
 	synced   workerState
 	stopPump context.CancelFunc
+	// notes wait here, by conversation, until the worker can take them.
+	notes map[string][]string
 }
 
 // workerState is what the TUI last told the followed thread's worker.
@@ -51,7 +53,7 @@ type workerState struct {
 
 // NewAgent builds the daemon-mode agent over thread, mirroring into repo.
 func NewAgent(thread *Thread, repo convdomain.ConversationRepository, queue convdomain.MessageQueue, modes agentdomain.AgentModeState, models convdomain.ModelService) *Agent {
-	return &Agent{thread: thread, repo: repo, queue: queue, modes: modes, models: models}
+	return &Agent{thread: thread, repo: repo, queue: queue, modes: modes, models: models, notes: make(map[string][]string)}
 }
 
 // runInputFrame starts a run with new messages or answers a suspended one.
@@ -140,6 +142,9 @@ func (a *Agent) prepare(ctx context.Context) (bool, error) {
 		}
 	}
 	if err := a.syncWorker(ctx); err != nil {
+		return false, err
+	}
+	if err := a.sendNotes(id); err != nil {
 		return false, err
 	}
 	a.moveQueued(ctx)
@@ -449,12 +454,34 @@ func (a *Agent) CancelRequest(string) error {
 
 // AddNote keeps a note the TUI wrote in the conversation on the worker, so the
 // next reconcile keeps it and the model sees it. A conversation the thread does
-// not follow yet has no worker to keep it.
+// not follow yet, as after /new, has no worker yet, so its first turn sends it.
 func (a *Agent) AddNote(content string) error {
-	if !a.thread.Follows(a.repo.GetCurrentConversationID()) {
+	id := a.repo.GetCurrentConversationID()
+	a.mu.Lock()
+	a.notes[id] = append(a.notes[id], content)
+	a.mu.Unlock()
+	if !a.thread.Follows(id) {
 		return nil
 	}
-	return a.thread.Send(map[string]string{"type": "add_note", "content": content})
+	return a.sendNotes(id)
+}
+
+// sendNotes hands the worker the notes waiting for conversation id, in order.
+// What it could not send waits for the next turn.
+func (a *Agent) sendNotes(id string) error {
+	a.mu.Lock()
+	notes := a.notes[id]
+	delete(a.notes, id)
+	a.mu.Unlock()
+	for i, note := range notes {
+		if err := a.thread.Send(map[string]string{"type": "add_note", "content": note}); err != nil {
+			a.mu.Lock()
+			a.notes[id] = append(notes[i:], a.notes[id]...)
+			a.mu.Unlock()
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *Agent) GetMetrics(string) *agentdomain.ChatMetrics { return nil }
