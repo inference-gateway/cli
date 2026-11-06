@@ -82,6 +82,15 @@ and have a conversational interface with the inference gateway.`,
 	return command
 }
 
+// newChatContainer builds a local chat's container, whose runs render through
+// AG-UI when chat.agui_loopback opts in.
+func newChatContainer(cfg *config.Config) *container.ServiceContainer {
+	if cfg.Chat.AGUILoopback {
+		return container.NewLoopbackChatContainer(cfg)
+	}
+	return container.NewServiceContainer(cfg)
+}
+
 // StartChatSession starts a chat session. loadConfig re-reads the
 // configuration for /reload.
 //
@@ -92,7 +101,7 @@ func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*
 	_ = streamevent.SetWriter(io.Discard)
 
 	telemetry.ExecutionMode = telemetry.ExecInteractive
-	services := container.NewServiceContainer(cfg)
+	services := newChatContainer(cfg)
 	services.EnableConfigReload(loadConfig)
 
 	telemetryRec := services.GetTelemetryRecorder()

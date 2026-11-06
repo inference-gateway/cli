@@ -40,6 +40,7 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	chatLoopback = os.Getenv(envChatLoopback)
 	unsetInferEnv()
 	code := m.Run()
 	cleanup()

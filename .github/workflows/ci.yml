@@ -170,7 +170,7 @@ jobs:
     - name: Run hermetic end-to-end tests against the mock gateway
       env:
         INFER_E2E_BINARY: ${{ runner.temp }}/infer-e2e
-      run: go test -race -v -tags "e2e purego" -timeout 5m ./tests/e2e/...
+      run: go test -race -v -tags "e2e purego" -timeout 8m ./tests/e2e/...
 
   postgres:
     needs:

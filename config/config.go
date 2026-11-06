@@ -834,6 +834,9 @@ type ChatConfig struct {
 	// Daemon runs every turn through the local daemon's thread instead of an
 	// in-process agent, the way infer chat --daemon does.
 	Daemon bool `yaml:"daemon" mapstructure:"daemon"`
+	// AGUILoopback renders a local chat's runs through AG-UI, the path a daemon
+	// chat takes, while that path is proven against the direct one.
+	AGUILoopback bool `yaml:"agui_loopback,omitempty" mapstructure:"agui_loopback"`
 }
 
 // ChatSuggestionsConfig contains settings for the one-line next-step suggestion
