@@ -194,11 +194,8 @@ type PanelDeps struct {
 	Frames        func(name string) (agentdomain.FrameSource, bool)
 	// Screen is the worker's screen control, the take-over invariant the
 	// Screen view's control and input frames ride on. Queue is the queue a
-	// hand-back's continue message lands on.
 	Screen computerdomain.ScreenControl
 	Queue  convdomain.MessageQueue
-	// Jobs is the supervisor of the worker's background jobs, and A2ATasks
-	// cancels an A2A one on its agent. A2ATasks is nil without A2A.
 	Jobs     scheddomain.BackgroundTaskRegistry
 	A2ATasks a2adomain.BackgroundTaskService
 }
