@@ -114,6 +114,8 @@ type RunEncoder struct {
 	// plan is the plan the user accepted during the run, which the serve
 	// worker executes in a fresh session once the run ends.
 	plan *string
+
+	suggestNextStep func() string
 }
 
 // RunEncoderDeps are the collaborators of one run's encoder.
@@ -129,6 +131,10 @@ type RunEncoderDeps struct {
 	Startup   *startupNotes
 	Interrupt Interrupts
 	Publish   []Publish
+	// SuggestNextStep, when wired, yields the finished assistant turn's
+	// one-line next-step suggestion, which the run patches into its state
+	// before the terminal event. nil for a run that publishes none.
+	SuggestNextStep func() string
 }
 
 // NewRunEncoder builds the encoder for one run over w. History, when non-empty,
@@ -139,19 +145,20 @@ type RunEncoderDeps struct {
 // interrupts the run raises so resume entries find their broker.
 func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 	return &RunEncoder{
-		writer:    w,
-		run:       agui.NewRun(w),
-		model:     deps.Model,
-		repo:      deps.Repo,
-		history:   deps.History,
-		jobs:      deps.Jobs,
-		approvals: deps.Approvals,
-		questions: deps.Questions,
-		plans:     deps.Plans,
-		modes:     deps.Modes,
-		startup:   deps.Startup,
-		interrupt: deps.Interrupt,
-		publish:   deps.Publish,
+		writer:          w,
+		run:             agui.NewRun(w),
+		model:           deps.Model,
+		repo:            deps.Repo,
+		history:         deps.History,
+		jobs:            deps.Jobs,
+		approvals:       deps.Approvals,
+		questions:       deps.Questions,
+		plans:           deps.Plans,
+		modes:           deps.Modes,
+		startup:         deps.Startup,
+		interrupt:       deps.Interrupt,
+		publish:         deps.Publish,
+		suggestNextStep: deps.SuggestNextStep,
 	}
 }
 
@@ -431,13 +438,28 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 }
 
 // Finish writes the current run's one terminal event, RUN_FINISHED carrying the
-// usage and the session extras or the failure the run ended with. It returns
-// the run error for the caller's exit code and telemetry.
+// usage and the session extras or the failure the run ended with. A wired
+// suggestion source patches its next-step suggestion into the state first, so
+// a client reads it before the terminal event. It returns the run error for
+// the caller's exit code and telemetry.
 func (r *RunEncoder) Finish() error {
+	r.publishNextStepSuggestion()
 	if err := r.run.Finish(sessionExtras(r.model, r.repo), sessionUsage(r.model, r.repo)); err != nil {
 		return fmt.Errorf("agent error: %w", err)
 	}
 	return nil
+}
+
+// publishNextStepSuggestion patches the run's state with the one-line
+// next-step suggestion the source yields, the ghost text the chat TUI offers.
+// A failed run, an unwired source and an empty suggestion publish nothing.
+func (r *RunEncoder) publishNextStepSuggestion() {
+	if r.suggestNextStep == nil || r.run.Err() != nil {
+		return
+	}
+	if suggestion := r.suggestNextStep(); suggestion != "" {
+		r.run.PatchState(agui.StateNextStepSuggestion, suggestion)
+	}
 }
 
 // sessionUsage builds the per-session token totals as the usage list the

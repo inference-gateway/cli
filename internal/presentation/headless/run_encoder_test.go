@@ -222,6 +222,139 @@ func TestRunEncoder_SubmittedJobPatchesBackgroundTasks(t *testing.T) {
 	}
 }
 
+func TestRunEncoder_PatchesNextStepSuggestionBeforeTheTerminalEvent(t *testing.T) {
+	var out strings.Builder
+	r := NewRunEncoder(&out, RunEncoderDeps{
+		Model: "m", Repo: &convmocks.FakeConversationRepository{},
+		SuggestNextStep: func() string { return "run the failing test" },
+	})
+	r.Start("s1", "run-1")
+	r.Handle(agentdomain.ChatChunkEvent{Content: "hello"})
+	r.Handle(agentdomain.ChatCompleteEvent{})
+	if err := r.Finish(); err != nil {
+		t.Fatalf("Finish() err = %v", err)
+	}
+
+	events := decodeEvents(t, out.String())
+	terminal := len(events) - 1
+	if events[terminal].Type != "RUN_FINISHED" {
+		t.Fatalf("terminal event = %s, want RUN_FINISHED\n%s", events[terminal].Type, out.String())
+	}
+	suggestion := events[terminal-1]
+	if suggestion.Type != "STATE_DELTA" {
+		t.Fatalf("event before the terminal = %s, want the STATE_DELTA the suggestion patches:\n%s", suggestion.Type, out.String())
+	}
+	patch := patches(t, suggestion)
+	if len(patch) != 1 || patch[0].Op != "add" || patch[0].Path != "/nextStepSuggestion" || patch[0].Value != "run the failing test" {
+		t.Errorf("patch = %#v, want one add of the suggestion on /nextStepSuggestion", patch)
+	}
+}
+
+func TestRunEncoder_NothingAvailablePublishesNoNextStepSuggestion(t *testing.T) {
+	tests := []struct {
+		name      string
+		wired     bool
+		wantAsked bool
+	}{
+		{name: "the generator call yields nothing", wired: true, wantAsked: true},
+		{name: "no generator is wired", wired: false, wantAsked: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out strings.Builder
+			asked := false
+			deps := RunEncoderDeps{Model: "m", Repo: &convmocks.FakeConversationRepository{}}
+			if tt.wired {
+				deps.SuggestNextStep = func() string { asked = true; return "" }
+			}
+			r := NewRunEncoder(&out, deps)
+			r.Start("s1", "run-1")
+			r.Handle(agentdomain.ChatChunkEvent{Content: "hello"})
+			r.Handle(agentdomain.ChatCompleteEvent{})
+			if err := r.Finish(); err != nil {
+				t.Fatalf("Finish() err = %v", err)
+			}
+
+			var patched []string
+			for _, ev := range decodeEvents(t, out.String()) {
+				if ev.Type != "STATE_DELTA" {
+					continue
+				}
+				for _, patch := range patches(t, ev) {
+					patched = append(patched, patch.Path)
+				}
+			}
+			if slices.Contains(patched, "/nextStepSuggestion") {
+				t.Errorf("a suggestion that is discarded or unwired still published a state patch: %v", patched)
+			}
+			if asked != tt.wantAsked {
+				t.Errorf("generator asked = %v, want %v", asked, tt.wantAsked)
+			}
+		})
+	}
+}
+
+func TestRunEncoder_FailedRunPublishesNoNextStepSuggestion(t *testing.T) {
+	tests := []struct {
+		name  string
+		event agentdomain.ChatEvent
+	}{
+		{name: "the run failed", event: agentdomain.ChatErrorEvent{Error: errors.New("gateway down")}},
+		{name: "the run was cancelled", event: agentdomain.ChatCompleteEvent{Cancelled: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out strings.Builder
+			asked := false
+			r := NewRunEncoder(&out, RunEncoderDeps{
+				Model: "m", Repo: &convmocks.FakeConversationRepository{},
+				SuggestNextStep: func() string {
+					asked = true
+					return "run the failing test"
+				},
+			})
+			r.Start("s1", "run-1")
+			r.Handle(tt.event)
+			if err := r.Finish(); err == nil {
+				t.Fatal("Finish() err = nil, want the run error")
+			}
+			if asked {
+				t.Error("a run that did not succeed still asked the generator for a suggestion")
+			}
+			if slices.Contains(eventTypes(decodeEvents(t, out.String())), "STATE_DELTA") {
+				t.Errorf("a run that did not succeed published a state patch:\n%s", out.String())
+			}
+		})
+	}
+}
+
+func TestNextStepSuggestion_SkipsWhenSomethingElseTakesTheNextStep(t *testing.T) {
+	generate := func(context.Context) string { return "run the failing test" }
+	tests := []struct {
+		name          string
+		queueEmpty    bool
+		parentSession string
+		generate      func(context.Context) string
+		want          string
+	}{
+		{name: "an idle worker asks the generator", queueEmpty: true, generate: generate, want: "run the failing test"},
+		{name: "a queued message is the next step", queueEmpty: false, generate: generate, want: ""},
+		{name: "a subagent's parent takes the next step", queueEmpty: true, parentSession: "parent-1", generate: generate, want: ""},
+		{name: "a container that builds no generator suggests nothing", queueEmpty: true, generate: (*conversation.ChatSuggestionGenerator)(nil).GenerateNextStepSuggestion, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(scheddomain.EnvSubagentParentSession, tt.parentSession)
+			queue := &convmocks.FakeMessageQueue{}
+			queue.IsEmptyReturns(tt.queueEmpty)
+			suggest := nextStepSuggestion(t.Context(), queue, tt.generate)
+			if got := suggest(); got != tt.want {
+				t.Errorf("suggestion = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunEncoder_PublishesToolActivity(t *testing.T) {
 	tests := []struct {
 		name         string

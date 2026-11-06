@@ -1065,9 +1065,9 @@ func (c *ServiceContainer) GetToolExecutionCoordinator() tui.ToolExecutionCoordi
 }
 
 // GetNextStepSuggestionRunner returns the one-line next-step suggestion
-// generator for the chat input's ghost text, built lazily here so both the
-// persistent and the in-memory conversation path share it.
-func (c *ServiceContainer) GetNextStepSuggestionRunner() tui.NextStepSuggestionRunner {
+// generator, built lazily here so the chat TUI's ghost text and the serve
+// worker's AG-UI state share it. nil on a daemon thread.
+func (c *ServiceContainer) GetNextStepSuggestionRunner() *conversation.ChatSuggestionGenerator {
 	if c.daemonThread != nil {
 		return nil
 	}

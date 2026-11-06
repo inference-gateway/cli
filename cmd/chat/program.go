@@ -51,7 +51,7 @@ func runChatProgram(services *container.ServiceContainer, cfg *config.Config, mo
 		services.GetToolExecutionCoordinator(),
 		services.GetShellHistoryStorage(),
 		services.GetTokenEstimator(),
-		services.GetNextStepSuggestionRunner(),
+		nextStepSuggestionRunner(services),
 	)
 	application.SetTranscriptStore(services.GetStorage())
 	application.SetSessionTeleporter(services.GetSessionTeleporter())
@@ -79,5 +79,14 @@ func runChatProgram(services *container.ServiceContainer, cfg *config.Config, mo
 		fmt.Println()
 	}
 	fmt.Println(colors.CreateColoredText(exitMessage(endedSessionID), colors.DimColor))
+	return nil
+}
+
+// nextStepSuggestionRunner hands the TUI a nil interface, not a typed nil
+// pointer, when the container builds no generator, so its nil check holds.
+func nextStepSuggestionRunner(services *container.ServiceContainer) tui.NextStepSuggestionRunner {
+	if generator := services.GetNextStepSuggestionRunner(); generator != nil {
+		return generator
+	}
 	return nil
 }

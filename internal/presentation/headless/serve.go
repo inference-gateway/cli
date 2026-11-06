@@ -83,6 +83,7 @@ func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifica
 		Model: req.Model, Repo: repo, History: history, Jobs: svc.GetBackgroundTaskRegistry().Snapshot,
 		Approvals: ctl.approvals, Questions: ctl.questions, Plans: ctl.plans, Modes: svc.GetStateStore(),
 		Interrupt: ctl, Startup: notes, Publish: []Publish{computer.PublishedEvent},
+		SuggestNextStep: nextStepSuggestion(ctx, svc.GetMessageQueue(), svc.GetNextStepSuggestionRunner().GenerateNextStepSuggestion),
 	})
 	encoder.Start(liveThreadID(repo, req.RequestID), uuid.New().String())
 	events, err := agentService.RunWithStream(ctx, &req)
@@ -100,6 +101,17 @@ func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifica
 	rec.RecordSession("headless", outcome, time.Since(started))
 	planID, execute := encoder.AcceptedPlan()
 	return planID, execute, runErr
+}
+
+// nextStepSuggestion yields the turn's suggestion under the worker's context,
+// and nothing when a queued message or a parent agent takes the next step.
+func nextStepSuggestion(ctx context.Context, queue convdomain.MessageQueue, generate func(context.Context) string) func() string {
+	return func() string {
+		if !queue.IsEmpty() || os.Getenv(scheddomain.EnvSubagentParentSession) != "" {
+			return ""
+		}
+		return generate(ctx)
+	}
 }
 
 // liveThreadID is the conversation a run renders as its thread: the one the

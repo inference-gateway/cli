@@ -22,6 +22,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	computer "github.com/inference-gateway/cli/internal/computer"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
+	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	gateway "github.com/inference-gateway/cli/internal/gateway"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
@@ -64,6 +65,7 @@ type Services interface {
 	GetShortcutRegistry() *shortcuts.Registry
 	GetBackgroundTaskRegistry() scheddomain.BackgroundTaskRegistry
 	GetTelemetryRecorder() *telemetry.Recorder
+	GetNextStepSuggestionRunner() *conversation.ChatSuggestionGenerator
 	NewPanel(out io.Writer) *Panel
 }
 

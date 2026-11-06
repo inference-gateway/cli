@@ -48,6 +48,7 @@ belongs to a run. A frame with a lowercase `type` is an app frame, in either dir
 | Screen recording starts or ends | `STATE_DELTA` patching `screenRecording` with `active`, and the frame while it runs |
 | Computer tool pointer or keyboard action | `ACTIVITY_SNAPSHOT` `computer_use` keyed `computer_use:<toolCallId>`, the action and its screen coordinates. See [Activity](#activity) |
 | LLM judge verdict (`auto-with-judge`) | `ACTIVITY_SNAPSHOT` `judge_verdict` keyed `judge:<tool>:<turn>`. See [Activity](#activity) |
+| Serve turn ended with a suggested next step | `STATE_DELTA` patching `nextStepSuggestion`, right before the terminal event. See [State](#state) |
 | Approval request (`--require-approval`) | `RUN_FINISHED` with outcome `interrupt`, the interrupt's `reason` `tool_call` and its `toolCallId`. See [Interrupts](#interrupts) |
 | AskUserQuestion form | `RUN_FINISHED` with outcome `interrupt`, the interrupt's `reason` `input_required` and a `responseSchema` |
 | Successful exit | `RUN_FINISHED` with outcome `success`, `usage` and `result` |
@@ -101,7 +102,12 @@ replaces the others:
 | `todos` | The todo list, `[]` until the agent writes one |
 | `usage` | The cumulative token usage, the same list the terminal event carries, `[]` until the first model request |
 | `backgroundTasks` | `{"running": <count>, "jobs": [...]}` |
+| `nextStepSuggestion` | The one-line next-step suggestion of the turn that ended, `""` until a serve run publishes one |
 | `screenRecording` | `active` (bool); while a recording runs also `path`, `region` `{x, y, width, height}`, `frameWidth`, `frameHeight` |
+
+A disabled, failed or discarded suggestion publishes nothing, so `nextStepSuggestion` stays at its seeded `""`, and the
+suggestion call's tokens land in the same session totals the terminal event carries. A turn with a message already
+queued behind it, a failed or cancelled run and a subagent's worker ask for no suggestion at all.
 
 While a recording runs, its `region` and `frameWidth`/`frameHeight` are in the
 frame space the recorder captures - the same space screenshots and their
