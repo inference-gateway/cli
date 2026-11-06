@@ -17,8 +17,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   apply when the worker launches. `subagent` names the parent thread that spawned this one, its depth and its
   tool allowlist, which the worker gets as its subagent env. `workspace` and `workspace_dir` place a thread no lease places on a
   remote workspace, which the launch seam relays it to.
-- **Forwarded frames** - `run_agent_input`, `interrupt` and `user_question_response` go to the client's
-  thread unchanged. A `run_agent_input` relaunches a thread whose worker exited. A thread at rest for a teleport
+- **Forwarded frames** - `run_agent_input`, `add_note`, `interrupt` and `user_question_response` go to the
+  client's thread unchanged. A `run_agent_input` relaunches a thread whose worker exited. A thread at rest for a teleport
   launches no worker: every frame that needs one is refused with `RUN_ERROR` until the teleport settles, so a
   screen poll cannot start the session here while it moves.
 - **Resumes** - a run that ends with the `interrupt` outcome leaves its interrupts open on the thread. The

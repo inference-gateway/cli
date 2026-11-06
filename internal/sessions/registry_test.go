@@ -177,6 +177,31 @@ func TestRegistryWorkerCrashEndsOpenRun(t *testing.T) {
 	}
 }
 
+func TestRegistryForwardsANoteToTheClientsThread(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	a := &sessionsmocks.FakeClient{}
+	handle(r, a, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	w, lines := l.worker(0)
+
+	note := `{"type":"add_note","content":"pushed"}`
+	handle(r, a, note)
+	if got := string(w.SendArgsForCall(w.SendCallCount() - 1)); got != note {
+		t.Errorf("the worker read %q, want the note unchanged", got)
+	}
+
+	started := `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`
+	lines <- []byte(started)
+	eventually(t, "RUN_STARTED", func() bool { return a.DeliverCallCount() == 1 })
+	close(lines)
+	receives(t, a, started, `{"message":"the session worker exited mid-run","runId":"run-1","type":"RUN_ERROR"}`)
+
+	handle(r, a, note)
+	if l.count() != 1 {
+		t.Fatal("a note must not relaunch a crashed worker")
+	}
+}
+
 // runInput wraps one RunAgentInput body in the frame that carries it.
 func runInput(input string) string {
 	return `{"type":"run_agent_input","input":` + input + `}`

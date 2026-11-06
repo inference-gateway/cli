@@ -26,6 +26,7 @@ const (
 	frameApprovalResponse   = "approval_response"
 	frameStopThread         = "stop_thread"
 	frameRunAgentInput      = "run_agent_input"
+	frameAddNote            = "add_note"
 	frameToolRequest        = "tool_request"
 	frameToolResult         = "tool_result"
 	frameCompletionRequest  = "completion_request"
@@ -41,10 +42,11 @@ const (
 )
 
 // forwarded are the frames that go to the client's own thread unchanged: the
-// run input that starts and continues its runs, the frame that stops one, and
-// the question answers.
+// run input that starts and continues its runs, the frame that stops one, the
+// question answers and the notes a client adds to the conversation.
 var forwarded = map[string]bool{
 	frameRunAgentInput:       true,
+	frameAddNote:             true,
 	"interrupt":              true,
 	"user_question_response": true,
 }

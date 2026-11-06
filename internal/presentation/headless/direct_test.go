@@ -3,6 +3,7 @@ package headless
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -70,7 +71,9 @@ func TestDirectCall(t *testing.T) {
 		"tool json":     {task: `!!Tree({"path":".","max_depth":2})`, direct: true, name: "Tree", args: `{"max_depth":2,"path":"."}`},
 		"bash":          {task: "!ls -la", direct: true, name: "Bash", args: `{"command":"ls -la"}`},
 		"bash padded":   {task: "  ! echo hi ", direct: true, name: "Bash", args: `{"command":"echo hi"}`},
+		"bash detached": {task: "!sleep 8 &", direct: true, name: "Bash", args: `{"command":"sleep 8","detached":true}`},
 		"bash empty":    {task: "!", direct: true, err: true},
+		"bash only &":   {task: "! &", direct: true, err: true},
 		"tool bad":      {task: "!!Read", direct: true, err: true},
 		"plain prompt":  {task: "list the files", direct: false},
 		"bang in prose": {task: "wow! do it", direct: false},
@@ -94,35 +97,171 @@ func TestDirectCall(t *testing.T) {
 	}
 }
 
-func TestRunDirectCallRecordsAndStreams(t *testing.T) {
-	store := storage.NewMemoryStorage()
-	repo := conversation.NewPersistentConversationRepository(nil, nil, store)
-	repo.SetConversationID("sess-1")
+func TestRunDirectCallRecordsWhatTheChatTUIRecords(t *testing.T) {
+	tests := []struct {
+		name      string
+		task      string
+		fn        sdk.ChatCompletionMessageToolCallFunction
+		roles     []sdk.MessageRole
+		callID    string
+		modelSees int
+	}{
+		{
+			name:      "a !command reaches the model as its hidden output",
+			task:      "!echo hi",
+			fn:        sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"echo hi"}`},
+			roles:     []sdk.MessageRole{sdk.User, sdk.Assistant, sdk.Tool, sdk.User},
+			callID:    "user-bash-",
+			modelSees: 2,
+		},
+		{
+			name:      "a !!Tool keeps its tool pair",
+			task:      `!!Read(file_path="README.md")`,
+			fn:        sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: `{"file_path":"README.md"}`},
+			roles:     []sdk.MessageRole{sdk.User, sdk.Assistant, sdk.Tool},
+			callID:    "user-tool-",
+			modelSees: 3,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := storage.NewMemoryStorage()
+			repo := conversation.NewPersistentConversationRepository(nil, nil, store)
+			repo.SetConversationID("sess-1")
+			tools := &agentdomainmocks.FakeToolService{}
+			tools.IsToolEnabledReturns(true)
+			tools.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{ToolName: tt.fn.Name, Success: true, Data: "hi"}, nil)
+
+			captureStdout(t, func() {
+				if err := runDirectCall(context.Background(), "ag-ui", tools, repo, "sess-1", "m", &config.Config{}, tt.task, tt.fn); err != nil {
+					t.Fatalf("runDirectCall: %v", err)
+				}
+			})
+
+			entries, _, err := store.LoadConversation(context.Background(), "sess-1")
+			if err != nil || len(entries) != len(tt.roles) {
+				t.Fatalf("want %d persisted entries, got %d (%v)", len(tt.roles), len(entries), err)
+			}
+			for i, role := range tt.roles {
+				if entries[i].Message.Role != role {
+					t.Errorf("entry %d has role %s, want %s", i, entries[i].Message.Role, role)
+				}
+			}
+			if typed, _ := entries[0].Message.Content.AsMessageContent0(); typed != tt.task {
+				t.Errorf("first entry = %q, want the typed task", typed)
+			}
+			if entries[2].Message.ToolCallID == nil || !strings.HasPrefix(*entries[2].Message.ToolCallID, tt.callID) {
+				t.Errorf("tool entry id = %v, want the %s prefix", entries[2].Message.ToolCallID, tt.callID)
+			}
+			if got := len(convdomain.BuildAgentMessagesFromEntries(entries)); got != tt.modelSees {
+				t.Errorf("the model sees %d messages, want %d", got, tt.modelSees)
+			}
+		})
+	}
+}
+
+func TestRunDirectCallRendersTheOutputWhileTheCommandRuns(t *testing.T) {
 	tools := &agentdomainmocks.FakeToolService{}
 	tools.IsToolEnabledReturns(true)
-	tools.ExecuteToolDirectReturns(&agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Data: "hi"}, nil)
-	fn := sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"echo hi"}`}
+	tools.ExecuteToolDirectStub = func(ctx context.Context, _ sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+		agentdomain.GetBashOutputCallback(ctx)("line 1")
+		return &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true}, nil
+	}
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
 
 	out := captureStdout(t, func() {
-		if err := runDirectCall(context.Background(), "ag-ui", tools, repo, "sess-1", "m", &config.Config{}, fn); err != nil {
+		if err := runDirectCall(t.Context(), "ag-ui", tools, repo, "s", "m", &config.Config{}, "!echo hi", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"echo hi"}`}); err != nil {
 			t.Fatalf("runDirectCall: %v", err)
 		}
 	})
 
-	if tools.ExecuteToolDirectCallCount() != 1 {
-		t.Fatalf("tool not executed")
-	}
-	entries, _, err := store.LoadConversation(context.Background(), "sess-1")
-	if err != nil || len(entries) != 2 {
-		t.Fatalf("want 2 persisted entries, got %d (%v)", len(entries), err)
-	}
-	if entries[0].Message.Role != sdk.Assistant || entries[1].Message.Role != sdk.Tool {
-		t.Fatalf("unexpected roles: %s %s", entries[0].Message.Role, entries[1].Message.Role)
-	}
-	for _, want := range []string{"RUN_STARTED", "TOOL_CALL_START", "TOOL_CALL_RESULT", "RUN_FINISHED"} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("ag-ui stream missing %s:\n%s", want, out)
+	position := 0
+	for _, want := range []string{"RUN_STARTED", "TOOL_CALL_START", "tool_progress", "line 1", "TOOL_CALL_RESULT", "RUN_FINISHED"} {
+		at := strings.Index(out[position:], want)
+		if at < 0 {
+			t.Fatalf("%s is missing or out of order in the stream:\n%s", want, out)
 		}
+		position += at
+	}
+	if strings.Contains(out, "TEXT_MESSAGE") {
+		t.Errorf("a direct call said something as the assistant:\n%s", out)
+	}
+}
+
+func TestRunDirectCallPrintsItsOutputInTextFormat(t *testing.T) {
+	tests := []struct {
+		name   string
+		result *agentdomain.ToolExecutionResult
+		want   string
+	}{
+		{name: "a command's output", result: &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Data: &agentdomain.BashToolResult{Output: "hi\n"}}, want: "hi\n"},
+		{name: "a failed command's output", result: &agentdomain.ToolExecutionResult{ToolName: "Bash", Data: &agentdomain.BashToolResult{Output: "ls: nope\n", ExitCode: 1}}, want: "ls: nope\n"},
+		{name: "a command that prints nothing", result: &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true, Data: &agentdomain.BashToolResult{}}, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tools := &agentdomainmocks.FakeToolService{}
+			tools.IsToolEnabledReturns(true)
+			tools.ExecuteToolDirectReturns(tt.result, nil)
+			repo := conversation.NewInMemoryConversationRepository(nil, nil)
+
+			out := captureStdout(t, func() {
+				if err := runDirectCall(t.Context(), "text", tools, repo, "s", "m", &config.Config{}, "!ls", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"ls"}`}); err != nil {
+					t.Fatalf("runDirectCall: %v", err)
+				}
+			})
+
+			if out != tt.want {
+				t.Errorf("stdout = %q, want %q", out, tt.want)
+			}
+		})
+	}
+}
+
+func TestRunDirectCallDropsWhatATooLateCallbackReports(t *testing.T) {
+	var late agentdomain.BashOutputCallback
+	tools := &agentdomainmocks.FakeToolService{}
+	tools.IsToolEnabledReturns(true)
+	tools.ExecuteToolDirectStub = func(ctx context.Context, _ sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+		late = agentdomain.GetBashOutputCallback(ctx)
+		return &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: true}, nil
+	}
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
+
+	captureStdout(t, func() {
+		if err := runDirectCall(t.Context(), "ag-ui", tools, repo, "s", "m", &config.Config{}, "!sleep 8 &", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"sleep 8","detached":true}`}); err != nil {
+			t.Fatalf("runDirectCall: %v", err)
+		}
+	})
+
+	late("a detached command's last output")
+}
+
+func TestRunDirectCallEndsACancelledCommandAsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	tools := &agentdomainmocks.FakeToolService{}
+	tools.IsToolEnabledReturns(true)
+	tools.ExecuteToolDirectStub = func(ctx context.Context, _ sdk.ChatCompletionMessageToolCallFunction) (*agentdomain.ToolExecutionResult, error) {
+		cancel()
+		<-ctx.Done()
+		return &agentdomain.ToolExecutionResult{ToolName: "Bash", Success: false, Error: "command was cancelled and killed"}, nil
+	}
+	repo := conversation.NewInMemoryConversationRepository(nil, nil)
+
+	var err error
+	out := captureStdout(t, func() {
+		err = runDirectCall(ctx, "ag-ui", tools, repo, "s", "m", &config.Config{}, "!sleep 100", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"sleep 100"}`})
+	})
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	if !strings.Contains(out, `"outcome":{"type":"cancelled"}`) {
+		t.Errorf("the run did not end as cancelled:\n%s", out)
+	}
+	if repo.GetMessageCount() != 4 {
+		t.Errorf("recorded %d entries, want what ran still in the conversation", repo.GetMessageCount())
 	}
 }
 
@@ -130,9 +269,12 @@ func TestRunDirectCallRejectsDisabledTool(t *testing.T) {
 	tools := &agentdomainmocks.FakeToolService{}
 	tools.IsToolEnabledReturns(false)
 	repo := conversation.NewInMemoryConversationRepository(nil, nil)
-	err := runDirectCall(context.Background(), "text", tools, repo, "s", "m", &config.Config{}, sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"})
+	err := runDirectCall(context.Background(), "text", tools, repo, "s", "m", &config.Config{}, "!ls", sdk.ChatCompletionMessageToolCallFunction{Name: "Bash"})
 	if err == nil || tools.ExecuteToolDirectCallCount() != 0 {
 		t.Fatalf("disabled tool must error before running, err=%v", err)
+	}
+	if repo.GetMessageCount() != 0 {
+		t.Errorf("a refused task recorded %d entries", repo.GetMessageCount())
 	}
 }
 

@@ -36,24 +36,20 @@ func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
 		}
 	}
 
-	if strings.HasSuffix(command, " &") || strings.HasSuffix(command, "&") {
-		command = strings.TrimSuffix(command, " &")
-		command = strings.TrimSuffix(command, "&")
-		command = strings.TrimSpace(command)
-
-		if command == "" {
-			return func() tea.Msg {
-				return tui.ShowErrorEvent{
-					Error:  "No bash command provided. Use: !<command>",
-					Sticky: false,
-				}
+	foreground, background := SplitBackground(command)
+	if foreground == "" {
+		return func() tea.Msg {
+			return tui.ShowErrorEvent{
+				Error:  "No bash command provided. Use: !<command>",
+				Sticky: false,
 			}
 		}
-
-		return s.executeBashCommandInBackground(commandText, command)
+	}
+	if background {
+		return s.executeBashCommandInBackground(commandText, foreground)
 	}
 
-	return s.executeBashCommand(commandText, command)
+	return s.executeBashCommand(commandText, foreground)
 }
 
 // HandleBashOutputChunk is invoked after a bash output chunk reaches the UI.
@@ -133,7 +129,7 @@ func (s *Service) HandleBackgroundShellRequest() tea.Cmd {
 // executeBashCommand runs a foreground bash command without approval, with a
 // synthesized user-bash- tool-call entry so the model sees it in history.
 func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
-	toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
+	toolCallID := convdomain.NewUserBashCallID()
 
 	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{
@@ -235,7 +231,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 			eventChan <- tui.BashCommandCompletedEvent{
 				History:       s.conversationRepo.GetMessages(),
 				Failed:        true,
-				UserInitiated: strings.HasPrefix(toolCallID, "user-bash-"),
+				UserInitiated: convdomain.IsUserBashCall(toolCallID),
 				ErrorMessage:  fmt.Sprintf("Failed to execute command: %v", err),
 			}
 			return
@@ -274,33 +270,22 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 		_ = s.conversationRepo.AddMessage(toolEntry)
 		s.addHiddenBashOutputEntry(command, formattedContent)
 
-		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
 		failed := result != nil && !result.Success
 
 		eventChan <- tui.BashCommandCompletedEvent{
 			History:       s.conversationRepo.GetMessages(),
 			Failed:        failed,
-			UserInitiated: isUserInitiated,
+			UserInitiated: convdomain.IsUserBashCall(toolCallID),
 		}
 	}()
 
 	return tui.ListenForEvents(eventChan)
 }
 
-// addHiddenBashOutputEntry persists the output of a user-typed `!command` as a
-// hidden user message so the model can see it: the synthesized user-bash tool
-// pair is dropped from LLM history (BuildAgentMessagesFromEntries), while
-// hidden entries are invisible in the TUI but still sent to the model.
+// addHiddenBashOutputEntry persists the output of a user-typed `!command` so
+// the model can see it.
 func (s *Service) addHiddenBashOutputEntry(command, output string) {
-	_ = s.conversationRepo.AddMessage(convdomain.ConversationEntry{
-		Message: sdk.Message{
-			Role: sdk.User,
-			Content: sdk.NewMessageContent(fmt.Sprintf(
-				"<system-reminder>\nOutput of the shell command the user ran directly with `!%s`:\n%s\n</system-reminder>", command, output)),
-		},
-		Time:   time.Now(),
-		Hidden: true,
-	})
+	_ = s.conversationRepo.AddMessage(convdomain.NewUserBashOutputEntry(command, output, time.Now()))
 }
 
 // executeBashCommandInBackground runs the bash command immediately under the

@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
-
-	uuid "github.com/google/uuid"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -18,6 +17,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // directCall maps a `!!Tool(arg="v")` or `!cmd` task to the tool call the
@@ -33,14 +33,24 @@ func directCall(task string) (fn sdk.ChatCompletionMessageToolCallFunction, dire
 		raw, _ := json.Marshal(args)
 		return sdk.ChatCompletionMessageToolCallFunction{Name: name, Arguments: string(raw)}, true, nil
 	case strings.HasPrefix(task, "!"):
-		command := strings.TrimSpace(strings.TrimPrefix(task, "!"))
+		command, background := bashCommand(task)
 		if command == "" {
 			return fn, true, errors.New("no bash command provided; use !<command>")
 		}
-		raw, _ := json.Marshal(map[string]string{"command": command})
-		return sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: string(raw)}, true, nil
+		args := map[string]any{"command": command}
+		if background {
+			args["detached"] = true
+		}
+		raw, _ := json.Marshal(args)
+		return sdk.ChatCompletionMessageToolCallFunction{Name: tools.ToolBash, Arguments: string(raw)}, true, nil
 	}
 	return fn, false, nil
+}
+
+// bashCommand is the command of a `!cmd` task, without the `&` that asks for a
+// background shell, and whether it had one.
+func bashCommand(task string) (string, bool) {
+	return directexec.SplitBackground(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(task), "!")))
 }
 
 // isBashTask reports whether task is a `!cmd` direct bash run, which never
@@ -62,7 +72,7 @@ func runDirect(ctx context.Context, opts Options, toolService agentdomain.ToolSe
 		emitPreRunError(os.Stdout, opts.Format, err)
 		return true, err
 	}
-	err = runDirectCall(ctx, opts.Format, toolService, repo, sessionID, model, cfg, fn)
+	err = runDirectCall(ctx, opts.Format, toolService, repo, sessionID, model, cfg, opts.Task, fn)
 	if opts.ResultFile != "" {
 		writeResultFile(opts.ResultFile, repo, sessionID, err)
 	}
@@ -70,43 +80,167 @@ func runDirect(ctx context.Context, opts Options, toolService agentdomain.ToolSe
 }
 
 // runDirectCall executes fn through the run's own tool service - gateway, A2A
-// agents and MCP servers already wired - records the assistant tool_call and
-// tool result entries in the conversation, and streams both in --format the
-// way an agent turn would. No model is called.
-func runDirectCall(ctx context.Context, format string, toolService agentdomain.ToolService, repo convdomain.ConversationRepository, sessionID, model string, cfg *config.Config, fn sdk.ChatCompletionMessageToolCallFunction) error {
+// agents and MCP servers already wired - and renders it in --format while it
+// runs, the way an agent turn would. It records what the chat TUI's direct-exec
+// path records. No model is called.
+func runDirectCall(ctx context.Context, format string, toolService agentdomain.ToolService, repo convdomain.ConversationRepository, sessionID, model string, cfg *config.Config, task string, fn sdk.ChatCompletionMessageToolCallFunction) error {
 	if !toolService.IsToolEnabled(fn.Name) {
 		return fmt.Errorf("tool %s is not enabled", fn.Name)
 	}
-	call := sdk.ChatCompletionMessageToolCall{ID: "call_" + uuid.New().String(), Type: "function", Function: fn}
-	result, err := toolService.ExecuteToolDirect(agentdomain.WithToolApproved(ctx), fn)
+	run := &directRun{
+		tools: toolService, repo: repo, sessionID: sessionID, task: task, format: format,
+		call:   sdk.ChatCompletionMessageToolCall{ID: directCallID(task), Type: "function", Function: fn},
+		events: newDirectEvents(),
+	}
+	run.record(convdomain.ConversationEntry{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent(strings.TrimSpace(task))}, Time: time.Now()})
+	go run.execute(ctx)
+	return renderStream(format, run.events.out, nil, sessionID, model, cfg, repo, nil, nil, nil)
+}
+
+// directCallID names a direct task's tool call, which says how the conversation
+// treats it: a `!cmd` pair is dropped from the model's history.
+func directCallID(task string) string {
+	if isBashTask(task) {
+		return convdomain.NewUserBashCallID()
+	}
+	return convdomain.NewUserToolCallID()
+}
+
+// directEvents is one direct run's event stream. A tool can call back after it
+// returned, as a detached command's output reader can, so every send goes
+// through send, which drops what arrives once the stream closed. The renderer
+// reads until close, so a blocked send always finishes and close gets its lock.
+type directEvents struct {
+	out chan agentdomain.ChatEvent
+
+	mu     sync.RWMutex
+	closed bool
+}
+
+func newDirectEvents() *directEvents {
+	return &directEvents{out: make(chan agentdomain.ChatEvent)}
+}
+
+func (e *directEvents) send(event agentdomain.ChatEvent) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if !e.closed {
+		e.out <- event
+	}
+}
+
+func (e *directEvents) close() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.closed = true
+	close(e.out)
+}
+
+// directRun is one `!cmd` or `!!Tool(...)` task on its way through the tool
+// service.
+type directRun struct {
+	tools     agentdomain.ToolService
+	repo      convdomain.ConversationRepository
+	sessionID string
+	task      string
+	format    string
+	call      sdk.ChatCompletionMessageToolCall
+	events    *directEvents
+}
+
+// execute runs the tool, reports it the way an agent turn reports a call and
+// closes the events. A cancelled ctx ends the run as cancelled.
+func (r *directRun) execute(ctx context.Context) {
+	defer r.events.close()
+	r.events.send(agentdomain.ChatCompleteEvent{RequestID: r.sessionID, Timestamp: time.Now(), ToolCalls: []sdk.ChatCompletionMessageToolCall{r.call}})
+	r.progress("running", "Executing: "+r.label())
+
+	result := r.runTool(ctx)
+	r.recordResult(result)
+
+	completed := agentdomain.ToolExecutionCompletedEvent{SessionID: r.sessionID, RequestID: r.sessionID, Timestamp: time.Now(), TotalExecuted: 1, Results: []*agentdomain.ToolExecutionResult{result}}
+	if result.Success {
+		completed.SuccessCount = 1
+		r.progress("completed", "Completed successfully")
+	} else {
+		completed.FailureCount = 1
+		r.progress("failed", "Execution failed: "+result.Error)
+	}
+	r.events.send(completed)
+	if r.format == "text" {
+		r.printOutput(result)
+	}
+	if ctx.Err() != nil {
+		r.events.send(agentdomain.ChatCompleteEvent{RequestID: r.sessionID, Timestamp: time.Now(), Cancelled: true})
+	}
+}
+
+// printOutput gives --format text the tool's output as what the run says, since
+// that format prints only what an agent says and no agent runs here.
+func (r *directRun) printOutput(result *agentdomain.ToolExecutionResult) {
+	output := strings.TrimRight(convdomain.ToolResultOutput(result, r.repo.FormatToolResultForLLM), "\n")
+	r.events.send(agentdomain.ChatChunkEvent{RequestID: r.sessionID, Timestamp: time.Now(), Content: output})
+	r.events.send(agentdomain.ChatCompleteEvent{RequestID: r.sessionID, Timestamp: time.Now()})
+}
+
+// label names what runs in the status line: a `!cmd`'s command or a tool.
+func (r *directRun) label() string {
+	if !isBashTask(r.task) {
+		return r.call.Function.Name
+	}
+	command, _ := bashCommand(r.task)
+	return command
+}
+
+// runTool executes the call as the user's own, streaming what it reports, and
+// always returns a result to record.
+func (r *directRun) runTool(ctx context.Context) *agentdomain.ToolExecutionResult {
+	ctx = agentdomain.WithDirectExecution(agentdomain.WithToolApproved(ctx))
+	ctx = agentdomain.WithToolProgressCallback(ctx, func(message string) { r.progress("running", message) })
+	ctx = agentdomain.WithBashOutputCallback(ctx, func(output string) {
+		r.events.send(agentdomain.BashOutputChunkEvent{
+			BaseChatEvent: agentdomain.BaseChatEvent{RequestID: r.sessionID, Timestamp: time.Now()},
+			ToolCallID:    r.call.ID, Output: output,
+		})
+	})
+	result, err := r.tools.ExecuteToolDirect(ctx, r.call.Function)
 	if err != nil || result == nil {
-		result = &agentdomain.ToolExecutionResult{ToolName: fn.Name, Success: false}
+		result = &agentdomain.ToolExecutionResult{ToolName: r.call.Function.Name, Success: false}
 		if err != nil {
 			result.Error = err.Error()
 		}
 	}
-	result.ToolCallID = call.ID
+	result.ToolCallID = r.call.ID
 	if result.Arguments == nil {
-		_ = json.Unmarshal([]byte(fn.Arguments), &result.Arguments)
+		_ = json.Unmarshal([]byte(r.call.Function.Arguments), &result.Arguments)
 	}
+	return result
+}
 
+// recordResult stores the call and its result, and for a `!cmd` the output the
+// model reads in place of them.
+func (r *directRun) recordResult(result *agentdomain.ToolExecutionResult) {
 	now := time.Now()
-	assistantEntry, toolEntry := convdomain.NewToolCallEntries(call, result, repo.FormatToolResultForLLM(result), now)
-	for _, entry := range []convdomain.ConversationEntry{assistantEntry, toolEntry} {
-		if err := repo.AddMessage(entry); err != nil {
-			logger.Warn("failed to persist direct tool call", "error", err, "session_id", sessionID)
-		}
+	formatted := r.repo.FormatToolResultForLLM(result)
+	assistantEntry, toolEntry := convdomain.NewToolCallEntries(r.call, result, formatted, now)
+	r.record(assistantEntry)
+	r.record(toolEntry)
+	if isBashTask(r.task) {
+		command, _ := bashCommand(r.task)
+		r.record(convdomain.NewUserBashOutputEntry(command, formatted, now))
 	}
+}
 
-	completed := agentdomain.ToolExecutionCompletedEvent{SessionID: sessionID, RequestID: sessionID, Timestamp: now, TotalExecuted: 1, Results: []*agentdomain.ToolExecutionResult{result}}
-	if result.Success {
-		completed.SuccessCount = 1
-	} else {
-		completed.FailureCount = 1
+func (r *directRun) record(entry convdomain.ConversationEntry) {
+	if err := r.repo.AddMessage(entry); err != nil {
+		logger.Warn("failed to persist direct tool call", "error", err, "session_id", r.sessionID)
 	}
-	events := make(chan agentdomain.ChatEvent, 2)
-	events <- agentdomain.ChatCompleteEvent{RequestID: sessionID, Timestamp: now, ToolCalls: []sdk.ChatCompletionMessageToolCall{call}}
-	events <- completed
-	close(events)
-	return renderStream(format, events, nil, sessionID, model, cfg, repo, nil, nil, nil)
+}
+
+func (r *directRun) progress(status, message string) {
+	r.events.send(agentdomain.ToolExecutionProgressEvent{
+		BaseChatEvent: agentdomain.BaseChatEvent{RequestID: r.sessionID, Timestamp: time.Now()},
+		ToolCallID:    r.call.ID, ToolName: r.call.Function.Name, Arguments: r.call.Function.Arguments,
+		Status: status, Message: message,
+	})
 }

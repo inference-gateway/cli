@@ -1,10 +1,48 @@
 package domain
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	sdk "github.com/inference-gateway/sdk"
 )
+
+const (
+	userBashPrefix = "user-bash-"
+	userToolPrefix = "user-tool-"
+)
+
+// NewUserBashCallID names the tool call a user-typed `!command` records.
+func NewUserBashCallID() string {
+	return userBashPrefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+}
+
+// NewUserToolCallID names the tool call a user-typed `!!Tool(...)` records.
+func NewUserToolCallID() string {
+	return userToolPrefix + strconv.FormatInt(time.Now().UnixNano(), 10)
+}
+
+// IsUserBashCall reports whether id names the tool call of a user-typed `!command`.
+func IsUserBashCall(id string) bool {
+	return strings.HasPrefix(id, userBashPrefix)
+}
+
+// NewUserBashOutputEntry carries a user-typed `!command`'s output to the model:
+// its tool pair is dropped from LLM history, while a hidden entry stays out of
+// the view and still reaches the model.
+func NewUserBashOutputEntry(command, output string, now time.Time) ConversationEntry {
+	return ConversationEntry{
+		Message: sdk.Message{
+			Role: sdk.User,
+			Content: sdk.NewMessageContent(fmt.Sprintf(
+				"<system-reminder>\nOutput of the shell command the user ran directly with `!%s`:\n%s\n</system-reminder>", command, output)),
+		},
+		Time:   now,
+		Hidden: true,
+	}
+}
 
 // BuildAgentMessagesFromEntries converts conversation entries into the flat
 // slice of SDK messages sent to the model, dropping the three UI-only classes:
@@ -36,18 +74,15 @@ func BuildAgentMessagesFromEntries(entries []ConversationEntry) []sdk.Message {
 }
 
 // isUserInitiatedBashEntry reports whether the entry was synthesized for a
-// user-typed `!command` shortcut. Tool-call IDs created by that path are
-// prefixed with `user-bash-` (see DirectExecutionService).
+// user-typed `!command` shortcut, by its NewUserBashCallID tool-call ID.
 func isUserInitiatedBashEntry(entry ConversationEntry) bool {
-	const userBashPrefix = "user-bash-"
-
-	if entry.Message.ToolCallID != nil && strings.HasPrefix(*entry.Message.ToolCallID, userBashPrefix) {
+	if entry.Message.ToolCallID != nil && IsUserBashCall(*entry.Message.ToolCallID) {
 		return true
 	}
 
 	if entry.Message.ToolCalls != nil {
 		for _, tc := range *entry.Message.ToolCalls {
-			if strings.HasPrefix(tc.ID, userBashPrefix) {
+			if IsUserBashCall(tc.ID) {
 				return true
 			}
 		}

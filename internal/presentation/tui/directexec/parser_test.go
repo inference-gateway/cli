@@ -6,6 +6,27 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
+func TestSplitBackground(t *testing.T) {
+	tests := []struct {
+		command    string
+		foreground string
+		background bool
+	}{
+		{command: "ls -la", foreground: "ls -la"},
+		{command: "sleep 8 &", foreground: "sleep 8", background: true},
+		{command: "sleep 8&", foreground: "sleep 8", background: true},
+		{command: "&", foreground: "", background: true},
+		{command: "a && b", foreground: "a && b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			foreground, background := SplitBackground(tt.command)
+			assert.Equal(t, tt.foreground, foreground)
+			assert.Equal(t, tt.background, background)
+		})
+	}
+}
+
 func TestService_ParseToolCall(t *testing.T) {
 	svc := &Service{}
 

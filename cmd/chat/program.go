@@ -55,6 +55,7 @@ func runChatProgram(services *container.ServiceContainer, cfg *config.Config, mo
 	)
 	application.SetTranscriptStore(services.GetStorage())
 	application.SetSessionTeleporter(services.GetSessionTeleporter())
+	application.SetNoteKeeper(services.GetNoteKeeper())
 	application.SetArtifactBrowser(services.GetArtifactBrowser())
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}

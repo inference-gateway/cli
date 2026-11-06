@@ -469,6 +469,18 @@ on a fresh worker started in that project, except `read_frame` (see
 [Session screen](#session-screen)). Without `project_dir` they run on the
 connection's thread. Their replies go to the requesting connection only.
 
+## Notes
+
+Client → CLI, keep text the client produced in the conversation of the connection's thread, such as the output of a
+command it ran itself:
+
+```json
+{"type": "add_note", "content": "..."}
+```
+
+The frame has no reply and starts no run. The worker stores the content as an assistant entry, so the model sees it
+on the next turn and the conversation keeps it. A thread with no running worker drops the note.
+
 ## Input history
 
 The panel's arrow-up recall shares the CLI's shell-style input history: the CLI

@@ -229,6 +229,26 @@ func TestPanelListModelsCarriesTheGatewaysCatalog(t *testing.T) {
 	}
 }
 
+func TestPanelKeepsAClientsNoteAsAnAssistantEntry(t *testing.T) {
+	deps := panelDeps()
+	p, _ := startPanel(deps)
+
+	if !handle(t, p, map[string]any{"type": "add_note", "content": ""}) {
+		t.Fatal("the panel left an add_note to the turn loop")
+	}
+	if !handle(t, p, map[string]any{"type": "add_note", "content": "pushed", "role": "system"}) {
+		t.Fatal("the panel left an add_note to the turn loop")
+	}
+
+	entries := deps.Conversations.GetMessages()
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want only the note with content", len(entries))
+	}
+	if text, _ := entries[0].Message.Content.AsMessageContent0(); entries[0].Message.Role != sdk.Assistant || text != "pushed" {
+		t.Errorf("entry = %s %q, want an assistant note whatever role the client names", entries[0].Message.Role, text)
+	}
+}
+
 func TestPanelSetMode(t *testing.T) {
 	deps := panelDeps()
 	p, sink := startPanel(deps)

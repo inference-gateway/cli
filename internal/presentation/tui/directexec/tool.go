@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,27 +107,27 @@ func (s *Service) HandleToolCommand(commandText string) tea.Cmd {
 }
 
 // isToolAvailableInMode reports whether the tool is exposed in the current agent
-// mode - the same gating ListToolsForMode applies for the LLM - so !! direct
-// execution can't run a tool the active mode doesn't allow (e.g. AskUserQuestion
-// outside plan mode, or a mutating tool in plan mode). Defaults to allowing when
-// no state manager is wired.
+// mode, defaulting to allowing when no state manager is wired.
 func (s *Service) isToolAvailableInMode(toolName string) bool {
 	if s.stateManager == nil {
 		return true
 	}
-	mode := s.stateManager.GetAgentMode()
-	for _, def := range s.toolService.ListToolsForMode(mode) {
-		if def.Function.Name == toolName {
-			return true
-		}
-	}
-	return false
+	return ToolAvailableInMode(s.toolService, s.stateManager.GetAgentMode(), toolName)
+}
+
+// ToolAvailableInMode applies the gating ListToolsForMode applies for the LLM,
+// so !! direct execution can't run a tool the mode doesn't allow (e.g.
+// AskUserQuestion outside plan mode, or a mutating tool in plan mode).
+func ToolAvailableInMode(tools agentdomain.ToolService, mode agentdomain.AgentMode, toolName string) bool {
+	return slices.ContainsFunc(tools.ListToolsForMode(mode), func(def sdk.ChatCompletionTool) bool {
+		return def.Function.Name == toolName
+	})
 }
 
 // executeToolCommand synthesizes the user-tool- conversation entries and
 // dispatches the async tool execution.
 func (s *Service) executeToolCommand(commandText, toolName, argsJSON string) tea.Cmd {
-	toolCallID := fmt.Sprintf("user-tool-%d", time.Now().UnixNano())
+	toolCallID := convdomain.NewUserToolCallID()
 
 	userEntry := convdomain.ConversationEntry{
 		Message: sdk.Message{

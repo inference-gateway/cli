@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -78,6 +79,44 @@ func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
 	startDaemonChat(t, "infer-e2e-daemon-reattach", d, project, "--session-id", id[1])
 	expectPane(t, "infer-e2e-daemon-reattach", "Hello! How can I help?", d)
 	expectPane(t, "infer-e2e-daemon-reattach", "⌂ a", d)
+}
+
+func TestChatDaemonRunsDirectCommandsLikeAPlainChat(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+	shortcuts := filepath.Join(project, ".infer", "shortcuts")
+	require.NoError(t, os.MkdirAll(shortcuts, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(shortcuts, "say.yaml"),
+		[]byte("shortcuts:\n  - name: say\n    description: says something\n    command: echo\n    args:\n      - kept-note\n"), 0o644))
+
+	const session = "infer-e2e-daemon-direct"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+
+	chatSay(t, session, "!for i in 1 2 3 4; do echo streamed-$i; sleep 1; done")
+	expectPane(t, session, "streamed-1", d)
+	expectPane(t, session, "Executing:", d)
+	expectPane(t, session, "✓ Bash(", d)
+	require.Contains(t, capturePane(session), "! for i in", "the typed command left the conversation")
+
+	chatSay(t, session, "/say")
+	expectPane(t, session, "kept-note", d)
+	chatSay(t, session, "say hello")
+	expectPane(t, session, "Hello! How can I help?", d)
+	require.Contains(t, capturePane(session), "kept-note", "the next turn dropped the shortcut's output")
+
+	chatSay(t, session, `!!Nope(a="b")`)
+	expectPane(t, session, "tool Nope is not enabled", d)
+	chatSay(t, session, "anything else")
+	expectPane(t, session, "Done.", d)
+
+	chatSay(t, session, "/new")
+	expectPane(t, session, "Starting new conversation", d)
+	chatSay(t, session, "/say")
+	expectPane(t, session, "kept-note", d)
+	chatSay(t, session, "say hello")
+	expectPane(t, session, "Hello! How can I help?", d)
+	require.Contains(t, capturePane(session), "kept-note", "the first turn of a new conversation dropped the shortcut's output")
 }
 
 func TestChatDaemonTeleportsTheSessionAndBringsItBack(t *testing.T) {

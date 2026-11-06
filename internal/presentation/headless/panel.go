@@ -34,6 +34,7 @@ const (
 	inboundToolRequest        = "tool_request"
 	inboundApprovalResponse   = "approval_response"
 	inboundCompletionRequest  = "completion_request"
+	inboundAddNote            = "add_note"
 
 	outboundConversations    = "conversations"
 	outboundSkills           = "skills"
@@ -67,6 +68,7 @@ type panelFrame struct {
 	Prompt     string `json:"prompt"`
 	MaxTokens  int    `json:"max_tokens"`
 	Name       string `json:"name"`
+	Content    string `json:"content"`
 }
 
 type modeFrame struct {
@@ -230,6 +232,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		go p.tools.run(msg)
 	case inboundCompletionRequest:
 		go p.completions.run(msg)
+	case inboundAddNote:
+		p.conversations.addNote(msg.Content)
 	case inboundExportConversation:
 		p.teleports.export(msg.ID)
 	case inboundImportConversation:
@@ -274,6 +278,19 @@ type conversations struct {
 	write frameWriter
 	out   io.Writer
 	repo  convdomain.ConversationRepository
+}
+
+// addNote keeps a note a client wrote, such as a shortcut's output, as an
+// assistant entry. The worker builds the entry so a client cannot add a tool
+// result or a system message this way.
+func (c *conversations) addNote(content string) {
+	if content == "" {
+		return
+	}
+	entry := convdomain.ConversationEntry{Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent(content)}, Time: time.Now()}
+	if err := c.repo.AddMessage(entry); err != nil {
+		logger.Warn("failed to keep a client's note", "error", err)
+	}
 }
 
 // snapshot answers new_session and resume_conversation with the worker's

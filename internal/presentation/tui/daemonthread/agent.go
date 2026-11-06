@@ -36,8 +36,10 @@ type Agent struct {
 	modes  agentdomain.AgentModeState
 	models convdomain.ModelService
 
-	mu     sync.Mutex
-	synced workerState
+	mu       sync.Mutex
+	synced   workerState
+	stopPump context.CancelFunc
+	notes    map[string][]string
 }
 
 // workerState is what the TUI last told the followed thread's worker.
@@ -50,7 +52,7 @@ type workerState struct {
 
 // NewAgent builds the daemon-mode agent over thread, mirroring into repo.
 func NewAgent(thread *Thread, repo convdomain.ConversationRepository, queue convdomain.MessageQueue, modes agentdomain.AgentModeState, models convdomain.ModelService) *Agent {
-	return &Agent{thread: thread, repo: repo, queue: queue, modes: modes, models: models}
+	return &Agent{thread: thread, repo: repo, queue: queue, modes: modes, models: models, notes: make(map[string][]string)}
 }
 
 // runInputFrame starts a run with new messages or answers a suspended one.
@@ -88,21 +90,38 @@ type resumeEntry struct {
 
 // RunWithStream sends the user's new messages to the thread, or with none
 // follows the run another client started, and streams the run's events. The
-// stream ends once the run finished and the conversation was reconciled.
+// stream ends once the run finished and the conversation was reconciled. It
+// takes over from a turn the TUI abandoned, so one reader owns the run frames.
 func (a *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
+	ctx, cancel := a.supersede(ctx)
 	release := a.thread.Consume()
 	sent, err := a.prepare(ctx)
 	if err != nil {
+		cancel()
 		release()
 		return nil, err
 	}
 	events := make(chan agentdomain.ChatEvent, 1000)
 	go func() {
+		defer cancel()
 		defer release()
 		defer close(events)
 		a.pump(ctx, req.RequestID, sent, events)
 	}()
 	return events, nil
+}
+
+// supersede stops the last turn's pump and derives the context of the next one.
+func (a *Agent) supersede(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	a.mu.Lock()
+	previous := a.stopPump
+	a.stopPump = cancel
+	a.mu.Unlock()
+	if previous != nil {
+		previous()
+	}
+	return ctx, cancel
 }
 
 // prepare follows the conversation the TUI holds, syncs the agent mode and
@@ -122,6 +141,9 @@ func (a *Agent) prepare(ctx context.Context) (bool, error) {
 		}
 	}
 	if err := a.syncWorker(ctx); err != nil {
+		return false, err
+	}
+	if err := a.sendNotes(id); err != nil {
 		return false, err
 	}
 	a.moveQueued(ctx)
@@ -212,7 +234,8 @@ func userContent(entry convdomain.ConversationEntry) any {
 
 // pump decodes the run frames into events, mirrors them and answers the
 // prompts the run suspends on, until the run ends. A follow-only request with
-// nothing running completes at once, which ends the TUI's turn.
+// nothing running completes at once, which ends the TUI's turn. A superseded
+// pump just stops, since the TUI no longer reads its events.
 func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<- agentdomain.ChatEvent) {
 	if !sent && !a.thread.Running() && !a.thread.Pending() {
 		a.reconcile()
@@ -220,10 +243,13 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 		return
 	}
 	decoder := headless.NewRunDecoder(requestID)
+	var bash *agentdomain.ToolExecutionResult
 	for {
 		frame, err := a.thread.Next(ctx)
 		if err != nil {
-			out <- agentdomain.ChatErrorEvent{RequestID: requestID, Timestamp: time.Now(), Error: err}
+			if ctx.Err() == nil {
+				out <- agentdomain.ChatErrorEvent{RequestID: requestID, Timestamp: time.Now(), Error: err}
+			}
 			return
 		}
 		switch Marker(frame) {
@@ -245,15 +271,41 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 			a.reconcile()
 		}
 		for _, event := range events {
+			if result := userBashResult(event); result != nil {
+				bash = result
+			}
 			out <- event
 		}
 		switch end {
 		case headless.RunSuspended:
 			go a.answer(decoder.Prompts())
-		case headless.RunFinished, headless.RunCancelled, headless.RunFailed:
+		case headless.RunFinished:
+			if bash != nil {
+				out <- tui.BashCommandCompletedEvent{
+					BaseChatEvent: agentdomain.BaseChatEvent{RequestID: requestID, Timestamp: time.Now()},
+					History:       a.repo.GetMessages(), Failed: !bash.Success, UserInitiated: sent,
+				}
+			}
+			return
+		case headless.RunCancelled, headless.RunFailed:
 			return
 		}
 	}
+}
+
+// userBashResult is the result of a user-typed `!command` in event, if any. A
+// `!command` run ends the way plain chat's does, with BashCommandCompletedEvent.
+func userBashResult(event agentdomain.ChatEvent) *agentdomain.ToolExecutionResult {
+	completed, ok := event.(agentdomain.ToolExecutionCompletedEvent)
+	if !ok {
+		return nil
+	}
+	for _, result := range completed.Results {
+		if convdomain.IsUserBashCall(result.ToolCallID) {
+			return result
+		}
+	}
+	return nil
 }
 
 // frameName is a run frame's type.
@@ -264,12 +316,17 @@ func frameName(frame []byte) string {
 }
 
 // mirror writes what an event adds to the conversation the way the
-// in-process agent would, so the TUI renders it before the reconcile.
+// in-process agent would, so the TUI renders it before the reconcile. A
+// `!command`'s entries wait for the reconcile, as plain chat adds them when it
+// ended.
 func (a *Agent) mirror(event agentdomain.ChatEvent) {
 	var entries []convdomain.ConversationEntry
 	switch e := event.(type) {
 	case agentdomain.ChatCompleteEvent:
 		if e.Cancelled || e.Message == "" && e.ReasoningContent == "" && len(e.ToolCalls) == 0 {
+			return
+		}
+		if slices.ContainsFunc(e.ToolCalls, func(call sdk.ChatCompletionMessageToolCall) bool { return convdomain.IsUserBashCall(call.ID) }) {
 			return
 		}
 		entry := convdomain.ConversationEntry{
@@ -283,6 +340,9 @@ func (a *Agent) mirror(event agentdomain.ChatEvent) {
 		entries = append(entries, entry)
 	case agentdomain.ToolExecutionCompletedEvent:
 		for _, result := range e.Results {
+			if convdomain.IsUserBashCall(result.ToolCallID) {
+				continue
+			}
 			a.repo.RemovePendingToolCallByID(result.ToolCallID)
 			id := result.ToolCallID
 			entries = append(entries, convdomain.ConversationEntry{
@@ -389,6 +449,38 @@ func planAction(action agentdomain.PlanApprovalAction) string {
 // CancelRequest interrupts the thread's open run.
 func (a *Agent) CancelRequest(string) error {
 	return a.thread.Send(map[string]string{"type": "interrupt"})
+}
+
+// AddNote keeps a note the TUI wrote in the conversation on the worker, so the
+// next reconcile keeps it and the model sees it. A conversation the thread does
+// not follow yet, as after /new, has no worker yet, so its first turn sends it.
+func (a *Agent) AddNote(content string) error {
+	id := a.repo.GetCurrentConversationID()
+	a.mu.Lock()
+	a.notes[id] = append(a.notes[id], content)
+	a.mu.Unlock()
+	if !a.thread.Follows(id) {
+		return nil
+	}
+	return a.sendNotes(id)
+}
+
+// sendNotes hands the worker the notes waiting for conversation id, in order.
+// What it could not send waits for the next turn.
+func (a *Agent) sendNotes(id string) error {
+	a.mu.Lock()
+	notes := a.notes[id]
+	delete(a.notes, id)
+	a.mu.Unlock()
+	for i, note := range notes {
+		if err := a.thread.Send(map[string]string{"type": "add_note", "content": note}); err != nil {
+			a.mu.Lock()
+			a.notes[id] = append(notes[i:], a.notes[id]...)
+			a.mu.Unlock()
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *Agent) GetMetrics(string) *agentdomain.ChatMetrics { return nil }
