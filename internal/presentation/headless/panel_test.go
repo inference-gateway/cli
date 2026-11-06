@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	a2amocks "github.com/inference-gateway/cli/tests/mocks/a2a"
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	llmmocks "github.com/inference-gateway/cli/tests/mocks/llm"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 	storagemocks "github.com/inference-gateway/cli/tests/mocks/storage"
 
@@ -24,6 +26,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // lineSink collects the panel's output lines, one per Write.
@@ -278,6 +281,87 @@ func TestPanelListShortcutsAnswersEmptyWithoutARegistry(t *testing.T) {
 	handle(t, p, map[string]any{"type": "list_shortcuts"})
 	if listed, ok := readFrame(t, sink, "shortcuts")["shortcuts"].([]any); !ok || len(listed) != 0 {
 		t.Fatalf("expected an empty shortcuts list, got %v", listed)
+	}
+}
+
+func TestPanelListTasks(t *testing.T) {
+	jobs := &schedmocks.FakeBackgroundTaskRegistry{}
+	finished := time.Date(2026, 11, 6, 10, 1, 0, 0, time.UTC)
+	jobs.SnapshotReturns([]scheddomain.TrackedJob{
+		{Meta: scheddomain.JobMeta{ID: "shell-1", Kind: scheddomain.JobKindShell, Label: "build", Detail: "go build"}, Status: scheddomain.JobRunning},
+		{Meta: scheddomain.JobMeta{ID: "sub-1", SessionID: "s1", Kind: scheddomain.JobKindSubagent}, Status: scheddomain.JobCompleted, CompletedAt: &finished, Output: "done"},
+	})
+	deps := panelDeps()
+	deps.Jobs = jobs
+	p, sink := startPanel(deps)
+
+	handle(t, p, map[string]any{"type": "list_tasks"})
+	listed, ok := readFrame(t, sink, "tasks")["tasks"].([]any)
+	if !ok || len(listed) != 2 {
+		t.Fatalf("expected 2 tasks, got %v", listed)
+	}
+	shell, sub := listed[0].(map[string]any), listed[1].(map[string]any)
+	if shell["id"] != "shell-1" || shell["kind"] != "shell" || shell["detail"] != "go build" || shell["status"] != "running" {
+		t.Errorf("unexpected shell entry: %v", shell)
+	}
+	if sub["session_id"] != "s1" || sub["status"] != "completed" || sub["output"] != "done" || sub["completed_at"] == nil {
+		t.Errorf("unexpected subagent entry: %v", sub)
+	}
+}
+
+func TestPanelListTasksAnswersEmptyWithoutASupervisor(t *testing.T) {
+	p, sink := startPanel(panelDeps())
+
+	handle(t, p, map[string]any{"type": "list_tasks"})
+	if listed, ok := readFrame(t, sink, "tasks")["tasks"].([]any); !ok || len(listed) != 0 {
+		t.Fatalf("expected an empty tasks list, got %v", listed)
+	}
+}
+
+func TestPanelCancelTask(t *testing.T) {
+	running := func(kind scheddomain.JobKind) []scheddomain.TrackedJob {
+		return []scheddomain.TrackedJob{{Meta: scheddomain.JobMeta{ID: "job-1", Kind: kind}, Status: scheddomain.JobRunning}}
+	}
+	tests := []struct {
+		name      string
+		kind      scheddomain.JobKind
+		windErr   error
+		wantWound int
+		wantA2A   int
+		wantError string
+	}{
+		{name: "a shell winds down", kind: scheddomain.JobKindShell, wantWound: 1},
+		{name: "an A2A task is cancelled on its agent", kind: scheddomain.JobKindA2A, wantA2A: 1},
+		{name: "a failure is reported", kind: scheddomain.JobKindShell, windErr: errors.New("job not found"), wantWound: 1, wantError: "job not found"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jobs := &schedmocks.FakeBackgroundTaskRegistry{}
+			jobs.SnapshotReturns(running(tt.kind))
+			jobs.WindJobReturns(tt.windErr)
+			remote := &a2amocks.FakeBackgroundTaskService{}
+			deps := panelDeps()
+			deps.Jobs, deps.A2ATasks = jobs, remote
+			p, sink := startPanel(deps)
+
+			handle(t, p, map[string]any{"type": "cancel_task", "task_id": "job-1"})
+			reply := readFrame(t, sink, "task_cancelled")
+
+			if reply["task_id"] != "job-1" {
+				t.Errorf("reply named %v, want job-1", reply["task_id"])
+			}
+			if got, _ := reply["error"].(string); got != tt.wantError {
+				t.Errorf("error = %q, want %q", got, tt.wantError)
+			}
+			if jobs.WindJobCallCount() != tt.wantWound || remote.CancelBackgroundTaskCallCount() != tt.wantA2A {
+				t.Errorf("wound %d and cancelled %d on the agent, want %d and %d", jobs.WindJobCallCount(), remote.CancelBackgroundTaskCallCount(), tt.wantWound, tt.wantA2A)
+			}
+			if tt.wantWound == 1 {
+				if id, signal := jobs.WindJobArgsForCall(0); id != "job-1" || signal != scheddomain.WindStop {
+					t.Errorf("wound %q with %v, want job-1 stopped", id, signal)
+				}
+			}
+		})
 	}
 }
 

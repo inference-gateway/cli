@@ -39,6 +39,7 @@ type StatusView struct {
 type statusViewState interface {
 	approvalOverlayReader
 	tui.ChatSessionState
+	GetCurrentView() tui.ViewState
 }
 
 // SetStateManager wires the state manager so the spinner line can reflect
@@ -119,6 +120,16 @@ func (sv *StatusView) UpdateSpinnerMessage(message string, statusType tui.Status
 		sv.message = message
 		sv.statusType = statusType
 	}
+}
+
+// runKeepsStatus reports whether a chat run's progress outranks msg: a panel
+// clears the line as it opens and closes and sets its own while it covers the
+// chat, where nobody can see it, and neither should cost the run its status.
+func (sv *StatusView) runKeepsStatus(msg tui.SetStatusEvent) bool {
+	if msg.Spinner || sv.stateManager == nil || sv.stateManager.GetChatSession() == nil || !sv.stateManager.IsAgentBusy() {
+		return false
+	}
+	return msg.Message == "" || sv.stateManager.GetCurrentView() != tui.ViewStateChat
 }
 
 func (sv *StatusView) ClearStatus() {
@@ -403,6 +414,9 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sv.ShowError(failed)
 
 	case tui.SetStatusEvent:
+		if sv.runKeepsStatus(msg) {
+			break
+		}
 		sv.toolName = msg.ToolName
 		if msg.Spinner {
 			sv.ShowSpinnerWithType(msg.Message, msg.StatusType, msg.Progress)

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -401,5 +402,54 @@ func TestSubagentDetailPanel(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestTaskViewShowsAndStopsAWorkersJobs(t *testing.T) {
+	jobs := &tuimocks.FakeWorkerJobs{}
+	finished := time.Now()
+	jobs.ListReturns([]scheddomain.TrackedJob{
+		{Meta: scheddomain.JobMeta{ID: "shell-1", Kind: scheddomain.JobKindShell, Label: "build"}, Status: scheddomain.JobRunning},
+		{Meta: scheddomain.JobMeta{ID: "a2a-1", Kind: scheddomain.JobKindA2A, Detail: "http://agent"}, Status: scheddomain.JobRunning},
+		{Meta: scheddomain.JobMeta{ID: "sub-1", Kind: scheddomain.JobKindSubagent}, Status: scheddomain.JobCompleted, CompletedAt: &finished, Output: "done"},
+	}, nil)
+	view := NewTaskView(nil, nil, nil, nil)
+	view.SetWorkerJobs(jobs)
+
+	loaded, ok := view.loadTasksCmd()().(tui.TasksLoadedEvent)
+	if !ok || loaded.Error != nil || len(loaded.ActiveTasks) != 2 || len(loaded.CompletedTasks) != 1 {
+		t.Fatalf("loaded = %+v, want 2 active and 1 completed", loaded)
+	}
+	view.handleTasksLoaded(loaded)
+	if view.activeTasks[1].AgentURL != "http://agent" {
+		t.Errorf("the A2A row's agent = %q, want its detail", view.activeTasks[1].AgentURL)
+	}
+	if view.runningCount(scheddomain.JobKindShell) != 1 || view.runningCount(scheddomain.JobKindA2A) != 1 || view.runningCount(scheddomain.JobKindSubagent) != 0 {
+		t.Errorf("running counts are not the loaded rows'")
+	}
+
+	if err := view.cancelTask(view.activeTasks[0]); err != nil {
+		t.Fatalf("cancelTask: %v", err)
+	}
+	if _, id := jobs.StopArgsForCall(0); jobs.StopCallCount() != 1 || id != "shell-1" {
+		t.Errorf("stopped %q %d times, want shell-1 once", id, jobs.StopCallCount())
+	}
+}
+
+func TestTaskViewReportsAWorkerItCannotReach(t *testing.T) {
+	jobs := &tuimocks.FakeWorkerJobs{}
+	jobs.ListReturns(nil, errors.New("offline"))
+	view := NewTaskView(nil, nil, nil, nil)
+	view.SetWorkerJobs(jobs)
+
+	loaded, ok := view.loadTasksCmd()().(tui.TasksLoadedEvent)
+	if !ok || loaded.Error == nil {
+		t.Fatalf("loaded = %+v, want the worker's error", loaded)
+	}
+}
+
+func TestIsCancellableKeepsAFinishedWorkerA2ATaskOut(t *testing.T) {
+	if isCancellable(TaskInfo{Kind: scheddomain.JobKindA2A, Status: jobStatusLabel(scheddomain.JobCompleted)}) {
+		t.Error("a finished A2A task with no retained record must not offer cancel")
 	}
 }

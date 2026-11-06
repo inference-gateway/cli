@@ -17,7 +17,9 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Panel frame types a session worker answers on stdin, and the replies it
@@ -76,6 +78,7 @@ type panelFrame struct {
 	MaxTokens  int    `json:"max_tokens"`
 	Name       string `json:"name"`
 	Content    string `json:"content"`
+	TaskID     string `json:"task_id"`
 }
 
 type modeFrame struct {
@@ -189,11 +192,10 @@ type PanelDeps struct {
 	DefaultModel  string
 	ArtifactsDir  func(sessionID string) string
 	Frames        func(name string) (agentdomain.FrameSource, bool)
-	// Screen is the worker's screen control, the take-over invariant the
-	// Screen view's control and input frames ride on. Queue is the queue a
-	// hand-back's continue message lands on.
-	Screen computerdomain.ScreenControl
-	Queue  convdomain.MessageQueue
+	Screen        computerdomain.ScreenControl
+	Queue         convdomain.MessageQueue
+	Jobs          scheddomain.BackgroundTaskRegistry
+	A2ATasks      a2adomain.BackgroundTaskService
 }
 
 // Panel answers the panel frames a session worker reads on stdin: listings,
@@ -216,6 +218,7 @@ type Panel struct {
 	artifacts     *artifacts
 	frames        *frames
 	screen        *screenUnit
+	tasks         *tasks
 }
 
 // NewPanel builds the panel units, one per frame family, each holding only the
@@ -236,6 +239,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.artifacts = &artifacts{write: p.write, dir: deps.ArtifactsDir}
 	p.frames = &frames{write: p.write, sources: deps.Frames}
 	p.screen = newScreenUnit(p.write, deps)
+	p.tasks = &tasks{write: p.write, jobs: deps.Jobs, a2a: deps.A2ATasks}
 	return p
 }
 
@@ -294,6 +298,10 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.artifacts.read(msg.ID, msg.Name)
 	case inboundReadFrame:
 		p.frames.read(msg.ID)
+	case inboundListTasks:
+		p.tasks.list()
+	case inboundCancelTask:
+		go p.tasks.cancel(msg.TaskID)
 	case inboundScreenControl:
 		p.screen.controlFrame(msg.ID, line)
 	case inboundScreenInput:

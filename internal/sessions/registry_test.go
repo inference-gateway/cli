@@ -275,6 +275,8 @@ func TestRegistryPanelRequestsAnswerTheRequester(t *testing.T) {
 	handle(r, requester, `{"type":"list_files","project_dir":"/proj"}`)
 	handle(r, requester, `{"type":"list_artifacts","project_dir":"/proj","id":"c-1"}`)
 	handle(r, requester, `{"type":"read_artifact","project_dir":"/proj","id":"c-1","name":"shot.png"}`)
+	handle(r, requester, `{"type":"list_tasks","project_dir":"/proj","id":"c-1"}`)
+	handle(r, requester, `{"type":"cancel_task","project_dir":"/proj","id":"c-1","task_id":"shell-1"}`)
 	handle(r, requester, `{"type":"tool_request","project_dir":"/proj","id":"req-1","tool_name":"Bash","tool_args":"{}"}`)
 	if l.count() != 1 {
 		t.Fatalf("panel requests must reuse the live worker in their project dir, launched %d", l.count())
@@ -286,12 +288,14 @@ func TestRegistryPanelRequestsAnswerTheRequester(t *testing.T) {
 	files := `{"type":"files","files":["main.go"]}`
 	artifacts := `{"type":"artifacts","id":"c-1","artifacts":[]}`
 	artifact := `{"type":"artifact","id":"c-1","name":"shot.png","data":"cG5n"}`
+	tasks := `{"type":"tasks","tasks":[]}`
+	cancelled := `{"type":"task_cancelled","task_id":"shell-1"}`
 	approval := `{"type":"CUSTOM","name":"approval_request","value":{"tool_call_id":"req-1"}}`
 	result := `{"type":"tool_result","id":"req-1","success":true,"output":"","error":""}`
-	for _, line := range []string{conversations, shortcuts, issues, files, artifacts, artifact, approval, result} {
+	for _, line := range []string{conversations, shortcuts, issues, files, artifacts, artifact, tasks, cancelled, approval, result} {
 		lines <- []byte(line)
 	}
-	receives(t, requester, conversations, shortcuts, issues, files, artifacts, artifact, approval, result)
+	receives(t, requester, conversations, shortcuts, issues, files, artifacts, artifact, tasks, cancelled, approval, result)
 	if follower.DeliverCallCount() != 0 {
 		t.Fatalf("the thread's follower got another client's replies: %q", delivered(follower))
 	}

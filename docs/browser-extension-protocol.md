@@ -470,7 +470,8 @@ CLI → client, one reply per request id:
 ## Project-scoped requests
 
 `list_conversations`, `list_history`, `list_skills`, `list_shortcuts`,
-`list_issues`, `list_files`, `list_models`, `select_model`, `set_mode`, `tool_request`, `completion_request`,
+`list_issues`, `list_files`, `list_tasks`, `cancel_task`, `list_models`,
+`select_model`, `set_mode`, `tool_request`, `completion_request`,
 `list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on the
 live thread of the session `id` names, else on any running worker there, else
@@ -611,6 +612,42 @@ the project dir cannot be walked):
   `~/.infer` files as `~/.infer/<path>`. Each is usable as-is after an "@".
 - Hidden files, ignored directories and files over the expansion size limits
   are left out, as in the TUI's menu.
+
+## Background jobs
+
+A worker's shells, subagents, recordings and A2A tasks live in that worker, so a
+client lists and stops them there. Follow the session first, since these frames
+answer for the worker they reach.
+
+Client → CLI, list the jobs:
+
+```json
+{"type": "list_tasks", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
+```
+
+CLI → client, the running and recently finished jobs:
+
+```json
+{"type": "tasks", "tasks": [{"id": "shell-1", "kind": "shell", "label": "shell-1", "detail": "go build ./...", "status": "running", "started_at": "2026-11-06T10:00:00Z"}]}
+```
+
+- `status` is `running`, `completed` or `failed`.
+- A finished job also has `completed_at` and `output`. A subagent has its
+  `session_id`, and `stats` once it ends.
+
+Client → CLI, stop a job:
+
+```json
+{"type": "cancel_task", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "task_id": "shell-1"}
+```
+
+CLI → client, once the job was told to stop. `error` says why it could not be:
+
+```json
+{"type": "task_cancelled", "task_id": "shell-1"}
+```
+
+The job ends a moment later, so list the jobs again to see it finished.
 
 ## Models
 

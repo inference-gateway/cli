@@ -407,7 +407,8 @@ only back to this machine.
 | `/diff`, `/explorer`, the git branch label | Read this machine's checkout, so they are off while the session runs on another workspace |
 | `/compact` | Off, the worker compacts the session itself at `compact.auto_at` |
 | `/effort` | Off, the worker's config sets the reasoning effort |
-| `/tasks`, `ctrl+b` and rewinding or editing the history | Off, the conversation and its commands live on the worker |
+| `/tasks` | Lists and cancels the background jobs the session's worker runs |
+| `ctrl+b` and rewinding or editing the history | Off, the conversation and its commands live on the worker |
 | Snippet shortcuts such as `/git commit` and the `/diff` commit key | Ask the session's model on the worker |
 | Next-step suggestions | Off, the TUI runs no model of its own |
 | `/copy`, `/context`, `/cost`, `/help`, `/theme`, `/stats`, `/traces`, `/tools`, `/agents`, `#issue` | Work in the TUI |

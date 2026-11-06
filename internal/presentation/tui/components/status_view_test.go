@@ -15,9 +15,12 @@ import (
 // view's statusViewState interface, which adds the tui.ChatSessionState methods
 // (IsAgentBusy and an error-returning StartChatSession) that the wrapped
 // statemanager.Store normally provides.
-type statusViewStateStub struct{ *tui.ApplicationState }
+type statusViewStateStub struct {
+	*tui.ApplicationState
+	busy bool
+}
 
-func (statusViewStateStub) IsAgentBusy() bool { return false }
+func (s statusViewStateStub) IsAgentBusy() bool { return s.busy }
 
 func (s statusViewStateStub) StartChatSession(requestID, model string, eventChan <-chan agentdomain.ChatEvent) error {
 	s.ApplicationState.StartChatSession(requestID, model, eventChan)
@@ -230,7 +233,7 @@ func TestStatusView_StateTransitions(t *testing.T) {
 
 func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
 	sv := NewStatusView(createMockStyleProviderForStatus())
-	sm := statusViewStateStub{tui.NewApplicationState()}
+	sm := statusViewStateStub{ApplicationState: tui.NewApplicationState()}
 	sv.SetStateManager(sm)
 	sv.ShowSpinner("Executing tools")
 
@@ -247,5 +250,51 @@ func TestStatusView_Render_PausesSpinnerDuringApproval(t *testing.T) {
 	resumed := sv.Render()
 	if !strings.Contains(resumed, "(") {
 		t.Errorf("expected elapsed timer after approval resolved, got %q", resumed)
+	}
+}
+
+func TestStatusView_BlankStatusKeepsARunsProgress(t *testing.T) {
+	blank := tui.SetStatusEvent{Message: "", Spinner: false, StatusType: tui.StatusDefault}
+	tests := []struct {
+		name        string
+		session     bool
+		busy        bool
+		panel       bool
+		event       tui.SetStatusEvent
+		wantSpinner bool
+		wantMessage string
+	}{
+		{name: "a panel closing during a run keeps it", session: true, busy: true, event: blank, wantSpinner: true, wantMessage: "Generating response..."},
+		{name: "a panel's own status under the panel keeps it", session: true, busy: true, panel: true, event: tui.SetStatusEvent{Message: "Select a model"}, wantSpinner: true, wantMessage: "Generating response..."},
+		{name: "a run's progress under a panel still replaces it", session: true, busy: true, panel: true, event: tui.SetStatusEvent{Message: "Thinking...", Spinner: true}, wantSpinner: true, wantMessage: "Thinking..."},
+		{name: "a status on the chat still replaces it", session: true, busy: true, event: tui.SetStatusEvent{Message: "Theme changed"}, wantMessage: "Theme changed"},
+		{name: "it clears once the run is over", session: true, busy: false, event: blank},
+		{name: "a direct tool with no chat session clears it", session: false, busy: true, event: blank},
+		{name: "a run's own status still replaces it", session: true, busy: true, event: tui.SetStatusEvent{Message: "Thinking...", Spinner: true}, wantSpinner: true, wantMessage: "Thinking..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := tui.NewApplicationState()
+			if tt.session {
+				state.StartChatSession("req-1", "m", nil)
+			}
+			if err := state.TransitionToView(tui.ViewStateChat); err != nil {
+				t.Fatalf("TransitionToView: %v", err)
+			}
+			if tt.panel {
+				if err := state.TransitionToView(tui.ViewStateA2ATaskManagement); err != nil {
+					t.Fatalf("TransitionToView: %v", err)
+				}
+			}
+			sv := NewStatusView(createMockStyleProviderForStatus())
+			sv.SetStateManager(statusViewStateStub{ApplicationState: state, busy: tt.busy})
+			sv.ShowSpinner("Generating response...")
+
+			sv.Update(tt.event)
+
+			if sv.IsShowingSpinner() != tt.wantSpinner || sv.message != tt.wantMessage {
+				t.Errorf("spinner = %v, message = %q, want %v and %q", sv.IsShowingSpinner(), sv.message, tt.wantSpinner, tt.wantMessage)
+			}
+		})
 	}
 }

@@ -309,6 +309,8 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
 		Shortcuts:     c.shortcutRegistry,
+		Jobs:          c.backgroundTaskRegistry,
+		A2ATasks:      c.backgroundTaskService,
 		Issues:        c.GetGitHubIssueService(),
 		Files:         c.fileService,
 		Tools:         c.toolService,
@@ -1205,6 +1207,15 @@ func (c *ServiceContainer) GetSessionTeleporter() tui.SessionTeleporter {
 func (c *ServiceContainer) GetNoteKeeper() tui.NoteKeeper {
 	keeper, _ := c.agent.(tui.NoteKeeper)
 	return keeper
+}
+
+// GetWorkerJobs lists and stops the jobs a daemon chat's worker runs, and is nil
+// for an in-process chat, whose own supervisor holds them.
+func (c *ServiceContainer) GetWorkerJobs() tui.WorkerJobs {
+	if c.daemonThread == nil {
+		return nil
+	}
+	return daemonthread.NewTasks(c.daemonThread)
 }
 
 // GetArtifactBrowser browses the session's artifacts: a daemon chat's from

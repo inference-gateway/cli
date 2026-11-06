@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -60,6 +61,7 @@ type TaskView struct {
 	taskRetentionService  a2adomain.TaskRetentionService
 	backgroundTaskService a2adomain.BackgroundTaskService
 	backgroundJobRegistry scheddomain.BackgroundTaskRegistry
+	workerJobs            tui.WorkerJobs
 	searchQuery           string
 	searchMode            bool
 	loading               bool
@@ -77,6 +79,9 @@ type TaskView struct {
 }
 
 type TaskViewMode int
+
+// workerJobsTimeout bounds one request to a daemon chat's worker.
+const workerJobsTimeout = 10 * time.Second
 
 const (
 	TaskViewAll TaskViewMode = iota
@@ -165,6 +170,9 @@ func (t *TaskView) Reset() {
 }
 
 func (t *TaskView) loadTasksCmd() tea.Cmd {
+	if t.workerJobs != nil {
+		return t.loadWorkerJobsCmd()
+	}
 	return func() tea.Msg {
 		if t.backgroundTaskService == nil {
 			return tui.TasksLoadedEvent{
@@ -256,6 +264,31 @@ func (t *TaskView) loadTasksCmd() tea.Cmd {
 // jobToTaskInfo adapts a supervised background job (shell or subagent) to a
 // task-view row. Elapsed runs to the completion time for finished jobs and to
 // now for running ones.
+func (t *TaskView) loadWorkerJobsCmd() tea.Cmd {
+	jobs := t.workerJobs
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), workerJobsTimeout)
+		defer cancel()
+		listed, err := jobs.List(ctx)
+		if err != nil {
+			return tui.TasksLoadedEvent{ActiveTasks: []any{}, CompletedTasks: []any{}, Error: err}
+		}
+		active, completed := []any{}, []any{}
+		for _, job := range listed {
+			row := jobToTaskInfo(job)
+			if normalizeKind(job.Meta.Kind) == scheddomain.JobKindA2A {
+				row.AgentURL = job.Meta.Detail
+			}
+			if job.Status == scheddomain.JobRunning {
+				active = append(active, row)
+			} else {
+				completed = append(completed, row)
+			}
+		}
+		return tui.TasksLoadedEvent{ActiveTasks: active, CompletedTasks: completed}
+	}
+}
+
 func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 	label := job.Meta.Label
 	if label == "" {
@@ -580,7 +613,7 @@ func (t *TaskView) handleSearchInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // or subagent. Completed rows are not cancellable.
 func isCancellable(task TaskInfo) bool {
 	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
-		return task.TaskRef == nil
+		return task.TaskRef == nil && task.Status != jobStatusLabel(scheddomain.JobCompleted) && task.Status != jobStatusLabel(scheddomain.JobFailed)
 	}
 	return task.Status == jobStatusLabel(scheddomain.JobRunning)
 }
@@ -610,6 +643,11 @@ func (t *TaskView) cancelTaskCmd(task TaskInfo) tea.Cmd {
 // their supervised job down through the registry (a2aJob.Wind is a no-op, so
 // WindJob alone would never reach the remote agent).
 func (t *TaskView) cancelTask(task TaskInfo) error {
+	if t.workerJobs != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), workerJobsTimeout)
+		defer cancel()
+		return t.workerJobs.Stop(ctx, task.TaskID)
+	}
 	if normalizeKind(task.Kind) == scheddomain.JobKindA2A {
 		return t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
 	}
@@ -1032,20 +1070,42 @@ func (t *TaskView) SetBackgroundTaskRegistry(registry scheddomain.BackgroundTask
 	t.backgroundJobRegistry = registry
 }
 
+// SetWorkerJobs makes the view show and stop the jobs a daemon chat's worker
+// runs. ponytail: it polls while a job runs, and a job started while nothing runs
+// shows on reopening, push the worker's job patch here if that matters.
+func (t *TaskView) SetWorkerJobs(jobs tui.WorkerJobs) {
+	t.workerJobs = jobs
+}
+
 // writeJobCountsSummary writes a one-line summary of all running background work
 // from the supervisor: "Running: 2 A2A · 1 shell · 3 subagents".
 func (t *TaskView) writeJobCountsSummary(b *strings.Builder) {
-	if t.backgroundJobRegistry == nil {
+	if t.backgroundJobRegistry == nil && t.workerJobs == nil {
 		return
 	}
-	a2a := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindA2A)
-	shells := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindShell)
-	subagents := t.backgroundJobRegistry.CountRunningJobs(scheddomain.JobKindSubagent)
+	a2a := t.runningCount(scheddomain.JobKindA2A)
+	shells := t.runningCount(scheddomain.JobKindShell)
+	subagents := t.runningCount(scheddomain.JobKindSubagent)
 
 	dimColor := t.styleProvider.GetThemeColor("dim")
 	summary := fmt.Sprintf("Running: %d A2A · %d shells · %d subagents  (total %d)",
 		a2a, shells, subagents, a2a+shells+subagents)
 	fmt.Fprintf(b, "%s\n\n", t.styleProvider.RenderWithColor(summary, dimColor))
+}
+
+// runningCount counts a kind's running jobs from the rows a worker's jobs loaded
+// into, since rendering cannot ask the worker.
+func (t *TaskView) runningCount(kind scheddomain.JobKind) int {
+	if t.workerJobs == nil {
+		return t.backgroundJobRegistry.CountRunningJobs(kind)
+	}
+	count := 0
+	for _, task := range t.activeTasks {
+		if normalizeKind(task.Kind) == kind {
+			count++
+		}
+	}
+	return count
 }
 
 // writeViewTabs writes the view selection tabs

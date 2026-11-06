@@ -35,7 +35,7 @@ func TestSessionPlacementUnavailable(t *testing.T) {
 	inProcess := SessionPlacement{}
 	local := SessionPlacement{Daemon: true, Local: "laptop"}
 	remote := SessionPlacement{Daemon: true, Local: "laptop", Workspace: "k8s-dev"}
-	features := []Feature{FeatureLocalFiles, FeatureCompaction, FeatureHistoryRewind, FeatureBackgroundShell, FeatureTasks}
+	features := []Feature{FeatureLocalFiles, FeatureCompaction, FeatureHistoryRewind, FeatureBackgroundShell}
 
 	for _, feature := range features {
 		if reason := inProcess.Unavailable(feature); reason != "" {

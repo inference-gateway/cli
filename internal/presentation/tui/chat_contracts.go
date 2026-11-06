@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // ChatHandler defines the interface for the chat handler
@@ -49,6 +50,13 @@ type ChatHandler interface {
 // where the next reload would otherwise drop it. An in-process chat has none.
 type NoteKeeper interface {
 	AddNote(content string) error
+}
+
+// WorkerJobs lists and stops the background jobs of a session another process
+// runs, for /tasks. An in-process chat has none, its own supervisor holds them.
+type WorkerJobs interface {
+	List(ctx context.Context) ([]scheddomain.TrackedJob, error)
+	Stop(ctx context.Context, jobID string) error
 }
 
 // NextStepSuggestionRunner produces the one-line follow-up suggestion offered

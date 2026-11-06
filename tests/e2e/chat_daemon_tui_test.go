@@ -96,6 +96,76 @@ func TestChatDaemonFollowsABackgroundJob(t *testing.T) {
 	expectPane(t, session, "IDLE-PROBE-FOLLOW-UP", d)
 }
 
+// TestChatDaemonListsAndStopsTheWorkersJobs drives /tasks over a job that runs in
+// the worker, not in the chat: it is listed as running, stops when cancelled and
+// stays listed as ended.
+func TestChatDaemonListsAndStopsTheWorkersJobs(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-tasks"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+	chatSay(t, session, "run a long background shell")
+	expectPane(t, session, "The long shell is running.", d)
+
+	chatSay(t, session, "/tasks")
+	expectPane(t, session, "│ Running", d)
+	tmuxSendKeys(t, session, "c", "y")
+	expectPane(t, session, "│ Failed", d)
+}
+
+func TestChatDaemonKeepsARunsStatusAfterClosingTasks(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-panel-status"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+
+	expectStatusSurvivesPanel(t, session, "/tasks", "Background Tasks", d)
+}
+
+// TestChatDaemonShowsAFinishedJobsOutput pins the output of a job that ran in the
+// worker, which only the worker holds.
+func TestChatDaemonShowsAFinishedJobsOutput(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-task-output"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+	chatSay(t, session, "run a background shell")
+	expectPane(t, session, "The background shell task ran.", d)
+
+	chatSay(t, session, "/tasks")
+	expectPane(t, session, completedTaskRow, d)
+	tmuxSendKeys(t, session, "i")
+	expectPane(t, session, "Output", d)
+	expectPane(t, session, "hello-from-background-shell", d)
+}
+
+// TestChatDaemonShowsASubagentsTranscript pins the detail of a subagent a worker
+// ran, whose conversation the worker's storage holds.
+func TestChatDaemonShowsASubagentsTranscript(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a", "INFER_TOOLS_AGENT_MODE=headless",
+		"INFER_TOOLS_AGENT_WAIT=false", "INFER_TOOLS_AGENT_REQUIRE_APPROVAL=false")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-subagent"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+	chatSay(t, session, "launch a subagent")
+	expectPane(t, session, "The subagent task was launched.", d)
+	expectPane(t, session, "Subagent Completed", d)
+
+	chatSay(t, session, "/tasks")
+	expectPane(t, session, completedTaskRow, d)
+	tmuxSendKeys(t, session, "i")
+	expectPane(t, session, "Transcript", d)
+	expectPane(t, session, "hello-from-subagent-probe", d)
+}
+
 func TestChatDaemonRunsDirectCommandsLikeAPlainChat(t *testing.T) {
 	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
 	project := gitProject(t)
