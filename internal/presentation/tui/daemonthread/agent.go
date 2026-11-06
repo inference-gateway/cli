@@ -39,8 +39,7 @@ type Agent struct {
 	mu       sync.Mutex
 	synced   workerState
 	stopPump context.CancelFunc
-	// notes wait here, by conversation, until the worker can take them.
-	notes map[string][]string
+	notes    map[string][]string
 }
 
 // workerState is what the TUI last told the followed thread's worker.
