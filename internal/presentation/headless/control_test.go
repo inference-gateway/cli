@@ -23,7 +23,35 @@ import (
 func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *conversationmocks.FakeMessageQueue) {
 	agent := &agentdomainmocks.FakeAgentService{}
 	queue := &conversationmocks.FakeMessageQueue{}
-	return newHeadlessControl(agent, queue, "sess-1"), agent, queue
+	return newHeadlessControl(agent, queue, nil, "sess-1"), agent, queue
+}
+
+func TestEnqueueRunInputExpandsIssueReferences(t *testing.T) {
+	gh := &agentdomainmocks.FakeGitHubIssueService{}
+	gh.GetIssueReturns(&agentdomain.GitHubIssue{
+		Number: 123, Title: "Add login", State: "OPEN", Body: "Implement auth.",
+		URL: "https://github.com/o/r/issues/123",
+	}, nil)
+	ctl, _, queue := newTestControl()
+	ctl.issues = gh
+
+	ctl.dispatchLine([]byte(`{"type":"run_agent_input","input":{"messages":[{"id":"m1","role":"user","content":"fix #123 please"}]}}`))
+
+	if queue.EnqueueCallCount() != 1 {
+		t.Fatalf("enqueued %d messages, want 1", queue.EnqueueCallCount())
+	}
+	_, message, _, _ := queue.EnqueueArgsForCall(0)
+	text, _ := message.Content.AsMessageContent0()
+	if !strings.HasPrefix(text, "fix GitHub Issue #123 (OPEN): Add login") {
+		t.Errorf("expanded text = %q, want the issue block replacing the token", text)
+	}
+	if !strings.HasPrefix(text, "fix ") || !strings.HasSuffix(text, " please") {
+		t.Errorf("expanded text = %q, want the surrounding content preserved", text)
+	}
+	_, number := gh.GetIssueArgsForCall(0)
+	if number != 123 {
+		t.Errorf("GetIssue number = %d, want 123", number)
+	}
 }
 
 func TestNextTurnRunsEveryDirectTaskAlone(t *testing.T) {

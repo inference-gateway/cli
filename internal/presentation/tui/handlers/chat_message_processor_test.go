@@ -349,6 +349,20 @@ func TestChatMessageProcessor_expandIssueReferences(t *testing.T) {
 			},
 			fetchCt: 1,
 		},
+		{
+			name:    "refs past the per-message cap stay raw",
+			content: "#1 #2 #3 #4 #5 #6 #7 #8 #9 #10 #11",
+			setup: func(s *agentdomainmocks.FakeGitHubIssueService) {
+				s.GetIssueStub = func(_ context.Context, number int) (*agentdomain.GitHubIssue, error) {
+					return &agentdomain.GitHubIssue{Number: number, Title: "t", State: "OPEN"}, nil
+				}
+			},
+			assertOut: func(t *testing.T, out string) {
+				assert.Contains(t, out, "GitHub Issue #10 (OPEN)")
+				assert.True(t, strings.HasSuffix(out, " #11"), "the eleventh token stays raw")
+			},
+			fetchCt: 10,
+		},
 	}
 
 	for _, tt := range tests {

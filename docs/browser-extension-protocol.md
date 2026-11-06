@@ -237,6 +237,10 @@ whose `messages` holds the new messages only, since the worker owns the history:
   without closing the control channel.
 - An input with no messages and no `resume` continues the thread after a
   stopped run, which is how a paused computer-use session resumes.
+- A `#N` token in a text part, at the start or after whitespace, is expanded
+  by the worker before the run: the issue's title, body and most recent
+  comments replace the token, the way the chat TUI expands it. A failed
+  fetch leaves the raw token in place.
 
 Client → CLI, stop the turn currently streaming (a no-op when nothing runs):
 
@@ -460,8 +464,8 @@ CLI → client, one reply per request id:
 
 ## Project-scoped requests
 
-`list_conversations`, `list_history`, `list_skills`, `list_models`,
-`select_model`, `set_mode`, `tool_request`, `completion_request`,
+`list_conversations`, `list_history`, `list_skills`, `list_issues`,
+`list_models`, `select_model`, `set_mode`, `tool_request`, `completion_request`,
 `list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on the
 live thread of the session `id` names, else on any running worker there, else
@@ -525,6 +529,32 @@ CLI → client, the discovered skills (empty when skills are unavailable):
 - `scope` is one of `project`, `agents`, `user`, `plugin`, `catalog`; name
   conflicts are already resolved by precedence, so each name appears once.
   Unknown scopes are ignored by the extension.
+
+## GitHub issues
+
+The panel offers a "#" autocomplete of the current project's GitHub issues,
+the menu the chat TUI's input offers. It asks the CLI for the open issues the
+GitHub issue service resolves for the worker's project dir. A `#N` token a
+client sends in a `run_agent_input` message is expanded by the worker the
+same way, so a daemon client types "#" exactly like the TUI.
+
+Client → CLI, list the project's open issues:
+
+```json
+{"type": "list_issues", "project_dir": "/abs/path/to/project"}
+```
+
+CLI → client, the open issues, newest first (empty wherever the TUI's trigger
+shows nothing - no git repo, no `gh`, no auth, or a failed `gh` call):
+
+```json
+{"type": "issues", "issues": [{"number": 57, "title": "Fix the flaky test", "state": "OPEN"}]}
+```
+
+- `number` and `title` are the issue's own, `state` is its GitHub state as
+  the issue service's list returns it.
+- The list is the service's recent-open-issues list, so its internal cap
+  applies.
 
 ## Models
 

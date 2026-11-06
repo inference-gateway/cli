@@ -226,11 +226,13 @@ lines without translating them.
 | `approval_response` | Answers a pending `tool_request`'s CUSTOM `approval_request` |
 | `plan_approval_response` | Decides the plan a `plan_approval` interrupt waits on, like its resume entry |
 
-`input` is a `RunAgentInput`. `messages` holds the new messages only, since the worker owns the
+`input` is a `RunAgentInput`. `messages` holds the new messages only, since the worker owns
 history. A user message's `content` is a string or content parts: `{"type":"text","text":...}` and
 `{"type":"image","mimeType":...,"data":"<base64>","filename":...}`. Each file is saved to the project's
 tmp dir. PNG, JPEG, GIF and WebP images reach the model as image parts, and other files as a note naming
-the saved path. Files over 10 MiB are skipped.
+the saved path. Files over 10 MiB are skipped. A `#N` token in a text part, at the start or after
+whitespace, is expanded by the worker like the chat TUI's: the issue's title, body and most recent
+comments replace it, and a failed fetch leaves the raw token in place.
 
 Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation the worker holds (a
 rollover or an accepted plan moves it on to a new one, which a client follows), then exactly one

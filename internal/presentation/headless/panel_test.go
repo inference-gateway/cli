@@ -182,6 +182,71 @@ func TestPanelListSkills(t *testing.T) {
 	}
 }
 
+func TestPanelListIssues(t *testing.T) {
+	gh := &agentdomainmocks.FakeGitHubIssueService{}
+	gh.IsAvailableReturns(true)
+	gh.ListIssuesReturns([]agentdomain.GitHubIssue{
+		{Number: 57, Title: "Fix the flaky test", State: "OPEN"},
+		{Number: 71, Title: "Ship the release", State: "OPEN"},
+	}, nil)
+	deps := panelDeps()
+	deps.Issues = gh
+	p, sink := startPanel(deps)
+
+	handle(t, p, map[string]any{"type": "list_issues"})
+	frame := readFrame(t, sink, "issues")
+	raw, ok := frame["issues"].([]any)
+	if !ok || len(raw) != 2 {
+		t.Fatalf("expected 2 issues, got %v", frame["issues"])
+	}
+	first := raw[0].(map[string]any)
+	if first["number"] != float64(57) || first["title"] != "Fix the flaky test" || first["state"] != "OPEN" {
+		t.Fatalf("unexpected issue entry: %v", first)
+	}
+}
+
+func TestPanelListIssuesAnswersEmptyWhereTheTUIShowsNothing(t *testing.T) {
+	tests := []struct {
+		name string
+		deps func(deps PanelDeps) PanelDeps
+	}{
+		{
+			name: "no service",
+			deps: func(deps PanelDeps) PanelDeps { return deps },
+		},
+		{
+			name: "service unavailable",
+			deps: func(deps PanelDeps) PanelDeps {
+				gh := &agentdomainmocks.FakeGitHubIssueService{}
+				gh.IsAvailableReturns(false)
+				deps.Issues = gh
+				return deps
+			},
+		},
+		{
+			name: "failed list",
+			deps: func(deps PanelDeps) PanelDeps {
+				gh := &agentdomainmocks.FakeGitHubIssueService{}
+				gh.IsAvailableReturns(true)
+				gh.ListIssuesReturns(nil, errors.New("gh failed"))
+				deps.Issues = gh
+				return deps
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := tt.deps(panelDeps())
+			p, sink := startPanel(deps)
+
+			handle(t, p, map[string]any{"type": "list_issues"})
+			if raw, ok := readFrame(t, sink, "issues")["issues"].([]any); !ok || len(raw) != 0 {
+				t.Fatalf("expected an empty issues list, got %v", raw)
+			}
+		})
+	}
+}
+
 func TestPanelListModelsDefaultFirstAndSelect(t *testing.T) {
 	models := &convmocks.FakeModelService{}
 	models.ListModelsReturns([]string{"a/x", "b/y"}, nil)
