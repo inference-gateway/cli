@@ -263,6 +263,34 @@ scenarios:
           - { name: Write, args: { file_path: "m2.txt", content: "two\n" } }
       - content: "APPROVAL-TAIL-DONE"
 
+  - name: plan-accepted
+    match: '(?i)plan accepted probe'
+    turns:
+      - tool_calls:
+          - name: RequestPlanApproval
+            args:
+              title: Probe
+              plan: "1. take the first step"
+
+  # The hidden continue prompt an accepted plan adds. A turn index counts the
+  # assistant messages so far, and the plan's own tool call is the first.
+  - name: plan-accepted-continue
+    match: '(?i)the plan has been approved'
+    turns:
+      - content: "PLAN-EXECUTED"
+      - content: "PLAN-EXECUTED"
+
+  - name: slow-reply-after-tool
+    match: '(?i)slow reply probe'
+    turns:
+      - tool_calls:
+          - name: Write
+            args:
+              file_path: slow.txt
+              content: "slow\n"
+      - content: "SLOW-REPLY-DONE"
+        delay_ms: 15000
+
   - name: write-then-read
     match: '(?i)write then read the marker'
     turns:

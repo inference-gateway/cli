@@ -205,6 +205,66 @@ func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 		"the final reply stayed below the fold after approval; last frame:\n%s", capturePane(session))
 }
 
+// TestChatTUIAcceptedPlanRuns pins that accepting a plan executes it. The chat
+// restarts the run itself, and the prompt it gets must not wait on a worker.
+func TestChatTUIAcceptedPlanRuns(t *testing.T) {
+	const session = "infer-e2e-plan-accepted"
+	startLocalChat(t, session)
+
+	tmuxSendKeys(t, session, "BTab")
+	require.True(t, waitForPane(t, session, "▶ PLAN", 10*time.Second),
+		"plan mode never turned on; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "-l", "plan accepted probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Plan approval required", 25*time.Second),
+		"the plan prompt never opened; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "PLAN-EXECUTED", 25*time.Second),
+		"the accepted plan never ran; last frame:\n%s", capturePane(session))
+}
+
+// TestChatTUIShowsTheModelIsWorkingAfterATool pins the status while the model
+// is silent after a tool: it says a response is coming, instead of looking idle.
+func TestChatTUIShowsTheModelIsWorkingAfterATool(t *testing.T) {
+	const session = "infer-e2e-slow-reply"
+	startLocalChat(t, session)
+
+	tmuxSendKeys(t, session, "-l", "slow reply probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Approval required", 25*time.Second),
+		"approval box never opened; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Created slow.txt", 10*time.Second),
+		"the Write result never showed; last frame:\n%s", capturePane(session))
+	require.True(t, waitForPane(t, session, "response...", 10*time.Second),
+		"the status looks idle while the model works; last frame:\n%s", capturePane(session))
+	require.NotContains(t, capturePane(session), "SLOW-REPLY-DONE",
+		"the next reply must still be on its way when the status shows")
+}
+
+// startLocalChat launches a local chat on the e2e scenarios in a temp dir and
+// waits for its input.
+func startLocalChat(t *testing.T, session string) {
+	t.Helper()
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not installed; skipping TUI drive test")
+	}
+	home := startTmuxHome(t, session)
+	launch := "env HOME=" + home +
+		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
+		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
+		chatLoopbackEnv() + " " + binPath + " chat"
+	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
+		"-x", "200", "-y", "50", "-c", t.TempDir(), launch).Run(), "failed to start tmux session")
+	require.True(t, waitForPane(t, session, "Select a Model", 25*time.Second),
+		"model picker never rendered; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Type your message", 20*time.Second),
+		"input view never appeared after model select; last frame:\n%s", capturePane(session))
+}
+
 // envChatLoopback opts a local chat into rendering its runs through AG-UI.
 // TestMain reads it before it drops the caller's INFER_* variables, so one run
 // of the suite proves either path.

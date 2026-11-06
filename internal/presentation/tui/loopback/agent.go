@@ -3,16 +3,15 @@ package loopback
 import (
 	"context"
 	"encoding/json"
-	"slices"
 
 	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
-	render "github.com/inference-gateway/cli/internal/platform/render"
 	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 	runview "github.com/inference-gateway/cli/internal/presentation/tui/runview"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // Agent is the chat TUI's agent for a local chat rendered through AG-UI: the
@@ -21,68 +20,67 @@ import (
 // share one mapping. Everything but the run stream goes straight to the agent.
 type Agent struct {
 	agentdomain.AgentService
-	repo    convdomain.ConversationRepository
-	publish []headless.Publish
+	repo convdomain.ConversationRepository
+	jobs func() []scheddomain.TrackedJob
 }
 
-// New wraps agent, whose runs the TUI then reads back from AG-UI frames.
-func New(agent agentdomain.AgentService, repo convdomain.ConversationRepository, publish ...headless.Publish) *Agent {
-	return &Agent{AgentService: agent, repo: repo, publish: publish}
+// New wraps agent, whose runs the TUI then reads back from AG-UI frames. jobs
+// snapshots the background tasks, whose patch hands over a step's tool results.
+func New(agent agentdomain.AgentService, repo convdomain.ConversationRepository, jobs func() []scheddomain.TrackedJob) *Agent {
+	return &Agent{AgentService: agent, repo: repo, jobs: jobs}
 }
 
 // RunWithStream runs the request on the wrapped agent and streams what its
-// AG-UI run reduces to. The stream closes once the run wrote its terminal event.
+// AG-UI run reduces to, until the run wrote its terminal event. ponytail: a plan
+// skips the run, since the agent does not wait on it and the chat restarts the
+// run itself. It becomes an interrupt once the handlers stop deciding plans.
 func (a *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
 	events, err := a.AgentService.RunWithStream(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	frames := &frames{
-		ctx:       ctx,
+	sink := &frames{
 		out:       make(chan agentdomain.ChatEvent, 1000),
 		reducer:   runview.New(req.RequestID),
 		approvals: make(chan ipc.ApprovalResponse, 1),
 		questions: make(chan ipc.UserQuestionResponse, 1),
-		plans:     make(chan ipc.PlanApprovalResponse, 1),
 	}
-	encoder := headless.NewRunEncoder(frames, headless.RunEncoderDeps{
-		Model: req.Model, Repo: a.repo, Publish: a.publish,
-		Approvals: frames.approvals, Questions: frames.questions, Plans: frames.plans,
+	encoder := headless.NewRunEncoder(sink, headless.RunEncoderDeps{
+		Model: req.Model, Repo: a.repo, Jobs: a.jobs,
+		Approvals: sink.approvals, Questions: sink.questions,
 	})
 	go func() {
-		defer close(frames.out)
+		defer close(sink.out)
 		encoder.Start(a.repo.GetCurrentConversationID(), uuid.New().String())
 		for event := range events {
+			if plan, ok := event.(agentdomain.PlanApprovalRequestedEvent); ok {
+				sink.out <- plan
+				continue
+			}
 			encoder.Handle(event)
 		}
 		_ = encoder.Finish()
 	}()
-	return frames.out, nil
+	return sink.out, nil
 }
 
 // frames is where the encoder writes one run: each frame is reduced as it is
 // written, and a suspended run is resumed with the user's answers.
 type frames struct {
-	ctx       context.Context
 	out       chan agentdomain.ChatEvent
 	reducer   *runview.Reducer
 	approvals chan ipc.ApprovalResponse
 	questions chan ipc.UserQuestionResponse
-	plans     chan ipc.PlanApprovalResponse
 }
 
 // Write takes one frame the encoder wrote and hands the TUI what it reduces to.
 func (f *frames) Write(frame []byte) (int, error) {
 	events, end := f.reducer.Decode(frame)
 	for _, event := range events {
-		select {
-		case f.out <- event:
-		case <-f.ctx.Done():
-			return len(frame), nil
-		}
+		f.out <- event
 	}
 	if end == runview.Suspended {
-		go f.answer(slices.Clone(f.reducer.Prompts()))
+		go f.answer(f.reducer.Prompts())
 	}
 	return len(frame), nil
 }
@@ -96,12 +94,6 @@ func (f *frames) answer(prompts []runview.Prompt) {
 			f.approvals <- approval(e)
 		case agentdomain.UserQuestionRequestedEvent:
 			f.questions <- answers(e)
-		case agentdomain.PlanApprovalRequestedEvent:
-			action, ok := <-e.ResponseChan
-			if !ok {
-				action = agentdomain.PlanApprovalReject
-			}
-			f.plans <- ipc.PlanApprovalResponse{PlanID: e.PlanID, Action: render.PlanActionName(action)}
 		}
 	}
 }

@@ -615,7 +615,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	agentImpl.SetCurrentModelFn(c.modelService.GetCurrentModel)
 	c.agent = agentImpl
 	if c.loopbackChat {
-		c.agent = loopback.New(agentImpl, c.conversationRepo, computer.PublishedEvent)
+		c.agent = loopback.New(agentImpl, c.conversationRepo, c.backgroundTaskRegistry.Snapshot)
 	}
 
 	c.initializeBrowserTools()

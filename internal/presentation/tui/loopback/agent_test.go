@@ -13,14 +13,17 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
+
+func noJobs() []scheddomain.TrackedJob { return nil }
 
 func startRun(t *testing.T) (chan agentdomain.ChatEvent, <-chan agentdomain.ChatEvent) {
 	t.Helper()
 	inner := &agentdomainmocks.FakeAgentService{}
 	events := make(chan agentdomain.ChatEvent, 8)
 	inner.RunWithStreamReturns(events, nil)
-	out, err := New(inner, &convmocks.FakeConversationRepository{}).RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1", Model: "m"})
+	out, err := New(inner, &convmocks.FakeConversationRepository{}, noJobs).RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1", Model: "m"})
 	if err != nil {
 		t.Fatalf("RunWithStream: %v", err)
 	}
@@ -92,10 +95,48 @@ func TestAgentAnswersAnApprovalThroughTheRun(t *testing.T) {
 	}
 }
 
+func TestAgentLeavesAPlanDecisionToTheChat(t *testing.T) {
+	events, out := startRun(t)
+	events <- agentdomain.PlanApprovalRequestedEvent{PlanID: "plan-1", PlanContent: "1. do it"}
+
+	var plan agentdomain.PlanApprovalRequestedEvent
+	for {
+		if event, ok := next(t, out).(agentdomain.PlanApprovalRequestedEvent); ok {
+			plan = event
+			break
+		}
+	}
+	if plan.PlanID != "plan-1" || plan.PlanContent != "1. do it" {
+		t.Errorf("plan = %+v, want the agent's plan", plan)
+	}
+	if plan.ResponseChan != nil {
+		t.Error("the plan carries a response channel, so the chat waits on a worker that does not exist")
+	}
+	close(events)
+	for range out {
+	}
+}
+
+func TestAgentHandsOverAToolResultBeforeTheNextStep(t *testing.T) {
+	events, out := startRun(t)
+	events <- agentdomain.ToolExecutionCompletedEvent{
+		Results: []*agentdomain.ToolExecutionResult{{ToolName: "Write", ToolCallID: "tc1", Success: true}},
+	}
+
+	for {
+		if _, ok := next(t, out).(agentdomain.ToolExecutionCompletedEvent); ok {
+			break
+		}
+	}
+	close(events)
+	for range out {
+	}
+}
+
 func TestAgentReportsARunThatCannotStart(t *testing.T) {
 	inner := &agentdomainmocks.FakeAgentService{}
 	inner.RunWithStreamReturns(nil, errors.New("no model"))
-	if _, err := New(inner, &convmocks.FakeConversationRepository{}).RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"}); err == nil {
+	if _, err := New(inner, &convmocks.FakeConversationRepository{}, noJobs).RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"}); err == nil {
 		t.Fatal("RunWithStream returned no error for a run that cannot start")
 	}
 }
