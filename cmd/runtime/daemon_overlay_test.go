@@ -124,3 +124,15 @@ func TestLoadConfigFromViper_DaemonAwayExitDefaultsAndEnv(t *testing.T) {
 	initConfig()
 	require.Equal(t, 5*time.Minute, Cfg.Daemon.AwayExit)
 }
+
+// TestLoadConfigFromViper_ChatAGUILoopbackFromEnv pins the name the opt-in goes
+// by, which the e2e suite sets to run a local chat through AG-UI.
+func TestLoadConfigFromViper_ChatAGUILoopbackFromEnv(t *testing.T) {
+	withHermeticEnv(t)
+	initConfig()
+	require.False(t, Cfg.Chat.AGUILoopback)
+
+	t.Setenv("INFER_CHAT_AGUI_LOOPBACK", "true")
+	initConfig()
+	require.True(t, Cfg.Chat.AGUILoopback)
+}

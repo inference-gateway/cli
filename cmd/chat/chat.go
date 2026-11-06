@@ -82,20 +82,18 @@ and have a conversational interface with the inference gateway.`,
 	return command
 }
 
-// StartChatSession starts a chat session. loadConfig re-reads the
-// configuration for /reload.
-//
-// envAGUILoopback opts a local chat into rendering its runs through AG-UI
-// while that path is proven against the direct one.
-const envAGUILoopback = "INFER_CHAT_AGUI_LOOPBACK"
-
+// newChatContainer builds a local chat's container, whose runs render through
+// AG-UI when chat.agui_loopback opts in.
 func newChatContainer(cfg *config.Config) *container.ServiceContainer {
-	if os.Getenv(envAGUILoopback) == "true" {
+	if cfg.Chat.AGUILoopback {
 		return container.NewLoopbackChatContainer(cfg)
 	}
 	return container.NewServiceContainer(cfg)
 }
 
+// StartChatSession starts a chat session. loadConfig re-reads the
+// configuration for /reload.
+//
 //nolint:funlen // Chat session initialization requires multiple setup steps
 func StartChatSession(cfg *config.Config, sessionID string, loadConfig func() (*config.Config, error)) error {
 	_ = clipboard.Init()
