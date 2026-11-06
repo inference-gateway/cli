@@ -116,6 +116,8 @@ type RunEncoder struct {
 	plan *string
 
 	suggestNextStep func() string
+
+	quiet bool
 }
 
 // RunEncoderDeps are the collaborators of one run's encoder.
@@ -135,6 +137,9 @@ type RunEncoderDeps struct {
 	// one-line next-step suggestion, which the run patches into its state
 	// before the terminal event. nil for a run that publishes none.
 	SuggestNextStep func() string
+	// Quiet keeps the run off the process's stderr, for a host that owns the
+	// terminal.
+	Quiet bool
 }
 
 // NewRunEncoder builds the encoder for one run over w. History, when non-empty,
@@ -159,6 +164,7 @@ func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 		interrupt:       deps.Interrupt,
 		publish:         deps.Publish,
 		suggestNextStep: deps.SuggestNextStep,
+		quiet:           deps.Quiet,
 	}
 }
 
@@ -403,7 +409,9 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		r.run.PatchState(agui.StateTodos, ev.Todos)
 	case agentdomain.JudgeVerdictChatEvent:
 		r.emitJudgeVerdict(ev)
-		render.JudgeStderr(ev)
+		if !r.quiet {
+			render.JudgeStderr(ev)
+		}
 	case agentdomain.ToolExecutionProgressEvent:
 		r.run.Activity("tool:"+ev.ToolCallID, "tool_progress", map[string]any{
 			"toolCallId": ev.ToolCallID, "toolName": ev.ToolName, "status": ev.Status, "message": ev.Message,

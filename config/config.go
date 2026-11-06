@@ -835,8 +835,8 @@ type ChatConfig struct {
 	// in-process agent, the way infer chat --daemon does.
 	Daemon bool `yaml:"daemon" mapstructure:"daemon"`
 	// AGUILoopback renders a local chat's runs through AG-UI, the path a daemon
-	// chat takes, while that path is proven against the direct one.
-	AGUILoopback bool `yaml:"agui_loopback,omitempty" mapstructure:"agui_loopback"`
+	// chat takes. Off falls back to the handlers reading the agent directly.
+	AGUILoopback bool `yaml:"agui_loopback" mapstructure:"agui_loopback"`
 }
 
 // ChatSuggestionsConfig contains settings for the one-line next-step suggestion
@@ -1353,6 +1353,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			StatusBar:     GetDefaultStatusBarConfig(),
 			InputMaxLines: 20,
+			AGUILoopback:  true,
 			Suggestions: ChatSuggestionsConfig{
 				Enabled:         false,
 				Model:           "",

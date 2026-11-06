@@ -153,11 +153,11 @@ func ApprovalAction(resp ipc.ApprovalResponse) agentdomain.ApprovalAction {
 	}
 }
 
-// AnswerApproval answers the engine's pending approval on the event's
-// response channel from the broker's approvals channel. Responses carrying a
-// different tool_call_id are skipped (a late answer to a request the engine
-// already timed out must not decide the next one). A nil or closed channel
-// rejects the tool so the engine never waits out its timeout on a dead broker.
+// AnswerApproval answers the engine's pending approval on the event's response
+// channel from the broker's approvals channel, until the engine stops waiting.
+// Responses carrying a different tool_call_id are skipped, so a late answer does
+// not decide the next one. A nil or closed channel rejects the tool so the
+// engine never waits out its timeout on a dead broker.
 func AnswerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan ipc.ApprovalResponse) {
 	if e.ResponseChan == nil {
 		return
@@ -166,21 +166,29 @@ func AnswerApproval(e agentdomain.ToolApprovalRequestedEvent, approvals <-chan i
 		e.ResponseChan <- agentdomain.ApprovalReject
 		return
 	}
-	for resp := range approvals {
-		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
-			continue
+	for {
+		select {
+		case resp, open := <-approvals:
+			if !open {
+				e.ResponseChan <- agentdomain.ApprovalReject
+				return
+			}
+			if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCall.ID {
+				continue
+			}
+			e.ResponseChan <- ApprovalAction(resp)
+			return
+		case <-e.Done:
+			return
 		}
-		e.ResponseChan <- ApprovalAction(resp)
-		return
 	}
-	e.ResponseChan <- agentdomain.ApprovalReject
 }
 
-// AnswerQuestions answers the AskUserQuestion tool's pending form on the
-// event's response channel from the broker's questions channel, mirroring
-// AnswerApproval: stale tool_call_ids are skipped, a cancelled response or a
-// nil/closed channel closes ResponseChan (the tool's "dismissed" path), and
-// an unparseable answers payload counts as a dismissal too.
+// AnswerQuestions answers the AskUserQuestion tool's pending form on the event's
+// response channel from the broker's questions channel, mirroring AnswerApproval:
+// it stops once the engine stops waiting, stale tool_call_ids are skipped, and a
+// cancelled response, a nil or closed channel or an unparseable answers payload
+// closes ResponseChan (the tool's "dismissed" path).
 func AnswerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan ipc.UserQuestionResponse) {
 	if e.ResponseChan == nil {
 		return
@@ -189,16 +197,24 @@ func AnswerQuestions(e agentdomain.UserQuestionRequestedEvent, questions <-chan 
 	if questions == nil {
 		return
 	}
-	for resp := range questions {
-		if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCallID {
-			continue
-		}
-		var answers []agentdomain.UserQuestionAnswer
-		if resp.Cancelled || json.Unmarshal(resp.Answers, &answers) != nil {
+	for {
+		select {
+		case resp, open := <-questions:
+			if !open {
+				return
+			}
+			if resp.ToolCallID != "" && resp.ToolCallID != e.ToolCallID {
+				continue
+			}
+			var answers []agentdomain.UserQuestionAnswer
+			if resp.Cancelled || json.Unmarshal(resp.Answers, &answers) != nil {
+				return
+			}
+			e.ResponseChan <- answers
+			return
+		case <-e.Done:
 			return
 		}
-		e.ResponseChan <- answers
-		return
 	}
 }
 

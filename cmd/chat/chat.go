@@ -83,7 +83,7 @@ and have a conversational interface with the inference gateway.`,
 }
 
 // newChatContainer builds a local chat's container, whose runs render through
-// AG-UI when chat.agui_loopback opts in.
+// AG-UI unless chat.agui_loopback turns that off.
 func newChatContainer(cfg *config.Config) *container.ServiceContainer {
 	if cfg.Chat.AGUILoopback {
 		return container.NewLoopbackChatContainer(cfg)
