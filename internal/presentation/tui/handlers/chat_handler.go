@@ -68,7 +68,13 @@ type ChatHandler struct {
 	shortcutHandler        *ChatShortcutHandler
 	skillsService          agentdomain.SkillsService
 	githubIssueService     agentdomain.GitHubIssueService
+	noteKeeper             tui.NoteKeeper
 	drainRetryArmed        bool
+}
+
+// SetNoteKeeper gives a daemon chat the worker that keeps its shortcuts' output.
+func (h *ChatHandler) SetNoteKeeper(keeper tui.NoteKeeper) {
+	h.noteKeeper = keeper
 }
 
 func NewChatHandler(

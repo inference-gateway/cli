@@ -3,6 +3,7 @@ package daemonthread
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -26,6 +27,7 @@ import (
 
 var (
 	_ agentdomain.AgentService    = (*Agent)(nil)
+	_ tui.NoteKeeper              = (*Agent)(nil)
 	_ convdomain.ModelService     = (*Models)(nil)
 	_ llm.Completer               = (*Completer)(nil)
 	_ storage.ConversationStorage = (*Storage)(nil)
@@ -166,6 +168,171 @@ func TestAgentAnswersAnApprovalWithAResume(t *testing.T) {
 	}
 	if !slices.ContainsFunc(got, func(e agentdomain.ChatEvent) bool { _, ok := e.(agentdomain.ToolExecutionCompletedEvent); return ok }) {
 		t.Errorf("events %v lack the continuation's tool result", got)
+	}
+}
+
+// userBashRun is the run a worker renders for a user-typed `!command`.
+func userBashRun(t *testing.T, success bool) []string {
+	t.Helper()
+	call := sdk.ChatCompletionMessageToolCall{ID: "user-bash-1", Type: "function", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"false"}`}}
+	return encodeRun(t,
+		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{call}},
+		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolCallID: call.ID, ToolName: "Bash", Success: success}}},
+	)
+}
+
+func TestAgentEndsAUserBashRunTheWayPlainChatDoes(t *testing.T) {
+	tests := []struct {
+		name          string
+		success       bool
+		sent          bool
+		wantFailed    bool
+		wantInitiated bool
+	}{
+		{name: "this chat's failed command asks for the auto-fix", sent: true, wantFailed: true, wantInitiated: true},
+		{name: "this chat's command", success: true, sent: true, wantInitiated: true},
+		{name: "another client's failed command starts no auto-fix here", wantFailed: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := startDaemon(t, 0)
+			thread, _ := connected(t, d)
+			agent, repo := agentOver(thread)
+			run := userBashRun(t, tt.success)
+			if tt.sent {
+				d.setRuns(func(conn *agui.Conn, _ map[string]any) {
+					for _, line := range run {
+						send(conn, line)
+					}
+				})
+				if err := repo.AddMessage(userEntry("!false")); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				for _, line := range run {
+					send(d.conn(), line)
+				}
+				eventually(t, "the other client's run to arrive", thread.Pending)
+			}
+
+			events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := collect(t, events, nil)
+
+			completed, ok := got[len(got)-1].(tui.BashCommandCompletedEvent)
+			if !ok {
+				t.Fatalf("the turn ended with %T, want BashCommandCompletedEvent after the completion: %v", got[len(got)-1], got)
+			}
+			if completed.Failed != tt.wantFailed || completed.UserInitiated != tt.wantInitiated {
+				t.Errorf("completed = failed %v, initiated %v, want %v, %v", completed.Failed, completed.UserInitiated, tt.wantFailed, tt.wantInitiated)
+			}
+		})
+	}
+}
+
+func TestAgentEndsAnAgentRunWithoutTheBashEvent(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, repo := agentOver(thread)
+	d.setRuns(func(conn *agui.Conn, _ map[string]any) {
+		for _, line := range encodeRun(t, agentdomain.ChatChunkEvent{Content: "hi"}, agentdomain.ChatCompleteEvent{}) {
+			send(conn, line)
+		}
+	})
+	if err := repo.AddMessage(userEntry("say hello")); err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range collect(t, events, nil) {
+		if _, ok := event.(tui.BashCommandCompletedEvent); ok {
+			t.Fatal("a turn with no !command ended as one")
+		}
+	}
+}
+
+func TestAgentANewTurnTakesTheThreadOverFromAnAbandonedOne(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, repo := agentOver(thread)
+	if err := repo.AddMessage(userEntry("!sleep 100")); err != nil {
+		t.Fatal(err)
+	}
+	abandoned, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the first run input", func() bool { return len(d.frames("run_agent_input")) == 1 })
+
+	d.setRuns(func(conn *agui.Conn, _ map[string]any) {
+		for _, line := range encodeRun(t, agentdomain.ChatChunkEvent{Content: "hi"}, agentdomain.ChatCompleteEvent{}) {
+			send(conn, line)
+		}
+	})
+	if err := repo.AddMessage(userEntry("say hello")); err != nil {
+		t.Fatal(err)
+	}
+	events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := collect(t, events, nil)
+	if !slices.ContainsFunc(got, func(e agentdomain.ChatEvent) bool {
+		chunk, ok := e.(agentdomain.ChatChunkEvent)
+		return ok && chunk.Content == "hi"
+	}) {
+		t.Errorf("the new turn lost frames to the abandoned one: %v", got)
+	}
+	if left := collect(t, abandoned, nil); len(left) != 0 {
+		t.Errorf("the abandoned turn reported %v after it was superseded", left)
+	}
+}
+
+func TestThreadCancelledReaderLeavesTheFramesAndTheWake(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	send(d.conn(), `{"type":"RUN_STARTED","threadId":"conv-1","runId":"run-1"}`)
+	eventually(t, "the frame to queue", thread.Pending)
+	for len(thread.wake) > 0 {
+		<-thread.wake
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := thread.Next(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Next = %v, want context.Canceled", err)
+	}
+	if !thread.Pending() || len(thread.wake) != 1 {
+		t.Errorf("pending = %v and %d wakes, want the frame and a wake left for the next reader", thread.Pending(), len(thread.wake))
+	}
+}
+
+func TestAgentKeepsANoteOnTheThreadItFollows(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	agent, repo := agentOver(thread)
+
+	if err := agent.AddNote("pushed"); err != nil {
+		t.Fatal(err)
+	}
+	repo.SetConversationID("conv-2")
+	if err := agent.AddNote("for a conversation not followed yet"); err != nil {
+		t.Fatal(err)
+	}
+	if err := thread.Send(map[string]string{"type": "marker"}); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the frames to arrive", func() bool { return len(d.frames("marker")) == 1 })
+
+	notes := d.frames("add_note")
+	if len(notes) != 1 || notes[0]["content"] != "pushed" {
+		t.Errorf("notes = %v, want only the one for the followed conversation", notes)
 	}
 }
 

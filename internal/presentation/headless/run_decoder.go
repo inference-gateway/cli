@@ -138,7 +138,7 @@ func (d *RunDecoder) Decode(frame []byte) ([]agentdomain.ChatEvent, RunEnd) {
 		return d.stateDelta(f.Delta), RunOpen
 	case "ACTIVITY_SNAPSHOT":
 		if event := d.activity(f.ActivityType, f.Content); event != nil {
-			return d.withResults(event), RunOpen
+			return append(d.closeStep(), d.withResults(event)...), RunOpen
 		}
 	case "RUN_FINISHED":
 		return d.runFinished(f.Outcome.Type, f.Outcome.Interrupts)

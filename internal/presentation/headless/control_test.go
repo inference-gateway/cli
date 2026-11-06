@@ -26,6 +26,86 @@ func newTestControl() (*headlessControl, *agentdomainmocks.FakeAgentService, *co
 	return newHeadlessControl(agent, queue, "sess-1"), agent, queue
 }
 
+func TestNextTurnRunsEveryDirectTaskAlone(t *testing.T) {
+	tests := []struct {
+		name   string
+		queued []string
+		want   []string
+	}{
+		{name: "a prompt", queued: []string{"explain"}, want: []string{"explain"}},
+		{name: "prompts stay one turn", queued: []string{"explain", "and fix"}, want: []string{"explain|and fix"}},
+		{name: "a job note before a command", queued: []string{"[Background Shell Completed]", "!git commit"}, want: []string{"[Background Shell Completed]", "!git commit"}},
+		{name: "a command before a prompt", queued: []string{"!ls", "explain"}, want: []string{"!ls", "explain"}},
+		{name: "commands in order", queued: []string{"a", "b", "!c", "!!D()", "e"}, want: []string{"a|b", "!c", "!!D()", "e"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctl, _, queue := newTestControl()
+			queue.IsEmptyReturns(true)
+			messages := make([]convdomain.QueuedMessage, 0, len(tt.queued))
+			for _, text := range tt.queued {
+				messages = append(messages, convdomain.QueuedMessage{Message: userMessageText(text)})
+			}
+			queue.DrainReturnsOnCall(0, messages, nil)
+
+			var turns []string
+			for first := true; first || ctl.hasTurn(); first = false {
+				var texts []string
+				for _, message := range ctl.nextTurn(t.Context()) {
+					text, _ := message.Message.Content.AsMessageContent0()
+					texts = append(texts, text)
+				}
+				turns = append(turns, strings.Join(texts, "|"))
+			}
+
+			if !slices.Equal(turns, tt.want) {
+				t.Errorf("turns = %q, want %q", turns, tt.want)
+			}
+		})
+	}
+}
+
+func TestAwaitTurnWakesForANoteThatLandedOutsideARunInput(t *testing.T) {
+	ctl, _, queue := newTestControl()
+	queue.IsEmptyReturns(true)
+	waker := drainWaker{UINotifier: make(uiBridge, 1), drained: ctl.drained}
+	done := make(chan bool, 1)
+	go func() { done <- ctl.awaitTurn() }()
+	for queue.IsEmptyCallCount() == 0 {
+		time.Sleep(time.Millisecond)
+	}
+
+	queue.IsEmptyReturns(false)
+	waker.Notify(agentdomain.DrainQueueEvent{})
+
+	select {
+	case hasTurn := <-done:
+		if !hasTurn {
+			t.Error("the serve loop did not take the note's turn")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the serve loop slept through the note")
+	}
+}
+
+func TestDrainWakerSurvivesStdinClosingAndPassesOtherNotificationsOn(t *testing.T) {
+	ctl, _, _ := newTestControl()
+	bridge := make(uiBridge, 1)
+	waker := drainWaker{UINotifier: bridge, drained: ctl.drained}
+
+	ctl.readLines(strings.NewReader(""))
+	waker.Notify(agentdomain.DrainQueueEvent{})
+	waker.Notify(agentdomain.DrainQueueEvent{})
+
+	if len(bridge) != 0 {
+		t.Errorf("a drain signal reached the client's stream")
+	}
+	waker.Notify(agentdomain.BackgroundTasksChangedEvent{})
+	if len(bridge) != 1 {
+		t.Errorf("a client's notification was dropped")
+	}
+}
+
 func recvEvent(t *testing.T, ch <-chan agentdomain.ChatEvent) agentdomain.ChatEvent {
 	t.Helper()
 	select {

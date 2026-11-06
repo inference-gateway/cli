@@ -399,7 +399,8 @@ only back to this machine.
 | --- | --- |
 | Turns, streaming, reasoning and tool cards | Run on the worker |
 | Approvals, questions, plan approval, `esc`, the queue, model switch, agent mode, pasted images, skills | Run on the worker |
-| `!cmd` and `!!Tool(...)` | Run on the worker as a turn of their own |
+| `!cmd` and `!!Tool(...)` | Run on the worker as a turn of their own. One typed during a turn waits for it, and `esc` stops it |
+| Custom shortcuts such as `/git push` | Run in the TUI on this machine wherever the session runs, and the worker keeps their output |
 | `/new`, `/clear`, `ctrl+n` | Start a new thread on this machine's daemon |
 | `/conversations` | Lists the sessions where the current one runs, with the workspace each one runs on now |
 | `@file` | Inlines this machine's file on a local session. On a remote one `@` lists no files and the reference goes to the agent's workspace |
@@ -412,9 +413,10 @@ only back to this machine.
 | `/copy`, `/context`, `/cost`, `/help`, `/theme`, `/stats`, `/traces`, `/tools`, `/agents`, `#issue` | Work in the TUI |
 
 An unavailable feature says why in the status line. The TUI's `INFER_` overrides reach the worker only as its
-model and agent mode, and notes only the TUI shows, such as `/cost` output, are gone after the next turn,
-when the TUI reloads the conversation the worker stored. A pod image older than the daemon may lack the
-richer interrupts, tool progress, plan approval and snippet shortcuts, and cannot send a session back.
+model and agent mode, and `!cmd` runs in the daemon's environment, not this shell's. Shortcut output, such as that of
+`/git push` or `/cost`, reaches the worker as a note, so the model sees it and it stays when the TUI reloads the
+conversation the worker stored. A pod image older than the daemon may lack the richer interrupts, tool progress,
+plan approval, snippet shortcuts and notes, and cannot send a session back.
 
 ## Starting it
 

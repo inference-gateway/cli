@@ -42,6 +42,13 @@ type ChatHandler interface {
 	SetBashDetachChan(chan<- struct{})
 	GetBashDetachChan() chan<- struct{}
 	ClearBashDetachChan()
+	SetNoteKeeper(keeper NoteKeeper)
+}
+
+// NoteKeeper keeps a note the TUI wrote in a conversation another process owns,
+// where the next reload would otherwise drop it. An in-process chat has none.
+type NoteKeeper interface {
+	AddNote(content string) error
 }
 
 // NextStepSuggestionRunner produces the one-line follow-up suggestion offered

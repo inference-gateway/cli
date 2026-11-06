@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -51,10 +52,23 @@ type headlessControl struct {
 	pendingMu sync.Mutex
 	pending   map[string]pendingInterrupt
 
+	// directCancel stops the direct command the serve loop is running. The
+	// stdin reader reads it while the serve loop sets it.
+	directCancel atomic.Pointer[context.CancelFunc]
+
 	// wake signals the serve loop that a run input landed on the queue.
 	wake    chan struct{}
 	browser *stdioBrowser
 	panel   *Panel
+
+	// drained signals a message that landed on the queue from elsewhere, such
+	// as a finished background job's note. Unlike wake it never closes, since
+	// a job can finish after stdin did.
+	drained chan struct{}
+	// deferred holds the messages after the serve loop's current turn, off the
+	// queue so a running agent turn does not drain a direct task as text. Only
+	// the serve loop touches it.
+	deferred []convdomain.QueuedMessage
 }
 
 func newHeadlessControl(agentService agentdomain.AgentService, messageQueue convdomain.MessageQueue, sessionID string) *headlessControl {
@@ -67,6 +81,7 @@ func newHeadlessControl(agentService agentdomain.AgentService, messageQueue conv
 		plans:        make(chan ipc.PlanApprovalResponse, 4),
 		pending:      make(map[string]pendingInterrupt),
 		wake:         make(chan struct{}, 1),
+		drained:      make(chan struct{}, 1),
 	}
 }
 
@@ -147,10 +162,24 @@ func (c *headlessControl) dispatchLine(line []byte) {
 		c.enqueueRunInput(frame.Input)
 	case "interrupt":
 		_ = c.agentService.CancelRequest(c.sessionID)
+		if cancel := c.directCancel.Load(); cancel != nil {
+			(*cancel)()
+		}
 	case "browser_result":
 		if c.browser != nil {
 			c.browser.deliver(msg.ID, bytes.Clone(line))
 		}
+	}
+}
+
+// interruptible derives the context of a direct command an interrupt stops,
+// until release runs.
+func (c *headlessControl) interruptible(ctx context.Context) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(ctx)
+	c.directCancel.Store(&cancel)
+	return ctx, func() {
+		c.directCancel.Store(nil)
+		cancel()
 	}
 }
 
@@ -359,19 +388,60 @@ func (c *headlessControl) wakeTurns() {
 // arrives between turns has no open run to answer, so the reader drops it and
 // never blocks on a channel nobody drains.
 func (c *headlessControl) awaitTurn() bool {
-	for c.messageQueue.IsEmpty() {
+	for !c.hasTurn() {
 		var open bool
 		select {
+		case <-c.drained:
+			continue
 		case _, open = <-c.wake:
 		case _, open = <-c.approvals:
 		case _, open = <-c.questions:
 		case _, open = <-c.plans:
 		}
 		if !open {
-			return !c.messageQueue.IsEmpty()
+			return c.hasTurn()
 		}
 	}
 	return true
+}
+
+func (c *headlessControl) hasTurn() bool {
+	return len(c.deferred) > 0 || !c.messageQueue.IsEmpty()
+}
+
+// nextTurn takes the serve loop's next turn: a direct task alone, or the
+// prompts before the next one, so a `!cmd` queued next to anything else still
+// runs instead of reaching the model as text.
+func (c *headlessControl) nextTurn(ctx context.Context) []convdomain.QueuedMessage {
+	pending := append(c.deferred, drainQueue(ctx, c.messageQueue)...)
+	end := len(pending)
+	for i, message := range pending {
+		if isDirectMessage(message) {
+			end = max(i, 1)
+			break
+		}
+	}
+	c.deferred = pending[end:]
+	return pending[:end]
+}
+
+// drainWaker wakes the serve loop for a message that landed on the queue
+// outside a run input, which runs as a turn of its own the way the chat TUI
+// drains it. Every other notification goes on to the client.
+type drainWaker struct {
+	agentdomain.UINotifier
+	drained chan<- struct{}
+}
+
+func (n drainWaker) Notify(event any) {
+	if _, drain := event.(agentdomain.DrainQueueEvent); !drain {
+		n.UINotifier.Notify(event)
+		return
+	}
+	select {
+	case n.drained <- struct{}{}:
+	default:
+	}
 }
 
 // uiBridge is the headless UINotifier: it forwards the UI notifications a

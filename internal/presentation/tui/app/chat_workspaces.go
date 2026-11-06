@@ -62,6 +62,11 @@ func (app *ChatApplication) SetSessionTeleporter(teleporter tui.SessionTeleporte
 	}
 }
 
+// SetNoteKeeper gives a daemon chat the worker that keeps its shortcuts' output.
+func (app *ChatApplication) SetNoteKeeper(keeper tui.NoteKeeper) {
+	app.chatHandler.SetNoteKeeper(keeper)
+}
+
 // handleSessionPlacementEvents drives the workspaces picker and the
 // teleport of a daemon chat's session.
 func (app *ChatApplication) handleSessionPlacementEvents(msg tea.Msg) tea.Cmd {

@@ -12,6 +12,16 @@ import (
 // `key=bareword`. Compiled once at package load.
 var argPattern = regexp.MustCompile(`(\w+)=("[^"]*"|'[^']*'|\w+)`)
 
+// SplitBackground splits a `!command` from the trailing `&` that asks for a
+// background shell, and reports whether it had one.
+func SplitBackground(command string) (string, bool) {
+	foreground, background := strings.CutSuffix(command, "&")
+	if !background {
+		return command, false
+	}
+	return strings.TrimSpace(foreground), true
+}
+
 // ParseToolCall parses a tool call in the format ToolName(arg="value",
 // arg2="value2"). Exposed for testing and for use by the orchestrator that
 // satisfies the legacy ui.ChatHandler interface.

@@ -105,6 +105,27 @@ func TestDaemonChatSendsDirectCommandsToItsWorker(t *testing.T) {
 	}
 }
 
+func TestShortcutOutputReachesTheProcessThatOwnsTheConversation(t *testing.T) {
+	shortcut := shortcuts.NewCustomShortcut(shortcuts.CustomShortcutConfig{Name: "say", Command: "echo", Args: []string{"pushed"}}, nil, nil, nil, nil)
+
+	daemon := newPlacedChat(localDaemon)
+	keeper := &tuimocks.FakeNoteKeeper{}
+	daemon.handler.SetNoteKeeper(keeper)
+	daemon.handler.shortcutHandler.runShortcut(t.Context(), shortcut, nil)
+	if keeper.AddNoteCallCount() != 1 || !strings.Contains(keeper.AddNoteArgsForCall(0), "pushed") {
+		t.Errorf("the worker was given %d notes, want the shortcut's output", keeper.AddNoteCallCount())
+	}
+	if !strings.Contains(daemon.lastMessage(t), "pushed") {
+		t.Errorf("the chat shows %q, want the shortcut's output right away", daemon.lastMessage(t))
+	}
+
+	local := newPlacedChat(inProcess)
+	local.handler.shortcutHandler.runShortcut(t.Context(), shortcut, nil)
+	if !strings.Contains(local.lastMessage(t), "pushed") {
+		t.Errorf("an in-process chat shows %q, want the shortcut's output", local.lastMessage(t))
+	}
+}
+
 func TestRemoteSessionLeavesFileReferencesToItsWorker(t *testing.T) {
 	tests := []struct {
 		name      string

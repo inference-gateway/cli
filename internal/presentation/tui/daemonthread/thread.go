@@ -419,9 +419,14 @@ func (t *Thread) DiscardSettled() {
 	t.inbox = t.inbox[last+1:]
 }
 
-// Next returns the next run frame, waiting for one.
+// Next returns the next run frame, waiting for one. A cancelled reader takes no
+// frame and passes on a wake it may have used up, so the next reader sees them.
 func (t *Thread) Next(ctx context.Context) ([]byte, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			t.signal()
+			return nil, err
+		}
 		t.mu.Lock()
 		if len(t.inbox) > 0 {
 			frame := t.inbox[0]

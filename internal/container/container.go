@@ -1184,6 +1184,13 @@ func (c *ServiceContainer) GetSessionTeleporter() tui.SessionTeleporter {
 	return c.daemonThread
 }
 
+// GetNoteKeeper keeps a daemon chat's shortcut output on its worker, and is nil
+// for an in-process chat, whose agent owns no such process.
+func (c *ServiceContainer) GetNoteKeeper() tui.NoteKeeper {
+	keeper, _ := c.agent.(tui.NoteKeeper)
+	return keeper
+}
+
 // GetArtifactBrowser browses the session's artifacts: a daemon chat's from
 // the workspace its session runs on, an in-process chat's from this machine.
 func (c *ServiceContainer) GetArtifactBrowser() tui.ArtifactBrowser {

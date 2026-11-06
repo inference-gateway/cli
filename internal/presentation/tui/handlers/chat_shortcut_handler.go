@@ -224,6 +224,7 @@ func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcut
 		if addErr := s.handler.conversationRepo.AddMessage(assistantEntry); addErr != nil {
 			logger.Error("failed to add shortcut result message", "error", addErr)
 		}
+		s.keepNote(result.Output)
 
 		if result.SideEffect == shortcuts.SideEffectNone {
 			return tea.Batch(
@@ -244,6 +245,16 @@ func (s *ChatShortcutHandler) runShortcut(ctx context.Context, shortcut shortcut
 	}
 
 	return s.handleShortcutSideEffect(result.SideEffect, result.Data)
+}
+
+// keepNote hands a shortcut's output to the process that owns the conversation.
+func (s *ChatShortcutHandler) keepNote(output string) {
+	if s.handler.noteKeeper == nil {
+		return
+	}
+	if err := s.handler.noteKeeper.AddNote(output); err != nil {
+		logger.Warn("failed to keep a shortcut's output on the worker", "error", err)
+	}
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution

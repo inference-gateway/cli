@@ -275,6 +275,22 @@ func TestRunDecoderEndsADirectCallRunWithACompletion(t *testing.T) {
 	}
 }
 
+func TestRunDecoderShowsADirectCallBeforeItsOutput(t *testing.T) {
+	lines := encodeRun(t, RunEncoderDeps{},
+		agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{bashCall("tc1", `{"command":"ls"}`)}},
+		agentdomain.ToolExecutionProgressEvent{ToolCallID: "tc1", ToolName: "Bash", Status: "running"},
+		agentdomain.BashOutputChunkEvent{ToolCallID: "tc1", Output: "line 1"},
+		agentdomain.ToolExecutionCompletedEvent{Results: []*agentdomain.ToolExecutionResult{{ToolCallID: "tc1", ToolName: "Bash", Success: true}}, SuccessCount: 1, TotalExecuted: 1},
+	)
+
+	events, _ := decodeRun(t, lines)
+
+	want := []string{"start", `complete:||tc1=Bash{"command":"ls"}`, "progress:tc1:running", "bash:tc1:line 1:false", "results:tc1:1/1", "complete:||"}
+	if !slices.Equal(events, want) {
+		t.Errorf("events = %q, want %q", events, want)
+	}
+}
+
 func TestRunDecoderEndsARunWithoutStepsWithACompletion(t *testing.T) {
 	events, ends := decodeRun(t, encodeRun(t, RunEncoderDeps{}))
 

@@ -3,6 +3,7 @@ package headless
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
@@ -30,6 +32,7 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 	ctl.panel = svc.NewPanel(os.Stdout)
 	ctl.panel.screen.wake = ctl.wakeTurns
 	ctl.panel.screen.resolve = ctl.rejectComputerApprovals
+	svc.SetUINotifier(drainWaker{UINotifier: notifications, drained: ctl.drained})
 	svc.RouteBrowserRequests(ctl.browser.Request)
 	go ctl.readLines(os.Stdin)
 
@@ -63,9 +66,10 @@ func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifica
 	repo := svc.GetConversationRepository()
 	agentService := svc.GetAgentService()
 	req.Model = cmp.Or(svc.GetModelService().GetCurrentModel(), req.Model)
-	drained := drainQueue(ctx, svc.GetMessageQueue())
+	drained := ctl.nextTurn(ctx)
 	if fn, direct, err := queuedDirectCall(drained); direct {
-		return "", false, runServeDirect(ctx, svc, ctl, req, fn, err)
+		task, _ := drained[0].Message.Content.AsMessageContent0()
+		return "", false, runServeDirect(ctx, svc.GetToolService(), repo, svc.GetStateStore().GetAgentMode(), ctl, req, task, fn, err)
 	}
 	persistQueuedMessages(drained, repo)
 	history := repo.GetMessages()
@@ -131,20 +135,43 @@ func queuedDirectCall(drained []convdomain.QueuedMessage) (fn sdk.ChatCompletion
 	return directCall(text)
 }
 
-// runServeDirect renders a direct task as one run of its own: the tool call
-// and its result, or the parse error the task failed on. It returns the error
-// the turn ended with.
-func runServeDirect(ctx context.Context, svc Services, ctl *headlessControl, req agentdomain.AgentRequest, fn sdk.ChatCompletionMessageToolCallFunction, err error) error {
-	repo := svc.GetConversationRepository()
+// isDirectMessage reports whether a queued message is a `!cmd` or `!!Tool(...)`.
+func isDirectMessage(message convdomain.QueuedMessage) bool {
+	_, direct, _ := queuedDirectCall([]convdomain.QueuedMessage{message})
+	return direct
+}
+
+// runServeDirect renders a direct task as one run of its own on the live
+// conversation: the tool call and its result, or why the task cannot run. An
+// interrupt stops the command. It returns the error the turn ended with.
+func runServeDirect(ctx context.Context, toolService agentdomain.ToolService, repo convdomain.ConversationRepository, mode agentdomain.AgentMode, ctl *headlessControl, req agentdomain.AgentRequest, task string, fn sdk.ChatCompletionMessageToolCallFunction, err error) error {
+	threadID := liveThreadID(repo, req.RequestID)
+	if err == nil {
+		err = directCallRefusal(toolService, mode, task, fn)
+	}
 	if err != nil {
 		encoder := NewRunEncoder(os.Stdout, RunEncoderDeps{Model: req.Model, Repo: repo, Interrupt: ctl})
-		encoder.Start(liveThreadID(repo, req.RequestID), uuid.New().String())
+		encoder.Start(threadID, uuid.New().String())
 		encoder.Handle(agentdomain.ChatErrorEvent{RequestID: req.RequestID, Timestamp: time.Now(), Error: err})
 		return encoder.Finish()
 	}
-	if err := runDirectCall(ctx, "ag-ui", svc.GetToolService(), repo, req.RequestID, req.Model, nil, fn); err != nil {
+	ctx, release := ctl.interruptible(ctx)
+	defer release()
+	if err := runDirectCall(ctx, "ag-ui", toolService, repo, threadID, req.Model, nil, task, fn); err != nil {
 		logger.Warn("direct task failed", "error", err, "session_id", req.RequestID)
 		return err
+	}
+	return nil
+}
+
+// directCallRefusal says why a direct task cannot run: its tool is off, or a
+// `!!Tool(...)` names one the agent mode does not allow, as the chat TUI refuses.
+func directCallRefusal(toolService agentdomain.ToolService, mode agentdomain.AgentMode, task string, fn sdk.ChatCompletionMessageToolCallFunction) error {
+	if !toolService.IsToolEnabled(fn.Name) {
+		return fmt.Errorf("tool %s is not enabled", fn.Name)
+	}
+	if !isBashTask(task) && !directexec.ToolAvailableInMode(toolService, mode, fn.Name) {
+		return fmt.Errorf("tool %s is not available in %s", fn.Name, mode.DisplayName())
 	}
 	return nil
 }

@@ -218,8 +218,10 @@ type GitStatusResolvedEvent struct {
 	Unpushed bool
 }
 
-// BashCommandCompletedEvent indicates a direct bash command (! prefix) has completed
+// BashCommandCompletedEvent indicates a direct bash command (! prefix) has
+// completed. It is a chat event so a daemon chat's turn can end with it.
 type BashCommandCompletedEvent struct {
+	agentdomain.BaseChatEvent
 	History       []convdomain.ConversationEntry
 	Failed        bool
 	UserInitiated bool
