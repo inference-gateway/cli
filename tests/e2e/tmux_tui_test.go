@@ -195,11 +195,13 @@ func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 		"the prompt must stay visible above the approval box")
 
 	tmuxSendKeys(t, session, "Enter")
-	require.True(t, waitForPane(t, session, "m2.txt", 25*time.Second),
+	require.True(t, waitForPane(t, session, "1 │ two", 25*time.Second),
 		"second approval never opened; last frame:\n%s", capturePane(session))
-	require.True(t, waitForPane(t, session, "Created m1.txt", 10*time.Second),
-		"the first Write result stayed hidden behind the approval box; last frame:\n%s", capturePane(session))
+	require.NotContains(t, capturePane(session), "Created m1.txt",
+		"the first Write ran while the second approval was still open")
 	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Created m1.txt", 25*time.Second),
+		"the first Write result never showed once every approval was answered; last frame:\n%s", capturePane(session))
 
 	require.True(t, waitForPane(t, session, "APPROVAL-TAIL-DONE", 25*time.Second),
 		"the final reply stayed below the fold after approval; last frame:\n%s", capturePane(session))

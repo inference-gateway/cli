@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	assert "github.com/stretchr/testify/assert"
@@ -143,6 +144,36 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("approved tools did not execute concurrently - execution appears serialized")
 	}
+}
+
+// TestApprovingToolsState_RunsNothingWhileAPromptIsOpen pins that a call the
+// user approved waits for the rest of the round: a client that suspends on the
+// open prompt would otherwise miss everything the running tool reports.
+func TestApprovingToolsState_RunsNothingWhileAPromptIsOpen(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		executed := make(chan string, 2)
+		execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
+			executed <- tc.ID
+			return toolEntry(tc)
+		}
+		answer := make(chan struct{})
+		approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+			if tc.ID == "call-1" {
+				<-answer
+			}
+			return true, "", nil
+		}
+
+		ctx, _, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+		require.NoError(t, states.NewApprovingToolsState(ctx).Handle(states.MessageReceivedEvent{}))
+
+		synctest.Wait()
+		assert.Empty(t, executed, "the approved call-0 ran while the prompt for call-1 was still open")
+
+		close(answer)
+		waitForAllToolsProcessed(t, events)
+		assert.Len(t, executed, 2, "both approved calls run once the round is decided")
+	})
 }
 
 // TestApprovingToolsState_PreservesToolCallOrder verifies that even when tools
