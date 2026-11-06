@@ -148,34 +148,49 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 	}
 }
 
-// TestApprovingToolsState_RunsNothingWhileAPromptIsOpen pins that a call the
-// user approved waits for the rest of the round: a client that suspends on the
-// open prompt would otherwise miss everything the running tool reports.
+// TestApprovingToolsState_RunsNothingWhileAPromptIsOpen pins that a cleared call
+// waits for the rest of the round, whether the user approved it or the policy
+// does not gate it: a client that suspends on the open prompt would otherwise
+// miss everything the running tool reports.
 func TestApprovingToolsState_RunsNothingWhileAPromptIsOpen(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		executed := make(chan string, 2)
-		execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
-			executed <- tc.ID
-			return toolEntry(tc)
-		}
-		answer := make(chan struct{})
-		approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
-			if tc.ID == "call-1" {
-				<-answer
-			}
-			return true, "", nil
-		}
+	tests := []struct {
+		name         string
+		firstIsGated bool
+	}{
+		{name: "an approved call waits", firstIsGated: true},
+		{name: "an ungated call waits", firstIsGated: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				executed := make(chan string, 2)
+				execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
+					executed <- tc.ID
+					return toolEntry(tc)
+				}
+				answer := make(chan struct{})
+				approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+					if tc.ID == "call-1" {
+						<-answer
+					}
+					return true, "", nil
+				}
 
-		ctx, _, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
-		require.NoError(t, states.NewApprovingToolsState(ctx).Handle(states.MessageReceivedEvent{}))
+				ctx, _, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+				ctx.ShouldRequireApproval = func(tc *sdk.ChatCompletionMessageToolCall, _ bool) bool {
+					return tt.firstIsGated || tc.ID == "call-1"
+				}
+				require.NoError(t, states.NewApprovingToolsState(ctx).Handle(states.MessageReceivedEvent{}))
 
-		synctest.Wait()
-		assert.Empty(t, executed, "the approved call-0 ran while the prompt for call-1 was still open")
+				synctest.Wait()
+				assert.Empty(t, executed, "call-0 ran while the prompt for call-1 was still open")
 
-		close(answer)
-		waitForAllToolsProcessed(t, events)
-		assert.Len(t, executed, 2, "both approved calls run once the round is decided")
-	})
+				close(answer)
+				waitForAllToolsProcessed(t, events)
+				assert.Len(t, executed, 2, "both calls run once the round is decided")
+			})
+		})
+	}
 }
 
 // TestApprovingToolsState_ForgetsApprovedCallsItWillNotRun pins that a call the
