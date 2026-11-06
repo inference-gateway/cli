@@ -14,6 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -219,6 +220,101 @@ func TestRunEncoder_SubmittedJobPatchesBackgroundTasks(t *testing.T) {
 	}
 	if tasks, _ := patch[0].Value.(map[string]any); tasks["running"] != float64(1) {
 		t.Errorf("running = %v, want 1", patch[0].Value)
+	}
+}
+
+func TestRunEncoder_PatchesNextStepSuggestionBeforeTheTerminalEvent(t *testing.T) {
+	var out strings.Builder
+	r := NewRunEncoder(&out, RunEncoderDeps{
+		Model: "m", Repo: &convmocks.FakeConversationRepository{},
+		SuggestNextStep: func(context.Context) string { return "run the failing test" },
+	})
+	r.Start("s1", "run-1")
+	r.Handle(agentdomain.ChatChunkEvent{Content: "hello"})
+	r.Handle(agentdomain.ChatCompleteEvent{})
+	if err := r.Finish(); err != nil {
+		t.Fatalf("Finish() err = %v", err)
+	}
+
+	events := decodeEvents(t, out.String())
+	terminal := len(events) - 1
+	if events[terminal].Type != "RUN_FINISHED" {
+		t.Fatalf("terminal event = %s, want RUN_FINISHED\n%s", events[terminal].Type, out.String())
+	}
+	suggestion := events[terminal-1]
+	if suggestion.Type != "STATE_DELTA" {
+		t.Fatalf("event before the terminal = %s, want the STATE_DELTA the suggestion patches:\n%s", suggestion.Type, out.String())
+	}
+	patch := patches(t, suggestion)
+	if len(patch) != 1 || patch[0].Op != "add" || patch[0].Path != "/nextStepSuggestion" || patch[0].Value != "run the failing test" {
+		t.Errorf("patch = %#v, want one add of the suggestion on /nextStepSuggestion", patch)
+	}
+}
+
+func TestRunEncoder_NothingAvailablePublishesNoNextStepSuggestion(t *testing.T) {
+	called := 0
+	disabled := conversation.NewChatSuggestionGenerator(nil, nil, &config.Config{}, nil, nil)
+	tests := []struct {
+		name            string
+		suggestNextStep func(ctx context.Context) string
+	}{
+		{name: "suggestions are disabled", suggestNextStep: disabled.GenerateNextStepSuggestion},
+		{name: "the generator call yields nothing", suggestNextStep: func(context.Context) string { called++; return "" }},
+		{name: "no generator is wired", suggestNextStep: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out strings.Builder
+			r := NewRunEncoder(&out, RunEncoderDeps{
+				Model: "m", Repo: &convmocks.FakeConversationRepository{},
+				SuggestNextStep: tt.suggestNextStep,
+			})
+			r.Start("s1", "run-1")
+			r.Handle(agentdomain.ChatChunkEvent{Content: "hello"})
+			r.Handle(agentdomain.ChatCompleteEvent{})
+			if err := r.Finish(); err != nil {
+				t.Fatalf("Finish() err = %v", err)
+			}
+
+			var patched []string
+			for _, ev := range decodeEvents(t, out.String()) {
+				if ev.Type != "STATE_DELTA" {
+					continue
+				}
+				for _, patch := range patches(t, ev) {
+					patched = append(patched, patch.Path)
+				}
+			}
+			if slices.Contains(patched, "/nextStepSuggestion") {
+				t.Errorf("a suggestion that is disabled, discarded or unwired still published a state patch: %v", patched)
+			}
+		})
+	}
+	if called == 0 {
+		t.Error("the enabled run's generator was never asked")
+	}
+}
+
+func TestRunEncoder_FailedRunPublishesNoNextStepSuggestion(t *testing.T) {
+	var out strings.Builder
+	asked := false
+	r := NewRunEncoder(&out, RunEncoderDeps{
+		Model: "m", Repo: &convmocks.FakeConversationRepository{},
+		SuggestNextStep: func(context.Context) string {
+			asked = true
+			return "run the failing test"
+		},
+	})
+	r.Start("s1", "run-1")
+	r.Handle(agentdomain.ChatErrorEvent{Error: errors.New("gateway down")})
+	if err := r.Finish(); err == nil {
+		t.Fatal("Finish() err = nil, want the run error")
+	}
+	if asked {
+		t.Error("a failed run still asked the generator for a suggestion")
+	}
+	if slices.Contains(eventTypes(decodeEvents(t, out.String())), "STATE_DELTA") {
+		t.Errorf("a failed run published a state patch:\n%s", out.String())
 	}
 }
 

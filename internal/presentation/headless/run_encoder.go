@@ -2,6 +2,7 @@ package headless
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -114,6 +115,15 @@ type RunEncoder struct {
 	// plan is the plan the user accepted during the run, which the serve
 	// worker executes in a fresh session once the run ends.
 	plan *string
+
+	// suggestNextStep, when wired, yields the finished turn's next-step
+	// suggestion, which the run patches into its state before the terminal
+	// event.
+	suggestNextStep func(ctx context.Context) string
+
+	// failure is the error the run ends with, which also suppresses the
+	// next-step suggestion.
+	failure error
 }
 
 // RunEncoderDeps are the collaborators of one run's encoder.
@@ -129,6 +139,10 @@ type RunEncoderDeps struct {
 	Startup   *startupNotes
 	Interrupt Interrupts
 	Publish   []Publish
+	// SuggestNextStep, when wired, yields the finished assistant turn's
+	// one-line next-step suggestion, which the run patches into its state
+	// before the terminal event. nil for a run that publishes none.
+	SuggestNextStep func(ctx context.Context) string
 }
 
 // NewRunEncoder builds the encoder for one run over w. History, when non-empty,
@@ -139,19 +153,20 @@ type RunEncoderDeps struct {
 // interrupts the run raises so resume entries find their broker.
 func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 	return &RunEncoder{
-		writer:    w,
-		run:       agui.NewRun(w),
-		model:     deps.Model,
-		repo:      deps.Repo,
-		history:   deps.History,
-		jobs:      deps.Jobs,
-		approvals: deps.Approvals,
-		questions: deps.Questions,
-		plans:     deps.Plans,
-		modes:     deps.Modes,
-		startup:   deps.Startup,
-		interrupt: deps.Interrupt,
-		publish:   deps.Publish,
+		writer:          w,
+		run:             agui.NewRun(w),
+		model:           deps.Model,
+		repo:            deps.Repo,
+		history:         deps.History,
+		jobs:            deps.Jobs,
+		approvals:       deps.Approvals,
+		questions:       deps.Questions,
+		plans:           deps.Plans,
+		modes:           deps.Modes,
+		startup:         deps.Startup,
+		interrupt:       deps.Interrupt,
+		publish:         deps.Publish,
+		suggestNextStep: deps.SuggestNextStep,
 	}
 }
 
@@ -374,10 +389,10 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 			r.run.PatchState(agui.StateUsage, usage)
 		}
 		if err := render.CompletionErr(ev); err != nil {
-			r.run.Fail(err)
+			r.fail(err)
 		}
 	case agentdomain.ChatErrorEvent:
-		r.run.Fail(ev.Error)
+		r.fail(ev.Error)
 	case agentdomain.UserMessageChatEvent:
 		r.run.Message("user", ev.Content)
 	case agentdomain.ToolExecutionCompletedEvent:
@@ -431,13 +446,35 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 }
 
 // Finish writes the current run's one terminal event, RUN_FINISHED carrying the
-// usage and the session extras or the failure the run ended with. It returns
-// the run error for the caller's exit code and telemetry.
+// usage and the session extras or the failure the run ended with. A wired
+// suggestion source patches its next-step suggestion into the state first, so
+// a client reads it before the terminal event. It returns the run error for
+// the caller's exit code and telemetry.
 func (r *RunEncoder) Finish() error {
+	r.publishNextStepSuggestion()
 	if err := r.run.Finish(sessionExtras(r.model, r.repo), sessionUsage(r.model, r.repo)); err != nil {
 		return fmt.Errorf("agent error: %w", err)
 	}
 	return nil
+}
+
+// fail records the failure the run ends with, which also suppresses the
+// next-step suggestion.
+func (r *RunEncoder) fail(err error) {
+	r.failure = err
+	r.run.Fail(err)
+}
+
+// publishNextStepSuggestion patches the run's state with the one-line
+// next-step suggestion the source yields, the ghost text the chat TUI offers.
+// A failed run, an unwired source and an empty suggestion publish nothing.
+func (r *RunEncoder) publishNextStepSuggestion() {
+	if r.suggestNextStep == nil || r.failure != nil {
+		return
+	}
+	if suggestion := r.suggestNextStep(context.Background()); suggestion != "" {
+		r.run.PatchState(agui.StateNextStepSuggestion, suggestion)
+	}
 }
 
 // sessionUsage builds the per-session token totals as the usage list the

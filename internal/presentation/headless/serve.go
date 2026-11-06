@@ -83,6 +83,7 @@ func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifica
 		Model: req.Model, Repo: repo, History: history, Jobs: svc.GetBackgroundTaskRegistry().Snapshot,
 		Approvals: ctl.approvals, Questions: ctl.questions, Plans: ctl.plans, Modes: svc.GetStateStore(),
 		Interrupt: ctl, Startup: notes, Publish: []Publish{computer.PublishedEvent},
+		SuggestNextStep: svc.GetNextStepSuggestionRunner().GenerateNextStepSuggestion,
 	})
 	encoder.Start(liveThreadID(repo, req.RequestID), uuid.New().String())
 	events, err := agentService.RunWithStream(ctx, &req)

@@ -58,21 +58,23 @@ const (
 // key, so a STATE_SNAPSHOT always carries all of them, and a change patches
 // one key through STATE_DELTA instead of replacing the others.
 const (
-	StateTodos           = "todos"
-	StateUsage           = "usage"
-	StateBackgroundTasks = "backgroundTasks"
-	StateScreenRecording = "screenRecording"
-	StateScreenControl   = "screenControl"
+	StateTodos              = "todos"
+	StateUsage              = "usage"
+	StateBackgroundTasks    = "backgroundTasks"
+	StateNextStepSuggestion = "nextStepSuggestion"
+	StateScreenRecording    = "screenRecording"
+	StateScreenControl      = "screenControl"
 )
 
 // The state's zero values, per key.
 func seedState() map[string]any {
 	return map[string]any{
-		StateTodos:           []any{},
-		StateUsage:           []any{},
-		StateBackgroundTasks: map[string]any{"running": 0, "jobs": []any{}},
-		StateScreenRecording: map[string]any{"active": false},
-		StateScreenControl:   map[string]any{"held": false},
+		StateTodos:              []any{},
+		StateUsage:              []any{},
+		StateBackgroundTasks:    map[string]any{"running": 0, "jobs": []any{}},
+		StateNextStepSuggestion: "",
+		StateScreenRecording:    map[string]any{"active": false},
+		StateScreenControl:      map[string]any{"held": false},
 	}
 }
 

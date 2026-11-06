@@ -204,7 +204,7 @@ func TestRunFramesEvents(t *testing.T) {
 			}
 			events := decode(t, w)
 			if sn := events[1]; sn.Type == "STATE_SNAPSHOT" {
-				for _, key := range []string{StateTodos, StateUsage, StateBackgroundTasks, StateScreenRecording} {
+				for _, key := range []string{StateTodos, StateUsage, StateBackgroundTasks, StateNextStepSuggestion, StateScreenRecording, StateScreenControl} {
 					if _, ok := sn.Snapshot[key]; !ok {
 						t.Errorf("STATE_SNAPSHOT misses the %q key", key)
 					}
@@ -340,7 +340,7 @@ func TestRunContinuationCarriesTheState(t *testing.T) {
 	if snapshot.Type != "STATE_SNAPSHOT" {
 		t.Fatalf("continuation opens with %s, want a seeded STATE_SNAPSHOT", snapshot.Type)
 	}
-	for _, key := range []string{StateTodos, StateUsage, StateBackgroundTasks, StateScreenRecording} {
+	for _, key := range []string{StateTodos, StateUsage, StateBackgroundTasks, StateNextStepSuggestion, StateScreenRecording, StateScreenControl} {
 		if _, ok := snapshot.Snapshot[key]; !ok {
 			t.Errorf("continuation STATE_SNAPSHOT misses the %q key", key)
 		}
