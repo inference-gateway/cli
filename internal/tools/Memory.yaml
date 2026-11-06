@@ -43,3 +43,9 @@ parameters:
   required:
     - operation
 require_approval: false
+modes:
+  - standard
+  - auto
+  - auto-with-judge
+  - plan
+  - readonly

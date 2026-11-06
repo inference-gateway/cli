@@ -1789,6 +1789,7 @@
       "GetSubagentResult",
       "Grep",
       "ListSubagents",
+      "Memory",
       "MultiEdit",
       "Read",
       "ReadSubagentScreen",
@@ -1802,6 +1803,7 @@
     ],
     "readonly": [
       "Grep",
+      "Memory",
       "Read",
       "Skill",
       "Tree",
