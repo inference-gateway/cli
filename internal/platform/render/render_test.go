@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
@@ -162,6 +163,36 @@ func approvalsChan(resps ...ipc.ApprovalResponse) <-chan ipc.ApprovalResponse {
 	}
 	close(ch)
 	return ch
+}
+
+// TestAnswer_LetsGoOnceTheAgentStopsWaiting pins that a prompt the agent gave up
+// on does not hold the run, since no answer may ever come.
+func TestAnswer_LetsGoOnceTheAgentStopsWaiting(t *testing.T) {
+	tests := []struct {
+		name   string
+		answer func(done <-chan struct{})
+	}{
+		{"approval", func(done <-chan struct{}) {
+			AnswerApproval(agentdomain.ToolApprovalRequestedEvent{ResponseChan: make(chan agentdomain.ApprovalAction, 1), Done: done}, make(chan ipc.ApprovalResponse))
+		}},
+		{"question", func(done <-chan struct{}) {
+			AnswerQuestions(agentdomain.UserQuestionRequestedEvent{ResponseChan: make(chan []agentdomain.UserQuestionAnswer, 1), Done: done}, make(chan ipc.UserQuestionResponse))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				done := make(chan struct{})
+				returned := make(chan struct{})
+				go func() {
+					defer close(returned)
+					tt.answer(done)
+				}()
+				close(done)
+				<-returned
+			})
+		})
+	}
 }
 
 func TestAnswerApproval_RoundTrip(t *testing.T) {

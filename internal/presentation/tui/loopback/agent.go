@@ -46,31 +46,43 @@ func (a *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 		questions: make(chan ipc.UserQuestionResponse, 1),
 	}
 	encoder := headless.NewRunEncoder(sink, headless.RunEncoderDeps{
-		Model: req.Model, Repo: a.repo, Jobs: a.jobs,
+		Model: req.Model, Repo: a.repo, Jobs: a.jobs, Quiet: true,
 		Approvals: sink.approvals, Questions: sink.questions,
 	})
 	go func() {
 		defer close(sink.out)
 		encoder.Start(a.repo.GetCurrentConversationID(), uuid.New().String())
 		for event := range events {
-			if plan, ok := event.(agentdomain.PlanApprovalRequestedEvent); ok {
-				sink.out <- plan
-				continue
+			switch e := event.(type) {
+			case agentdomain.PlanApprovalRequestedEvent:
+				sink.out <- e
+			case agentdomain.ChatCompleteEvent:
+				encoder.Handle(withoutLimits(e))
+			default:
+				encoder.Handle(event)
 			}
-			encoder.Handle(event)
 		}
 		_ = encoder.Finish()
 	}()
 	return sink.out, nil
 }
 
+// withoutLimits is a completion without the limit that forced it. A local chat
+// completes such a run, where a serve worker fails it for its exit code.
+func withoutLimits(e agentdomain.ChatCompleteEvent) agentdomain.ChatCompleteEvent {
+	e.MaxTurnsReached, e.MaxDurationReached = false, false
+	return e
+}
+
 // frames is where the encoder writes one run: each frame is reduced as it is
-// written, and a suspended run is resumed with the user's answers.
+// written, and a suspended run is resumed with the user's answers. released
+// closes once the encoder moved past the prompts that are open.
 type frames struct {
 	out       chan agentdomain.ChatEvent
 	reducer   *runview.Reducer
 	approvals chan ipc.ApprovalResponse
 	questions chan ipc.UserQuestionResponse
+	released  chan struct{}
 }
 
 // Write takes one frame the encoder wrote and hands the TUI what it reduces to.
@@ -79,31 +91,44 @@ func (f *frames) Write(frame []byte) (int, error) {
 	for _, event := range events {
 		f.out <- event
 	}
+	if end != runview.Open && f.released != nil {
+		close(f.released)
+		f.released = nil
+	}
 	if end == runview.Suspended {
-		go f.answer(f.reducer.Prompts())
+		f.released = make(chan struct{})
+		go f.answer(f.reducer.Prompts(), f.released)
 	}
 	return len(frame), nil
 }
 
 // answer waits for the user's answer to every prompt the run suspended on and
-// hands each to the encoder, which resumes the run with it.
-func (f *frames) answer(prompts []runview.Prompt) {
+// hands each to the encoder, which resumes the run with it. Once the encoder
+// moved past the prompts, because the agent stopped waiting, nobody needs one.
+func (f *frames) answer(prompts []runview.Prompt, released <-chan struct{}) {
 	for _, prompt := range prompts {
 		switch e := prompt.Event.(type) {
 		case agentdomain.ToolApprovalRequestedEvent:
-			f.approvals <- approval(e)
+			select {
+			case action, answered := <-e.ResponseChan:
+				f.approvals <- approval(e, action, answered)
+			case <-released:
+			}
 		case agentdomain.UserQuestionRequestedEvent:
-			f.questions <- answers(e)
+			select {
+			case picked, answered := <-e.ResponseChan:
+				f.questions <- answers(e, picked, answered)
+			case <-released:
+			}
 		}
 	}
 }
 
 // approval is the user's decision on a tool call in its wire form. A prompt
 // the TUI dismissed rejects the call.
-func approval(e agentdomain.ToolApprovalRequestedEvent) ipc.ApprovalResponse {
+func approval(e agentdomain.ToolApprovalRequestedEvent, action agentdomain.ApprovalAction, answered bool) ipc.ApprovalResponse {
 	response := ipc.ApprovalResponse{ToolCallID: e.ToolCall.ID}
-	action, ok := <-e.ResponseChan
-	if !ok {
+	if !answered {
 		return response
 	}
 	response.Approved = action != agentdomain.ApprovalReject
@@ -115,10 +140,9 @@ func approval(e agentdomain.ToolApprovalRequestedEvent) ipc.ApprovalResponse {
 
 // answers is the user's answers to a question form in their wire form. A form
 // the TUI dismissed is cancelled.
-func answers(e agentdomain.UserQuestionRequestedEvent) ipc.UserQuestionResponse {
+func answers(e agentdomain.UserQuestionRequestedEvent, picked []agentdomain.UserQuestionAnswer, answered bool) ipc.UserQuestionResponse {
 	response := ipc.UserQuestionResponse{ToolCallID: e.ToolCallID}
-	picked, ok := <-e.ResponseChan
-	if !ok {
+	if !answered {
 		response.Cancelled = true
 		return response
 	}

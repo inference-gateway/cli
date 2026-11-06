@@ -133,6 +133,61 @@ func TestAgentHandsOverAToolResultBeforeTheNextStep(t *testing.T) {
 	}
 }
 
+// drain reads the stream until it closes and fails when it stays open.
+func drain(t *testing.T, out <-chan agentdomain.ChatEvent) []agentdomain.ChatEvent {
+	t.Helper()
+	var read []agentdomain.ChatEvent
+	for {
+		select {
+		case event, ok := <-out:
+			if !ok {
+				return read
+			}
+			read = append(read, event)
+		case <-time.After(5 * time.Second):
+			t.Fatal("the stream stayed open")
+		}
+	}
+}
+
+func TestAgentLetsGoOfAPromptTheAgentStoppedWaitingOn(t *testing.T) {
+	events, out := startRun(t)
+	done := make(chan struct{})
+	call := sdk.ChatCompletionMessageToolCall{ID: "tc1", Type: "function", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm"}`}}
+	events <- agentdomain.ToolApprovalRequestedEvent{ToolCall: call, ResponseChan: make(chan agentdomain.ApprovalAction, 1), Done: done}
+
+	for {
+		if _, ok := next(t, out).(agentdomain.ToolApprovalRequestedEvent); ok {
+			break
+		}
+	}
+	close(done)
+	close(events)
+	drain(t, out)
+}
+
+func TestAgentCompletesARunThatHitItsLimit(t *testing.T) {
+	tests := []struct {
+		name  string
+		event agentdomain.ChatCompleteEvent
+	}{
+		{"time budget", agentdomain.ChatCompleteEvent{MaxDurationReached: true}},
+		{"turn limit", agentdomain.ChatCompleteEvent{MaxTurnsReached: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events, out := startRun(t)
+			events <- tt.event
+			close(events)
+			for _, event := range drain(t, out) {
+				if failed, ok := event.(agentdomain.ChatErrorEvent); ok {
+					t.Errorf("the run failed with %v, a local chat completes it", failed.Error)
+				}
+			}
+		})
+	}
+}
+
 func TestAgentReportsARunThatCannotStart(t *testing.T) {
 	inner := &agentdomainmocks.FakeAgentService{}
 	inner.RunWithStreamReturns(nil, errors.New("no model"))

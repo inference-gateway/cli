@@ -163,6 +163,8 @@ type chatQuestionBroker struct {
 
 func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []agentdomain.UserQuestion) ([]agentdomain.UserQuestionAnswer, bool, error) {
 	responseChan := make(chan []agentdomain.UserQuestionAnswer, 1)
+	done := make(chan struct{})
+	defer close(done)
 
 	b.publisher.send(agentdomain.UserQuestionRequestedEvent{
 		RequestID:    b.publisher.requestID,
@@ -170,6 +172,7 @@ func (b *chatQuestionBroker) AskUserQuestions(ctx context.Context, questions []a
 		Timestamp:    time.Now(),
 		Questions:    questions,
 		ResponseChan: responseChan,
+		Done:         done,
 	})
 
 	var answers []agentdomain.UserQuestionAnswer
@@ -1069,6 +1072,8 @@ func (s *Agent) requestSandboxApproval(
 	}
 
 	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	done := make(chan struct{})
+	defer close(done)
 	eventPublisher.send(agentdomain.ToolApprovalRequestedEvent{
 		RequestID: eventPublisher.requestID,
 		Timestamp: time.Now(),
@@ -1081,6 +1086,7 @@ func (s *Agent) requestSandboxApproval(
 			},
 		},
 		ResponseChan: responseChan,
+		Done:         done,
 	})
 
 	eventPublisher.awaitUser(func() {
@@ -1506,12 +1512,15 @@ func (s *Agent) requestHumanApproval(
 	note string,
 ) (bool, string, error) {
 	responseChan := make(chan agentdomain.ApprovalAction, 1)
+	done := make(chan struct{})
+	defer close(done)
 	eventPublisher.send(agentdomain.ToolApprovalRequestedEvent{
 		RequestID:    eventPublisher.requestID,
 		Timestamp:    time.Now(),
 		ToolCall:     tc,
 		Context:      note,
 		ResponseChan: responseChan,
+		Done:         done,
 	})
 
 	var approved bool

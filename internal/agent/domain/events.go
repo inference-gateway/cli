@@ -101,6 +101,9 @@ type ToolApprovalRequestedEvent struct {
 	// agent's justification; regular approvals leave it empty.
 	Context      string
 	ResponseChan chan ApprovalAction `json:"-"`
+	// Done closes once the agent stopped waiting for the answer, so whoever
+	// relays one can let go. It is nil when nothing signals that.
+	Done <-chan struct{} `json:"-"`
 }
 
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
@@ -155,6 +158,9 @@ type UserQuestionRequestedEvent struct {
 	Timestamp    time.Time
 	Questions    []UserQuestion
 	ResponseChan chan []UserQuestionAnswer `json:"-"`
+	// Done closes once the agent stopped waiting for the answer, so whoever
+	// relays one can let go. It is nil when nothing signals that.
+	Done <-chan struct{} `json:"-"`
 }
 
 func (e UserQuestionRequestedEvent) GetRequestID() string    { return e.RequestID }
