@@ -135,11 +135,17 @@ func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []str
 	return s.executeRegistryShortcut(shortcutInstance, args)
 }
 
-// executeRegistryShortcut executes a shortcut from the registry and handles results
+// executeRegistryShortcut executes a shortcut from the registry and handles
+// results. It announces the shortcut on the status line, unless a run in progress
+// holds that line.
 func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args []string) tea.Msg {
 	shortcutName := shortcut.GetName()
 	if len(args) > 0 {
 		shortcutName = fmt.Sprintf("%s %s", shortcutName, args[0])
+	}
+
+	if s.handler.stateManager.IsAgentBusy() {
+		return s.performShortcutExecution(shortcut, args, shortcutName)()
 	}
 
 	return tea.Sequence(
@@ -467,18 +473,7 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 			Sticky: false,
 		}
 	}
-
-	hasBackgroundTasks := false
-	if s.handler.backgroundTaskService != nil {
-		backgroundTasks := s.handler.backgroundTaskService.GetBackgroundTasks()
-		hasBackgroundTasks = len(backgroundTasks) > 0
-	}
-
-	return tui.SetStatusEvent{
-		Message:    "Task management interface",
-		Spinner:    hasBackgroundTasks,
-		StatusType: tui.StatusDefault,
-	}
+	return nil
 }
 
 func (s *ChatShortcutHandler) handleShowDiffViewerSideEffect() tea.Msg {

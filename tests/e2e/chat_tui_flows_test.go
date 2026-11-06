@@ -33,6 +33,38 @@ func TestChatTUICancelsAReplyAndKeepsGoing(t *testing.T) {
 	expectPane(t, session, "AFTER-CANCEL-OK")
 }
 
+// expectStatusSurvivesPanel opens a panel during a run and closes it again, and
+// expects the run's status back on screen with the shortcut's menu gone.
+func expectStatusSurvivesPanel(t *testing.T, session, shortcut, title string, daemons ...*daemonProc) {
+	t.Helper()
+	chatSay(t, session, "cancel me probe")
+	expectPane(t, session, "Generating response", daemons...)
+	chatSay(t, session, shortcut)
+	expectPane(t, session, title, daemons...)
+	tmuxSendKeys(t, session, "Escape")
+	expectPane(t, session, "Generating response", daemons...)
+	require.NotContains(t, capturePane(session), "Tab to select")
+}
+
+func TestChatTUIKeepsARunsStatusAfterClosingAPanel(t *testing.T) {
+	tests := []struct {
+		name     string
+		session  string
+		shortcut string
+		title    string
+	}{
+		{"a panel shortcut", "infer-e2e-panel-status-tasks", "/tasks", "Background Tasks"},
+		{"a shortcut that takes arguments", "infer-e2e-panel-status-theme", "/theme", "Select a Theme"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			startLocalChat(t, tt.session)
+
+			expectStatusSurvivesPanel(t, tt.session, tt.shortcut, tt.title)
+		})
+	}
+}
+
 func TestChatTUIRunsAQueuedMessage(t *testing.T) {
 	const session = "infer-e2e-queue"
 	startLocalChat(t, session)

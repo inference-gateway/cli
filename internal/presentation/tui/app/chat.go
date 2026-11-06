@@ -1974,6 +1974,9 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 
 	switch acMsg := msg.(type) {
 	case tui.AutocompleteUpdateEvent:
+		if app.isStaleAutocompleteUpdate(acMsg) {
+			return
+		}
 		app.autocomplete.Update(acMsg.Text, acMsg.CursorPos)
 
 		if len(acMsg.Text) > 0 && strings.HasSuffix(acMsg.Text, " ") {
@@ -2086,6 +2089,13 @@ func (app *ChatApplication) GetPageSize() int {
 }
 
 // SendMessage sends the current message
+// isStaleAutocompleteUpdate reports whether a keystroke's update is for text the
+// input no longer holds. It arrives asynchronously, so it can land after Enter
+// sent that text, and would reopen the menu for a message already gone.
+func (app *ChatApplication) isStaleAutocompleteUpdate(update tui.AutocompleteUpdateEvent) bool {
+	return update.Text != app.inputView.GetInput()
+}
+
 func (app *ChatApplication) SendMessage() tea.Cmd {
 	if app.inputView == nil {
 		return nil

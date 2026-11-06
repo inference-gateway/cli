@@ -115,6 +115,17 @@ func TestChatDaemonListsAndStopsTheWorkersJobs(t *testing.T) {
 	expectPane(t, session, "│ Failed", d)
 }
 
+func TestChatDaemonKeepsARunsStatusAfterClosingTasks(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-panel-status"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+
+	expectStatusSurvivesPanel(t, session, "/tasks", "Background Tasks", d)
+}
+
 // TestChatDaemonShowsAFinishedJobsOutput pins the output of a job that ran in the
 // worker, which only the worker holds.
 func TestChatDaemonShowsAFinishedJobsOutput(t *testing.T) {
