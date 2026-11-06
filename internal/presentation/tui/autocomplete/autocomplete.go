@@ -40,8 +40,8 @@ var autocompleteKeys = struct {
 // Kinds for ShortcutOption: where a "/" suggestion came from, mirroring the
 // desktop composer's badges.
 const (
-	KindCommand     = "command"
-	KindShortcut    = "shortcut"
+	KindCommand     = shortcuts.KindCommand
+	KindShortcut    = shortcuts.KindShortcut
 	KindSkill       = "skill"
 	KindRemoteSkill = "remote skill"
 )
@@ -217,15 +217,13 @@ func (a *Autocomplete) loadShortcuts() {
 
 	a.suggestions = []ShortcutOption{}
 	seen := make(map[string]bool)
-	shortcuts := a.shortcutRegistry.GetAll()
-
-	for _, shortcut := range shortcuts {
+	for _, shortcut := range a.shortcutRegistry.GetAll() {
 		seen[shortcut.GetName()] = true
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    "/" + shortcut.GetName(),
 			Description: shortcut.GetDescription(),
 			Usage:       shortcut.GetUsage(),
-			Kind:        shortcutKind(shortcut),
+			Kind:        shortcuts.Kind(shortcut),
 		})
 	}
 
@@ -280,15 +278,6 @@ func (a *Autocomplete) loadSkillsOnly() {
 	}
 }
 
-// shortcutKind labels a registry entry: YAML-defined *CustomShortcut entries
-// are "shortcut", every other registered shortcut is a built-in "command".
-func shortcutKind(shortcut shortcuts.Shortcut) string {
-	if _, ok := shortcut.(*shortcuts.CustomShortcut); ok {
-		return KindShortcut
-	}
-	return KindCommand
-}
-
 // skillKind labels a skill by its scope: catalog entries are not installed yet
 // and download on first use, everything else is already installed.
 func skillKind(skill agentdomain.Skill) string {
@@ -321,7 +310,7 @@ func (a *Autocomplete) loadSubcommands(shortcutName string) {
 						Shortcut:    subCmd.Name,
 						Description: subCmd.Description,
 						Usage:       fmt.Sprintf("/%s %s", shortcutName, subCmd.Name),
-						Kind:        shortcutKind(shortcut),
+						Kind:        shortcuts.Kind(shortcut),
 					})
 				}
 			}

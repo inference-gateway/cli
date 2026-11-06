@@ -16,6 +16,7 @@ import (
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
@@ -28,6 +29,7 @@ const (
 	inboundListHistory        = "list_history"
 	inboundListConversations  = "list_conversations"
 	inboundListSkills         = "list_skills"
+	inboundListShortcuts      = "list_shortcuts"
 	inboundListIssues         = "list_issues"
 	inboundListFiles          = "list_files"
 	inboundListModels         = "list_models"
@@ -40,6 +42,7 @@ const (
 
 	outboundConversations    = "conversations"
 	outboundSkills           = "skills"
+	outboundShortcuts        = "shortcuts"
 	outboundIssues           = "issues"
 	outboundFiles            = "files"
 	outboundHistory          = "history"
@@ -130,6 +133,18 @@ type issuesFrame struct {
 	Issues []issueSummary `json:"issues"`
 }
 
+type shortcutSummary struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Usage       string `json:"usage"`
+	Kind        string `json:"kind"`
+}
+
+type shortcutsFrame struct {
+	Type      string            `json:"type"`
+	Shortcuts []shortcutSummary `json:"shortcuts"`
+}
+
 type filesFrame struct {
 	Type  string   `json:"type"`
 	Files []string `json:"files"`
@@ -161,6 +176,7 @@ func (w *lineWriter) Write(line []byte) (int, error) {
 type PanelDeps struct {
 	Conversations convdomain.ConversationRepository
 	Skills        agentdomain.SkillsService
+	Shortcuts     *shortcuts.Registry
 	Issues        agentdomain.GitHubIssueService
 	Files         agentdomain.FileService
 	Tools         agentdomain.ToolService
@@ -189,6 +205,7 @@ type Panel struct {
 	conversations *conversations
 	history       *history
 	skills        *skills
+	shortcuts     *shortcutList
 	issues        *issues
 	files         *projectFiles
 	models        *modelPicker
@@ -208,6 +225,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.conversations = &conversations{write: p.write, out: p.out, repo: deps.Conversations}
 	p.history = newHistory(p.write, deps.History)
 	p.skills = &skills{write: p.write, service: deps.Skills}
+	p.shortcuts = &shortcutList{write: p.write, registry: deps.Shortcuts}
 	p.issues = &issues{write: p.write, service: deps.Issues}
 	p.files = &projectFiles{write: p.write, service: deps.Files}
 	p.models = &modelPicker{write: p.write, service: deps.Models, defaultModel: deps.DefaultModel}
@@ -247,6 +265,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.history.list()
 	case inboundListSkills:
 		p.skills.list()
+	case inboundListShortcuts:
+		p.shortcuts.list()
 	case inboundListIssues:
 		p.issues.list()
 	case inboundListFiles:
@@ -425,6 +445,33 @@ func (s *skills) list() {
 		out = append(out, skill.Summary())
 	}
 	s.write(skillsFrame{Type: outboundSkills, Skills: out})
+}
+
+// shortcutList answers list_shortcuts with the shortcut registry's entries, the
+// built-in commands and custom shortcuts of the chat TUI's "/" menu. Skills
+// stay on list_skills.
+type shortcutList struct {
+	write    frameWriter
+	registry *shortcuts.Registry
+}
+
+// list answers list_shortcuts with every registry entry sorted by name. A
+// worker without a registry still answers with an empty list.
+func (s *shortcutList) list() {
+	frame := shortcutsFrame{Type: outboundShortcuts, Shortcuts: []shortcutSummary{}}
+	if s.registry == nil {
+		s.write(frame)
+		return
+	}
+	for _, shortcut := range s.registry.GetAll() {
+		frame.Shortcuts = append(frame.Shortcuts, shortcutSummary{
+			Name:        shortcut.GetName(),
+			Description: shortcut.GetDescription(),
+			Usage:       shortcut.GetUsage(),
+			Kind:        shortcuts.Kind(shortcut),
+		})
+	}
+	s.write(frame)
 }
 
 // issues answers list_issues with the current project's open GitHub issues, the

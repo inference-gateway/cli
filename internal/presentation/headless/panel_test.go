@@ -22,6 +22,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
@@ -245,6 +246,38 @@ func TestPanelListIssuesAnswersEmptyWhereTheTUIShowsNothing(t *testing.T) {
 				t.Fatalf("expected an empty issues list, got %v", raw)
 			}
 		})
+	}
+}
+
+func TestPanelListShortcuts(t *testing.T) {
+	registry := shortcuts.NewRegistry()
+	registry.Register(shortcuts.NewExitShortcut())
+	registry.Register(shortcuts.NewCustomShortcut(shortcuts.CustomShortcutConfig{Name: "deploy", Description: "Deploy the app"}, nil, nil, nil, nil))
+	deps := panelDeps()
+	deps.Shortcuts = registry
+	p, sink := startPanel(deps)
+
+	handle(t, p, map[string]any{"type": "list_shortcuts"})
+	listed, ok := readFrame(t, sink, "shortcuts")["shortcuts"].([]any)
+	if !ok || len(listed) != 2 {
+		t.Fatalf("expected 2 shortcuts, got %v", listed)
+	}
+	custom, builtin := listed[0].(map[string]any), listed[1].(map[string]any)
+	if custom["name"] != "deploy" || custom["description"] != "Deploy the app" || custom["kind"] != "shortcut" {
+		t.Errorf("unexpected custom shortcut entry: %v", custom)
+	}
+	exit := shortcuts.NewExitShortcut()
+	if builtin["name"] != "exit" || builtin["usage"] != exit.GetUsage() || builtin["kind"] != "command" {
+		t.Errorf("unexpected built-in command entry: %v", builtin)
+	}
+}
+
+func TestPanelListShortcutsAnswersEmptyWithoutARegistry(t *testing.T) {
+	p, sink := startPanel(panelDeps())
+
+	handle(t, p, map[string]any{"type": "list_shortcuts"})
+	if listed, ok := readFrame(t, sink, "shortcuts")["shortcuts"].([]any); !ok || len(listed) != 0 {
+		t.Fatalf("expected an empty shortcuts list, got %v", listed)
 	}
 }
 

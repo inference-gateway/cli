@@ -469,8 +469,8 @@ CLI → client, one reply per request id:
 
 ## Project-scoped requests
 
-`list_conversations`, `list_history`, `list_skills`, `list_issues`,
-`list_files`, `list_models`, `select_model`, `set_mode`, `tool_request`, `completion_request`,
+`list_conversations`, `list_history`, `list_skills`, `list_shortcuts`,
+`list_issues`, `list_files`, `list_models`, `select_model`, `set_mode`, `tool_request`, `completion_request`,
 `list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on the
 live thread of the session `id` names, else on any running worker there, else
@@ -534,6 +534,33 @@ CLI → client, the discovered skills (empty when skills are unavailable):
 - `scope` is one of `project`, `agents`, `user`, `plugin`, `catalog`; name
   conflicts are already resolved by precedence, so each name appears once.
   Unknown scopes are ignored by the extension.
+
+## Shortcuts
+
+The chat TUI's "/" menu also lists the shortcut registry: the built-in
+commands and the custom shortcuts defined in YAML. A client asks the CLI for
+those entries and merges them with the skills of `list_skills` itself. Where
+a skill and a registry entry share a name the TUI keeps the registry entry.
+
+Client → CLI, list the shortcut registry:
+
+```json
+{"type": "list_shortcuts", "project_dir": "/abs/path/to/project"}
+```
+
+CLI → client, the registry's entries sorted by name:
+
+```json
+{"type": "shortcuts", "shortcuts": [{"name": "clear", "description": "Clear the conversation", "usage": "/clear", "kind": "command"}]}
+```
+
+- `name` is the entry's name without the leading "/".
+- `kind` is `command` for a built-in and `shortcut` for a custom shortcut, the
+  badge the TUI shows.
+- The frame only lists. The worker does not run a `/<name>` it receives in a
+  `run_agent_input` message, so a client runs what it offers: a snippet
+  shortcut through `completion_request`, and anything else through its own
+  command surface.
 
 ## GitHub issues
 
