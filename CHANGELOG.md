@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.245.3](https://github.com/inference-gateway/cli/compare/v0.245.2...v0.245.3) (2026-11-06)
+
+### 🐛 Bug Fixes
+
+* **chat:** run direct commands and shortcuts in a daemon chat like a plain chat ([#1709](https://github.com/inference-gateway/cli/issues/1709)) ([9ec431b](https://github.com/inference-gateway/cli/commit/9ec431bf6a08dbea1f1954b0a80f7f01cb1e05dd))
+
 ## [0.245.2](https://github.com/inference-gateway/cli/compare/v0.245.1...v0.245.2) (2026-11-05)
 
 ### 🐛 Bug Fixes
