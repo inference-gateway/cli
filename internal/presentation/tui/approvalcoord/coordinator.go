@@ -1,7 +1,6 @@
 package approvalcoord
 
 import (
-	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,12 +22,11 @@ type planRepoUpdater interface {
 }
 
 // stateStore is the narrow slice of the app state manager this coordinator
-// needs: the plan-approval and user-question overlays, computer-use pause,
-// chat-session end, and mode switching. *statemanager.Store satisfies it.
+// needs: the plan-approval and user-question overlays, chat-session end, and
+// mode switching. *statemanager.Store satisfies it.
 type stateStore interface {
 	tui.PlanApprovalPrompt
 	tui.UserQuestionPrompt
-	agentdomain.ComputerUsePause
 	tui.ChatSessionState
 	agentdomain.AgentModeState
 }
@@ -204,49 +202,6 @@ func (s *Service) updatePlanStatus(action agentdomain.PlanApprovalAction) {
 	}
 	logger.Info("updating plan status")
 	updater.UpdatePlanStatus(action)
-}
-
-// HandleComputerUsePaused cancels the in-flight request and marks state as
-// paused. No restart - the user will manually resume.
-func (s *Service) HandleComputerUsePaused(msg agentdomain.ComputerUsePausedEvent) tea.Cmd {
-	logger.Info("computer use execution paused", "request_id", msg.RequestID)
-
-	if err := s.agentService.CancelRequest(msg.RequestID); err != nil {
-		logger.Error("failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
-	}
-
-	s.stateManager.SetComputerUsePaused(true, msg.RequestID)
-
-	return func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message:    "Computer use paused by user",
-			Spinner:    false,
-			StatusType: tui.StatusDefault,
-		}
-	}
-}
-
-// HandleComputerUseResumed clears the pause state, injects a hidden "please
-// continue" user message, and signals the orchestrator to restart streaming.
-func (s *Service) HandleComputerUseResumed(_ agentdomain.ComputerUseResumedEvent) (tea.Cmd, bool) {
-	s.stateManager.ClearComputerUsePauseState()
-
-	if err := s.addHiddenContinue("Please continue from where you left off."); err != nil {
-		return func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to resume: %v", err),
-				Sticky: false,
-			}
-		}, false
-	}
-
-	return func() tea.Msg {
-		return tui.SetStatusEvent{
-			Message:    "Resuming execution...",
-			Spinner:    true,
-			StatusType: tui.StatusDefault,
-		}
-	}, true
 }
 
 // addHiddenContinueMessage injects the plan-approval continuation prompt.

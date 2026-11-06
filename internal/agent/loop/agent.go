@@ -405,12 +405,11 @@ type usageEstimator interface {
 }
 
 // stateStore is the narrow slice of the app state manager the agent core
-// needs: the current agent mode, computer-use pause state, retry-status
-// updates, and the session todo list (reminder gating). *statemanager.Store
+// needs: the current agent mode, retry-status updates, and the session todo
+// list (reminder gating). *statemanager.Store
 // satisfies it.
 type stateStore interface {
 	agentdomain.AgentModeState
-	agentdomain.ComputerUsePause
 	agentdomain.RetryStatusSink
 	agentdomain.TodoList
 }
@@ -637,11 +636,6 @@ func (s *Agent) batchDrainQueue(
 func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
-	}
-
-	if s.stateManager != nil && s.stateManager.IsComputerUsePaused() {
-		logger.Info("execution is paused, waiting for resume")
-		return nil, fmt.Errorf("execution is paused")
 	}
 
 	s.failedCallsMux.Lock()

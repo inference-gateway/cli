@@ -251,10 +251,6 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 		return nil
 	case tui.MessageHistoryRestoreEvent:
 		return nil
-	case agentdomain.ComputerUsePausedEvent:
-		return h.HandleComputerUsePausedEvent(m)
-	case agentdomain.ComputerUseResumedEvent:
-		return h.HandleComputerUseResumedEvent(m)
 	}
 	return nil
 }
@@ -637,20 +633,6 @@ func (h *ChatHandler) armDrainRetry() tea.Cmd {
 func (h *ChatHandler) HandleDrainQueueRetryEvent(_ tui.DrainQueueRetryEvent) tea.Cmd {
 	h.drainRetryArmed = false
 	return h.HandleDrainQueueEvent(agentdomain.DrainQueueEvent{})
-}
-
-// HandleComputerUsePausedEvent handles computer use pause events
-func (h *ChatHandler) HandleComputerUsePausedEvent(msg agentdomain.ComputerUsePausedEvent) tea.Cmd {
-	return h.approvalCoordinator.HandleComputerUsePaused(msg)
-}
-
-// HandleComputerUseResumedEvent handles computer use resume events
-func (h *ChatHandler) HandleComputerUseResumedEvent(msg agentdomain.ComputerUseResumedEvent) tea.Cmd {
-	cmd, restart := h.approvalCoordinator.HandleComputerUseResumed(msg)
-	if !restart {
-		return cmd
-	}
-	return tea.Batch(cmd, h.startChatCompletion())
 }
 
 // SetBashDetachChan satisfies the legacy tui.ChatHandler interface by

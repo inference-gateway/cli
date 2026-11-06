@@ -305,26 +305,6 @@ func TestEmitPreRunError_MachineFormats(t *testing.T) {
 	}
 }
 
-func TestRenderJSON_ComputerUsePauseResume(t *testing.T) {
-	var out strings.Builder
-	err := RenderJSON(stream(
-		agentdomain.ComputerUsePausedEvent{RequestID: "s1"},
-		agentdomain.ChatCompleteEvent{Cancelled: true},
-		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
-		agentdomain.ChatChunkEvent{Content: "back at it"},
-		agentdomain.ChatCompleteEvent{},
-	), &out, nil, nil, "s1", "m", nil, &convmocks.FakeConversationRepository{})
-	if err != nil {
-		t.Fatalf("RenderJSON() err = %v, want nil after resumed run completes", err)
-	}
-	got := out.String()
-	for _, want := range []string{`"computer_use_paused"`, `"computer_use_resumed"`, `"request_id":"s1"`, `"back at it"`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %s in output:\n%s", want, got)
-		}
-	}
-}
-
 func TestToolContent_NoLegacyEnvelope(t *testing.T) {
 	ok := toolContent(&agentdomain.ToolExecutionResult{ToolName: "Read", Success: true})
 	if strings.HasPrefix(ok, "Result of tool call") || !strings.Contains(ok, `"tool_name":"Read"`) {

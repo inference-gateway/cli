@@ -264,8 +264,6 @@ func judgeVerdictMessage(e agentdomain.JudgeVerdictChatEvent) map[string]any {
 // After the channel closes only the session stats are read from the repo.
 // When approvals is non-nil it acts as the IPC approval broker: each
 // approval_request line is answered by the next matching ApprovalResponse.
-// A ComputerUseResumedEvent clears any error carried over from the paused
-// (cancelled) run, so a resumed run that completes cleanly exits zero.
 func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, questions, sessionID, model, cfg, repo, false)
 }
@@ -327,11 +325,6 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 		case agentdomain.UserQuestionRequestedEvent:
 			emit(UserQuestionRequest(e))
 			AnswerQuestions(e, questions)
-		case agentdomain.ComputerUsePausedEvent:
-			emit(map[string]any{"type": "computer_use_paused", "request_id": e.RequestID})
-		case agentdomain.ComputerUseResumedEvent:
-			emit(map[string]any{"type": "computer_use_resumed", "request_id": e.RequestID})
-			runErr = nil
 		case agentdomain.TodoUpdateChatEvent:
 			emit(map[string]any{"type": "notification", "message": "Todos updated", "todos": e.Todos})
 		case agentdomain.JudgeVerdictChatEvent:
