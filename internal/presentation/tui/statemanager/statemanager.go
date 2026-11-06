@@ -685,33 +685,3 @@ func (sm *Store) ClearLastClickCoordinates() {
 	defer sm.mutex.Unlock()
 	sm.state.ClearLastClickCoordinates()
 }
-
-// Computer Use Pause State Management
-
-// SetComputerUsePaused sets the paused state for computer use
-func (sm *Store) SetComputerUsePaused(paused bool, requestID string) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-	sm.state.SetComputerUsePaused(paused, requestID)
-}
-
-// IsComputerUsePaused returns whether computer use is currently paused
-func (sm *Store) IsComputerUsePaused() bool {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-	return sm.state.IsComputerUsePaused()
-}
-
-// GetPausedRequestID returns the request ID of the paused execution
-func (sm *Store) GetPausedRequestID() string {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-	return sm.state.GetPausedRequestID()
-}
-
-// ClearComputerUsePauseState clears the pause state
-func (sm *Store) ClearComputerUsePauseState() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-	sm.state.ClearComputerUsePauseState()
-}

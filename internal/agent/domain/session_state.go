@@ -21,11 +21,3 @@ type TodoList interface {
 	SetTodos(todos []TodoItem)
 	GetTodos() []TodoItem
 }
-
-// ComputerUsePause handles computer use pause state
-type ComputerUsePause interface {
-	SetComputerUsePaused(paused bool, requestID string)
-	IsComputerUsePaused() bool
-	GetPausedRequestID() string
-	ClearComputerUsePauseState()
-}

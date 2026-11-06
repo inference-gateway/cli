@@ -133,24 +133,6 @@ type ToolCancelledEvent struct {
 func (e ToolCancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ComputerUsePausedEvent indicates computer-use execution has been paused
-type ComputerUsePausedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e ComputerUsePausedEvent) GetRequestID() string    { return e.RequestID }
-func (e ComputerUsePausedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ComputerUseResumedEvent indicates computer-use execution has resumed
-type ComputerUseResumedEvent struct {
-	RequestID string
-	Timestamp time.Time
-}
-
-func (e ComputerUseResumedEvent) GetRequestID() string    { return e.RequestID }
-func (e ComputerUseResumedEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // PlanApprovalRequestedEvent indicates plan mode completion requires user approval
 type PlanApprovalRequestedEvent struct {
 	RequestID    string

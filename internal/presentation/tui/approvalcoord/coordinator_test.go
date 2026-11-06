@@ -1,7 +1,6 @@
 package approvalcoord
 
 import (
-	"errors"
 	"testing"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -155,70 +154,6 @@ func TestService_HandlePlanApprovalResponse(t *testing.T) {
 		}
 		if got := len(repo.GetMessages()); got != 0 {
 			t.Errorf("expected no hidden continue message on Reject, got %d", got)
-		}
-	})
-}
-
-func TestService_HandleComputerUsePaused(t *testing.T) {
-	t.Run("cancels request, marks paused, returns non-nil cmd", func(t *testing.T) {
-		svc, _, state, agent := newCoordinator()
-
-		cmd := svc.HandleComputerUsePaused(agentdomain.ComputerUsePausedEvent{
-			RequestID: "req-1",
-		})
-
-		if cmd == nil {
-			t.Fatalf("expected non-nil cmd")
-		}
-		if agent.CancelRequestCallCount() != 1 {
-			t.Errorf("expected CancelRequest once, got %d", agent.CancelRequestCallCount())
-		}
-		if got := agent.CancelRequestArgsForCall(0); got != "req-1" {
-			t.Errorf("expected CancelRequest('req-1'), got %q", got)
-		}
-		if !state.IsComputerUsePaused() {
-			t.Errorf("expected computer use to be marked paused")
-		}
-		if reqID := state.GetPausedRequestID(); reqID != "req-1" {
-			t.Errorf("expected paused request id 'req-1', got %q", reqID)
-		}
-	})
-
-	t.Run("still marks paused even if agent cancel returns an error", func(t *testing.T) {
-		svc, _, state, agent := newCoordinator()
-		agent.CancelRequestReturns(errors.New("no such request"))
-
-		cmd := svc.HandleComputerUsePaused(agentdomain.ComputerUsePausedEvent{
-			RequestID: "stale",
-		})
-
-		if cmd == nil {
-			t.Fatalf("expected non-nil cmd even on cancel error")
-		}
-		if !state.IsComputerUsePaused() {
-			t.Errorf("paused state should still be set even when cancel fails")
-		}
-	})
-}
-
-func TestService_HandleComputerUseResumed(t *testing.T) {
-	t.Run("clears pause state, adds hidden continue, requests restart", func(t *testing.T) {
-		svc, repo, state, _ := newCoordinator()
-		state.SetComputerUsePaused(true, "req-1")
-
-		cmd, restart := svc.HandleComputerUseResumed(agentdomain.ComputerUseResumedEvent{})
-
-		if !restart {
-			t.Errorf("expected restart=true")
-		}
-		if cmd == nil {
-			t.Fatalf("expected non-nil cmd")
-		}
-		if state.IsComputerUsePaused() {
-			t.Errorf("expected ClearComputerUsePauseState to unmark paused")
-		}
-		if got := len(repo.GetMessages()); got != 1 {
-			t.Errorf("expected 1 hidden continue message added, got %d", got)
 		}
 	})
 }

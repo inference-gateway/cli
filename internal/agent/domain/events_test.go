@@ -24,8 +24,6 @@ func TestEventAccessors(t *testing.T) {
 		ToolApprovalRequestedEvent{RequestID: id, Timestamp: ts},
 		ToolApprovalResolvedEvent{RequestID: id, Timestamp: ts},
 		ToolCancelledEvent{RequestID: id, Timestamp: ts},
-		ComputerUsePausedEvent{RequestID: id, Timestamp: ts},
-		ComputerUseResumedEvent{RequestID: id, Timestamp: ts},
 		PlanApprovalRequestedEvent{RequestID: id, Timestamp: ts},
 		UserQuestionRequestedEvent{RequestID: id, Timestamp: ts},
 		ShellDetachedEvent{RequestID: id, Timestamp: ts},

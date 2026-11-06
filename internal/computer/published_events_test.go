@@ -104,20 +104,6 @@ func TestPublishedEventMapsComputerUseAction(t *testing.T) {
 	}
 }
 
-// TestComputerUsePausePublishesNothing: pausing and resuming computer use stop
-// and start runs, which clients see through the run frames, so the events
-// publish nothing.
-func TestComputerUsePausePublishesNothing(t *testing.T) {
-	for _, event := range []agentdomain.ChatEvent{
-		agentdomain.ComputerUsePausedEvent{RequestID: "s1"},
-		agentdomain.ComputerUseResumedEvent{RequestID: "s1"},
-	} {
-		if published, ok := PublishedEvent(event); ok {
-			t.Fatalf("PublishedEvent(%T) published %+v, want nothing", event, published)
-		}
-	}
-}
-
 func TestPublishedEventLeavesOtherEventsAlone(t *testing.T) {
 	if _, ok := PublishedEvent(agentdomain.ChatCompleteEvent{}); ok {
 		t.Fatal("PublishedEvent claimed an event the computer context does not own")

@@ -55,10 +55,6 @@ type ApplicationState struct {
 	lastClickX int
 	lastClickY int
 
-	// Computer Use Pause State
-	computerUsePaused bool
-	pausedRequestID   string
-
 	// Where a daemon chat's session runs
 	sessionPlacement SessionPlacement
 
@@ -654,30 +650,6 @@ func (s *ApplicationState) GetLastClickCoordinates() (x, y int) {
 func (s *ApplicationState) ClearLastClickCoordinates() {
 	s.lastClickX = 0
 	s.lastClickY = 0
-}
-
-// Computer Use Pause Management
-
-// SetComputerUsePaused sets the paused state for computer use
-func (s *ApplicationState) SetComputerUsePaused(paused bool, requestID string) {
-	s.computerUsePaused = paused
-	s.pausedRequestID = requestID
-}
-
-// IsComputerUsePaused returns whether computer use is currently paused
-func (s *ApplicationState) IsComputerUsePaused() bool {
-	return s.computerUsePaused
-}
-
-// GetPausedRequestID returns the request ID of the paused execution
-func (s *ApplicationState) GetPausedRequestID() string {
-	return s.pausedRequestID
-}
-
-// ClearComputerUsePauseState clears the pause state
-func (s *ApplicationState) ClearComputerUsePauseState() {
-	s.computerUsePaused = false
-	s.pausedRequestID = ""
 }
 
 // AgentReadinessState represents the current state of A2A agents during startup

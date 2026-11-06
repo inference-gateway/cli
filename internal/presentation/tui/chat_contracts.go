@@ -125,8 +125,6 @@ type ApprovalCoordinator interface {
 	HandlePlanApprovalRequested(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd
 	HandlePlanApprovalResponse(msg PlanApprovalResponseEvent) (cmd tea.Cmd, restart bool)
 	HandleUserQuestionRequested(msg agentdomain.UserQuestionRequestedEvent) tea.Cmd
-	HandleComputerUsePaused(msg agentdomain.ComputerUsePausedEvent) tea.Cmd
-	HandleComputerUseResumed(msg agentdomain.ComputerUseResumedEvent) (cmd tea.Cmd, restart bool)
 }
 
 // ChatCompletionRunner owns the LLM streaming lifecycle - initiating streaming,
