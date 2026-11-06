@@ -2,10 +2,12 @@ package states_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	assert "github.com/stretchr/testify/assert"
@@ -78,6 +80,7 @@ func newApprovingCtx(
 		},
 		RequestToolApproval:   approveStub,
 		ExecuteToolInternal:   execStub,
+		ForgetPendingToolCall: func(string) {},
 		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return true },
 		PublishChatEvent:      func(agentdomain.ChatEvent) {},
 		AddMessage:            func(convdomain.ConversationEntry) error { return nil },
@@ -142,6 +145,97 @@ func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
 		assert.True(t, ok, "expected states.AllToolsProcessedEvent, got %T", evt)
 	case <-time.After(2 * time.Second):
 		t.Fatal("approved tools did not execute concurrently - execution appears serialized")
+	}
+}
+
+// TestApprovingToolsState_RunsNothingWhileAPromptIsOpen pins that a cleared call
+// waits for the rest of the round, whether the user approved it or the policy
+// does not gate it: a client that suspends on the open prompt would otherwise
+// miss everything the running tool reports.
+func TestApprovingToolsState_RunsNothingWhileAPromptIsOpen(t *testing.T) {
+	tests := []struct {
+		name         string
+		firstIsGated bool
+	}{
+		{name: "an approved call waits", firstIsGated: true},
+		{name: "an ungated call waits", firstIsGated: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				executed := make(chan string, 2)
+				execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
+					executed <- tc.ID
+					return toolEntry(tc)
+				}
+				answer := make(chan struct{})
+				approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+					if tc.ID == "call-1" {
+						<-answer
+					}
+					return true, "", nil
+				}
+
+				ctx, _, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+				ctx.ShouldRequireApproval = func(tc *sdk.ChatCompletionMessageToolCall, _ bool) bool {
+					return tt.firstIsGated || tc.ID == "call-1"
+				}
+				require.NoError(t, states.NewApprovingToolsState(ctx).Handle(states.MessageReceivedEvent{}))
+
+				synctest.Wait()
+				assert.Empty(t, executed, "call-0 ran while the prompt for call-1 was still open")
+
+				close(answer)
+				waitForAllToolsProcessed(t, events)
+				assert.Len(t, executed, 2, "both calls run once the round is decided")
+			})
+		})
+	}
+}
+
+// TestApprovingToolsState_ForgetsApprovedCallsItWillNotRun pins that a call the
+// user approved does not stay on screen as approved when the round ends before
+// running it, since only running a call clears its approval entry.
+func TestApprovingToolsState_ForgetsApprovedCallsItWillNotRun(t *testing.T) {
+	tests := []struct {
+		name          string
+		cancelOnFirst bool
+		secondErr     error
+	}{
+		{name: "a later approval fails", secondErr: errors.New("approval request timed out")},
+		{name: "the session is cancelled", cancelOnFirst: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				session, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
+					t.Errorf("%s ran, the round was meant to end first", tc.ID)
+					return toolEntry(tc)
+				}
+				approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+					if tc.ID != "call-0" {
+						return false, "", tt.secondErr
+					}
+					if tt.cancelOnFirst {
+						cancel()
+					}
+					return true, "", nil
+				}
+
+				ctx, _, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+				ctx.AgentCtx.Ctx = session
+				var forgotten []string
+				ctx.ForgetPendingToolCall = func(id string) { forgotten = append(forgotten, id) }
+
+				require.NoError(t, states.NewApprovingToolsState(ctx).Handle(states.MessageReceivedEvent{}))
+				<-events
+
+				assert.Equal(t, []string{"call-0"}, forgotten)
+			})
+		})
 	}
 }
 

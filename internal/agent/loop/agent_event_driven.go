@@ -174,6 +174,9 @@ func (a *eventDrivenAgent) registerStateHandlers() {
 			defer a.recoverPanic()
 			return a.service.executeToolInternal(a.agentCtx.Ctx, toolCall, a.eventPublisher, isApproved, time.Now())
 		},
+		ForgetPendingToolCall: func(toolCallID string) {
+			a.service.conversationRepo.RemovePendingToolCallByID(toolCallID)
+		},
 		GetAgentMode: func() agentdomain.AgentMode {
 			if a.service.stateManager == nil {
 				return agentdomain.AgentModeStandard

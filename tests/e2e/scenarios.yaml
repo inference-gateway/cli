@@ -314,6 +314,20 @@ scenarios:
         delay_ms: 1500
       - content: "BUSY-PROBE-FOLLOW-UP"
 
+  - name: background-job-with-a-gated-call
+    match: '(?i)background gated probe'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: "touch job-ran.txt"
+              detached: true
+          - name: Write
+            args:
+              file_path: gated.txt
+              content: "gated\n"
+      - content: "GATED-BATCH-DONE"
+
   - name: write-then-read
     match: '(?i)write then read the marker'
     turns:

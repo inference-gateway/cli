@@ -195,11 +195,13 @@ func TestChatTUIApprovalBoxFollowsTail(t *testing.T) {
 		"the prompt must stay visible above the approval box")
 
 	tmuxSendKeys(t, session, "Enter")
-	require.True(t, waitForPane(t, session, "m2.txt", 25*time.Second),
+	require.True(t, waitForPane(t, session, "1 │ two", 25*time.Second),
 		"second approval never opened; last frame:\n%s", capturePane(session))
-	require.True(t, waitForPane(t, session, "Created m1.txt", 10*time.Second),
-		"the first Write result stayed hidden behind the approval box; last frame:\n%s", capturePane(session))
+	require.NotContains(t, capturePane(session), "Created m1.txt",
+		"the first Write ran while the second approval was still open")
 	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Created m1.txt", 25*time.Second),
+		"the first Write result never showed once every approval was answered; last frame:\n%s", capturePane(session))
 
 	require.True(t, waitForPane(t, session, "APPROVAL-TAIL-DONE", 25*time.Second),
 		"the final reply stayed below the fold after approval; last frame:\n%s", capturePane(session))
@@ -278,9 +280,54 @@ func TestChatTUIFinishedJobContinuesABusyRun(t *testing.T) {
 		"want the reply, then the note, then the follow-up; last frame:\n%s", frame)
 }
 
-// startLocalChat launches a local chat on the e2e scenarios in a temp dir and
-// waits for its input.
-func startLocalChat(t *testing.T, session string) {
+// TestChatTUIBackgroundJobWaitsForItsBatch pins that a background job batched
+// with another gated call starts only once the whole batch is decided.
+func TestChatTUIBackgroundJobWaitsForItsBatch(t *testing.T) {
+	const session = "infer-e2e-job-gated"
+	dir := startLocalChat(t, session)
+	jobRan := filepath.Join(dir, "job-ran.txt")
+
+	tmuxSendKeys(t, session, "-l", "background gated probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Approval required", 25*time.Second),
+		"the first approval never opened; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "1 │ gated", 25*time.Second),
+		"the second approval never opened; last frame:\n%s", capturePane(session))
+	require.NoFileExists(t, jobRan, "the job started while the second approval was open")
+
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "GATED-BATCH-DONE", 25*time.Second),
+		"the batch never finished; last frame:\n%s", capturePane(session))
+	require.FileExists(t, jobRan, "the job never ran once the batch was decided")
+	require.True(t, waitForPane(t, session, "Background Shell Completed", 25*time.Second),
+		"the job's note never landed; last frame:\n%s", capturePane(session))
+}
+
+// TestChatTUIRejectingACallStillRunsTheApprovedOne pins that rejecting a later
+// call of a batch leaves the decision already made on an earlier one standing.
+func TestChatTUIRejectingACallStillRunsTheApprovedOne(t *testing.T) {
+	const session = "infer-e2e-approve-reject"
+	dir := startLocalChat(t, session)
+
+	tmuxSendKeys(t, session, "-l", "approval tail probe")
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "Approval required", 25*time.Second),
+		"the first approval never opened; last frame:\n%s", capturePane(session))
+	tmuxSendKeys(t, session, "Enter")
+	require.True(t, waitForPane(t, session, "1 │ two", 25*time.Second),
+		"the second approval never opened; last frame:\n%s", capturePane(session))
+
+	tmuxSendKeys(t, session, "Escape")
+	require.True(t, waitForPane(t, session, "Created m1.txt", 25*time.Second),
+		"the approved Write never ran; last frame:\n%s", capturePane(session))
+	require.FileExists(t, filepath.Join(dir, "m1.txt"))
+	require.NoFileExists(t, filepath.Join(dir, "m2.txt"))
+}
+
+// startLocalChat launches a local chat on the e2e scenarios in a temp dir, waits
+// for its input and returns the dir.
+func startLocalChat(t *testing.T, session string) string {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not installed; skipping TUI drive test")
@@ -290,13 +337,15 @@ func startLocalChat(t *testing.T, session string) {
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
 		chatLoopbackEnv() + " " + binPath + " chat"
+	dir := t.TempDir()
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
-		"-x", "200", "-y", "50", "-c", t.TempDir(), launch).Run(), "failed to start tmux session")
+		"-x", "200", "-y", "50", "-c", dir, launch).Run(), "failed to start tmux session")
 	require.True(t, waitForPane(t, session, "Select a Model", 25*time.Second),
 		"model picker never rendered; last frame:\n%s", capturePane(session))
 	tmuxSendKeys(t, session, "Enter")
 	require.True(t, waitForPane(t, session, "Type your message", 20*time.Second),
 		"input view never appeared after model select; last frame:\n%s", capturePane(session))
+	return dir
 }
 
 // envChatLoopback opts a local chat into rendering its runs through AG-UI.

@@ -14,14 +14,13 @@ import (
 )
 
 // toolRound holds the per-round state for approving and executing a batch of
-// tool calls. Judge-decided calls are decided up front in one judge request;
-// human approval prompts are handled one at a time, but each approved
-// tool's execution is spawned immediately so executions overlap while the
-// remaining tools are still being approved. Results are recorded into
-// index-keyed slots and flushed to the conversation in tool-call order as each
-// contiguous prefix completes, so the UI surfaces each tool result as the user
-// approves the next one (the conversation validator requires tool-call order).
+// tool calls. Judge-decided calls are decided up front in one judge request and
+// human approval prompts are handled one at a time. Nothing executes until every
+// call of the round is decided, so these prompts never hide what a tool reports.
+// The cleared calls then run overlapping, and their results are flushed to the
+// conversation in tool-call order, which the conversation validator requires.
 type toolRound struct {
+	cleared []clearedCall                  // calls to execute once the round is decided
 	results []convdomain.ConversationEntry // indexed by tool position
 	ready   []bool                         // ready[i] set once results[i] is filled
 	flushed int                            // next slot index to flush, in order
@@ -31,15 +30,23 @@ type toolRound struct {
 	decided map[string]ApprovalDecision    // judge verdicts by tool call id
 }
 
+// clearedCall is a call the round will execute: one the user or the judge
+// approved, or one the approval policy does not gate.
+type clearedCall struct {
+	slot     int
+	call     sdk.ChatCompletionMessageToolCall
+	approved bool
+}
+
 // ApprovingToolsState handles events in the ApprovingTools state.
 //
-// This state manages sequential tool approval with overlapping execution:
+// This state manages sequential tool approval, then overlapping execution:
 //  1. MessageReceivedEvent → initializes the tool round, starts sequential approval
 //  2. AllToolsProcessedEvent → transitions to PostToolExecution
 //  3. ApprovalFailedEvent → handles approval failures
 //
 // Calls the approval policy does not gate (e.g. TodoWrite batched with a
-// gated call) execute directly without a prompt, mirroring BlockingToolsState.
+// gated call) are cleared without a prompt, mirroring BlockingToolsState.
 type ApprovingToolsState struct {
 	ctx *StateContext
 }
@@ -122,14 +129,11 @@ func (s *ApprovingToolsState) prefetchJudgeDecisions() map[string]ApprovalDecisi
 	return s.ctx.RequestJudgeApprovals(gated)
 }
 
-// processNextTool handles ONE tool: ungated calls execute directly (no
-// prompt, no judge call); gated ones take the pre-fetched judge verdict or
-// request human approval and - if approved -
-// spawn their execution in the background, immediately moving on to the
-// next approval prompt so executions overlap. Fast-exits if the session
-// context was cancelled, mirroring the drain-then-stop contract in
-// CheckingQueue / PostToolExecution: the remaining approval prompts are
-// skipped and control returns to the state machine via finishApprovals.
+// processNextTool decides ONE tool: an ungated call is cleared without a
+// prompt or a judge call, and a gated one takes the pre-fetched judge verdict
+// or asks the human. A cleared call waits for the rest of the round before it
+// runs. Fast-exits if the session context was cancelled, mirroring the
+// drain-then-stop contract in CheckingQueue / PostToolExecution.
 func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	defer s.ctx.WaitGroup.Done()
 
@@ -146,8 +150,8 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	}
 
 	if !s.ctx.ShouldRequireApproval(tc, s.ctx.Request.IsChatMode) {
-		logger.Debug("tool does not require approval, executing directly", "tool", tc.Function.Name)
-		s.spawnExecution(round, idx, *tc, false)
+		logger.Debug("tool does not require approval", "tool", tc.Function.Name)
+		round.cleared = append(round.cleared, clearedCall{slot: idx, call: *tc})
 		s.continueToNextTool(round)
 		return
 	}
@@ -155,6 +159,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	approved, reason, err := s.approvalFor(round, *tc)
 	if err != nil {
 		logger.Error("approval request failed", "tool", tc.Function.Name, "error", err)
+		s.forgetCleared(round)
 		s.ctx.Events <- ApprovalFailedEvent{Error: err}
 		return
 	}
@@ -167,13 +172,12 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 
 	logger.Debug("tool approved", "tool", tc.Function.Name)
 
+	round.cleared = append(round.cleared, clearedCall{slot: idx, call: *tc, approved: true})
 	if s.shouldAutoApproveRemaining() {
-		s.spawnAllRemaining(round, idx, *tc)
+		s.clearAllRemaining(round)
 		s.finishApprovals(round)
 		return
 	}
-
-	s.spawnExecution(round, idx, *tc, true)
 	s.continueToNextTool(round)
 }
 
@@ -210,10 +214,10 @@ func (s *ApprovingToolsState) getNextToolForProcessing() (*sdk.ChatCompletionMes
 	return tc, idx
 }
 
-// spawnExecution runs a tool in the background (approved ones and ungated
-// ones alike), recording its result in the round's slot. Concurrency is
-// bounded by the round semaphore. isApproved reports whether the call went
-// through the approval flow; ungated calls pass false, like BlockingTools.
+// spawnExecution runs a cleared call in the background, recording its result
+// in the round's slot. Concurrency is bounded by the round semaphore.
+// isApproved reports whether the call went through the approval flow, which an
+// ungated call did not, like BlockingTools.
 func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall, isApproved bool) {
 	wait, done := round.order.Next(tc.Function.Name)
 	round.wg.Add(1)
@@ -229,36 +233,25 @@ func (s *ApprovingToolsState) spawnExecution(round *toolRound, idx int, tc sdk.C
 	}()
 }
 
-// spawnAllRemaining executes the just-approved tool and every remaining tool in
-// auto-accept mode. Each runs in the background (bounded by the semaphore);
-// results are collected in tool-call order.
-func (s *ApprovingToolsState) spawnAllRemaining(round *toolRound, idx int, tc sdk.ChatCompletionMessageToolCall) {
+// clearAllRemaining clears every call the round has not decided yet, the way
+// auto-accept mode approves them once the user approved one.
+func (s *ApprovingToolsState) clearAllRemaining(round *toolRound) {
 	logger.Debug("auto-accept mode enabled, auto-approving all remaining tools")
 
-	s.spawnExecution(round, idx, tc, true)
-
 	s.ctx.Mutex.Lock()
-	start := *s.ctx.CurrentToolIndex
+	defer s.ctx.Mutex.Unlock()
 	tools := *s.ctx.ToolsNeedingApproval
-	s.ctx.Mutex.Unlock()
-
-	for i := start; i < len(tools); i++ {
-		remaining := tools[i]
-		logger.Debug("auto-approving tool", "tool", remaining.Function.Name)
-
-		s.spawnExecution(round, i, remaining, true)
+	for slot := *s.ctx.CurrentToolIndex; slot < len(tools); slot++ {
+		round.cleared = append(round.cleared, clearedCall{slot: slot, call: tools[slot], approved: true})
 	}
-
-	s.ctx.Mutex.Lock()
 	*s.ctx.CurrentToolIndex = len(tools)
-	s.ctx.Mutex.Unlock()
 }
 
 // completeSlot records a finished tool result (an executed tool or a rejection)
 // in its slot and flushes any now-contiguous prefix of results. Flushing as
 // results complete - rather than batching at the end - lets the UI surface each
-// tool result as the user approves the next one, while still preserving
-// tool-call order for the conversation.
+// tool result as soon as it is in, while still preserving tool-call order for
+// the conversation.
 func (s *ApprovingToolsState) completeSlot(round *toolRound, idx int, entry convdomain.ConversationEntry) {
 	s.ctx.Mutex.Lock()
 	defer s.ctx.Mutex.Unlock()
@@ -293,11 +286,28 @@ func (s *ApprovingToolsState) flushLocked(round *toolRound) {
 	}
 }
 
-// finishApprovals waits for every spawned execution to complete, drains any
-// remaining results, and signals the state machine. Results are flushed
-// incrementally by completeSlot as they complete; this final drain covers
-// gaps left by cancellation.
+// forgetCleared drops the approval entries of the cleared calls a round that
+// ended early will not run, so none stays on screen as approved.
+func (s *ApprovingToolsState) forgetCleared(round *toolRound) {
+	for _, cleared := range round.cleared {
+		if cleared.approved {
+			s.ctx.ForgetPendingToolCall(cleared.call.ID)
+		}
+	}
+}
+
+// finishApprovals runs the cleared calls now that the round is decided, waits
+// for them, drains any remaining results, and signals the state machine. A
+// cancelled session runs none of them, and the conversation validator answers
+// the calls left without a result.
 func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
+	if s.ctx.AgentCtx.Ctx.Err() != nil {
+		s.forgetCleared(round)
+	} else {
+		for _, cleared := range round.cleared {
+			s.spawnExecution(round, cleared.slot, cleared.call, cleared.approved)
+		}
+	}
 	round.wg.Wait()
 	s.flushReady(round)
 

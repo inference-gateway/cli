@@ -115,6 +115,9 @@ type StateContext struct {
 	// judge request, keyed by tool call id. Calls a human decides are absent.
 	RequestJudgeApprovals func(calls []sdk.ChatCompletionMessageToolCall) map[string]ApprovalDecision
 	ExecuteToolInternal   func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) convdomain.ConversationEntry
+	// ForgetPendingToolCall drops the approval entry of a call that will not run,
+	// since only running a call clears its entry.
+	ForgetPendingToolCall func(toolCallID string)
 	GetAgentMode          func() agentdomain.AgentMode
 	PublishChatEvent      func(event agentdomain.ChatEvent)
 	PublishChatComplete   func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics)
