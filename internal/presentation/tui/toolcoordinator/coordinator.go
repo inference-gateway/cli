@@ -189,7 +189,7 @@ func (c *Coordinator) sendApprovalDecision(action agentdomain.ApprovalAction) {
 func (c *Coordinator) formatApprovalStatus(msg agentdomain.ToolApprovalResponseEvent) (string, bool) {
 	switch msg.Action {
 	case agentdomain.ApprovalApprove:
-		return fmt.Sprintf("Tool approved - executing %s...", msg.ToolCall.Function.Name), true
+		return fmt.Sprintf("Tool approved: %s", msg.ToolCall.Function.Name), true
 	case agentdomain.ApprovalReject:
 		return fmt.Sprintf("Tool rejected: %s", msg.ToolCall.Function.Name), false
 	}

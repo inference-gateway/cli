@@ -16,8 +16,8 @@ import (
 // toolRound holds the per-round state for approving and executing a batch of
 // tool calls. Judge-decided calls are decided up front in one judge request and
 // human approval prompts are handled one at a time. Nothing executes until every
-// call of the round is decided, so no tool reports while a prompt is open. The
-// cleared calls then run overlapping, and their results are flushed to the
+// call of the round is decided, so these prompts never hide what a tool reports.
+// The cleared calls then run overlapping, and their results are flushed to the
 // conversation in tool-call order, which the conversation validator requires.
 type toolRound struct {
 	cleared []clearedCall                  // calls to execute once the round is decided
@@ -159,6 +159,7 @@ func (s *ApprovingToolsState) processNextTool(round *toolRound) {
 	approved, reason, err := s.approvalFor(round, *tc)
 	if err != nil {
 		logger.Error("approval request failed", "tool", tc.Function.Name, "error", err)
+		s.forgetCleared(round)
 		s.ctx.Events <- ApprovalFailedEvent{Error: err}
 		return
 	}
@@ -285,12 +286,24 @@ func (s *ApprovingToolsState) flushLocked(round *toolRound) {
 	}
 }
 
+// forgetCleared drops the approval entries of the cleared calls a round that
+// ended early will not run, so none stays on screen as approved.
+func (s *ApprovingToolsState) forgetCleared(round *toolRound) {
+	for _, cleared := range round.cleared {
+		if cleared.approved {
+			s.ctx.ForgetPendingToolCall(cleared.call.ID)
+		}
+	}
+}
+
 // finishApprovals runs the cleared calls now that the round is decided, waits
 // for them, drains any remaining results, and signals the state machine. A
 // cancelled session runs none of them, and the conversation validator answers
 // the calls left without a result.
 func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
-	if s.ctx.AgentCtx.Ctx.Err() == nil {
+	if s.ctx.AgentCtx.Ctx.Err() != nil {
+		s.forgetCleared(round)
+	} else {
 		for _, cleared := range round.cleared {
 			s.spawnExecution(round, cleared.slot, cleared.call, cleared.approved)
 		}

@@ -2,6 +2,7 @@ package states_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -79,6 +80,7 @@ func newApprovingCtx(
 		},
 		RequestToolApproval:   approveStub,
 		ExecuteToolInternal:   execStub,
+		ForgetPendingToolCall: func(string) {},
 		ShouldRequireApproval: func(*sdk.ChatCompletionMessageToolCall, bool) bool { return true },
 		PublishChatEvent:      func(agentdomain.ChatEvent) {},
 		AddMessage:            func(convdomain.ConversationEntry) error { return nil },
@@ -174,6 +176,52 @@ func TestApprovingToolsState_RunsNothingWhileAPromptIsOpen(t *testing.T) {
 		waitForAllToolsProcessed(t, events)
 		assert.Len(t, executed, 2, "both approved calls run once the round is decided")
 	})
+}
+
+// TestApprovingToolsState_ForgetsApprovedCallsItWillNotRun pins that a call the
+// user approved does not stay on screen as approved when the round ends before
+// running it, since only running a call clears its approval entry.
+func TestApprovingToolsState_ForgetsApprovedCallsItWillNotRun(t *testing.T) {
+	tests := []struct {
+		name          string
+		cancelOnFirst bool
+		secondErr     error
+	}{
+		{name: "a later approval fails", secondErr: errors.New("approval request timed out")},
+		{name: "the session is cancelled", cancelOnFirst: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				session, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				execStub := func(tc sdk.ChatCompletionMessageToolCall, _ bool) convdomain.ConversationEntry {
+					t.Errorf("%s ran, the round was meant to end first", tc.ID)
+					return toolEntry(tc)
+				}
+				approveStub := func(tc sdk.ChatCompletionMessageToolCall) (bool, string, error) {
+					if tc.ID != "call-0" {
+						return false, "", tt.secondErr
+					}
+					if tt.cancelOnFirst {
+						cancel()
+					}
+					return true, "", nil
+				}
+
+				ctx, _, _, events := newApprovingCtx(makeTools(2), agentdomain.AgentModeStandard, execStub, approveStub)
+				ctx.AgentCtx.Ctx = session
+				var forgotten []string
+				ctx.ForgetPendingToolCall = func(id string) { forgotten = append(forgotten, id) }
+
+				require.NoError(t, states.NewApprovingToolsState(ctx).Handle(states.MessageReceivedEvent{}))
+				<-events
+
+				assert.Equal(t, []string{"call-0"}, forgotten)
+			})
+		})
+	}
 }
 
 // TestApprovingToolsState_PreservesToolCallOrder verifies that even when tools
