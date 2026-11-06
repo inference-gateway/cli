@@ -106,6 +106,7 @@ type ChatApplication struct {
 	sessionTeleporter    tui.SessionTeleporter
 	artifactsView        *components.ArtifactsView
 	artifactBrowser      tui.ArtifactBrowser
+	workerJobs           tui.WorkerJobs
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
@@ -1159,6 +1160,9 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 		app.taskManager = components.NewTaskView(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
 		if app.backgroundTaskRegistry != nil {
 			app.taskManager.SetBackgroundTaskRegistry(app.backgroundTaskRegistry)
+		}
+		if app.workerJobs != nil {
+			app.taskManager.SetWorkerJobs(app.workerJobs)
 		}
 		app.taskManager.SetTranscriptLoader(app.storedTranscript)
 		if cmd := app.taskManager.Init(); cmd != nil {

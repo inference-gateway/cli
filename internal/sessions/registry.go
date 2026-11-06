@@ -67,6 +67,8 @@ var replyTypes = map[string][]string{
 	"import_conversation":  {"conversation_imported"},
 	"list_artifacts":       {"artifacts"},
 	"read_artifact":        {"artifact"},
+	"list_tasks":           {"tasks"},
+	"cancel_task":          {"task_cancelled"},
 	frameReadFrame:         {"frame"},
 	frameScreenInput:       {frameScreenResult},
 	frameScreenControl:     {frameScreenResult},

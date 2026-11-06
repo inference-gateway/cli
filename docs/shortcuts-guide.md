@@ -94,7 +94,7 @@ These shortcuts are available out of the box:
 
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
 
-In a daemon chat (`infer chat --daemon`) `/compact`, `/effort` and `/tasks` are off, and `/diff` and `/explorer`
+In a daemon chat (`infer chat --daemon`) `/compact` and `/effort` are off, and `/diff` and `/explorer`
 are off while the session runs on another workspace. Each says why in the status line, see
 [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon). Snippet shortcuts such as `/git commit` ask the
 session's model wherever the session runs.

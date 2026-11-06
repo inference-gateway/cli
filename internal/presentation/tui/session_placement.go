@@ -67,8 +67,6 @@ const (
 	FeatureHistoryRewind
 	// FeatureBackgroundShell detaches the shell the TUI runs a command in.
 	FeatureBackgroundShell
-	// FeatureTasks manages the A2A tasks the TUI's own agent started.
-	FeatureTasks
 )
 
 // Unavailable says why feature does not apply to the session at p, or "" when
@@ -89,8 +87,6 @@ func (p SessionPlacement) Unavailable(feature Feature) string {
 		return "the conversation lives on the daemon's worker"
 	case FeatureBackgroundShell:
 		return "the session's commands run in the daemon's worker"
-	case FeatureTasks:
-		return "a daemon chat starts no A2A tasks of its own"
 	}
 	return ""
 }

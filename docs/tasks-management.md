@@ -28,7 +28,7 @@ system with better visibility into task status and history.
 ### Task Management Interface (`/tasks`)
 
 - **Access**: Type `/tasks` in the chat. It works with or without A2A, since it also lists shells,
-  subagents and recordings
+  subagents and recordings. In a daemon chat it lists and cancels the jobs the session's worker runs
 - **Purpose**: The list under the composer is the live view of what is running. `/tasks` is where
   finished jobs stay for review
 - **Default View**: Opens in "All" view showing both active and completed tasks

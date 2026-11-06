@@ -106,7 +106,6 @@ var placedShortcuts = map[string]tui.Feature{
 	"diff":     tui.FeatureLocalFiles,
 	"explorer": tui.FeatureLocalFiles,
 	"compact":  tui.FeatureCompaction,
-	"tasks":    tui.FeatureTasks,
 }
 
 // tryExecuteFromRegistry attempts to execute shortcut from the shortcut registry

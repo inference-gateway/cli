@@ -169,6 +169,16 @@ scenarios:
               - { name: Bash, args: { command: "echo hello-from-background-shell", detached: true } }
       - content: "The background shell task ran."
 
+  - name: long-background-shell
+    match: '(?i)run a long background shell'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: "sleep 300"
+              detached: true
+      - content: "The long shell is running."
+
   - name: launch-subagent
     match: '(?i)launch a subagent'
     turns:

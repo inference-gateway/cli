@@ -20,6 +20,11 @@ const artifactsListTimeout = 2 * time.Minute
 // artifactFetchTimeout bounds reading one artifact from its workspace.
 const artifactFetchTimeout = 5 * time.Minute
 
+// SetWorkerJobs gives a daemon chat the jobs its worker runs, for /tasks.
+func (app *ChatApplication) SetWorkerJobs(jobs tui.WorkerJobs) {
+	app.workerJobs = jobs
+}
+
 const noArtifactBrowserHint = "This chat has no session artifacts to browse"
 
 // SetArtifactBrowser gives the chat the browser behind /artifacts and the
