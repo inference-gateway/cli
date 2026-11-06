@@ -325,10 +325,11 @@ func TestChatTUIRejectingACallStillRunsTheApprovedOne(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(dir, "m2.txt"))
 }
 
-// startLocalChat launches a local chat on the e2e scenarios in a temp dir, waits
-// for its input and returns the dir.
-func startLocalChat(t *testing.T, session string) string {
+// startLocalChat launches a local chat on the e2e scenarios in a temp dir, with
+// env on top, waits for its input and returns the dir. The test runs in parallel.
+func startLocalChat(t *testing.T, session string, env ...string) string {
 	t.Helper()
+	t.Parallel()
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("tmux not installed; skipping TUI drive test")
 	}
@@ -336,7 +337,7 @@ func startLocalChat(t *testing.T, session string) string {
 	launch := "env HOME=" + home +
 		" INFER_GATEWAY_MOCK=true INFER_STORAGE_ENABLED=false" +
 		" INFER_GATEWAY_MOCK_SCENARIOS=" + filepath.Join(repoRoot(), "tests", "e2e", "scenarios.yaml") +
-		chatLoopbackEnv() + " " + binPath + " chat"
+		chatLoopbackEnv() + " " + strings.Join(env, " ") + " " + binPath + " chat"
 	dir := t.TempDir()
 	require.NoError(t, exec.Command("tmux", "new-session", "-d", "-s", session,
 		"-x", "200", "-y", "50", "-c", dir, launch).Run(), "failed to start tmux session")
@@ -348,14 +349,14 @@ func startLocalChat(t *testing.T, session string) string {
 	return dir
 }
 
-// envChatLoopback opts a local chat into rendering its runs through AG-UI.
-// TestMain reads it before it drops the caller's INFER_* variables, so one run
-// of the suite proves either path.
+// envChatLoopback says whether a local chat renders its runs through AG-UI, which
+// it does by default. TestMain reads it before it drops the caller's INFER_*
+// variables, so one run of the suite proves either path.
 const envChatLoopback = "INFER_CHAT_AGUI_LOOPBACK"
 
 var chatLoopback string
 
-// chatLoopbackEnv is the opt-in as the chat under test is launched with it.
+// chatLoopbackEnv is the choice as the chat under test is launched with it.
 func chatLoopbackEnv() string {
 	if chatLoopback == "" {
 		return ""

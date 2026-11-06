@@ -328,6 +328,86 @@ scenarios:
               content: "gated\n"
       - content: "GATED-BATCH-DONE"
 
+  - name: question-form
+    match: '(?i)question form probe'
+    turns:
+      - tool_calls:
+          - name: AskUserQuestion
+            args:
+              questions:
+                - header: Color
+                  question: Which color fits best?
+                  options:
+                    - label: Red
+                      description: warm
+                    - label: Blue
+                      description: cool
+      - content: "QUESTION-FORM-DONE"
+
+  - name: reply-to-cancel
+    match: '(?i)cancel me probe'
+    turns:
+      - content: "this reply takes a long while to arrive in full"
+        chunk_size: 4
+        delay_ms: 1000
+
+  - name: after-the-cancel
+    match: '(?i)after the cancel probe'
+    turns:
+      - content: "AFTER-CANCEL-OK"
+      - content: "AFTER-CANCEL-OK"
+
+  - name: queue-first
+    match: '(?i)queue first probe'
+    turns:
+      - content: "QUEUE-FIRST-REPLY"
+        delay_ms: 800
+
+  - name: queue-second
+    match: '(?i)queue second probe'
+    turns:
+      - content: "QUEUE-SECOND-REPLY"
+      - content: "QUEUE-SECOND-REPLY"
+
+  - name: todo-list
+    match: '(?i)todo list probe'
+    turns:
+      - reasoning: "weighing the options"
+        tool_calls:
+          - name: TodoWrite
+            args:
+              todos:
+                - id: "1"
+                  content: first probe item
+                  status: completed
+                - id: "2"
+                  content: second probe item
+                  status: in_progress
+      - content: "TODO-LIST-DONE"
+
+  - name: auto-approve
+    match: '(?i)auto approve probe'
+    turns:
+      - tool_calls:
+          - name: Write
+            args:
+              file_path: auto-a.txt
+              content: "a\n"
+          - name: Write
+            args:
+              file_path: auto-b.txt
+              content: "b\n"
+      - content: "AUTO-APPROVE-DONE"
+
+  - name: sandbox-access
+    match: '(?i)sandbox access probe'
+    turns:
+      - tool_calls:
+          - name: Read
+            args:
+              file_path: /etc/hosts
+      - content: "SANDBOX-ACCESS-DONE"
+
   - name: write-then-read
     match: '(?i)write then read the marker'
     turns:
