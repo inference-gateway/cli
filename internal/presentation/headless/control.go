@@ -328,7 +328,7 @@ func (c *headlessControl) answerResume(entry agui.ResumeEntry) {
 			Answers: questionAnswers(entry.Payload), Cancelled: entry.Status != agui.ResumeStatusResolved,
 		}
 		return
-	case interruptPlanApproval:
+	case agui.InterruptPlanApproval:
 		c.plans <- ipc.PlanApprovalResponse{
 			Type: "plan_approval_response", PlanID: entry.InterruptID, Action: planDecision(entry),
 		}
