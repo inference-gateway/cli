@@ -13,6 +13,21 @@ type Shortcut interface {
 	CanExecute(args []string) bool
 }
 
+// Kinds of a registry entry, the badge a "/" menu shows next to it.
+const (
+	KindCommand  = "command"
+	KindShortcut = "shortcut"
+)
+
+// Kind labels a registry entry: a YAML-defined custom shortcut is a "shortcut",
+// every other registered entry is a built-in "command".
+func Kind(shortcut Shortcut) string {
+	if _, custom := shortcut.(*CustomShortcut); custom {
+		return KindShortcut
+	}
+	return KindCommand
+}
+
 // ShortcutResult represents the result of a shortcut execution
 type ShortcutResult struct {
 	Output     string

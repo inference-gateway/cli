@@ -298,6 +298,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 	return headless.NewPanel(headless.PanelDeps{
 		Conversations: c.conversationRepo,
 		Skills:        c.skillsService,
+		Shortcuts:     c.shortcutRegistry,
 		Issues:        c.GetGitHubIssueService(),
 		Files:         c.fileService,
 		Tools:         c.toolService,
