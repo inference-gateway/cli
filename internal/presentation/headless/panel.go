@@ -192,8 +192,6 @@ type PanelDeps struct {
 	DefaultModel  string
 	ArtifactsDir  func(sessionID string) string
 	Frames        func(name string) (agentdomain.FrameSource, bool)
-	// Screen is the worker's screen control, the take-over invariant the
-	// Screen view's control and input frames ride on. Queue is the queue a
 	Screen computerdomain.ScreenControl
 	Queue  convdomain.MessageQueue
 	Jobs     scheddomain.BackgroundTaskRegistry
