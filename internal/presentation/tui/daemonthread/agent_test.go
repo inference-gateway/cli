@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,7 +22,9 @@ import (
 	llm "github.com/inference-gateway/cli/internal/platform/llm"
 	models "github.com/inference-gateway/cli/internal/platform/models"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
+	runview "github.com/inference-gateway/cli/internal/presentation/tui/runview"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
 
@@ -42,7 +45,12 @@ func userEntry(text string) convdomain.ConversationEntry {
 // agentOver is an agent on thread whose mirror is a repository over the
 // thread's own storage, the way the daemon chat container wires it.
 func agentOver(thread *Thread) (*Agent, *conversation.PersistentConversationRepository) {
-	repo := conversation.NewPersistentConversationRepository(nil, nil, NewStorage(thread))
+	return pricedAgentOver(thread, nil)
+}
+
+// pricedAgentOver is agentOver with a mirror that prices the usage it adds.
+func pricedAgentOver(thread *Thread, pricing convdomain.PricingService) (*Agent, *conversation.PersistentConversationRepository) {
+	repo := conversation.NewPersistentConversationRepository(nil, pricing, NewStorage(thread))
 	repo.SetConversationID("conv-1")
 	models := &convmocks.FakeModelService{}
 	models.GetCurrentModelReturns("m1")
@@ -168,6 +176,163 @@ func TestAgentAnswersAnApprovalWithAResume(t *testing.T) {
 	}
 	if !slices.ContainsFunc(got, func(e agentdomain.ChatEvent) bool { _, ok := e.(agentdomain.ToolExecutionCompletedEvent); return ok }) {
 		t.Errorf("events %v lack the continuation's tool result", got)
+	}
+}
+
+func TestAgentMirrorsTheWorkersUsageAsEachStepEnds(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	pricing := &convmocks.FakePricingService{}
+	pricing.CalculateCostReturns(0.001, 0.001, 0.002)
+	agent, repo := pricedAgentOver(thread, pricing)
+	_ = repo.AddMessage(userEntry("work"))
+
+	events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rendered strings.Builder
+	worker := &convmocks.FakeConversationRepository{}
+	encoder := headless.NewRunEncoder(&rendered, headless.RunEncoderDeps{Model: "m1", Repo: worker})
+	flush := func() {
+		for _, frame := range strings.Split(strings.TrimSpace(rendered.String()), "\n") {
+			send(d.conn(), frame)
+		}
+		rendered.Reset()
+	}
+	encoder.Start("conv-1", "run-1")
+	call := sdk.ChatCompletionMessageToolCall{ID: "tc1", Type: "function", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "TodoWrite", Arguments: `{}`}}
+
+	for _, step := range []struct {
+		totals    convdomain.SessionTokenStats
+		complete  agentdomain.ChatCompleteEvent
+		lastInput int
+		cost      float64
+	}{
+		{
+			totals:    convdomain.SessionTokenStats{RequestCount: 1, TotalInputTokens: 1000, TotalOutputTokens: 50, TotalCachedTokens: 400},
+			complete:  agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{call}},
+			lastInput: 1000,
+			cost:      0.002,
+		},
+		{
+			totals:    convdomain.SessionTokenStats{RequestCount: 2, TotalInputTokens: 2500, TotalOutputTokens: 110, TotalCachedTokens: 1300},
+			lastInput: 1500,
+			cost:      0.004,
+		},
+	} {
+		worker.GetSessionTokensReturns(step.totals)
+		encoder.Handle(step.complete)
+		flush()
+		eventually(t, "the step's usage on the mirror", func() bool {
+			return repo.GetSessionTokens().TotalInputTokens == step.totals.TotalInputTokens
+		})
+		got := repo.GetSessionTokens()
+		if got.TotalOutputTokens != step.totals.TotalOutputTokens || got.TotalCachedTokens != step.totals.TotalCachedTokens || got.LastInputTokens != step.lastInput {
+			t.Errorf("mirror stats = %+v, want the worker's %+v and last input %d", got, step.totals, step.lastInput)
+		}
+		if cost := repo.GetSessionCostStats().TotalCost; cost != step.cost {
+			t.Errorf("mirror cost = %v, want %v", cost, step.cost)
+		}
+	}
+
+	if err := encoder.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	flush()
+	collect(t, events, nil)
+
+	if pricing.CalculateCostCallCount() != 2 {
+		t.Fatalf("CalculateCost calls = %d, want one per step", pricing.CalculateCostCallCount())
+	}
+	for i, want := range [][3]int{{1000, 50, 400}, {1500, 60, 900}} {
+		model, input, output, cached, _ := pricing.CalculateCostArgsForCall(i)
+		if model != "m1" || [3]int{input, output, cached} != want {
+			t.Errorf("step %d priced %s %v, want m1 %v", i, model, [3]int{input, output, cached}, want)
+		}
+	}
+	if got := repo.GetSessionTokens(); got != (convdomain.SessionTokenStats{}) {
+		t.Errorf("stats after the reconcile = %+v, want what the worker stored, none here", got)
+	}
+}
+
+func TestAgentMirrorsUsageOnlyWhenTheInputGrew(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	seeded := convdomain.SessionTokenStats{TotalInputTokens: 1000, TotalOutputTokens: 50, TotalTokens: 1050, RequestCount: 1, LastInputTokens: 1000, TotalCachedTokens: 400}
+
+	tests := []struct {
+		name  string
+		usage runview.SessionUsageEvent
+		want  convdomain.SessionTokenStats
+	}{
+		{
+			name:  "a repeated patch adds nothing",
+			usage: runview.SessionUsageEvent{Model: "m1", InputTokens: 1000, OutputTokens: 50, CachedTokens: 400},
+			want:  seeded,
+		},
+		{
+			name:  "totals that fell when the worker rolled over add nothing",
+			usage: runview.SessionUsageEvent{Model: "m1", InputTokens: 200, OutputTokens: 5},
+			want:  seeded,
+		},
+		{
+			name:  "input past the mirror's adds what grew and no negative figures",
+			usage: runview.SessionUsageEvent{Model: "m1", InputTokens: 1500, OutputTokens: 10, CachedTokens: 100},
+			want:  convdomain.SessionTokenStats{TotalInputTokens: 1500, TotalOutputTokens: 50, TotalTokens: 1550, RequestCount: 2, LastInputTokens: 500, TotalCachedTokens: 400},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent, repo := agentOver(thread)
+			repo.AddCachedTokens(seeded.TotalCachedTokens)
+			if err := repo.AddTokenUsage("m1", seeded.TotalInputTokens, seeded.TotalOutputTokens, seeded.TotalTokens, seeded.TotalCachedTokens, 0); err != nil {
+				t.Fatal(err)
+			}
+
+			agent.mirror(tt.usage)
+
+			if got := repo.GetSessionTokens(); got != tt.want {
+				t.Errorf("stats = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAgentRunsTheStopwatchOnlyWhileTheRunWorks(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	d.setRuns(func(conn *agui.Conn, input map[string]any) {
+		if _, resumed := input["resume"]; resumed {
+			send(conn, `{"type":"RUN_STARTED","threadId":"conv-1","runId":"r2"}`)
+			send(conn, `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"r2","outcome":{"type":"success"}}`)
+			return
+		}
+		send(conn, `{"type":"RUN_STARTED","threadId":"conv-1","runId":"r1"}`)
+		send(conn, `{"type":"RUN_FINISHED","threadId":"conv-1","runId":"r1","outcome":{"type":"interrupt","interrupts":[{"id":"tc1","reason":"tool_call","toolCallId":"tc1"}]}}`)
+	})
+	var stopwatch []string
+	repo := &convmocks.FakeConversationRepository{}
+	repo.GetCurrentConversationIDReturns("conv-1")
+	repo.GetMessagesReturns([]convdomain.ConversationEntry{userEntry("work")})
+	repo.LoadConversationReturns(errors.New("the daemon went away"))
+	repo.StartWorkingStub = func() { stopwatch = append(stopwatch, "start") }
+	repo.StopWorkingStub = func() { stopwatch = append(stopwatch, "stop") }
+	models := &convmocks.FakeModelService{}
+	agent := NewAgent(thread, repo, &convmocks.FakeMessageQueue{}, &agentdomainmocks.FakeAgentModeState{}, models)
+
+	events, err := agent.RunWithStream(t.Context(), &agentdomain.AgentRequest{RequestID: "req-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	collect(t, events, func(event agentdomain.ChatEvent) {
+		if approval, ok := event.(agentdomain.ToolApprovalRequestedEvent); ok {
+			approval.ResponseChan <- agentdomain.ApprovalApprove
+		}
+	})
+
+	if want := []string{"start", "stop", "start", "stop"}; !slices.Equal(stopwatch, want) {
+		t.Errorf("stopwatch = %v, want %v even though the reconcile failed", stopwatch, want)
 	}
 }
 

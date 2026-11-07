@@ -33,6 +33,18 @@ type Prompt struct {
 	Event       agentdomain.ChatEvent
 }
 
+// SessionUsageEvent is a usage patch read back: the token totals of the run's
+// session after the model step the patch closes. A chat whose agent runs
+// elsewhere mirrors them into its repository, where the status bar reads them,
+// so no handler renders it.
+type SessionUsageEvent struct {
+	agentdomain.BaseChatEvent
+	Model        string
+	InputTokens  int
+	OutputTokens int
+	CachedTokens int
+}
+
 // Reducer folds the AG-UI events of a thread's runs into the chat events the
 // TUI handlers render: deltas become chunks, a model step its completion and
 // an interrupt the prompt the user answers. It follows one client request
@@ -219,6 +231,7 @@ func (r *Reducer) stateDelta(delta *agui.StateDeltaEvent) []agentdomain.ChatEven
 		switch patch.Path {
 		case "/" + agui.StateUsage:
 			events = append(events, r.closeStep()...)
+			events = append(events, r.sessionUsage(patch.Value)...)
 		case "/" + agui.StateBackgroundTasks:
 			events = append(events, r.withResults()...)
 		case "/" + agui.StateTodos:
@@ -229,6 +242,28 @@ func (r *Reducer) stateDelta(delta *agui.StateDeltaEvent) []agentdomain.ChatEven
 		}
 	}
 	return events
+}
+
+// sessionUsage reads a usage patch, whose one entry holds the session's totals.
+func (r *Reducer) sessionUsage(value any) []agentdomain.ChatEvent {
+	var usage []agui.TokenUsage
+	if !recode(value, &usage) || len(usage) == 0 {
+		return nil
+	}
+	return []agentdomain.ChatEvent{SessionUsageEvent{
+		BaseChatEvent: r.base(),
+		Model:         usage[0].Model,
+		InputTokens:   tokenCount(usage[0].InputTokens),
+		OutputTokens:  tokenCount(usage[0].OutputTokens),
+		CachedTokens:  tokenCount(usage[0].CachedInputTokens),
+	}}
+}
+
+func tokenCount(count *int64) int {
+	if count == nil {
+		return 0
+	}
+	return int(*count)
 }
 
 func (r *Reducer) todos(todos []agentdomain.TodoItem) agentdomain.ChatEvent {

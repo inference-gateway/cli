@@ -301,6 +301,27 @@ scenarios:
       - content: "SLOW-REPLY-DONE"
         delay_ms: 15000
 
+  - name: usage-per-step
+    match: '(?i)usage per step probe'
+    turns:
+      - tool_calls:
+          - name: TodoWrite
+            args:
+              todos:
+                - id: "1"
+                  content: "report the usage"
+                  status: "completed"
+        usage:
+          prompt_tokens: 1000
+          completion_tokens: 50
+          cached_tokens: 400
+      - content: "USAGE-PROBE-DONE"
+        delay_ms: 3000
+        usage:
+          prompt_tokens: 1500
+          completion_tokens: 60
+          cached_tokens: 900
+
   - name: background-job-while-idle
     match: '(?i)background idle probe'
     turns:

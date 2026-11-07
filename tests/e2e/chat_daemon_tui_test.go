@@ -81,6 +81,23 @@ func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
 	expectPane(t, "infer-e2e-daemon-reattach", "⌂ a", d)
 }
 
+// TestChatDaemonReportsUsageAsEachStepEnds reads the provider's usage off the
+// status bar while the run is still on its next step, as a local chat shows it.
+func TestChatDaemonReportsUsageAsEachStepEnds(t *testing.T) {
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	project := gitProject(t)
+
+	const session = "infer-e2e-daemon-usage"
+	startDaemonChat(t, session, d, project)
+	expectPane(t, session, "⌂ a", d)
+	chatSay(t, session, "usage per step probe")
+	expectPane(t, session, "T.1k • C.400 • $0.0021", d)
+	require.NotContains(t, capturePane(session), "USAGE-PROBE-DONE", "the reply must still be on its way when the usage shows")
+	expectPane(t, session, "$0.0021 • 3s", d)
+	expectPane(t, session, "USAGE-PROBE-DONE", d)
+	expectPane(t, session, "T.2.5k • C.1.3k", d)
+}
+
 // TestChatDaemonFollowsABackgroundJob follows a job a daemon chat's worker runs:
 // its note lands in the chat and the model answers it unprompted.
 func TestChatDaemonFollowsABackgroundJob(t *testing.T) {
