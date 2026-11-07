@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"cmp"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -31,6 +30,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // The operator API this workspace drives, and the labels it writes.
@@ -273,7 +273,7 @@ func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, erro
 	if !k8serrors.IsNotFound(err) {
 		return "", fmt.Errorf("reading Secret %s: %w", name+tlsSecretSuffix, err)
 	}
-	token, err := randomToken()
+	token, err := utils.RandomToken()
 	if err != nil {
 		return "", err
 	}
@@ -332,14 +332,6 @@ func addOwner(owners []metav1.OwnerReference, orchestrator *k8sunstructured.Unst
 		return owners
 	}
 	return append(slices.Clone(owners), ownerOf(orchestrator))
-}
-
-func randomToken() (string, error) {
-	raw := make([]byte, 24)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(raw), nil
 }
 
 // create submits the Orchestrator for a session. Strict field validation makes

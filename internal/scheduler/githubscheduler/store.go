@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -172,7 +173,7 @@ func (s *Store) syncRepo(ctx context.Context, job *scheddomain.ScheduledJob, mut
 
 	branch := ""
 	if s.cfg.PullRequests {
-		branch = fmt.Sprintf("infer/schedule-%s-%d", shortID(job.ID), time.Now().Unix())
+		branch = fmt.Sprintf("infer/schedule-%s-%d", utils.ShortID(job.ID), time.Now().Unix())
 		if err := git(ghCommandTimeout, "checkout", "-b", branch); err != nil {
 			return "", err
 		}

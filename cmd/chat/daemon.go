@@ -82,7 +82,7 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 				return fmt.Errorf("session %s belongs to %s: %w", sessionID, dir, err)
 			}
 			thread.MoveTo(dir)
-			dim("• Session " + shortID(sessionID) + " belongs to " + dir + ", attaching there…")
+			dim("• Session " + utils.ShortID(sessionID) + " belongs to " + dir + ", attaching there…")
 		}
 	}
 
@@ -157,7 +157,7 @@ func attachError(err error) error {
 
 // placementLine says where the session runs as the TUI attaches to it.
 func placementLine(placement tui.SessionPlacement, sessionID string, fresh bool) string {
-	short := shortID(sessionID)
+	short := utils.ShortID(sessionID)
 	switch {
 	case placement.Remote():
 		return fmt.Sprintf("• Session %s runs on %s, attaching through %s…", short, placement.Workspace, placement.Local)
@@ -165,14 +165,6 @@ func placementLine(placement tui.SessionPlacement, sessionID string, fresh bool)
 		return fmt.Sprintf("• Starting session %s on %s…", short, placement.Where())
 	}
 	return fmt.Sprintf("• Session %s runs on %s…", short, placement.Where())
-}
-
-// shortID is the first eight characters of a session id, enough to tell it apart.
-func shortID(sessionID string) string {
-	if len(sessionID) > 8 {
-		return sessionID[:8]
-	}
-	return sessionID
 }
 
 // daemonExitMessage tells the user the session outlives the TUI and how to

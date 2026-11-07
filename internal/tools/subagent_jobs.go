@@ -532,18 +532,11 @@ func (j *headlessSubagentJob) tallyFrame(frame []byte) {
 		j.live.ToolsSucceeded++
 	case "RUN_FINISHED", "RUN_ERROR":
 		for _, u := range f.Usage {
-			j.live.InputTokens = tokenCount(u.InputTokens)
-			j.live.OutputTokens = tokenCount(u.OutputTokens)
-			j.live.CachedTokens = tokenCount(u.CachedInputTokens)
+			j.live.InputTokens = agentdomain.TokenCount(u.InputTokens)
+			j.live.OutputTokens = agentdomain.TokenCount(u.OutputTokens)
+			j.live.CachedTokens = agentdomain.TokenCount(u.CachedInputTokens)
 		}
 	}
-}
-
-func tokenCount(n *int64) int {
-	if n == nil {
-		return 0
-	}
-	return int(*n)
 }
 
 // cachedTokens is the prompt-cache hit count of one step, zero when the

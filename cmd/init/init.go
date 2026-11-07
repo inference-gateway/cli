@@ -13,6 +13,7 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	configutils "github.com/inference-gateway/cli/config/utils"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
@@ -284,17 +285,11 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	return nil
 }
 
-// fileExists reports whether a path exists on disk.
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
 // createFileIfAbsent runs fn(path) when the file does not yet exist, or when
 // overwrite is set - so `init --overwrite` regenerates the seeded files.
 // Returns whether it wrote the file.
 func createFileIfAbsent(path string, overwrite bool, fn func(string) error) (bool, error) {
-	if fileExists(path) && !overwrite {
+	if utils.FileExists(path) && !overwrite {
 		return false, nil
 	}
 	return true, fn(path)
