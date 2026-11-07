@@ -236,6 +236,7 @@ func userContent(entry convdomain.ConversationEntry) any {
 // prompts the run suspends on, until the run ends. A follow-only request with
 // nothing running completes at once, which ends the TUI's turn. A superseded
 // pump just stops, since the TUI no longer reads its events.
+// ponytail: a CUSTOM frame during a prompt restarts the stopwatch until reconcile.
 func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<- agentdomain.ChatEvent) {
 	if !sent && !a.thread.Running() && !a.thread.Pending() {
 		a.reconcile()
@@ -277,7 +278,10 @@ func (a *Agent) pump(ctx context.Context, requestID string, sent bool, out chan<
 			out <- event
 		}
 		switch end {
+		case runview.Open, runview.Resumed:
+			a.repo.StartWorking()
 		case runview.Suspended:
+			a.repo.StopWorking()
 			go a.answer(reducer.Prompts())
 		case runview.Finished:
 			if bash != nil {
@@ -322,6 +326,8 @@ func frameName(frame []byte) string {
 func (a *Agent) mirror(event agentdomain.ChatEvent) {
 	var entries []convdomain.ConversationEntry
 	switch e := event.(type) {
+	case runview.SessionUsageEvent:
+		a.mirrorUsage(e)
 	case agentdomain.ChatCompleteEvent:
 		if e.Cancelled || e.Message == "" && e.ReasoningContent == "" && len(e.ToolCalls) == 0 {
 			return
@@ -369,6 +375,25 @@ func (a *Agent) mirror(event agentdomain.ChatEvent) {
 	a.thread.SetSynced(a.repo.GetCurrentConversationID(), a.repo.GetMessageCount())
 }
 
+// mirrorUsage raises the mirror's session totals to the worker's, a step at a
+// time as the in-process agent adds them. A step always sends a prompt, so
+// input that did not grow is a repeated patch or a worker that rolled over.
+// ponytail: a patch has no cache writes or per-call split, so the live figures
+// are close until the reconcile replaces them. Add both if the gap ever matters.
+func (a *Agent) mirrorUsage(usage runview.SessionUsageEvent) {
+	mirrored := a.repo.GetSessionTokens()
+	input := usage.InputTokens - mirrored.TotalInputTokens
+	if input <= 0 {
+		return
+	}
+	output := max(usage.OutputTokens-mirrored.TotalOutputTokens, 0)
+	cached := max(usage.CachedTokens-mirrored.TotalCachedTokens, 0)
+	a.repo.AddCachedTokens(cached)
+	if err := a.repo.AddTokenUsage(usage.Model, input, output, input+output, cached, 0); err != nil {
+		logger.Warn("daemon chat could not mirror the session's usage", "error", err)
+	}
+}
+
 // planPending reports whether the mirror already shows a plan waiting for a
 // decision, as one loaded from the worker on reattach does.
 func (a *Agent) planPending() bool {
@@ -377,10 +402,11 @@ func (a *Agent) planPending() bool {
 	})
 }
 
-// reconcile replaces the mirror with the conversation as the worker stored
-// it and has the TUI render it. A rollover or an accepted plan moved the
-// thread on to the conversation its last run named.
+// reconcile stops the mirror's stopwatch, replaces the mirror with the
+// conversation as the worker stored it and has the TUI render it. A rollover or
+// an accepted plan moved the thread on to the conversation its last run named.
 func (a *Agent) reconcile() {
+	a.repo.StopWorking()
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	id := a.thread.Live()

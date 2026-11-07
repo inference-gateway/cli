@@ -105,6 +105,8 @@ func summarize(event agentdomain.ChatEvent) string {
 		return "tool-cancelled:" + e.ToolCallID + ":" + e.ToolName
 	case agentdomain.OptimizationStatusEvent:
 		return fmt.Sprintf("optimized:%s:%d>%d", e.Message, e.OriginalCount, e.OptimizedCount)
+	case SessionUsageEvent:
+		return fmt.Sprintf("usage:%s:%d/%d/%d", e.Model, e.InputTokens, e.OutputTokens, e.CachedTokens)
 	}
 	return fmt.Sprintf("%T", event)
 }
@@ -122,6 +124,8 @@ func TestReducerRoundTripsTheEncoder(t *testing.T) {
 	rejected <- ipc.PlanApprovalResponse{PlanID: "plan-1", Action: ipc.PlanReject}
 	withUsage := &convmocks.FakeConversationRepository{}
 	withUsage.GetSessionTokensReturns(convdomain.SessionTokenStats{RequestCount: 1, TotalInputTokens: 10})
+	withCachedUsage := &convmocks.FakeConversationRepository{}
+	withCachedUsage.GetSessionTokensReturns(convdomain.SessionTokenStats{RequestCount: 1, TotalInputTokens: 1000, TotalOutputTokens: 50, TotalCachedTokens: 400})
 
 	tests := []struct {
 		name   string
@@ -140,7 +144,14 @@ func TestReducerRoundTripsTheEncoder(t *testing.T) {
 			name:   "reasoning then text, the step closed by the usage patch",
 			deps:   headless.RunEncoderDeps{Repo: withUsage},
 			events: []agentdomain.ChatEvent{agentdomain.ChatChunkEvent{ReasoningContent: "think"}, agentdomain.ChatChunkEvent{Content: "answer"}, agentdomain.ChatCompleteEvent{}},
-			want:   []string{"start", "reasoning:think", "text:answer", "complete:answer|think|"},
+			want:   []string{"start", "reasoning:think", "text:answer", "usage:m:10/0/0", "complete:answer|think|"},
+			ends:   []End{Finished},
+		},
+		{
+			name:   "a step with tool calls reports the session's totals after its completion",
+			deps:   headless.RunEncoderDeps{Repo: withCachedUsage},
+			events: []agentdomain.ChatEvent{agentdomain.ChatCompleteEvent{ToolCalls: []sdk.ChatCompletionMessageToolCall{bashCall("tc1", `{"command":"ls"}`)}}},
+			want:   []string{"start", `complete:||tc1=Bash{"command":"ls"}`, "usage:m:1000/50/400", "complete:||"},
 			ends:   []End{Finished},
 		},
 		{
@@ -334,7 +345,7 @@ func TestReducerEndsTheTurnOnlyWithTheRun(t *testing.T) {
 		}
 	}
 
-	want := []string{"start", "text:first", "complete:first||", "queued:user:more", "text:second", "complete:second||"}
+	want := []string{"start", "text:first", "usage:m:10/0/0", "complete:first||", "queued:user:more", "text:second", "usage:m:10/0/0", "complete:second||"}
 	if !slices.Equal(events, want) {
 		t.Errorf("events = %q, want %q", events, want)
 	}
