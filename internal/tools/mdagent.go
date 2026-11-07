@@ -17,8 +17,8 @@ import (
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
-// agentsSubdir is the directory (under .infer/ and ~/.infer/) holding Markdown
-// subagent definitions, one <name>.md per agent.
+// agentsSubdir is the directory (under .infer/ and .agents/, in the project and
+// in the home dir) holding Markdown agent definitions, one <name>.md per agent.
 const agentsSubdir = "agents"
 
 // markdownAgentNameMax mirrors the 64-char cap used by Claude Code and skills.
@@ -57,15 +57,24 @@ type markdownAgentFrontmatter struct {
 	DisallowedTools any    `yaml:"disallowedTools"`
 }
 
-// markdownAgentDirs returns the search paths in precedence order: the project's
-// .infer/agents first, then the user-global ~/.infer/agents, so a project can
-// override a personal agent of the same name. An empty projectDir is the cwd.
+// markdownAgentDirs returns the search paths in precedence order, laid out like
+// skills and custom tools: the project's .infer/agents and .agents/agents, then
+// the user's ~/.infer/agents and ~/.agents/agents, so a project overrides a
+// personal agent of the same name. An empty projectDir is the cwd.
 func markdownAgentDirs(projectDir string) []string {
-	dirs := []string{filepath.Join(projectDir, config.ConfigDirName, agentsSubdir)}
+	dirs := agentDirsUnder(projectDir)
 	if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, config.ConfigDirName, agentsSubdir))
+		dirs = append(dirs, agentDirsUnder(home)...)
 	}
 	return dirs
+}
+
+// agentDirsUnder is root's .infer/agents, then its .agents/agents.
+func agentDirsUnder(root string) []string {
+	return []string{
+		filepath.Join(root, config.ConfigDirName, agentsSubdir),
+		filepath.Join(root, config.AgentsDirName, agentsSubdir),
+	}
 }
 
 // loadMarkdownAgents scans the given directories (nil selects the defaults)
@@ -284,8 +293,10 @@ func subagentSourceLabel(dir string) string {
 		if abs, err := filepath.Abs(dir); err == nil {
 			dir = abs
 		}
-		if same, _ := filepath.Rel(filepath.Join(home, config.ConfigDirName), dir); same == "." || !strings.HasPrefix(same, "..") {
-			return "user"
+		for _, userDir := range agentDirsUnder(home) {
+			if same, _ := filepath.Rel(filepath.Dir(userDir), dir); same == "." || !strings.HasPrefix(same, "..") {
+				return "user"
+			}
 		}
 	}
 	return "project"

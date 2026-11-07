@@ -110,7 +110,8 @@ infer agents list --project
 ```
 
 The listing is grouped into two tables: the A2A agents first (agents.yaml entries plus `INFER_A2A_AGENTS`), then the
-Markdown-defined subagent presets from `.infer/agents/*.md` and `~/.infer/agents/*.md`, shown with their description,
+Markdown-defined subagent presets from `.infer/agents/*.md`, `.agents/agents/*.md`, `~/.infer/agents/*.md` and
+`~/.agents/agents/*.md`, shown with their description,
 tools, model, mode (read-only/read-write) and source. In both tables the agent name is left-aligned and the metadata
 columns are right-aligned.
 

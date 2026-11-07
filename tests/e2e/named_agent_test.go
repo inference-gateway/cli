@@ -20,10 +20,11 @@ const (
 	agentBody  = "You are the e2e reviewer agent."
 )
 
-// writeUserAgent puts a Markdown agent into home's ~/.infer/agents.
-func writeUserAgent(t *testing.T, home, name, frontmatter, body string) {
+// writeUserAgent puts a Markdown agent into home's <configDir>/agents, such as
+// ~/.infer/agents or ~/.agents/agents.
+func writeUserAgent(t *testing.T, home, configDir, name, frontmatter, body string) {
 	t.Helper()
-	dir := filepath.Join(home, ".infer", "agents")
+	dir := filepath.Join(home, configDir, "agents")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	content := "---\nname: " + name + "\ndescription: An e2e agent\n" + frontmatter + "---\n\n" + body + "\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name+".md"), []byte(content), 0o600))
@@ -100,7 +101,7 @@ func advertisedTools(t *testing.T, r gateway.Recorded) []string {
 
 func TestDaemonRunsAThreadAsItsNamedAgent(t *testing.T) {
 	home, project := t.TempDir(), t.TempDir()
-	writeUserAgent(t, home, "e2e-reviewer", "model: "+agentModel+"\ntools:\n  - Read\n", agentBody)
+	writeUserAgent(t, home, ".infer", "e2e-reviewer", "model: "+agentModel+"\ntools:\n  - Read\n", agentBody)
 	m := startMock(t)
 	d := startDaemon(t, home, "INFER_GATEWAY_MOCK=false", "INFER_GATEWAY_RUN=false", "INFER_GATEWAY_URL="+m.URL)
 	c := dialDaemon(t, d, "desktop")
@@ -130,9 +131,9 @@ func TestDaemonRunsAThreadAsItsNamedAgent(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(project, "agent-blocked.txt"), "a tool outside the agent's tools must not run")
 }
 
-func TestDaemonKeepsTheThreadModelForAnInheritAgent(t *testing.T) {
+func TestDaemonKeepsTheThreadModelForAnInheritAgentInDotAgents(t *testing.T) {
 	home, project := t.TempDir(), t.TempDir()
-	writeUserAgent(t, home, "e2e-inherit", "model: inherit\n", agentBody)
+	writeUserAgent(t, home, ".agents", "e2e-inherit", "model: inherit\n", agentBody)
 	m := startMock(t)
 	d := startDaemon(t, home, "INFER_GATEWAY_MOCK=false", "INFER_GATEWAY_RUN=false", "INFER_GATEWAY_URL="+m.URL)
 	c := dialDaemon(t, d, "desktop")

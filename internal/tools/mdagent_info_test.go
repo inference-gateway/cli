@@ -83,8 +83,10 @@ func TestSubagentSourceLabel(t *testing.T) {
 		t.Skipf("no home directory: %v", err)
 	}
 
-	if got := subagentSourceLabel(filepath.Join(home, config.ConfigDirName, "agents")); got != "user" {
-		t.Errorf("home agents dir classified as %q, want user", got)
+	for _, dir := range []string{config.ConfigDirName, config.AgentsDirName} {
+		if got := subagentSourceLabel(filepath.Join(home, dir, "agents")); got != "user" {
+			t.Errorf("home %s/agents classified as %q, want user", dir, got)
+		}
 	}
 	if got := subagentSourceLabel(t.TempDir()); got != "project" {
 		t.Errorf("temp dir classified as %q, want project", got)

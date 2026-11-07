@@ -186,7 +186,8 @@ Both make the connection follow that thread:
   `subagent` (`{"parent": "<conversation id>", "depth": 1, "tools": [...]}`,
   set by a worker's Agent tool when the thread is a subagent it spawned).
 - `agent` names a [Markdown agent](subagents.md) the thread runs as, looked
-  up in `<project_dir>/.infer/agents/` and then `~/.infer/agents/`. The daemon
+  up in the [agent locations](subagents.md#locations-and-precedence) of
+  `<project_dir>` and the home dir. The daemon
   the thread is opened on resolves it before the worker launches, the same
   overlay a named subagent gets: the agent's body is the system prompt, a
   front-matter `model` replaces `model` and stays fixed for the thread, and

@@ -233,6 +233,42 @@ func TestDeriveSubagentMode(t *testing.T) {
 	}
 }
 
+func TestMarkdownAgentDirsFollowTheSkillsLayout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := t.TempDir()
+	want := []string{
+		filepath.Join(proj, config.ConfigDirName, agentsSubdir),
+		filepath.Join(proj, config.AgentsDirName, agentsSubdir),
+		filepath.Join(home, config.ConfigDirName, agentsSubdir),
+		filepath.Join(home, config.AgentsDirName, agentsSubdir),
+	}
+	if got := markdownAgentDirs(proj); !slices.Equal(got, want) {
+		t.Fatalf("markdownAgentDirs = %v, want %v", got, want)
+	}
+}
+
+func TestLoadMarkdownAgentsFromTheAgentsDirs(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := t.TempDir()
+	writeAgentFile(t, filepath.Join(proj, config.AgentsDirName, agentsSubdir), "shared.md",
+		"---\nname: shared\ndescription: The project's .agents copy.\n---\n\nProject agents body.")
+	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, agentsSubdir), "shared.md",
+		"---\nname: shared\ndescription: The user's copy, shadowed.\n---\n\nUser body.")
+	writeAgentFile(t, filepath.Join(home, config.AgentsDirName, agentsSubdir), "portable.md",
+		"---\nname: portable\ndescription: Only in ~/.agents/agents.\n---\n\nPortable body.")
+
+	bodies := map[string]string{}
+	for _, agent := range loadMarkdownAgents(markdownAgentDirs(proj), nil) {
+		bodies[agent.name] = agent.systemPrompt
+	}
+	want := map[string]string{"shared": "Project agents body.", "portable": "Portable body."}
+	if !reflect.DeepEqual(bodies, want) {
+		t.Fatalf("loaded agents = %v, want %v", bodies, want)
+	}
+}
+
 func TestResolveThreadAgent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

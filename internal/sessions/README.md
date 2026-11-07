@@ -17,7 +17,7 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   apply when the worker launches. `subagent` names the parent thread that spawned this one, its depth and its
   tool allowlist, which the worker gets as its subagent env. `agent` names a Markdown agent, which the
   `ResolveAgent` port the daemon wires (`tools.ResolveThreadAgent`) overlays when the thread is created, from
-  the frame's `project_dir` and `~/.infer/agents`. The thread keeps what it resolved to (`model`, `system_prompt`,
+  the frame's `project_dir` and the home dir (`.infer/agents`, then `.agents/agents`). The thread keeps what it resolved to (`model`, `system_prompt`,
   `tools`, `disallowed_tools`, `pin_model`), so relaunches, relays and teleports carry those and never the name,
   and an unknown agent fails the open with `RUN_ERROR`. `workspace` and `workspace_dir` place a thread no lease places on a
   remote workspace, which the launch seam relays it to.
