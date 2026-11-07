@@ -11,9 +11,8 @@ import (
 type FakeModelService struct {
 	GetCurrentModelStub        func() string
 	getCurrentModelMutex       sync.RWMutex
-	getCurrentModelArgsForCall []struct {
-	}
-	getCurrentModelReturns struct {
+	getCurrentModelArgsForCall []struct{}
+	getCurrentModelReturns     struct {
 		result1 string
 	}
 	getCurrentModelReturnsOnCall map[int]struct {
@@ -21,10 +20,8 @@ type FakeModelService struct {
 	}
 	IsModelAvailableStub        func(string) bool
 	isModelAvailableMutex       sync.RWMutex
-	isModelAvailableArgsForCall []struct {
-		arg1 string
-	}
-	isModelAvailableReturns struct {
+	isModelAvailableArgsForCall []FakeModelServiceIsModelAvailableArgs
+	isModelAvailableReturns     struct {
 		result1 bool
 	}
 	isModelAvailableReturnsOnCall map[int]struct {
@@ -32,10 +29,8 @@ type FakeModelService struct {
 	}
 	ListModelsStub        func(context.Context) ([]string, error)
 	listModelsMutex       sync.RWMutex
-	listModelsArgsForCall []struct {
-		arg1 context.Context
-	}
-	listModelsReturns struct {
+	listModelsArgsForCall []FakeModelServiceListModelsArgs
+	listModelsReturns     struct {
 		result1 []string
 		result2 error
 	}
@@ -45,10 +40,8 @@ type FakeModelService struct {
 	}
 	SelectModelStub        func(string) error
 	selectModelMutex       sync.RWMutex
-	selectModelArgsForCall []struct {
-		arg1 string
-	}
-	selectModelReturns struct {
+	selectModelArgsForCall []FakeModelServiceSelectModelArgs
+	selectModelReturns     struct {
 		result1 error
 	}
 	selectModelReturnsOnCall map[int]struct {
@@ -56,24 +49,42 @@ type FakeModelService struct {
 	}
 	ValidateModelStub        func(string) error
 	validateModelMutex       sync.RWMutex
-	validateModelArgsForCall []struct {
-		arg1 string
-	}
-	validateModelReturns struct {
+	validateModelArgsForCall []FakeModelServiceValidateModelArgs
+	validateModelReturns     struct {
 		result1 error
 	}
 	validateModelReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeModelServiceIsModelAvailableArgs holds the arguments of one call to IsModelAvailable.
+type FakeModelServiceIsModelAvailableArgs struct {
+	Arg1 string
+}
+
+// FakeModelServiceListModelsArgs holds the arguments of one call to ListModels.
+type FakeModelServiceListModelsArgs struct {
+	Arg1 context.Context
+}
+
+// FakeModelServiceSelectModelArgs holds the arguments of one call to SelectModel.
+type FakeModelServiceSelectModelArgs struct {
+	Arg1 string
+}
+
+// FakeModelServiceValidateModelArgs holds the arguments of one call to ValidateModel.
+type FakeModelServiceValidateModelArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeModelService) GetCurrentModel() string {
 	fake.getCurrentModelMutex.Lock()
 	ret, specificReturn := fake.getCurrentModelReturnsOnCall[len(fake.getCurrentModelArgsForCall)]
-	fake.getCurrentModelArgsForCall = append(fake.getCurrentModelArgsForCall, struct {
-	}{})
+	fake.getCurrentModelArgsForCall = append(fake.getCurrentModelArgsForCall, struct{}{})
 	stub := fake.GetCurrentModelStub
 	fakeReturns := fake.getCurrentModelReturns
 	fake.recordInvocation("GetCurrentModel", []interface{}{})
@@ -125,9 +136,7 @@ func (fake *FakeModelService) GetCurrentModelReturnsOnCall(i int, result1 string
 func (fake *FakeModelService) IsModelAvailable(arg1 string) bool {
 	fake.isModelAvailableMutex.Lock()
 	ret, specificReturn := fake.isModelAvailableReturnsOnCall[len(fake.isModelAvailableArgsForCall)]
-	fake.isModelAvailableArgsForCall = append(fake.isModelAvailableArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.isModelAvailableArgsForCall = append(fake.isModelAvailableArgsForCall, FakeModelServiceIsModelAvailableArgs{arg1})
 	stub := fake.IsModelAvailableStub
 	fakeReturns := fake.isModelAvailableReturns
 	fake.recordInvocation("IsModelAvailable", []interface{}{arg1})
@@ -157,7 +166,15 @@ func (fake *FakeModelService) IsModelAvailableArgsForCall(i int) string {
 	fake.isModelAvailableMutex.RLock()
 	defer fake.isModelAvailableMutex.RUnlock()
 	argsForCall := fake.isModelAvailableArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeModelService) IsModelAvailableArgs() []FakeModelServiceIsModelAvailableArgs {
+	fake.isModelAvailableMutex.RLock()
+	defer fake.isModelAvailableMutex.RUnlock()
+	args := make([]FakeModelServiceIsModelAvailableArgs, len(fake.isModelAvailableArgsForCall))
+	copy(args, fake.isModelAvailableArgsForCall)
+	return args
 }
 
 func (fake *FakeModelService) IsModelAvailableReturns(result1 bool) {
@@ -186,9 +203,7 @@ func (fake *FakeModelService) IsModelAvailableReturnsOnCall(i int, result1 bool)
 func (fake *FakeModelService) ListModels(arg1 context.Context) ([]string, error) {
 	fake.listModelsMutex.Lock()
 	ret, specificReturn := fake.listModelsReturnsOnCall[len(fake.listModelsArgsForCall)]
-	fake.listModelsArgsForCall = append(fake.listModelsArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.listModelsArgsForCall = append(fake.listModelsArgsForCall, FakeModelServiceListModelsArgs{arg1})
 	stub := fake.ListModelsStub
 	fakeReturns := fake.listModelsReturns
 	fake.recordInvocation("ListModels", []interface{}{arg1})
@@ -218,7 +233,15 @@ func (fake *FakeModelService) ListModelsArgsForCall(i int) context.Context {
 	fake.listModelsMutex.RLock()
 	defer fake.listModelsMutex.RUnlock()
 	argsForCall := fake.listModelsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeModelService) ListModelsArgs() []FakeModelServiceListModelsArgs {
+	fake.listModelsMutex.RLock()
+	defer fake.listModelsMutex.RUnlock()
+	args := make([]FakeModelServiceListModelsArgs, len(fake.listModelsArgsForCall))
+	copy(args, fake.listModelsArgsForCall)
+	return args
 }
 
 func (fake *FakeModelService) ListModelsReturns(result1 []string, result2 error) {
@@ -250,9 +273,7 @@ func (fake *FakeModelService) ListModelsReturnsOnCall(i int, result1 []string, r
 func (fake *FakeModelService) SelectModel(arg1 string) error {
 	fake.selectModelMutex.Lock()
 	ret, specificReturn := fake.selectModelReturnsOnCall[len(fake.selectModelArgsForCall)]
-	fake.selectModelArgsForCall = append(fake.selectModelArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.selectModelArgsForCall = append(fake.selectModelArgsForCall, FakeModelServiceSelectModelArgs{arg1})
 	stub := fake.SelectModelStub
 	fakeReturns := fake.selectModelReturns
 	fake.recordInvocation("SelectModel", []interface{}{arg1})
@@ -282,7 +303,15 @@ func (fake *FakeModelService) SelectModelArgsForCall(i int) string {
 	fake.selectModelMutex.RLock()
 	defer fake.selectModelMutex.RUnlock()
 	argsForCall := fake.selectModelArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeModelService) SelectModelArgs() []FakeModelServiceSelectModelArgs {
+	fake.selectModelMutex.RLock()
+	defer fake.selectModelMutex.RUnlock()
+	args := make([]FakeModelServiceSelectModelArgs, len(fake.selectModelArgsForCall))
+	copy(args, fake.selectModelArgsForCall)
+	return args
 }
 
 func (fake *FakeModelService) SelectModelReturns(result1 error) {
@@ -311,9 +340,7 @@ func (fake *FakeModelService) SelectModelReturnsOnCall(i int, result1 error) {
 func (fake *FakeModelService) ValidateModel(arg1 string) error {
 	fake.validateModelMutex.Lock()
 	ret, specificReturn := fake.validateModelReturnsOnCall[len(fake.validateModelArgsForCall)]
-	fake.validateModelArgsForCall = append(fake.validateModelArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.validateModelArgsForCall = append(fake.validateModelArgsForCall, FakeModelServiceValidateModelArgs{arg1})
 	stub := fake.ValidateModelStub
 	fakeReturns := fake.validateModelReturns
 	fake.recordInvocation("ValidateModel", []interface{}{arg1})
@@ -343,7 +370,15 @@ func (fake *FakeModelService) ValidateModelArgsForCall(i int) string {
 	fake.validateModelMutex.RLock()
 	defer fake.validateModelMutex.RUnlock()
 	argsForCall := fake.validateModelArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeModelService) ValidateModelArgs() []FakeModelServiceValidateModelArgs {
+	fake.validateModelMutex.RLock()
+	defer fake.validateModelMutex.RUnlock()
+	args := make([]FakeModelServiceValidateModelArgs, len(fake.validateModelArgsForCall))
+	copy(args, fake.validateModelArgsForCall)
+	return args
 }
 
 func (fake *FakeModelService) ValidateModelReturns(result1 error) {
@@ -379,9 +414,18 @@ func (fake *FakeModelService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeModelService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeModelService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

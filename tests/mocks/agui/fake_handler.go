@@ -10,34 +10,42 @@ import (
 type FakeHandler struct {
 	AttachStub        func(*agui.Conn)
 	attachMutex       sync.RWMutex
-	attachArgsForCall []struct {
-		arg1 *agui.Conn
-	}
+	attachArgsForCall []FakeHandlerAttachArgs
 	DetachStub        func(*agui.Conn)
 	detachMutex       sync.RWMutex
-	detachArgsForCall []struct {
-		arg1 *agui.Conn
-	}
+	detachArgsForCall []FakeHandlerDetachArgs
 	HandleStub        func(*agui.Conn, []byte)
 	handleMutex       sync.RWMutex
-	handleArgsForCall []struct {
-		arg1 *agui.Conn
-		arg2 []byte
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	handleArgsForCall []FakeHandlerHandleArgs
+	invocations       map[string][][]interface{}
+	callOrder         []string
+	invocationsMutex  sync.RWMutex
+}
+
+// FakeHandlerAttachArgs holds the arguments of one call to Attach.
+type FakeHandlerAttachArgs struct {
+	Arg1 *agui.Conn
+}
+
+// FakeHandlerDetachArgs holds the arguments of one call to Detach.
+type FakeHandlerDetachArgs struct {
+	Arg1 *agui.Conn
+}
+
+// FakeHandlerHandleArgs holds the arguments of one call to Handle.
+type FakeHandlerHandleArgs struct {
+	Arg1 *agui.Conn
+	Arg2 []byte
 }
 
 func (fake *FakeHandler) Attach(arg1 *agui.Conn) {
 	fake.attachMutex.Lock()
-	fake.attachArgsForCall = append(fake.attachArgsForCall, struct {
-		arg1 *agui.Conn
-	}{arg1})
+	fake.attachArgsForCall = append(fake.attachArgsForCall, FakeHandlerAttachArgs{arg1})
 	stub := fake.AttachStub
 	fake.recordInvocation("Attach", []interface{}{arg1})
 	fake.attachMutex.Unlock()
 	if stub != nil {
-		fake.AttachStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -57,19 +65,25 @@ func (fake *FakeHandler) AttachArgsForCall(i int) *agui.Conn {
 	fake.attachMutex.RLock()
 	defer fake.attachMutex.RUnlock()
 	argsForCall := fake.attachArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHandler) AttachArgs() []FakeHandlerAttachArgs {
+	fake.attachMutex.RLock()
+	defer fake.attachMutex.RUnlock()
+	args := make([]FakeHandlerAttachArgs, len(fake.attachArgsForCall))
+	copy(args, fake.attachArgsForCall)
+	return args
 }
 
 func (fake *FakeHandler) Detach(arg1 *agui.Conn) {
 	fake.detachMutex.Lock()
-	fake.detachArgsForCall = append(fake.detachArgsForCall, struct {
-		arg1 *agui.Conn
-	}{arg1})
+	fake.detachArgsForCall = append(fake.detachArgsForCall, FakeHandlerDetachArgs{arg1})
 	stub := fake.DetachStub
 	fake.recordInvocation("Detach", []interface{}{arg1})
 	fake.detachMutex.Unlock()
 	if stub != nil {
-		fake.DetachStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -89,7 +103,15 @@ func (fake *FakeHandler) DetachArgsForCall(i int) *agui.Conn {
 	fake.detachMutex.RLock()
 	defer fake.detachMutex.RUnlock()
 	argsForCall := fake.detachArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHandler) DetachArgs() []FakeHandlerDetachArgs {
+	fake.detachMutex.RLock()
+	defer fake.detachMutex.RUnlock()
+	args := make([]FakeHandlerDetachArgs, len(fake.detachArgsForCall))
+	copy(args, fake.detachArgsForCall)
+	return args
 }
 
 func (fake *FakeHandler) Handle(arg1 *agui.Conn, arg2 []byte) {
@@ -99,15 +121,12 @@ func (fake *FakeHandler) Handle(arg1 *agui.Conn, arg2 []byte) {
 		copy(arg2Copy, arg2)
 	}
 	fake.handleMutex.Lock()
-	fake.handleArgsForCall = append(fake.handleArgsForCall, struct {
-		arg1 *agui.Conn
-		arg2 []byte
-	}{arg1, arg2Copy})
+	fake.handleArgsForCall = append(fake.handleArgsForCall, FakeHandlerHandleArgs{arg1, arg2Copy})
 	stub := fake.HandleStub
 	fake.recordInvocation("Handle", []interface{}{arg1, arg2Copy})
 	fake.handleMutex.Unlock()
 	if stub != nil {
-		fake.HandleStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -127,7 +146,15 @@ func (fake *FakeHandler) HandleArgsForCall(i int) (*agui.Conn, []byte) {
 	fake.handleMutex.RLock()
 	defer fake.handleMutex.RUnlock()
 	argsForCall := fake.handleArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeHandler) HandleArgs() []FakeHandlerHandleArgs {
+	fake.handleMutex.RLock()
+	defer fake.handleMutex.RUnlock()
+	args := make([]FakeHandlerHandleArgs, len(fake.handleArgsForCall))
+	copy(args, fake.handleArgsForCall)
+	return args
 }
 
 func (fake *FakeHandler) Invocations() map[string][][]interface{} {
@@ -140,9 +167,18 @@ func (fake *FakeHandler) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeHandler) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeHandler) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

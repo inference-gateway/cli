@@ -11,11 +11,8 @@ import (
 type FakePersistentConversationRepository struct {
 	DeleteSavedConversationStub        func(context.Context, string) error
 	deleteSavedConversationMutex       sync.RWMutex
-	deleteSavedConversationArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	deleteSavedConversationReturns struct {
+	deleteSavedConversationArgsForCall []FakePersistentConversationRepositoryDeleteSavedConversationArgs
+	deleteSavedConversationReturns     struct {
 		result1 error
 	}
 	deleteSavedConversationReturnsOnCall map[int]struct {
@@ -23,9 +20,8 @@ type FakePersistentConversationRepository struct {
 	}
 	GetCurrentConversationIDStub        func() string
 	getCurrentConversationIDMutex       sync.RWMutex
-	getCurrentConversationIDArgsForCall []struct {
-	}
-	getCurrentConversationIDReturns struct {
+	getCurrentConversationIDArgsForCall []struct{}
+	getCurrentConversationIDReturns     struct {
 		result1 string
 	}
 	getCurrentConversationIDReturnsOnCall map[int]struct {
@@ -33,9 +29,8 @@ type FakePersistentConversationRepository struct {
 	}
 	GetCurrentConversationMetadataStub        func() domain.ConversationMetadata
 	getCurrentConversationMetadataMutex       sync.RWMutex
-	getCurrentConversationMetadataArgsForCall []struct {
-	}
-	getCurrentConversationMetadataReturns struct {
+	getCurrentConversationMetadataArgsForCall []struct{}
+	getCurrentConversationMetadataReturns     struct {
 		result1 domain.ConversationMetadata
 	}
 	getCurrentConversationMetadataReturnsOnCall map[int]struct {
@@ -43,12 +38,8 @@ type FakePersistentConversationRepository struct {
 	}
 	ListSavedConversationsStub        func(context.Context, int, int) ([]domain.ConversationSummary, error)
 	listSavedConversationsMutex       sync.RWMutex
-	listSavedConversationsArgsForCall []struct {
-		arg1 context.Context
-		arg2 int
-		arg3 int
-	}
-	listSavedConversationsReturns struct {
+	listSavedConversationsArgsForCall []FakePersistentConversationRepositoryListSavedConversationsArgs
+	listSavedConversationsReturns     struct {
 		result1 []domain.ConversationSummary
 		result2 error
 	}
@@ -58,11 +49,8 @@ type FakePersistentConversationRepository struct {
 	}
 	LoadConversationStub        func(context.Context, string) error
 	loadConversationMutex       sync.RWMutex
-	loadConversationArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	loadConversationReturns struct {
+	loadConversationArgsForCall []FakePersistentConversationRepositoryLoadConversationArgs
+	loadConversationReturns     struct {
 		result1 error
 	}
 	loadConversationReturnsOnCall map[int]struct {
@@ -70,52 +58,84 @@ type FakePersistentConversationRepository struct {
 	}
 	SaveConversationStub        func(context.Context) error
 	saveConversationMutex       sync.RWMutex
-	saveConversationArgsForCall []struct {
-		arg1 context.Context
-	}
-	saveConversationReturns struct {
+	saveConversationArgsForCall []FakePersistentConversationRepositorySaveConversationArgs
+	saveConversationReturns     struct {
 		result1 error
 	}
 	saveConversationReturnsOnCall map[int]struct {
 		result1 error
 	}
-	SetAutoSaveStub        func(bool)
-	setAutoSaveMutex       sync.RWMutex
-	setAutoSaveArgsForCall []struct {
-		arg1 bool
-	}
-	SetConversationIDStub        func(string)
-	setConversationIDMutex       sync.RWMutex
-	setConversationIDArgsForCall []struct {
-		arg1 string
-	}
+	SetAutoSaveStub                 func(bool)
+	setAutoSaveMutex                sync.RWMutex
+	setAutoSaveArgsForCall          []FakePersistentConversationRepositorySetAutoSaveArgs
+	SetConversationIDStub           func(string)
+	setConversationIDMutex          sync.RWMutex
+	setConversationIDArgsForCall    []FakePersistentConversationRepositorySetConversationIDArgs
 	SetConversationTitleStub        func(string)
 	setConversationTitleMutex       sync.RWMutex
-	setConversationTitleArgsForCall []struct {
-		arg1 string
-	}
+	setConversationTitleArgsForCall []FakePersistentConversationRepositorySetConversationTitleArgs
 	StartNewConversationStub        func(string) error
 	startNewConversationMutex       sync.RWMutex
-	startNewConversationArgsForCall []struct {
-		arg1 string
-	}
-	startNewConversationReturns struct {
+	startNewConversationArgsForCall []FakePersistentConversationRepositoryStartNewConversationArgs
+	startNewConversationReturns     struct {
 		result1 error
 	}
 	startNewConversationReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakePersistentConversationRepositoryDeleteSavedConversationArgs holds the arguments of one call to DeleteSavedConversation.
+type FakePersistentConversationRepositoryDeleteSavedConversationArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakePersistentConversationRepositoryListSavedConversationsArgs holds the arguments of one call to ListSavedConversations.
+type FakePersistentConversationRepositoryListSavedConversationsArgs struct {
+	Arg1 context.Context
+	Arg2 int
+	Arg3 int
+}
+
+// FakePersistentConversationRepositoryLoadConversationArgs holds the arguments of one call to LoadConversation.
+type FakePersistentConversationRepositoryLoadConversationArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakePersistentConversationRepositorySaveConversationArgs holds the arguments of one call to SaveConversation.
+type FakePersistentConversationRepositorySaveConversationArgs struct {
+	Arg1 context.Context
+}
+
+// FakePersistentConversationRepositorySetAutoSaveArgs holds the arguments of one call to SetAutoSave.
+type FakePersistentConversationRepositorySetAutoSaveArgs struct {
+	Arg1 bool
+}
+
+// FakePersistentConversationRepositorySetConversationIDArgs holds the arguments of one call to SetConversationID.
+type FakePersistentConversationRepositorySetConversationIDArgs struct {
+	Arg1 string
+}
+
+// FakePersistentConversationRepositorySetConversationTitleArgs holds the arguments of one call to SetConversationTitle.
+type FakePersistentConversationRepositorySetConversationTitleArgs struct {
+	Arg1 string
+}
+
+// FakePersistentConversationRepositoryStartNewConversationArgs holds the arguments of one call to StartNewConversation.
+type FakePersistentConversationRepositoryStartNewConversationArgs struct {
+	Arg1 string
 }
 
 func (fake *FakePersistentConversationRepository) DeleteSavedConversation(arg1 context.Context, arg2 string) error {
 	fake.deleteSavedConversationMutex.Lock()
 	ret, specificReturn := fake.deleteSavedConversationReturnsOnCall[len(fake.deleteSavedConversationArgsForCall)]
-	fake.deleteSavedConversationArgsForCall = append(fake.deleteSavedConversationArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.deleteSavedConversationArgsForCall = append(fake.deleteSavedConversationArgsForCall, FakePersistentConversationRepositoryDeleteSavedConversationArgs{arg1, arg2})
 	stub := fake.DeleteSavedConversationStub
 	fakeReturns := fake.deleteSavedConversationReturns
 	fake.recordInvocation("DeleteSavedConversation", []interface{}{arg1, arg2})
@@ -145,7 +165,15 @@ func (fake *FakePersistentConversationRepository) DeleteSavedConversationArgsFor
 	fake.deleteSavedConversationMutex.RLock()
 	defer fake.deleteSavedConversationMutex.RUnlock()
 	argsForCall := fake.deleteSavedConversationArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakePersistentConversationRepository) DeleteSavedConversationArgs() []FakePersistentConversationRepositoryDeleteSavedConversationArgs {
+	fake.deleteSavedConversationMutex.RLock()
+	defer fake.deleteSavedConversationMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositoryDeleteSavedConversationArgs, len(fake.deleteSavedConversationArgsForCall))
+	copy(args, fake.deleteSavedConversationArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) DeleteSavedConversationReturns(result1 error) {
@@ -174,8 +202,7 @@ func (fake *FakePersistentConversationRepository) DeleteSavedConversationReturns
 func (fake *FakePersistentConversationRepository) GetCurrentConversationID() string {
 	fake.getCurrentConversationIDMutex.Lock()
 	ret, specificReturn := fake.getCurrentConversationIDReturnsOnCall[len(fake.getCurrentConversationIDArgsForCall)]
-	fake.getCurrentConversationIDArgsForCall = append(fake.getCurrentConversationIDArgsForCall, struct {
-	}{})
+	fake.getCurrentConversationIDArgsForCall = append(fake.getCurrentConversationIDArgsForCall, struct{}{})
 	stub := fake.GetCurrentConversationIDStub
 	fakeReturns := fake.getCurrentConversationIDReturns
 	fake.recordInvocation("GetCurrentConversationID", []interface{}{})
@@ -227,8 +254,7 @@ func (fake *FakePersistentConversationRepository) GetCurrentConversationIDReturn
 func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadata() domain.ConversationMetadata {
 	fake.getCurrentConversationMetadataMutex.Lock()
 	ret, specificReturn := fake.getCurrentConversationMetadataReturnsOnCall[len(fake.getCurrentConversationMetadataArgsForCall)]
-	fake.getCurrentConversationMetadataArgsForCall = append(fake.getCurrentConversationMetadataArgsForCall, struct {
-	}{})
+	fake.getCurrentConversationMetadataArgsForCall = append(fake.getCurrentConversationMetadataArgsForCall, struct{}{})
 	stub := fake.GetCurrentConversationMetadataStub
 	fakeReturns := fake.getCurrentConversationMetadataReturns
 	fake.recordInvocation("GetCurrentConversationMetadata", []interface{}{})
@@ -280,11 +306,7 @@ func (fake *FakePersistentConversationRepository) GetCurrentConversationMetadata
 func (fake *FakePersistentConversationRepository) ListSavedConversations(arg1 context.Context, arg2 int, arg3 int) ([]domain.ConversationSummary, error) {
 	fake.listSavedConversationsMutex.Lock()
 	ret, specificReturn := fake.listSavedConversationsReturnsOnCall[len(fake.listSavedConversationsArgsForCall)]
-	fake.listSavedConversationsArgsForCall = append(fake.listSavedConversationsArgsForCall, struct {
-		arg1 context.Context
-		arg2 int
-		arg3 int
-	}{arg1, arg2, arg3})
+	fake.listSavedConversationsArgsForCall = append(fake.listSavedConversationsArgsForCall, FakePersistentConversationRepositoryListSavedConversationsArgs{arg1, arg2, arg3})
 	stub := fake.ListSavedConversationsStub
 	fakeReturns := fake.listSavedConversationsReturns
 	fake.recordInvocation("ListSavedConversations", []interface{}{arg1, arg2, arg3})
@@ -314,7 +336,15 @@ func (fake *FakePersistentConversationRepository) ListSavedConversationsArgsForC
 	fake.listSavedConversationsMutex.RLock()
 	defer fake.listSavedConversationsMutex.RUnlock()
 	argsForCall := fake.listSavedConversationsArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakePersistentConversationRepository) ListSavedConversationsArgs() []FakePersistentConversationRepositoryListSavedConversationsArgs {
+	fake.listSavedConversationsMutex.RLock()
+	defer fake.listSavedConversationsMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositoryListSavedConversationsArgs, len(fake.listSavedConversationsArgsForCall))
+	copy(args, fake.listSavedConversationsArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) ListSavedConversationsReturns(result1 []domain.ConversationSummary, result2 error) {
@@ -346,10 +376,7 @@ func (fake *FakePersistentConversationRepository) ListSavedConversationsReturnsO
 func (fake *FakePersistentConversationRepository) LoadConversation(arg1 context.Context, arg2 string) error {
 	fake.loadConversationMutex.Lock()
 	ret, specificReturn := fake.loadConversationReturnsOnCall[len(fake.loadConversationArgsForCall)]
-	fake.loadConversationArgsForCall = append(fake.loadConversationArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.loadConversationArgsForCall = append(fake.loadConversationArgsForCall, FakePersistentConversationRepositoryLoadConversationArgs{arg1, arg2})
 	stub := fake.LoadConversationStub
 	fakeReturns := fake.loadConversationReturns
 	fake.recordInvocation("LoadConversation", []interface{}{arg1, arg2})
@@ -379,7 +406,15 @@ func (fake *FakePersistentConversationRepository) LoadConversationArgsForCall(i 
 	fake.loadConversationMutex.RLock()
 	defer fake.loadConversationMutex.RUnlock()
 	argsForCall := fake.loadConversationArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakePersistentConversationRepository) LoadConversationArgs() []FakePersistentConversationRepositoryLoadConversationArgs {
+	fake.loadConversationMutex.RLock()
+	defer fake.loadConversationMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositoryLoadConversationArgs, len(fake.loadConversationArgsForCall))
+	copy(args, fake.loadConversationArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) LoadConversationReturns(result1 error) {
@@ -408,9 +443,7 @@ func (fake *FakePersistentConversationRepository) LoadConversationReturnsOnCall(
 func (fake *FakePersistentConversationRepository) SaveConversation(arg1 context.Context) error {
 	fake.saveConversationMutex.Lock()
 	ret, specificReturn := fake.saveConversationReturnsOnCall[len(fake.saveConversationArgsForCall)]
-	fake.saveConversationArgsForCall = append(fake.saveConversationArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.saveConversationArgsForCall = append(fake.saveConversationArgsForCall, FakePersistentConversationRepositorySaveConversationArgs{arg1})
 	stub := fake.SaveConversationStub
 	fakeReturns := fake.saveConversationReturns
 	fake.recordInvocation("SaveConversation", []interface{}{arg1})
@@ -440,7 +473,15 @@ func (fake *FakePersistentConversationRepository) SaveConversationArgsForCall(i 
 	fake.saveConversationMutex.RLock()
 	defer fake.saveConversationMutex.RUnlock()
 	argsForCall := fake.saveConversationArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePersistentConversationRepository) SaveConversationArgs() []FakePersistentConversationRepositorySaveConversationArgs {
+	fake.saveConversationMutex.RLock()
+	defer fake.saveConversationMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositorySaveConversationArgs, len(fake.saveConversationArgsForCall))
+	copy(args, fake.saveConversationArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) SaveConversationReturns(result1 error) {
@@ -468,14 +509,12 @@ func (fake *FakePersistentConversationRepository) SaveConversationReturnsOnCall(
 
 func (fake *FakePersistentConversationRepository) SetAutoSave(arg1 bool) {
 	fake.setAutoSaveMutex.Lock()
-	fake.setAutoSaveArgsForCall = append(fake.setAutoSaveArgsForCall, struct {
-		arg1 bool
-	}{arg1})
+	fake.setAutoSaveArgsForCall = append(fake.setAutoSaveArgsForCall, FakePersistentConversationRepositorySetAutoSaveArgs{arg1})
 	stub := fake.SetAutoSaveStub
 	fake.recordInvocation("SetAutoSave", []interface{}{arg1})
 	fake.setAutoSaveMutex.Unlock()
 	if stub != nil {
-		fake.SetAutoSaveStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -495,19 +534,25 @@ func (fake *FakePersistentConversationRepository) SetAutoSaveArgsForCall(i int) 
 	fake.setAutoSaveMutex.RLock()
 	defer fake.setAutoSaveMutex.RUnlock()
 	argsForCall := fake.setAutoSaveArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePersistentConversationRepository) SetAutoSaveArgs() []FakePersistentConversationRepositorySetAutoSaveArgs {
+	fake.setAutoSaveMutex.RLock()
+	defer fake.setAutoSaveMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositorySetAutoSaveArgs, len(fake.setAutoSaveArgsForCall))
+	copy(args, fake.setAutoSaveArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) SetConversationID(arg1 string) {
 	fake.setConversationIDMutex.Lock()
-	fake.setConversationIDArgsForCall = append(fake.setConversationIDArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setConversationIDArgsForCall = append(fake.setConversationIDArgsForCall, FakePersistentConversationRepositorySetConversationIDArgs{arg1})
 	stub := fake.SetConversationIDStub
 	fake.recordInvocation("SetConversationID", []interface{}{arg1})
 	fake.setConversationIDMutex.Unlock()
 	if stub != nil {
-		fake.SetConversationIDStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -527,19 +572,25 @@ func (fake *FakePersistentConversationRepository) SetConversationIDArgsForCall(i
 	fake.setConversationIDMutex.RLock()
 	defer fake.setConversationIDMutex.RUnlock()
 	argsForCall := fake.setConversationIDArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePersistentConversationRepository) SetConversationIDArgs() []FakePersistentConversationRepositorySetConversationIDArgs {
+	fake.setConversationIDMutex.RLock()
+	defer fake.setConversationIDMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositorySetConversationIDArgs, len(fake.setConversationIDArgsForCall))
+	copy(args, fake.setConversationIDArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) SetConversationTitle(arg1 string) {
 	fake.setConversationTitleMutex.Lock()
-	fake.setConversationTitleArgsForCall = append(fake.setConversationTitleArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setConversationTitleArgsForCall = append(fake.setConversationTitleArgsForCall, FakePersistentConversationRepositorySetConversationTitleArgs{arg1})
 	stub := fake.SetConversationTitleStub
 	fake.recordInvocation("SetConversationTitle", []interface{}{arg1})
 	fake.setConversationTitleMutex.Unlock()
 	if stub != nil {
-		fake.SetConversationTitleStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -559,15 +610,21 @@ func (fake *FakePersistentConversationRepository) SetConversationTitleArgsForCal
 	fake.setConversationTitleMutex.RLock()
 	defer fake.setConversationTitleMutex.RUnlock()
 	argsForCall := fake.setConversationTitleArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePersistentConversationRepository) SetConversationTitleArgs() []FakePersistentConversationRepositorySetConversationTitleArgs {
+	fake.setConversationTitleMutex.RLock()
+	defer fake.setConversationTitleMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositorySetConversationTitleArgs, len(fake.setConversationTitleArgsForCall))
+	copy(args, fake.setConversationTitleArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) StartNewConversation(arg1 string) error {
 	fake.startNewConversationMutex.Lock()
 	ret, specificReturn := fake.startNewConversationReturnsOnCall[len(fake.startNewConversationArgsForCall)]
-	fake.startNewConversationArgsForCall = append(fake.startNewConversationArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.startNewConversationArgsForCall = append(fake.startNewConversationArgsForCall, FakePersistentConversationRepositoryStartNewConversationArgs{arg1})
 	stub := fake.StartNewConversationStub
 	fakeReturns := fake.startNewConversationReturns
 	fake.recordInvocation("StartNewConversation", []interface{}{arg1})
@@ -597,7 +654,15 @@ func (fake *FakePersistentConversationRepository) StartNewConversationArgsForCal
 	fake.startNewConversationMutex.RLock()
 	defer fake.startNewConversationMutex.RUnlock()
 	argsForCall := fake.startNewConversationArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePersistentConversationRepository) StartNewConversationArgs() []FakePersistentConversationRepositoryStartNewConversationArgs {
+	fake.startNewConversationMutex.RLock()
+	defer fake.startNewConversationMutex.RUnlock()
+	args := make([]FakePersistentConversationRepositoryStartNewConversationArgs, len(fake.startNewConversationArgsForCall))
+	copy(args, fake.startNewConversationArgsForCall)
+	return args
 }
 
 func (fake *FakePersistentConversationRepository) StartNewConversationReturns(result1 error) {
@@ -633,9 +698,18 @@ func (fake *FakePersistentConversationRepository) Invocations() map[string][][]i
 	return copiedInvocations
 }
 
+func (fake *FakePersistentConversationRepository) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakePersistentConversationRepository) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

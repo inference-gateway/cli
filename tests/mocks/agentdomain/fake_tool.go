@@ -12,9 +12,8 @@ import (
 type FakeTool struct {
 	DefinitionStub        func() sdk.ChatCompletionTool
 	definitionMutex       sync.RWMutex
-	definitionArgsForCall []struct {
-	}
-	definitionReturns struct {
+	definitionArgsForCall []struct{}
+	definitionReturns     struct {
 		result1 sdk.ChatCompletionTool
 	}
 	definitionReturnsOnCall map[int]struct {
@@ -22,11 +21,8 @@ type FakeTool struct {
 	}
 	ExecuteStub        func(context.Context, map[string]any) (*domain.ToolExecutionResult, error)
 	executeMutex       sync.RWMutex
-	executeArgsForCall []struct {
-		arg1 context.Context
-		arg2 map[string]any
-	}
-	executeReturns struct {
+	executeArgsForCall []FakeToolExecuteArgs
+	executeReturns     struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
@@ -36,10 +32,8 @@ type FakeTool struct {
 	}
 	FormatPreviewStub        func(*domain.ToolExecutionResult) string
 	formatPreviewMutex       sync.RWMutex
-	formatPreviewArgsForCall []struct {
-		arg1 *domain.ToolExecutionResult
-	}
-	formatPreviewReturns struct {
+	formatPreviewArgsForCall []FakeToolFormatPreviewArgs
+	formatPreviewReturns     struct {
 		result1 string
 	}
 	formatPreviewReturnsOnCall map[int]struct {
@@ -47,11 +41,8 @@ type FakeTool struct {
 	}
 	FormatResultStub        func(*domain.ToolExecutionResult, domain.FormatterType) string
 	formatResultMutex       sync.RWMutex
-	formatResultArgsForCall []struct {
-		arg1 *domain.ToolExecutionResult
-		arg2 domain.FormatterType
-	}
-	formatResultReturns struct {
+	formatResultArgsForCall []FakeToolFormatResultArgs
+	formatResultReturns     struct {
 		result1 string
 	}
 	formatResultReturnsOnCall map[int]struct {
@@ -59,9 +50,8 @@ type FakeTool struct {
 	}
 	IsEnabledStub        func() bool
 	isEnabledMutex       sync.RWMutex
-	isEnabledArgsForCall []struct {
-	}
-	isEnabledReturns struct {
+	isEnabledArgsForCall []struct{}
+	isEnabledReturns     struct {
 		result1 bool
 	}
 	isEnabledReturnsOnCall map[int]struct {
@@ -69,24 +59,44 @@ type FakeTool struct {
 	}
 	ValidateStub        func(map[string]any) error
 	validateMutex       sync.RWMutex
-	validateArgsForCall []struct {
-		arg1 map[string]any
-	}
-	validateReturns struct {
+	validateArgsForCall []FakeToolValidateArgs
+	validateReturns     struct {
 		result1 error
 	}
 	validateReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeToolExecuteArgs holds the arguments of one call to Execute.
+type FakeToolExecuteArgs struct {
+	Arg1 context.Context
+	Arg2 map[string]any
+}
+
+// FakeToolFormatPreviewArgs holds the arguments of one call to FormatPreview.
+type FakeToolFormatPreviewArgs struct {
+	Arg1 *domain.ToolExecutionResult
+}
+
+// FakeToolFormatResultArgs holds the arguments of one call to FormatResult.
+type FakeToolFormatResultArgs struct {
+	Arg1 *domain.ToolExecutionResult
+	Arg2 domain.FormatterType
+}
+
+// FakeToolValidateArgs holds the arguments of one call to Validate.
+type FakeToolValidateArgs struct {
+	Arg1 map[string]any
 }
 
 func (fake *FakeTool) Definition() sdk.ChatCompletionTool {
 	fake.definitionMutex.Lock()
 	ret, specificReturn := fake.definitionReturnsOnCall[len(fake.definitionArgsForCall)]
-	fake.definitionArgsForCall = append(fake.definitionArgsForCall, struct {
-	}{})
+	fake.definitionArgsForCall = append(fake.definitionArgsForCall, struct{}{})
 	stub := fake.DefinitionStub
 	fakeReturns := fake.definitionReturns
 	fake.recordInvocation("Definition", []interface{}{})
@@ -138,10 +148,7 @@ func (fake *FakeTool) DefinitionReturnsOnCall(i int, result1 sdk.ChatCompletionT
 func (fake *FakeTool) Execute(arg1 context.Context, arg2 map[string]any) (*domain.ToolExecutionResult, error) {
 	fake.executeMutex.Lock()
 	ret, specificReturn := fake.executeReturnsOnCall[len(fake.executeArgsForCall)]
-	fake.executeArgsForCall = append(fake.executeArgsForCall, struct {
-		arg1 context.Context
-		arg2 map[string]any
-	}{arg1, arg2})
+	fake.executeArgsForCall = append(fake.executeArgsForCall, FakeToolExecuteArgs{arg1, arg2})
 	stub := fake.ExecuteStub
 	fakeReturns := fake.executeReturns
 	fake.recordInvocation("Execute", []interface{}{arg1, arg2})
@@ -171,7 +178,15 @@ func (fake *FakeTool) ExecuteArgsForCall(i int) (context.Context, map[string]any
 	fake.executeMutex.RLock()
 	defer fake.executeMutex.RUnlock()
 	argsForCall := fake.executeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeTool) ExecuteArgs() []FakeToolExecuteArgs {
+	fake.executeMutex.RLock()
+	defer fake.executeMutex.RUnlock()
+	args := make([]FakeToolExecuteArgs, len(fake.executeArgsForCall))
+	copy(args, fake.executeArgsForCall)
+	return args
 }
 
 func (fake *FakeTool) ExecuteReturns(result1 *domain.ToolExecutionResult, result2 error) {
@@ -203,9 +218,7 @@ func (fake *FakeTool) ExecuteReturnsOnCall(i int, result1 *domain.ToolExecutionR
 func (fake *FakeTool) FormatPreview(arg1 *domain.ToolExecutionResult) string {
 	fake.formatPreviewMutex.Lock()
 	ret, specificReturn := fake.formatPreviewReturnsOnCall[len(fake.formatPreviewArgsForCall)]
-	fake.formatPreviewArgsForCall = append(fake.formatPreviewArgsForCall, struct {
-		arg1 *domain.ToolExecutionResult
-	}{arg1})
+	fake.formatPreviewArgsForCall = append(fake.formatPreviewArgsForCall, FakeToolFormatPreviewArgs{arg1})
 	stub := fake.FormatPreviewStub
 	fakeReturns := fake.formatPreviewReturns
 	fake.recordInvocation("FormatPreview", []interface{}{arg1})
@@ -235,7 +248,15 @@ func (fake *FakeTool) FormatPreviewArgsForCall(i int) *domain.ToolExecutionResul
 	fake.formatPreviewMutex.RLock()
 	defer fake.formatPreviewMutex.RUnlock()
 	argsForCall := fake.formatPreviewArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTool) FormatPreviewArgs() []FakeToolFormatPreviewArgs {
+	fake.formatPreviewMutex.RLock()
+	defer fake.formatPreviewMutex.RUnlock()
+	args := make([]FakeToolFormatPreviewArgs, len(fake.formatPreviewArgsForCall))
+	copy(args, fake.formatPreviewArgsForCall)
+	return args
 }
 
 func (fake *FakeTool) FormatPreviewReturns(result1 string) {
@@ -264,10 +285,7 @@ func (fake *FakeTool) FormatPreviewReturnsOnCall(i int, result1 string) {
 func (fake *FakeTool) FormatResult(arg1 *domain.ToolExecutionResult, arg2 domain.FormatterType) string {
 	fake.formatResultMutex.Lock()
 	ret, specificReturn := fake.formatResultReturnsOnCall[len(fake.formatResultArgsForCall)]
-	fake.formatResultArgsForCall = append(fake.formatResultArgsForCall, struct {
-		arg1 *domain.ToolExecutionResult
-		arg2 domain.FormatterType
-	}{arg1, arg2})
+	fake.formatResultArgsForCall = append(fake.formatResultArgsForCall, FakeToolFormatResultArgs{arg1, arg2})
 	stub := fake.FormatResultStub
 	fakeReturns := fake.formatResultReturns
 	fake.recordInvocation("FormatResult", []interface{}{arg1, arg2})
@@ -297,7 +315,15 @@ func (fake *FakeTool) FormatResultArgsForCall(i int) (*domain.ToolExecutionResul
 	fake.formatResultMutex.RLock()
 	defer fake.formatResultMutex.RUnlock()
 	argsForCall := fake.formatResultArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeTool) FormatResultArgs() []FakeToolFormatResultArgs {
+	fake.formatResultMutex.RLock()
+	defer fake.formatResultMutex.RUnlock()
+	args := make([]FakeToolFormatResultArgs, len(fake.formatResultArgsForCall))
+	copy(args, fake.formatResultArgsForCall)
+	return args
 }
 
 func (fake *FakeTool) FormatResultReturns(result1 string) {
@@ -326,8 +352,7 @@ func (fake *FakeTool) FormatResultReturnsOnCall(i int, result1 string) {
 func (fake *FakeTool) IsEnabled() bool {
 	fake.isEnabledMutex.Lock()
 	ret, specificReturn := fake.isEnabledReturnsOnCall[len(fake.isEnabledArgsForCall)]
-	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct {
-	}{})
+	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct{}{})
 	stub := fake.IsEnabledStub
 	fakeReturns := fake.isEnabledReturns
 	fake.recordInvocation("IsEnabled", []interface{}{})
@@ -379,9 +404,7 @@ func (fake *FakeTool) IsEnabledReturnsOnCall(i int, result1 bool) {
 func (fake *FakeTool) Validate(arg1 map[string]any) error {
 	fake.validateMutex.Lock()
 	ret, specificReturn := fake.validateReturnsOnCall[len(fake.validateArgsForCall)]
-	fake.validateArgsForCall = append(fake.validateArgsForCall, struct {
-		arg1 map[string]any
-	}{arg1})
+	fake.validateArgsForCall = append(fake.validateArgsForCall, FakeToolValidateArgs{arg1})
 	stub := fake.ValidateStub
 	fakeReturns := fake.validateReturns
 	fake.recordInvocation("Validate", []interface{}{arg1})
@@ -411,7 +434,15 @@ func (fake *FakeTool) ValidateArgsForCall(i int) map[string]any {
 	fake.validateMutex.RLock()
 	defer fake.validateMutex.RUnlock()
 	argsForCall := fake.validateArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTool) ValidateArgs() []FakeToolValidateArgs {
+	fake.validateMutex.RLock()
+	defer fake.validateMutex.RUnlock()
+	args := make([]FakeToolValidateArgs, len(fake.validateArgsForCall))
+	copy(args, fake.validateArgsForCall)
+	return args
 }
 
 func (fake *FakeTool) ValidateReturns(result1 error) {
@@ -447,9 +478,18 @@ func (fake *FakeTool) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeTool) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeTool) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

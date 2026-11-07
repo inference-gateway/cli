@@ -12,15 +12,11 @@ import (
 type FakeInputComponent struct {
 	AddImageAttachmentStub        func(domain.ImageAttachment)
 	addImageAttachmentMutex       sync.RWMutex
-	addImageAttachmentArgsForCall []struct {
-		arg1 domain.ImageAttachment
-	}
-	AddToHistoryStub        func(string) error
-	addToHistoryMutex       sync.RWMutex
-	addToHistoryArgsForCall []struct {
-		arg1 string
-	}
-	addToHistoryReturns struct {
+	addImageAttachmentArgsForCall []FakeInputComponentAddImageAttachmentArgs
+	AddToHistoryStub              func(string) error
+	addToHistoryMutex             sync.RWMutex
+	addToHistoryArgsForCall       []FakeInputComponentAddToHistoryArgs
+	addToHistoryReturns           struct {
 		result1 error
 	}
 	addToHistoryReturnsOnCall map[int]struct {
@@ -28,10 +24,8 @@ type FakeInputComponent struct {
 	}
 	CanHandleStub        func(tea.KeyPressMsg) bool
 	canHandleMutex       sync.RWMutex
-	canHandleArgsForCall []struct {
-		arg1 tea.KeyPressMsg
-	}
-	canHandleReturns struct {
+	canHandleArgsForCall []FakeInputComponentCanHandleArgs
+	canHandleReturns     struct {
 		result1 bool
 	}
 	canHandleReturnsOnCall map[int]struct {
@@ -39,17 +33,14 @@ type FakeInputComponent struct {
 	}
 	ClearImageAttachmentsStub        func()
 	clearImageAttachmentsMutex       sync.RWMutex
-	clearImageAttachmentsArgsForCall []struct {
-	}
-	ClearInputStub        func()
-	clearInputMutex       sync.RWMutex
-	clearInputArgsForCall []struct {
-	}
-	GetCursorStub        func() int
-	getCursorMutex       sync.RWMutex
-	getCursorArgsForCall []struct {
-	}
-	getCursorReturns struct {
+	clearImageAttachmentsArgsForCall []struct{}
+	ClearInputStub                   func()
+	clearInputMutex                  sync.RWMutex
+	clearInputArgsForCall            []struct{}
+	GetCursorStub                    func() int
+	getCursorMutex                   sync.RWMutex
+	getCursorArgsForCall             []struct{}
+	getCursorReturns                 struct {
 		result1 int
 	}
 	getCursorReturnsOnCall map[int]struct {
@@ -57,9 +48,8 @@ type FakeInputComponent struct {
 	}
 	GetImageAttachmentsStub        func() []domain.ImageAttachment
 	getImageAttachmentsMutex       sync.RWMutex
-	getImageAttachmentsArgsForCall []struct {
-	}
-	getImageAttachmentsReturns struct {
+	getImageAttachmentsArgsForCall []struct{}
+	getImageAttachmentsReturns     struct {
 		result1 []domain.ImageAttachment
 	}
 	getImageAttachmentsReturnsOnCall map[int]struct {
@@ -67,9 +57,8 @@ type FakeInputComponent struct {
 	}
 	GetInputStub        func() string
 	getInputMutex       sync.RWMutex
-	getInputArgsForCall []struct {
-	}
-	getInputReturns struct {
+	getInputArgsForCall []struct{}
+	getInputReturns     struct {
 		result1 string
 	}
 	getInputReturnsOnCall map[int]struct {
@@ -77,9 +66,8 @@ type FakeInputComponent struct {
 	}
 	GetUsageHintStub        func() string
 	getUsageHintMutex       sync.RWMutex
-	getUsageHintArgsForCall []struct {
-	}
-	getUsageHintReturns struct {
+	getUsageHintArgsForCall []struct{}
+	getUsageHintReturns     struct {
 		result1 string
 	}
 	getUsageHintReturnsOnCall map[int]struct {
@@ -87,10 +75,8 @@ type FakeInputComponent struct {
 	}
 	HandleKeyStub        func(tea.KeyPressMsg) (tea.Model, tea.Cmd)
 	handleKeyMutex       sync.RWMutex
-	handleKeyArgsForCall []struct {
-		arg1 tea.KeyPressMsg
-	}
-	handleKeyReturns struct {
+	handleKeyArgsForCall []FakeInputComponentHandleKeyArgs
+	handleKeyReturns     struct {
 		result1 tea.Model
 		result2 tea.Cmd
 	}
@@ -100,9 +86,8 @@ type FakeInputComponent struct {
 	}
 	IsDisabledStub        func() bool
 	isDisabledMutex       sync.RWMutex
-	isDisabledArgsForCall []struct {
-	}
-	isDisabledReturns struct {
+	isDisabledArgsForCall []struct{}
+	isDisabledReturns     struct {
 		result1 bool
 	}
 	isDisabledReturnsOnCall map[int]struct {
@@ -110,9 +95,8 @@ type FakeInputComponent struct {
 	}
 	IsNavigatingHistoryStub        func() bool
 	isNavigatingHistoryMutex       sync.RWMutex
-	isNavigatingHistoryArgsForCall []struct {
-	}
-	isNavigatingHistoryReturns struct {
+	isNavigatingHistoryArgsForCall []struct{}
+	isNavigatingHistoryReturns     struct {
 		result1 bool
 	}
 	isNavigatingHistoryReturnsOnCall map[int]struct {
@@ -120,66 +104,100 @@ type FakeInputComponent struct {
 	}
 	NavigateHistoryDownStub        func()
 	navigateHistoryDownMutex       sync.RWMutex
-	navigateHistoryDownArgsForCall []struct {
-	}
-	NavigateHistoryUpStub        func()
-	navigateHistoryUpMutex       sync.RWMutex
-	navigateHistoryUpArgsForCall []struct {
-	}
-	RenderStub        func() string
-	renderMutex       sync.RWMutex
-	renderArgsForCall []struct {
-	}
-	renderReturns struct {
+	navigateHistoryDownArgsForCall []struct{}
+	NavigateHistoryUpStub          func()
+	navigateHistoryUpMutex         sync.RWMutex
+	navigateHistoryUpArgsForCall   []struct{}
+	RenderStub                     func() string
+	renderMutex                    sync.RWMutex
+	renderArgsForCall              []struct{}
+	renderReturns                  struct {
 		result1 string
 	}
 	renderReturnsOnCall map[int]struct {
 		result1 string
 	}
-	SetCursorStub        func(int)
-	setCursorMutex       sync.RWMutex
-	setCursorArgsForCall []struct {
-		arg1 int
-	}
-	SetHeightStub        func(int)
-	setHeightMutex       sync.RWMutex
-	setHeightArgsForCall []struct {
-		arg1 int
-	}
+	SetCursorStub             func(int)
+	setCursorMutex            sync.RWMutex
+	setCursorArgsForCall      []FakeInputComponentSetCursorArgs
+	SetHeightStub             func(int)
+	setHeightMutex            sync.RWMutex
+	setHeightArgsForCall      []FakeInputComponentSetHeightArgs
 	SetPlaceholderStub        func(string)
 	setPlaceholderMutex       sync.RWMutex
-	setPlaceholderArgsForCall []struct {
-		arg1 string
-	}
-	SetTextStub        func(string)
-	setTextMutex       sync.RWMutex
-	setTextArgsForCall []struct {
-		arg1 string
-	}
-	SetUsageHintStub        func(string)
-	setUsageHintMutex       sync.RWMutex
-	setUsageHintArgsForCall []struct {
-		arg1 string
-	}
-	SetWidthStub        func(int)
-	setWidthMutex       sync.RWMutex
-	setWidthArgsForCall []struct {
-		arg1 int
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setPlaceholderArgsForCall []FakeInputComponentSetPlaceholderArgs
+	SetTextStub               func(string)
+	setTextMutex              sync.RWMutex
+	setTextArgsForCall        []FakeInputComponentSetTextArgs
+	SetUsageHintStub          func(string)
+	setUsageHintMutex         sync.RWMutex
+	setUsageHintArgsForCall   []FakeInputComponentSetUsageHintArgs
+	SetWidthStub              func(int)
+	setWidthMutex             sync.RWMutex
+	setWidthArgsForCall       []FakeInputComponentSetWidthArgs
+	invocations               map[string][][]interface{}
+	callOrder                 []string
+	invocationsMutex          sync.RWMutex
+}
+
+// FakeInputComponentAddImageAttachmentArgs holds the arguments of one call to AddImageAttachment.
+type FakeInputComponentAddImageAttachmentArgs struct {
+	Arg1 domain.ImageAttachment
+}
+
+// FakeInputComponentAddToHistoryArgs holds the arguments of one call to AddToHistory.
+type FakeInputComponentAddToHistoryArgs struct {
+	Arg1 string
+}
+
+// FakeInputComponentCanHandleArgs holds the arguments of one call to CanHandle.
+type FakeInputComponentCanHandleArgs struct {
+	Arg1 tea.KeyPressMsg
+}
+
+// FakeInputComponentHandleKeyArgs holds the arguments of one call to HandleKey.
+type FakeInputComponentHandleKeyArgs struct {
+	Arg1 tea.KeyPressMsg
+}
+
+// FakeInputComponentSetCursorArgs holds the arguments of one call to SetCursor.
+type FakeInputComponentSetCursorArgs struct {
+	Arg1 int
+}
+
+// FakeInputComponentSetHeightArgs holds the arguments of one call to SetHeight.
+type FakeInputComponentSetHeightArgs struct {
+	Arg1 int
+}
+
+// FakeInputComponentSetPlaceholderArgs holds the arguments of one call to SetPlaceholder.
+type FakeInputComponentSetPlaceholderArgs struct {
+	Arg1 string
+}
+
+// FakeInputComponentSetTextArgs holds the arguments of one call to SetText.
+type FakeInputComponentSetTextArgs struct {
+	Arg1 string
+}
+
+// FakeInputComponentSetUsageHintArgs holds the arguments of one call to SetUsageHint.
+type FakeInputComponentSetUsageHintArgs struct {
+	Arg1 string
+}
+
+// FakeInputComponentSetWidthArgs holds the arguments of one call to SetWidth.
+type FakeInputComponentSetWidthArgs struct {
+	Arg1 int
 }
 
 func (fake *FakeInputComponent) AddImageAttachment(arg1 domain.ImageAttachment) {
 	fake.addImageAttachmentMutex.Lock()
-	fake.addImageAttachmentArgsForCall = append(fake.addImageAttachmentArgsForCall, struct {
-		arg1 domain.ImageAttachment
-	}{arg1})
+	fake.addImageAttachmentArgsForCall = append(fake.addImageAttachmentArgsForCall, FakeInputComponentAddImageAttachmentArgs{arg1})
 	stub := fake.AddImageAttachmentStub
 	fake.recordInvocation("AddImageAttachment", []interface{}{arg1})
 	fake.addImageAttachmentMutex.Unlock()
 	if stub != nil {
-		fake.AddImageAttachmentStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -199,15 +217,21 @@ func (fake *FakeInputComponent) AddImageAttachmentArgsForCall(i int) domain.Imag
 	fake.addImageAttachmentMutex.RLock()
 	defer fake.addImageAttachmentMutex.RUnlock()
 	argsForCall := fake.addImageAttachmentArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) AddImageAttachmentArgs() []FakeInputComponentAddImageAttachmentArgs {
+	fake.addImageAttachmentMutex.RLock()
+	defer fake.addImageAttachmentMutex.RUnlock()
+	args := make([]FakeInputComponentAddImageAttachmentArgs, len(fake.addImageAttachmentArgsForCall))
+	copy(args, fake.addImageAttachmentArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) AddToHistory(arg1 string) error {
 	fake.addToHistoryMutex.Lock()
 	ret, specificReturn := fake.addToHistoryReturnsOnCall[len(fake.addToHistoryArgsForCall)]
-	fake.addToHistoryArgsForCall = append(fake.addToHistoryArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.addToHistoryArgsForCall = append(fake.addToHistoryArgsForCall, FakeInputComponentAddToHistoryArgs{arg1})
 	stub := fake.AddToHistoryStub
 	fakeReturns := fake.addToHistoryReturns
 	fake.recordInvocation("AddToHistory", []interface{}{arg1})
@@ -237,7 +261,15 @@ func (fake *FakeInputComponent) AddToHistoryArgsForCall(i int) string {
 	fake.addToHistoryMutex.RLock()
 	defer fake.addToHistoryMutex.RUnlock()
 	argsForCall := fake.addToHistoryArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) AddToHistoryArgs() []FakeInputComponentAddToHistoryArgs {
+	fake.addToHistoryMutex.RLock()
+	defer fake.addToHistoryMutex.RUnlock()
+	args := make([]FakeInputComponentAddToHistoryArgs, len(fake.addToHistoryArgsForCall))
+	copy(args, fake.addToHistoryArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) AddToHistoryReturns(result1 error) {
@@ -266,9 +298,7 @@ func (fake *FakeInputComponent) AddToHistoryReturnsOnCall(i int, result1 error) 
 func (fake *FakeInputComponent) CanHandle(arg1 tea.KeyPressMsg) bool {
 	fake.canHandleMutex.Lock()
 	ret, specificReturn := fake.canHandleReturnsOnCall[len(fake.canHandleArgsForCall)]
-	fake.canHandleArgsForCall = append(fake.canHandleArgsForCall, struct {
-		arg1 tea.KeyPressMsg
-	}{arg1})
+	fake.canHandleArgsForCall = append(fake.canHandleArgsForCall, FakeInputComponentCanHandleArgs{arg1})
 	stub := fake.CanHandleStub
 	fakeReturns := fake.canHandleReturns
 	fake.recordInvocation("CanHandle", []interface{}{arg1})
@@ -298,7 +328,15 @@ func (fake *FakeInputComponent) CanHandleArgsForCall(i int) tea.KeyPressMsg {
 	fake.canHandleMutex.RLock()
 	defer fake.canHandleMutex.RUnlock()
 	argsForCall := fake.canHandleArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) CanHandleArgs() []FakeInputComponentCanHandleArgs {
+	fake.canHandleMutex.RLock()
+	defer fake.canHandleMutex.RUnlock()
+	args := make([]FakeInputComponentCanHandleArgs, len(fake.canHandleArgsForCall))
+	copy(args, fake.canHandleArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) CanHandleReturns(result1 bool) {
@@ -326,13 +364,12 @@ func (fake *FakeInputComponent) CanHandleReturnsOnCall(i int, result1 bool) {
 
 func (fake *FakeInputComponent) ClearImageAttachments() {
 	fake.clearImageAttachmentsMutex.Lock()
-	fake.clearImageAttachmentsArgsForCall = append(fake.clearImageAttachmentsArgsForCall, struct {
-	}{})
+	fake.clearImageAttachmentsArgsForCall = append(fake.clearImageAttachmentsArgsForCall, struct{}{})
 	stub := fake.ClearImageAttachmentsStub
 	fake.recordInvocation("ClearImageAttachments", []interface{}{})
 	fake.clearImageAttachmentsMutex.Unlock()
 	if stub != nil {
-		fake.ClearImageAttachmentsStub()
+		stub()
 	}
 }
 
@@ -350,13 +387,12 @@ func (fake *FakeInputComponent) ClearImageAttachmentsCalls(stub func()) {
 
 func (fake *FakeInputComponent) ClearInput() {
 	fake.clearInputMutex.Lock()
-	fake.clearInputArgsForCall = append(fake.clearInputArgsForCall, struct {
-	}{})
+	fake.clearInputArgsForCall = append(fake.clearInputArgsForCall, struct{}{})
 	stub := fake.ClearInputStub
 	fake.recordInvocation("ClearInput", []interface{}{})
 	fake.clearInputMutex.Unlock()
 	if stub != nil {
-		fake.ClearInputStub()
+		stub()
 	}
 }
 
@@ -375,8 +411,7 @@ func (fake *FakeInputComponent) ClearInputCalls(stub func()) {
 func (fake *FakeInputComponent) GetCursor() int {
 	fake.getCursorMutex.Lock()
 	ret, specificReturn := fake.getCursorReturnsOnCall[len(fake.getCursorArgsForCall)]
-	fake.getCursorArgsForCall = append(fake.getCursorArgsForCall, struct {
-	}{})
+	fake.getCursorArgsForCall = append(fake.getCursorArgsForCall, struct{}{})
 	stub := fake.GetCursorStub
 	fakeReturns := fake.getCursorReturns
 	fake.recordInvocation("GetCursor", []interface{}{})
@@ -428,8 +463,7 @@ func (fake *FakeInputComponent) GetCursorReturnsOnCall(i int, result1 int) {
 func (fake *FakeInputComponent) GetImageAttachments() []domain.ImageAttachment {
 	fake.getImageAttachmentsMutex.Lock()
 	ret, specificReturn := fake.getImageAttachmentsReturnsOnCall[len(fake.getImageAttachmentsArgsForCall)]
-	fake.getImageAttachmentsArgsForCall = append(fake.getImageAttachmentsArgsForCall, struct {
-	}{})
+	fake.getImageAttachmentsArgsForCall = append(fake.getImageAttachmentsArgsForCall, struct{}{})
 	stub := fake.GetImageAttachmentsStub
 	fakeReturns := fake.getImageAttachmentsReturns
 	fake.recordInvocation("GetImageAttachments", []interface{}{})
@@ -481,8 +515,7 @@ func (fake *FakeInputComponent) GetImageAttachmentsReturnsOnCall(i int, result1 
 func (fake *FakeInputComponent) GetInput() string {
 	fake.getInputMutex.Lock()
 	ret, specificReturn := fake.getInputReturnsOnCall[len(fake.getInputArgsForCall)]
-	fake.getInputArgsForCall = append(fake.getInputArgsForCall, struct {
-	}{})
+	fake.getInputArgsForCall = append(fake.getInputArgsForCall, struct{}{})
 	stub := fake.GetInputStub
 	fakeReturns := fake.getInputReturns
 	fake.recordInvocation("GetInput", []interface{}{})
@@ -534,8 +567,7 @@ func (fake *FakeInputComponent) GetInputReturnsOnCall(i int, result1 string) {
 func (fake *FakeInputComponent) GetUsageHint() string {
 	fake.getUsageHintMutex.Lock()
 	ret, specificReturn := fake.getUsageHintReturnsOnCall[len(fake.getUsageHintArgsForCall)]
-	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct {
-	}{})
+	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct{}{})
 	stub := fake.GetUsageHintStub
 	fakeReturns := fake.getUsageHintReturns
 	fake.recordInvocation("GetUsageHint", []interface{}{})
@@ -587,9 +619,7 @@ func (fake *FakeInputComponent) GetUsageHintReturnsOnCall(i int, result1 string)
 func (fake *FakeInputComponent) HandleKey(arg1 tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	fake.handleKeyMutex.Lock()
 	ret, specificReturn := fake.handleKeyReturnsOnCall[len(fake.handleKeyArgsForCall)]
-	fake.handleKeyArgsForCall = append(fake.handleKeyArgsForCall, struct {
-		arg1 tea.KeyPressMsg
-	}{arg1})
+	fake.handleKeyArgsForCall = append(fake.handleKeyArgsForCall, FakeInputComponentHandleKeyArgs{arg1})
 	stub := fake.HandleKeyStub
 	fakeReturns := fake.handleKeyReturns
 	fake.recordInvocation("HandleKey", []interface{}{arg1})
@@ -619,7 +649,15 @@ func (fake *FakeInputComponent) HandleKeyArgsForCall(i int) tea.KeyPressMsg {
 	fake.handleKeyMutex.RLock()
 	defer fake.handleKeyMutex.RUnlock()
 	argsForCall := fake.handleKeyArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) HandleKeyArgs() []FakeInputComponentHandleKeyArgs {
+	fake.handleKeyMutex.RLock()
+	defer fake.handleKeyMutex.RUnlock()
+	args := make([]FakeInputComponentHandleKeyArgs, len(fake.handleKeyArgsForCall))
+	copy(args, fake.handleKeyArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) HandleKeyReturns(result1 tea.Model, result2 tea.Cmd) {
@@ -651,8 +689,7 @@ func (fake *FakeInputComponent) HandleKeyReturnsOnCall(i int, result1 tea.Model,
 func (fake *FakeInputComponent) IsDisabled() bool {
 	fake.isDisabledMutex.Lock()
 	ret, specificReturn := fake.isDisabledReturnsOnCall[len(fake.isDisabledArgsForCall)]
-	fake.isDisabledArgsForCall = append(fake.isDisabledArgsForCall, struct {
-	}{})
+	fake.isDisabledArgsForCall = append(fake.isDisabledArgsForCall, struct{}{})
 	stub := fake.IsDisabledStub
 	fakeReturns := fake.isDisabledReturns
 	fake.recordInvocation("IsDisabled", []interface{}{})
@@ -704,8 +741,7 @@ func (fake *FakeInputComponent) IsDisabledReturnsOnCall(i int, result1 bool) {
 func (fake *FakeInputComponent) IsNavigatingHistory() bool {
 	fake.isNavigatingHistoryMutex.Lock()
 	ret, specificReturn := fake.isNavigatingHistoryReturnsOnCall[len(fake.isNavigatingHistoryArgsForCall)]
-	fake.isNavigatingHistoryArgsForCall = append(fake.isNavigatingHistoryArgsForCall, struct {
-	}{})
+	fake.isNavigatingHistoryArgsForCall = append(fake.isNavigatingHistoryArgsForCall, struct{}{})
 	stub := fake.IsNavigatingHistoryStub
 	fakeReturns := fake.isNavigatingHistoryReturns
 	fake.recordInvocation("IsNavigatingHistory", []interface{}{})
@@ -756,13 +792,12 @@ func (fake *FakeInputComponent) IsNavigatingHistoryReturnsOnCall(i int, result1 
 
 func (fake *FakeInputComponent) NavigateHistoryDown() {
 	fake.navigateHistoryDownMutex.Lock()
-	fake.navigateHistoryDownArgsForCall = append(fake.navigateHistoryDownArgsForCall, struct {
-	}{})
+	fake.navigateHistoryDownArgsForCall = append(fake.navigateHistoryDownArgsForCall, struct{}{})
 	stub := fake.NavigateHistoryDownStub
 	fake.recordInvocation("NavigateHistoryDown", []interface{}{})
 	fake.navigateHistoryDownMutex.Unlock()
 	if stub != nil {
-		fake.NavigateHistoryDownStub()
+		stub()
 	}
 }
 
@@ -780,13 +815,12 @@ func (fake *FakeInputComponent) NavigateHistoryDownCalls(stub func()) {
 
 func (fake *FakeInputComponent) NavigateHistoryUp() {
 	fake.navigateHistoryUpMutex.Lock()
-	fake.navigateHistoryUpArgsForCall = append(fake.navigateHistoryUpArgsForCall, struct {
-	}{})
+	fake.navigateHistoryUpArgsForCall = append(fake.navigateHistoryUpArgsForCall, struct{}{})
 	stub := fake.NavigateHistoryUpStub
 	fake.recordInvocation("NavigateHistoryUp", []interface{}{})
 	fake.navigateHistoryUpMutex.Unlock()
 	if stub != nil {
-		fake.NavigateHistoryUpStub()
+		stub()
 	}
 }
 
@@ -805,8 +839,7 @@ func (fake *FakeInputComponent) NavigateHistoryUpCalls(stub func()) {
 func (fake *FakeInputComponent) Render() string {
 	fake.renderMutex.Lock()
 	ret, specificReturn := fake.renderReturnsOnCall[len(fake.renderArgsForCall)]
-	fake.renderArgsForCall = append(fake.renderArgsForCall, struct {
-	}{})
+	fake.renderArgsForCall = append(fake.renderArgsForCall, struct{}{})
 	stub := fake.RenderStub
 	fakeReturns := fake.renderReturns
 	fake.recordInvocation("Render", []interface{}{})
@@ -857,14 +890,12 @@ func (fake *FakeInputComponent) RenderReturnsOnCall(i int, result1 string) {
 
 func (fake *FakeInputComponent) SetCursor(arg1 int) {
 	fake.setCursorMutex.Lock()
-	fake.setCursorArgsForCall = append(fake.setCursorArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setCursorArgsForCall = append(fake.setCursorArgsForCall, FakeInputComponentSetCursorArgs{arg1})
 	stub := fake.SetCursorStub
 	fake.recordInvocation("SetCursor", []interface{}{arg1})
 	fake.setCursorMutex.Unlock()
 	if stub != nil {
-		fake.SetCursorStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -884,19 +915,25 @@ func (fake *FakeInputComponent) SetCursorArgsForCall(i int) int {
 	fake.setCursorMutex.RLock()
 	defer fake.setCursorMutex.RUnlock()
 	argsForCall := fake.setCursorArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) SetCursorArgs() []FakeInputComponentSetCursorArgs {
+	fake.setCursorMutex.RLock()
+	defer fake.setCursorMutex.RUnlock()
+	args := make([]FakeInputComponentSetCursorArgs, len(fake.setCursorArgsForCall))
+	copy(args, fake.setCursorArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) SetHeight(arg1 int) {
 	fake.setHeightMutex.Lock()
-	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, FakeInputComponentSetHeightArgs{arg1})
 	stub := fake.SetHeightStub
 	fake.recordInvocation("SetHeight", []interface{}{arg1})
 	fake.setHeightMutex.Unlock()
 	if stub != nil {
-		fake.SetHeightStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -916,19 +953,25 @@ func (fake *FakeInputComponent) SetHeightArgsForCall(i int) int {
 	fake.setHeightMutex.RLock()
 	defer fake.setHeightMutex.RUnlock()
 	argsForCall := fake.setHeightArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) SetHeightArgs() []FakeInputComponentSetHeightArgs {
+	fake.setHeightMutex.RLock()
+	defer fake.setHeightMutex.RUnlock()
+	args := make([]FakeInputComponentSetHeightArgs, len(fake.setHeightArgsForCall))
+	copy(args, fake.setHeightArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) SetPlaceholder(arg1 string) {
 	fake.setPlaceholderMutex.Lock()
-	fake.setPlaceholderArgsForCall = append(fake.setPlaceholderArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setPlaceholderArgsForCall = append(fake.setPlaceholderArgsForCall, FakeInputComponentSetPlaceholderArgs{arg1})
 	stub := fake.SetPlaceholderStub
 	fake.recordInvocation("SetPlaceholder", []interface{}{arg1})
 	fake.setPlaceholderMutex.Unlock()
 	if stub != nil {
-		fake.SetPlaceholderStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -948,19 +991,25 @@ func (fake *FakeInputComponent) SetPlaceholderArgsForCall(i int) string {
 	fake.setPlaceholderMutex.RLock()
 	defer fake.setPlaceholderMutex.RUnlock()
 	argsForCall := fake.setPlaceholderArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) SetPlaceholderArgs() []FakeInputComponentSetPlaceholderArgs {
+	fake.setPlaceholderMutex.RLock()
+	defer fake.setPlaceholderMutex.RUnlock()
+	args := make([]FakeInputComponentSetPlaceholderArgs, len(fake.setPlaceholderArgsForCall))
+	copy(args, fake.setPlaceholderArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) SetText(arg1 string) {
 	fake.setTextMutex.Lock()
-	fake.setTextArgsForCall = append(fake.setTextArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setTextArgsForCall = append(fake.setTextArgsForCall, FakeInputComponentSetTextArgs{arg1})
 	stub := fake.SetTextStub
 	fake.recordInvocation("SetText", []interface{}{arg1})
 	fake.setTextMutex.Unlock()
 	if stub != nil {
-		fake.SetTextStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -980,19 +1029,25 @@ func (fake *FakeInputComponent) SetTextArgsForCall(i int) string {
 	fake.setTextMutex.RLock()
 	defer fake.setTextMutex.RUnlock()
 	argsForCall := fake.setTextArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) SetTextArgs() []FakeInputComponentSetTextArgs {
+	fake.setTextMutex.RLock()
+	defer fake.setTextMutex.RUnlock()
+	args := make([]FakeInputComponentSetTextArgs, len(fake.setTextArgsForCall))
+	copy(args, fake.setTextArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) SetUsageHint(arg1 string) {
 	fake.setUsageHintMutex.Lock()
-	fake.setUsageHintArgsForCall = append(fake.setUsageHintArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setUsageHintArgsForCall = append(fake.setUsageHintArgsForCall, FakeInputComponentSetUsageHintArgs{arg1})
 	stub := fake.SetUsageHintStub
 	fake.recordInvocation("SetUsageHint", []interface{}{arg1})
 	fake.setUsageHintMutex.Unlock()
 	if stub != nil {
-		fake.SetUsageHintStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -1012,19 +1067,25 @@ func (fake *FakeInputComponent) SetUsageHintArgsForCall(i int) string {
 	fake.setUsageHintMutex.RLock()
 	defer fake.setUsageHintMutex.RUnlock()
 	argsForCall := fake.setUsageHintArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) SetUsageHintArgs() []FakeInputComponentSetUsageHintArgs {
+	fake.setUsageHintMutex.RLock()
+	defer fake.setUsageHintMutex.RUnlock()
+	args := make([]FakeInputComponentSetUsageHintArgs, len(fake.setUsageHintArgsForCall))
+	copy(args, fake.setUsageHintArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) SetWidth(arg1 int) {
 	fake.setWidthMutex.Lock()
-	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, FakeInputComponentSetWidthArgs{arg1})
 	stub := fake.SetWidthStub
 	fake.recordInvocation("SetWidth", []interface{}{arg1})
 	fake.setWidthMutex.Unlock()
 	if stub != nil {
-		fake.SetWidthStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -1044,7 +1105,15 @@ func (fake *FakeInputComponent) SetWidthArgsForCall(i int) int {
 	fake.setWidthMutex.RLock()
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeInputComponent) SetWidthArgs() []FakeInputComponentSetWidthArgs {
+	fake.setWidthMutex.RLock()
+	defer fake.setWidthMutex.RUnlock()
+	args := make([]FakeInputComponentSetWidthArgs, len(fake.setWidthArgsForCall))
+	copy(args, fake.setWidthArgsForCall)
+	return args
 }
 
 func (fake *FakeInputComponent) Invocations() map[string][][]interface{} {
@@ -1057,9 +1126,18 @@ func (fake *FakeInputComponent) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeInputComponent) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeInputComponent) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

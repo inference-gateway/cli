@@ -10,10 +10,8 @@ import (
 type FakeBackgroundTaskService struct {
 	CancelBackgroundTaskStub        func(string) error
 	cancelBackgroundTaskMutex       sync.RWMutex
-	cancelBackgroundTaskArgsForCall []struct {
-		arg1 string
-	}
-	cancelBackgroundTaskReturns struct {
+	cancelBackgroundTaskArgsForCall []FakeBackgroundTaskServiceCancelBackgroundTaskArgs
+	cancelBackgroundTaskReturns     struct {
 		result1 error
 	}
 	cancelBackgroundTaskReturnsOnCall map[int]struct {
@@ -21,24 +19,27 @@ type FakeBackgroundTaskService struct {
 	}
 	GetBackgroundTasksStub        func() []domain.TaskPollingState
 	getBackgroundTasksMutex       sync.RWMutex
-	getBackgroundTasksArgsForCall []struct {
-	}
-	getBackgroundTasksReturns struct {
+	getBackgroundTasksArgsForCall []struct{}
+	getBackgroundTasksReturns     struct {
 		result1 []domain.TaskPollingState
 	}
 	getBackgroundTasksReturnsOnCall map[int]struct {
 		result1 []domain.TaskPollingState
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeBackgroundTaskServiceCancelBackgroundTaskArgs holds the arguments of one call to CancelBackgroundTask.
+type FakeBackgroundTaskServiceCancelBackgroundTaskArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeBackgroundTaskService) CancelBackgroundTask(arg1 string) error {
 	fake.cancelBackgroundTaskMutex.Lock()
 	ret, specificReturn := fake.cancelBackgroundTaskReturnsOnCall[len(fake.cancelBackgroundTaskArgsForCall)]
-	fake.cancelBackgroundTaskArgsForCall = append(fake.cancelBackgroundTaskArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.cancelBackgroundTaskArgsForCall = append(fake.cancelBackgroundTaskArgsForCall, FakeBackgroundTaskServiceCancelBackgroundTaskArgs{arg1})
 	stub := fake.CancelBackgroundTaskStub
 	fakeReturns := fake.cancelBackgroundTaskReturns
 	fake.recordInvocation("CancelBackgroundTask", []interface{}{arg1})
@@ -68,7 +69,15 @@ func (fake *FakeBackgroundTaskService) CancelBackgroundTaskArgsForCall(i int) st
 	fake.cancelBackgroundTaskMutex.RLock()
 	defer fake.cancelBackgroundTaskMutex.RUnlock()
 	argsForCall := fake.cancelBackgroundTaskArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeBackgroundTaskService) CancelBackgroundTaskArgs() []FakeBackgroundTaskServiceCancelBackgroundTaskArgs {
+	fake.cancelBackgroundTaskMutex.RLock()
+	defer fake.cancelBackgroundTaskMutex.RUnlock()
+	args := make([]FakeBackgroundTaskServiceCancelBackgroundTaskArgs, len(fake.cancelBackgroundTaskArgsForCall))
+	copy(args, fake.cancelBackgroundTaskArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundTaskService) CancelBackgroundTaskReturns(result1 error) {
@@ -97,8 +106,7 @@ func (fake *FakeBackgroundTaskService) CancelBackgroundTaskReturnsOnCall(i int, 
 func (fake *FakeBackgroundTaskService) GetBackgroundTasks() []domain.TaskPollingState {
 	fake.getBackgroundTasksMutex.Lock()
 	ret, specificReturn := fake.getBackgroundTasksReturnsOnCall[len(fake.getBackgroundTasksArgsForCall)]
-	fake.getBackgroundTasksArgsForCall = append(fake.getBackgroundTasksArgsForCall, struct {
-	}{})
+	fake.getBackgroundTasksArgsForCall = append(fake.getBackgroundTasksArgsForCall, struct{}{})
 	stub := fake.GetBackgroundTasksStub
 	fakeReturns := fake.getBackgroundTasksReturns
 	fake.recordInvocation("GetBackgroundTasks", []interface{}{})
@@ -157,9 +165,18 @@ func (fake *FakeBackgroundTaskService) Invocations() map[string][][]interface{} 
 	return copiedInvocations
 }
 
+func (fake *FakeBackgroundTaskService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeBackgroundTaskService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

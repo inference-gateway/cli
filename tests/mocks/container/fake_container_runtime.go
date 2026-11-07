@@ -11,10 +11,8 @@ import (
 type FakeContainerRuntime struct {
 	CleanupNetworkStub        func(context.Context) error
 	cleanupNetworkMutex       sync.RWMutex
-	cleanupNetworkArgsForCall []struct {
-		arg1 context.Context
-	}
-	cleanupNetworkReturns struct {
+	cleanupNetworkArgsForCall []FakeContainerRuntimeCleanupNetworkArgs
+	cleanupNetworkReturns     struct {
 		result1 error
 	}
 	cleanupNetworkReturnsOnCall map[int]struct {
@@ -22,10 +20,8 @@ type FakeContainerRuntime struct {
 	}
 	ContainerExistsStub        func(string) bool
 	containerExistsMutex       sync.RWMutex
-	containerExistsArgsForCall []struct {
-		arg1 string
-	}
-	containerExistsReturns struct {
+	containerExistsArgsForCall []FakeContainerRuntimeContainerExistsArgs
+	containerExistsReturns     struct {
 		result1 bool
 	}
 	containerExistsReturnsOnCall map[int]struct {
@@ -33,10 +29,8 @@ type FakeContainerRuntime struct {
 	}
 	EnsureNetworkStub        func(context.Context) error
 	ensureNetworkMutex       sync.RWMutex
-	ensureNetworkArgsForCall []struct {
-		arg1 context.Context
-	}
-	ensureNetworkReturns struct {
+	ensureNetworkArgsForCall []FakeContainerRuntimeEnsureNetworkArgs
+	ensureNetworkReturns     struct {
 		result1 error
 	}
 	ensureNetworkReturnsOnCall map[int]struct {
@@ -44,11 +38,8 @@ type FakeContainerRuntime struct {
 	}
 	GetContainerHealthStub        func(context.Context, string) (container.HealthStatus, error)
 	getContainerHealthMutex       sync.RWMutex
-	getContainerHealthArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	getContainerHealthReturns struct {
+	getContainerHealthArgsForCall []FakeContainerRuntimeGetContainerHealthArgs
+	getContainerHealthReturns     struct {
 		result1 container.HealthStatus
 		result2 error
 	}
@@ -58,9 +49,8 @@ type FakeContainerRuntime struct {
 	}
 	GetNetworkNameStub        func() string
 	getNetworkNameMutex       sync.RWMutex
-	getNetworkNameArgsForCall []struct {
-	}
-	getNetworkNameReturns struct {
+	getNetworkNameArgsForCall []struct{}
+	getNetworkNameReturns     struct {
 		result1 string
 	}
 	getNetworkNameReturnsOnCall map[int]struct {
@@ -68,11 +58,8 @@ type FakeContainerRuntime struct {
 	}
 	ListRunningContainersStub        func(context.Context, string) ([]container.ContainerInfo, error)
 	listRunningContainersMutex       sync.RWMutex
-	listRunningContainersArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	listRunningContainersReturns struct {
+	listRunningContainersArgsForCall []FakeContainerRuntimeListRunningContainersArgs
+	listRunningContainersReturns     struct {
 		result1 []container.ContainerInfo
 		result2 error
 	}
@@ -82,11 +69,8 @@ type FakeContainerRuntime struct {
 	}
 	PublishedPortStub        func(context.Context, string) (int, error)
 	publishedPortMutex       sync.RWMutex
-	publishedPortArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	publishedPortReturns struct {
+	publishedPortArgsForCall []FakeContainerRuntimePublishedPortArgs
+	publishedPortReturns     struct {
 		result1 int
 		result2 error
 	}
@@ -96,12 +80,8 @@ type FakeContainerRuntime struct {
 	}
 	PullImageStub        func(context.Context, string, func(done int, total int)) error
 	pullImageMutex       sync.RWMutex
-	pullImageArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 func(done int, total int)
-	}
-	pullImageReturns struct {
+	pullImageArgsForCall []FakeContainerRuntimePullImageArgs
+	pullImageReturns     struct {
 		result1 error
 	}
 	pullImageReturnsOnCall map[int]struct {
@@ -109,11 +89,8 @@ type FakeContainerRuntime struct {
 	}
 	RunContainerStub        func(context.Context, container.RunContainerOptions) (string, error)
 	runContainerMutex       sync.RWMutex
-	runContainerArgsForCall []struct {
-		arg1 context.Context
-		arg2 container.RunContainerOptions
-	}
-	runContainerReturns struct {
+	runContainerArgsForCall []FakeContainerRuntimeRunContainerArgs
+	runContainerReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -123,26 +100,74 @@ type FakeContainerRuntime struct {
 	}
 	StopContainerStub        func(context.Context, string) error
 	stopContainerMutex       sync.RWMutex
-	stopContainerArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	stopContainerReturns struct {
+	stopContainerArgsForCall []FakeContainerRuntimeStopContainerArgs
+	stopContainerReturns     struct {
 		result1 error
 	}
 	stopContainerReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeContainerRuntimeCleanupNetworkArgs holds the arguments of one call to CleanupNetwork.
+type FakeContainerRuntimeCleanupNetworkArgs struct {
+	Arg1 context.Context
+}
+
+// FakeContainerRuntimeContainerExistsArgs holds the arguments of one call to ContainerExists.
+type FakeContainerRuntimeContainerExistsArgs struct {
+	Arg1 string
+}
+
+// FakeContainerRuntimeEnsureNetworkArgs holds the arguments of one call to EnsureNetwork.
+type FakeContainerRuntimeEnsureNetworkArgs struct {
+	Arg1 context.Context
+}
+
+// FakeContainerRuntimeGetContainerHealthArgs holds the arguments of one call to GetContainerHealth.
+type FakeContainerRuntimeGetContainerHealthArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakeContainerRuntimeListRunningContainersArgs holds the arguments of one call to ListRunningContainers.
+type FakeContainerRuntimeListRunningContainersArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakeContainerRuntimePublishedPortArgs holds the arguments of one call to PublishedPort.
+type FakeContainerRuntimePublishedPortArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakeContainerRuntimePullImageArgs holds the arguments of one call to PullImage.
+type FakeContainerRuntimePullImageArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 func(done int, total int)
+}
+
+// FakeContainerRuntimeRunContainerArgs holds the arguments of one call to RunContainer.
+type FakeContainerRuntimeRunContainerArgs struct {
+	Arg1 context.Context
+	Arg2 container.RunContainerOptions
+}
+
+// FakeContainerRuntimeStopContainerArgs holds the arguments of one call to StopContainer.
+type FakeContainerRuntimeStopContainerArgs struct {
+	Arg1 context.Context
+	Arg2 string
 }
 
 func (fake *FakeContainerRuntime) CleanupNetwork(arg1 context.Context) error {
 	fake.cleanupNetworkMutex.Lock()
 	ret, specificReturn := fake.cleanupNetworkReturnsOnCall[len(fake.cleanupNetworkArgsForCall)]
-	fake.cleanupNetworkArgsForCall = append(fake.cleanupNetworkArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.cleanupNetworkArgsForCall = append(fake.cleanupNetworkArgsForCall, FakeContainerRuntimeCleanupNetworkArgs{arg1})
 	stub := fake.CleanupNetworkStub
 	fakeReturns := fake.cleanupNetworkReturns
 	fake.recordInvocation("CleanupNetwork", []interface{}{arg1})
@@ -172,7 +197,15 @@ func (fake *FakeContainerRuntime) CleanupNetworkArgsForCall(i int) context.Conte
 	fake.cleanupNetworkMutex.RLock()
 	defer fake.cleanupNetworkMutex.RUnlock()
 	argsForCall := fake.cleanupNetworkArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeContainerRuntime) CleanupNetworkArgs() []FakeContainerRuntimeCleanupNetworkArgs {
+	fake.cleanupNetworkMutex.RLock()
+	defer fake.cleanupNetworkMutex.RUnlock()
+	args := make([]FakeContainerRuntimeCleanupNetworkArgs, len(fake.cleanupNetworkArgsForCall))
+	copy(args, fake.cleanupNetworkArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) CleanupNetworkReturns(result1 error) {
@@ -201,9 +234,7 @@ func (fake *FakeContainerRuntime) CleanupNetworkReturnsOnCall(i int, result1 err
 func (fake *FakeContainerRuntime) ContainerExists(arg1 string) bool {
 	fake.containerExistsMutex.Lock()
 	ret, specificReturn := fake.containerExistsReturnsOnCall[len(fake.containerExistsArgsForCall)]
-	fake.containerExistsArgsForCall = append(fake.containerExistsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.containerExistsArgsForCall = append(fake.containerExistsArgsForCall, FakeContainerRuntimeContainerExistsArgs{arg1})
 	stub := fake.ContainerExistsStub
 	fakeReturns := fake.containerExistsReturns
 	fake.recordInvocation("ContainerExists", []interface{}{arg1})
@@ -233,7 +264,15 @@ func (fake *FakeContainerRuntime) ContainerExistsArgsForCall(i int) string {
 	fake.containerExistsMutex.RLock()
 	defer fake.containerExistsMutex.RUnlock()
 	argsForCall := fake.containerExistsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeContainerRuntime) ContainerExistsArgs() []FakeContainerRuntimeContainerExistsArgs {
+	fake.containerExistsMutex.RLock()
+	defer fake.containerExistsMutex.RUnlock()
+	args := make([]FakeContainerRuntimeContainerExistsArgs, len(fake.containerExistsArgsForCall))
+	copy(args, fake.containerExistsArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) ContainerExistsReturns(result1 bool) {
@@ -262,9 +301,7 @@ func (fake *FakeContainerRuntime) ContainerExistsReturnsOnCall(i int, result1 bo
 func (fake *FakeContainerRuntime) EnsureNetwork(arg1 context.Context) error {
 	fake.ensureNetworkMutex.Lock()
 	ret, specificReturn := fake.ensureNetworkReturnsOnCall[len(fake.ensureNetworkArgsForCall)]
-	fake.ensureNetworkArgsForCall = append(fake.ensureNetworkArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.ensureNetworkArgsForCall = append(fake.ensureNetworkArgsForCall, FakeContainerRuntimeEnsureNetworkArgs{arg1})
 	stub := fake.EnsureNetworkStub
 	fakeReturns := fake.ensureNetworkReturns
 	fake.recordInvocation("EnsureNetwork", []interface{}{arg1})
@@ -294,7 +331,15 @@ func (fake *FakeContainerRuntime) EnsureNetworkArgsForCall(i int) context.Contex
 	fake.ensureNetworkMutex.RLock()
 	defer fake.ensureNetworkMutex.RUnlock()
 	argsForCall := fake.ensureNetworkArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeContainerRuntime) EnsureNetworkArgs() []FakeContainerRuntimeEnsureNetworkArgs {
+	fake.ensureNetworkMutex.RLock()
+	defer fake.ensureNetworkMutex.RUnlock()
+	args := make([]FakeContainerRuntimeEnsureNetworkArgs, len(fake.ensureNetworkArgsForCall))
+	copy(args, fake.ensureNetworkArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) EnsureNetworkReturns(result1 error) {
@@ -323,10 +368,7 @@ func (fake *FakeContainerRuntime) EnsureNetworkReturnsOnCall(i int, result1 erro
 func (fake *FakeContainerRuntime) GetContainerHealth(arg1 context.Context, arg2 string) (container.HealthStatus, error) {
 	fake.getContainerHealthMutex.Lock()
 	ret, specificReturn := fake.getContainerHealthReturnsOnCall[len(fake.getContainerHealthArgsForCall)]
-	fake.getContainerHealthArgsForCall = append(fake.getContainerHealthArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.getContainerHealthArgsForCall = append(fake.getContainerHealthArgsForCall, FakeContainerRuntimeGetContainerHealthArgs{arg1, arg2})
 	stub := fake.GetContainerHealthStub
 	fakeReturns := fake.getContainerHealthReturns
 	fake.recordInvocation("GetContainerHealth", []interface{}{arg1, arg2})
@@ -356,7 +398,15 @@ func (fake *FakeContainerRuntime) GetContainerHealthArgsForCall(i int) (context.
 	fake.getContainerHealthMutex.RLock()
 	defer fake.getContainerHealthMutex.RUnlock()
 	argsForCall := fake.getContainerHealthArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeContainerRuntime) GetContainerHealthArgs() []FakeContainerRuntimeGetContainerHealthArgs {
+	fake.getContainerHealthMutex.RLock()
+	defer fake.getContainerHealthMutex.RUnlock()
+	args := make([]FakeContainerRuntimeGetContainerHealthArgs, len(fake.getContainerHealthArgsForCall))
+	copy(args, fake.getContainerHealthArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) GetContainerHealthReturns(result1 container.HealthStatus, result2 error) {
@@ -388,8 +438,7 @@ func (fake *FakeContainerRuntime) GetContainerHealthReturnsOnCall(i int, result1
 func (fake *FakeContainerRuntime) GetNetworkName() string {
 	fake.getNetworkNameMutex.Lock()
 	ret, specificReturn := fake.getNetworkNameReturnsOnCall[len(fake.getNetworkNameArgsForCall)]
-	fake.getNetworkNameArgsForCall = append(fake.getNetworkNameArgsForCall, struct {
-	}{})
+	fake.getNetworkNameArgsForCall = append(fake.getNetworkNameArgsForCall, struct{}{})
 	stub := fake.GetNetworkNameStub
 	fakeReturns := fake.getNetworkNameReturns
 	fake.recordInvocation("GetNetworkName", []interface{}{})
@@ -441,10 +490,7 @@ func (fake *FakeContainerRuntime) GetNetworkNameReturnsOnCall(i int, result1 str
 func (fake *FakeContainerRuntime) ListRunningContainers(arg1 context.Context, arg2 string) ([]container.ContainerInfo, error) {
 	fake.listRunningContainersMutex.Lock()
 	ret, specificReturn := fake.listRunningContainersReturnsOnCall[len(fake.listRunningContainersArgsForCall)]
-	fake.listRunningContainersArgsForCall = append(fake.listRunningContainersArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.listRunningContainersArgsForCall = append(fake.listRunningContainersArgsForCall, FakeContainerRuntimeListRunningContainersArgs{arg1, arg2})
 	stub := fake.ListRunningContainersStub
 	fakeReturns := fake.listRunningContainersReturns
 	fake.recordInvocation("ListRunningContainers", []interface{}{arg1, arg2})
@@ -474,7 +520,15 @@ func (fake *FakeContainerRuntime) ListRunningContainersArgsForCall(i int) (conte
 	fake.listRunningContainersMutex.RLock()
 	defer fake.listRunningContainersMutex.RUnlock()
 	argsForCall := fake.listRunningContainersArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeContainerRuntime) ListRunningContainersArgs() []FakeContainerRuntimeListRunningContainersArgs {
+	fake.listRunningContainersMutex.RLock()
+	defer fake.listRunningContainersMutex.RUnlock()
+	args := make([]FakeContainerRuntimeListRunningContainersArgs, len(fake.listRunningContainersArgsForCall))
+	copy(args, fake.listRunningContainersArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) ListRunningContainersReturns(result1 []container.ContainerInfo, result2 error) {
@@ -506,10 +560,7 @@ func (fake *FakeContainerRuntime) ListRunningContainersReturnsOnCall(i int, resu
 func (fake *FakeContainerRuntime) PublishedPort(arg1 context.Context, arg2 string) (int, error) {
 	fake.publishedPortMutex.Lock()
 	ret, specificReturn := fake.publishedPortReturnsOnCall[len(fake.publishedPortArgsForCall)]
-	fake.publishedPortArgsForCall = append(fake.publishedPortArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.publishedPortArgsForCall = append(fake.publishedPortArgsForCall, FakeContainerRuntimePublishedPortArgs{arg1, arg2})
 	stub := fake.PublishedPortStub
 	fakeReturns := fake.publishedPortReturns
 	fake.recordInvocation("PublishedPort", []interface{}{arg1, arg2})
@@ -539,7 +590,15 @@ func (fake *FakeContainerRuntime) PublishedPortArgsForCall(i int) (context.Conte
 	fake.publishedPortMutex.RLock()
 	defer fake.publishedPortMutex.RUnlock()
 	argsForCall := fake.publishedPortArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeContainerRuntime) PublishedPortArgs() []FakeContainerRuntimePublishedPortArgs {
+	fake.publishedPortMutex.RLock()
+	defer fake.publishedPortMutex.RUnlock()
+	args := make([]FakeContainerRuntimePublishedPortArgs, len(fake.publishedPortArgsForCall))
+	copy(args, fake.publishedPortArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) PublishedPortReturns(result1 int, result2 error) {
@@ -571,11 +630,7 @@ func (fake *FakeContainerRuntime) PublishedPortReturnsOnCall(i int, result1 int,
 func (fake *FakeContainerRuntime) PullImage(arg1 context.Context, arg2 string, arg3 func(done int, total int)) error {
 	fake.pullImageMutex.Lock()
 	ret, specificReturn := fake.pullImageReturnsOnCall[len(fake.pullImageArgsForCall)]
-	fake.pullImageArgsForCall = append(fake.pullImageArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 func(done int, total int)
-	}{arg1, arg2, arg3})
+	fake.pullImageArgsForCall = append(fake.pullImageArgsForCall, FakeContainerRuntimePullImageArgs{arg1, arg2, arg3})
 	stub := fake.PullImageStub
 	fakeReturns := fake.pullImageReturns
 	fake.recordInvocation("PullImage", []interface{}{arg1, arg2, arg3})
@@ -605,7 +660,15 @@ func (fake *FakeContainerRuntime) PullImageArgsForCall(i int) (context.Context, 
 	fake.pullImageMutex.RLock()
 	defer fake.pullImageMutex.RUnlock()
 	argsForCall := fake.pullImageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeContainerRuntime) PullImageArgs() []FakeContainerRuntimePullImageArgs {
+	fake.pullImageMutex.RLock()
+	defer fake.pullImageMutex.RUnlock()
+	args := make([]FakeContainerRuntimePullImageArgs, len(fake.pullImageArgsForCall))
+	copy(args, fake.pullImageArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) PullImageReturns(result1 error) {
@@ -634,10 +697,7 @@ func (fake *FakeContainerRuntime) PullImageReturnsOnCall(i int, result1 error) {
 func (fake *FakeContainerRuntime) RunContainer(arg1 context.Context, arg2 container.RunContainerOptions) (string, error) {
 	fake.runContainerMutex.Lock()
 	ret, specificReturn := fake.runContainerReturnsOnCall[len(fake.runContainerArgsForCall)]
-	fake.runContainerArgsForCall = append(fake.runContainerArgsForCall, struct {
-		arg1 context.Context
-		arg2 container.RunContainerOptions
-	}{arg1, arg2})
+	fake.runContainerArgsForCall = append(fake.runContainerArgsForCall, FakeContainerRuntimeRunContainerArgs{arg1, arg2})
 	stub := fake.RunContainerStub
 	fakeReturns := fake.runContainerReturns
 	fake.recordInvocation("RunContainer", []interface{}{arg1, arg2})
@@ -667,7 +727,15 @@ func (fake *FakeContainerRuntime) RunContainerArgsForCall(i int) (context.Contex
 	fake.runContainerMutex.RLock()
 	defer fake.runContainerMutex.RUnlock()
 	argsForCall := fake.runContainerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeContainerRuntime) RunContainerArgs() []FakeContainerRuntimeRunContainerArgs {
+	fake.runContainerMutex.RLock()
+	defer fake.runContainerMutex.RUnlock()
+	args := make([]FakeContainerRuntimeRunContainerArgs, len(fake.runContainerArgsForCall))
+	copy(args, fake.runContainerArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) RunContainerReturns(result1 string, result2 error) {
@@ -699,10 +767,7 @@ func (fake *FakeContainerRuntime) RunContainerReturnsOnCall(i int, result1 strin
 func (fake *FakeContainerRuntime) StopContainer(arg1 context.Context, arg2 string) error {
 	fake.stopContainerMutex.Lock()
 	ret, specificReturn := fake.stopContainerReturnsOnCall[len(fake.stopContainerArgsForCall)]
-	fake.stopContainerArgsForCall = append(fake.stopContainerArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.stopContainerArgsForCall = append(fake.stopContainerArgsForCall, FakeContainerRuntimeStopContainerArgs{arg1, arg2})
 	stub := fake.StopContainerStub
 	fakeReturns := fake.stopContainerReturns
 	fake.recordInvocation("StopContainer", []interface{}{arg1, arg2})
@@ -732,7 +797,15 @@ func (fake *FakeContainerRuntime) StopContainerArgsForCall(i int) (context.Conte
 	fake.stopContainerMutex.RLock()
 	defer fake.stopContainerMutex.RUnlock()
 	argsForCall := fake.stopContainerArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeContainerRuntime) StopContainerArgs() []FakeContainerRuntimeStopContainerArgs {
+	fake.stopContainerMutex.RLock()
+	defer fake.stopContainerMutex.RUnlock()
+	args := make([]FakeContainerRuntimeStopContainerArgs, len(fake.stopContainerArgsForCall))
+	copy(args, fake.stopContainerArgsForCall)
+	return args
 }
 
 func (fake *FakeContainerRuntime) StopContainerReturns(result1 error) {
@@ -768,9 +841,18 @@ func (fake *FakeContainerRuntime) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeContainerRuntime) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeContainerRuntime) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

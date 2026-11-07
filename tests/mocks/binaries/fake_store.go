@@ -11,11 +11,8 @@ import (
 type FakeStore struct {
 	EnsureStub        func(context.Context, domain.Name) (string, error)
 	ensureMutex       sync.RWMutex
-	ensureArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.Name
-	}
-	ensureReturns struct {
+	ensureArgsForCall []FakeStoreEnsureArgs
+	ensureReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -25,12 +22,8 @@ type FakeStore struct {
 	}
 	InstallStub        func(context.Context, string, []domain.Name) error
 	installMutex       sync.RWMutex
-	installArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 []domain.Name
-	}
-	installReturns struct {
+	installArgsForCall []FakeStoreInstallArgs
+	installReturns     struct {
 		result1 error
 	}
 	installReturnsOnCall map[int]struct {
@@ -38,11 +31,8 @@ type FakeStore struct {
 	}
 	StatusStub        func(context.Context, []domain.Name) ([]domain.Status, error)
 	statusMutex       sync.RWMutex
-	statusArgsForCall []struct {
-		arg1 context.Context
-		arg2 []domain.Name
-	}
-	statusReturns struct {
+	statusArgsForCall []FakeStoreStatusArgs
+	statusReturns     struct {
 		result1 []domain.Status
 		result2 error
 	}
@@ -51,16 +41,33 @@ type FakeStore struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeStoreEnsureArgs holds the arguments of one call to Ensure.
+type FakeStoreEnsureArgs struct {
+	Arg1 context.Context
+	Arg2 domain.Name
+}
+
+// FakeStoreInstallArgs holds the arguments of one call to Install.
+type FakeStoreInstallArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 []domain.Name
+}
+
+// FakeStoreStatusArgs holds the arguments of one call to Status.
+type FakeStoreStatusArgs struct {
+	Arg1 context.Context
+	Arg2 []domain.Name
 }
 
 func (fake *FakeStore) Ensure(arg1 context.Context, arg2 domain.Name) (string, error) {
 	fake.ensureMutex.Lock()
 	ret, specificReturn := fake.ensureReturnsOnCall[len(fake.ensureArgsForCall)]
-	fake.ensureArgsForCall = append(fake.ensureArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.Name
-	}{arg1, arg2})
+	fake.ensureArgsForCall = append(fake.ensureArgsForCall, FakeStoreEnsureArgs{arg1, arg2})
 	stub := fake.EnsureStub
 	fakeReturns := fake.ensureReturns
 	fake.recordInvocation("Ensure", []interface{}{arg1, arg2})
@@ -90,7 +97,15 @@ func (fake *FakeStore) EnsureArgsForCall(i int) (context.Context, domain.Name) {
 	fake.ensureMutex.RLock()
 	defer fake.ensureMutex.RUnlock()
 	argsForCall := fake.ensureArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeStore) EnsureArgs() []FakeStoreEnsureArgs {
+	fake.ensureMutex.RLock()
+	defer fake.ensureMutex.RUnlock()
+	args := make([]FakeStoreEnsureArgs, len(fake.ensureArgsForCall))
+	copy(args, fake.ensureArgsForCall)
+	return args
 }
 
 func (fake *FakeStore) EnsureReturns(result1 string, result2 error) {
@@ -127,11 +142,7 @@ func (fake *FakeStore) Install(arg1 context.Context, arg2 string, arg3 []domain.
 	}
 	fake.installMutex.Lock()
 	ret, specificReturn := fake.installReturnsOnCall[len(fake.installArgsForCall)]
-	fake.installArgsForCall = append(fake.installArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 []domain.Name
-	}{arg1, arg2, arg3Copy})
+	fake.installArgsForCall = append(fake.installArgsForCall, FakeStoreInstallArgs{arg1, arg2, arg3Copy})
 	stub := fake.InstallStub
 	fakeReturns := fake.installReturns
 	fake.recordInvocation("Install", []interface{}{arg1, arg2, arg3Copy})
@@ -161,7 +172,15 @@ func (fake *FakeStore) InstallArgsForCall(i int) (context.Context, string, []dom
 	fake.installMutex.RLock()
 	defer fake.installMutex.RUnlock()
 	argsForCall := fake.installArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeStore) InstallArgs() []FakeStoreInstallArgs {
+	fake.installMutex.RLock()
+	defer fake.installMutex.RUnlock()
+	args := make([]FakeStoreInstallArgs, len(fake.installArgsForCall))
+	copy(args, fake.installArgsForCall)
+	return args
 }
 
 func (fake *FakeStore) InstallReturns(result1 error) {
@@ -195,10 +214,7 @@ func (fake *FakeStore) Status(arg1 context.Context, arg2 []domain.Name) ([]domai
 	}
 	fake.statusMutex.Lock()
 	ret, specificReturn := fake.statusReturnsOnCall[len(fake.statusArgsForCall)]
-	fake.statusArgsForCall = append(fake.statusArgsForCall, struct {
-		arg1 context.Context
-		arg2 []domain.Name
-	}{arg1, arg2Copy})
+	fake.statusArgsForCall = append(fake.statusArgsForCall, FakeStoreStatusArgs{arg1, arg2Copy})
 	stub := fake.StatusStub
 	fakeReturns := fake.statusReturns
 	fake.recordInvocation("Status", []interface{}{arg1, arg2Copy})
@@ -228,7 +244,15 @@ func (fake *FakeStore) StatusArgsForCall(i int) (context.Context, []domain.Name)
 	fake.statusMutex.RLock()
 	defer fake.statusMutex.RUnlock()
 	argsForCall := fake.statusArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeStore) StatusArgs() []FakeStoreStatusArgs {
+	fake.statusMutex.RLock()
+	defer fake.statusMutex.RUnlock()
+	args := make([]FakeStoreStatusArgs, len(fake.statusArgsForCall))
+	copy(args, fake.statusArgsForCall)
+	return args
 }
 
 func (fake *FakeStore) StatusReturns(result1 []domain.Status, result2 error) {
@@ -267,9 +291,18 @@ func (fake *FakeStore) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeStore) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeStore) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

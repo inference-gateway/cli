@@ -10,27 +10,28 @@ import (
 type FakeCallApprover struct {
 	RequiresApprovalStub        func(map[string]any, domain.AgentMode) bool
 	requiresApprovalMutex       sync.RWMutex
-	requiresApprovalArgsForCall []struct {
-		arg1 map[string]any
-		arg2 domain.AgentMode
-	}
-	requiresApprovalReturns struct {
+	requiresApprovalArgsForCall []FakeCallApproverRequiresApprovalArgs
+	requiresApprovalReturns     struct {
 		result1 bool
 	}
 	requiresApprovalReturnsOnCall map[int]struct {
 		result1 bool
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeCallApproverRequiresApprovalArgs holds the arguments of one call to RequiresApproval.
+type FakeCallApproverRequiresApprovalArgs struct {
+	Arg1 map[string]any
+	Arg2 domain.AgentMode
 }
 
 func (fake *FakeCallApprover) RequiresApproval(arg1 map[string]any, arg2 domain.AgentMode) bool {
 	fake.requiresApprovalMutex.Lock()
 	ret, specificReturn := fake.requiresApprovalReturnsOnCall[len(fake.requiresApprovalArgsForCall)]
-	fake.requiresApprovalArgsForCall = append(fake.requiresApprovalArgsForCall, struct {
-		arg1 map[string]any
-		arg2 domain.AgentMode
-	}{arg1, arg2})
+	fake.requiresApprovalArgsForCall = append(fake.requiresApprovalArgsForCall, FakeCallApproverRequiresApprovalArgs{arg1, arg2})
 	stub := fake.RequiresApprovalStub
 	fakeReturns := fake.requiresApprovalReturns
 	fake.recordInvocation("RequiresApproval", []interface{}{arg1, arg2})
@@ -60,7 +61,15 @@ func (fake *FakeCallApprover) RequiresApprovalArgsForCall(i int) (map[string]any
 	fake.requiresApprovalMutex.RLock()
 	defer fake.requiresApprovalMutex.RUnlock()
 	argsForCall := fake.requiresApprovalArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCallApprover) RequiresApprovalArgs() []FakeCallApproverRequiresApprovalArgs {
+	fake.requiresApprovalMutex.RLock()
+	defer fake.requiresApprovalMutex.RUnlock()
+	args := make([]FakeCallApproverRequiresApprovalArgs, len(fake.requiresApprovalArgsForCall))
+	copy(args, fake.requiresApprovalArgsForCall)
+	return args
 }
 
 func (fake *FakeCallApprover) RequiresApprovalReturns(result1 bool) {
@@ -96,9 +105,18 @@ func (fake *FakeCallApprover) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeCallApprover) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeCallApprover) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

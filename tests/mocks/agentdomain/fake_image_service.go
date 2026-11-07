@@ -11,13 +11,8 @@ import (
 type FakeImageService struct {
 	CreateImageVariationStub        func(context.Context, string, string, string) (string, error)
 	createImageVariationMutex       sync.RWMutex
-	createImageVariationArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}
-	createImageVariationReturns struct {
+	createImageVariationArgsForCall []FakeImageServiceCreateImageVariationArgs
+	createImageVariationReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -27,16 +22,8 @@ type FakeImageService struct {
 	}
 	EditImageStub        func(context.Context, string, string, string, string, string, string) (string, error)
 	editImageMutex       sync.RWMutex
-	editImageArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-		arg5 string
-		arg6 string
-		arg7 string
-	}
-	editImageReturns struct {
+	editImageArgsForCall []FakeImageServiceEditImageArgs
+	editImageReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -46,14 +33,8 @@ type FakeImageService struct {
 	}
 	GenerateImageStub        func(context.Context, string, string, string, string) (string, error)
 	generateImageMutex       sync.RWMutex
-	generateImageArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-		arg5 string
-	}
-	generateImageReturns struct {
+	generateImageArgsForCall []FakeImageServiceGenerateImageArgs
+	generateImageReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -63,10 +44,8 @@ type FakeImageService struct {
 	}
 	IsImageFileStub        func(string) bool
 	isImageFileMutex       sync.RWMutex
-	isImageFileArgsForCall []struct {
-		arg1 string
-	}
-	isImageFileReturns struct {
+	isImageFileArgsForCall []FakeImageServiceIsImageFileArgs
+	isImageFileReturns     struct {
 		result1 bool
 	}
 	isImageFileReturnsOnCall map[int]struct {
@@ -74,11 +53,8 @@ type FakeImageService struct {
 	}
 	ReadImageFromBinaryStub        func([]byte, string) (*domain.ImageAttachment, error)
 	readImageFromBinaryMutex       sync.RWMutex
-	readImageFromBinaryArgsForCall []struct {
-		arg1 []byte
-		arg2 string
-	}
-	readImageFromBinaryReturns struct {
+	readImageFromBinaryArgsForCall []FakeImageServiceReadImageFromBinaryArgs
+	readImageFromBinaryReturns     struct {
 		result1 *domain.ImageAttachment
 		result2 error
 	}
@@ -88,10 +64,8 @@ type FakeImageService struct {
 	}
 	ReadImageFromFileStub        func(string) (*domain.ImageAttachment, error)
 	readImageFromFileMutex       sync.RWMutex
-	readImageFromFileArgsForCall []struct {
-		arg1 string
-	}
-	readImageFromFileReturns struct {
+	readImageFromFileArgsForCall []FakeImageServiceReadImageFromFileArgs
+	readImageFromFileReturns     struct {
 		result1 *domain.ImageAttachment
 		result2 error
 	}
@@ -101,11 +75,8 @@ type FakeImageService struct {
 	}
 	ReadImageFromURLStub        func(context.Context, string) (*domain.ImageAttachment, error)
 	readImageFromURLMutex       sync.RWMutex
-	readImageFromURLArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	readImageFromURLReturns struct {
+	readImageFromURLArgsForCall []FakeImageServiceReadImageFromURLArgs
+	readImageFromURLReturns     struct {
 		result1 *domain.ImageAttachment
 		result2 error
 	}
@@ -114,18 +85,64 @@ type FakeImageService struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeImageServiceCreateImageVariationArgs holds the arguments of one call to CreateImageVariation.
+type FakeImageServiceCreateImageVariationArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 string
+}
+
+// FakeImageServiceEditImageArgs holds the arguments of one call to EditImage.
+type FakeImageServiceEditImageArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 string
+	Arg5 string
+	Arg6 string
+	Arg7 string
+}
+
+// FakeImageServiceGenerateImageArgs holds the arguments of one call to GenerateImage.
+type FakeImageServiceGenerateImageArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 string
+	Arg5 string
+}
+
+// FakeImageServiceIsImageFileArgs holds the arguments of one call to IsImageFile.
+type FakeImageServiceIsImageFileArgs struct {
+	Arg1 string
+}
+
+// FakeImageServiceReadImageFromBinaryArgs holds the arguments of one call to ReadImageFromBinary.
+type FakeImageServiceReadImageFromBinaryArgs struct {
+	Arg1 []byte
+	Arg2 string
+}
+
+// FakeImageServiceReadImageFromFileArgs holds the arguments of one call to ReadImageFromFile.
+type FakeImageServiceReadImageFromFileArgs struct {
+	Arg1 string
+}
+
+// FakeImageServiceReadImageFromURLArgs holds the arguments of one call to ReadImageFromURL.
+type FakeImageServiceReadImageFromURLArgs struct {
+	Arg1 context.Context
+	Arg2 string
 }
 
 func (fake *FakeImageService) CreateImageVariation(arg1 context.Context, arg2 string, arg3 string, arg4 string) (string, error) {
 	fake.createImageVariationMutex.Lock()
 	ret, specificReturn := fake.createImageVariationReturnsOnCall[len(fake.createImageVariationArgsForCall)]
-	fake.createImageVariationArgsForCall = append(fake.createImageVariationArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
+	fake.createImageVariationArgsForCall = append(fake.createImageVariationArgsForCall, FakeImageServiceCreateImageVariationArgs{arg1, arg2, arg3, arg4})
 	stub := fake.CreateImageVariationStub
 	fakeReturns := fake.createImageVariationReturns
 	fake.recordInvocation("CreateImageVariation", []interface{}{arg1, arg2, arg3, arg4})
@@ -155,7 +172,15 @@ func (fake *FakeImageService) CreateImageVariationArgsForCall(i int) (context.Co
 	fake.createImageVariationMutex.RLock()
 	defer fake.createImageVariationMutex.RUnlock()
 	argsForCall := fake.createImageVariationArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeImageService) CreateImageVariationArgs() []FakeImageServiceCreateImageVariationArgs {
+	fake.createImageVariationMutex.RLock()
+	defer fake.createImageVariationMutex.RUnlock()
+	args := make([]FakeImageServiceCreateImageVariationArgs, len(fake.createImageVariationArgsForCall))
+	copy(args, fake.createImageVariationArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) CreateImageVariationReturns(result1 string, result2 error) {
@@ -187,15 +212,7 @@ func (fake *FakeImageService) CreateImageVariationReturnsOnCall(i int, result1 s
 func (fake *FakeImageService) EditImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string, arg6 string, arg7 string) (string, error) {
 	fake.editImageMutex.Lock()
 	ret, specificReturn := fake.editImageReturnsOnCall[len(fake.editImageArgsForCall)]
-	fake.editImageArgsForCall = append(fake.editImageArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-		arg5 string
-		arg6 string
-		arg7 string
-	}{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
+	fake.editImageArgsForCall = append(fake.editImageArgsForCall, FakeImageServiceEditImageArgs{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
 	stub := fake.EditImageStub
 	fakeReturns := fake.editImageReturns
 	fake.recordInvocation("EditImage", []interface{}{arg1, arg2, arg3, arg4, arg5, arg6, arg7})
@@ -225,7 +242,15 @@ func (fake *FakeImageService) EditImageArgsForCall(i int) (context.Context, stri
 	fake.editImageMutex.RLock()
 	defer fake.editImageMutex.RUnlock()
 	argsForCall := fake.editImageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6, argsForCall.arg7
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5, argsForCall.Arg6, argsForCall.Arg7
+}
+
+func (fake *FakeImageService) EditImageArgs() []FakeImageServiceEditImageArgs {
+	fake.editImageMutex.RLock()
+	defer fake.editImageMutex.RUnlock()
+	args := make([]FakeImageServiceEditImageArgs, len(fake.editImageArgsForCall))
+	copy(args, fake.editImageArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) EditImageReturns(result1 string, result2 error) {
@@ -257,13 +282,7 @@ func (fake *FakeImageService) EditImageReturnsOnCall(i int, result1 string, resu
 func (fake *FakeImageService) GenerateImage(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 string) (string, error) {
 	fake.generateImageMutex.Lock()
 	ret, specificReturn := fake.generateImageReturnsOnCall[len(fake.generateImageArgsForCall)]
-	fake.generateImageArgsForCall = append(fake.generateImageArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-		arg5 string
-	}{arg1, arg2, arg3, arg4, arg5})
+	fake.generateImageArgsForCall = append(fake.generateImageArgsForCall, FakeImageServiceGenerateImageArgs{arg1, arg2, arg3, arg4, arg5})
 	stub := fake.GenerateImageStub
 	fakeReturns := fake.generateImageReturns
 	fake.recordInvocation("GenerateImage", []interface{}{arg1, arg2, arg3, arg4, arg5})
@@ -293,7 +312,15 @@ func (fake *FakeImageService) GenerateImageArgsForCall(i int) (context.Context, 
 	fake.generateImageMutex.RLock()
 	defer fake.generateImageMutex.RUnlock()
 	argsForCall := fake.generateImageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5
+}
+
+func (fake *FakeImageService) GenerateImageArgs() []FakeImageServiceGenerateImageArgs {
+	fake.generateImageMutex.RLock()
+	defer fake.generateImageMutex.RUnlock()
+	args := make([]FakeImageServiceGenerateImageArgs, len(fake.generateImageArgsForCall))
+	copy(args, fake.generateImageArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) GenerateImageReturns(result1 string, result2 error) {
@@ -325,9 +352,7 @@ func (fake *FakeImageService) GenerateImageReturnsOnCall(i int, result1 string, 
 func (fake *FakeImageService) IsImageFile(arg1 string) bool {
 	fake.isImageFileMutex.Lock()
 	ret, specificReturn := fake.isImageFileReturnsOnCall[len(fake.isImageFileArgsForCall)]
-	fake.isImageFileArgsForCall = append(fake.isImageFileArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.isImageFileArgsForCall = append(fake.isImageFileArgsForCall, FakeImageServiceIsImageFileArgs{arg1})
 	stub := fake.IsImageFileStub
 	fakeReturns := fake.isImageFileReturns
 	fake.recordInvocation("IsImageFile", []interface{}{arg1})
@@ -357,7 +382,15 @@ func (fake *FakeImageService) IsImageFileArgsForCall(i int) string {
 	fake.isImageFileMutex.RLock()
 	defer fake.isImageFileMutex.RUnlock()
 	argsForCall := fake.isImageFileArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeImageService) IsImageFileArgs() []FakeImageServiceIsImageFileArgs {
+	fake.isImageFileMutex.RLock()
+	defer fake.isImageFileMutex.RUnlock()
+	args := make([]FakeImageServiceIsImageFileArgs, len(fake.isImageFileArgsForCall))
+	copy(args, fake.isImageFileArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) IsImageFileReturns(result1 bool) {
@@ -391,10 +424,7 @@ func (fake *FakeImageService) ReadImageFromBinary(arg1 []byte, arg2 string) (*do
 	}
 	fake.readImageFromBinaryMutex.Lock()
 	ret, specificReturn := fake.readImageFromBinaryReturnsOnCall[len(fake.readImageFromBinaryArgsForCall)]
-	fake.readImageFromBinaryArgsForCall = append(fake.readImageFromBinaryArgsForCall, struct {
-		arg1 []byte
-		arg2 string
-	}{arg1Copy, arg2})
+	fake.readImageFromBinaryArgsForCall = append(fake.readImageFromBinaryArgsForCall, FakeImageServiceReadImageFromBinaryArgs{arg1Copy, arg2})
 	stub := fake.ReadImageFromBinaryStub
 	fakeReturns := fake.readImageFromBinaryReturns
 	fake.recordInvocation("ReadImageFromBinary", []interface{}{arg1Copy, arg2})
@@ -424,7 +454,15 @@ func (fake *FakeImageService) ReadImageFromBinaryArgsForCall(i int) ([]byte, str
 	fake.readImageFromBinaryMutex.RLock()
 	defer fake.readImageFromBinaryMutex.RUnlock()
 	argsForCall := fake.readImageFromBinaryArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeImageService) ReadImageFromBinaryArgs() []FakeImageServiceReadImageFromBinaryArgs {
+	fake.readImageFromBinaryMutex.RLock()
+	defer fake.readImageFromBinaryMutex.RUnlock()
+	args := make([]FakeImageServiceReadImageFromBinaryArgs, len(fake.readImageFromBinaryArgsForCall))
+	copy(args, fake.readImageFromBinaryArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) ReadImageFromBinaryReturns(result1 *domain.ImageAttachment, result2 error) {
@@ -456,9 +494,7 @@ func (fake *FakeImageService) ReadImageFromBinaryReturnsOnCall(i int, result1 *d
 func (fake *FakeImageService) ReadImageFromFile(arg1 string) (*domain.ImageAttachment, error) {
 	fake.readImageFromFileMutex.Lock()
 	ret, specificReturn := fake.readImageFromFileReturnsOnCall[len(fake.readImageFromFileArgsForCall)]
-	fake.readImageFromFileArgsForCall = append(fake.readImageFromFileArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.readImageFromFileArgsForCall = append(fake.readImageFromFileArgsForCall, FakeImageServiceReadImageFromFileArgs{arg1})
 	stub := fake.ReadImageFromFileStub
 	fakeReturns := fake.readImageFromFileReturns
 	fake.recordInvocation("ReadImageFromFile", []interface{}{arg1})
@@ -488,7 +524,15 @@ func (fake *FakeImageService) ReadImageFromFileArgsForCall(i int) string {
 	fake.readImageFromFileMutex.RLock()
 	defer fake.readImageFromFileMutex.RUnlock()
 	argsForCall := fake.readImageFromFileArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeImageService) ReadImageFromFileArgs() []FakeImageServiceReadImageFromFileArgs {
+	fake.readImageFromFileMutex.RLock()
+	defer fake.readImageFromFileMutex.RUnlock()
+	args := make([]FakeImageServiceReadImageFromFileArgs, len(fake.readImageFromFileArgsForCall))
+	copy(args, fake.readImageFromFileArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) ReadImageFromFileReturns(result1 *domain.ImageAttachment, result2 error) {
@@ -520,10 +564,7 @@ func (fake *FakeImageService) ReadImageFromFileReturnsOnCall(i int, result1 *dom
 func (fake *FakeImageService) ReadImageFromURL(arg1 context.Context, arg2 string) (*domain.ImageAttachment, error) {
 	fake.readImageFromURLMutex.Lock()
 	ret, specificReturn := fake.readImageFromURLReturnsOnCall[len(fake.readImageFromURLArgsForCall)]
-	fake.readImageFromURLArgsForCall = append(fake.readImageFromURLArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.readImageFromURLArgsForCall = append(fake.readImageFromURLArgsForCall, FakeImageServiceReadImageFromURLArgs{arg1, arg2})
 	stub := fake.ReadImageFromURLStub
 	fakeReturns := fake.readImageFromURLReturns
 	fake.recordInvocation("ReadImageFromURL", []interface{}{arg1, arg2})
@@ -553,7 +594,15 @@ func (fake *FakeImageService) ReadImageFromURLArgsForCall(i int) (context.Contex
 	fake.readImageFromURLMutex.RLock()
 	defer fake.readImageFromURLMutex.RUnlock()
 	argsForCall := fake.readImageFromURLArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeImageService) ReadImageFromURLArgs() []FakeImageServiceReadImageFromURLArgs {
+	fake.readImageFromURLMutex.RLock()
+	defer fake.readImageFromURLMutex.RUnlock()
+	args := make([]FakeImageServiceReadImageFromURLArgs, len(fake.readImageFromURLArgsForCall))
+	copy(args, fake.readImageFromURLArgsForCall)
+	return args
 }
 
 func (fake *FakeImageService) ReadImageFromURLReturns(result1 *domain.ImageAttachment, result2 error) {
@@ -592,9 +641,18 @@ func (fake *FakeImageService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeImageService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeImageService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

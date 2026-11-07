@@ -12,9 +12,8 @@ import (
 type FakeMessageQueue struct {
 	BackendNameStub        func() string
 	backendNameMutex       sync.RWMutex
-	backendNameArgsForCall []struct {
-	}
-	backendNameReturns struct {
+	backendNameArgsForCall []struct{}
+	backendNameReturns     struct {
 		result1 string
 	}
 	backendNameReturnsOnCall map[int]struct {
@@ -22,10 +21,8 @@ type FakeMessageQueue struct {
 	}
 	ClearStub        func(context.Context) error
 	clearMutex       sync.RWMutex
-	clearArgsForCall []struct {
-		arg1 context.Context
-	}
-	clearReturns struct {
+	clearArgsForCall []FakeMessageQueueClearArgs
+	clearReturns     struct {
 		result1 error
 	}
 	clearReturnsOnCall map[int]struct {
@@ -33,10 +30,8 @@ type FakeMessageQueue struct {
 	}
 	DequeueStub        func(context.Context) (*domain.QueuedMessage, error)
 	dequeueMutex       sync.RWMutex
-	dequeueArgsForCall []struct {
-		arg1 context.Context
-	}
-	dequeueReturns struct {
+	dequeueArgsForCall []FakeMessageQueueDequeueArgs
+	dequeueReturns     struct {
 		result1 *domain.QueuedMessage
 		result2 error
 	}
@@ -46,10 +41,8 @@ type FakeMessageQueue struct {
 	}
 	DrainStub        func(context.Context) ([]domain.QueuedMessage, error)
 	drainMutex       sync.RWMutex
-	drainArgsForCall []struct {
-		arg1 context.Context
-	}
-	drainReturns struct {
+	drainArgsForCall []FakeMessageQueueDrainArgs
+	drainReturns     struct {
 		result1 []domain.QueuedMessage
 		result2 error
 	}
@@ -59,13 +52,8 @@ type FakeMessageQueue struct {
 	}
 	EnqueueStub        func(context.Context, sdk.Message, domain.QueuedMessageSource, string) error
 	enqueueMutex       sync.RWMutex
-	enqueueArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Message
-		arg3 domain.QueuedMessageSource
-		arg4 string
-	}
-	enqueueReturns struct {
+	enqueueArgsForCall []FakeMessageQueueEnqueueArgs
+	enqueueReturns     struct {
 		result1 error
 	}
 	enqueueReturnsOnCall map[int]struct {
@@ -73,9 +61,8 @@ type FakeMessageQueue struct {
 	}
 	GetAllStub        func() []domain.QueuedMessage
 	getAllMutex       sync.RWMutex
-	getAllArgsForCall []struct {
-	}
-	getAllReturns struct {
+	getAllArgsForCall []struct{}
+	getAllReturns     struct {
 		result1 []domain.QueuedMessage
 	}
 	getAllReturnsOnCall map[int]struct {
@@ -83,9 +70,8 @@ type FakeMessageQueue struct {
 	}
 	IsEmptyStub        func() bool
 	isEmptyMutex       sync.RWMutex
-	isEmptyArgsForCall []struct {
-	}
-	isEmptyReturns struct {
+	isEmptyArgsForCall []struct{}
+	isEmptyReturns     struct {
 		result1 bool
 	}
 	isEmptyReturnsOnCall map[int]struct {
@@ -93,9 +79,8 @@ type FakeMessageQueue struct {
 	}
 	SizeStub        func() int
 	sizeMutex       sync.RWMutex
-	sizeArgsForCall []struct {
-	}
-	sizeReturns struct {
+	sizeArgsForCall []struct{}
+	sizeReturns     struct {
 		result1 int
 	}
 	sizeReturnsOnCall map[int]struct {
@@ -103,23 +88,45 @@ type FakeMessageQueue struct {
 	}
 	UnreachableStub        func() bool
 	unreachableMutex       sync.RWMutex
-	unreachableArgsForCall []struct {
-	}
-	unreachableReturns struct {
+	unreachableArgsForCall []struct{}
+	unreachableReturns     struct {
 		result1 bool
 	}
 	unreachableReturnsOnCall map[int]struct {
 		result1 bool
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeMessageQueueClearArgs holds the arguments of one call to Clear.
+type FakeMessageQueueClearArgs struct {
+	Arg1 context.Context
+}
+
+// FakeMessageQueueDequeueArgs holds the arguments of one call to Dequeue.
+type FakeMessageQueueDequeueArgs struct {
+	Arg1 context.Context
+}
+
+// FakeMessageQueueDrainArgs holds the arguments of one call to Drain.
+type FakeMessageQueueDrainArgs struct {
+	Arg1 context.Context
+}
+
+// FakeMessageQueueEnqueueArgs holds the arguments of one call to Enqueue.
+type FakeMessageQueueEnqueueArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Message
+	Arg3 domain.QueuedMessageSource
+	Arg4 string
 }
 
 func (fake *FakeMessageQueue) BackendName() string {
 	fake.backendNameMutex.Lock()
 	ret, specificReturn := fake.backendNameReturnsOnCall[len(fake.backendNameArgsForCall)]
-	fake.backendNameArgsForCall = append(fake.backendNameArgsForCall, struct {
-	}{})
+	fake.backendNameArgsForCall = append(fake.backendNameArgsForCall, struct{}{})
 	stub := fake.BackendNameStub
 	fakeReturns := fake.backendNameReturns
 	fake.recordInvocation("BackendName", []interface{}{})
@@ -171,9 +178,7 @@ func (fake *FakeMessageQueue) BackendNameReturnsOnCall(i int, result1 string) {
 func (fake *FakeMessageQueue) Clear(arg1 context.Context) error {
 	fake.clearMutex.Lock()
 	ret, specificReturn := fake.clearReturnsOnCall[len(fake.clearArgsForCall)]
-	fake.clearArgsForCall = append(fake.clearArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.clearArgsForCall = append(fake.clearArgsForCall, FakeMessageQueueClearArgs{arg1})
 	stub := fake.ClearStub
 	fakeReturns := fake.clearReturns
 	fake.recordInvocation("Clear", []interface{}{arg1})
@@ -203,7 +208,15 @@ func (fake *FakeMessageQueue) ClearArgsForCall(i int) context.Context {
 	fake.clearMutex.RLock()
 	defer fake.clearMutex.RUnlock()
 	argsForCall := fake.clearArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeMessageQueue) ClearArgs() []FakeMessageQueueClearArgs {
+	fake.clearMutex.RLock()
+	defer fake.clearMutex.RUnlock()
+	args := make([]FakeMessageQueueClearArgs, len(fake.clearArgsForCall))
+	copy(args, fake.clearArgsForCall)
+	return args
 }
 
 func (fake *FakeMessageQueue) ClearReturns(result1 error) {
@@ -232,9 +245,7 @@ func (fake *FakeMessageQueue) ClearReturnsOnCall(i int, result1 error) {
 func (fake *FakeMessageQueue) Dequeue(arg1 context.Context) (*domain.QueuedMessage, error) {
 	fake.dequeueMutex.Lock()
 	ret, specificReturn := fake.dequeueReturnsOnCall[len(fake.dequeueArgsForCall)]
-	fake.dequeueArgsForCall = append(fake.dequeueArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.dequeueArgsForCall = append(fake.dequeueArgsForCall, FakeMessageQueueDequeueArgs{arg1})
 	stub := fake.DequeueStub
 	fakeReturns := fake.dequeueReturns
 	fake.recordInvocation("Dequeue", []interface{}{arg1})
@@ -264,7 +275,15 @@ func (fake *FakeMessageQueue) DequeueArgsForCall(i int) context.Context {
 	fake.dequeueMutex.RLock()
 	defer fake.dequeueMutex.RUnlock()
 	argsForCall := fake.dequeueArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeMessageQueue) DequeueArgs() []FakeMessageQueueDequeueArgs {
+	fake.dequeueMutex.RLock()
+	defer fake.dequeueMutex.RUnlock()
+	args := make([]FakeMessageQueueDequeueArgs, len(fake.dequeueArgsForCall))
+	copy(args, fake.dequeueArgsForCall)
+	return args
 }
 
 func (fake *FakeMessageQueue) DequeueReturns(result1 *domain.QueuedMessage, result2 error) {
@@ -296,9 +315,7 @@ func (fake *FakeMessageQueue) DequeueReturnsOnCall(i int, result1 *domain.Queued
 func (fake *FakeMessageQueue) Drain(arg1 context.Context) ([]domain.QueuedMessage, error) {
 	fake.drainMutex.Lock()
 	ret, specificReturn := fake.drainReturnsOnCall[len(fake.drainArgsForCall)]
-	fake.drainArgsForCall = append(fake.drainArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.drainArgsForCall = append(fake.drainArgsForCall, FakeMessageQueueDrainArgs{arg1})
 	stub := fake.DrainStub
 	fakeReturns := fake.drainReturns
 	fake.recordInvocation("Drain", []interface{}{arg1})
@@ -328,7 +345,15 @@ func (fake *FakeMessageQueue) DrainArgsForCall(i int) context.Context {
 	fake.drainMutex.RLock()
 	defer fake.drainMutex.RUnlock()
 	argsForCall := fake.drainArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeMessageQueue) DrainArgs() []FakeMessageQueueDrainArgs {
+	fake.drainMutex.RLock()
+	defer fake.drainMutex.RUnlock()
+	args := make([]FakeMessageQueueDrainArgs, len(fake.drainArgsForCall))
+	copy(args, fake.drainArgsForCall)
+	return args
 }
 
 func (fake *FakeMessageQueue) DrainReturns(result1 []domain.QueuedMessage, result2 error) {
@@ -360,12 +385,7 @@ func (fake *FakeMessageQueue) DrainReturnsOnCall(i int, result1 []domain.QueuedM
 func (fake *FakeMessageQueue) Enqueue(arg1 context.Context, arg2 sdk.Message, arg3 domain.QueuedMessageSource, arg4 string) error {
 	fake.enqueueMutex.Lock()
 	ret, specificReturn := fake.enqueueReturnsOnCall[len(fake.enqueueArgsForCall)]
-	fake.enqueueArgsForCall = append(fake.enqueueArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Message
-		arg3 domain.QueuedMessageSource
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
+	fake.enqueueArgsForCall = append(fake.enqueueArgsForCall, FakeMessageQueueEnqueueArgs{arg1, arg2, arg3, arg4})
 	stub := fake.EnqueueStub
 	fakeReturns := fake.enqueueReturns
 	fake.recordInvocation("Enqueue", []interface{}{arg1, arg2, arg3, arg4})
@@ -395,7 +415,15 @@ func (fake *FakeMessageQueue) EnqueueArgsForCall(i int) (context.Context, sdk.Me
 	fake.enqueueMutex.RLock()
 	defer fake.enqueueMutex.RUnlock()
 	argsForCall := fake.enqueueArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeMessageQueue) EnqueueArgs() []FakeMessageQueueEnqueueArgs {
+	fake.enqueueMutex.RLock()
+	defer fake.enqueueMutex.RUnlock()
+	args := make([]FakeMessageQueueEnqueueArgs, len(fake.enqueueArgsForCall))
+	copy(args, fake.enqueueArgsForCall)
+	return args
 }
 
 func (fake *FakeMessageQueue) EnqueueReturns(result1 error) {
@@ -424,8 +452,7 @@ func (fake *FakeMessageQueue) EnqueueReturnsOnCall(i int, result1 error) {
 func (fake *FakeMessageQueue) GetAll() []domain.QueuedMessage {
 	fake.getAllMutex.Lock()
 	ret, specificReturn := fake.getAllReturnsOnCall[len(fake.getAllArgsForCall)]
-	fake.getAllArgsForCall = append(fake.getAllArgsForCall, struct {
-	}{})
+	fake.getAllArgsForCall = append(fake.getAllArgsForCall, struct{}{})
 	stub := fake.GetAllStub
 	fakeReturns := fake.getAllReturns
 	fake.recordInvocation("GetAll", []interface{}{})
@@ -477,8 +504,7 @@ func (fake *FakeMessageQueue) GetAllReturnsOnCall(i int, result1 []domain.Queued
 func (fake *FakeMessageQueue) IsEmpty() bool {
 	fake.isEmptyMutex.Lock()
 	ret, specificReturn := fake.isEmptyReturnsOnCall[len(fake.isEmptyArgsForCall)]
-	fake.isEmptyArgsForCall = append(fake.isEmptyArgsForCall, struct {
-	}{})
+	fake.isEmptyArgsForCall = append(fake.isEmptyArgsForCall, struct{}{})
 	stub := fake.IsEmptyStub
 	fakeReturns := fake.isEmptyReturns
 	fake.recordInvocation("IsEmpty", []interface{}{})
@@ -530,8 +556,7 @@ func (fake *FakeMessageQueue) IsEmptyReturnsOnCall(i int, result1 bool) {
 func (fake *FakeMessageQueue) Size() int {
 	fake.sizeMutex.Lock()
 	ret, specificReturn := fake.sizeReturnsOnCall[len(fake.sizeArgsForCall)]
-	fake.sizeArgsForCall = append(fake.sizeArgsForCall, struct {
-	}{})
+	fake.sizeArgsForCall = append(fake.sizeArgsForCall, struct{}{})
 	stub := fake.SizeStub
 	fakeReturns := fake.sizeReturns
 	fake.recordInvocation("Size", []interface{}{})
@@ -583,8 +608,7 @@ func (fake *FakeMessageQueue) SizeReturnsOnCall(i int, result1 int) {
 func (fake *FakeMessageQueue) Unreachable() bool {
 	fake.unreachableMutex.Lock()
 	ret, specificReturn := fake.unreachableReturnsOnCall[len(fake.unreachableArgsForCall)]
-	fake.unreachableArgsForCall = append(fake.unreachableArgsForCall, struct {
-	}{})
+	fake.unreachableArgsForCall = append(fake.unreachableArgsForCall, struct{}{})
 	stub := fake.UnreachableStub
 	fakeReturns := fake.unreachableReturns
 	fake.recordInvocation("Unreachable", []interface{}{})
@@ -643,9 +667,18 @@ func (fake *FakeMessageQueue) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeMessageQueue) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeMessageQueue) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

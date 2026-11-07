@@ -11,10 +11,8 @@ import (
 type FakeAgentCardService struct {
 	GetAgentCardsStub        func(context.Context) ([]*domain.CachedAgentCard, error)
 	getAgentCardsMutex       sync.RWMutex
-	getAgentCardsArgsForCall []struct {
-		arg1 context.Context
-	}
-	getAgentCardsReturns struct {
+	getAgentCardsArgsForCall []FakeAgentCardServiceGetAgentCardsArgs
+	getAgentCardsReturns     struct {
 		result1 []*domain.CachedAgentCard
 		result2 error
 	}
@@ -24,24 +22,27 @@ type FakeAgentCardService struct {
 	}
 	GetConfiguredAgentsStub        func() []string
 	getConfiguredAgentsMutex       sync.RWMutex
-	getConfiguredAgentsArgsForCall []struct {
-	}
-	getConfiguredAgentsReturns struct {
+	getConfiguredAgentsArgsForCall []struct{}
+	getConfiguredAgentsReturns     struct {
 		result1 []string
 	}
 	getConfiguredAgentsReturnsOnCall map[int]struct {
 		result1 []string
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeAgentCardServiceGetAgentCardsArgs holds the arguments of one call to GetAgentCards.
+type FakeAgentCardServiceGetAgentCardsArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *FakeAgentCardService) GetAgentCards(arg1 context.Context) ([]*domain.CachedAgentCard, error) {
 	fake.getAgentCardsMutex.Lock()
 	ret, specificReturn := fake.getAgentCardsReturnsOnCall[len(fake.getAgentCardsArgsForCall)]
-	fake.getAgentCardsArgsForCall = append(fake.getAgentCardsArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.getAgentCardsArgsForCall = append(fake.getAgentCardsArgsForCall, FakeAgentCardServiceGetAgentCardsArgs{arg1})
 	stub := fake.GetAgentCardsStub
 	fakeReturns := fake.getAgentCardsReturns
 	fake.recordInvocation("GetAgentCards", []interface{}{arg1})
@@ -71,7 +72,15 @@ func (fake *FakeAgentCardService) GetAgentCardsArgsForCall(i int) context.Contex
 	fake.getAgentCardsMutex.RLock()
 	defer fake.getAgentCardsMutex.RUnlock()
 	argsForCall := fake.getAgentCardsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAgentCardService) GetAgentCardsArgs() []FakeAgentCardServiceGetAgentCardsArgs {
+	fake.getAgentCardsMutex.RLock()
+	defer fake.getAgentCardsMutex.RUnlock()
+	args := make([]FakeAgentCardServiceGetAgentCardsArgs, len(fake.getAgentCardsArgsForCall))
+	copy(args, fake.getAgentCardsArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentCardService) GetAgentCardsReturns(result1 []*domain.CachedAgentCard, result2 error) {
@@ -103,8 +112,7 @@ func (fake *FakeAgentCardService) GetAgentCardsReturnsOnCall(i int, result1 []*d
 func (fake *FakeAgentCardService) GetConfiguredAgents() []string {
 	fake.getConfiguredAgentsMutex.Lock()
 	ret, specificReturn := fake.getConfiguredAgentsReturnsOnCall[len(fake.getConfiguredAgentsArgsForCall)]
-	fake.getConfiguredAgentsArgsForCall = append(fake.getConfiguredAgentsArgsForCall, struct {
-	}{})
+	fake.getConfiguredAgentsArgsForCall = append(fake.getConfiguredAgentsArgsForCall, struct{}{})
 	stub := fake.GetConfiguredAgentsStub
 	fakeReturns := fake.getConfiguredAgentsReturns
 	fake.recordInvocation("GetConfiguredAgents", []interface{}{})
@@ -163,9 +171,18 @@ func (fake *FakeAgentCardService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeAgentCardService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAgentCardService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

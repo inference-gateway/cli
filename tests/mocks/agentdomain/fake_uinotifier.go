@@ -10,23 +10,25 @@ import (
 type FakeUINotifier struct {
 	NotifyStub        func(any)
 	notifyMutex       sync.RWMutex
-	notifyArgsForCall []struct {
-		arg1 any
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	notifyArgsForCall []FakeUINotifierNotifyArgs
+	invocations       map[string][][]interface{}
+	callOrder         []string
+	invocationsMutex  sync.RWMutex
+}
+
+// FakeUINotifierNotifyArgs holds the arguments of one call to Notify.
+type FakeUINotifierNotifyArgs struct {
+	Arg1 any
 }
 
 func (fake *FakeUINotifier) Notify(arg1 any) {
 	fake.notifyMutex.Lock()
-	fake.notifyArgsForCall = append(fake.notifyArgsForCall, struct {
-		arg1 any
-	}{arg1})
+	fake.notifyArgsForCall = append(fake.notifyArgsForCall, FakeUINotifierNotifyArgs{arg1})
 	stub := fake.NotifyStub
 	fake.recordInvocation("Notify", []interface{}{arg1})
 	fake.notifyMutex.Unlock()
 	if stub != nil {
-		fake.NotifyStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -46,7 +48,15 @@ func (fake *FakeUINotifier) NotifyArgsForCall(i int) any {
 	fake.notifyMutex.RLock()
 	defer fake.notifyMutex.RUnlock()
 	argsForCall := fake.notifyArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeUINotifier) NotifyArgs() []FakeUINotifierNotifyArgs {
+	fake.notifyMutex.RLock()
+	defer fake.notifyMutex.RUnlock()
+	args := make([]FakeUINotifierNotifyArgs, len(fake.notifyArgsForCall))
+	copy(args, fake.notifyArgsForCall)
+	return args
 }
 
 func (fake *FakeUINotifier) Invocations() map[string][][]interface{} {
@@ -59,9 +69,18 @@ func (fake *FakeUINotifier) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeUINotifier) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeUINotifier) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

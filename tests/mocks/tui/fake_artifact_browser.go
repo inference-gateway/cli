@@ -11,11 +11,8 @@ import (
 type FakeArtifactBrowser struct {
 	FetchStub        func(context.Context, string) (string, error)
 	fetchMutex       sync.RWMutex
-	fetchArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	fetchReturns struct {
+	fetchArgsForCall []FakeArtifactBrowserFetchArgs
+	fetchReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -25,10 +22,8 @@ type FakeArtifactBrowser struct {
 	}
 	ListStub        func(context.Context) ([]tui.Artifact, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 context.Context
-	}
-	listReturns struct {
+	listArgsForCall []FakeArtifactBrowserListArgs
+	listReturns     struct {
 		result1 []tui.Artifact
 		result2 error
 	}
@@ -37,16 +32,25 @@ type FakeArtifactBrowser struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeArtifactBrowserFetchArgs holds the arguments of one call to Fetch.
+type FakeArtifactBrowserFetchArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakeArtifactBrowserListArgs holds the arguments of one call to List.
+type FakeArtifactBrowserListArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *FakeArtifactBrowser) Fetch(arg1 context.Context, arg2 string) (string, error) {
 	fake.fetchMutex.Lock()
 	ret, specificReturn := fake.fetchReturnsOnCall[len(fake.fetchArgsForCall)]
-	fake.fetchArgsForCall = append(fake.fetchArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.fetchArgsForCall = append(fake.fetchArgsForCall, FakeArtifactBrowserFetchArgs{arg1, arg2})
 	stub := fake.FetchStub
 	fakeReturns := fake.fetchReturns
 	fake.recordInvocation("Fetch", []interface{}{arg1, arg2})
@@ -76,7 +80,15 @@ func (fake *FakeArtifactBrowser) FetchArgsForCall(i int) (context.Context, strin
 	fake.fetchMutex.RLock()
 	defer fake.fetchMutex.RUnlock()
 	argsForCall := fake.fetchArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeArtifactBrowser) FetchArgs() []FakeArtifactBrowserFetchArgs {
+	fake.fetchMutex.RLock()
+	defer fake.fetchMutex.RUnlock()
+	args := make([]FakeArtifactBrowserFetchArgs, len(fake.fetchArgsForCall))
+	copy(args, fake.fetchArgsForCall)
+	return args
 }
 
 func (fake *FakeArtifactBrowser) FetchReturns(result1 string, result2 error) {
@@ -108,9 +120,7 @@ func (fake *FakeArtifactBrowser) FetchReturnsOnCall(i int, result1 string, resul
 func (fake *FakeArtifactBrowser) List(arg1 context.Context) ([]tui.Artifact, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeArtifactBrowserListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -140,7 +150,15 @@ func (fake *FakeArtifactBrowser) ListArgsForCall(i int) context.Context {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeArtifactBrowser) ListArgs() []FakeArtifactBrowserListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeArtifactBrowserListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeArtifactBrowser) ListReturns(result1 []tui.Artifact, result2 error) {
@@ -179,9 +197,18 @@ func (fake *FakeArtifactBrowser) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeArtifactBrowser) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeArtifactBrowser) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -12,10 +12,8 @@ import (
 type FakeBackgroundShellService struct {
 	CancelShellStub        func(string) error
 	cancelShellMutex       sync.RWMutex
-	cancelShellArgsForCall []struct {
-		arg1 string
-	}
-	cancelShellReturns struct {
+	cancelShellArgsForCall []FakeBackgroundShellServiceCancelShellArgs
+	cancelShellReturns     struct {
 		result1 error
 	}
 	cancelShellReturnsOnCall map[int]struct {
@@ -23,14 +21,8 @@ type FakeBackgroundShellService struct {
 	}
 	DetachToBackgroundStub        func(context.Context, *exec.Cmd, string, *domain.OutputRingBuffer, <-chan struct{}) (string, error)
 	detachToBackgroundMutex       sync.RWMutex
-	detachToBackgroundArgsForCall []struct {
-		arg1 context.Context
-		arg2 *exec.Cmd
-		arg3 string
-		arg4 *domain.OutputRingBuffer
-		arg5 <-chan struct{}
-	}
-	detachToBackgroundReturns struct {
+	detachToBackgroundArgsForCall []FakeBackgroundShellServiceDetachToBackgroundArgs
+	detachToBackgroundReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -40,9 +32,8 @@ type FakeBackgroundShellService struct {
 	}
 	GetAllShellsStub        func() []*domain.BackgroundShell
 	getAllShellsMutex       sync.RWMutex
-	getAllShellsArgsForCall []struct {
-	}
-	getAllShellsReturns struct {
+	getAllShellsArgsForCall []struct{}
+	getAllShellsReturns     struct {
 		result1 []*domain.BackgroundShell
 	}
 	getAllShellsReturnsOnCall map[int]struct {
@@ -50,10 +41,8 @@ type FakeBackgroundShellService struct {
 	}
 	GetShellStub        func(string) *domain.BackgroundShell
 	getShellMutex       sync.RWMutex
-	getShellArgsForCall []struct {
-		arg1 string
-	}
-	getShellReturns struct {
+	getShellArgsForCall []FakeBackgroundShellServiceGetShellArgs
+	getShellReturns     struct {
 		result1 *domain.BackgroundShell
 	}
 	getShellReturnsOnCall map[int]struct {
@@ -61,11 +50,8 @@ type FakeBackgroundShellService struct {
 	}
 	GetShellOutputStub        func(string, int64) (string, int64, domain.ShellState, error)
 	getShellOutputMutex       sync.RWMutex
-	getShellOutputArgsForCall []struct {
-		arg1 string
-		arg2 int64
-	}
-	getShellOutputReturns struct {
+	getShellOutputArgsForCall []FakeBackgroundShellServiceGetShellOutputArgs
+	getShellOutputReturns     struct {
 		result1 string
 		result2 int64
 		result3 domain.ShellState
@@ -79,12 +65,8 @@ type FakeBackgroundShellService struct {
 	}
 	GetShellOutputWithFilterStub        func(string, int64, string) (string, int64, domain.ShellState, error)
 	getShellOutputWithFilterMutex       sync.RWMutex
-	getShellOutputWithFilterArgsForCall []struct {
-		arg1 string
-		arg2 int64
-		arg3 string
-	}
-	getShellOutputWithFilterReturns struct {
+	getShellOutputWithFilterArgsForCall []FakeBackgroundShellServiceGetShellOutputWithFilterArgs
+	getShellOutputWithFilterReturns     struct {
 		result1 string
 		result2 int64
 		result3 domain.ShellState
@@ -98,25 +80,59 @@ type FakeBackgroundShellService struct {
 	}
 	RemoveShellStub        func(string) error
 	removeShellMutex       sync.RWMutex
-	removeShellArgsForCall []struct {
-		arg1 string
-	}
-	removeShellReturns struct {
+	removeShellArgsForCall []FakeBackgroundShellServiceRemoveShellArgs
+	removeShellReturns     struct {
 		result1 error
 	}
 	removeShellReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeBackgroundShellServiceCancelShellArgs holds the arguments of one call to CancelShell.
+type FakeBackgroundShellServiceCancelShellArgs struct {
+	Arg1 string
+}
+
+// FakeBackgroundShellServiceDetachToBackgroundArgs holds the arguments of one call to DetachToBackground.
+type FakeBackgroundShellServiceDetachToBackgroundArgs struct {
+	Arg1 context.Context
+	Arg2 *exec.Cmd
+	Arg3 string
+	Arg4 *domain.OutputRingBuffer
+	Arg5 <-chan struct{}
+}
+
+// FakeBackgroundShellServiceGetShellArgs holds the arguments of one call to GetShell.
+type FakeBackgroundShellServiceGetShellArgs struct {
+	Arg1 string
+}
+
+// FakeBackgroundShellServiceGetShellOutputArgs holds the arguments of one call to GetShellOutput.
+type FakeBackgroundShellServiceGetShellOutputArgs struct {
+	Arg1 string
+	Arg2 int64
+}
+
+// FakeBackgroundShellServiceGetShellOutputWithFilterArgs holds the arguments of one call to GetShellOutputWithFilter.
+type FakeBackgroundShellServiceGetShellOutputWithFilterArgs struct {
+	Arg1 string
+	Arg2 int64
+	Arg3 string
+}
+
+// FakeBackgroundShellServiceRemoveShellArgs holds the arguments of one call to RemoveShell.
+type FakeBackgroundShellServiceRemoveShellArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeBackgroundShellService) CancelShell(arg1 string) error {
 	fake.cancelShellMutex.Lock()
 	ret, specificReturn := fake.cancelShellReturnsOnCall[len(fake.cancelShellArgsForCall)]
-	fake.cancelShellArgsForCall = append(fake.cancelShellArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.cancelShellArgsForCall = append(fake.cancelShellArgsForCall, FakeBackgroundShellServiceCancelShellArgs{arg1})
 	stub := fake.CancelShellStub
 	fakeReturns := fake.cancelShellReturns
 	fake.recordInvocation("CancelShell", []interface{}{arg1})
@@ -146,7 +162,15 @@ func (fake *FakeBackgroundShellService) CancelShellArgsForCall(i int) string {
 	fake.cancelShellMutex.RLock()
 	defer fake.cancelShellMutex.RUnlock()
 	argsForCall := fake.cancelShellArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeBackgroundShellService) CancelShellArgs() []FakeBackgroundShellServiceCancelShellArgs {
+	fake.cancelShellMutex.RLock()
+	defer fake.cancelShellMutex.RUnlock()
+	args := make([]FakeBackgroundShellServiceCancelShellArgs, len(fake.cancelShellArgsForCall))
+	copy(args, fake.cancelShellArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundShellService) CancelShellReturns(result1 error) {
@@ -175,13 +199,7 @@ func (fake *FakeBackgroundShellService) CancelShellReturnsOnCall(i int, result1 
 func (fake *FakeBackgroundShellService) DetachToBackground(arg1 context.Context, arg2 *exec.Cmd, arg3 string, arg4 *domain.OutputRingBuffer, arg5 <-chan struct{}) (string, error) {
 	fake.detachToBackgroundMutex.Lock()
 	ret, specificReturn := fake.detachToBackgroundReturnsOnCall[len(fake.detachToBackgroundArgsForCall)]
-	fake.detachToBackgroundArgsForCall = append(fake.detachToBackgroundArgsForCall, struct {
-		arg1 context.Context
-		arg2 *exec.Cmd
-		arg3 string
-		arg4 *domain.OutputRingBuffer
-		arg5 <-chan struct{}
-	}{arg1, arg2, arg3, arg4, arg5})
+	fake.detachToBackgroundArgsForCall = append(fake.detachToBackgroundArgsForCall, FakeBackgroundShellServiceDetachToBackgroundArgs{arg1, arg2, arg3, arg4, arg5})
 	stub := fake.DetachToBackgroundStub
 	fakeReturns := fake.detachToBackgroundReturns
 	fake.recordInvocation("DetachToBackground", []interface{}{arg1, arg2, arg3, arg4, arg5})
@@ -211,7 +229,15 @@ func (fake *FakeBackgroundShellService) DetachToBackgroundArgsForCall(i int) (co
 	fake.detachToBackgroundMutex.RLock()
 	defer fake.detachToBackgroundMutex.RUnlock()
 	argsForCall := fake.detachToBackgroundArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5
+}
+
+func (fake *FakeBackgroundShellService) DetachToBackgroundArgs() []FakeBackgroundShellServiceDetachToBackgroundArgs {
+	fake.detachToBackgroundMutex.RLock()
+	defer fake.detachToBackgroundMutex.RUnlock()
+	args := make([]FakeBackgroundShellServiceDetachToBackgroundArgs, len(fake.detachToBackgroundArgsForCall))
+	copy(args, fake.detachToBackgroundArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundShellService) DetachToBackgroundReturns(result1 string, result2 error) {
@@ -243,8 +269,7 @@ func (fake *FakeBackgroundShellService) DetachToBackgroundReturnsOnCall(i int, r
 func (fake *FakeBackgroundShellService) GetAllShells() []*domain.BackgroundShell {
 	fake.getAllShellsMutex.Lock()
 	ret, specificReturn := fake.getAllShellsReturnsOnCall[len(fake.getAllShellsArgsForCall)]
-	fake.getAllShellsArgsForCall = append(fake.getAllShellsArgsForCall, struct {
-	}{})
+	fake.getAllShellsArgsForCall = append(fake.getAllShellsArgsForCall, struct{}{})
 	stub := fake.GetAllShellsStub
 	fakeReturns := fake.getAllShellsReturns
 	fake.recordInvocation("GetAllShells", []interface{}{})
@@ -296,9 +321,7 @@ func (fake *FakeBackgroundShellService) GetAllShellsReturnsOnCall(i int, result1
 func (fake *FakeBackgroundShellService) GetShell(arg1 string) *domain.BackgroundShell {
 	fake.getShellMutex.Lock()
 	ret, specificReturn := fake.getShellReturnsOnCall[len(fake.getShellArgsForCall)]
-	fake.getShellArgsForCall = append(fake.getShellArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getShellArgsForCall = append(fake.getShellArgsForCall, FakeBackgroundShellServiceGetShellArgs{arg1})
 	stub := fake.GetShellStub
 	fakeReturns := fake.getShellReturns
 	fake.recordInvocation("GetShell", []interface{}{arg1})
@@ -328,7 +351,15 @@ func (fake *FakeBackgroundShellService) GetShellArgsForCall(i int) string {
 	fake.getShellMutex.RLock()
 	defer fake.getShellMutex.RUnlock()
 	argsForCall := fake.getShellArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeBackgroundShellService) GetShellArgs() []FakeBackgroundShellServiceGetShellArgs {
+	fake.getShellMutex.RLock()
+	defer fake.getShellMutex.RUnlock()
+	args := make([]FakeBackgroundShellServiceGetShellArgs, len(fake.getShellArgsForCall))
+	copy(args, fake.getShellArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundShellService) GetShellReturns(result1 *domain.BackgroundShell) {
@@ -357,10 +388,7 @@ func (fake *FakeBackgroundShellService) GetShellReturnsOnCall(i int, result1 *do
 func (fake *FakeBackgroundShellService) GetShellOutput(arg1 string, arg2 int64) (string, int64, domain.ShellState, error) {
 	fake.getShellOutputMutex.Lock()
 	ret, specificReturn := fake.getShellOutputReturnsOnCall[len(fake.getShellOutputArgsForCall)]
-	fake.getShellOutputArgsForCall = append(fake.getShellOutputArgsForCall, struct {
-		arg1 string
-		arg2 int64
-	}{arg1, arg2})
+	fake.getShellOutputArgsForCall = append(fake.getShellOutputArgsForCall, FakeBackgroundShellServiceGetShellOutputArgs{arg1, arg2})
 	stub := fake.GetShellOutputStub
 	fakeReturns := fake.getShellOutputReturns
 	fake.recordInvocation("GetShellOutput", []interface{}{arg1, arg2})
@@ -390,7 +418,15 @@ func (fake *FakeBackgroundShellService) GetShellOutputArgsForCall(i int) (string
 	fake.getShellOutputMutex.RLock()
 	defer fake.getShellOutputMutex.RUnlock()
 	argsForCall := fake.getShellOutputArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeBackgroundShellService) GetShellOutputArgs() []FakeBackgroundShellServiceGetShellOutputArgs {
+	fake.getShellOutputMutex.RLock()
+	defer fake.getShellOutputMutex.RUnlock()
+	args := make([]FakeBackgroundShellServiceGetShellOutputArgs, len(fake.getShellOutputArgsForCall))
+	copy(args, fake.getShellOutputArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundShellService) GetShellOutputReturns(result1 string, result2 int64, result3 domain.ShellState, result4 error) {
@@ -428,11 +464,7 @@ func (fake *FakeBackgroundShellService) GetShellOutputReturnsOnCall(i int, resul
 func (fake *FakeBackgroundShellService) GetShellOutputWithFilter(arg1 string, arg2 int64, arg3 string) (string, int64, domain.ShellState, error) {
 	fake.getShellOutputWithFilterMutex.Lock()
 	ret, specificReturn := fake.getShellOutputWithFilterReturnsOnCall[len(fake.getShellOutputWithFilterArgsForCall)]
-	fake.getShellOutputWithFilterArgsForCall = append(fake.getShellOutputWithFilterArgsForCall, struct {
-		arg1 string
-		arg2 int64
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.getShellOutputWithFilterArgsForCall = append(fake.getShellOutputWithFilterArgsForCall, FakeBackgroundShellServiceGetShellOutputWithFilterArgs{arg1, arg2, arg3})
 	stub := fake.GetShellOutputWithFilterStub
 	fakeReturns := fake.getShellOutputWithFilterReturns
 	fake.recordInvocation("GetShellOutputWithFilter", []interface{}{arg1, arg2, arg3})
@@ -462,7 +494,15 @@ func (fake *FakeBackgroundShellService) GetShellOutputWithFilterArgsForCall(i in
 	fake.getShellOutputWithFilterMutex.RLock()
 	defer fake.getShellOutputWithFilterMutex.RUnlock()
 	argsForCall := fake.getShellOutputWithFilterArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeBackgroundShellService) GetShellOutputWithFilterArgs() []FakeBackgroundShellServiceGetShellOutputWithFilterArgs {
+	fake.getShellOutputWithFilterMutex.RLock()
+	defer fake.getShellOutputWithFilterMutex.RUnlock()
+	args := make([]FakeBackgroundShellServiceGetShellOutputWithFilterArgs, len(fake.getShellOutputWithFilterArgsForCall))
+	copy(args, fake.getShellOutputWithFilterArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundShellService) GetShellOutputWithFilterReturns(result1 string, result2 int64, result3 domain.ShellState, result4 error) {
@@ -500,9 +540,7 @@ func (fake *FakeBackgroundShellService) GetShellOutputWithFilterReturnsOnCall(i 
 func (fake *FakeBackgroundShellService) RemoveShell(arg1 string) error {
 	fake.removeShellMutex.Lock()
 	ret, specificReturn := fake.removeShellReturnsOnCall[len(fake.removeShellArgsForCall)]
-	fake.removeShellArgsForCall = append(fake.removeShellArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.removeShellArgsForCall = append(fake.removeShellArgsForCall, FakeBackgroundShellServiceRemoveShellArgs{arg1})
 	stub := fake.RemoveShellStub
 	fakeReturns := fake.removeShellReturns
 	fake.recordInvocation("RemoveShell", []interface{}{arg1})
@@ -532,7 +570,15 @@ func (fake *FakeBackgroundShellService) RemoveShellArgsForCall(i int) string {
 	fake.removeShellMutex.RLock()
 	defer fake.removeShellMutex.RUnlock()
 	argsForCall := fake.removeShellArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeBackgroundShellService) RemoveShellArgs() []FakeBackgroundShellServiceRemoveShellArgs {
+	fake.removeShellMutex.RLock()
+	defer fake.removeShellMutex.RUnlock()
+	args := make([]FakeBackgroundShellServiceRemoveShellArgs, len(fake.removeShellArgsForCall))
+	copy(args, fake.removeShellArgsForCall)
+	return args
 }
 
 func (fake *FakeBackgroundShellService) RemoveShellReturns(result1 error) {
@@ -568,9 +614,18 @@ func (fake *FakeBackgroundShellService) Invocations() map[string][][]interface{}
 	return copiedInvocations
 }
 
+func (fake *FakeBackgroundShellService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeBackgroundShellService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

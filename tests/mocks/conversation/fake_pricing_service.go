@@ -10,14 +10,8 @@ import (
 type FakePricingService struct {
 	CalculateCostStub        func(string, int, int, int, int) (float64, float64, float64)
 	calculateCostMutex       sync.RWMutex
-	calculateCostArgsForCall []struct {
-		arg1 string
-		arg2 int
-		arg3 int
-		arg4 int
-		arg5 int
-	}
-	calculateCostReturns struct {
+	calculateCostArgsForCall []FakePricingServiceCalculateCostArgs
+	calculateCostReturns     struct {
 		result1 float64
 		result2 float64
 		result3 float64
@@ -29,10 +23,8 @@ type FakePricingService struct {
 	}
 	FormatModelPricingStub        func(string) string
 	formatModelPricingMutex       sync.RWMutex
-	formatModelPricingArgsForCall []struct {
-		arg1 string
-	}
-	formatModelPricingReturns struct {
+	formatModelPricingArgsForCall []FakePricingServiceFormatModelPricingArgs
+	formatModelPricingReturns     struct {
 		result1 string
 	}
 	formatModelPricingReturnsOnCall map[int]struct {
@@ -40,10 +32,8 @@ type FakePricingService struct {
 	}
 	GetInputPriceStub        func(string) float64
 	getInputPriceMutex       sync.RWMutex
-	getInputPriceArgsForCall []struct {
-		arg1 string
-	}
-	getInputPriceReturns struct {
+	getInputPriceArgsForCall []FakePricingServiceGetInputPriceArgs
+	getInputPriceReturns     struct {
 		result1 float64
 	}
 	getInputPriceReturnsOnCall map[int]struct {
@@ -51,10 +41,8 @@ type FakePricingService struct {
 	}
 	GetOutputPriceStub        func(string) float64
 	getOutputPriceMutex       sync.RWMutex
-	getOutputPriceArgsForCall []struct {
-		arg1 string
-	}
-	getOutputPriceReturns struct {
+	getOutputPriceArgsForCall []FakePricingServiceGetOutputPriceArgs
+	getOutputPriceReturns     struct {
 		result1 float64
 	}
 	getOutputPriceReturnsOnCall map[int]struct {
@@ -62,9 +50,8 @@ type FakePricingService struct {
 	}
 	IsEnabledStub        func() bool
 	isEnabledMutex       sync.RWMutex
-	isEnabledArgsForCall []struct {
-	}
-	isEnabledReturns struct {
+	isEnabledArgsForCall []struct{}
+	isEnabledReturns     struct {
 		result1 bool
 	}
 	isEnabledReturnsOnCall map[int]struct {
@@ -72,29 +59,51 @@ type FakePricingService struct {
 	}
 	RequiresProStub        func(string) bool
 	requiresProMutex       sync.RWMutex
-	requiresProArgsForCall []struct {
-		arg1 string
-	}
-	requiresProReturns struct {
+	requiresProArgsForCall []FakePricingServiceRequiresProArgs
+	requiresProReturns     struct {
 		result1 bool
 	}
 	requiresProReturnsOnCall map[int]struct {
 		result1 bool
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakePricingServiceCalculateCostArgs holds the arguments of one call to CalculateCost.
+type FakePricingServiceCalculateCostArgs struct {
+	Arg1 string
+	Arg2 int
+	Arg3 int
+	Arg4 int
+	Arg5 int
+}
+
+// FakePricingServiceFormatModelPricingArgs holds the arguments of one call to FormatModelPricing.
+type FakePricingServiceFormatModelPricingArgs struct {
+	Arg1 string
+}
+
+// FakePricingServiceGetInputPriceArgs holds the arguments of one call to GetInputPrice.
+type FakePricingServiceGetInputPriceArgs struct {
+	Arg1 string
+}
+
+// FakePricingServiceGetOutputPriceArgs holds the arguments of one call to GetOutputPrice.
+type FakePricingServiceGetOutputPriceArgs struct {
+	Arg1 string
+}
+
+// FakePricingServiceRequiresProArgs holds the arguments of one call to RequiresPro.
+type FakePricingServiceRequiresProArgs struct {
+	Arg1 string
 }
 
 func (fake *FakePricingService) CalculateCost(arg1 string, arg2 int, arg3 int, arg4 int, arg5 int) (float64, float64, float64) {
 	fake.calculateCostMutex.Lock()
 	ret, specificReturn := fake.calculateCostReturnsOnCall[len(fake.calculateCostArgsForCall)]
-	fake.calculateCostArgsForCall = append(fake.calculateCostArgsForCall, struct {
-		arg1 string
-		arg2 int
-		arg3 int
-		arg4 int
-		arg5 int
-	}{arg1, arg2, arg3, arg4, arg5})
+	fake.calculateCostArgsForCall = append(fake.calculateCostArgsForCall, FakePricingServiceCalculateCostArgs{arg1, arg2, arg3, arg4, arg5})
 	stub := fake.CalculateCostStub
 	fakeReturns := fake.calculateCostReturns
 	fake.recordInvocation("CalculateCost", []interface{}{arg1, arg2, arg3, arg4, arg5})
@@ -124,7 +133,15 @@ func (fake *FakePricingService) CalculateCostArgsForCall(i int) (string, int, in
 	fake.calculateCostMutex.RLock()
 	defer fake.calculateCostMutex.RUnlock()
 	argsForCall := fake.calculateCostArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5
+}
+
+func (fake *FakePricingService) CalculateCostArgs() []FakePricingServiceCalculateCostArgs {
+	fake.calculateCostMutex.RLock()
+	defer fake.calculateCostMutex.RUnlock()
+	args := make([]FakePricingServiceCalculateCostArgs, len(fake.calculateCostArgsForCall))
+	copy(args, fake.calculateCostArgsForCall)
+	return args
 }
 
 func (fake *FakePricingService) CalculateCostReturns(result1 float64, result2 float64, result3 float64) {
@@ -159,9 +176,7 @@ func (fake *FakePricingService) CalculateCostReturnsOnCall(i int, result1 float6
 func (fake *FakePricingService) FormatModelPricing(arg1 string) string {
 	fake.formatModelPricingMutex.Lock()
 	ret, specificReturn := fake.formatModelPricingReturnsOnCall[len(fake.formatModelPricingArgsForCall)]
-	fake.formatModelPricingArgsForCall = append(fake.formatModelPricingArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.formatModelPricingArgsForCall = append(fake.formatModelPricingArgsForCall, FakePricingServiceFormatModelPricingArgs{arg1})
 	stub := fake.FormatModelPricingStub
 	fakeReturns := fake.formatModelPricingReturns
 	fake.recordInvocation("FormatModelPricing", []interface{}{arg1})
@@ -191,7 +206,15 @@ func (fake *FakePricingService) FormatModelPricingArgsForCall(i int) string {
 	fake.formatModelPricingMutex.RLock()
 	defer fake.formatModelPricingMutex.RUnlock()
 	argsForCall := fake.formatModelPricingArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePricingService) FormatModelPricingArgs() []FakePricingServiceFormatModelPricingArgs {
+	fake.formatModelPricingMutex.RLock()
+	defer fake.formatModelPricingMutex.RUnlock()
+	args := make([]FakePricingServiceFormatModelPricingArgs, len(fake.formatModelPricingArgsForCall))
+	copy(args, fake.formatModelPricingArgsForCall)
+	return args
 }
 
 func (fake *FakePricingService) FormatModelPricingReturns(result1 string) {
@@ -220,9 +243,7 @@ func (fake *FakePricingService) FormatModelPricingReturnsOnCall(i int, result1 s
 func (fake *FakePricingService) GetInputPrice(arg1 string) float64 {
 	fake.getInputPriceMutex.Lock()
 	ret, specificReturn := fake.getInputPriceReturnsOnCall[len(fake.getInputPriceArgsForCall)]
-	fake.getInputPriceArgsForCall = append(fake.getInputPriceArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getInputPriceArgsForCall = append(fake.getInputPriceArgsForCall, FakePricingServiceGetInputPriceArgs{arg1})
 	stub := fake.GetInputPriceStub
 	fakeReturns := fake.getInputPriceReturns
 	fake.recordInvocation("GetInputPrice", []interface{}{arg1})
@@ -252,7 +273,15 @@ func (fake *FakePricingService) GetInputPriceArgsForCall(i int) string {
 	fake.getInputPriceMutex.RLock()
 	defer fake.getInputPriceMutex.RUnlock()
 	argsForCall := fake.getInputPriceArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePricingService) GetInputPriceArgs() []FakePricingServiceGetInputPriceArgs {
+	fake.getInputPriceMutex.RLock()
+	defer fake.getInputPriceMutex.RUnlock()
+	args := make([]FakePricingServiceGetInputPriceArgs, len(fake.getInputPriceArgsForCall))
+	copy(args, fake.getInputPriceArgsForCall)
+	return args
 }
 
 func (fake *FakePricingService) GetInputPriceReturns(result1 float64) {
@@ -281,9 +310,7 @@ func (fake *FakePricingService) GetInputPriceReturnsOnCall(i int, result1 float6
 func (fake *FakePricingService) GetOutputPrice(arg1 string) float64 {
 	fake.getOutputPriceMutex.Lock()
 	ret, specificReturn := fake.getOutputPriceReturnsOnCall[len(fake.getOutputPriceArgsForCall)]
-	fake.getOutputPriceArgsForCall = append(fake.getOutputPriceArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getOutputPriceArgsForCall = append(fake.getOutputPriceArgsForCall, FakePricingServiceGetOutputPriceArgs{arg1})
 	stub := fake.GetOutputPriceStub
 	fakeReturns := fake.getOutputPriceReturns
 	fake.recordInvocation("GetOutputPrice", []interface{}{arg1})
@@ -313,7 +340,15 @@ func (fake *FakePricingService) GetOutputPriceArgsForCall(i int) string {
 	fake.getOutputPriceMutex.RLock()
 	defer fake.getOutputPriceMutex.RUnlock()
 	argsForCall := fake.getOutputPriceArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePricingService) GetOutputPriceArgs() []FakePricingServiceGetOutputPriceArgs {
+	fake.getOutputPriceMutex.RLock()
+	defer fake.getOutputPriceMutex.RUnlock()
+	args := make([]FakePricingServiceGetOutputPriceArgs, len(fake.getOutputPriceArgsForCall))
+	copy(args, fake.getOutputPriceArgsForCall)
+	return args
 }
 
 func (fake *FakePricingService) GetOutputPriceReturns(result1 float64) {
@@ -342,8 +377,7 @@ func (fake *FakePricingService) GetOutputPriceReturnsOnCall(i int, result1 float
 func (fake *FakePricingService) IsEnabled() bool {
 	fake.isEnabledMutex.Lock()
 	ret, specificReturn := fake.isEnabledReturnsOnCall[len(fake.isEnabledArgsForCall)]
-	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct {
-	}{})
+	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct{}{})
 	stub := fake.IsEnabledStub
 	fakeReturns := fake.isEnabledReturns
 	fake.recordInvocation("IsEnabled", []interface{}{})
@@ -395,9 +429,7 @@ func (fake *FakePricingService) IsEnabledReturnsOnCall(i int, result1 bool) {
 func (fake *FakePricingService) RequiresPro(arg1 string) bool {
 	fake.requiresProMutex.Lock()
 	ret, specificReturn := fake.requiresProReturnsOnCall[len(fake.requiresProArgsForCall)]
-	fake.requiresProArgsForCall = append(fake.requiresProArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.requiresProArgsForCall = append(fake.requiresProArgsForCall, FakePricingServiceRequiresProArgs{arg1})
 	stub := fake.RequiresProStub
 	fakeReturns := fake.requiresProReturns
 	fake.recordInvocation("RequiresPro", []interface{}{arg1})
@@ -427,7 +459,15 @@ func (fake *FakePricingService) RequiresProArgsForCall(i int) string {
 	fake.requiresProMutex.RLock()
 	defer fake.requiresProMutex.RUnlock()
 	argsForCall := fake.requiresProArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakePricingService) RequiresProArgs() []FakePricingServiceRequiresProArgs {
+	fake.requiresProMutex.RLock()
+	defer fake.requiresProMutex.RUnlock()
+	args := make([]FakePricingServiceRequiresProArgs, len(fake.requiresProArgsForCall))
+	copy(args, fake.requiresProArgsForCall)
+	return args
 }
 
 func (fake *FakePricingService) RequiresProReturns(result1 bool) {
@@ -463,9 +503,18 @@ func (fake *FakePricingService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakePricingService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakePricingService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -12,11 +12,8 @@ import (
 type FakeToolService struct {
 	ExecuteToolStub        func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error)
 	executeToolMutex       sync.RWMutex
-	executeToolArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.ChatCompletionMessageToolCallFunction
-	}
-	executeToolReturns struct {
+	executeToolArgsForCall []FakeToolServiceExecuteToolArgs
+	executeToolReturns     struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
@@ -26,11 +23,8 @@ type FakeToolService struct {
 	}
 	ExecuteToolDirectStub        func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error)
 	executeToolDirectMutex       sync.RWMutex
-	executeToolDirectArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.ChatCompletionMessageToolCallFunction
-	}
-	executeToolDirectReturns struct {
+	executeToolDirectArgsForCall []FakeToolServiceExecuteToolDirectArgs
+	executeToolDirectReturns     struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
@@ -40,10 +34,8 @@ type FakeToolService struct {
 	}
 	GetToolStub        func(string) (domain.Tool, error)
 	getToolMutex       sync.RWMutex
-	getToolArgsForCall []struct {
-		arg1 string
-	}
-	getToolReturns struct {
+	getToolArgsForCall []FakeToolServiceGetToolArgs
+	getToolReturns     struct {
 		result1 domain.Tool
 		result2 error
 	}
@@ -53,10 +45,8 @@ type FakeToolService struct {
 	}
 	IsToolEnabledStub        func(string) bool
 	isToolEnabledMutex       sync.RWMutex
-	isToolEnabledArgsForCall []struct {
-		arg1 string
-	}
-	isToolEnabledReturns struct {
+	isToolEnabledArgsForCall []FakeToolServiceIsToolEnabledArgs
+	isToolEnabledReturns     struct {
 		result1 bool
 	}
 	isToolEnabledReturnsOnCall map[int]struct {
@@ -64,9 +54,8 @@ type FakeToolService struct {
 	}
 	ListAvailableToolsStub        func() []string
 	listAvailableToolsMutex       sync.RWMutex
-	listAvailableToolsArgsForCall []struct {
-	}
-	listAvailableToolsReturns struct {
+	listAvailableToolsArgsForCall []struct{}
+	listAvailableToolsReturns     struct {
 		result1 []string
 	}
 	listAvailableToolsReturnsOnCall map[int]struct {
@@ -74,9 +63,8 @@ type FakeToolService struct {
 	}
 	ListMarkdownSubagentsStub        func() []domain.SubagentInfo
 	listMarkdownSubagentsMutex       sync.RWMutex
-	listMarkdownSubagentsArgsForCall []struct {
-	}
-	listMarkdownSubagentsReturns struct {
+	listMarkdownSubagentsArgsForCall []struct{}
+	listMarkdownSubagentsReturns     struct {
 		result1 []domain.SubagentInfo
 	}
 	listMarkdownSubagentsReturnsOnCall map[int]struct {
@@ -84,9 +72,8 @@ type FakeToolService struct {
 	}
 	ListToolsStub        func() []sdk.ChatCompletionTool
 	listToolsMutex       sync.RWMutex
-	listToolsArgsForCall []struct {
-	}
-	listToolsReturns struct {
+	listToolsArgsForCall []struct{}
+	listToolsReturns     struct {
 		result1 []sdk.ChatCompletionTool
 	}
 	listToolsReturnsOnCall map[int]struct {
@@ -94,10 +81,8 @@ type FakeToolService struct {
 	}
 	ListToolsForModeStub        func(domain.AgentMode) []sdk.ChatCompletionTool
 	listToolsForModeMutex       sync.RWMutex
-	listToolsForModeArgsForCall []struct {
-		arg1 domain.AgentMode
-	}
-	listToolsForModeReturns struct {
+	listToolsForModeArgsForCall []FakeToolServiceListToolsForModeArgs
+	listToolsForModeReturns     struct {
 		result1 []sdk.ChatCompletionTool
 	}
 	listToolsForModeReturnsOnCall map[int]struct {
@@ -105,10 +90,8 @@ type FakeToolService struct {
 	}
 	ManifestStub        func(string) domain.ToolManifest
 	manifestMutex       sync.RWMutex
-	manifestArgsForCall []struct {
-		arg1 string
-	}
-	manifestReturns struct {
+	manifestArgsForCall []FakeToolServiceManifestArgs
+	manifestReturns     struct {
 		result1 domain.ToolManifest
 	}
 	manifestReturnsOnCall map[int]struct {
@@ -116,27 +99,60 @@ type FakeToolService struct {
 	}
 	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
-	validateToolArgsForCall []struct {
-		arg1 string
-		arg2 map[string]any
-	}
-	validateToolReturns struct {
+	validateToolArgsForCall []FakeToolServiceValidateToolArgs
+	validateToolReturns     struct {
 		result1 error
 	}
 	validateToolReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeToolServiceExecuteToolArgs holds the arguments of one call to ExecuteTool.
+type FakeToolServiceExecuteToolArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.ChatCompletionMessageToolCallFunction
+}
+
+// FakeToolServiceExecuteToolDirectArgs holds the arguments of one call to ExecuteToolDirect.
+type FakeToolServiceExecuteToolDirectArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.ChatCompletionMessageToolCallFunction
+}
+
+// FakeToolServiceGetToolArgs holds the arguments of one call to GetTool.
+type FakeToolServiceGetToolArgs struct {
+	Arg1 string
+}
+
+// FakeToolServiceIsToolEnabledArgs holds the arguments of one call to IsToolEnabled.
+type FakeToolServiceIsToolEnabledArgs struct {
+	Arg1 string
+}
+
+// FakeToolServiceListToolsForModeArgs holds the arguments of one call to ListToolsForMode.
+type FakeToolServiceListToolsForModeArgs struct {
+	Arg1 domain.AgentMode
+}
+
+// FakeToolServiceManifestArgs holds the arguments of one call to Manifest.
+type FakeToolServiceManifestArgs struct {
+	Arg1 string
+}
+
+// FakeToolServiceValidateToolArgs holds the arguments of one call to ValidateTool.
+type FakeToolServiceValidateToolArgs struct {
+	Arg1 string
+	Arg2 map[string]any
 }
 
 func (fake *FakeToolService) ExecuteTool(arg1 context.Context, arg2 sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	fake.executeToolMutex.Lock()
 	ret, specificReturn := fake.executeToolReturnsOnCall[len(fake.executeToolArgsForCall)]
-	fake.executeToolArgsForCall = append(fake.executeToolArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.ChatCompletionMessageToolCallFunction
-	}{arg1, arg2})
+	fake.executeToolArgsForCall = append(fake.executeToolArgsForCall, FakeToolServiceExecuteToolArgs{arg1, arg2})
 	stub := fake.ExecuteToolStub
 	fakeReturns := fake.executeToolReturns
 	fake.recordInvocation("ExecuteTool", []interface{}{arg1, arg2})
@@ -166,7 +182,15 @@ func (fake *FakeToolService) ExecuteToolArgsForCall(i int) (context.Context, sdk
 	fake.executeToolMutex.RLock()
 	defer fake.executeToolMutex.RUnlock()
 	argsForCall := fake.executeToolArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeToolService) ExecuteToolArgs() []FakeToolServiceExecuteToolArgs {
+	fake.executeToolMutex.RLock()
+	defer fake.executeToolMutex.RUnlock()
+	args := make([]FakeToolServiceExecuteToolArgs, len(fake.executeToolArgsForCall))
+	copy(args, fake.executeToolArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) ExecuteToolReturns(result1 *domain.ToolExecutionResult, result2 error) {
@@ -198,10 +222,7 @@ func (fake *FakeToolService) ExecuteToolReturnsOnCall(i int, result1 *domain.Too
 func (fake *FakeToolService) ExecuteToolDirect(arg1 context.Context, arg2 sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	fake.executeToolDirectMutex.Lock()
 	ret, specificReturn := fake.executeToolDirectReturnsOnCall[len(fake.executeToolDirectArgsForCall)]
-	fake.executeToolDirectArgsForCall = append(fake.executeToolDirectArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.ChatCompletionMessageToolCallFunction
-	}{arg1, arg2})
+	fake.executeToolDirectArgsForCall = append(fake.executeToolDirectArgsForCall, FakeToolServiceExecuteToolDirectArgs{arg1, arg2})
 	stub := fake.ExecuteToolDirectStub
 	fakeReturns := fake.executeToolDirectReturns
 	fake.recordInvocation("ExecuteToolDirect", []interface{}{arg1, arg2})
@@ -231,7 +252,15 @@ func (fake *FakeToolService) ExecuteToolDirectArgsForCall(i int) (context.Contex
 	fake.executeToolDirectMutex.RLock()
 	defer fake.executeToolDirectMutex.RUnlock()
 	argsForCall := fake.executeToolDirectArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeToolService) ExecuteToolDirectArgs() []FakeToolServiceExecuteToolDirectArgs {
+	fake.executeToolDirectMutex.RLock()
+	defer fake.executeToolDirectMutex.RUnlock()
+	args := make([]FakeToolServiceExecuteToolDirectArgs, len(fake.executeToolDirectArgsForCall))
+	copy(args, fake.executeToolDirectArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) ExecuteToolDirectReturns(result1 *domain.ToolExecutionResult, result2 error) {
@@ -263,9 +292,7 @@ func (fake *FakeToolService) ExecuteToolDirectReturnsOnCall(i int, result1 *doma
 func (fake *FakeToolService) GetTool(arg1 string) (domain.Tool, error) {
 	fake.getToolMutex.Lock()
 	ret, specificReturn := fake.getToolReturnsOnCall[len(fake.getToolArgsForCall)]
-	fake.getToolArgsForCall = append(fake.getToolArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getToolArgsForCall = append(fake.getToolArgsForCall, FakeToolServiceGetToolArgs{arg1})
 	stub := fake.GetToolStub
 	fakeReturns := fake.getToolReturns
 	fake.recordInvocation("GetTool", []interface{}{arg1})
@@ -295,7 +322,15 @@ func (fake *FakeToolService) GetToolArgsForCall(i int) string {
 	fake.getToolMutex.RLock()
 	defer fake.getToolMutex.RUnlock()
 	argsForCall := fake.getToolArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolService) GetToolArgs() []FakeToolServiceGetToolArgs {
+	fake.getToolMutex.RLock()
+	defer fake.getToolMutex.RUnlock()
+	args := make([]FakeToolServiceGetToolArgs, len(fake.getToolArgsForCall))
+	copy(args, fake.getToolArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) GetToolReturns(result1 domain.Tool, result2 error) {
@@ -327,9 +362,7 @@ func (fake *FakeToolService) GetToolReturnsOnCall(i int, result1 domain.Tool, re
 func (fake *FakeToolService) IsToolEnabled(arg1 string) bool {
 	fake.isToolEnabledMutex.Lock()
 	ret, specificReturn := fake.isToolEnabledReturnsOnCall[len(fake.isToolEnabledArgsForCall)]
-	fake.isToolEnabledArgsForCall = append(fake.isToolEnabledArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.isToolEnabledArgsForCall = append(fake.isToolEnabledArgsForCall, FakeToolServiceIsToolEnabledArgs{arg1})
 	stub := fake.IsToolEnabledStub
 	fakeReturns := fake.isToolEnabledReturns
 	fake.recordInvocation("IsToolEnabled", []interface{}{arg1})
@@ -359,7 +392,15 @@ func (fake *FakeToolService) IsToolEnabledArgsForCall(i int) string {
 	fake.isToolEnabledMutex.RLock()
 	defer fake.isToolEnabledMutex.RUnlock()
 	argsForCall := fake.isToolEnabledArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolService) IsToolEnabledArgs() []FakeToolServiceIsToolEnabledArgs {
+	fake.isToolEnabledMutex.RLock()
+	defer fake.isToolEnabledMutex.RUnlock()
+	args := make([]FakeToolServiceIsToolEnabledArgs, len(fake.isToolEnabledArgsForCall))
+	copy(args, fake.isToolEnabledArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) IsToolEnabledReturns(result1 bool) {
@@ -388,8 +429,7 @@ func (fake *FakeToolService) IsToolEnabledReturnsOnCall(i int, result1 bool) {
 func (fake *FakeToolService) ListAvailableTools() []string {
 	fake.listAvailableToolsMutex.Lock()
 	ret, specificReturn := fake.listAvailableToolsReturnsOnCall[len(fake.listAvailableToolsArgsForCall)]
-	fake.listAvailableToolsArgsForCall = append(fake.listAvailableToolsArgsForCall, struct {
-	}{})
+	fake.listAvailableToolsArgsForCall = append(fake.listAvailableToolsArgsForCall, struct{}{})
 	stub := fake.ListAvailableToolsStub
 	fakeReturns := fake.listAvailableToolsReturns
 	fake.recordInvocation("ListAvailableTools", []interface{}{})
@@ -441,8 +481,7 @@ func (fake *FakeToolService) ListAvailableToolsReturnsOnCall(i int, result1 []st
 func (fake *FakeToolService) ListMarkdownSubagents() []domain.SubagentInfo {
 	fake.listMarkdownSubagentsMutex.Lock()
 	ret, specificReturn := fake.listMarkdownSubagentsReturnsOnCall[len(fake.listMarkdownSubagentsArgsForCall)]
-	fake.listMarkdownSubagentsArgsForCall = append(fake.listMarkdownSubagentsArgsForCall, struct {
-	}{})
+	fake.listMarkdownSubagentsArgsForCall = append(fake.listMarkdownSubagentsArgsForCall, struct{}{})
 	stub := fake.ListMarkdownSubagentsStub
 	fakeReturns := fake.listMarkdownSubagentsReturns
 	fake.recordInvocation("ListMarkdownSubagents", []interface{}{})
@@ -494,8 +533,7 @@ func (fake *FakeToolService) ListMarkdownSubagentsReturnsOnCall(i int, result1 [
 func (fake *FakeToolService) ListTools() []sdk.ChatCompletionTool {
 	fake.listToolsMutex.Lock()
 	ret, specificReturn := fake.listToolsReturnsOnCall[len(fake.listToolsArgsForCall)]
-	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct {
-	}{})
+	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct{}{})
 	stub := fake.ListToolsStub
 	fakeReturns := fake.listToolsReturns
 	fake.recordInvocation("ListTools", []interface{}{})
@@ -547,9 +585,7 @@ func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []sdk.ChatCom
 func (fake *FakeToolService) ListToolsForMode(arg1 domain.AgentMode) []sdk.ChatCompletionTool {
 	fake.listToolsForModeMutex.Lock()
 	ret, specificReturn := fake.listToolsForModeReturnsOnCall[len(fake.listToolsForModeArgsForCall)]
-	fake.listToolsForModeArgsForCall = append(fake.listToolsForModeArgsForCall, struct {
-		arg1 domain.AgentMode
-	}{arg1})
+	fake.listToolsForModeArgsForCall = append(fake.listToolsForModeArgsForCall, FakeToolServiceListToolsForModeArgs{arg1})
 	stub := fake.ListToolsForModeStub
 	fakeReturns := fake.listToolsForModeReturns
 	fake.recordInvocation("ListToolsForMode", []interface{}{arg1})
@@ -579,7 +615,15 @@ func (fake *FakeToolService) ListToolsForModeArgsForCall(i int) domain.AgentMode
 	fake.listToolsForModeMutex.RLock()
 	defer fake.listToolsForModeMutex.RUnlock()
 	argsForCall := fake.listToolsForModeArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolService) ListToolsForModeArgs() []FakeToolServiceListToolsForModeArgs {
+	fake.listToolsForModeMutex.RLock()
+	defer fake.listToolsForModeMutex.RUnlock()
+	args := make([]FakeToolServiceListToolsForModeArgs, len(fake.listToolsForModeArgsForCall))
+	copy(args, fake.listToolsForModeArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) ListToolsForModeReturns(result1 []sdk.ChatCompletionTool) {
@@ -608,9 +652,7 @@ func (fake *FakeToolService) ListToolsForModeReturnsOnCall(i int, result1 []sdk.
 func (fake *FakeToolService) Manifest(arg1 string) domain.ToolManifest {
 	fake.manifestMutex.Lock()
 	ret, specificReturn := fake.manifestReturnsOnCall[len(fake.manifestArgsForCall)]
-	fake.manifestArgsForCall = append(fake.manifestArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.manifestArgsForCall = append(fake.manifestArgsForCall, FakeToolServiceManifestArgs{arg1})
 	stub := fake.ManifestStub
 	fakeReturns := fake.manifestReturns
 	fake.recordInvocation("Manifest", []interface{}{arg1})
@@ -640,7 +682,15 @@ func (fake *FakeToolService) ManifestArgsForCall(i int) string {
 	fake.manifestMutex.RLock()
 	defer fake.manifestMutex.RUnlock()
 	argsForCall := fake.manifestArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolService) ManifestArgs() []FakeToolServiceManifestArgs {
+	fake.manifestMutex.RLock()
+	defer fake.manifestMutex.RUnlock()
+	args := make([]FakeToolServiceManifestArgs, len(fake.manifestArgsForCall))
+	copy(args, fake.manifestArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) ManifestReturns(result1 domain.ToolManifest) {
@@ -669,10 +719,7 @@ func (fake *FakeToolService) ManifestReturnsOnCall(i int, result1 domain.ToolMan
 func (fake *FakeToolService) ValidateTool(arg1 string, arg2 map[string]any) error {
 	fake.validateToolMutex.Lock()
 	ret, specificReturn := fake.validateToolReturnsOnCall[len(fake.validateToolArgsForCall)]
-	fake.validateToolArgsForCall = append(fake.validateToolArgsForCall, struct {
-		arg1 string
-		arg2 map[string]any
-	}{arg1, arg2})
+	fake.validateToolArgsForCall = append(fake.validateToolArgsForCall, FakeToolServiceValidateToolArgs{arg1, arg2})
 	stub := fake.ValidateToolStub
 	fakeReturns := fake.validateToolReturns
 	fake.recordInvocation("ValidateTool", []interface{}{arg1, arg2})
@@ -702,7 +749,15 @@ func (fake *FakeToolService) ValidateToolArgsForCall(i int) (string, map[string]
 	fake.validateToolMutex.RLock()
 	defer fake.validateToolMutex.RUnlock()
 	argsForCall := fake.validateToolArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeToolService) ValidateToolArgs() []FakeToolServiceValidateToolArgs {
+	fake.validateToolMutex.RLock()
+	defer fake.validateToolMutex.RUnlock()
+	args := make([]FakeToolServiceValidateToolArgs, len(fake.validateToolArgsForCall))
+	copy(args, fake.validateToolArgsForCall)
+	return args
 }
 
 func (fake *FakeToolService) ValidateToolReturns(result1 error) {
@@ -738,9 +793,18 @@ func (fake *FakeToolService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeToolService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeToolService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

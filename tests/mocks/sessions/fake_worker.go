@@ -10,9 +10,8 @@ import (
 type FakeWorker struct {
 	LinesStub        func() <-chan []byte
 	linesMutex       sync.RWMutex
-	linesArgsForCall []struct {
-	}
-	linesReturns struct {
+	linesArgsForCall []struct{}
+	linesReturns     struct {
 		result1 <-chan []byte
 	}
 	linesReturnsOnCall map[int]struct {
@@ -20,28 +19,30 @@ type FakeWorker struct {
 	}
 	SendStub        func([]byte) error
 	sendMutex       sync.RWMutex
-	sendArgsForCall []struct {
-		arg1 []byte
-	}
-	sendReturns struct {
+	sendArgsForCall []FakeWorkerSendArgs
+	sendReturns     struct {
 		result1 error
 	}
 	sendReturnsOnCall map[int]struct {
 		result1 error
 	}
-	StopStub        func()
-	stopMutex       sync.RWMutex
-	stopArgsForCall []struct {
-	}
+	StopStub         func()
+	stopMutex        sync.RWMutex
+	stopArgsForCall  []struct{}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeWorkerSendArgs holds the arguments of one call to Send.
+type FakeWorkerSendArgs struct {
+	Arg1 []byte
 }
 
 func (fake *FakeWorker) Lines() <-chan []byte {
 	fake.linesMutex.Lock()
 	ret, specificReturn := fake.linesReturnsOnCall[len(fake.linesArgsForCall)]
-	fake.linesArgsForCall = append(fake.linesArgsForCall, struct {
-	}{})
+	fake.linesArgsForCall = append(fake.linesArgsForCall, struct{}{})
 	stub := fake.LinesStub
 	fakeReturns := fake.linesReturns
 	fake.recordInvocation("Lines", []interface{}{})
@@ -98,9 +99,7 @@ func (fake *FakeWorker) Send(arg1 []byte) error {
 	}
 	fake.sendMutex.Lock()
 	ret, specificReturn := fake.sendReturnsOnCall[len(fake.sendArgsForCall)]
-	fake.sendArgsForCall = append(fake.sendArgsForCall, struct {
-		arg1 []byte
-	}{arg1Copy})
+	fake.sendArgsForCall = append(fake.sendArgsForCall, FakeWorkerSendArgs{arg1Copy})
 	stub := fake.SendStub
 	fakeReturns := fake.sendReturns
 	fake.recordInvocation("Send", []interface{}{arg1Copy})
@@ -130,7 +129,15 @@ func (fake *FakeWorker) SendArgsForCall(i int) []byte {
 	fake.sendMutex.RLock()
 	defer fake.sendMutex.RUnlock()
 	argsForCall := fake.sendArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeWorker) SendArgs() []FakeWorkerSendArgs {
+	fake.sendMutex.RLock()
+	defer fake.sendMutex.RUnlock()
+	args := make([]FakeWorkerSendArgs, len(fake.sendArgsForCall))
+	copy(args, fake.sendArgsForCall)
+	return args
 }
 
 func (fake *FakeWorker) SendReturns(result1 error) {
@@ -158,13 +165,12 @@ func (fake *FakeWorker) SendReturnsOnCall(i int, result1 error) {
 
 func (fake *FakeWorker) Stop() {
 	fake.stopMutex.Lock()
-	fake.stopArgsForCall = append(fake.stopArgsForCall, struct {
-	}{})
+	fake.stopArgsForCall = append(fake.stopArgsForCall, struct{}{})
 	stub := fake.StopStub
 	fake.recordInvocation("Stop", []interface{}{})
 	fake.stopMutex.Unlock()
 	if stub != nil {
-		fake.StopStub()
+		stub()
 	}
 }
 
@@ -190,9 +196,18 @@ func (fake *FakeWorker) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeWorker) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeWorker) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

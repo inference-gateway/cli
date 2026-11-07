@@ -11,11 +11,8 @@ import (
 type FakeJudgeApprover struct {
 	JudgeStub        func(context.Context, domain.JudgeInput) (domain.JudgeVerdicts, error)
 	judgeMutex       sync.RWMutex
-	judgeArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.JudgeInput
-	}
-	judgeReturns struct {
+	judgeArgsForCall []FakeJudgeApproverJudgeArgs
+	judgeReturns     struct {
 		result1 domain.JudgeVerdicts
 		result2 error
 	}
@@ -24,16 +21,20 @@ type FakeJudgeApprover struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeJudgeApproverJudgeArgs holds the arguments of one call to Judge.
+type FakeJudgeApproverJudgeArgs struct {
+	Arg1 context.Context
+	Arg2 domain.JudgeInput
 }
 
 func (fake *FakeJudgeApprover) Judge(arg1 context.Context, arg2 domain.JudgeInput) (domain.JudgeVerdicts, error) {
 	fake.judgeMutex.Lock()
 	ret, specificReturn := fake.judgeReturnsOnCall[len(fake.judgeArgsForCall)]
-	fake.judgeArgsForCall = append(fake.judgeArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.JudgeInput
-	}{arg1, arg2})
+	fake.judgeArgsForCall = append(fake.judgeArgsForCall, FakeJudgeApproverJudgeArgs{arg1, arg2})
 	stub := fake.JudgeStub
 	fakeReturns := fake.judgeReturns
 	fake.recordInvocation("Judge", []interface{}{arg1, arg2})
@@ -63,7 +64,15 @@ func (fake *FakeJudgeApprover) JudgeArgsForCall(i int) (context.Context, domain.
 	fake.judgeMutex.RLock()
 	defer fake.judgeMutex.RUnlock()
 	argsForCall := fake.judgeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeJudgeApprover) JudgeArgs() []FakeJudgeApproverJudgeArgs {
+	fake.judgeMutex.RLock()
+	defer fake.judgeMutex.RUnlock()
+	args := make([]FakeJudgeApproverJudgeArgs, len(fake.judgeArgsForCall))
+	copy(args, fake.judgeArgsForCall)
+	return args
 }
 
 func (fake *FakeJudgeApprover) JudgeReturns(result1 domain.JudgeVerdicts, result2 error) {
@@ -102,9 +111,18 @@ func (fake *FakeJudgeApprover) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeJudgeApprover) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeJudgeApprover) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

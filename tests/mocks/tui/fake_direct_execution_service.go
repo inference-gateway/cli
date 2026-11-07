@@ -12,13 +12,11 @@ import (
 type FakeDirectExecutionService struct {
 	ClearBashDetachChanStub        func()
 	clearBashDetachChanMutex       sync.RWMutex
-	clearBashDetachChanArgsForCall []struct {
-	}
-	GetBashDetachChanStub        func() chan<- struct{}
-	getBashDetachChanMutex       sync.RWMutex
-	getBashDetachChanArgsForCall []struct {
-	}
-	getBashDetachChanReturns struct {
+	clearBashDetachChanArgsForCall []struct{}
+	GetBashDetachChanStub          func() chan<- struct{}
+	getBashDetachChanMutex         sync.RWMutex
+	getBashDetachChanArgsForCall   []struct{}
+	getBashDetachChanReturns       struct {
 		result1 chan<- struct{}
 	}
 	getBashDetachChanReturnsOnCall map[int]struct {
@@ -26,9 +24,8 @@ type FakeDirectExecutionService struct {
 	}
 	HandleBackgroundShellRequestStub        func() tea.Cmd
 	handleBackgroundShellRequestMutex       sync.RWMutex
-	handleBackgroundShellRequestArgsForCall []struct {
-	}
-	handleBackgroundShellRequestReturns struct {
+	handleBackgroundShellRequestArgsForCall []struct{}
+	handleBackgroundShellRequestReturns     struct {
 		result1 tea.Cmd
 	}
 	handleBackgroundShellRequestReturnsOnCall map[int]struct {
@@ -36,10 +33,8 @@ type FakeDirectExecutionService struct {
 	}
 	HandleBashCommandStub        func(string) tea.Cmd
 	handleBashCommandMutex       sync.RWMutex
-	handleBashCommandArgsForCall []struct {
-		arg1 string
-	}
-	handleBashCommandReturns struct {
+	handleBashCommandArgsForCall []FakeDirectExecutionServiceHandleBashCommandArgs
+	handleBashCommandReturns     struct {
 		result1 tea.Cmd
 	}
 	handleBashCommandReturnsOnCall map[int]struct {
@@ -47,10 +42,8 @@ type FakeDirectExecutionService struct {
 	}
 	HandleBashCommandCompletedStub        func(tui.BashCommandCompletedEvent) tea.Cmd
 	handleBashCommandCompletedMutex       sync.RWMutex
-	handleBashCommandCompletedArgsForCall []struct {
-		arg1 tui.BashCommandCompletedEvent
-	}
-	handleBashCommandCompletedReturns struct {
+	handleBashCommandCompletedArgsForCall []FakeDirectExecutionServiceHandleBashCommandCompletedArgs
+	handleBashCommandCompletedReturns     struct {
 		result1 tea.Cmd
 	}
 	handleBashCommandCompletedReturnsOnCall map[int]struct {
@@ -58,10 +51,8 @@ type FakeDirectExecutionService struct {
 	}
 	HandleBashOutputChunkStub        func(domain.BashOutputChunkEvent) tea.Cmd
 	handleBashOutputChunkMutex       sync.RWMutex
-	handleBashOutputChunkArgsForCall []struct {
-		arg1 domain.BashOutputChunkEvent
-	}
-	handleBashOutputChunkReturns struct {
+	handleBashOutputChunkArgsForCall []FakeDirectExecutionServiceHandleBashOutputChunkArgs
+	handleBashOutputChunkReturns     struct {
 		result1 tea.Cmd
 	}
 	handleBashOutputChunkReturnsOnCall map[int]struct {
@@ -69,10 +60,8 @@ type FakeDirectExecutionService struct {
 	}
 	HandleToolCommandStub        func(string) tea.Cmd
 	handleToolCommandMutex       sync.RWMutex
-	handleToolCommandArgsForCall []struct {
-		arg1 string
-	}
-	handleToolCommandReturns struct {
+	handleToolCommandArgsForCall []FakeDirectExecutionServiceHandleToolCommandArgs
+	handleToolCommandReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolCommandReturnsOnCall map[int]struct {
@@ -80,10 +69,8 @@ type FakeDirectExecutionService struct {
 	}
 	ParseArgumentsStub        func(string) (map[string]any, error)
 	parseArgumentsMutex       sync.RWMutex
-	parseArgumentsArgsForCall []struct {
-		arg1 string
-	}
-	parseArgumentsReturns struct {
+	parseArgumentsArgsForCall []FakeDirectExecutionServiceParseArgumentsArgs
+	parseArgumentsReturns     struct {
 		result1 map[string]any
 		result2 error
 	}
@@ -93,10 +80,8 @@ type FakeDirectExecutionService struct {
 	}
 	ParseToolCallStub        func(string) (string, map[string]any, error)
 	parseToolCallMutex       sync.RWMutex
-	parseToolCallArgsForCall []struct {
-		arg1 string
-	}
-	parseToolCallReturns struct {
+	parseToolCallArgsForCall []FakeDirectExecutionServiceParseToolCallArgs
+	parseToolCallReturns     struct {
 		result1 string
 		result2 map[string]any
 		result3 error
@@ -108,9 +93,8 @@ type FakeDirectExecutionService struct {
 	}
 	PendingBashChannelStub        func() <-chan tea.Msg
 	pendingBashChannelMutex       sync.RWMutex
-	pendingBashChannelArgsForCall []struct {
-	}
-	pendingBashChannelReturns struct {
+	pendingBashChannelArgsForCall []struct{}
+	pendingBashChannelReturns     struct {
 		result1 <-chan tea.Msg
 	}
 	pendingBashChannelReturnsOnCall map[int]struct {
@@ -118,9 +102,8 @@ type FakeDirectExecutionService struct {
 	}
 	PendingToolChannelStub        func() <-chan tea.Msg
 	pendingToolChannelMutex       sync.RWMutex
-	pendingToolChannelArgsForCall []struct {
-	}
-	pendingToolChannelReturns struct {
+	pendingToolChannelArgsForCall []struct{}
+	pendingToolChannelReturns     struct {
 		result1 <-chan tea.Msg
 	}
 	pendingToolChannelReturnsOnCall map[int]struct {
@@ -128,22 +111,55 @@ type FakeDirectExecutionService struct {
 	}
 	SetBashDetachChanStub        func(chan<- struct{})
 	setBashDetachChanMutex       sync.RWMutex
-	setBashDetachChanArgsForCall []struct {
-		arg1 chan<- struct{}
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setBashDetachChanArgsForCall []FakeDirectExecutionServiceSetBashDetachChanArgs
+	invocations                  map[string][][]interface{}
+	callOrder                    []string
+	invocationsMutex             sync.RWMutex
+}
+
+// FakeDirectExecutionServiceHandleBashCommandArgs holds the arguments of one call to HandleBashCommand.
+type FakeDirectExecutionServiceHandleBashCommandArgs struct {
+	Arg1 string
+}
+
+// FakeDirectExecutionServiceHandleBashCommandCompletedArgs holds the arguments of one call to HandleBashCommandCompleted.
+type FakeDirectExecutionServiceHandleBashCommandCompletedArgs struct {
+	Arg1 tui.BashCommandCompletedEvent
+}
+
+// FakeDirectExecutionServiceHandleBashOutputChunkArgs holds the arguments of one call to HandleBashOutputChunk.
+type FakeDirectExecutionServiceHandleBashOutputChunkArgs struct {
+	Arg1 domain.BashOutputChunkEvent
+}
+
+// FakeDirectExecutionServiceHandleToolCommandArgs holds the arguments of one call to HandleToolCommand.
+type FakeDirectExecutionServiceHandleToolCommandArgs struct {
+	Arg1 string
+}
+
+// FakeDirectExecutionServiceParseArgumentsArgs holds the arguments of one call to ParseArguments.
+type FakeDirectExecutionServiceParseArgumentsArgs struct {
+	Arg1 string
+}
+
+// FakeDirectExecutionServiceParseToolCallArgs holds the arguments of one call to ParseToolCall.
+type FakeDirectExecutionServiceParseToolCallArgs struct {
+	Arg1 string
+}
+
+// FakeDirectExecutionServiceSetBashDetachChanArgs holds the arguments of one call to SetBashDetachChan.
+type FakeDirectExecutionServiceSetBashDetachChanArgs struct {
+	Arg1 chan<- struct{}
 }
 
 func (fake *FakeDirectExecutionService) ClearBashDetachChan() {
 	fake.clearBashDetachChanMutex.Lock()
-	fake.clearBashDetachChanArgsForCall = append(fake.clearBashDetachChanArgsForCall, struct {
-	}{})
+	fake.clearBashDetachChanArgsForCall = append(fake.clearBashDetachChanArgsForCall, struct{}{})
 	stub := fake.ClearBashDetachChanStub
 	fake.recordInvocation("ClearBashDetachChan", []interface{}{})
 	fake.clearBashDetachChanMutex.Unlock()
 	if stub != nil {
-		fake.ClearBashDetachChanStub()
+		stub()
 	}
 }
 
@@ -162,8 +178,7 @@ func (fake *FakeDirectExecutionService) ClearBashDetachChanCalls(stub func()) {
 func (fake *FakeDirectExecutionService) GetBashDetachChan() chan<- struct{} {
 	fake.getBashDetachChanMutex.Lock()
 	ret, specificReturn := fake.getBashDetachChanReturnsOnCall[len(fake.getBashDetachChanArgsForCall)]
-	fake.getBashDetachChanArgsForCall = append(fake.getBashDetachChanArgsForCall, struct {
-	}{})
+	fake.getBashDetachChanArgsForCall = append(fake.getBashDetachChanArgsForCall, struct{}{})
 	stub := fake.GetBashDetachChanStub
 	fakeReturns := fake.getBashDetachChanReturns
 	fake.recordInvocation("GetBashDetachChan", []interface{}{})
@@ -215,8 +230,7 @@ func (fake *FakeDirectExecutionService) GetBashDetachChanReturnsOnCall(i int, re
 func (fake *FakeDirectExecutionService) HandleBackgroundShellRequest() tea.Cmd {
 	fake.handleBackgroundShellRequestMutex.Lock()
 	ret, specificReturn := fake.handleBackgroundShellRequestReturnsOnCall[len(fake.handleBackgroundShellRequestArgsForCall)]
-	fake.handleBackgroundShellRequestArgsForCall = append(fake.handleBackgroundShellRequestArgsForCall, struct {
-	}{})
+	fake.handleBackgroundShellRequestArgsForCall = append(fake.handleBackgroundShellRequestArgsForCall, struct{}{})
 	stub := fake.HandleBackgroundShellRequestStub
 	fakeReturns := fake.handleBackgroundShellRequestReturns
 	fake.recordInvocation("HandleBackgroundShellRequest", []interface{}{})
@@ -268,9 +282,7 @@ func (fake *FakeDirectExecutionService) HandleBackgroundShellRequestReturnsOnCal
 func (fake *FakeDirectExecutionService) HandleBashCommand(arg1 string) tea.Cmd {
 	fake.handleBashCommandMutex.Lock()
 	ret, specificReturn := fake.handleBashCommandReturnsOnCall[len(fake.handleBashCommandArgsForCall)]
-	fake.handleBashCommandArgsForCall = append(fake.handleBashCommandArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.handleBashCommandArgsForCall = append(fake.handleBashCommandArgsForCall, FakeDirectExecutionServiceHandleBashCommandArgs{arg1})
 	stub := fake.HandleBashCommandStub
 	fakeReturns := fake.handleBashCommandReturns
 	fake.recordInvocation("HandleBashCommand", []interface{}{arg1})
@@ -300,7 +312,15 @@ func (fake *FakeDirectExecutionService) HandleBashCommandArgsForCall(i int) stri
 	fake.handleBashCommandMutex.RLock()
 	defer fake.handleBashCommandMutex.RUnlock()
 	argsForCall := fake.handleBashCommandArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) HandleBashCommandArgs() []FakeDirectExecutionServiceHandleBashCommandArgs {
+	fake.handleBashCommandMutex.RLock()
+	defer fake.handleBashCommandMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceHandleBashCommandArgs, len(fake.handleBashCommandArgsForCall))
+	copy(args, fake.handleBashCommandArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) HandleBashCommandReturns(result1 tea.Cmd) {
@@ -329,9 +349,7 @@ func (fake *FakeDirectExecutionService) HandleBashCommandReturnsOnCall(i int, re
 func (fake *FakeDirectExecutionService) HandleBashCommandCompleted(arg1 tui.BashCommandCompletedEvent) tea.Cmd {
 	fake.handleBashCommandCompletedMutex.Lock()
 	ret, specificReturn := fake.handleBashCommandCompletedReturnsOnCall[len(fake.handleBashCommandCompletedArgsForCall)]
-	fake.handleBashCommandCompletedArgsForCall = append(fake.handleBashCommandCompletedArgsForCall, struct {
-		arg1 tui.BashCommandCompletedEvent
-	}{arg1})
+	fake.handleBashCommandCompletedArgsForCall = append(fake.handleBashCommandCompletedArgsForCall, FakeDirectExecutionServiceHandleBashCommandCompletedArgs{arg1})
 	stub := fake.HandleBashCommandCompletedStub
 	fakeReturns := fake.handleBashCommandCompletedReturns
 	fake.recordInvocation("HandleBashCommandCompleted", []interface{}{arg1})
@@ -361,7 +379,15 @@ func (fake *FakeDirectExecutionService) HandleBashCommandCompletedArgsForCall(i 
 	fake.handleBashCommandCompletedMutex.RLock()
 	defer fake.handleBashCommandCompletedMutex.RUnlock()
 	argsForCall := fake.handleBashCommandCompletedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) HandleBashCommandCompletedArgs() []FakeDirectExecutionServiceHandleBashCommandCompletedArgs {
+	fake.handleBashCommandCompletedMutex.RLock()
+	defer fake.handleBashCommandCompletedMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceHandleBashCommandCompletedArgs, len(fake.handleBashCommandCompletedArgsForCall))
+	copy(args, fake.handleBashCommandCompletedArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) HandleBashCommandCompletedReturns(result1 tea.Cmd) {
@@ -390,9 +416,7 @@ func (fake *FakeDirectExecutionService) HandleBashCommandCompletedReturnsOnCall(
 func (fake *FakeDirectExecutionService) HandleBashOutputChunk(arg1 domain.BashOutputChunkEvent) tea.Cmd {
 	fake.handleBashOutputChunkMutex.Lock()
 	ret, specificReturn := fake.handleBashOutputChunkReturnsOnCall[len(fake.handleBashOutputChunkArgsForCall)]
-	fake.handleBashOutputChunkArgsForCall = append(fake.handleBashOutputChunkArgsForCall, struct {
-		arg1 domain.BashOutputChunkEvent
-	}{arg1})
+	fake.handleBashOutputChunkArgsForCall = append(fake.handleBashOutputChunkArgsForCall, FakeDirectExecutionServiceHandleBashOutputChunkArgs{arg1})
 	stub := fake.HandleBashOutputChunkStub
 	fakeReturns := fake.handleBashOutputChunkReturns
 	fake.recordInvocation("HandleBashOutputChunk", []interface{}{arg1})
@@ -422,7 +446,15 @@ func (fake *FakeDirectExecutionService) HandleBashOutputChunkArgsForCall(i int) 
 	fake.handleBashOutputChunkMutex.RLock()
 	defer fake.handleBashOutputChunkMutex.RUnlock()
 	argsForCall := fake.handleBashOutputChunkArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) HandleBashOutputChunkArgs() []FakeDirectExecutionServiceHandleBashOutputChunkArgs {
+	fake.handleBashOutputChunkMutex.RLock()
+	defer fake.handleBashOutputChunkMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceHandleBashOutputChunkArgs, len(fake.handleBashOutputChunkArgsForCall))
+	copy(args, fake.handleBashOutputChunkArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) HandleBashOutputChunkReturns(result1 tea.Cmd) {
@@ -451,9 +483,7 @@ func (fake *FakeDirectExecutionService) HandleBashOutputChunkReturnsOnCall(i int
 func (fake *FakeDirectExecutionService) HandleToolCommand(arg1 string) tea.Cmd {
 	fake.handleToolCommandMutex.Lock()
 	ret, specificReturn := fake.handleToolCommandReturnsOnCall[len(fake.handleToolCommandArgsForCall)]
-	fake.handleToolCommandArgsForCall = append(fake.handleToolCommandArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.handleToolCommandArgsForCall = append(fake.handleToolCommandArgsForCall, FakeDirectExecutionServiceHandleToolCommandArgs{arg1})
 	stub := fake.HandleToolCommandStub
 	fakeReturns := fake.handleToolCommandReturns
 	fake.recordInvocation("HandleToolCommand", []interface{}{arg1})
@@ -483,7 +513,15 @@ func (fake *FakeDirectExecutionService) HandleToolCommandArgsForCall(i int) stri
 	fake.handleToolCommandMutex.RLock()
 	defer fake.handleToolCommandMutex.RUnlock()
 	argsForCall := fake.handleToolCommandArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) HandleToolCommandArgs() []FakeDirectExecutionServiceHandleToolCommandArgs {
+	fake.handleToolCommandMutex.RLock()
+	defer fake.handleToolCommandMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceHandleToolCommandArgs, len(fake.handleToolCommandArgsForCall))
+	copy(args, fake.handleToolCommandArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) HandleToolCommandReturns(result1 tea.Cmd) {
@@ -512,9 +550,7 @@ func (fake *FakeDirectExecutionService) HandleToolCommandReturnsOnCall(i int, re
 func (fake *FakeDirectExecutionService) ParseArguments(arg1 string) (map[string]any, error) {
 	fake.parseArgumentsMutex.Lock()
 	ret, specificReturn := fake.parseArgumentsReturnsOnCall[len(fake.parseArgumentsArgsForCall)]
-	fake.parseArgumentsArgsForCall = append(fake.parseArgumentsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.parseArgumentsArgsForCall = append(fake.parseArgumentsArgsForCall, FakeDirectExecutionServiceParseArgumentsArgs{arg1})
 	stub := fake.ParseArgumentsStub
 	fakeReturns := fake.parseArgumentsReturns
 	fake.recordInvocation("ParseArguments", []interface{}{arg1})
@@ -544,7 +580,15 @@ func (fake *FakeDirectExecutionService) ParseArgumentsArgsForCall(i int) string 
 	fake.parseArgumentsMutex.RLock()
 	defer fake.parseArgumentsMutex.RUnlock()
 	argsForCall := fake.parseArgumentsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) ParseArgumentsArgs() []FakeDirectExecutionServiceParseArgumentsArgs {
+	fake.parseArgumentsMutex.RLock()
+	defer fake.parseArgumentsMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceParseArgumentsArgs, len(fake.parseArgumentsArgsForCall))
+	copy(args, fake.parseArgumentsArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) ParseArgumentsReturns(result1 map[string]any, result2 error) {
@@ -576,9 +620,7 @@ func (fake *FakeDirectExecutionService) ParseArgumentsReturnsOnCall(i int, resul
 func (fake *FakeDirectExecutionService) ParseToolCall(arg1 string) (string, map[string]any, error) {
 	fake.parseToolCallMutex.Lock()
 	ret, specificReturn := fake.parseToolCallReturnsOnCall[len(fake.parseToolCallArgsForCall)]
-	fake.parseToolCallArgsForCall = append(fake.parseToolCallArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.parseToolCallArgsForCall = append(fake.parseToolCallArgsForCall, FakeDirectExecutionServiceParseToolCallArgs{arg1})
 	stub := fake.ParseToolCallStub
 	fakeReturns := fake.parseToolCallReturns
 	fake.recordInvocation("ParseToolCall", []interface{}{arg1})
@@ -608,7 +650,15 @@ func (fake *FakeDirectExecutionService) ParseToolCallArgsForCall(i int) string {
 	fake.parseToolCallMutex.RLock()
 	defer fake.parseToolCallMutex.RUnlock()
 	argsForCall := fake.parseToolCallArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) ParseToolCallArgs() []FakeDirectExecutionServiceParseToolCallArgs {
+	fake.parseToolCallMutex.RLock()
+	defer fake.parseToolCallMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceParseToolCallArgs, len(fake.parseToolCallArgsForCall))
+	copy(args, fake.parseToolCallArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) ParseToolCallReturns(result1 string, result2 map[string]any, result3 error) {
@@ -643,8 +693,7 @@ func (fake *FakeDirectExecutionService) ParseToolCallReturnsOnCall(i int, result
 func (fake *FakeDirectExecutionService) PendingBashChannel() <-chan tea.Msg {
 	fake.pendingBashChannelMutex.Lock()
 	ret, specificReturn := fake.pendingBashChannelReturnsOnCall[len(fake.pendingBashChannelArgsForCall)]
-	fake.pendingBashChannelArgsForCall = append(fake.pendingBashChannelArgsForCall, struct {
-	}{})
+	fake.pendingBashChannelArgsForCall = append(fake.pendingBashChannelArgsForCall, struct{}{})
 	stub := fake.PendingBashChannelStub
 	fakeReturns := fake.pendingBashChannelReturns
 	fake.recordInvocation("PendingBashChannel", []interface{}{})
@@ -696,8 +745,7 @@ func (fake *FakeDirectExecutionService) PendingBashChannelReturnsOnCall(i int, r
 func (fake *FakeDirectExecutionService) PendingToolChannel() <-chan tea.Msg {
 	fake.pendingToolChannelMutex.Lock()
 	ret, specificReturn := fake.pendingToolChannelReturnsOnCall[len(fake.pendingToolChannelArgsForCall)]
-	fake.pendingToolChannelArgsForCall = append(fake.pendingToolChannelArgsForCall, struct {
-	}{})
+	fake.pendingToolChannelArgsForCall = append(fake.pendingToolChannelArgsForCall, struct{}{})
 	stub := fake.PendingToolChannelStub
 	fakeReturns := fake.pendingToolChannelReturns
 	fake.recordInvocation("PendingToolChannel", []interface{}{})
@@ -748,14 +796,12 @@ func (fake *FakeDirectExecutionService) PendingToolChannelReturnsOnCall(i int, r
 
 func (fake *FakeDirectExecutionService) SetBashDetachChan(arg1 chan<- struct{}) {
 	fake.setBashDetachChanMutex.Lock()
-	fake.setBashDetachChanArgsForCall = append(fake.setBashDetachChanArgsForCall, struct {
-		arg1 chan<- struct{}
-	}{arg1})
+	fake.setBashDetachChanArgsForCall = append(fake.setBashDetachChanArgsForCall, FakeDirectExecutionServiceSetBashDetachChanArgs{arg1})
 	stub := fake.SetBashDetachChanStub
 	fake.recordInvocation("SetBashDetachChan", []interface{}{arg1})
 	fake.setBashDetachChanMutex.Unlock()
 	if stub != nil {
-		fake.SetBashDetachChanStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -775,7 +821,15 @@ func (fake *FakeDirectExecutionService) SetBashDetachChanArgsForCall(i int) chan
 	fake.setBashDetachChanMutex.RLock()
 	defer fake.setBashDetachChanMutex.RUnlock()
 	argsForCall := fake.setBashDetachChanArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeDirectExecutionService) SetBashDetachChanArgs() []FakeDirectExecutionServiceSetBashDetachChanArgs {
+	fake.setBashDetachChanMutex.RLock()
+	defer fake.setBashDetachChanMutex.RUnlock()
+	args := make([]FakeDirectExecutionServiceSetBashDetachChanArgs, len(fake.setBashDetachChanArgsForCall))
+	copy(args, fake.setBashDetachChanArgsForCall)
+	return args
 }
 
 func (fake *FakeDirectExecutionService) Invocations() map[string][][]interface{} {
@@ -788,9 +842,18 @@ func (fake *FakeDirectExecutionService) Invocations() map[string][][]interface{}
 	return copiedInvocations
 }
 
+func (fake *FakeDirectExecutionService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeDirectExecutionService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

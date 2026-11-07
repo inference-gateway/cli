@@ -11,19 +11,23 @@ import (
 type FakeConversationOptimizer struct {
 	OptimizeMessagesStub        func([]sdk.Message, string, bool) []sdk.Message
 	optimizeMessagesMutex       sync.RWMutex
-	optimizeMessagesArgsForCall []struct {
-		arg1 []sdk.Message
-		arg2 string
-		arg3 bool
-	}
-	optimizeMessagesReturns struct {
+	optimizeMessagesArgsForCall []FakeConversationOptimizerOptimizeMessagesArgs
+	optimizeMessagesReturns     struct {
 		result1 []sdk.Message
 	}
 	optimizeMessagesReturnsOnCall map[int]struct {
 		result1 []sdk.Message
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeConversationOptimizerOptimizeMessagesArgs holds the arguments of one call to OptimizeMessages.
+type FakeConversationOptimizerOptimizeMessagesArgs struct {
+	Arg1 []sdk.Message
+	Arg2 string
+	Arg3 bool
 }
 
 func (fake *FakeConversationOptimizer) OptimizeMessages(arg1 []sdk.Message, arg2 string, arg3 bool) []sdk.Message {
@@ -34,11 +38,7 @@ func (fake *FakeConversationOptimizer) OptimizeMessages(arg1 []sdk.Message, arg2
 	}
 	fake.optimizeMessagesMutex.Lock()
 	ret, specificReturn := fake.optimizeMessagesReturnsOnCall[len(fake.optimizeMessagesArgsForCall)]
-	fake.optimizeMessagesArgsForCall = append(fake.optimizeMessagesArgsForCall, struct {
-		arg1 []sdk.Message
-		arg2 string
-		arg3 bool
-	}{arg1Copy, arg2, arg3})
+	fake.optimizeMessagesArgsForCall = append(fake.optimizeMessagesArgsForCall, FakeConversationOptimizerOptimizeMessagesArgs{arg1Copy, arg2, arg3})
 	stub := fake.OptimizeMessagesStub
 	fakeReturns := fake.optimizeMessagesReturns
 	fake.recordInvocation("OptimizeMessages", []interface{}{arg1Copy, arg2, arg3})
@@ -68,7 +68,15 @@ func (fake *FakeConversationOptimizer) OptimizeMessagesArgsForCall(i int) ([]sdk
 	fake.optimizeMessagesMutex.RLock()
 	defer fake.optimizeMessagesMutex.RUnlock()
 	argsForCall := fake.optimizeMessagesArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeConversationOptimizer) OptimizeMessagesArgs() []FakeConversationOptimizerOptimizeMessagesArgs {
+	fake.optimizeMessagesMutex.RLock()
+	defer fake.optimizeMessagesMutex.RUnlock()
+	args := make([]FakeConversationOptimizerOptimizeMessagesArgs, len(fake.optimizeMessagesArgsForCall))
+	copy(args, fake.optimizeMessagesArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationOptimizer) OptimizeMessagesReturns(result1 []sdk.Message) {
@@ -104,9 +112,18 @@ func (fake *FakeConversationOptimizer) Invocations() map[string][][]interface{} 
 	return copiedInvocations
 }
 
+func (fake *FakeConversationOptimizer) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeConversationOptimizer) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

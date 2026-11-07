@@ -12,10 +12,8 @@ import (
 type FakeChatCompletionRunner struct {
 	HandleChatChunkStub        func(domain.ChatChunkEvent) tea.Cmd
 	handleChatChunkMutex       sync.RWMutex
-	handleChatChunkArgsForCall []struct {
-		arg1 domain.ChatChunkEvent
-	}
-	handleChatChunkReturns struct {
+	handleChatChunkArgsForCall []FakeChatCompletionRunnerHandleChatChunkArgs
+	handleChatChunkReturns     struct {
 		result1 tea.Cmd
 	}
 	handleChatChunkReturnsOnCall map[int]struct {
@@ -23,10 +21,8 @@ type FakeChatCompletionRunner struct {
 	}
 	HandleChatCompleteStub        func(domain.ChatCompleteEvent) tea.Cmd
 	handleChatCompleteMutex       sync.RWMutex
-	handleChatCompleteArgsForCall []struct {
-		arg1 domain.ChatCompleteEvent
-	}
-	handleChatCompleteReturns struct {
+	handleChatCompleteArgsForCall []FakeChatCompletionRunnerHandleChatCompleteArgs
+	handleChatCompleteReturns     struct {
 		result1 tea.Cmd
 	}
 	handleChatCompleteReturnsOnCall map[int]struct {
@@ -34,10 +30,8 @@ type FakeChatCompletionRunner struct {
 	}
 	HandleChatErrorStub        func(domain.ChatErrorEvent) tea.Cmd
 	handleChatErrorMutex       sync.RWMutex
-	handleChatErrorArgsForCall []struct {
-		arg1 domain.ChatErrorEvent
-	}
-	handleChatErrorReturns struct {
+	handleChatErrorArgsForCall []FakeChatCompletionRunnerHandleChatErrorArgs
+	handleChatErrorReturns     struct {
 		result1 tea.Cmd
 	}
 	handleChatErrorReturnsOnCall map[int]struct {
@@ -45,10 +39,8 @@ type FakeChatCompletionRunner struct {
 	}
 	HandleChatStartStub        func(domain.ChatStartEvent) tea.Cmd
 	handleChatStartMutex       sync.RWMutex
-	handleChatStartArgsForCall []struct {
-		arg1 domain.ChatStartEvent
-	}
-	handleChatStartReturns struct {
+	handleChatStartArgsForCall []FakeChatCompletionRunnerHandleChatStartArgs
+	handleChatStartReturns     struct {
 		result1 tea.Cmd
 	}
 	handleChatStartReturnsOnCall map[int]struct {
@@ -56,10 +48,8 @@ type FakeChatCompletionRunner struct {
 	}
 	HandleOptimizationStatusStub        func(domain.OptimizationStatusEvent) tea.Cmd
 	handleOptimizationStatusMutex       sync.RWMutex
-	handleOptimizationStatusArgsForCall []struct {
-		arg1 domain.OptimizationStatusEvent
-	}
-	handleOptimizationStatusReturns struct {
+	handleOptimizationStatusArgsForCall []FakeChatCompletionRunnerHandleOptimizationStatusArgs
+	handleOptimizationStatusReturns     struct {
 		result1 tea.Cmd
 	}
 	handleOptimizationStatusReturnsOnCall map[int]struct {
@@ -67,30 +57,60 @@ type FakeChatCompletionRunner struct {
 	}
 	SetPendingRestorationStub        func(string)
 	setPendingRestorationMutex       sync.RWMutex
-	setPendingRestorationArgsForCall []struct {
-		arg1 string
-	}
-	StartStub        func(domain.BashDetachChannelHolder) tea.Cmd
-	startMutex       sync.RWMutex
-	startArgsForCall []struct {
-		arg1 domain.BashDetachChannelHolder
-	}
-	startReturns struct {
+	setPendingRestorationArgsForCall []FakeChatCompletionRunnerSetPendingRestorationArgs
+	StartStub                        func(domain.BashDetachChannelHolder) tea.Cmd
+	startMutex                       sync.RWMutex
+	startArgsForCall                 []FakeChatCompletionRunnerStartArgs
+	startReturns                     struct {
 		result1 tea.Cmd
 	}
 	startReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeChatCompletionRunnerHandleChatChunkArgs holds the arguments of one call to HandleChatChunk.
+type FakeChatCompletionRunnerHandleChatChunkArgs struct {
+	Arg1 domain.ChatChunkEvent
+}
+
+// FakeChatCompletionRunnerHandleChatCompleteArgs holds the arguments of one call to HandleChatComplete.
+type FakeChatCompletionRunnerHandleChatCompleteArgs struct {
+	Arg1 domain.ChatCompleteEvent
+}
+
+// FakeChatCompletionRunnerHandleChatErrorArgs holds the arguments of one call to HandleChatError.
+type FakeChatCompletionRunnerHandleChatErrorArgs struct {
+	Arg1 domain.ChatErrorEvent
+}
+
+// FakeChatCompletionRunnerHandleChatStartArgs holds the arguments of one call to HandleChatStart.
+type FakeChatCompletionRunnerHandleChatStartArgs struct {
+	Arg1 domain.ChatStartEvent
+}
+
+// FakeChatCompletionRunnerHandleOptimizationStatusArgs holds the arguments of one call to HandleOptimizationStatus.
+type FakeChatCompletionRunnerHandleOptimizationStatusArgs struct {
+	Arg1 domain.OptimizationStatusEvent
+}
+
+// FakeChatCompletionRunnerSetPendingRestorationArgs holds the arguments of one call to SetPendingRestoration.
+type FakeChatCompletionRunnerSetPendingRestorationArgs struct {
+	Arg1 string
+}
+
+// FakeChatCompletionRunnerStartArgs holds the arguments of one call to Start.
+type FakeChatCompletionRunnerStartArgs struct {
+	Arg1 domain.BashDetachChannelHolder
 }
 
 func (fake *FakeChatCompletionRunner) HandleChatChunk(arg1 domain.ChatChunkEvent) tea.Cmd {
 	fake.handleChatChunkMutex.Lock()
 	ret, specificReturn := fake.handleChatChunkReturnsOnCall[len(fake.handleChatChunkArgsForCall)]
-	fake.handleChatChunkArgsForCall = append(fake.handleChatChunkArgsForCall, struct {
-		arg1 domain.ChatChunkEvent
-	}{arg1})
+	fake.handleChatChunkArgsForCall = append(fake.handleChatChunkArgsForCall, FakeChatCompletionRunnerHandleChatChunkArgs{arg1})
 	stub := fake.HandleChatChunkStub
 	fakeReturns := fake.handleChatChunkReturns
 	fake.recordInvocation("HandleChatChunk", []interface{}{arg1})
@@ -120,7 +140,15 @@ func (fake *FakeChatCompletionRunner) HandleChatChunkArgsForCall(i int) domain.C
 	fake.handleChatChunkMutex.RLock()
 	defer fake.handleChatChunkMutex.RUnlock()
 	argsForCall := fake.handleChatChunkArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) HandleChatChunkArgs() []FakeChatCompletionRunnerHandleChatChunkArgs {
+	fake.handleChatChunkMutex.RLock()
+	defer fake.handleChatChunkMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerHandleChatChunkArgs, len(fake.handleChatChunkArgsForCall))
+	copy(args, fake.handleChatChunkArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) HandleChatChunkReturns(result1 tea.Cmd) {
@@ -149,9 +177,7 @@ func (fake *FakeChatCompletionRunner) HandleChatChunkReturnsOnCall(i int, result
 func (fake *FakeChatCompletionRunner) HandleChatComplete(arg1 domain.ChatCompleteEvent) tea.Cmd {
 	fake.handleChatCompleteMutex.Lock()
 	ret, specificReturn := fake.handleChatCompleteReturnsOnCall[len(fake.handleChatCompleteArgsForCall)]
-	fake.handleChatCompleteArgsForCall = append(fake.handleChatCompleteArgsForCall, struct {
-		arg1 domain.ChatCompleteEvent
-	}{arg1})
+	fake.handleChatCompleteArgsForCall = append(fake.handleChatCompleteArgsForCall, FakeChatCompletionRunnerHandleChatCompleteArgs{arg1})
 	stub := fake.HandleChatCompleteStub
 	fakeReturns := fake.handleChatCompleteReturns
 	fake.recordInvocation("HandleChatComplete", []interface{}{arg1})
@@ -181,7 +207,15 @@ func (fake *FakeChatCompletionRunner) HandleChatCompleteArgsForCall(i int) domai
 	fake.handleChatCompleteMutex.RLock()
 	defer fake.handleChatCompleteMutex.RUnlock()
 	argsForCall := fake.handleChatCompleteArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) HandleChatCompleteArgs() []FakeChatCompletionRunnerHandleChatCompleteArgs {
+	fake.handleChatCompleteMutex.RLock()
+	defer fake.handleChatCompleteMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerHandleChatCompleteArgs, len(fake.handleChatCompleteArgsForCall))
+	copy(args, fake.handleChatCompleteArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) HandleChatCompleteReturns(result1 tea.Cmd) {
@@ -210,9 +244,7 @@ func (fake *FakeChatCompletionRunner) HandleChatCompleteReturnsOnCall(i int, res
 func (fake *FakeChatCompletionRunner) HandleChatError(arg1 domain.ChatErrorEvent) tea.Cmd {
 	fake.handleChatErrorMutex.Lock()
 	ret, specificReturn := fake.handleChatErrorReturnsOnCall[len(fake.handleChatErrorArgsForCall)]
-	fake.handleChatErrorArgsForCall = append(fake.handleChatErrorArgsForCall, struct {
-		arg1 domain.ChatErrorEvent
-	}{arg1})
+	fake.handleChatErrorArgsForCall = append(fake.handleChatErrorArgsForCall, FakeChatCompletionRunnerHandleChatErrorArgs{arg1})
 	stub := fake.HandleChatErrorStub
 	fakeReturns := fake.handleChatErrorReturns
 	fake.recordInvocation("HandleChatError", []interface{}{arg1})
@@ -242,7 +274,15 @@ func (fake *FakeChatCompletionRunner) HandleChatErrorArgsForCall(i int) domain.C
 	fake.handleChatErrorMutex.RLock()
 	defer fake.handleChatErrorMutex.RUnlock()
 	argsForCall := fake.handleChatErrorArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) HandleChatErrorArgs() []FakeChatCompletionRunnerHandleChatErrorArgs {
+	fake.handleChatErrorMutex.RLock()
+	defer fake.handleChatErrorMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerHandleChatErrorArgs, len(fake.handleChatErrorArgsForCall))
+	copy(args, fake.handleChatErrorArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) HandleChatErrorReturns(result1 tea.Cmd) {
@@ -271,9 +311,7 @@ func (fake *FakeChatCompletionRunner) HandleChatErrorReturnsOnCall(i int, result
 func (fake *FakeChatCompletionRunner) HandleChatStart(arg1 domain.ChatStartEvent) tea.Cmd {
 	fake.handleChatStartMutex.Lock()
 	ret, specificReturn := fake.handleChatStartReturnsOnCall[len(fake.handleChatStartArgsForCall)]
-	fake.handleChatStartArgsForCall = append(fake.handleChatStartArgsForCall, struct {
-		arg1 domain.ChatStartEvent
-	}{arg1})
+	fake.handleChatStartArgsForCall = append(fake.handleChatStartArgsForCall, FakeChatCompletionRunnerHandleChatStartArgs{arg1})
 	stub := fake.HandleChatStartStub
 	fakeReturns := fake.handleChatStartReturns
 	fake.recordInvocation("HandleChatStart", []interface{}{arg1})
@@ -303,7 +341,15 @@ func (fake *FakeChatCompletionRunner) HandleChatStartArgsForCall(i int) domain.C
 	fake.handleChatStartMutex.RLock()
 	defer fake.handleChatStartMutex.RUnlock()
 	argsForCall := fake.handleChatStartArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) HandleChatStartArgs() []FakeChatCompletionRunnerHandleChatStartArgs {
+	fake.handleChatStartMutex.RLock()
+	defer fake.handleChatStartMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerHandleChatStartArgs, len(fake.handleChatStartArgsForCall))
+	copy(args, fake.handleChatStartArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) HandleChatStartReturns(result1 tea.Cmd) {
@@ -332,9 +378,7 @@ func (fake *FakeChatCompletionRunner) HandleChatStartReturnsOnCall(i int, result
 func (fake *FakeChatCompletionRunner) HandleOptimizationStatus(arg1 domain.OptimizationStatusEvent) tea.Cmd {
 	fake.handleOptimizationStatusMutex.Lock()
 	ret, specificReturn := fake.handleOptimizationStatusReturnsOnCall[len(fake.handleOptimizationStatusArgsForCall)]
-	fake.handleOptimizationStatusArgsForCall = append(fake.handleOptimizationStatusArgsForCall, struct {
-		arg1 domain.OptimizationStatusEvent
-	}{arg1})
+	fake.handleOptimizationStatusArgsForCall = append(fake.handleOptimizationStatusArgsForCall, FakeChatCompletionRunnerHandleOptimizationStatusArgs{arg1})
 	stub := fake.HandleOptimizationStatusStub
 	fakeReturns := fake.handleOptimizationStatusReturns
 	fake.recordInvocation("HandleOptimizationStatus", []interface{}{arg1})
@@ -364,7 +408,15 @@ func (fake *FakeChatCompletionRunner) HandleOptimizationStatusArgsForCall(i int)
 	fake.handleOptimizationStatusMutex.RLock()
 	defer fake.handleOptimizationStatusMutex.RUnlock()
 	argsForCall := fake.handleOptimizationStatusArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) HandleOptimizationStatusArgs() []FakeChatCompletionRunnerHandleOptimizationStatusArgs {
+	fake.handleOptimizationStatusMutex.RLock()
+	defer fake.handleOptimizationStatusMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerHandleOptimizationStatusArgs, len(fake.handleOptimizationStatusArgsForCall))
+	copy(args, fake.handleOptimizationStatusArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) HandleOptimizationStatusReturns(result1 tea.Cmd) {
@@ -392,14 +444,12 @@ func (fake *FakeChatCompletionRunner) HandleOptimizationStatusReturnsOnCall(i in
 
 func (fake *FakeChatCompletionRunner) SetPendingRestoration(arg1 string) {
 	fake.setPendingRestorationMutex.Lock()
-	fake.setPendingRestorationArgsForCall = append(fake.setPendingRestorationArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setPendingRestorationArgsForCall = append(fake.setPendingRestorationArgsForCall, FakeChatCompletionRunnerSetPendingRestorationArgs{arg1})
 	stub := fake.SetPendingRestorationStub
 	fake.recordInvocation("SetPendingRestoration", []interface{}{arg1})
 	fake.setPendingRestorationMutex.Unlock()
 	if stub != nil {
-		fake.SetPendingRestorationStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -419,15 +469,21 @@ func (fake *FakeChatCompletionRunner) SetPendingRestorationArgsForCall(i int) st
 	fake.setPendingRestorationMutex.RLock()
 	defer fake.setPendingRestorationMutex.RUnlock()
 	argsForCall := fake.setPendingRestorationArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) SetPendingRestorationArgs() []FakeChatCompletionRunnerSetPendingRestorationArgs {
+	fake.setPendingRestorationMutex.RLock()
+	defer fake.setPendingRestorationMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerSetPendingRestorationArgs, len(fake.setPendingRestorationArgsForCall))
+	copy(args, fake.setPendingRestorationArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) Start(arg1 domain.BashDetachChannelHolder) tea.Cmd {
 	fake.startMutex.Lock()
 	ret, specificReturn := fake.startReturnsOnCall[len(fake.startArgsForCall)]
-	fake.startArgsForCall = append(fake.startArgsForCall, struct {
-		arg1 domain.BashDetachChannelHolder
-	}{arg1})
+	fake.startArgsForCall = append(fake.startArgsForCall, FakeChatCompletionRunnerStartArgs{arg1})
 	stub := fake.StartStub
 	fakeReturns := fake.startReturns
 	fake.recordInvocation("Start", []interface{}{arg1})
@@ -457,7 +513,15 @@ func (fake *FakeChatCompletionRunner) StartArgsForCall(i int) domain.BashDetachC
 	fake.startMutex.RLock()
 	defer fake.startMutex.RUnlock()
 	argsForCall := fake.startArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeChatCompletionRunner) StartArgs() []FakeChatCompletionRunnerStartArgs {
+	fake.startMutex.RLock()
+	defer fake.startMutex.RUnlock()
+	args := make([]FakeChatCompletionRunnerStartArgs, len(fake.startArgsForCall))
+	copy(args, fake.startArgsForCall)
+	return args
 }
 
 func (fake *FakeChatCompletionRunner) StartReturns(result1 tea.Cmd) {
@@ -493,9 +557,18 @@ func (fake *FakeChatCompletionRunner) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeChatCompletionRunner) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeChatCompletionRunner) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

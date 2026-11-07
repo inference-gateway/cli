@@ -10,9 +10,8 @@ import (
 type FakeFrameSource struct {
 	GetLatestFrameStub        func() (*domain.Frame, error)
 	getLatestFrameMutex       sync.RWMutex
-	getLatestFrameArgsForCall []struct {
-	}
-	getLatestFrameReturns struct {
+	getLatestFrameArgsForCall []struct{}
+	getLatestFrameReturns     struct {
 		result1 *domain.Frame
 		result2 error
 	}
@@ -21,14 +20,14 @@ type FakeFrameSource struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
 }
 
 func (fake *FakeFrameSource) GetLatestFrame() (*domain.Frame, error) {
 	fake.getLatestFrameMutex.Lock()
 	ret, specificReturn := fake.getLatestFrameReturnsOnCall[len(fake.getLatestFrameArgsForCall)]
-	fake.getLatestFrameArgsForCall = append(fake.getLatestFrameArgsForCall, struct {
-	}{})
+	fake.getLatestFrameArgsForCall = append(fake.getLatestFrameArgsForCall, struct{}{})
 	stub := fake.GetLatestFrameStub
 	fakeReturns := fake.getLatestFrameReturns
 	fake.recordInvocation("GetLatestFrame", []interface{}{})
@@ -90,9 +89,18 @@ func (fake *FakeFrameSource) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeFrameSource) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeFrameSource) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

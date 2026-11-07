@@ -11,9 +11,8 @@ import (
 type FakeAgentService struct {
 	BuildSystemPromptStub        func() string
 	buildSystemPromptMutex       sync.RWMutex
-	buildSystemPromptArgsForCall []struct {
-	}
-	buildSystemPromptReturns struct {
+	buildSystemPromptArgsForCall []struct{}
+	buildSystemPromptReturns     struct {
 		result1 string
 	}
 	buildSystemPromptReturnsOnCall map[int]struct {
@@ -21,10 +20,8 @@ type FakeAgentService struct {
 	}
 	CancelRequestStub        func(string) error
 	cancelRequestMutex       sync.RWMutex
-	cancelRequestArgsForCall []struct {
-		arg1 string
-	}
-	cancelRequestReturns struct {
+	cancelRequestArgsForCall []FakeAgentServiceCancelRequestArgs
+	cancelRequestReturns     struct {
 		result1 error
 	}
 	cancelRequestReturnsOnCall map[int]struct {
@@ -32,10 +29,8 @@ type FakeAgentService struct {
 	}
 	GetMetricsStub        func(string) *domain.ChatMetrics
 	getMetricsMutex       sync.RWMutex
-	getMetricsArgsForCall []struct {
-		arg1 string
-	}
-	getMetricsReturns struct {
+	getMetricsArgsForCall []FakeAgentServiceGetMetricsArgs
+	getMetricsReturns     struct {
 		result1 *domain.ChatMetrics
 	}
 	getMetricsReturnsOnCall map[int]struct {
@@ -43,9 +38,8 @@ type FakeAgentService struct {
 	}
 	GetReasoningEffortStub        func() string
 	getReasoningEffortMutex       sync.RWMutex
-	getReasoningEffortArgsForCall []struct {
-	}
-	getReasoningEffortReturns struct {
+	getReasoningEffortArgsForCall []struct{}
+	getReasoningEffortReturns     struct {
 		result1 string
 	}
 	getReasoningEffortReturnsOnCall map[int]struct {
@@ -53,11 +47,8 @@ type FakeAgentService struct {
 	}
 	RunWithStreamStub        func(context.Context, *domain.AgentRequest) (<-chan domain.ChatEvent, error)
 	runWithStreamMutex       sync.RWMutex
-	runWithStreamArgsForCall []struct {
-		arg1 context.Context
-		arg2 *domain.AgentRequest
-	}
-	runWithStreamReturns struct {
+	runWithStreamArgsForCall []FakeAgentServiceRunWithStreamArgs
+	runWithStreamReturns     struct {
 		result1 <-chan domain.ChatEvent
 		result2 error
 	}
@@ -67,24 +58,43 @@ type FakeAgentService struct {
 	}
 	SetReasoningEffortStub        func(string) error
 	setReasoningEffortMutex       sync.RWMutex
-	setReasoningEffortArgsForCall []struct {
-		arg1 string
-	}
-	setReasoningEffortReturns struct {
+	setReasoningEffortArgsForCall []FakeAgentServiceSetReasoningEffortArgs
+	setReasoningEffortReturns     struct {
 		result1 error
 	}
 	setReasoningEffortReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeAgentServiceCancelRequestArgs holds the arguments of one call to CancelRequest.
+type FakeAgentServiceCancelRequestArgs struct {
+	Arg1 string
+}
+
+// FakeAgentServiceGetMetricsArgs holds the arguments of one call to GetMetrics.
+type FakeAgentServiceGetMetricsArgs struct {
+	Arg1 string
+}
+
+// FakeAgentServiceRunWithStreamArgs holds the arguments of one call to RunWithStream.
+type FakeAgentServiceRunWithStreamArgs struct {
+	Arg1 context.Context
+	Arg2 *domain.AgentRequest
+}
+
+// FakeAgentServiceSetReasoningEffortArgs holds the arguments of one call to SetReasoningEffort.
+type FakeAgentServiceSetReasoningEffortArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeAgentService) BuildSystemPrompt() string {
 	fake.buildSystemPromptMutex.Lock()
 	ret, specificReturn := fake.buildSystemPromptReturnsOnCall[len(fake.buildSystemPromptArgsForCall)]
-	fake.buildSystemPromptArgsForCall = append(fake.buildSystemPromptArgsForCall, struct {
-	}{})
+	fake.buildSystemPromptArgsForCall = append(fake.buildSystemPromptArgsForCall, struct{}{})
 	stub := fake.BuildSystemPromptStub
 	fakeReturns := fake.buildSystemPromptReturns
 	fake.recordInvocation("BuildSystemPrompt", []interface{}{})
@@ -136,9 +146,7 @@ func (fake *FakeAgentService) BuildSystemPromptReturnsOnCall(i int, result1 stri
 func (fake *FakeAgentService) CancelRequest(arg1 string) error {
 	fake.cancelRequestMutex.Lock()
 	ret, specificReturn := fake.cancelRequestReturnsOnCall[len(fake.cancelRequestArgsForCall)]
-	fake.cancelRequestArgsForCall = append(fake.cancelRequestArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.cancelRequestArgsForCall = append(fake.cancelRequestArgsForCall, FakeAgentServiceCancelRequestArgs{arg1})
 	stub := fake.CancelRequestStub
 	fakeReturns := fake.cancelRequestReturns
 	fake.recordInvocation("CancelRequest", []interface{}{arg1})
@@ -168,7 +176,15 @@ func (fake *FakeAgentService) CancelRequestArgsForCall(i int) string {
 	fake.cancelRequestMutex.RLock()
 	defer fake.cancelRequestMutex.RUnlock()
 	argsForCall := fake.cancelRequestArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAgentService) CancelRequestArgs() []FakeAgentServiceCancelRequestArgs {
+	fake.cancelRequestMutex.RLock()
+	defer fake.cancelRequestMutex.RUnlock()
+	args := make([]FakeAgentServiceCancelRequestArgs, len(fake.cancelRequestArgsForCall))
+	copy(args, fake.cancelRequestArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentService) CancelRequestReturns(result1 error) {
@@ -197,9 +213,7 @@ func (fake *FakeAgentService) CancelRequestReturnsOnCall(i int, result1 error) {
 func (fake *FakeAgentService) GetMetrics(arg1 string) *domain.ChatMetrics {
 	fake.getMetricsMutex.Lock()
 	ret, specificReturn := fake.getMetricsReturnsOnCall[len(fake.getMetricsArgsForCall)]
-	fake.getMetricsArgsForCall = append(fake.getMetricsArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getMetricsArgsForCall = append(fake.getMetricsArgsForCall, FakeAgentServiceGetMetricsArgs{arg1})
 	stub := fake.GetMetricsStub
 	fakeReturns := fake.getMetricsReturns
 	fake.recordInvocation("GetMetrics", []interface{}{arg1})
@@ -229,7 +243,15 @@ func (fake *FakeAgentService) GetMetricsArgsForCall(i int) string {
 	fake.getMetricsMutex.RLock()
 	defer fake.getMetricsMutex.RUnlock()
 	argsForCall := fake.getMetricsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAgentService) GetMetricsArgs() []FakeAgentServiceGetMetricsArgs {
+	fake.getMetricsMutex.RLock()
+	defer fake.getMetricsMutex.RUnlock()
+	args := make([]FakeAgentServiceGetMetricsArgs, len(fake.getMetricsArgsForCall))
+	copy(args, fake.getMetricsArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentService) GetMetricsReturns(result1 *domain.ChatMetrics) {
@@ -258,8 +280,7 @@ func (fake *FakeAgentService) GetMetricsReturnsOnCall(i int, result1 *domain.Cha
 func (fake *FakeAgentService) GetReasoningEffort() string {
 	fake.getReasoningEffortMutex.Lock()
 	ret, specificReturn := fake.getReasoningEffortReturnsOnCall[len(fake.getReasoningEffortArgsForCall)]
-	fake.getReasoningEffortArgsForCall = append(fake.getReasoningEffortArgsForCall, struct {
-	}{})
+	fake.getReasoningEffortArgsForCall = append(fake.getReasoningEffortArgsForCall, struct{}{})
 	stub := fake.GetReasoningEffortStub
 	fakeReturns := fake.getReasoningEffortReturns
 	fake.recordInvocation("GetReasoningEffort", []interface{}{})
@@ -311,10 +332,7 @@ func (fake *FakeAgentService) GetReasoningEffortReturnsOnCall(i int, result1 str
 func (fake *FakeAgentService) RunWithStream(arg1 context.Context, arg2 *domain.AgentRequest) (<-chan domain.ChatEvent, error) {
 	fake.runWithStreamMutex.Lock()
 	ret, specificReturn := fake.runWithStreamReturnsOnCall[len(fake.runWithStreamArgsForCall)]
-	fake.runWithStreamArgsForCall = append(fake.runWithStreamArgsForCall, struct {
-		arg1 context.Context
-		arg2 *domain.AgentRequest
-	}{arg1, arg2})
+	fake.runWithStreamArgsForCall = append(fake.runWithStreamArgsForCall, FakeAgentServiceRunWithStreamArgs{arg1, arg2})
 	stub := fake.RunWithStreamStub
 	fakeReturns := fake.runWithStreamReturns
 	fake.recordInvocation("RunWithStream", []interface{}{arg1, arg2})
@@ -344,7 +362,15 @@ func (fake *FakeAgentService) RunWithStreamArgsForCall(i int) (context.Context, 
 	fake.runWithStreamMutex.RLock()
 	defer fake.runWithStreamMutex.RUnlock()
 	argsForCall := fake.runWithStreamArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeAgentService) RunWithStreamArgs() []FakeAgentServiceRunWithStreamArgs {
+	fake.runWithStreamMutex.RLock()
+	defer fake.runWithStreamMutex.RUnlock()
+	args := make([]FakeAgentServiceRunWithStreamArgs, len(fake.runWithStreamArgsForCall))
+	copy(args, fake.runWithStreamArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentService) RunWithStreamReturns(result1 <-chan domain.ChatEvent, result2 error) {
@@ -376,9 +402,7 @@ func (fake *FakeAgentService) RunWithStreamReturnsOnCall(i int, result1 <-chan d
 func (fake *FakeAgentService) SetReasoningEffort(arg1 string) error {
 	fake.setReasoningEffortMutex.Lock()
 	ret, specificReturn := fake.setReasoningEffortReturnsOnCall[len(fake.setReasoningEffortArgsForCall)]
-	fake.setReasoningEffortArgsForCall = append(fake.setReasoningEffortArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setReasoningEffortArgsForCall = append(fake.setReasoningEffortArgsForCall, FakeAgentServiceSetReasoningEffortArgs{arg1})
 	stub := fake.SetReasoningEffortStub
 	fakeReturns := fake.setReasoningEffortReturns
 	fake.recordInvocation("SetReasoningEffort", []interface{}{arg1})
@@ -408,7 +432,15 @@ func (fake *FakeAgentService) SetReasoningEffortArgsForCall(i int) string {
 	fake.setReasoningEffortMutex.RLock()
 	defer fake.setReasoningEffortMutex.RUnlock()
 	argsForCall := fake.setReasoningEffortArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAgentService) SetReasoningEffortArgs() []FakeAgentServiceSetReasoningEffortArgs {
+	fake.setReasoningEffortMutex.RLock()
+	defer fake.setReasoningEffortMutex.RUnlock()
+	args := make([]FakeAgentServiceSetReasoningEffortArgs, len(fake.setReasoningEffortArgsForCall))
+	copy(args, fake.setReasoningEffortArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentService) SetReasoningEffortReturns(result1 error) {
@@ -444,9 +476,18 @@ func (fake *FakeAgentService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeAgentService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAgentService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -11,9 +11,8 @@ import (
 type FakeHelpBarComponent struct {
 	IsEnabledStub        func() bool
 	isEnabledMutex       sync.RWMutex
-	isEnabledArgsForCall []struct {
-	}
-	isEnabledReturns struct {
+	isEnabledArgsForCall []struct{}
+	isEnabledReturns     struct {
 		result1 bool
 	}
 	isEnabledReturnsOnCall map[int]struct {
@@ -21,43 +20,54 @@ type FakeHelpBarComponent struct {
 	}
 	RenderStub        func() string
 	renderMutex       sync.RWMutex
-	renderArgsForCall []struct {
-	}
-	renderReturns struct {
+	renderArgsForCall []struct{}
+	renderReturns     struct {
 		result1 string
 	}
 	renderReturnsOnCall map[int]struct {
 		result1 string
 	}
-	SetEnabledStub        func(bool)
-	setEnabledMutex       sync.RWMutex
-	setEnabledArgsForCall []struct {
-		arg1 bool
-	}
-	SetHeightStub        func(int)
-	setHeightMutex       sync.RWMutex
-	setHeightArgsForCall []struct {
-		arg1 int
-	}
+	SetEnabledStub          func(bool)
+	setEnabledMutex         sync.RWMutex
+	setEnabledArgsForCall   []FakeHelpBarComponentSetEnabledArgs
+	SetHeightStub           func(int)
+	setHeightMutex          sync.RWMutex
+	setHeightArgsForCall    []FakeHelpBarComponentSetHeightArgs
 	SetShortcutsStub        func([]key.Binding)
 	setShortcutsMutex       sync.RWMutex
-	setShortcutsArgsForCall []struct {
-		arg1 []key.Binding
-	}
-	SetWidthStub        func(int)
-	setWidthMutex       sync.RWMutex
-	setWidthArgsForCall []struct {
-		arg1 int
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setShortcutsArgsForCall []FakeHelpBarComponentSetShortcutsArgs
+	SetWidthStub            func(int)
+	setWidthMutex           sync.RWMutex
+	setWidthArgsForCall     []FakeHelpBarComponentSetWidthArgs
+	invocations             map[string][][]interface{}
+	callOrder               []string
+	invocationsMutex        sync.RWMutex
+}
+
+// FakeHelpBarComponentSetEnabledArgs holds the arguments of one call to SetEnabled.
+type FakeHelpBarComponentSetEnabledArgs struct {
+	Arg1 bool
+}
+
+// FakeHelpBarComponentSetHeightArgs holds the arguments of one call to SetHeight.
+type FakeHelpBarComponentSetHeightArgs struct {
+	Arg1 int
+}
+
+// FakeHelpBarComponentSetShortcutsArgs holds the arguments of one call to SetShortcuts.
+type FakeHelpBarComponentSetShortcutsArgs struct {
+	Arg1 []key.Binding
+}
+
+// FakeHelpBarComponentSetWidthArgs holds the arguments of one call to SetWidth.
+type FakeHelpBarComponentSetWidthArgs struct {
+	Arg1 int
 }
 
 func (fake *FakeHelpBarComponent) IsEnabled() bool {
 	fake.isEnabledMutex.Lock()
 	ret, specificReturn := fake.isEnabledReturnsOnCall[len(fake.isEnabledArgsForCall)]
-	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct {
-	}{})
+	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct{}{})
 	stub := fake.IsEnabledStub
 	fakeReturns := fake.isEnabledReturns
 	fake.recordInvocation("IsEnabled", []interface{}{})
@@ -109,8 +119,7 @@ func (fake *FakeHelpBarComponent) IsEnabledReturnsOnCall(i int, result1 bool) {
 func (fake *FakeHelpBarComponent) Render() string {
 	fake.renderMutex.Lock()
 	ret, specificReturn := fake.renderReturnsOnCall[len(fake.renderArgsForCall)]
-	fake.renderArgsForCall = append(fake.renderArgsForCall, struct {
-	}{})
+	fake.renderArgsForCall = append(fake.renderArgsForCall, struct{}{})
 	stub := fake.RenderStub
 	fakeReturns := fake.renderReturns
 	fake.recordInvocation("Render", []interface{}{})
@@ -161,14 +170,12 @@ func (fake *FakeHelpBarComponent) RenderReturnsOnCall(i int, result1 string) {
 
 func (fake *FakeHelpBarComponent) SetEnabled(arg1 bool) {
 	fake.setEnabledMutex.Lock()
-	fake.setEnabledArgsForCall = append(fake.setEnabledArgsForCall, struct {
-		arg1 bool
-	}{arg1})
+	fake.setEnabledArgsForCall = append(fake.setEnabledArgsForCall, FakeHelpBarComponentSetEnabledArgs{arg1})
 	stub := fake.SetEnabledStub
 	fake.recordInvocation("SetEnabled", []interface{}{arg1})
 	fake.setEnabledMutex.Unlock()
 	if stub != nil {
-		fake.SetEnabledStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -188,19 +195,25 @@ func (fake *FakeHelpBarComponent) SetEnabledArgsForCall(i int) bool {
 	fake.setEnabledMutex.RLock()
 	defer fake.setEnabledMutex.RUnlock()
 	argsForCall := fake.setEnabledArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHelpBarComponent) SetEnabledArgs() []FakeHelpBarComponentSetEnabledArgs {
+	fake.setEnabledMutex.RLock()
+	defer fake.setEnabledMutex.RUnlock()
+	args := make([]FakeHelpBarComponentSetEnabledArgs, len(fake.setEnabledArgsForCall))
+	copy(args, fake.setEnabledArgsForCall)
+	return args
 }
 
 func (fake *FakeHelpBarComponent) SetHeight(arg1 int) {
 	fake.setHeightMutex.Lock()
-	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, FakeHelpBarComponentSetHeightArgs{arg1})
 	stub := fake.SetHeightStub
 	fake.recordInvocation("SetHeight", []interface{}{arg1})
 	fake.setHeightMutex.Unlock()
 	if stub != nil {
-		fake.SetHeightStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -220,7 +233,15 @@ func (fake *FakeHelpBarComponent) SetHeightArgsForCall(i int) int {
 	fake.setHeightMutex.RLock()
 	defer fake.setHeightMutex.RUnlock()
 	argsForCall := fake.setHeightArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHelpBarComponent) SetHeightArgs() []FakeHelpBarComponentSetHeightArgs {
+	fake.setHeightMutex.RLock()
+	defer fake.setHeightMutex.RUnlock()
+	args := make([]FakeHelpBarComponentSetHeightArgs, len(fake.setHeightArgsForCall))
+	copy(args, fake.setHeightArgsForCall)
+	return args
 }
 
 func (fake *FakeHelpBarComponent) SetShortcuts(arg1 []key.Binding) {
@@ -230,14 +251,12 @@ func (fake *FakeHelpBarComponent) SetShortcuts(arg1 []key.Binding) {
 		copy(arg1Copy, arg1)
 	}
 	fake.setShortcutsMutex.Lock()
-	fake.setShortcutsArgsForCall = append(fake.setShortcutsArgsForCall, struct {
-		arg1 []key.Binding
-	}{arg1Copy})
+	fake.setShortcutsArgsForCall = append(fake.setShortcutsArgsForCall, FakeHelpBarComponentSetShortcutsArgs{arg1Copy})
 	stub := fake.SetShortcutsStub
 	fake.recordInvocation("SetShortcuts", []interface{}{arg1Copy})
 	fake.setShortcutsMutex.Unlock()
 	if stub != nil {
-		fake.SetShortcutsStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -257,19 +276,25 @@ func (fake *FakeHelpBarComponent) SetShortcutsArgsForCall(i int) []key.Binding {
 	fake.setShortcutsMutex.RLock()
 	defer fake.setShortcutsMutex.RUnlock()
 	argsForCall := fake.setShortcutsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHelpBarComponent) SetShortcutsArgs() []FakeHelpBarComponentSetShortcutsArgs {
+	fake.setShortcutsMutex.RLock()
+	defer fake.setShortcutsMutex.RUnlock()
+	args := make([]FakeHelpBarComponentSetShortcutsArgs, len(fake.setShortcutsArgsForCall))
+	copy(args, fake.setShortcutsArgsForCall)
+	return args
 }
 
 func (fake *FakeHelpBarComponent) SetWidth(arg1 int) {
 	fake.setWidthMutex.Lock()
-	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, FakeHelpBarComponentSetWidthArgs{arg1})
 	stub := fake.SetWidthStub
 	fake.recordInvocation("SetWidth", []interface{}{arg1})
 	fake.setWidthMutex.Unlock()
 	if stub != nil {
-		fake.SetWidthStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -289,7 +314,15 @@ func (fake *FakeHelpBarComponent) SetWidthArgsForCall(i int) int {
 	fake.setWidthMutex.RLock()
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHelpBarComponent) SetWidthArgs() []FakeHelpBarComponentSetWidthArgs {
+	fake.setWidthMutex.RLock()
+	defer fake.setWidthMutex.RUnlock()
+	args := make([]FakeHelpBarComponentSetWidthArgs, len(fake.setWidthArgsForCall))
+	copy(args, fake.setWidthArgsForCall)
+	return args
 }
 
 func (fake *FakeHelpBarComponent) Invocations() map[string][][]interface{} {
@@ -302,9 +335,18 @@ func (fake *FakeHelpBarComponent) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeHelpBarComponent) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeHelpBarComponent) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

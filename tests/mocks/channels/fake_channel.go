@@ -11,9 +11,8 @@ import (
 type FakeChannel struct {
 	NameStub        func() string
 	nameMutex       sync.RWMutex
-	nameArgsForCall []struct {
-	}
-	nameReturns struct {
+	nameArgsForCall []struct{}
+	nameReturns     struct {
 		result1 string
 	}
 	nameReturnsOnCall map[int]struct {
@@ -21,11 +20,8 @@ type FakeChannel struct {
 	}
 	SendStub        func(context.Context, channels.OutboundMessage) error
 	sendMutex       sync.RWMutex
-	sendArgsForCall []struct {
-		arg1 context.Context
-		arg2 channels.OutboundMessage
-	}
-	sendReturns struct {
+	sendArgsForCall []FakeChannelSendArgs
+	sendReturns     struct {
 		result1 error
 	}
 	sendReturnsOnCall map[int]struct {
@@ -33,11 +29,8 @@ type FakeChannel struct {
 	}
 	StartStub        func(context.Context, chan<- channels.InboundMessage) error
 	startMutex       sync.RWMutex
-	startArgsForCall []struct {
-		arg1 context.Context
-		arg2 chan<- channels.InboundMessage
-	}
-	startReturns struct {
+	startArgsForCall []FakeChannelStartArgs
+	startReturns     struct {
 		result1 error
 	}
 	startReturnsOnCall map[int]struct {
@@ -45,23 +38,34 @@ type FakeChannel struct {
 	}
 	StopStub        func() error
 	stopMutex       sync.RWMutex
-	stopArgsForCall []struct {
-	}
-	stopReturns struct {
+	stopArgsForCall []struct{}
+	stopReturns     struct {
 		result1 error
 	}
 	stopReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeChannelSendArgs holds the arguments of one call to Send.
+type FakeChannelSendArgs struct {
+	Arg1 context.Context
+	Arg2 channels.OutboundMessage
+}
+
+// FakeChannelStartArgs holds the arguments of one call to Start.
+type FakeChannelStartArgs struct {
+	Arg1 context.Context
+	Arg2 chan<- channels.InboundMessage
 }
 
 func (fake *FakeChannel) Name() string {
 	fake.nameMutex.Lock()
 	ret, specificReturn := fake.nameReturnsOnCall[len(fake.nameArgsForCall)]
-	fake.nameArgsForCall = append(fake.nameArgsForCall, struct {
-	}{})
+	fake.nameArgsForCall = append(fake.nameArgsForCall, struct{}{})
 	stub := fake.NameStub
 	fakeReturns := fake.nameReturns
 	fake.recordInvocation("Name", []interface{}{})
@@ -113,10 +117,7 @@ func (fake *FakeChannel) NameReturnsOnCall(i int, result1 string) {
 func (fake *FakeChannel) Send(arg1 context.Context, arg2 channels.OutboundMessage) error {
 	fake.sendMutex.Lock()
 	ret, specificReturn := fake.sendReturnsOnCall[len(fake.sendArgsForCall)]
-	fake.sendArgsForCall = append(fake.sendArgsForCall, struct {
-		arg1 context.Context
-		arg2 channels.OutboundMessage
-	}{arg1, arg2})
+	fake.sendArgsForCall = append(fake.sendArgsForCall, FakeChannelSendArgs{arg1, arg2})
 	stub := fake.SendStub
 	fakeReturns := fake.sendReturns
 	fake.recordInvocation("Send", []interface{}{arg1, arg2})
@@ -146,7 +147,15 @@ func (fake *FakeChannel) SendArgsForCall(i int) (context.Context, channels.Outbo
 	fake.sendMutex.RLock()
 	defer fake.sendMutex.RUnlock()
 	argsForCall := fake.sendArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeChannel) SendArgs() []FakeChannelSendArgs {
+	fake.sendMutex.RLock()
+	defer fake.sendMutex.RUnlock()
+	args := make([]FakeChannelSendArgs, len(fake.sendArgsForCall))
+	copy(args, fake.sendArgsForCall)
+	return args
 }
 
 func (fake *FakeChannel) SendReturns(result1 error) {
@@ -175,10 +184,7 @@ func (fake *FakeChannel) SendReturnsOnCall(i int, result1 error) {
 func (fake *FakeChannel) Start(arg1 context.Context, arg2 chan<- channels.InboundMessage) error {
 	fake.startMutex.Lock()
 	ret, specificReturn := fake.startReturnsOnCall[len(fake.startArgsForCall)]
-	fake.startArgsForCall = append(fake.startArgsForCall, struct {
-		arg1 context.Context
-		arg2 chan<- channels.InboundMessage
-	}{arg1, arg2})
+	fake.startArgsForCall = append(fake.startArgsForCall, FakeChannelStartArgs{arg1, arg2})
 	stub := fake.StartStub
 	fakeReturns := fake.startReturns
 	fake.recordInvocation("Start", []interface{}{arg1, arg2})
@@ -208,7 +214,15 @@ func (fake *FakeChannel) StartArgsForCall(i int) (context.Context, chan<- channe
 	fake.startMutex.RLock()
 	defer fake.startMutex.RUnlock()
 	argsForCall := fake.startArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeChannel) StartArgs() []FakeChannelStartArgs {
+	fake.startMutex.RLock()
+	defer fake.startMutex.RUnlock()
+	args := make([]FakeChannelStartArgs, len(fake.startArgsForCall))
+	copy(args, fake.startArgsForCall)
+	return args
 }
 
 func (fake *FakeChannel) StartReturns(result1 error) {
@@ -237,8 +251,7 @@ func (fake *FakeChannel) StartReturnsOnCall(i int, result1 error) {
 func (fake *FakeChannel) Stop() error {
 	fake.stopMutex.Lock()
 	ret, specificReturn := fake.stopReturnsOnCall[len(fake.stopArgsForCall)]
-	fake.stopArgsForCall = append(fake.stopArgsForCall, struct {
-	}{})
+	fake.stopArgsForCall = append(fake.stopArgsForCall, struct{}{})
 	stub := fake.StopStub
 	fakeReturns := fake.stopReturns
 	fake.recordInvocation("Stop", []interface{}{})
@@ -297,9 +310,18 @@ func (fake *FakeChannel) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeChannel) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeChannel) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

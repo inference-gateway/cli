@@ -10,11 +10,8 @@ import (
 type FakeAgentStateMachine struct {
 	CanTransitionStub        func(*states.AgentContext, states.AgentExecutionState) bool
 	canTransitionMutex       sync.RWMutex
-	canTransitionArgsForCall []struct {
-		arg1 *states.AgentContext
-		arg2 states.AgentExecutionState
-	}
-	canTransitionReturns struct {
+	canTransitionArgsForCall []FakeAgentStateMachineCanTransitionArgs
+	canTransitionReturns     struct {
 		result1 bool
 	}
 	canTransitionReturnsOnCall map[int]struct {
@@ -22,41 +19,46 @@ type FakeAgentStateMachine struct {
 	}
 	GetCurrentStateStub        func() states.AgentExecutionState
 	getCurrentStateMutex       sync.RWMutex
-	getCurrentStateArgsForCall []struct {
-	}
-	getCurrentStateReturns struct {
+	getCurrentStateArgsForCall []struct{}
+	getCurrentStateReturns     struct {
 		result1 states.AgentExecutionState
 	}
 	getCurrentStateReturnsOnCall map[int]struct {
 		result1 states.AgentExecutionState
 	}
-	ResetStub        func()
-	resetMutex       sync.RWMutex
-	resetArgsForCall []struct {
-	}
+	ResetStub             func()
+	resetMutex            sync.RWMutex
+	resetArgsForCall      []struct{}
 	TransitionStub        func(*states.AgentContext, states.AgentExecutionState) error
 	transitionMutex       sync.RWMutex
-	transitionArgsForCall []struct {
-		arg1 *states.AgentContext
-		arg2 states.AgentExecutionState
-	}
-	transitionReturns struct {
+	transitionArgsForCall []FakeAgentStateMachineTransitionArgs
+	transitionReturns     struct {
 		result1 error
 	}
 	transitionReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeAgentStateMachineCanTransitionArgs holds the arguments of one call to CanTransition.
+type FakeAgentStateMachineCanTransitionArgs struct {
+	Arg1 *states.AgentContext
+	Arg2 states.AgentExecutionState
+}
+
+// FakeAgentStateMachineTransitionArgs holds the arguments of one call to Transition.
+type FakeAgentStateMachineTransitionArgs struct {
+	Arg1 *states.AgentContext
+	Arg2 states.AgentExecutionState
 }
 
 func (fake *FakeAgentStateMachine) CanTransition(arg1 *states.AgentContext, arg2 states.AgentExecutionState) bool {
 	fake.canTransitionMutex.Lock()
 	ret, specificReturn := fake.canTransitionReturnsOnCall[len(fake.canTransitionArgsForCall)]
-	fake.canTransitionArgsForCall = append(fake.canTransitionArgsForCall, struct {
-		arg1 *states.AgentContext
-		arg2 states.AgentExecutionState
-	}{arg1, arg2})
+	fake.canTransitionArgsForCall = append(fake.canTransitionArgsForCall, FakeAgentStateMachineCanTransitionArgs{arg1, arg2})
 	stub := fake.CanTransitionStub
 	fakeReturns := fake.canTransitionReturns
 	fake.recordInvocation("CanTransition", []interface{}{arg1, arg2})
@@ -86,7 +88,15 @@ func (fake *FakeAgentStateMachine) CanTransitionArgsForCall(i int) (*states.Agen
 	fake.canTransitionMutex.RLock()
 	defer fake.canTransitionMutex.RUnlock()
 	argsForCall := fake.canTransitionArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeAgentStateMachine) CanTransitionArgs() []FakeAgentStateMachineCanTransitionArgs {
+	fake.canTransitionMutex.RLock()
+	defer fake.canTransitionMutex.RUnlock()
+	args := make([]FakeAgentStateMachineCanTransitionArgs, len(fake.canTransitionArgsForCall))
+	copy(args, fake.canTransitionArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentStateMachine) CanTransitionReturns(result1 bool) {
@@ -115,8 +125,7 @@ func (fake *FakeAgentStateMachine) CanTransitionReturnsOnCall(i int, result1 boo
 func (fake *FakeAgentStateMachine) GetCurrentState() states.AgentExecutionState {
 	fake.getCurrentStateMutex.Lock()
 	ret, specificReturn := fake.getCurrentStateReturnsOnCall[len(fake.getCurrentStateArgsForCall)]
-	fake.getCurrentStateArgsForCall = append(fake.getCurrentStateArgsForCall, struct {
-	}{})
+	fake.getCurrentStateArgsForCall = append(fake.getCurrentStateArgsForCall, struct{}{})
 	stub := fake.GetCurrentStateStub
 	fakeReturns := fake.getCurrentStateReturns
 	fake.recordInvocation("GetCurrentState", []interface{}{})
@@ -167,13 +176,12 @@ func (fake *FakeAgentStateMachine) GetCurrentStateReturnsOnCall(i int, result1 s
 
 func (fake *FakeAgentStateMachine) Reset() {
 	fake.resetMutex.Lock()
-	fake.resetArgsForCall = append(fake.resetArgsForCall, struct {
-	}{})
+	fake.resetArgsForCall = append(fake.resetArgsForCall, struct{}{})
 	stub := fake.ResetStub
 	fake.recordInvocation("Reset", []interface{}{})
 	fake.resetMutex.Unlock()
 	if stub != nil {
-		fake.ResetStub()
+		stub()
 	}
 }
 
@@ -192,10 +200,7 @@ func (fake *FakeAgentStateMachine) ResetCalls(stub func()) {
 func (fake *FakeAgentStateMachine) Transition(arg1 *states.AgentContext, arg2 states.AgentExecutionState) error {
 	fake.transitionMutex.Lock()
 	ret, specificReturn := fake.transitionReturnsOnCall[len(fake.transitionArgsForCall)]
-	fake.transitionArgsForCall = append(fake.transitionArgsForCall, struct {
-		arg1 *states.AgentContext
-		arg2 states.AgentExecutionState
-	}{arg1, arg2})
+	fake.transitionArgsForCall = append(fake.transitionArgsForCall, FakeAgentStateMachineTransitionArgs{arg1, arg2})
 	stub := fake.TransitionStub
 	fakeReturns := fake.transitionReturns
 	fake.recordInvocation("Transition", []interface{}{arg1, arg2})
@@ -225,7 +230,15 @@ func (fake *FakeAgentStateMachine) TransitionArgsForCall(i int) (*states.AgentCo
 	fake.transitionMutex.RLock()
 	defer fake.transitionMutex.RUnlock()
 	argsForCall := fake.transitionArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeAgentStateMachine) TransitionArgs() []FakeAgentStateMachineTransitionArgs {
+	fake.transitionMutex.RLock()
+	defer fake.transitionMutex.RUnlock()
+	args := make([]FakeAgentStateMachineTransitionArgs, len(fake.transitionArgsForCall))
+	copy(args, fake.transitionArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentStateMachine) TransitionReturns(result1 error) {
@@ -261,9 +274,18 @@ func (fake *FakeAgentStateMachine) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeAgentStateMachine) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAgentStateMachine) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

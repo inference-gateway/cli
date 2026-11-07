@@ -11,29 +11,29 @@ import (
 type FakeVideoService struct {
 	RenderStub        func(context.Context, domain.VideoRequest, string) error
 	renderMutex       sync.RWMutex
-	renderArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.VideoRequest
-		arg3 string
-	}
-	renderReturns struct {
+	renderArgsForCall []FakeVideoServiceRenderArgs
+	renderReturns     struct {
 		result1 error
 	}
 	renderReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeVideoServiceRenderArgs holds the arguments of one call to Render.
+type FakeVideoServiceRenderArgs struct {
+	Arg1 context.Context
+	Arg2 domain.VideoRequest
+	Arg3 string
 }
 
 func (fake *FakeVideoService) Render(arg1 context.Context, arg2 domain.VideoRequest, arg3 string) error {
 	fake.renderMutex.Lock()
 	ret, specificReturn := fake.renderReturnsOnCall[len(fake.renderArgsForCall)]
-	fake.renderArgsForCall = append(fake.renderArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.VideoRequest
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.renderArgsForCall = append(fake.renderArgsForCall, FakeVideoServiceRenderArgs{arg1, arg2, arg3})
 	stub := fake.RenderStub
 	fakeReturns := fake.renderReturns
 	fake.recordInvocation("Render", []interface{}{arg1, arg2, arg3})
@@ -63,7 +63,15 @@ func (fake *FakeVideoService) RenderArgsForCall(i int) (context.Context, domain.
 	fake.renderMutex.RLock()
 	defer fake.renderMutex.RUnlock()
 	argsForCall := fake.renderArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeVideoService) RenderArgs() []FakeVideoServiceRenderArgs {
+	fake.renderMutex.RLock()
+	defer fake.renderMutex.RUnlock()
+	args := make([]FakeVideoServiceRenderArgs, len(fake.renderArgsForCall))
+	copy(args, fake.renderArgsForCall)
+	return args
 }
 
 func (fake *FakeVideoService) RenderReturns(result1 error) {
@@ -99,9 +107,18 @@ func (fake *FakeVideoService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeVideoService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeVideoService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -11,27 +11,28 @@ import (
 type FakeHistoryCleaner struct {
 	ClearHistoryStub        func(context.Context, string) error
 	clearHistoryMutex       sync.RWMutex
-	clearHistoryArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	clearHistoryReturns struct {
+	clearHistoryArgsForCall []FakeHistoryCleanerClearHistoryArgs
+	clearHistoryReturns     struct {
 		result1 error
 	}
 	clearHistoryReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeHistoryCleanerClearHistoryArgs holds the arguments of one call to ClearHistory.
+type FakeHistoryCleanerClearHistoryArgs struct {
+	Arg1 context.Context
+	Arg2 string
 }
 
 func (fake *FakeHistoryCleaner) ClearHistory(arg1 context.Context, arg2 string) error {
 	fake.clearHistoryMutex.Lock()
 	ret, specificReturn := fake.clearHistoryReturnsOnCall[len(fake.clearHistoryArgsForCall)]
-	fake.clearHistoryArgsForCall = append(fake.clearHistoryArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.clearHistoryArgsForCall = append(fake.clearHistoryArgsForCall, FakeHistoryCleanerClearHistoryArgs{arg1, arg2})
 	stub := fake.ClearHistoryStub
 	fakeReturns := fake.clearHistoryReturns
 	fake.recordInvocation("ClearHistory", []interface{}{arg1, arg2})
@@ -61,7 +62,15 @@ func (fake *FakeHistoryCleaner) ClearHistoryArgsForCall(i int) (context.Context,
 	fake.clearHistoryMutex.RLock()
 	defer fake.clearHistoryMutex.RUnlock()
 	argsForCall := fake.clearHistoryArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeHistoryCleaner) ClearHistoryArgs() []FakeHistoryCleanerClearHistoryArgs {
+	fake.clearHistoryMutex.RLock()
+	defer fake.clearHistoryMutex.RUnlock()
+	args := make([]FakeHistoryCleanerClearHistoryArgs, len(fake.clearHistoryArgsForCall))
+	copy(args, fake.clearHistoryArgsForCall)
+	return args
 }
 
 func (fake *FakeHistoryCleaner) ClearHistoryReturns(result1 error) {
@@ -97,9 +106,18 @@ func (fake *FakeHistoryCleaner) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeHistoryCleaner) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeHistoryCleaner) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

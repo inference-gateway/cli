@@ -11,10 +11,8 @@ import (
 type FakeMemoryBackend struct {
 	SyncInStub        func(context.Context) error
 	syncInMutex       sync.RWMutex
-	syncInArgsForCall []struct {
-		arg1 context.Context
-	}
-	syncInReturns struct {
+	syncInArgsForCall []FakeMemoryBackendSyncInArgs
+	syncInReturns     struct {
 		result1 error
 	}
 	syncInReturnsOnCall map[int]struct {
@@ -22,25 +20,32 @@ type FakeMemoryBackend struct {
 	}
 	SyncOutStub        func(context.Context) error
 	syncOutMutex       sync.RWMutex
-	syncOutArgsForCall []struct {
-		arg1 context.Context
-	}
-	syncOutReturns struct {
+	syncOutArgsForCall []FakeMemoryBackendSyncOutArgs
+	syncOutReturns     struct {
 		result1 error
 	}
 	syncOutReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeMemoryBackendSyncInArgs holds the arguments of one call to SyncIn.
+type FakeMemoryBackendSyncInArgs struct {
+	Arg1 context.Context
+}
+
+// FakeMemoryBackendSyncOutArgs holds the arguments of one call to SyncOut.
+type FakeMemoryBackendSyncOutArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *FakeMemoryBackend) SyncIn(arg1 context.Context) error {
 	fake.syncInMutex.Lock()
 	ret, specificReturn := fake.syncInReturnsOnCall[len(fake.syncInArgsForCall)]
-	fake.syncInArgsForCall = append(fake.syncInArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.syncInArgsForCall = append(fake.syncInArgsForCall, FakeMemoryBackendSyncInArgs{arg1})
 	stub := fake.SyncInStub
 	fakeReturns := fake.syncInReturns
 	fake.recordInvocation("SyncIn", []interface{}{arg1})
@@ -70,7 +75,15 @@ func (fake *FakeMemoryBackend) SyncInArgsForCall(i int) context.Context {
 	fake.syncInMutex.RLock()
 	defer fake.syncInMutex.RUnlock()
 	argsForCall := fake.syncInArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeMemoryBackend) SyncInArgs() []FakeMemoryBackendSyncInArgs {
+	fake.syncInMutex.RLock()
+	defer fake.syncInMutex.RUnlock()
+	args := make([]FakeMemoryBackendSyncInArgs, len(fake.syncInArgsForCall))
+	copy(args, fake.syncInArgsForCall)
+	return args
 }
 
 func (fake *FakeMemoryBackend) SyncInReturns(result1 error) {
@@ -99,9 +112,7 @@ func (fake *FakeMemoryBackend) SyncInReturnsOnCall(i int, result1 error) {
 func (fake *FakeMemoryBackend) SyncOut(arg1 context.Context) error {
 	fake.syncOutMutex.Lock()
 	ret, specificReturn := fake.syncOutReturnsOnCall[len(fake.syncOutArgsForCall)]
-	fake.syncOutArgsForCall = append(fake.syncOutArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.syncOutArgsForCall = append(fake.syncOutArgsForCall, FakeMemoryBackendSyncOutArgs{arg1})
 	stub := fake.SyncOutStub
 	fakeReturns := fake.syncOutReturns
 	fake.recordInvocation("SyncOut", []interface{}{arg1})
@@ -131,7 +142,15 @@ func (fake *FakeMemoryBackend) SyncOutArgsForCall(i int) context.Context {
 	fake.syncOutMutex.RLock()
 	defer fake.syncOutMutex.RUnlock()
 	argsForCall := fake.syncOutArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeMemoryBackend) SyncOutArgs() []FakeMemoryBackendSyncOutArgs {
+	fake.syncOutMutex.RLock()
+	defer fake.syncOutMutex.RUnlock()
+	args := make([]FakeMemoryBackendSyncOutArgs, len(fake.syncOutArgsForCall))
+	copy(args, fake.syncOutArgsForCall)
+	return args
 }
 
 func (fake *FakeMemoryBackend) SyncOutReturns(result1 error) {
@@ -167,9 +186,18 @@ func (fake *FakeMemoryBackend) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeMemoryBackend) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeMemoryBackend) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

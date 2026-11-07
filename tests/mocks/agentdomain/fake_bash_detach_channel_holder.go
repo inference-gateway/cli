@@ -10,13 +10,11 @@ import (
 type FakeBashDetachChannelHolder struct {
 	ClearBashDetachChanStub        func()
 	clearBashDetachChanMutex       sync.RWMutex
-	clearBashDetachChanArgsForCall []struct {
-	}
-	GetBashDetachChanStub        func() chan<- struct{}
-	getBashDetachChanMutex       sync.RWMutex
-	getBashDetachChanArgsForCall []struct {
-	}
-	getBashDetachChanReturns struct {
+	clearBashDetachChanArgsForCall []struct{}
+	GetBashDetachChanStub          func() chan<- struct{}
+	getBashDetachChanMutex         sync.RWMutex
+	getBashDetachChanArgsForCall   []struct{}
+	getBashDetachChanReturns       struct {
 		result1 chan<- struct{}
 	}
 	getBashDetachChanReturnsOnCall map[int]struct {
@@ -24,22 +22,25 @@ type FakeBashDetachChannelHolder struct {
 	}
 	SetBashDetachChanStub        func(chan<- struct{})
 	setBashDetachChanMutex       sync.RWMutex
-	setBashDetachChanArgsForCall []struct {
-		arg1 chan<- struct{}
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setBashDetachChanArgsForCall []FakeBashDetachChannelHolderSetBashDetachChanArgs
+	invocations                  map[string][][]interface{}
+	callOrder                    []string
+	invocationsMutex             sync.RWMutex
+}
+
+// FakeBashDetachChannelHolderSetBashDetachChanArgs holds the arguments of one call to SetBashDetachChan.
+type FakeBashDetachChannelHolderSetBashDetachChanArgs struct {
+	Arg1 chan<- struct{}
 }
 
 func (fake *FakeBashDetachChannelHolder) ClearBashDetachChan() {
 	fake.clearBashDetachChanMutex.Lock()
-	fake.clearBashDetachChanArgsForCall = append(fake.clearBashDetachChanArgsForCall, struct {
-	}{})
+	fake.clearBashDetachChanArgsForCall = append(fake.clearBashDetachChanArgsForCall, struct{}{})
 	stub := fake.ClearBashDetachChanStub
 	fake.recordInvocation("ClearBashDetachChan", []interface{}{})
 	fake.clearBashDetachChanMutex.Unlock()
 	if stub != nil {
-		fake.ClearBashDetachChanStub()
+		stub()
 	}
 }
 
@@ -58,8 +59,7 @@ func (fake *FakeBashDetachChannelHolder) ClearBashDetachChanCalls(stub func()) {
 func (fake *FakeBashDetachChannelHolder) GetBashDetachChan() chan<- struct{} {
 	fake.getBashDetachChanMutex.Lock()
 	ret, specificReturn := fake.getBashDetachChanReturnsOnCall[len(fake.getBashDetachChanArgsForCall)]
-	fake.getBashDetachChanArgsForCall = append(fake.getBashDetachChanArgsForCall, struct {
-	}{})
+	fake.getBashDetachChanArgsForCall = append(fake.getBashDetachChanArgsForCall, struct{}{})
 	stub := fake.GetBashDetachChanStub
 	fakeReturns := fake.getBashDetachChanReturns
 	fake.recordInvocation("GetBashDetachChan", []interface{}{})
@@ -110,14 +110,12 @@ func (fake *FakeBashDetachChannelHolder) GetBashDetachChanReturnsOnCall(i int, r
 
 func (fake *FakeBashDetachChannelHolder) SetBashDetachChan(arg1 chan<- struct{}) {
 	fake.setBashDetachChanMutex.Lock()
-	fake.setBashDetachChanArgsForCall = append(fake.setBashDetachChanArgsForCall, struct {
-		arg1 chan<- struct{}
-	}{arg1})
+	fake.setBashDetachChanArgsForCall = append(fake.setBashDetachChanArgsForCall, FakeBashDetachChannelHolderSetBashDetachChanArgs{arg1})
 	stub := fake.SetBashDetachChanStub
 	fake.recordInvocation("SetBashDetachChan", []interface{}{arg1})
 	fake.setBashDetachChanMutex.Unlock()
 	if stub != nil {
-		fake.SetBashDetachChanStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -137,7 +135,15 @@ func (fake *FakeBashDetachChannelHolder) SetBashDetachChanArgsForCall(i int) cha
 	fake.setBashDetachChanMutex.RLock()
 	defer fake.setBashDetachChanMutex.RUnlock()
 	argsForCall := fake.setBashDetachChanArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeBashDetachChannelHolder) SetBashDetachChanArgs() []FakeBashDetachChannelHolderSetBashDetachChanArgs {
+	fake.setBashDetachChanMutex.RLock()
+	defer fake.setBashDetachChanMutex.RUnlock()
+	args := make([]FakeBashDetachChannelHolderSetBashDetachChanArgs, len(fake.setBashDetachChanArgsForCall))
+	copy(args, fake.setBashDetachChanArgsForCall)
+	return args
 }
 
 func (fake *FakeBashDetachChannelHolder) Invocations() map[string][][]interface{} {
@@ -150,9 +156,18 @@ func (fake *FakeBashDetachChannelHolder) Invocations() map[string][][]interface{
 	return copiedInvocations
 }
 
+func (fake *FakeBashDetachChannelHolder) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeBashDetachChannelHolder) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

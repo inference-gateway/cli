@@ -10,25 +10,27 @@ import (
 type FakeNoteKeeper struct {
 	AddNoteStub        func(string) error
 	addNoteMutex       sync.RWMutex
-	addNoteArgsForCall []struct {
-		arg1 string
-	}
-	addNoteReturns struct {
+	addNoteArgsForCall []FakeNoteKeeperAddNoteArgs
+	addNoteReturns     struct {
 		result1 error
 	}
 	addNoteReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeNoteKeeperAddNoteArgs holds the arguments of one call to AddNote.
+type FakeNoteKeeperAddNoteArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeNoteKeeper) AddNote(arg1 string) error {
 	fake.addNoteMutex.Lock()
 	ret, specificReturn := fake.addNoteReturnsOnCall[len(fake.addNoteArgsForCall)]
-	fake.addNoteArgsForCall = append(fake.addNoteArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.addNoteArgsForCall = append(fake.addNoteArgsForCall, FakeNoteKeeperAddNoteArgs{arg1})
 	stub := fake.AddNoteStub
 	fakeReturns := fake.addNoteReturns
 	fake.recordInvocation("AddNote", []interface{}{arg1})
@@ -58,7 +60,15 @@ func (fake *FakeNoteKeeper) AddNoteArgsForCall(i int) string {
 	fake.addNoteMutex.RLock()
 	defer fake.addNoteMutex.RUnlock()
 	argsForCall := fake.addNoteArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeNoteKeeper) AddNoteArgs() []FakeNoteKeeperAddNoteArgs {
+	fake.addNoteMutex.RLock()
+	defer fake.addNoteMutex.RUnlock()
+	args := make([]FakeNoteKeeperAddNoteArgs, len(fake.addNoteArgsForCall))
+	copy(args, fake.addNoteArgsForCall)
+	return args
 }
 
 func (fake *FakeNoteKeeper) AddNoteReturns(result1 error) {
@@ -94,9 +104,18 @@ func (fake *FakeNoteKeeper) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeNoteKeeper) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeNoteKeeper) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -10,25 +10,27 @@ import (
 type FakeSystemReminderProvider struct {
 	RemindersDueStub        func(domain.ReminderQuery) []domain.SystemReminder
 	remindersDueMutex       sync.RWMutex
-	remindersDueArgsForCall []struct {
-		arg1 domain.ReminderQuery
-	}
-	remindersDueReturns struct {
+	remindersDueArgsForCall []FakeSystemReminderProviderRemindersDueArgs
+	remindersDueReturns     struct {
 		result1 []domain.SystemReminder
 	}
 	remindersDueReturnsOnCall map[int]struct {
 		result1 []domain.SystemReminder
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeSystemReminderProviderRemindersDueArgs holds the arguments of one call to RemindersDue.
+type FakeSystemReminderProviderRemindersDueArgs struct {
+	Arg1 domain.ReminderQuery
 }
 
 func (fake *FakeSystemReminderProvider) RemindersDue(arg1 domain.ReminderQuery) []domain.SystemReminder {
 	fake.remindersDueMutex.Lock()
 	ret, specificReturn := fake.remindersDueReturnsOnCall[len(fake.remindersDueArgsForCall)]
-	fake.remindersDueArgsForCall = append(fake.remindersDueArgsForCall, struct {
-		arg1 domain.ReminderQuery
-	}{arg1})
+	fake.remindersDueArgsForCall = append(fake.remindersDueArgsForCall, FakeSystemReminderProviderRemindersDueArgs{arg1})
 	stub := fake.RemindersDueStub
 	fakeReturns := fake.remindersDueReturns
 	fake.recordInvocation("RemindersDue", []interface{}{arg1})
@@ -58,7 +60,15 @@ func (fake *FakeSystemReminderProvider) RemindersDueArgsForCall(i int) domain.Re
 	fake.remindersDueMutex.RLock()
 	defer fake.remindersDueMutex.RUnlock()
 	argsForCall := fake.remindersDueArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeSystemReminderProvider) RemindersDueArgs() []FakeSystemReminderProviderRemindersDueArgs {
+	fake.remindersDueMutex.RLock()
+	defer fake.remindersDueMutex.RUnlock()
+	args := make([]FakeSystemReminderProviderRemindersDueArgs, len(fake.remindersDueArgsForCall))
+	copy(args, fake.remindersDueArgsForCall)
+	return args
 }
 
 func (fake *FakeSystemReminderProvider) RemindersDueReturns(result1 []domain.SystemReminder) {
@@ -94,9 +104,18 @@ func (fake *FakeSystemReminderProvider) Invocations() map[string][][]interface{}
 	return copiedInvocations
 }
 
+func (fake *FakeSystemReminderProvider) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeSystemReminderProvider) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

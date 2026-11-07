@@ -8,22 +8,16 @@ import (
 )
 
 type FakeTaskTracker struct {
-	AddTaskStub        func(string, string)
-	addTaskMutex       sync.RWMutex
-	addTaskArgsForCall []struct {
-		arg1 string
-		arg2 string
-	}
-	ClearAllAgentsStub        func()
-	clearAllAgentsMutex       sync.RWMutex
-	clearAllAgentsArgsForCall []struct {
-	}
+	AddTaskStub                         func(string, string)
+	addTaskMutex                        sync.RWMutex
+	addTaskArgsForCall                  []FakeTaskTrackerAddTaskArgs
+	ClearAllAgentsStub                  func()
+	clearAllAgentsMutex                 sync.RWMutex
+	clearAllAgentsArgsForCall           []struct{}
 	GetLatestContextForAgentStub        func(string) string
 	getLatestContextForAgentMutex       sync.RWMutex
-	getLatestContextForAgentArgsForCall []struct {
-		arg1 string
-	}
-	getLatestContextForAgentReturns struct {
+	getLatestContextForAgentArgsForCall []FakeTaskTrackerGetLatestContextForAgentArgs
+	getLatestContextForAgentReturns     struct {
 		result1 string
 	}
 	getLatestContextForAgentReturnsOnCall map[int]struct {
@@ -31,10 +25,8 @@ type FakeTaskTracker struct {
 	}
 	GetLatestTaskForContextStub        func(string) string
 	getLatestTaskForContextMutex       sync.RWMutex
-	getLatestTaskForContextArgsForCall []struct {
-		arg1 string
-	}
-	getLatestTaskForContextReturns struct {
+	getLatestTaskForContextArgsForCall []FakeTaskTrackerGetLatestTaskForContextArgs
+	getLatestTaskForContextReturns     struct {
 		result1 string
 	}
 	getLatestTaskForContextReturnsOnCall map[int]struct {
@@ -42,10 +34,8 @@ type FakeTaskTracker struct {
 	}
 	GetPollingStateStub        func(string) *domain.TaskPollingState
 	getPollingStateMutex       sync.RWMutex
-	getPollingStateArgsForCall []struct {
-		arg1 string
-	}
-	getPollingStateReturns struct {
+	getPollingStateArgsForCall []FakeTaskTrackerGetPollingStateArgs
+	getPollingStateReturns     struct {
 		result1 *domain.TaskPollingState
 	}
 	getPollingStateReturnsOnCall map[int]struct {
@@ -53,10 +43,8 @@ type FakeTaskTracker struct {
 	}
 	HasContextStub        func(string) bool
 	hasContextMutex       sync.RWMutex
-	hasContextArgsForCall []struct {
-		arg1 string
-	}
-	hasContextReturns struct {
+	hasContextArgsForCall []FakeTaskTrackerHasContextArgs
+	hasContextReturns     struct {
 		result1 bool
 	}
 	hasContextReturnsOnCall map[int]struct {
@@ -64,41 +52,77 @@ type FakeTaskTracker struct {
 	}
 	RegisterContextStub        func(string, string)
 	registerContextMutex       sync.RWMutex
-	registerContextArgsForCall []struct {
-		arg1 string
-		arg2 string
-	}
-	RemoveTaskStub        func(string)
-	removeTaskMutex       sync.RWMutex
-	removeTaskArgsForCall []struct {
-		arg1 string
-	}
-	StartPollingStub        func(string, *domain.TaskPollingState)
-	startPollingMutex       sync.RWMutex
-	startPollingArgsForCall []struct {
-		arg1 string
-		arg2 *domain.TaskPollingState
-	}
-	StopPollingStub        func(string)
-	stopPollingMutex       sync.RWMutex
-	stopPollingArgsForCall []struct {
-		arg1 string
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	registerContextArgsForCall []FakeTaskTrackerRegisterContextArgs
+	RemoveTaskStub             func(string)
+	removeTaskMutex            sync.RWMutex
+	removeTaskArgsForCall      []FakeTaskTrackerRemoveTaskArgs
+	StartPollingStub           func(string, *domain.TaskPollingState)
+	startPollingMutex          sync.RWMutex
+	startPollingArgsForCall    []FakeTaskTrackerStartPollingArgs
+	StopPollingStub            func(string)
+	stopPollingMutex           sync.RWMutex
+	stopPollingArgsForCall     []FakeTaskTrackerStopPollingArgs
+	invocations                map[string][][]interface{}
+	callOrder                  []string
+	invocationsMutex           sync.RWMutex
+}
+
+// FakeTaskTrackerAddTaskArgs holds the arguments of one call to AddTask.
+type FakeTaskTrackerAddTaskArgs struct {
+	Arg1 string
+	Arg2 string
+}
+
+// FakeTaskTrackerGetLatestContextForAgentArgs holds the arguments of one call to GetLatestContextForAgent.
+type FakeTaskTrackerGetLatestContextForAgentArgs struct {
+	Arg1 string
+}
+
+// FakeTaskTrackerGetLatestTaskForContextArgs holds the arguments of one call to GetLatestTaskForContext.
+type FakeTaskTrackerGetLatestTaskForContextArgs struct {
+	Arg1 string
+}
+
+// FakeTaskTrackerGetPollingStateArgs holds the arguments of one call to GetPollingState.
+type FakeTaskTrackerGetPollingStateArgs struct {
+	Arg1 string
+}
+
+// FakeTaskTrackerHasContextArgs holds the arguments of one call to HasContext.
+type FakeTaskTrackerHasContextArgs struct {
+	Arg1 string
+}
+
+// FakeTaskTrackerRegisterContextArgs holds the arguments of one call to RegisterContext.
+type FakeTaskTrackerRegisterContextArgs struct {
+	Arg1 string
+	Arg2 string
+}
+
+// FakeTaskTrackerRemoveTaskArgs holds the arguments of one call to RemoveTask.
+type FakeTaskTrackerRemoveTaskArgs struct {
+	Arg1 string
+}
+
+// FakeTaskTrackerStartPollingArgs holds the arguments of one call to StartPolling.
+type FakeTaskTrackerStartPollingArgs struct {
+	Arg1 string
+	Arg2 *domain.TaskPollingState
+}
+
+// FakeTaskTrackerStopPollingArgs holds the arguments of one call to StopPolling.
+type FakeTaskTrackerStopPollingArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeTaskTracker) AddTask(arg1 string, arg2 string) {
 	fake.addTaskMutex.Lock()
-	fake.addTaskArgsForCall = append(fake.addTaskArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
+	fake.addTaskArgsForCall = append(fake.addTaskArgsForCall, FakeTaskTrackerAddTaskArgs{arg1, arg2})
 	stub := fake.AddTaskStub
 	fake.recordInvocation("AddTask", []interface{}{arg1, arg2})
 	fake.addTaskMutex.Unlock()
 	if stub != nil {
-		fake.AddTaskStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -118,18 +142,25 @@ func (fake *FakeTaskTracker) AddTaskArgsForCall(i int) (string, string) {
 	fake.addTaskMutex.RLock()
 	defer fake.addTaskMutex.RUnlock()
 	argsForCall := fake.addTaskArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeTaskTracker) AddTaskArgs() []FakeTaskTrackerAddTaskArgs {
+	fake.addTaskMutex.RLock()
+	defer fake.addTaskMutex.RUnlock()
+	args := make([]FakeTaskTrackerAddTaskArgs, len(fake.addTaskArgsForCall))
+	copy(args, fake.addTaskArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) ClearAllAgents() {
 	fake.clearAllAgentsMutex.Lock()
-	fake.clearAllAgentsArgsForCall = append(fake.clearAllAgentsArgsForCall, struct {
-	}{})
+	fake.clearAllAgentsArgsForCall = append(fake.clearAllAgentsArgsForCall, struct{}{})
 	stub := fake.ClearAllAgentsStub
 	fake.recordInvocation("ClearAllAgents", []interface{}{})
 	fake.clearAllAgentsMutex.Unlock()
 	if stub != nil {
-		fake.ClearAllAgentsStub()
+		stub()
 	}
 }
 
@@ -148,9 +179,7 @@ func (fake *FakeTaskTracker) ClearAllAgentsCalls(stub func()) {
 func (fake *FakeTaskTracker) GetLatestContextForAgent(arg1 string) string {
 	fake.getLatestContextForAgentMutex.Lock()
 	ret, specificReturn := fake.getLatestContextForAgentReturnsOnCall[len(fake.getLatestContextForAgentArgsForCall)]
-	fake.getLatestContextForAgentArgsForCall = append(fake.getLatestContextForAgentArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getLatestContextForAgentArgsForCall = append(fake.getLatestContextForAgentArgsForCall, FakeTaskTrackerGetLatestContextForAgentArgs{arg1})
 	stub := fake.GetLatestContextForAgentStub
 	fakeReturns := fake.getLatestContextForAgentReturns
 	fake.recordInvocation("GetLatestContextForAgent", []interface{}{arg1})
@@ -180,7 +209,15 @@ func (fake *FakeTaskTracker) GetLatestContextForAgentArgsForCall(i int) string {
 	fake.getLatestContextForAgentMutex.RLock()
 	defer fake.getLatestContextForAgentMutex.RUnlock()
 	argsForCall := fake.getLatestContextForAgentArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTaskTracker) GetLatestContextForAgentArgs() []FakeTaskTrackerGetLatestContextForAgentArgs {
+	fake.getLatestContextForAgentMutex.RLock()
+	defer fake.getLatestContextForAgentMutex.RUnlock()
+	args := make([]FakeTaskTrackerGetLatestContextForAgentArgs, len(fake.getLatestContextForAgentArgsForCall))
+	copy(args, fake.getLatestContextForAgentArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) GetLatestContextForAgentReturns(result1 string) {
@@ -209,9 +246,7 @@ func (fake *FakeTaskTracker) GetLatestContextForAgentReturnsOnCall(i int, result
 func (fake *FakeTaskTracker) GetLatestTaskForContext(arg1 string) string {
 	fake.getLatestTaskForContextMutex.Lock()
 	ret, specificReturn := fake.getLatestTaskForContextReturnsOnCall[len(fake.getLatestTaskForContextArgsForCall)]
-	fake.getLatestTaskForContextArgsForCall = append(fake.getLatestTaskForContextArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getLatestTaskForContextArgsForCall = append(fake.getLatestTaskForContextArgsForCall, FakeTaskTrackerGetLatestTaskForContextArgs{arg1})
 	stub := fake.GetLatestTaskForContextStub
 	fakeReturns := fake.getLatestTaskForContextReturns
 	fake.recordInvocation("GetLatestTaskForContext", []interface{}{arg1})
@@ -241,7 +276,15 @@ func (fake *FakeTaskTracker) GetLatestTaskForContextArgsForCall(i int) string {
 	fake.getLatestTaskForContextMutex.RLock()
 	defer fake.getLatestTaskForContextMutex.RUnlock()
 	argsForCall := fake.getLatestTaskForContextArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTaskTracker) GetLatestTaskForContextArgs() []FakeTaskTrackerGetLatestTaskForContextArgs {
+	fake.getLatestTaskForContextMutex.RLock()
+	defer fake.getLatestTaskForContextMutex.RUnlock()
+	args := make([]FakeTaskTrackerGetLatestTaskForContextArgs, len(fake.getLatestTaskForContextArgsForCall))
+	copy(args, fake.getLatestTaskForContextArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) GetLatestTaskForContextReturns(result1 string) {
@@ -270,9 +313,7 @@ func (fake *FakeTaskTracker) GetLatestTaskForContextReturnsOnCall(i int, result1
 func (fake *FakeTaskTracker) GetPollingState(arg1 string) *domain.TaskPollingState {
 	fake.getPollingStateMutex.Lock()
 	ret, specificReturn := fake.getPollingStateReturnsOnCall[len(fake.getPollingStateArgsForCall)]
-	fake.getPollingStateArgsForCall = append(fake.getPollingStateArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.getPollingStateArgsForCall = append(fake.getPollingStateArgsForCall, FakeTaskTrackerGetPollingStateArgs{arg1})
 	stub := fake.GetPollingStateStub
 	fakeReturns := fake.getPollingStateReturns
 	fake.recordInvocation("GetPollingState", []interface{}{arg1})
@@ -302,7 +343,15 @@ func (fake *FakeTaskTracker) GetPollingStateArgsForCall(i int) string {
 	fake.getPollingStateMutex.RLock()
 	defer fake.getPollingStateMutex.RUnlock()
 	argsForCall := fake.getPollingStateArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTaskTracker) GetPollingStateArgs() []FakeTaskTrackerGetPollingStateArgs {
+	fake.getPollingStateMutex.RLock()
+	defer fake.getPollingStateMutex.RUnlock()
+	args := make([]FakeTaskTrackerGetPollingStateArgs, len(fake.getPollingStateArgsForCall))
+	copy(args, fake.getPollingStateArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) GetPollingStateReturns(result1 *domain.TaskPollingState) {
@@ -331,9 +380,7 @@ func (fake *FakeTaskTracker) GetPollingStateReturnsOnCall(i int, result1 *domain
 func (fake *FakeTaskTracker) HasContext(arg1 string) bool {
 	fake.hasContextMutex.Lock()
 	ret, specificReturn := fake.hasContextReturnsOnCall[len(fake.hasContextArgsForCall)]
-	fake.hasContextArgsForCall = append(fake.hasContextArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.hasContextArgsForCall = append(fake.hasContextArgsForCall, FakeTaskTrackerHasContextArgs{arg1})
 	stub := fake.HasContextStub
 	fakeReturns := fake.hasContextReturns
 	fake.recordInvocation("HasContext", []interface{}{arg1})
@@ -363,7 +410,15 @@ func (fake *FakeTaskTracker) HasContextArgsForCall(i int) string {
 	fake.hasContextMutex.RLock()
 	defer fake.hasContextMutex.RUnlock()
 	argsForCall := fake.hasContextArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTaskTracker) HasContextArgs() []FakeTaskTrackerHasContextArgs {
+	fake.hasContextMutex.RLock()
+	defer fake.hasContextMutex.RUnlock()
+	args := make([]FakeTaskTrackerHasContextArgs, len(fake.hasContextArgsForCall))
+	copy(args, fake.hasContextArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) HasContextReturns(result1 bool) {
@@ -391,15 +446,12 @@ func (fake *FakeTaskTracker) HasContextReturnsOnCall(i int, result1 bool) {
 
 func (fake *FakeTaskTracker) RegisterContext(arg1 string, arg2 string) {
 	fake.registerContextMutex.Lock()
-	fake.registerContextArgsForCall = append(fake.registerContextArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
+	fake.registerContextArgsForCall = append(fake.registerContextArgsForCall, FakeTaskTrackerRegisterContextArgs{arg1, arg2})
 	stub := fake.RegisterContextStub
 	fake.recordInvocation("RegisterContext", []interface{}{arg1, arg2})
 	fake.registerContextMutex.Unlock()
 	if stub != nil {
-		fake.RegisterContextStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -419,19 +471,25 @@ func (fake *FakeTaskTracker) RegisterContextArgsForCall(i int) (string, string) 
 	fake.registerContextMutex.RLock()
 	defer fake.registerContextMutex.RUnlock()
 	argsForCall := fake.registerContextArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeTaskTracker) RegisterContextArgs() []FakeTaskTrackerRegisterContextArgs {
+	fake.registerContextMutex.RLock()
+	defer fake.registerContextMutex.RUnlock()
+	args := make([]FakeTaskTrackerRegisterContextArgs, len(fake.registerContextArgsForCall))
+	copy(args, fake.registerContextArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) RemoveTask(arg1 string) {
 	fake.removeTaskMutex.Lock()
-	fake.removeTaskArgsForCall = append(fake.removeTaskArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.removeTaskArgsForCall = append(fake.removeTaskArgsForCall, FakeTaskTrackerRemoveTaskArgs{arg1})
 	stub := fake.RemoveTaskStub
 	fake.recordInvocation("RemoveTask", []interface{}{arg1})
 	fake.removeTaskMutex.Unlock()
 	if stub != nil {
-		fake.RemoveTaskStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -451,20 +509,25 @@ func (fake *FakeTaskTracker) RemoveTaskArgsForCall(i int) string {
 	fake.removeTaskMutex.RLock()
 	defer fake.removeTaskMutex.RUnlock()
 	argsForCall := fake.removeTaskArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTaskTracker) RemoveTaskArgs() []FakeTaskTrackerRemoveTaskArgs {
+	fake.removeTaskMutex.RLock()
+	defer fake.removeTaskMutex.RUnlock()
+	args := make([]FakeTaskTrackerRemoveTaskArgs, len(fake.removeTaskArgsForCall))
+	copy(args, fake.removeTaskArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) StartPolling(arg1 string, arg2 *domain.TaskPollingState) {
 	fake.startPollingMutex.Lock()
-	fake.startPollingArgsForCall = append(fake.startPollingArgsForCall, struct {
-		arg1 string
-		arg2 *domain.TaskPollingState
-	}{arg1, arg2})
+	fake.startPollingArgsForCall = append(fake.startPollingArgsForCall, FakeTaskTrackerStartPollingArgs{arg1, arg2})
 	stub := fake.StartPollingStub
 	fake.recordInvocation("StartPolling", []interface{}{arg1, arg2})
 	fake.startPollingMutex.Unlock()
 	if stub != nil {
-		fake.StartPollingStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -484,19 +547,25 @@ func (fake *FakeTaskTracker) StartPollingArgsForCall(i int) (string, *domain.Tas
 	fake.startPollingMutex.RLock()
 	defer fake.startPollingMutex.RUnlock()
 	argsForCall := fake.startPollingArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeTaskTracker) StartPollingArgs() []FakeTaskTrackerStartPollingArgs {
+	fake.startPollingMutex.RLock()
+	defer fake.startPollingMutex.RUnlock()
+	args := make([]FakeTaskTrackerStartPollingArgs, len(fake.startPollingArgsForCall))
+	copy(args, fake.startPollingArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) StopPolling(arg1 string) {
 	fake.stopPollingMutex.Lock()
-	fake.stopPollingArgsForCall = append(fake.stopPollingArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.stopPollingArgsForCall = append(fake.stopPollingArgsForCall, FakeTaskTrackerStopPollingArgs{arg1})
 	stub := fake.StopPollingStub
 	fake.recordInvocation("StopPolling", []interface{}{arg1})
 	fake.stopPollingMutex.Unlock()
 	if stub != nil {
-		fake.StopPollingStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -516,7 +585,15 @@ func (fake *FakeTaskTracker) StopPollingArgsForCall(i int) string {
 	fake.stopPollingMutex.RLock()
 	defer fake.stopPollingMutex.RUnlock()
 	argsForCall := fake.stopPollingArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeTaskTracker) StopPollingArgs() []FakeTaskTrackerStopPollingArgs {
+	fake.stopPollingMutex.RLock()
+	defer fake.stopPollingMutex.RUnlock()
+	args := make([]FakeTaskTrackerStopPollingArgs, len(fake.stopPollingArgsForCall))
+	copy(args, fake.stopPollingArgsForCall)
+	return args
 }
 
 func (fake *FakeTaskTracker) Invocations() map[string][][]interface{} {
@@ -529,9 +606,18 @@ func (fake *FakeTaskTracker) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeTaskTracker) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeTaskTracker) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -10,27 +10,28 @@ import (
 type FakeJobStopper struct {
 	WindJobStub        func(string, domain.WindSignal) error
 	windJobMutex       sync.RWMutex
-	windJobArgsForCall []struct {
-		arg1 string
-		arg2 domain.WindSignal
-	}
-	windJobReturns struct {
+	windJobArgsForCall []FakeJobStopperWindJobArgs
+	windJobReturns     struct {
 		result1 error
 	}
 	windJobReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeJobStopperWindJobArgs holds the arguments of one call to WindJob.
+type FakeJobStopperWindJobArgs struct {
+	Arg1 string
+	Arg2 domain.WindSignal
 }
 
 func (fake *FakeJobStopper) WindJob(arg1 string, arg2 domain.WindSignal) error {
 	fake.windJobMutex.Lock()
 	ret, specificReturn := fake.windJobReturnsOnCall[len(fake.windJobArgsForCall)]
-	fake.windJobArgsForCall = append(fake.windJobArgsForCall, struct {
-		arg1 string
-		arg2 domain.WindSignal
-	}{arg1, arg2})
+	fake.windJobArgsForCall = append(fake.windJobArgsForCall, FakeJobStopperWindJobArgs{arg1, arg2})
 	stub := fake.WindJobStub
 	fakeReturns := fake.windJobReturns
 	fake.recordInvocation("WindJob", []interface{}{arg1, arg2})
@@ -60,7 +61,15 @@ func (fake *FakeJobStopper) WindJobArgsForCall(i int) (string, domain.WindSignal
 	fake.windJobMutex.RLock()
 	defer fake.windJobMutex.RUnlock()
 	argsForCall := fake.windJobArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeJobStopper) WindJobArgs() []FakeJobStopperWindJobArgs {
+	fake.windJobMutex.RLock()
+	defer fake.windJobMutex.RUnlock()
+	args := make([]FakeJobStopperWindJobArgs, len(fake.windJobArgsForCall))
+	copy(args, fake.windJobArgsForCall)
+	return args
 }
 
 func (fake *FakeJobStopper) WindJobReturns(result1 error) {
@@ -96,9 +105,18 @@ func (fake *FakeJobStopper) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeJobStopper) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeJobStopper) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

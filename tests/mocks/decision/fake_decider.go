@@ -11,13 +11,8 @@ import (
 type FakeDecider struct {
 	DecideStub        func(context.Context, string, string, []domain.Question) (domain.Decisions, error)
 	decideMutex       sync.RWMutex
-	decideArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 []domain.Question
-	}
-	decideReturns struct {
+	decideArgsForCall []FakeDeciderDecideArgs
+	decideReturns     struct {
 		result1 domain.Decisions
 		result2 error
 	}
@@ -26,7 +21,16 @@ type FakeDecider struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeDeciderDecideArgs holds the arguments of one call to Decide.
+type FakeDeciderDecideArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 []domain.Question
 }
 
 func (fake *FakeDecider) Decide(arg1 context.Context, arg2 string, arg3 string, arg4 []domain.Question) (domain.Decisions, error) {
@@ -37,12 +41,7 @@ func (fake *FakeDecider) Decide(arg1 context.Context, arg2 string, arg3 string, 
 	}
 	fake.decideMutex.Lock()
 	ret, specificReturn := fake.decideReturnsOnCall[len(fake.decideArgsForCall)]
-	fake.decideArgsForCall = append(fake.decideArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 []domain.Question
-	}{arg1, arg2, arg3, arg4Copy})
+	fake.decideArgsForCall = append(fake.decideArgsForCall, FakeDeciderDecideArgs{arg1, arg2, arg3, arg4Copy})
 	stub := fake.DecideStub
 	fakeReturns := fake.decideReturns
 	fake.recordInvocation("Decide", []interface{}{arg1, arg2, arg3, arg4Copy})
@@ -72,7 +71,15 @@ func (fake *FakeDecider) DecideArgsForCall(i int) (context.Context, string, stri
 	fake.decideMutex.RLock()
 	defer fake.decideMutex.RUnlock()
 	argsForCall := fake.decideArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeDecider) DecideArgs() []FakeDeciderDecideArgs {
+	fake.decideMutex.RLock()
+	defer fake.decideMutex.RUnlock()
+	args := make([]FakeDeciderDecideArgs, len(fake.decideArgsForCall))
+	copy(args, fake.decideArgsForCall)
+	return args
 }
 
 func (fake *FakeDecider) DecideReturns(result1 domain.Decisions, result2 error) {
@@ -111,9 +118,18 @@ func (fake *FakeDecider) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeDecider) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeDecider) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

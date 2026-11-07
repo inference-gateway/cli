@@ -11,31 +11,30 @@ import (
 type FakeSpeechService struct {
 	SynthesizeStub        func(context.Context, string, string, string) error
 	synthesizeMutex       sync.RWMutex
-	synthesizeArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}
-	synthesizeReturns struct {
+	synthesizeArgsForCall []FakeSpeechServiceSynthesizeArgs
+	synthesizeReturns     struct {
 		result1 error
 	}
 	synthesizeReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeSpeechServiceSynthesizeArgs holds the arguments of one call to Synthesize.
+type FakeSpeechServiceSynthesizeArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 string
 }
 
 func (fake *FakeSpeechService) Synthesize(arg1 context.Context, arg2 string, arg3 string, arg4 string) error {
 	fake.synthesizeMutex.Lock()
 	ret, specificReturn := fake.synthesizeReturnsOnCall[len(fake.synthesizeArgsForCall)]
-	fake.synthesizeArgsForCall = append(fake.synthesizeArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 string
-	}{arg1, arg2, arg3, arg4})
+	fake.synthesizeArgsForCall = append(fake.synthesizeArgsForCall, FakeSpeechServiceSynthesizeArgs{arg1, arg2, arg3, arg4})
 	stub := fake.SynthesizeStub
 	fakeReturns := fake.synthesizeReturns
 	fake.recordInvocation("Synthesize", []interface{}{arg1, arg2, arg3, arg4})
@@ -65,7 +64,15 @@ func (fake *FakeSpeechService) SynthesizeArgsForCall(i int) (context.Context, st
 	fake.synthesizeMutex.RLock()
 	defer fake.synthesizeMutex.RUnlock()
 	argsForCall := fake.synthesizeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeSpeechService) SynthesizeArgs() []FakeSpeechServiceSynthesizeArgs {
+	fake.synthesizeMutex.RLock()
+	defer fake.synthesizeMutex.RUnlock()
+	args := make([]FakeSpeechServiceSynthesizeArgs, len(fake.synthesizeArgsForCall))
+	copy(args, fake.synthesizeArgsForCall)
+	return args
 }
 
 func (fake *FakeSpeechService) SynthesizeReturns(result1 error) {
@@ -101,9 +108,18 @@ func (fake *FakeSpeechService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeSpeechService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeSpeechService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

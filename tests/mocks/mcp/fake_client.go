@@ -11,12 +11,8 @@ import (
 type FakeClient struct {
 	CallToolStub        func(context.Context, string, map[string]any) (domain.CallResult, error)
 	callToolMutex       sync.RWMutex
-	callToolArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 map[string]any
-	}
-	callToolReturns struct {
+	callToolArgsForCall []FakeClientCallToolArgs
+	callToolReturns     struct {
 		result1 domain.CallResult
 		result2 error
 	}
@@ -26,10 +22,8 @@ type FakeClient struct {
 	}
 	DiscoverStub        func(context.Context) error
 	discoverMutex       sync.RWMutex
-	discoverArgsForCall []struct {
-		arg1 context.Context
-	}
-	discoverReturns struct {
+	discoverArgsForCall []FakeClientDiscoverArgs
+	discoverReturns     struct {
 		result1 error
 	}
 	discoverReturnsOnCall map[int]struct {
@@ -37,10 +31,8 @@ type FakeClient struct {
 	}
 	ListToolsStub        func(context.Context) ([]domain.Tool, error)
 	listToolsMutex       sync.RWMutex
-	listToolsArgsForCall []struct {
-		arg1 context.Context
-	}
-	listToolsReturns struct {
+	listToolsArgsForCall []FakeClientListToolsArgs
+	listToolsReturns     struct {
 		result1 []domain.Tool
 		result2 error
 	}
@@ -49,17 +41,31 @@ type FakeClient struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeClientCallToolArgs holds the arguments of one call to CallTool.
+type FakeClientCallToolArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 map[string]any
+}
+
+// FakeClientDiscoverArgs holds the arguments of one call to Discover.
+type FakeClientDiscoverArgs struct {
+	Arg1 context.Context
+}
+
+// FakeClientListToolsArgs holds the arguments of one call to ListTools.
+type FakeClientListToolsArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *FakeClient) CallTool(arg1 context.Context, arg2 string, arg3 map[string]any) (domain.CallResult, error) {
 	fake.callToolMutex.Lock()
 	ret, specificReturn := fake.callToolReturnsOnCall[len(fake.callToolArgsForCall)]
-	fake.callToolArgsForCall = append(fake.callToolArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 map[string]any
-	}{arg1, arg2, arg3})
+	fake.callToolArgsForCall = append(fake.callToolArgsForCall, FakeClientCallToolArgs{arg1, arg2, arg3})
 	stub := fake.CallToolStub
 	fakeReturns := fake.callToolReturns
 	fake.recordInvocation("CallTool", []interface{}{arg1, arg2, arg3})
@@ -89,7 +95,15 @@ func (fake *FakeClient) CallToolArgsForCall(i int) (context.Context, string, map
 	fake.callToolMutex.RLock()
 	defer fake.callToolMutex.RUnlock()
 	argsForCall := fake.callToolArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CallToolArgs() []FakeClientCallToolArgs {
+	fake.callToolMutex.RLock()
+	defer fake.callToolMutex.RUnlock()
+	args := make([]FakeClientCallToolArgs, len(fake.callToolArgsForCall))
+	copy(args, fake.callToolArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CallToolReturns(result1 domain.CallResult, result2 error) {
@@ -121,9 +135,7 @@ func (fake *FakeClient) CallToolReturnsOnCall(i int, result1 domain.CallResult, 
 func (fake *FakeClient) Discover(arg1 context.Context) error {
 	fake.discoverMutex.Lock()
 	ret, specificReturn := fake.discoverReturnsOnCall[len(fake.discoverArgsForCall)]
-	fake.discoverArgsForCall = append(fake.discoverArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.discoverArgsForCall = append(fake.discoverArgsForCall, FakeClientDiscoverArgs{arg1})
 	stub := fake.DiscoverStub
 	fakeReturns := fake.discoverReturns
 	fake.recordInvocation("Discover", []interface{}{arg1})
@@ -153,7 +165,15 @@ func (fake *FakeClient) DiscoverArgsForCall(i int) context.Context {
 	fake.discoverMutex.RLock()
 	defer fake.discoverMutex.RUnlock()
 	argsForCall := fake.discoverArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) DiscoverArgs() []FakeClientDiscoverArgs {
+	fake.discoverMutex.RLock()
+	defer fake.discoverMutex.RUnlock()
+	args := make([]FakeClientDiscoverArgs, len(fake.discoverArgsForCall))
+	copy(args, fake.discoverArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) DiscoverReturns(result1 error) {
@@ -182,9 +202,7 @@ func (fake *FakeClient) DiscoverReturnsOnCall(i int, result1 error) {
 func (fake *FakeClient) ListTools(arg1 context.Context) ([]domain.Tool, error) {
 	fake.listToolsMutex.Lock()
 	ret, specificReturn := fake.listToolsReturnsOnCall[len(fake.listToolsArgsForCall)]
-	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, FakeClientListToolsArgs{arg1})
 	stub := fake.ListToolsStub
 	fakeReturns := fake.listToolsReturns
 	fake.recordInvocation("ListTools", []interface{}{arg1})
@@ -214,7 +232,15 @@ func (fake *FakeClient) ListToolsArgsForCall(i int) context.Context {
 	fake.listToolsMutex.RLock()
 	defer fake.listToolsMutex.RUnlock()
 	argsForCall := fake.listToolsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) ListToolsArgs() []FakeClientListToolsArgs {
+	fake.listToolsMutex.RLock()
+	defer fake.listToolsMutex.RUnlock()
+	args := make([]FakeClientListToolsArgs, len(fake.listToolsArgsForCall))
+	copy(args, fake.listToolsArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) ListToolsReturns(result1 []domain.Tool, result2 error) {
@@ -253,9 +279,18 @@ func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeClient) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

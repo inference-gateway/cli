@@ -10,9 +10,8 @@ import (
 type FakeAgentModeState struct {
 	CycleAgentModeStub        func() domain.AgentMode
 	cycleAgentModeMutex       sync.RWMutex
-	cycleAgentModeArgsForCall []struct {
-	}
-	cycleAgentModeReturns struct {
+	cycleAgentModeArgsForCall []struct{}
+	cycleAgentModeReturns     struct {
 		result1 domain.AgentMode
 	}
 	cycleAgentModeReturnsOnCall map[int]struct {
@@ -20,9 +19,8 @@ type FakeAgentModeState struct {
 	}
 	GetAgentModeStub        func() domain.AgentMode
 	getAgentModeMutex       sync.RWMutex
-	getAgentModeArgsForCall []struct {
-	}
-	getAgentModeReturns struct {
+	getAgentModeArgsForCall []struct{}
+	getAgentModeReturns     struct {
 		result1 domain.AgentMode
 	}
 	getAgentModeReturnsOnCall map[int]struct {
@@ -30,18 +28,21 @@ type FakeAgentModeState struct {
 	}
 	SetAgentModeStub        func(domain.AgentMode)
 	setAgentModeMutex       sync.RWMutex
-	setAgentModeArgsForCall []struct {
-		arg1 domain.AgentMode
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setAgentModeArgsForCall []FakeAgentModeStateSetAgentModeArgs
+	invocations             map[string][][]interface{}
+	callOrder               []string
+	invocationsMutex        sync.RWMutex
+}
+
+// FakeAgentModeStateSetAgentModeArgs holds the arguments of one call to SetAgentMode.
+type FakeAgentModeStateSetAgentModeArgs struct {
+	Arg1 domain.AgentMode
 }
 
 func (fake *FakeAgentModeState) CycleAgentMode() domain.AgentMode {
 	fake.cycleAgentModeMutex.Lock()
 	ret, specificReturn := fake.cycleAgentModeReturnsOnCall[len(fake.cycleAgentModeArgsForCall)]
-	fake.cycleAgentModeArgsForCall = append(fake.cycleAgentModeArgsForCall, struct {
-	}{})
+	fake.cycleAgentModeArgsForCall = append(fake.cycleAgentModeArgsForCall, struct{}{})
 	stub := fake.CycleAgentModeStub
 	fakeReturns := fake.cycleAgentModeReturns
 	fake.recordInvocation("CycleAgentMode", []interface{}{})
@@ -93,8 +94,7 @@ func (fake *FakeAgentModeState) CycleAgentModeReturnsOnCall(i int, result1 domai
 func (fake *FakeAgentModeState) GetAgentMode() domain.AgentMode {
 	fake.getAgentModeMutex.Lock()
 	ret, specificReturn := fake.getAgentModeReturnsOnCall[len(fake.getAgentModeArgsForCall)]
-	fake.getAgentModeArgsForCall = append(fake.getAgentModeArgsForCall, struct {
-	}{})
+	fake.getAgentModeArgsForCall = append(fake.getAgentModeArgsForCall, struct{}{})
 	stub := fake.GetAgentModeStub
 	fakeReturns := fake.getAgentModeReturns
 	fake.recordInvocation("GetAgentMode", []interface{}{})
@@ -145,14 +145,12 @@ func (fake *FakeAgentModeState) GetAgentModeReturnsOnCall(i int, result1 domain.
 
 func (fake *FakeAgentModeState) SetAgentMode(arg1 domain.AgentMode) {
 	fake.setAgentModeMutex.Lock()
-	fake.setAgentModeArgsForCall = append(fake.setAgentModeArgsForCall, struct {
-		arg1 domain.AgentMode
-	}{arg1})
+	fake.setAgentModeArgsForCall = append(fake.setAgentModeArgsForCall, FakeAgentModeStateSetAgentModeArgs{arg1})
 	stub := fake.SetAgentModeStub
 	fake.recordInvocation("SetAgentMode", []interface{}{arg1})
 	fake.setAgentModeMutex.Unlock()
 	if stub != nil {
-		fake.SetAgentModeStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -172,7 +170,15 @@ func (fake *FakeAgentModeState) SetAgentModeArgsForCall(i int) domain.AgentMode 
 	fake.setAgentModeMutex.RLock()
 	defer fake.setAgentModeMutex.RUnlock()
 	argsForCall := fake.setAgentModeArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAgentModeState) SetAgentModeArgs() []FakeAgentModeStateSetAgentModeArgs {
+	fake.setAgentModeMutex.RLock()
+	defer fake.setAgentModeMutex.RUnlock()
+	args := make([]FakeAgentModeStateSetAgentModeArgs, len(fake.setAgentModeArgsForCall))
+	copy(args, fake.setAgentModeArgsForCall)
+	return args
 }
 
 func (fake *FakeAgentModeState) Invocations() map[string][][]interface{} {
@@ -185,9 +191,18 @@ func (fake *FakeAgentModeState) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeAgentModeState) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAgentModeState) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

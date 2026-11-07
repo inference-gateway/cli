@@ -11,11 +11,8 @@ import (
 type FakeWorkspace struct {
 	DeleteStub        func(context.Context, domain.Session) error
 	deleteMutex       sync.RWMutex
-	deleteArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}
-	deleteReturns struct {
+	deleteArgsForCall []FakeWorkspaceDeleteArgs
+	deleteReturns     struct {
 		result1 error
 	}
 	deleteReturnsOnCall map[int]struct {
@@ -23,11 +20,8 @@ type FakeWorkspace struct {
 	}
 	EnsureStub        func(context.Context, domain.Session) (domain.Endpoint, error)
 	ensureMutex       sync.RWMutex
-	ensureArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}
-	ensureReturns struct {
+	ensureArgsForCall []FakeWorkspaceEnsureArgs
+	ensureReturns     struct {
 		result1 domain.Endpoint
 		result2 error
 	}
@@ -37,9 +31,8 @@ type FakeWorkspace struct {
 	}
 	KindStub        func() domain.WorkspaceKind
 	kindMutex       sync.RWMutex
-	kindArgsForCall []struct {
-	}
-	kindReturns struct {
+	kindArgsForCall []struct{}
+	kindReturns     struct {
 		result1 domain.WorkspaceKind
 	}
 	kindReturnsOnCall map[int]struct {
@@ -47,9 +40,8 @@ type FakeWorkspace struct {
 	}
 	NameStub        func() string
 	nameMutex       sync.RWMutex
-	nameArgsForCall []struct {
-	}
-	nameReturns struct {
+	nameArgsForCall []struct{}
+	nameReturns     struct {
 		result1 string
 	}
 	nameReturnsOnCall map[int]struct {
@@ -57,10 +49,8 @@ type FakeWorkspace struct {
 	}
 	ProbeStub        func(context.Context) domain.WorkspaceStatus
 	probeMutex       sync.RWMutex
-	probeArgsForCall []struct {
-		arg1 context.Context
-	}
-	probeReturns struct {
+	probeArgsForCall []FakeWorkspaceProbeArgs
+	probeReturns     struct {
 		result1 domain.WorkspaceStatus
 	}
 	probeReturnsOnCall map[int]struct {
@@ -68,11 +58,8 @@ type FakeWorkspace struct {
 	}
 	ReachStub        func(context.Context, domain.Session) (domain.Endpoint, error)
 	reachMutex       sync.RWMutex
-	reachArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}
-	reachReturns struct {
+	reachArgsForCall []FakeWorkspaceReachArgs
+	reachReturns     struct {
 		result1 domain.Endpoint
 		result2 error
 	}
@@ -82,27 +69,51 @@ type FakeWorkspace struct {
 	}
 	SuspendStub        func(context.Context, domain.Session) error
 	suspendMutex       sync.RWMutex
-	suspendArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}
-	suspendReturns struct {
+	suspendArgsForCall []FakeWorkspaceSuspendArgs
+	suspendReturns     struct {
 		result1 error
 	}
 	suspendReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeWorkspaceDeleteArgs holds the arguments of one call to Delete.
+type FakeWorkspaceDeleteArgs struct {
+	Arg1 context.Context
+	Arg2 domain.Session
+}
+
+// FakeWorkspaceEnsureArgs holds the arguments of one call to Ensure.
+type FakeWorkspaceEnsureArgs struct {
+	Arg1 context.Context
+	Arg2 domain.Session
+}
+
+// FakeWorkspaceProbeArgs holds the arguments of one call to Probe.
+type FakeWorkspaceProbeArgs struct {
+	Arg1 context.Context
+}
+
+// FakeWorkspaceReachArgs holds the arguments of one call to Reach.
+type FakeWorkspaceReachArgs struct {
+	Arg1 context.Context
+	Arg2 domain.Session
+}
+
+// FakeWorkspaceSuspendArgs holds the arguments of one call to Suspend.
+type FakeWorkspaceSuspendArgs struct {
+	Arg1 context.Context
+	Arg2 domain.Session
 }
 
 func (fake *FakeWorkspace) Delete(arg1 context.Context, arg2 domain.Session) error {
 	fake.deleteMutex.Lock()
 	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
-	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}{arg1, arg2})
+	fake.deleteArgsForCall = append(fake.deleteArgsForCall, FakeWorkspaceDeleteArgs{arg1, arg2})
 	stub := fake.DeleteStub
 	fakeReturns := fake.deleteReturns
 	fake.recordInvocation("Delete", []interface{}{arg1, arg2})
@@ -132,7 +143,15 @@ func (fake *FakeWorkspace) DeleteArgsForCall(i int) (context.Context, domain.Ses
 	fake.deleteMutex.RLock()
 	defer fake.deleteMutex.RUnlock()
 	argsForCall := fake.deleteArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeWorkspace) DeleteArgs() []FakeWorkspaceDeleteArgs {
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
+	args := make([]FakeWorkspaceDeleteArgs, len(fake.deleteArgsForCall))
+	copy(args, fake.deleteArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkspace) DeleteReturns(result1 error) {
@@ -161,10 +180,7 @@ func (fake *FakeWorkspace) DeleteReturnsOnCall(i int, result1 error) {
 func (fake *FakeWorkspace) Ensure(arg1 context.Context, arg2 domain.Session) (domain.Endpoint, error) {
 	fake.ensureMutex.Lock()
 	ret, specificReturn := fake.ensureReturnsOnCall[len(fake.ensureArgsForCall)]
-	fake.ensureArgsForCall = append(fake.ensureArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}{arg1, arg2})
+	fake.ensureArgsForCall = append(fake.ensureArgsForCall, FakeWorkspaceEnsureArgs{arg1, arg2})
 	stub := fake.EnsureStub
 	fakeReturns := fake.ensureReturns
 	fake.recordInvocation("Ensure", []interface{}{arg1, arg2})
@@ -194,7 +210,15 @@ func (fake *FakeWorkspace) EnsureArgsForCall(i int) (context.Context, domain.Ses
 	fake.ensureMutex.RLock()
 	defer fake.ensureMutex.RUnlock()
 	argsForCall := fake.ensureArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeWorkspace) EnsureArgs() []FakeWorkspaceEnsureArgs {
+	fake.ensureMutex.RLock()
+	defer fake.ensureMutex.RUnlock()
+	args := make([]FakeWorkspaceEnsureArgs, len(fake.ensureArgsForCall))
+	copy(args, fake.ensureArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkspace) EnsureReturns(result1 domain.Endpoint, result2 error) {
@@ -226,8 +250,7 @@ func (fake *FakeWorkspace) EnsureReturnsOnCall(i int, result1 domain.Endpoint, r
 func (fake *FakeWorkspace) Kind() domain.WorkspaceKind {
 	fake.kindMutex.Lock()
 	ret, specificReturn := fake.kindReturnsOnCall[len(fake.kindArgsForCall)]
-	fake.kindArgsForCall = append(fake.kindArgsForCall, struct {
-	}{})
+	fake.kindArgsForCall = append(fake.kindArgsForCall, struct{}{})
 	stub := fake.KindStub
 	fakeReturns := fake.kindReturns
 	fake.recordInvocation("Kind", []interface{}{})
@@ -279,8 +302,7 @@ func (fake *FakeWorkspace) KindReturnsOnCall(i int, result1 domain.WorkspaceKind
 func (fake *FakeWorkspace) Name() string {
 	fake.nameMutex.Lock()
 	ret, specificReturn := fake.nameReturnsOnCall[len(fake.nameArgsForCall)]
-	fake.nameArgsForCall = append(fake.nameArgsForCall, struct {
-	}{})
+	fake.nameArgsForCall = append(fake.nameArgsForCall, struct{}{})
 	stub := fake.NameStub
 	fakeReturns := fake.nameReturns
 	fake.recordInvocation("Name", []interface{}{})
@@ -332,9 +354,7 @@ func (fake *FakeWorkspace) NameReturnsOnCall(i int, result1 string) {
 func (fake *FakeWorkspace) Probe(arg1 context.Context) domain.WorkspaceStatus {
 	fake.probeMutex.Lock()
 	ret, specificReturn := fake.probeReturnsOnCall[len(fake.probeArgsForCall)]
-	fake.probeArgsForCall = append(fake.probeArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.probeArgsForCall = append(fake.probeArgsForCall, FakeWorkspaceProbeArgs{arg1})
 	stub := fake.ProbeStub
 	fakeReturns := fake.probeReturns
 	fake.recordInvocation("Probe", []interface{}{arg1})
@@ -364,7 +384,15 @@ func (fake *FakeWorkspace) ProbeArgsForCall(i int) context.Context {
 	fake.probeMutex.RLock()
 	defer fake.probeMutex.RUnlock()
 	argsForCall := fake.probeArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeWorkspace) ProbeArgs() []FakeWorkspaceProbeArgs {
+	fake.probeMutex.RLock()
+	defer fake.probeMutex.RUnlock()
+	args := make([]FakeWorkspaceProbeArgs, len(fake.probeArgsForCall))
+	copy(args, fake.probeArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkspace) ProbeReturns(result1 domain.WorkspaceStatus) {
@@ -393,10 +421,7 @@ func (fake *FakeWorkspace) ProbeReturnsOnCall(i int, result1 domain.WorkspaceSta
 func (fake *FakeWorkspace) Reach(arg1 context.Context, arg2 domain.Session) (domain.Endpoint, error) {
 	fake.reachMutex.Lock()
 	ret, specificReturn := fake.reachReturnsOnCall[len(fake.reachArgsForCall)]
-	fake.reachArgsForCall = append(fake.reachArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}{arg1, arg2})
+	fake.reachArgsForCall = append(fake.reachArgsForCall, FakeWorkspaceReachArgs{arg1, arg2})
 	stub := fake.ReachStub
 	fakeReturns := fake.reachReturns
 	fake.recordInvocation("Reach", []interface{}{arg1, arg2})
@@ -426,7 +451,15 @@ func (fake *FakeWorkspace) ReachArgsForCall(i int) (context.Context, domain.Sess
 	fake.reachMutex.RLock()
 	defer fake.reachMutex.RUnlock()
 	argsForCall := fake.reachArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeWorkspace) ReachArgs() []FakeWorkspaceReachArgs {
+	fake.reachMutex.RLock()
+	defer fake.reachMutex.RUnlock()
+	args := make([]FakeWorkspaceReachArgs, len(fake.reachArgsForCall))
+	copy(args, fake.reachArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkspace) ReachReturns(result1 domain.Endpoint, result2 error) {
@@ -458,10 +491,7 @@ func (fake *FakeWorkspace) ReachReturnsOnCall(i int, result1 domain.Endpoint, re
 func (fake *FakeWorkspace) Suspend(arg1 context.Context, arg2 domain.Session) error {
 	fake.suspendMutex.Lock()
 	ret, specificReturn := fake.suspendReturnsOnCall[len(fake.suspendArgsForCall)]
-	fake.suspendArgsForCall = append(fake.suspendArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.Session
-	}{arg1, arg2})
+	fake.suspendArgsForCall = append(fake.suspendArgsForCall, FakeWorkspaceSuspendArgs{arg1, arg2})
 	stub := fake.SuspendStub
 	fakeReturns := fake.suspendReturns
 	fake.recordInvocation("Suspend", []interface{}{arg1, arg2})
@@ -491,7 +521,15 @@ func (fake *FakeWorkspace) SuspendArgsForCall(i int) (context.Context, domain.Se
 	fake.suspendMutex.RLock()
 	defer fake.suspendMutex.RUnlock()
 	argsForCall := fake.suspendArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeWorkspace) SuspendArgs() []FakeWorkspaceSuspendArgs {
+	fake.suspendMutex.RLock()
+	defer fake.suspendMutex.RUnlock()
+	args := make([]FakeWorkspaceSuspendArgs, len(fake.suspendArgsForCall))
+	copy(args, fake.suspendArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkspace) SuspendReturns(result1 error) {
@@ -527,9 +565,18 @@ func (fake *FakeWorkspace) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeWorkspace) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeWorkspace) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

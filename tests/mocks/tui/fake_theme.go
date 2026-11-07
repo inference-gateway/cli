@@ -10,9 +10,8 @@ import (
 type FakeTheme struct {
 	GetAccentColorStub        func() string
 	getAccentColorMutex       sync.RWMutex
-	getAccentColorArgsForCall []struct {
-	}
-	getAccentColorReturns struct {
+	getAccentColorArgsForCall []struct{}
+	getAccentColorReturns     struct {
 		result1 string
 	}
 	getAccentColorReturnsOnCall map[int]struct {
@@ -20,9 +19,8 @@ type FakeTheme struct {
 	}
 	GetAssistantColorStub        func() string
 	getAssistantColorMutex       sync.RWMutex
-	getAssistantColorArgsForCall []struct {
-	}
-	getAssistantColorReturns struct {
+	getAssistantColorArgsForCall []struct{}
+	getAssistantColorReturns     struct {
 		result1 string
 	}
 	getAssistantColorReturnsOnCall map[int]struct {
@@ -30,9 +28,8 @@ type FakeTheme struct {
 	}
 	GetBorderColorStub        func() string
 	getBorderColorMutex       sync.RWMutex
-	getBorderColorArgsForCall []struct {
-	}
-	getBorderColorReturns struct {
+	getBorderColorArgsForCall []struct{}
+	getBorderColorReturns     struct {
 		result1 string
 	}
 	getBorderColorReturnsOnCall map[int]struct {
@@ -40,9 +37,8 @@ type FakeTheme struct {
 	}
 	GetDiffAddColorStub        func() string
 	getDiffAddColorMutex       sync.RWMutex
-	getDiffAddColorArgsForCall []struct {
-	}
-	getDiffAddColorReturns struct {
+	getDiffAddColorArgsForCall []struct{}
+	getDiffAddColorReturns     struct {
 		result1 string
 	}
 	getDiffAddColorReturnsOnCall map[int]struct {
@@ -50,9 +46,8 @@ type FakeTheme struct {
 	}
 	GetDiffRemoveColorStub        func() string
 	getDiffRemoveColorMutex       sync.RWMutex
-	getDiffRemoveColorArgsForCall []struct {
-	}
-	getDiffRemoveColorReturns struct {
+	getDiffRemoveColorArgsForCall []struct{}
+	getDiffRemoveColorReturns     struct {
 		result1 string
 	}
 	getDiffRemoveColorReturnsOnCall map[int]struct {
@@ -60,9 +55,8 @@ type FakeTheme struct {
 	}
 	GetDimColorStub        func() string
 	getDimColorMutex       sync.RWMutex
-	getDimColorArgsForCall []struct {
-	}
-	getDimColorReturns struct {
+	getDimColorArgsForCall []struct{}
+	getDimColorReturns     struct {
 		result1 string
 	}
 	getDimColorReturnsOnCall map[int]struct {
@@ -70,9 +64,8 @@ type FakeTheme struct {
 	}
 	GetErrorColorStub        func() string
 	getErrorColorMutex       sync.RWMutex
-	getErrorColorArgsForCall []struct {
-	}
-	getErrorColorReturns struct {
+	getErrorColorArgsForCall []struct{}
+	getErrorColorReturns     struct {
 		result1 string
 	}
 	getErrorColorReturnsOnCall map[int]struct {
@@ -80,9 +73,8 @@ type FakeTheme struct {
 	}
 	GetStatusColorStub        func() string
 	getStatusColorMutex       sync.RWMutex
-	getStatusColorArgsForCall []struct {
-	}
-	getStatusColorReturns struct {
+	getStatusColorArgsForCall []struct{}
+	getStatusColorReturns     struct {
 		result1 string
 	}
 	getStatusColorReturnsOnCall map[int]struct {
@@ -90,9 +82,8 @@ type FakeTheme struct {
 	}
 	GetSuccessColorStub        func() string
 	getSuccessColorMutex       sync.RWMutex
-	getSuccessColorArgsForCall []struct {
-	}
-	getSuccessColorReturns struct {
+	getSuccessColorArgsForCall []struct{}
+	getSuccessColorReturns     struct {
 		result1 string
 	}
 	getSuccessColorReturnsOnCall map[int]struct {
@@ -100,9 +91,8 @@ type FakeTheme struct {
 	}
 	GetUserColorStub        func() string
 	getUserColorMutex       sync.RWMutex
-	getUserColorArgsForCall []struct {
-	}
-	getUserColorReturns struct {
+	getUserColorArgsForCall []struct{}
+	getUserColorReturns     struct {
 		result1 string
 	}
 	getUserColorReturnsOnCall map[int]struct {
@@ -110,23 +100,22 @@ type FakeTheme struct {
 	}
 	GetWarningColorStub        func() string
 	getWarningColorMutex       sync.RWMutex
-	getWarningColorArgsForCall []struct {
-	}
-	getWarningColorReturns struct {
+	getWarningColorArgsForCall []struct{}
+	getWarningColorReturns     struct {
 		result1 string
 	}
 	getWarningColorReturnsOnCall map[int]struct {
 		result1 string
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
 }
 
 func (fake *FakeTheme) GetAccentColor() string {
 	fake.getAccentColorMutex.Lock()
 	ret, specificReturn := fake.getAccentColorReturnsOnCall[len(fake.getAccentColorArgsForCall)]
-	fake.getAccentColorArgsForCall = append(fake.getAccentColorArgsForCall, struct {
-	}{})
+	fake.getAccentColorArgsForCall = append(fake.getAccentColorArgsForCall, struct{}{})
 	stub := fake.GetAccentColorStub
 	fakeReturns := fake.getAccentColorReturns
 	fake.recordInvocation("GetAccentColor", []interface{}{})
@@ -178,8 +167,7 @@ func (fake *FakeTheme) GetAccentColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetAssistantColor() string {
 	fake.getAssistantColorMutex.Lock()
 	ret, specificReturn := fake.getAssistantColorReturnsOnCall[len(fake.getAssistantColorArgsForCall)]
-	fake.getAssistantColorArgsForCall = append(fake.getAssistantColorArgsForCall, struct {
-	}{})
+	fake.getAssistantColorArgsForCall = append(fake.getAssistantColorArgsForCall, struct{}{})
 	stub := fake.GetAssistantColorStub
 	fakeReturns := fake.getAssistantColorReturns
 	fake.recordInvocation("GetAssistantColor", []interface{}{})
@@ -231,8 +219,7 @@ func (fake *FakeTheme) GetAssistantColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetBorderColor() string {
 	fake.getBorderColorMutex.Lock()
 	ret, specificReturn := fake.getBorderColorReturnsOnCall[len(fake.getBorderColorArgsForCall)]
-	fake.getBorderColorArgsForCall = append(fake.getBorderColorArgsForCall, struct {
-	}{})
+	fake.getBorderColorArgsForCall = append(fake.getBorderColorArgsForCall, struct{}{})
 	stub := fake.GetBorderColorStub
 	fakeReturns := fake.getBorderColorReturns
 	fake.recordInvocation("GetBorderColor", []interface{}{})
@@ -284,8 +271,7 @@ func (fake *FakeTheme) GetBorderColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetDiffAddColor() string {
 	fake.getDiffAddColorMutex.Lock()
 	ret, specificReturn := fake.getDiffAddColorReturnsOnCall[len(fake.getDiffAddColorArgsForCall)]
-	fake.getDiffAddColorArgsForCall = append(fake.getDiffAddColorArgsForCall, struct {
-	}{})
+	fake.getDiffAddColorArgsForCall = append(fake.getDiffAddColorArgsForCall, struct{}{})
 	stub := fake.GetDiffAddColorStub
 	fakeReturns := fake.getDiffAddColorReturns
 	fake.recordInvocation("GetDiffAddColor", []interface{}{})
@@ -337,8 +323,7 @@ func (fake *FakeTheme) GetDiffAddColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetDiffRemoveColor() string {
 	fake.getDiffRemoveColorMutex.Lock()
 	ret, specificReturn := fake.getDiffRemoveColorReturnsOnCall[len(fake.getDiffRemoveColorArgsForCall)]
-	fake.getDiffRemoveColorArgsForCall = append(fake.getDiffRemoveColorArgsForCall, struct {
-	}{})
+	fake.getDiffRemoveColorArgsForCall = append(fake.getDiffRemoveColorArgsForCall, struct{}{})
 	stub := fake.GetDiffRemoveColorStub
 	fakeReturns := fake.getDiffRemoveColorReturns
 	fake.recordInvocation("GetDiffRemoveColor", []interface{}{})
@@ -390,8 +375,7 @@ func (fake *FakeTheme) GetDiffRemoveColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetDimColor() string {
 	fake.getDimColorMutex.Lock()
 	ret, specificReturn := fake.getDimColorReturnsOnCall[len(fake.getDimColorArgsForCall)]
-	fake.getDimColorArgsForCall = append(fake.getDimColorArgsForCall, struct {
-	}{})
+	fake.getDimColorArgsForCall = append(fake.getDimColorArgsForCall, struct{}{})
 	stub := fake.GetDimColorStub
 	fakeReturns := fake.getDimColorReturns
 	fake.recordInvocation("GetDimColor", []interface{}{})
@@ -443,8 +427,7 @@ func (fake *FakeTheme) GetDimColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetErrorColor() string {
 	fake.getErrorColorMutex.Lock()
 	ret, specificReturn := fake.getErrorColorReturnsOnCall[len(fake.getErrorColorArgsForCall)]
-	fake.getErrorColorArgsForCall = append(fake.getErrorColorArgsForCall, struct {
-	}{})
+	fake.getErrorColorArgsForCall = append(fake.getErrorColorArgsForCall, struct{}{})
 	stub := fake.GetErrorColorStub
 	fakeReturns := fake.getErrorColorReturns
 	fake.recordInvocation("GetErrorColor", []interface{}{})
@@ -496,8 +479,7 @@ func (fake *FakeTheme) GetErrorColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetStatusColor() string {
 	fake.getStatusColorMutex.Lock()
 	ret, specificReturn := fake.getStatusColorReturnsOnCall[len(fake.getStatusColorArgsForCall)]
-	fake.getStatusColorArgsForCall = append(fake.getStatusColorArgsForCall, struct {
-	}{})
+	fake.getStatusColorArgsForCall = append(fake.getStatusColorArgsForCall, struct{}{})
 	stub := fake.GetStatusColorStub
 	fakeReturns := fake.getStatusColorReturns
 	fake.recordInvocation("GetStatusColor", []interface{}{})
@@ -549,8 +531,7 @@ func (fake *FakeTheme) GetStatusColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetSuccessColor() string {
 	fake.getSuccessColorMutex.Lock()
 	ret, specificReturn := fake.getSuccessColorReturnsOnCall[len(fake.getSuccessColorArgsForCall)]
-	fake.getSuccessColorArgsForCall = append(fake.getSuccessColorArgsForCall, struct {
-	}{})
+	fake.getSuccessColorArgsForCall = append(fake.getSuccessColorArgsForCall, struct{}{})
 	stub := fake.GetSuccessColorStub
 	fakeReturns := fake.getSuccessColorReturns
 	fake.recordInvocation("GetSuccessColor", []interface{}{})
@@ -602,8 +583,7 @@ func (fake *FakeTheme) GetSuccessColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetUserColor() string {
 	fake.getUserColorMutex.Lock()
 	ret, specificReturn := fake.getUserColorReturnsOnCall[len(fake.getUserColorArgsForCall)]
-	fake.getUserColorArgsForCall = append(fake.getUserColorArgsForCall, struct {
-	}{})
+	fake.getUserColorArgsForCall = append(fake.getUserColorArgsForCall, struct{}{})
 	stub := fake.GetUserColorStub
 	fakeReturns := fake.getUserColorReturns
 	fake.recordInvocation("GetUserColor", []interface{}{})
@@ -655,8 +635,7 @@ func (fake *FakeTheme) GetUserColorReturnsOnCall(i int, result1 string) {
 func (fake *FakeTheme) GetWarningColor() string {
 	fake.getWarningColorMutex.Lock()
 	ret, specificReturn := fake.getWarningColorReturnsOnCall[len(fake.getWarningColorArgsForCall)]
-	fake.getWarningColorArgsForCall = append(fake.getWarningColorArgsForCall, struct {
-	}{})
+	fake.getWarningColorArgsForCall = append(fake.getWarningColorArgsForCall, struct{}{})
 	stub := fake.GetWarningColorStub
 	fakeReturns := fake.getWarningColorReturns
 	fake.recordInvocation("GetWarningColor", []interface{}{})
@@ -715,9 +694,18 @@ func (fake *FakeTheme) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeTheme) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeTheme) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

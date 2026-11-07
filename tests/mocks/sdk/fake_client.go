@@ -11,12 +11,8 @@ import (
 type FakeClient struct {
 	CreateDecisionStub        func(context.Context, sdk.Provider, sdk.CreateDecisionRequest) (*sdk.Decision, error)
 	createDecisionMutex       sync.RWMutex
-	createDecisionArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateDecisionRequest
-	}
-	createDecisionReturns struct {
+	createDecisionArgsForCall []FakeClientCreateDecisionArgs
+	createDecisionReturns     struct {
 		result1 *sdk.Decision
 		result2 error
 	}
@@ -26,12 +22,8 @@ type FakeClient struct {
 	}
 	CreateImageStub        func(context.Context, sdk.Provider, sdk.CreateImageRequest) (*sdk.ImagesResponse, error)
 	createImageMutex       sync.RWMutex
-	createImageArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateImageRequest
-	}
-	createImageReturns struct {
+	createImageArgsForCall []FakeClientCreateImageArgs
+	createImageReturns     struct {
 		result1 *sdk.ImagesResponse
 		result2 error
 	}
@@ -41,12 +33,8 @@ type FakeClient struct {
 	}
 	CreateImageEditStub        func(context.Context, sdk.Provider, sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error)
 	createImageEditMutex       sync.RWMutex
-	createImageEditArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateImageEditMultipartBody
-	}
-	createImageEditReturns struct {
+	createImageEditArgsForCall []FakeClientCreateImageEditArgs
+	createImageEditReturns     struct {
 		result1 *sdk.ImagesResponse
 		result2 error
 	}
@@ -56,12 +44,8 @@ type FakeClient struct {
 	}
 	CreateMessageStub        func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error)
 	createMessageMutex       sync.RWMutex
-	createMessageArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateMessagesRequest
-	}
-	createMessageReturns struct {
+	createMessageArgsForCall []FakeClientCreateMessageArgs
+	createMessageReturns     struct {
 		result1 *sdk.MessagesResponse
 		result2 error
 	}
@@ -71,12 +55,8 @@ type FakeClient struct {
 	}
 	CreateMessageStreamStub        func(context.Context, sdk.Provider, sdk.CreateMessagesRequest) (<-chan sdk.SSEvent, error)
 	createMessageStreamMutex       sync.RWMutex
-	createMessageStreamArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateMessagesRequest
-	}
-	createMessageStreamReturns struct {
+	createMessageStreamArgsForCall []FakeClientCreateMessageStreamArgs
+	createMessageStreamReturns     struct {
 		result1 <-chan sdk.SSEvent
 		result2 error
 	}
@@ -86,12 +66,8 @@ type FakeClient struct {
 	}
 	CreateMusicStub        func(context.Context, sdk.Provider, sdk.CreateMusicRequest) ([]byte, error)
 	createMusicMutex       sync.RWMutex
-	createMusicArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateMusicRequest
-	}
-	createMusicReturns struct {
+	createMusicArgsForCall []FakeClientCreateMusicArgs
+	createMusicReturns     struct {
 		result1 []byte
 		result2 error
 	}
@@ -101,12 +77,8 @@ type FakeClient struct {
 	}
 	CreateSFXStub        func(context.Context, sdk.Provider, sdk.CreateSFXRequest) ([]byte, error)
 	createSFXMutex       sync.RWMutex
-	createSFXArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateSFXRequest
-	}
-	createSFXReturns struct {
+	createSFXArgsForCall []FakeClientCreateSFXArgs
+	createSFXReturns     struct {
 		result1 []byte
 		result2 error
 	}
@@ -116,12 +88,8 @@ type FakeClient struct {
 	}
 	CreateSpeechStub        func(context.Context, sdk.Provider, sdk.CreateSpeechRequest) ([]byte, error)
 	createSpeechMutex       sync.RWMutex
-	createSpeechArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateSpeechRequest
-	}
-	createSpeechReturns struct {
+	createSpeechArgsForCall []FakeClientCreateSpeechArgs
+	createSpeechReturns     struct {
 		result1 []byte
 		result2 error
 	}
@@ -131,12 +99,8 @@ type FakeClient struct {
 	}
 	CreateVideoStub        func(context.Context, sdk.Provider, sdk.CreateVideoRequest) (*sdk.VideoJob, error)
 	createVideoMutex       sync.RWMutex
-	createVideoArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateVideoRequest
-	}
-	createVideoReturns struct {
+	createVideoArgsForCall []FakeClientCreateVideoArgs
+	createVideoReturns     struct {
 		result1 *sdk.VideoJob
 		result2 error
 	}
@@ -146,12 +110,8 @@ type FakeClient struct {
 	}
 	DownloadVideoContentStub        func(context.Context, sdk.Provider, string) ([]byte, error)
 	downloadVideoContentMutex       sync.RWMutex
-	downloadVideoContentArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-	}
-	downloadVideoContentReturns struct {
+	downloadVideoContentArgsForCall []FakeClientDownloadVideoContentArgs
+	downloadVideoContentReturns     struct {
 		result1 []byte
 		result2 error
 	}
@@ -161,13 +121,8 @@ type FakeClient struct {
 	}
 	GenerateContentStub        func(context.Context, sdk.Provider, string, []sdk.Message) (*sdk.CreateChatCompletionResponse, error)
 	generateContentMutex       sync.RWMutex
-	generateContentArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-		arg4 []sdk.Message
-	}
-	generateContentReturns struct {
+	generateContentArgsForCall []FakeClientGenerateContentArgs
+	generateContentReturns     struct {
 		result1 *sdk.CreateChatCompletionResponse
 		result2 error
 	}
@@ -177,13 +132,8 @@ type FakeClient struct {
 	}
 	GenerateContentStreamStub        func(context.Context, sdk.Provider, string, []sdk.Message) (<-chan sdk.SSEvent, error)
 	generateContentStreamMutex       sync.RWMutex
-	generateContentStreamArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-		arg4 []sdk.Message
-	}
-	generateContentStreamReturns struct {
+	generateContentStreamArgsForCall []FakeClientGenerateContentStreamArgs
+	generateContentStreamReturns     struct {
 		result1 <-chan sdk.SSEvent
 		result2 error
 	}
@@ -193,10 +143,8 @@ type FakeClient struct {
 	}
 	GetMCPProtectedResourceMetadataStub        func(context.Context) (*sdk.OAuthProtectedResourceMetadata, error)
 	getMCPProtectedResourceMetadataMutex       sync.RWMutex
-	getMCPProtectedResourceMetadataArgsForCall []struct {
-		arg1 context.Context
-	}
-	getMCPProtectedResourceMetadataReturns struct {
+	getMCPProtectedResourceMetadataArgsForCall []FakeClientGetMCPProtectedResourceMetadataArgs
+	getMCPProtectedResourceMetadataReturns     struct {
 		result1 *sdk.OAuthProtectedResourceMetadata
 		result2 error
 	}
@@ -206,10 +154,8 @@ type FakeClient struct {
 	}
 	HealthCheckStub        func(context.Context) error
 	healthCheckMutex       sync.RWMutex
-	healthCheckArgsForCall []struct {
-		arg1 context.Context
-	}
-	healthCheckReturns struct {
+	healthCheckArgsForCall []FakeClientHealthCheckArgs
+	healthCheckReturns     struct {
 		result1 error
 	}
 	healthCheckReturnsOnCall map[int]struct {
@@ -217,11 +163,8 @@ type FakeClient struct {
 	}
 	ListModelsStub        func(context.Context, ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error)
 	listModelsMutex       sync.RWMutex
-	listModelsArgsForCall []struct {
-		arg1 context.Context
-		arg2 []sdk.ListModelsParamsInclude
-	}
-	listModelsReturns struct {
+	listModelsArgsForCall []FakeClientListModelsArgs
+	listModelsReturns     struct {
 		result1 *sdk.ListModelsResponse
 		result2 error
 	}
@@ -231,12 +174,8 @@ type FakeClient struct {
 	}
 	ListProviderModelsStub        func(context.Context, sdk.Provider, ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error)
 	listProviderModelsMutex       sync.RWMutex
-	listProviderModelsArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 []sdk.ListModelsParamsInclude
-	}
-	listProviderModelsReturns struct {
+	listProviderModelsArgsForCall []FakeClientListProviderModelsArgs
+	listProviderModelsReturns     struct {
 		result1 *sdk.ListModelsResponse
 		result2 error
 	}
@@ -246,11 +185,8 @@ type FakeClient struct {
 	}
 	MCPJSONRPCStub        func(context.Context, sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error)
 	mCPJSONRPCMutex       sync.RWMutex
-	mCPJSONRPCArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.MCPJSONRPCRequest
-	}
-	mCPJSONRPCReturns struct {
+	mCPJSONRPCArgsForCall []FakeClientMCPJSONRPCArgs
+	mCPJSONRPCReturns     struct {
 		result1 *sdk.MCPJSONRPCResponse
 		result2 error
 	}
@@ -260,12 +196,8 @@ type FakeClient struct {
 	}
 	RetrieveVideoStub        func(context.Context, sdk.Provider, string) (*sdk.VideoJob, error)
 	retrieveVideoMutex       sync.RWMutex
-	retrieveVideoArgsForCall []struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-	}
-	retrieveVideoReturns struct {
+	retrieveVideoArgsForCall []FakeClientRetrieveVideoArgs
+	retrieveVideoReturns     struct {
 		result1 *sdk.VideoJob
 		result2 error
 	}
@@ -275,10 +207,8 @@ type FakeClient struct {
 	}
 	WithAuthTokenStub        func(string) sdk.Client
 	withAuthTokenMutex       sync.RWMutex
-	withAuthTokenArgsForCall []struct {
-		arg1 string
-	}
-	withAuthTokenReturns struct {
+	withAuthTokenArgsForCall []FakeClientWithAuthTokenArgs
+	withAuthTokenReturns     struct {
 		result1 sdk.Client
 	}
 	withAuthTokenReturnsOnCall map[int]struct {
@@ -286,11 +216,8 @@ type FakeClient struct {
 	}
 	WithHeaderStub        func(string, string) sdk.Client
 	withHeaderMutex       sync.RWMutex
-	withHeaderArgsForCall []struct {
-		arg1 string
-		arg2 string
-	}
-	withHeaderReturns struct {
+	withHeaderArgsForCall []FakeClientWithHeaderArgs
+	withHeaderReturns     struct {
 		result1 sdk.Client
 	}
 	withHeaderReturnsOnCall map[int]struct {
@@ -298,10 +225,8 @@ type FakeClient struct {
 	}
 	WithHeadersStub        func(map[string]string) sdk.Client
 	withHeadersMutex       sync.RWMutex
-	withHeadersArgsForCall []struct {
-		arg1 map[string]string
-	}
-	withHeadersReturns struct {
+	withHeadersArgsForCall []FakeClientWithHeadersArgs
+	withHeadersReturns     struct {
 		result1 sdk.Client
 	}
 	withHeadersReturnsOnCall map[int]struct {
@@ -309,10 +234,8 @@ type FakeClient struct {
 	}
 	WithMiddlewareOptionsStub        func(*sdk.MiddlewareOptions) sdk.Client
 	withMiddlewareOptionsMutex       sync.RWMutex
-	withMiddlewareOptionsArgsForCall []struct {
-		arg1 *sdk.MiddlewareOptions
-	}
-	withMiddlewareOptionsReturns struct {
+	withMiddlewareOptionsArgsForCall []FakeClientWithMiddlewareOptionsArgs
+	withMiddlewareOptionsReturns     struct {
 		result1 sdk.Client
 	}
 	withMiddlewareOptionsReturnsOnCall map[int]struct {
@@ -320,10 +243,8 @@ type FakeClient struct {
 	}
 	WithOptionsStub        func(*sdk.CreateChatCompletionRequest) sdk.Client
 	withOptionsMutex       sync.RWMutex
-	withOptionsArgsForCall []struct {
-		arg1 *sdk.CreateChatCompletionRequest
-	}
-	withOptionsReturns struct {
+	withOptionsArgsForCall []FakeClientWithOptionsArgs
+	withOptionsReturns     struct {
 		result1 sdk.Client
 	}
 	withOptionsReturnsOnCall map[int]struct {
@@ -331,27 +252,175 @@ type FakeClient struct {
 	}
 	WithToolsStub        func(*[]sdk.ChatCompletionTool) sdk.Client
 	withToolsMutex       sync.RWMutex
-	withToolsArgsForCall []struct {
-		arg1 *[]sdk.ChatCompletionTool
-	}
-	withToolsReturns struct {
+	withToolsArgsForCall []FakeClientWithToolsArgs
+	withToolsReturns     struct {
 		result1 sdk.Client
 	}
 	withToolsReturnsOnCall map[int]struct {
 		result1 sdk.Client
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeClientCreateDecisionArgs holds the arguments of one call to CreateDecision.
+type FakeClientCreateDecisionArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateDecisionRequest
+}
+
+// FakeClientCreateImageArgs holds the arguments of one call to CreateImage.
+type FakeClientCreateImageArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateImageRequest
+}
+
+// FakeClientCreateImageEditArgs holds the arguments of one call to CreateImageEdit.
+type FakeClientCreateImageEditArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateImageEditMultipartBody
+}
+
+// FakeClientCreateMessageArgs holds the arguments of one call to CreateMessage.
+type FakeClientCreateMessageArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateMessagesRequest
+}
+
+// FakeClientCreateMessageStreamArgs holds the arguments of one call to CreateMessageStream.
+type FakeClientCreateMessageStreamArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateMessagesRequest
+}
+
+// FakeClientCreateMusicArgs holds the arguments of one call to CreateMusic.
+type FakeClientCreateMusicArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateMusicRequest
+}
+
+// FakeClientCreateSFXArgs holds the arguments of one call to CreateSFX.
+type FakeClientCreateSFXArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateSFXRequest
+}
+
+// FakeClientCreateSpeechArgs holds the arguments of one call to CreateSpeech.
+type FakeClientCreateSpeechArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateSpeechRequest
+}
+
+// FakeClientCreateVideoArgs holds the arguments of one call to CreateVideo.
+type FakeClientCreateVideoArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 sdk.CreateVideoRequest
+}
+
+// FakeClientDownloadVideoContentArgs holds the arguments of one call to DownloadVideoContent.
+type FakeClientDownloadVideoContentArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 string
+}
+
+// FakeClientGenerateContentArgs holds the arguments of one call to GenerateContent.
+type FakeClientGenerateContentArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 string
+	Arg4 []sdk.Message
+}
+
+// FakeClientGenerateContentStreamArgs holds the arguments of one call to GenerateContentStream.
+type FakeClientGenerateContentStreamArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 string
+	Arg4 []sdk.Message
+}
+
+// FakeClientGetMCPProtectedResourceMetadataArgs holds the arguments of one call to GetMCPProtectedResourceMetadata.
+type FakeClientGetMCPProtectedResourceMetadataArgs struct {
+	Arg1 context.Context
+}
+
+// FakeClientHealthCheckArgs holds the arguments of one call to HealthCheck.
+type FakeClientHealthCheckArgs struct {
+	Arg1 context.Context
+}
+
+// FakeClientListModelsArgs holds the arguments of one call to ListModels.
+type FakeClientListModelsArgs struct {
+	Arg1 context.Context
+	Arg2 []sdk.ListModelsParamsInclude
+}
+
+// FakeClientListProviderModelsArgs holds the arguments of one call to ListProviderModels.
+type FakeClientListProviderModelsArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 []sdk.ListModelsParamsInclude
+}
+
+// FakeClientMCPJSONRPCArgs holds the arguments of one call to MCPJSONRPC.
+type FakeClientMCPJSONRPCArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.MCPJSONRPCRequest
+}
+
+// FakeClientRetrieveVideoArgs holds the arguments of one call to RetrieveVideo.
+type FakeClientRetrieveVideoArgs struct {
+	Arg1 context.Context
+	Arg2 sdk.Provider
+	Arg3 string
+}
+
+// FakeClientWithAuthTokenArgs holds the arguments of one call to WithAuthToken.
+type FakeClientWithAuthTokenArgs struct {
+	Arg1 string
+}
+
+// FakeClientWithHeaderArgs holds the arguments of one call to WithHeader.
+type FakeClientWithHeaderArgs struct {
+	Arg1 string
+	Arg2 string
+}
+
+// FakeClientWithHeadersArgs holds the arguments of one call to WithHeaders.
+type FakeClientWithHeadersArgs struct {
+	Arg1 map[string]string
+}
+
+// FakeClientWithMiddlewareOptionsArgs holds the arguments of one call to WithMiddlewareOptions.
+type FakeClientWithMiddlewareOptionsArgs struct {
+	Arg1 *sdk.MiddlewareOptions
+}
+
+// FakeClientWithOptionsArgs holds the arguments of one call to WithOptions.
+type FakeClientWithOptionsArgs struct {
+	Arg1 *sdk.CreateChatCompletionRequest
+}
+
+// FakeClientWithToolsArgs holds the arguments of one call to WithTools.
+type FakeClientWithToolsArgs struct {
+	Arg1 *[]sdk.ChatCompletionTool
 }
 
 func (fake *FakeClient) CreateDecision(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateDecisionRequest) (*sdk.Decision, error) {
 	fake.createDecisionMutex.Lock()
 	ret, specificReturn := fake.createDecisionReturnsOnCall[len(fake.createDecisionArgsForCall)]
-	fake.createDecisionArgsForCall = append(fake.createDecisionArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateDecisionRequest
-	}{arg1, arg2, arg3})
+	fake.createDecisionArgsForCall = append(fake.createDecisionArgsForCall, FakeClientCreateDecisionArgs{arg1, arg2, arg3})
 	stub := fake.CreateDecisionStub
 	fakeReturns := fake.createDecisionReturns
 	fake.recordInvocation("CreateDecision", []interface{}{arg1, arg2, arg3})
@@ -381,7 +450,15 @@ func (fake *FakeClient) CreateDecisionArgsForCall(i int) (context.Context, sdk.P
 	fake.createDecisionMutex.RLock()
 	defer fake.createDecisionMutex.RUnlock()
 	argsForCall := fake.createDecisionArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateDecisionArgs() []FakeClientCreateDecisionArgs {
+	fake.createDecisionMutex.RLock()
+	defer fake.createDecisionMutex.RUnlock()
+	args := make([]FakeClientCreateDecisionArgs, len(fake.createDecisionArgsForCall))
+	copy(args, fake.createDecisionArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateDecisionReturns(result1 *sdk.Decision, result2 error) {
@@ -413,11 +490,7 @@ func (fake *FakeClient) CreateDecisionReturnsOnCall(i int, result1 *sdk.Decision
 func (fake *FakeClient) CreateImage(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateImageRequest) (*sdk.ImagesResponse, error) {
 	fake.createImageMutex.Lock()
 	ret, specificReturn := fake.createImageReturnsOnCall[len(fake.createImageArgsForCall)]
-	fake.createImageArgsForCall = append(fake.createImageArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateImageRequest
-	}{arg1, arg2, arg3})
+	fake.createImageArgsForCall = append(fake.createImageArgsForCall, FakeClientCreateImageArgs{arg1, arg2, arg3})
 	stub := fake.CreateImageStub
 	fakeReturns := fake.createImageReturns
 	fake.recordInvocation("CreateImage", []interface{}{arg1, arg2, arg3})
@@ -447,7 +520,15 @@ func (fake *FakeClient) CreateImageArgsForCall(i int) (context.Context, sdk.Prov
 	fake.createImageMutex.RLock()
 	defer fake.createImageMutex.RUnlock()
 	argsForCall := fake.createImageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateImageArgs() []FakeClientCreateImageArgs {
+	fake.createImageMutex.RLock()
+	defer fake.createImageMutex.RUnlock()
+	args := make([]FakeClientCreateImageArgs, len(fake.createImageArgsForCall))
+	copy(args, fake.createImageArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateImageReturns(result1 *sdk.ImagesResponse, result2 error) {
@@ -479,11 +560,7 @@ func (fake *FakeClient) CreateImageReturnsOnCall(i int, result1 *sdk.ImagesRespo
 func (fake *FakeClient) CreateImageEdit(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateImageEditMultipartBody) (*sdk.ImagesResponse, error) {
 	fake.createImageEditMutex.Lock()
 	ret, specificReturn := fake.createImageEditReturnsOnCall[len(fake.createImageEditArgsForCall)]
-	fake.createImageEditArgsForCall = append(fake.createImageEditArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateImageEditMultipartBody
-	}{arg1, arg2, arg3})
+	fake.createImageEditArgsForCall = append(fake.createImageEditArgsForCall, FakeClientCreateImageEditArgs{arg1, arg2, arg3})
 	stub := fake.CreateImageEditStub
 	fakeReturns := fake.createImageEditReturns
 	fake.recordInvocation("CreateImageEdit", []interface{}{arg1, arg2, arg3})
@@ -513,7 +590,15 @@ func (fake *FakeClient) CreateImageEditArgsForCall(i int) (context.Context, sdk.
 	fake.createImageEditMutex.RLock()
 	defer fake.createImageEditMutex.RUnlock()
 	argsForCall := fake.createImageEditArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateImageEditArgs() []FakeClientCreateImageEditArgs {
+	fake.createImageEditMutex.RLock()
+	defer fake.createImageEditMutex.RUnlock()
+	args := make([]FakeClientCreateImageEditArgs, len(fake.createImageEditArgsForCall))
+	copy(args, fake.createImageEditArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateImageEditReturns(result1 *sdk.ImagesResponse, result2 error) {
@@ -545,11 +630,7 @@ func (fake *FakeClient) CreateImageEditReturnsOnCall(i int, result1 *sdk.ImagesR
 func (fake *FakeClient) CreateMessage(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMessagesRequest) (*sdk.MessagesResponse, error) {
 	fake.createMessageMutex.Lock()
 	ret, specificReturn := fake.createMessageReturnsOnCall[len(fake.createMessageArgsForCall)]
-	fake.createMessageArgsForCall = append(fake.createMessageArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateMessagesRequest
-	}{arg1, arg2, arg3})
+	fake.createMessageArgsForCall = append(fake.createMessageArgsForCall, FakeClientCreateMessageArgs{arg1, arg2, arg3})
 	stub := fake.CreateMessageStub
 	fakeReturns := fake.createMessageReturns
 	fake.recordInvocation("CreateMessage", []interface{}{arg1, arg2, arg3})
@@ -579,7 +660,15 @@ func (fake *FakeClient) CreateMessageArgsForCall(i int) (context.Context, sdk.Pr
 	fake.createMessageMutex.RLock()
 	defer fake.createMessageMutex.RUnlock()
 	argsForCall := fake.createMessageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateMessageArgs() []FakeClientCreateMessageArgs {
+	fake.createMessageMutex.RLock()
+	defer fake.createMessageMutex.RUnlock()
+	args := make([]FakeClientCreateMessageArgs, len(fake.createMessageArgsForCall))
+	copy(args, fake.createMessageArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateMessageReturns(result1 *sdk.MessagesResponse, result2 error) {
@@ -611,11 +700,7 @@ func (fake *FakeClient) CreateMessageReturnsOnCall(i int, result1 *sdk.MessagesR
 func (fake *FakeClient) CreateMessageStream(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMessagesRequest) (<-chan sdk.SSEvent, error) {
 	fake.createMessageStreamMutex.Lock()
 	ret, specificReturn := fake.createMessageStreamReturnsOnCall[len(fake.createMessageStreamArgsForCall)]
-	fake.createMessageStreamArgsForCall = append(fake.createMessageStreamArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateMessagesRequest
-	}{arg1, arg2, arg3})
+	fake.createMessageStreamArgsForCall = append(fake.createMessageStreamArgsForCall, FakeClientCreateMessageStreamArgs{arg1, arg2, arg3})
 	stub := fake.CreateMessageStreamStub
 	fakeReturns := fake.createMessageStreamReturns
 	fake.recordInvocation("CreateMessageStream", []interface{}{arg1, arg2, arg3})
@@ -645,7 +730,15 @@ func (fake *FakeClient) CreateMessageStreamArgsForCall(i int) (context.Context, 
 	fake.createMessageStreamMutex.RLock()
 	defer fake.createMessageStreamMutex.RUnlock()
 	argsForCall := fake.createMessageStreamArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateMessageStreamArgs() []FakeClientCreateMessageStreamArgs {
+	fake.createMessageStreamMutex.RLock()
+	defer fake.createMessageStreamMutex.RUnlock()
+	args := make([]FakeClientCreateMessageStreamArgs, len(fake.createMessageStreamArgsForCall))
+	copy(args, fake.createMessageStreamArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateMessageStreamReturns(result1 <-chan sdk.SSEvent, result2 error) {
@@ -677,11 +770,7 @@ func (fake *FakeClient) CreateMessageStreamReturnsOnCall(i int, result1 <-chan s
 func (fake *FakeClient) CreateMusic(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateMusicRequest) ([]byte, error) {
 	fake.createMusicMutex.Lock()
 	ret, specificReturn := fake.createMusicReturnsOnCall[len(fake.createMusicArgsForCall)]
-	fake.createMusicArgsForCall = append(fake.createMusicArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateMusicRequest
-	}{arg1, arg2, arg3})
+	fake.createMusicArgsForCall = append(fake.createMusicArgsForCall, FakeClientCreateMusicArgs{arg1, arg2, arg3})
 	stub := fake.CreateMusicStub
 	fakeReturns := fake.createMusicReturns
 	fake.recordInvocation("CreateMusic", []interface{}{arg1, arg2, arg3})
@@ -711,7 +800,15 @@ func (fake *FakeClient) CreateMusicArgsForCall(i int) (context.Context, sdk.Prov
 	fake.createMusicMutex.RLock()
 	defer fake.createMusicMutex.RUnlock()
 	argsForCall := fake.createMusicArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateMusicArgs() []FakeClientCreateMusicArgs {
+	fake.createMusicMutex.RLock()
+	defer fake.createMusicMutex.RUnlock()
+	args := make([]FakeClientCreateMusicArgs, len(fake.createMusicArgsForCall))
+	copy(args, fake.createMusicArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateMusicReturns(result1 []byte, result2 error) {
@@ -743,11 +840,7 @@ func (fake *FakeClient) CreateMusicReturnsOnCall(i int, result1 []byte, result2 
 func (fake *FakeClient) CreateSFX(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateSFXRequest) ([]byte, error) {
 	fake.createSFXMutex.Lock()
 	ret, specificReturn := fake.createSFXReturnsOnCall[len(fake.createSFXArgsForCall)]
-	fake.createSFXArgsForCall = append(fake.createSFXArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateSFXRequest
-	}{arg1, arg2, arg3})
+	fake.createSFXArgsForCall = append(fake.createSFXArgsForCall, FakeClientCreateSFXArgs{arg1, arg2, arg3})
 	stub := fake.CreateSFXStub
 	fakeReturns := fake.createSFXReturns
 	fake.recordInvocation("CreateSFX", []interface{}{arg1, arg2, arg3})
@@ -777,7 +870,15 @@ func (fake *FakeClient) CreateSFXArgsForCall(i int) (context.Context, sdk.Provid
 	fake.createSFXMutex.RLock()
 	defer fake.createSFXMutex.RUnlock()
 	argsForCall := fake.createSFXArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateSFXArgs() []FakeClientCreateSFXArgs {
+	fake.createSFXMutex.RLock()
+	defer fake.createSFXMutex.RUnlock()
+	args := make([]FakeClientCreateSFXArgs, len(fake.createSFXArgsForCall))
+	copy(args, fake.createSFXArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateSFXReturns(result1 []byte, result2 error) {
@@ -809,11 +910,7 @@ func (fake *FakeClient) CreateSFXReturnsOnCall(i int, result1 []byte, result2 er
 func (fake *FakeClient) CreateSpeech(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateSpeechRequest) ([]byte, error) {
 	fake.createSpeechMutex.Lock()
 	ret, specificReturn := fake.createSpeechReturnsOnCall[len(fake.createSpeechArgsForCall)]
-	fake.createSpeechArgsForCall = append(fake.createSpeechArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateSpeechRequest
-	}{arg1, arg2, arg3})
+	fake.createSpeechArgsForCall = append(fake.createSpeechArgsForCall, FakeClientCreateSpeechArgs{arg1, arg2, arg3})
 	stub := fake.CreateSpeechStub
 	fakeReturns := fake.createSpeechReturns
 	fake.recordInvocation("CreateSpeech", []interface{}{arg1, arg2, arg3})
@@ -843,7 +940,15 @@ func (fake *FakeClient) CreateSpeechArgsForCall(i int) (context.Context, sdk.Pro
 	fake.createSpeechMutex.RLock()
 	defer fake.createSpeechMutex.RUnlock()
 	argsForCall := fake.createSpeechArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateSpeechArgs() []FakeClientCreateSpeechArgs {
+	fake.createSpeechMutex.RLock()
+	defer fake.createSpeechMutex.RUnlock()
+	args := make([]FakeClientCreateSpeechArgs, len(fake.createSpeechArgsForCall))
+	copy(args, fake.createSpeechArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateSpeechReturns(result1 []byte, result2 error) {
@@ -875,11 +980,7 @@ func (fake *FakeClient) CreateSpeechReturnsOnCall(i int, result1 []byte, result2
 func (fake *FakeClient) CreateVideo(arg1 context.Context, arg2 sdk.Provider, arg3 sdk.CreateVideoRequest) (*sdk.VideoJob, error) {
 	fake.createVideoMutex.Lock()
 	ret, specificReturn := fake.createVideoReturnsOnCall[len(fake.createVideoArgsForCall)]
-	fake.createVideoArgsForCall = append(fake.createVideoArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 sdk.CreateVideoRequest
-	}{arg1, arg2, arg3})
+	fake.createVideoArgsForCall = append(fake.createVideoArgsForCall, FakeClientCreateVideoArgs{arg1, arg2, arg3})
 	stub := fake.CreateVideoStub
 	fakeReturns := fake.createVideoReturns
 	fake.recordInvocation("CreateVideo", []interface{}{arg1, arg2, arg3})
@@ -909,7 +1010,15 @@ func (fake *FakeClient) CreateVideoArgsForCall(i int) (context.Context, sdk.Prov
 	fake.createVideoMutex.RLock()
 	defer fake.createVideoMutex.RUnlock()
 	argsForCall := fake.createVideoArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) CreateVideoArgs() []FakeClientCreateVideoArgs {
+	fake.createVideoMutex.RLock()
+	defer fake.createVideoMutex.RUnlock()
+	args := make([]FakeClientCreateVideoArgs, len(fake.createVideoArgsForCall))
+	copy(args, fake.createVideoArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) CreateVideoReturns(result1 *sdk.VideoJob, result2 error) {
@@ -941,11 +1050,7 @@ func (fake *FakeClient) CreateVideoReturnsOnCall(i int, result1 *sdk.VideoJob, r
 func (fake *FakeClient) DownloadVideoContent(arg1 context.Context, arg2 sdk.Provider, arg3 string) ([]byte, error) {
 	fake.downloadVideoContentMutex.Lock()
 	ret, specificReturn := fake.downloadVideoContentReturnsOnCall[len(fake.downloadVideoContentArgsForCall)]
-	fake.downloadVideoContentArgsForCall = append(fake.downloadVideoContentArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.downloadVideoContentArgsForCall = append(fake.downloadVideoContentArgsForCall, FakeClientDownloadVideoContentArgs{arg1, arg2, arg3})
 	stub := fake.DownloadVideoContentStub
 	fakeReturns := fake.downloadVideoContentReturns
 	fake.recordInvocation("DownloadVideoContent", []interface{}{arg1, arg2, arg3})
@@ -975,7 +1080,15 @@ func (fake *FakeClient) DownloadVideoContentArgsForCall(i int) (context.Context,
 	fake.downloadVideoContentMutex.RLock()
 	defer fake.downloadVideoContentMutex.RUnlock()
 	argsForCall := fake.downloadVideoContentArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) DownloadVideoContentArgs() []FakeClientDownloadVideoContentArgs {
+	fake.downloadVideoContentMutex.RLock()
+	defer fake.downloadVideoContentMutex.RUnlock()
+	args := make([]FakeClientDownloadVideoContentArgs, len(fake.downloadVideoContentArgsForCall))
+	copy(args, fake.downloadVideoContentArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) DownloadVideoContentReturns(result1 []byte, result2 error) {
@@ -1012,12 +1125,7 @@ func (fake *FakeClient) GenerateContent(arg1 context.Context, arg2 sdk.Provider,
 	}
 	fake.generateContentMutex.Lock()
 	ret, specificReturn := fake.generateContentReturnsOnCall[len(fake.generateContentArgsForCall)]
-	fake.generateContentArgsForCall = append(fake.generateContentArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-		arg4 []sdk.Message
-	}{arg1, arg2, arg3, arg4Copy})
+	fake.generateContentArgsForCall = append(fake.generateContentArgsForCall, FakeClientGenerateContentArgs{arg1, arg2, arg3, arg4Copy})
 	stub := fake.GenerateContentStub
 	fakeReturns := fake.generateContentReturns
 	fake.recordInvocation("GenerateContent", []interface{}{arg1, arg2, arg3, arg4Copy})
@@ -1047,7 +1155,15 @@ func (fake *FakeClient) GenerateContentArgsForCall(i int) (context.Context, sdk.
 	fake.generateContentMutex.RLock()
 	defer fake.generateContentMutex.RUnlock()
 	argsForCall := fake.generateContentArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeClient) GenerateContentArgs() []FakeClientGenerateContentArgs {
+	fake.generateContentMutex.RLock()
+	defer fake.generateContentMutex.RUnlock()
+	args := make([]FakeClientGenerateContentArgs, len(fake.generateContentArgsForCall))
+	copy(args, fake.generateContentArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) GenerateContentReturns(result1 *sdk.CreateChatCompletionResponse, result2 error) {
@@ -1084,12 +1200,7 @@ func (fake *FakeClient) GenerateContentStream(arg1 context.Context, arg2 sdk.Pro
 	}
 	fake.generateContentStreamMutex.Lock()
 	ret, specificReturn := fake.generateContentStreamReturnsOnCall[len(fake.generateContentStreamArgsForCall)]
-	fake.generateContentStreamArgsForCall = append(fake.generateContentStreamArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-		arg4 []sdk.Message
-	}{arg1, arg2, arg3, arg4Copy})
+	fake.generateContentStreamArgsForCall = append(fake.generateContentStreamArgsForCall, FakeClientGenerateContentStreamArgs{arg1, arg2, arg3, arg4Copy})
 	stub := fake.GenerateContentStreamStub
 	fakeReturns := fake.generateContentStreamReturns
 	fake.recordInvocation("GenerateContentStream", []interface{}{arg1, arg2, arg3, arg4Copy})
@@ -1119,7 +1230,15 @@ func (fake *FakeClient) GenerateContentStreamArgsForCall(i int) (context.Context
 	fake.generateContentStreamMutex.RLock()
 	defer fake.generateContentStreamMutex.RUnlock()
 	argsForCall := fake.generateContentStreamArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeClient) GenerateContentStreamArgs() []FakeClientGenerateContentStreamArgs {
+	fake.generateContentStreamMutex.RLock()
+	defer fake.generateContentStreamMutex.RUnlock()
+	args := make([]FakeClientGenerateContentStreamArgs, len(fake.generateContentStreamArgsForCall))
+	copy(args, fake.generateContentStreamArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) GenerateContentStreamReturns(result1 <-chan sdk.SSEvent, result2 error) {
@@ -1151,9 +1270,7 @@ func (fake *FakeClient) GenerateContentStreamReturnsOnCall(i int, result1 <-chan
 func (fake *FakeClient) GetMCPProtectedResourceMetadata(arg1 context.Context) (*sdk.OAuthProtectedResourceMetadata, error) {
 	fake.getMCPProtectedResourceMetadataMutex.Lock()
 	ret, specificReturn := fake.getMCPProtectedResourceMetadataReturnsOnCall[len(fake.getMCPProtectedResourceMetadataArgsForCall)]
-	fake.getMCPProtectedResourceMetadataArgsForCall = append(fake.getMCPProtectedResourceMetadataArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.getMCPProtectedResourceMetadataArgsForCall = append(fake.getMCPProtectedResourceMetadataArgsForCall, FakeClientGetMCPProtectedResourceMetadataArgs{arg1})
 	stub := fake.GetMCPProtectedResourceMetadataStub
 	fakeReturns := fake.getMCPProtectedResourceMetadataReturns
 	fake.recordInvocation("GetMCPProtectedResourceMetadata", []interface{}{arg1})
@@ -1183,7 +1300,15 @@ func (fake *FakeClient) GetMCPProtectedResourceMetadataArgsForCall(i int) contex
 	fake.getMCPProtectedResourceMetadataMutex.RLock()
 	defer fake.getMCPProtectedResourceMetadataMutex.RUnlock()
 	argsForCall := fake.getMCPProtectedResourceMetadataArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) GetMCPProtectedResourceMetadataArgs() []FakeClientGetMCPProtectedResourceMetadataArgs {
+	fake.getMCPProtectedResourceMetadataMutex.RLock()
+	defer fake.getMCPProtectedResourceMetadataMutex.RUnlock()
+	args := make([]FakeClientGetMCPProtectedResourceMetadataArgs, len(fake.getMCPProtectedResourceMetadataArgsForCall))
+	copy(args, fake.getMCPProtectedResourceMetadataArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) GetMCPProtectedResourceMetadataReturns(result1 *sdk.OAuthProtectedResourceMetadata, result2 error) {
@@ -1215,9 +1340,7 @@ func (fake *FakeClient) GetMCPProtectedResourceMetadataReturnsOnCall(i int, resu
 func (fake *FakeClient) HealthCheck(arg1 context.Context) error {
 	fake.healthCheckMutex.Lock()
 	ret, specificReturn := fake.healthCheckReturnsOnCall[len(fake.healthCheckArgsForCall)]
-	fake.healthCheckArgsForCall = append(fake.healthCheckArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.healthCheckArgsForCall = append(fake.healthCheckArgsForCall, FakeClientHealthCheckArgs{arg1})
 	stub := fake.HealthCheckStub
 	fakeReturns := fake.healthCheckReturns
 	fake.recordInvocation("HealthCheck", []interface{}{arg1})
@@ -1247,7 +1370,15 @@ func (fake *FakeClient) HealthCheckArgsForCall(i int) context.Context {
 	fake.healthCheckMutex.RLock()
 	defer fake.healthCheckMutex.RUnlock()
 	argsForCall := fake.healthCheckArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) HealthCheckArgs() []FakeClientHealthCheckArgs {
+	fake.healthCheckMutex.RLock()
+	defer fake.healthCheckMutex.RUnlock()
+	args := make([]FakeClientHealthCheckArgs, len(fake.healthCheckArgsForCall))
+	copy(args, fake.healthCheckArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) HealthCheckReturns(result1 error) {
@@ -1274,15 +1405,17 @@ func (fake *FakeClient) HealthCheckReturnsOnCall(i int, result1 error) {
 }
 
 func (fake *FakeClient) ListModels(arg1 context.Context, arg2 ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error) {
+	var arg2Copy []sdk.ListModelsParamsInclude
+	if arg2 != nil {
+		arg2Copy = make([]sdk.ListModelsParamsInclude, len(arg2))
+		copy(arg2Copy, arg2)
+	}
 	fake.listModelsMutex.Lock()
 	ret, specificReturn := fake.listModelsReturnsOnCall[len(fake.listModelsArgsForCall)]
-	fake.listModelsArgsForCall = append(fake.listModelsArgsForCall, struct {
-		arg1 context.Context
-		arg2 []sdk.ListModelsParamsInclude
-	}{arg1, arg2})
+	fake.listModelsArgsForCall = append(fake.listModelsArgsForCall, FakeClientListModelsArgs{arg1, arg2Copy})
 	stub := fake.ListModelsStub
 	fakeReturns := fake.listModelsReturns
-	fake.recordInvocation("ListModels", []interface{}{arg1, arg2})
+	fake.recordInvocation("ListModels", []interface{}{arg1, arg2Copy})
 	fake.listModelsMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2...)
@@ -1309,7 +1442,15 @@ func (fake *FakeClient) ListModelsArgsForCall(i int) (context.Context, []sdk.Lis
 	fake.listModelsMutex.RLock()
 	defer fake.listModelsMutex.RUnlock()
 	argsForCall := fake.listModelsArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeClient) ListModelsArgs() []FakeClientListModelsArgs {
+	fake.listModelsMutex.RLock()
+	defer fake.listModelsMutex.RUnlock()
+	args := make([]FakeClientListModelsArgs, len(fake.listModelsArgsForCall))
+	copy(args, fake.listModelsArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) ListModelsReturns(result1 *sdk.ListModelsResponse, result2 error) {
@@ -1339,16 +1480,17 @@ func (fake *FakeClient) ListModelsReturnsOnCall(i int, result1 *sdk.ListModelsRe
 }
 
 func (fake *FakeClient) ListProviderModels(arg1 context.Context, arg2 sdk.Provider, arg3 ...sdk.ListModelsParamsInclude) (*sdk.ListModelsResponse, error) {
+	var arg3Copy []sdk.ListModelsParamsInclude
+	if arg3 != nil {
+		arg3Copy = make([]sdk.ListModelsParamsInclude, len(arg3))
+		copy(arg3Copy, arg3)
+	}
 	fake.listProviderModelsMutex.Lock()
 	ret, specificReturn := fake.listProviderModelsReturnsOnCall[len(fake.listProviderModelsArgsForCall)]
-	fake.listProviderModelsArgsForCall = append(fake.listProviderModelsArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 []sdk.ListModelsParamsInclude
-	}{arg1, arg2, arg3})
+	fake.listProviderModelsArgsForCall = append(fake.listProviderModelsArgsForCall, FakeClientListProviderModelsArgs{arg1, arg2, arg3Copy})
 	stub := fake.ListProviderModelsStub
 	fakeReturns := fake.listProviderModelsReturns
-	fake.recordInvocation("ListProviderModels", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("ListProviderModels", []interface{}{arg1, arg2, arg3Copy})
 	fake.listProviderModelsMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2, arg3...)
@@ -1375,7 +1517,15 @@ func (fake *FakeClient) ListProviderModelsArgsForCall(i int) (context.Context, s
 	fake.listProviderModelsMutex.RLock()
 	defer fake.listProviderModelsMutex.RUnlock()
 	argsForCall := fake.listProviderModelsArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) ListProviderModelsArgs() []FakeClientListProviderModelsArgs {
+	fake.listProviderModelsMutex.RLock()
+	defer fake.listProviderModelsMutex.RUnlock()
+	args := make([]FakeClientListProviderModelsArgs, len(fake.listProviderModelsArgsForCall))
+	copy(args, fake.listProviderModelsArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) ListProviderModelsReturns(result1 *sdk.ListModelsResponse, result2 error) {
@@ -1407,10 +1557,7 @@ func (fake *FakeClient) ListProviderModelsReturnsOnCall(i int, result1 *sdk.List
 func (fake *FakeClient) MCPJSONRPC(arg1 context.Context, arg2 sdk.MCPJSONRPCRequest) (*sdk.MCPJSONRPCResponse, error) {
 	fake.mCPJSONRPCMutex.Lock()
 	ret, specificReturn := fake.mCPJSONRPCReturnsOnCall[len(fake.mCPJSONRPCArgsForCall)]
-	fake.mCPJSONRPCArgsForCall = append(fake.mCPJSONRPCArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.MCPJSONRPCRequest
-	}{arg1, arg2})
+	fake.mCPJSONRPCArgsForCall = append(fake.mCPJSONRPCArgsForCall, FakeClientMCPJSONRPCArgs{arg1, arg2})
 	stub := fake.MCPJSONRPCStub
 	fakeReturns := fake.mCPJSONRPCReturns
 	fake.recordInvocation("MCPJSONRPC", []interface{}{arg1, arg2})
@@ -1440,7 +1587,15 @@ func (fake *FakeClient) MCPJSONRPCArgsForCall(i int) (context.Context, sdk.MCPJS
 	fake.mCPJSONRPCMutex.RLock()
 	defer fake.mCPJSONRPCMutex.RUnlock()
 	argsForCall := fake.mCPJSONRPCArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeClient) MCPJSONRPCArgs() []FakeClientMCPJSONRPCArgs {
+	fake.mCPJSONRPCMutex.RLock()
+	defer fake.mCPJSONRPCMutex.RUnlock()
+	args := make([]FakeClientMCPJSONRPCArgs, len(fake.mCPJSONRPCArgsForCall))
+	copy(args, fake.mCPJSONRPCArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) MCPJSONRPCReturns(result1 *sdk.MCPJSONRPCResponse, result2 error) {
@@ -1472,11 +1627,7 @@ func (fake *FakeClient) MCPJSONRPCReturnsOnCall(i int, result1 *sdk.MCPJSONRPCRe
 func (fake *FakeClient) RetrieveVideo(arg1 context.Context, arg2 sdk.Provider, arg3 string) (*sdk.VideoJob, error) {
 	fake.retrieveVideoMutex.Lock()
 	ret, specificReturn := fake.retrieveVideoReturnsOnCall[len(fake.retrieveVideoArgsForCall)]
-	fake.retrieveVideoArgsForCall = append(fake.retrieveVideoArgsForCall, struct {
-		arg1 context.Context
-		arg2 sdk.Provider
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.retrieveVideoArgsForCall = append(fake.retrieveVideoArgsForCall, FakeClientRetrieveVideoArgs{arg1, arg2, arg3})
 	stub := fake.RetrieveVideoStub
 	fakeReturns := fake.retrieveVideoReturns
 	fake.recordInvocation("RetrieveVideo", []interface{}{arg1, arg2, arg3})
@@ -1506,7 +1657,15 @@ func (fake *FakeClient) RetrieveVideoArgsForCall(i int) (context.Context, sdk.Pr
 	fake.retrieveVideoMutex.RLock()
 	defer fake.retrieveVideoMutex.RUnlock()
 	argsForCall := fake.retrieveVideoArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeClient) RetrieveVideoArgs() []FakeClientRetrieveVideoArgs {
+	fake.retrieveVideoMutex.RLock()
+	defer fake.retrieveVideoMutex.RUnlock()
+	args := make([]FakeClientRetrieveVideoArgs, len(fake.retrieveVideoArgsForCall))
+	copy(args, fake.retrieveVideoArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) RetrieveVideoReturns(result1 *sdk.VideoJob, result2 error) {
@@ -1538,9 +1697,7 @@ func (fake *FakeClient) RetrieveVideoReturnsOnCall(i int, result1 *sdk.VideoJob,
 func (fake *FakeClient) WithAuthToken(arg1 string) sdk.Client {
 	fake.withAuthTokenMutex.Lock()
 	ret, specificReturn := fake.withAuthTokenReturnsOnCall[len(fake.withAuthTokenArgsForCall)]
-	fake.withAuthTokenArgsForCall = append(fake.withAuthTokenArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.withAuthTokenArgsForCall = append(fake.withAuthTokenArgsForCall, FakeClientWithAuthTokenArgs{arg1})
 	stub := fake.WithAuthTokenStub
 	fakeReturns := fake.withAuthTokenReturns
 	fake.recordInvocation("WithAuthToken", []interface{}{arg1})
@@ -1570,7 +1727,15 @@ func (fake *FakeClient) WithAuthTokenArgsForCall(i int) string {
 	fake.withAuthTokenMutex.RLock()
 	defer fake.withAuthTokenMutex.RUnlock()
 	argsForCall := fake.withAuthTokenArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) WithAuthTokenArgs() []FakeClientWithAuthTokenArgs {
+	fake.withAuthTokenMutex.RLock()
+	defer fake.withAuthTokenMutex.RUnlock()
+	args := make([]FakeClientWithAuthTokenArgs, len(fake.withAuthTokenArgsForCall))
+	copy(args, fake.withAuthTokenArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) WithAuthTokenReturns(result1 sdk.Client) {
@@ -1599,10 +1764,7 @@ func (fake *FakeClient) WithAuthTokenReturnsOnCall(i int, result1 sdk.Client) {
 func (fake *FakeClient) WithHeader(arg1 string, arg2 string) sdk.Client {
 	fake.withHeaderMutex.Lock()
 	ret, specificReturn := fake.withHeaderReturnsOnCall[len(fake.withHeaderArgsForCall)]
-	fake.withHeaderArgsForCall = append(fake.withHeaderArgsForCall, struct {
-		arg1 string
-		arg2 string
-	}{arg1, arg2})
+	fake.withHeaderArgsForCall = append(fake.withHeaderArgsForCall, FakeClientWithHeaderArgs{arg1, arg2})
 	stub := fake.WithHeaderStub
 	fakeReturns := fake.withHeaderReturns
 	fake.recordInvocation("WithHeader", []interface{}{arg1, arg2})
@@ -1632,7 +1794,15 @@ func (fake *FakeClient) WithHeaderArgsForCall(i int) (string, string) {
 	fake.withHeaderMutex.RLock()
 	defer fake.withHeaderMutex.RUnlock()
 	argsForCall := fake.withHeaderArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeClient) WithHeaderArgs() []FakeClientWithHeaderArgs {
+	fake.withHeaderMutex.RLock()
+	defer fake.withHeaderMutex.RUnlock()
+	args := make([]FakeClientWithHeaderArgs, len(fake.withHeaderArgsForCall))
+	copy(args, fake.withHeaderArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) WithHeaderReturns(result1 sdk.Client) {
@@ -1661,9 +1831,7 @@ func (fake *FakeClient) WithHeaderReturnsOnCall(i int, result1 sdk.Client) {
 func (fake *FakeClient) WithHeaders(arg1 map[string]string) sdk.Client {
 	fake.withHeadersMutex.Lock()
 	ret, specificReturn := fake.withHeadersReturnsOnCall[len(fake.withHeadersArgsForCall)]
-	fake.withHeadersArgsForCall = append(fake.withHeadersArgsForCall, struct {
-		arg1 map[string]string
-	}{arg1})
+	fake.withHeadersArgsForCall = append(fake.withHeadersArgsForCall, FakeClientWithHeadersArgs{arg1})
 	stub := fake.WithHeadersStub
 	fakeReturns := fake.withHeadersReturns
 	fake.recordInvocation("WithHeaders", []interface{}{arg1})
@@ -1693,7 +1861,15 @@ func (fake *FakeClient) WithHeadersArgsForCall(i int) map[string]string {
 	fake.withHeadersMutex.RLock()
 	defer fake.withHeadersMutex.RUnlock()
 	argsForCall := fake.withHeadersArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) WithHeadersArgs() []FakeClientWithHeadersArgs {
+	fake.withHeadersMutex.RLock()
+	defer fake.withHeadersMutex.RUnlock()
+	args := make([]FakeClientWithHeadersArgs, len(fake.withHeadersArgsForCall))
+	copy(args, fake.withHeadersArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) WithHeadersReturns(result1 sdk.Client) {
@@ -1722,9 +1898,7 @@ func (fake *FakeClient) WithHeadersReturnsOnCall(i int, result1 sdk.Client) {
 func (fake *FakeClient) WithMiddlewareOptions(arg1 *sdk.MiddlewareOptions) sdk.Client {
 	fake.withMiddlewareOptionsMutex.Lock()
 	ret, specificReturn := fake.withMiddlewareOptionsReturnsOnCall[len(fake.withMiddlewareOptionsArgsForCall)]
-	fake.withMiddlewareOptionsArgsForCall = append(fake.withMiddlewareOptionsArgsForCall, struct {
-		arg1 *sdk.MiddlewareOptions
-	}{arg1})
+	fake.withMiddlewareOptionsArgsForCall = append(fake.withMiddlewareOptionsArgsForCall, FakeClientWithMiddlewareOptionsArgs{arg1})
 	stub := fake.WithMiddlewareOptionsStub
 	fakeReturns := fake.withMiddlewareOptionsReturns
 	fake.recordInvocation("WithMiddlewareOptions", []interface{}{arg1})
@@ -1754,7 +1928,15 @@ func (fake *FakeClient) WithMiddlewareOptionsArgsForCall(i int) *sdk.MiddlewareO
 	fake.withMiddlewareOptionsMutex.RLock()
 	defer fake.withMiddlewareOptionsMutex.RUnlock()
 	argsForCall := fake.withMiddlewareOptionsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) WithMiddlewareOptionsArgs() []FakeClientWithMiddlewareOptionsArgs {
+	fake.withMiddlewareOptionsMutex.RLock()
+	defer fake.withMiddlewareOptionsMutex.RUnlock()
+	args := make([]FakeClientWithMiddlewareOptionsArgs, len(fake.withMiddlewareOptionsArgsForCall))
+	copy(args, fake.withMiddlewareOptionsArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) WithMiddlewareOptionsReturns(result1 sdk.Client) {
@@ -1783,9 +1965,7 @@ func (fake *FakeClient) WithMiddlewareOptionsReturnsOnCall(i int, result1 sdk.Cl
 func (fake *FakeClient) WithOptions(arg1 *sdk.CreateChatCompletionRequest) sdk.Client {
 	fake.withOptionsMutex.Lock()
 	ret, specificReturn := fake.withOptionsReturnsOnCall[len(fake.withOptionsArgsForCall)]
-	fake.withOptionsArgsForCall = append(fake.withOptionsArgsForCall, struct {
-		arg1 *sdk.CreateChatCompletionRequest
-	}{arg1})
+	fake.withOptionsArgsForCall = append(fake.withOptionsArgsForCall, FakeClientWithOptionsArgs{arg1})
 	stub := fake.WithOptionsStub
 	fakeReturns := fake.withOptionsReturns
 	fake.recordInvocation("WithOptions", []interface{}{arg1})
@@ -1815,7 +1995,15 @@ func (fake *FakeClient) WithOptionsArgsForCall(i int) *sdk.CreateChatCompletionR
 	fake.withOptionsMutex.RLock()
 	defer fake.withOptionsMutex.RUnlock()
 	argsForCall := fake.withOptionsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) WithOptionsArgs() []FakeClientWithOptionsArgs {
+	fake.withOptionsMutex.RLock()
+	defer fake.withOptionsMutex.RUnlock()
+	args := make([]FakeClientWithOptionsArgs, len(fake.withOptionsArgsForCall))
+	copy(args, fake.withOptionsArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) WithOptionsReturns(result1 sdk.Client) {
@@ -1844,9 +2032,7 @@ func (fake *FakeClient) WithOptionsReturnsOnCall(i int, result1 sdk.Client) {
 func (fake *FakeClient) WithTools(arg1 *[]sdk.ChatCompletionTool) sdk.Client {
 	fake.withToolsMutex.Lock()
 	ret, specificReturn := fake.withToolsReturnsOnCall[len(fake.withToolsArgsForCall)]
-	fake.withToolsArgsForCall = append(fake.withToolsArgsForCall, struct {
-		arg1 *[]sdk.ChatCompletionTool
-	}{arg1})
+	fake.withToolsArgsForCall = append(fake.withToolsArgsForCall, FakeClientWithToolsArgs{arg1})
 	stub := fake.WithToolsStub
 	fakeReturns := fake.withToolsReturns
 	fake.recordInvocation("WithTools", []interface{}{arg1})
@@ -1876,7 +2062,15 @@ func (fake *FakeClient) WithToolsArgsForCall(i int) *[]sdk.ChatCompletionTool {
 	fake.withToolsMutex.RLock()
 	defer fake.withToolsMutex.RUnlock()
 	argsForCall := fake.withToolsArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeClient) WithToolsArgs() []FakeClientWithToolsArgs {
+	fake.withToolsMutex.RLock()
+	defer fake.withToolsMutex.RUnlock()
+	args := make([]FakeClientWithToolsArgs, len(fake.withToolsArgsForCall))
+	copy(args, fake.withToolsArgsForCall)
+	return args
 }
 
 func (fake *FakeClient) WithToolsReturns(result1 sdk.Client) {
@@ -1912,9 +2106,18 @@ func (fake *FakeClient) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeClient) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

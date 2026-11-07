@@ -11,11 +11,8 @@ import (
 type FakeCompleter struct {
 	CompleteStub        func(context.Context, llm.Request) (llm.Response, error)
 	completeMutex       sync.RWMutex
-	completeArgsForCall []struct {
-		arg1 context.Context
-		arg2 llm.Request
-	}
-	completeReturns struct {
+	completeArgsForCall []FakeCompleterCompleteArgs
+	completeReturns     struct {
 		result1 llm.Response
 		result2 error
 	}
@@ -24,16 +21,20 @@ type FakeCompleter struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeCompleterCompleteArgs holds the arguments of one call to Complete.
+type FakeCompleterCompleteArgs struct {
+	Arg1 context.Context
+	Arg2 llm.Request
 }
 
 func (fake *FakeCompleter) Complete(arg1 context.Context, arg2 llm.Request) (llm.Response, error) {
 	fake.completeMutex.Lock()
 	ret, specificReturn := fake.completeReturnsOnCall[len(fake.completeArgsForCall)]
-	fake.completeArgsForCall = append(fake.completeArgsForCall, struct {
-		arg1 context.Context
-		arg2 llm.Request
-	}{arg1, arg2})
+	fake.completeArgsForCall = append(fake.completeArgsForCall, FakeCompleterCompleteArgs{arg1, arg2})
 	stub := fake.CompleteStub
 	fakeReturns := fake.completeReturns
 	fake.recordInvocation("Complete", []interface{}{arg1, arg2})
@@ -63,7 +64,15 @@ func (fake *FakeCompleter) CompleteArgsForCall(i int) (context.Context, llm.Requ
 	fake.completeMutex.RLock()
 	defer fake.completeMutex.RUnlock()
 	argsForCall := fake.completeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeCompleter) CompleteArgs() []FakeCompleterCompleteArgs {
+	fake.completeMutex.RLock()
+	defer fake.completeMutex.RUnlock()
+	args := make([]FakeCompleterCompleteArgs, len(fake.completeArgsForCall))
+	copy(args, fake.completeArgsForCall)
+	return args
 }
 
 func (fake *FakeCompleter) CompleteReturns(result1 llm.Response, result2 error) {
@@ -102,9 +111,18 @@ func (fake *FakeCompleter) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeCompleter) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeCompleter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
