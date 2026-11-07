@@ -18,7 +18,6 @@ func TestPortableKeepsTheAgentAndDropsWhatBelongsToTheDaemon(t *testing.T) {
 		Agent:              "reviewer",
 		Tools:              []string{"Read", "Grep"},
 		DisallowedTools:    []string{"Bash"},
-		PinModel:           true,
 		Workspace:          "remote",
 		WorkspaceDir:       "/workspace/project",
 		Env:                []string{"TOKEN=secret"},
@@ -31,7 +30,6 @@ func TestPortableKeepsTheAgentAndDropsWhatBelongsToTheDaemon(t *testing.T) {
 		MaxTurns:           500,
 		Tools:              []string{"Read", "Grep"},
 		DisallowedTools:    []string{"Bash"},
-		PinModel:           true,
 	}
 	if got := opened.Portable(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Portable() = %+v, want %+v", got, want)
@@ -51,8 +49,8 @@ func TestThreadOptionsJSON(t *testing.T) {
 		},
 		{
 			name: "a relay carries what the agent resolved to",
-			wire: `{"model":"provider/pinned","system_prompt":"body","tools":["Read","Grep"],"disallowed_tools":["Bash"],"pin_model":true}`,
-			want: ThreadOptions{Model: "provider/pinned", SystemPrompt: "body", Tools: []string{"Read", "Grep"}, DisallowedTools: []string{"Bash"}, PinModel: true},
+			wire: `{"model":"provider/agent","system_prompt":"body","tools":["Read","Grep"],"disallowed_tools":["Bash"]}`,
+			want: ThreadOptions{Model: "provider/agent", SystemPrompt: "body", Tools: []string{"Read", "Grep"}, DisallowedTools: []string{"Bash"}},
 		},
 	}
 	for _, tt := range tests {

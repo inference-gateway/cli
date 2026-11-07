@@ -157,7 +157,7 @@ func TestARelayOpensWithTheThreadsResolvedAgentOptions(t *testing.T) {
 		{name: "new_session", frame: `{"type":"new_session","project_dir":"/proj","agent":"reviewer","model":"provider/own"}`},
 	}
 	resolved := sessionsdomain.ThreadOptions{
-		Agent: "reviewer", Model: "provider/pinned", PinModel: true, SystemPrompt: "You review diffs.",
+		Agent: "reviewer", Model: "provider/agent", SystemPrompt: "You review diffs.",
 		Tools: []string{"Read"}, DisallowedTools: []string{"Bash"}, SandboxDirectories: []string{"/proj"},
 	}
 	for _, tt := range tests {

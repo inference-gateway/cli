@@ -24,13 +24,11 @@ type ThreadOptions struct {
 	// Subagent marks a thread another thread's Agent tool spawned.
 	Subagent *Subagent `json:"subagent,omitempty"`
 	// Agent names the Markdown agent the thread runs as. The daemon it is
-	// opened on resolves it into the model, system prompt, tool lists and pin
+	// opened on resolves it into the model, system prompt and tool lists
 	// below, so a relay or a teleport carries those instead of the name.
 	Agent           string   `json:"agent,omitempty"`
 	Tools           []string `json:"tools,omitempty"`
 	DisallowedTools []string `json:"disallowed_tools,omitempty"`
-	// PinModel keeps Model for the thread's lifetime, whatever select_model asks.
-	PinModel bool `json:"pin_model,omitempty"`
 	// Workspace and WorkspaceDir place a thread no lease places: the
 	// workspace that holds its conversation and the source code there, as
 	// when a client opens a session it listed on a remote workspace.
@@ -53,7 +51,6 @@ func (o ThreadOptions) Portable() ThreadOptions {
 		MaxTurns:           o.MaxTurns,
 		Tools:              o.Tools,
 		DisallowedTools:    o.DisallowedTools,
-		PinModel:           o.PinModel,
 	}
 }
 

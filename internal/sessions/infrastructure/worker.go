@@ -96,9 +96,6 @@ func workerArgs(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions)
 	if opts.Mode != "" {
 		args = append(args, "--mode", opts.Mode)
 	}
-	if opts.PinModel {
-		args = append(args, "--pin-model")
-	}
 	return args
 }
 

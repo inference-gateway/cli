@@ -26,11 +26,10 @@ import (
 // stdin, each rendered as its own AG-UI run on stdout, until stdin closes and
 // the queue is empty. Mid-turn messages stay queued for the running turn to
 // drain, and panel frames are answered on stdout whenever they arrive.
-func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, notes *startupNotes, pinModel bool) {
+func serve(ctx context.Context, svc Services, notifications uiBridge, turn agentdomain.AgentRequest, notes *startupNotes) {
 	ctl := newHeadlessControl(svc.GetAgentService(), svc.GetMessageQueue(), newReferences(svc), turn.RequestID)
 	ctl.browser = newStdioBrowser(os.Stdout)
 	ctl.panel = svc.NewPanel(os.Stdout)
-	ctl.panel.models.pinned = pinModel
 	ctl.panel.screen.wake = ctl.wakeTurns
 	ctl.panel.screen.resolve = ctl.rejectComputerApprovals
 	svc.SetUINotifier(drainWaker{UINotifier: notifications, drained: ctl.drained})

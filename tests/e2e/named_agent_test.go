@@ -110,19 +110,13 @@ func TestDaemonRunsAThreadAsItsNamedAgent(t *testing.T) {
 
 	c.say("which model are you running on")
 	require.Contains(t, replyText(c.run()), "Answered as the named agent.")
-	c.send(map[string]any{"type": "select_model", "project_dir": project, "model": testModel})
-	require.Equal(t, agentModel, c.next("models")["current"], "select_model must leave a pinned agent model alone")
-	c.say("which model are you running on")
-	c.run()
 
 	asked := requestsFor(m, "named-agent-own-model")
-	require.Len(t, asked, 2)
-	for _, r := range asked {
-		require.Equal(t, "anthropic", r.Provider, "the front-matter model's provider, not the thread's")
-		require.Equal(t, "claude-sonnet-4-5", r.Model, "the front-matter model, before and after select_model")
-		require.Contains(t, systemPrompt(t, r), agentBody, "the agent's body is the system prompt")
-		require.Equal(t, []string{"Read"}, advertisedTools(t, r), "only the agent's tools are offered")
-	}
+	require.Len(t, asked, 1)
+	require.Equal(t, "anthropic", asked[0].Provider, "the front-matter model's provider, not the thread's")
+	require.Equal(t, "claude-sonnet-4-5", asked[0].Model, "the front-matter model, not the thread's")
+	require.Contains(t, systemPrompt(t, asked[0]), agentBody, "the agent's body is the system prompt")
+	require.Equal(t, []string{"Read"}, advertisedTools(t, asked[0]), "only the agent's tools are offered")
 
 	c.say("write agent-blocked.txt")
 	events := c.run()
@@ -141,7 +135,7 @@ func TestDaemonKeepsTheThreadModelForAnInheritAgentInDotAgents(t *testing.T) {
 	c.next("MESSAGES_SNAPSHOT")
 
 	c.send(map[string]any{"type": "select_model", "project_dir": project, "model": agentModel})
-	require.Equal(t, agentModel, c.next("models")["current"], "an inherit agent's thread still switches models")
+	require.Equal(t, agentModel, c.next("models")["current"], "an inherit agent's thread switches models")
 	c.say("which model are you running on")
 	c.run()
 

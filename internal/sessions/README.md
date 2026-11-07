@@ -18,7 +18,7 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   tool allowlist, which the worker gets as its subagent env. `agent` names a Markdown agent, which the
   `ResolveAgent` port the daemon wires (`tools.ResolveThreadAgent`) overlays when the thread is created, from
   the frame's `project_dir` and the home dir (`.infer/agents`, then `.agents/agents`). The thread keeps what it resolved to (`model`, `system_prompt`,
-  `tools`, `disallowed_tools`, `pin_model`), so relaunches, relays and teleports carry those and never the name,
+  `tools`, `disallowed_tools`), so relaunches, relays and teleports carry those and never the name,
   and an unknown agent fails the open with `RUN_ERROR`. `workspace` and `workspace_dir` place a thread no lease places on a
   remote workspace, which the launch seam relays it to.
 - **Forwarded frames** - `run_agent_input`, `add_note`, `interrupt` and `user_question_response` go to the
@@ -82,7 +82,7 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   `teleport` package drives them.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
-  env overrides. `pin_model` becomes `--pin-model`, and an agent's `tools` and `disallowed_tools` reach the
+  env overrides. An agent's `tools` and `disallowed_tools` reach the
   worker's tool service as `INFER_SUBAGENT_TOOLS` and `INFER_DISALLOWED_TOOLS`, without the subagent's parent
   and depth. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so
   the worker's gateway, MCP servers and containers shut down. The worker logs JSON to stderr instead of keeping

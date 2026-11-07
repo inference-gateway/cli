@@ -182,7 +182,7 @@ func findMarkdownAgent(agents []markdownAgent, name string) (markdownAgent, erro
 // ResolveThreadAgent overlays the Markdown agent a daemon thread names, from
 // projectDir's .infer/agents then ~/.infer/agents, onto the thread's options.
 // As for a named subagent, the body is the system prompt and a frontmatter model
-// wins, pinned for the thread. The tool lists stay unresolved for the worker.
+// wins over the thread's. The tool lists stay unresolved for the worker.
 func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (sessionsdomain.ThreadOptions, error) {
 	agent, err := findMarkdownAgent(loadMarkdownAgents(markdownAgentDirs(projectDir), nil), opts.Agent)
 	if err != nil {
@@ -191,7 +191,6 @@ func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (s
 	opts.SystemPrompt = agent.systemPrompt
 	if agent.model != "" {
 		opts.Model = agent.model
-		opts.PinModel = true
 	}
 	opts.Tools = agent.tools
 	opts.DisallowedTools = agent.disallowedTools

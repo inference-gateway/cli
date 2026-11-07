@@ -322,10 +322,10 @@ Nothing.`)
 		wantErr string
 	}{
 		{
-			name:  "a project agent with a model pins it and keeps its tools for the worker",
+			name:  "a project agent's model wins and it keeps its tools for the worker",
 			agent: "reviewer",
 			want: sessionsdomain.ThreadOptions{
-				Agent: "reviewer", Model: "deepseek/deepseek-v4-pro", PinModel: true,
+				Agent: "reviewer", Model: "deepseek/deepseek-v4-pro",
 				SystemPrompt: "You review diffs.", CustomInstructions: "siblings",
 				Tools: []string{ToolGrep, ToolRead, "project_tool"}, DisallowedTools: []string{ToolBash},
 			},

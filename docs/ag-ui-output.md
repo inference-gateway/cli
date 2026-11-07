@@ -244,7 +244,7 @@ it has one, an image becomes a note naming its path, and an unreadable path stay
 Each turn is one AG-UI run: `RUN_STARTED` with `threadId` set to the conversation the worker holds (a
 rollover or an accepted plan moves it on to a new one, which a client follows), then exactly one
 `RUN_FINISHED` or `RUN_ERROR`. Each serve run opens with `MESSAGES_SNAPSHOT`, including the newly submitted user messages. `select_model`
-switches the model the next turns use, unless the worker runs with `--pin-model`. Without `--model` and `agent.model`, the worker falls back to the gateway's
+switches the model the next turns use. Without `--model` and `agent.model`, the worker falls back to the gateway's
 first model, so it can answer panel frames in an unconfigured project.
 
 Pausing computer use is stopping the run with `interrupt` and continuing it with an empty

@@ -420,36 +420,6 @@ func TestPanelListModelsDefaultFirstAndSelect(t *testing.T) {
 	readFrame(t, sink, "mode")
 }
 
-func TestPanelSelectModelOnAPinnedModel(t *testing.T) {
-	tests := []struct {
-		name        string
-		pinned      bool
-		wantSwitch  int
-		wantCurrent string
-	}{
-		{name: "an unpinned worker switches", wantSwitch: 1, wantCurrent: "a/x"},
-		{name: "a pinned worker keeps its model and reports it", pinned: true, wantSwitch: 0, wantCurrent: "b/pinned"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			models := &convmocks.FakeModelService{}
-			models.ListModelsReturns([]string{"a/x", "b/pinned"}, nil)
-			models.GetCurrentModelReturns("b/pinned")
-			models.SelectModelCalls(func(m string) error { models.GetCurrentModelReturns(m); return nil })
-			deps := panelDeps()
-			deps.Models = models
-			p, sink := startPanel(deps)
-			p.models.pinned = tt.pinned
-
-			handle(t, p, map[string]any{"type": "select_model", "model": "a/x"})
-			frame := readFrame(t, sink, "models")
-			if models.SelectModelCallCount() != tt.wantSwitch || frame["current"] != tt.wantCurrent {
-				t.Fatalf("SelectModel calls = %d, current = %v, want %d and %s", models.SelectModelCallCount(), frame["current"], tt.wantSwitch, tt.wantCurrent)
-			}
-		})
-	}
-}
-
 func TestPanelListModelsCarriesTheGatewaysCatalog(t *testing.T) {
 	gateway := &sdkmocks.FakeClient{}
 	chat := sdk.ModelModalities{Input: []sdk.Modality{sdk.ModalityText, sdk.ModalityImage}, Output: []sdk.Modality{sdk.ModalityText}}

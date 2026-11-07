@@ -47,16 +47,15 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			},
 		},
 		{
-			name: "a named agent pins its model and restricts the tools without the subagent env",
+			name: "a named agent sets its model and restricts the tools without the subagent env",
 			opts: sessionsdomain.ThreadOptions{
 				Agent:           "reviewer",
 				Model:           "deepseek/deepseek-v4-pro",
-				PinModel:        true,
 				SystemPrompt:    "You review diffs.",
 				Tools:           []string{"Read", "Grep"},
 				DisallowedTools: []string{"Bash"},
 			},
-			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1", "--model", "deepseek/deepseek-v4-pro", "--pin-model"},
+			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1", "--model", "deepseek/deepseek-v4-pro"},
 			wantEnv: []string{
 				"PWD=/work/proj",
 				"INFER_LOG_STDERR_JSON=true",

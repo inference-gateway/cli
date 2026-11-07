@@ -380,7 +380,7 @@ func TestRegistryResolvesANewThreadsAgentBeforeLaunch(t *testing.T) {
 		if opts.Agent != "reviewer" {
 			return sessionsdomain.ThreadOptions{}, errors.New(`unknown agent "ghost"; available agents: reviewer`)
 		}
-		opts.Model, opts.PinModel, opts.SystemPrompt = "provider/pinned", true, "body from "+dir
+		opts.Model, opts.SystemPrompt = "provider/agent", "body from "+dir
 		return opts, nil
 	}
 	tests := []struct {
@@ -398,7 +398,7 @@ func TestRegistryResolvesANewThreadsAgentBeforeLaunch(t *testing.T) {
 			name:  "a known agent launches with what it resolved to",
 			frame: `{"type":"resume_conversation","project_dir":"/proj","id":"c-1","agent":"reviewer","model":"provider/own","custom_instructions":"siblings"}`,
 			wantOpts: sessionsdomain.ThreadOptions{
-				Agent: "reviewer", Model: "provider/pinned", PinModel: true, SystemPrompt: "body from /proj", CustomInstructions: "siblings",
+				Agent: "reviewer", Model: "provider/agent", SystemPrompt: "body from /proj", CustomInstructions: "siblings",
 			},
 		},
 		{

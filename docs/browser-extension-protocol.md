@@ -190,11 +190,11 @@ Both make the connection follow that thread:
   `<project_dir>` and the home dir. The daemon
   the thread is opened on resolves it before the worker launches, the same
   overlay a named subagent gets: the agent's body is the system prompt, a
-  front-matter `model` replaces `model` and stays fixed for the thread, and
+  front-matter `model` replaces `model`, and
   `tools` / `disallowedTools` restrict the worker's tools. An empty, `inherit`
   or alias model keeps the thread's `model`, and `custom_instructions` still
-  append. The agent resolves into `model`, `system_prompt`, `tools`,
-  `disallowed_tools` and `pin_model`, which a workspace relay and a teleport
+  append. The agent resolves into `model`, `system_prompt`, `tools` and
+  `disallowed_tools`, which a workspace relay and a teleport
   carry instead of the name. An unknown agent fails the open with a
   `RUN_ERROR` naming the available agents.
 - `workspace` and `workspace_dir` place a thread whose conversation no lease
