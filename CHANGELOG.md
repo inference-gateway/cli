@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.246.1](https://github.com/inference-gateway/cli/compare/v0.246.0...v0.246.1) (2026-11-07)
+
+### 🐛 Bug Fixes
+
+* **ci:** build Linux release binaries with Go 1.26.10 ([#1742](https://github.com/inference-gateway/cli/issues/1742)) ([949e478](https://github.com/inference-gateway/cli/commit/949e478d08f9c9a019d03a0fefbbea2a31acbac8)), references [#1736](https://github.com/inference-gateway/cli/issues/1736)
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code, codex and infer versions ([e627c0b](https://github.com/inference-gateway/cli/commit/e627c0bd0548ee5d0ba2c110ff78cc935cd15ea8))
+* **deps:** bump flox packages and go modules to latest ([#1736](https://github.com/inference-gateway/cli/issues/1736)) ([1e9c846](https://github.com/inference-gateway/cli/commit/1e9c846f633250229e2999e6205341374b68dadf))
+
 ## [0.246.0](https://github.com/inference-gateway/cli/compare/v0.245.3...v0.246.0) (2026-11-07)
 
 ### 🚀 Features
