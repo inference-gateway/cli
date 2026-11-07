@@ -109,11 +109,3 @@ func (b *browserToolBase) successResult(args map[string]any, start time.Time, da
 		Data:      data,
 	}
 }
-
-func requireString(args map[string]any, key string) (string, error) {
-	v, ok := args[key].(string)
-	if !ok || strings.TrimSpace(v) == "" {
-		return "", fmt.Errorf("%s is required and must be a non-empty string", key)
-	}
-	return v, nil
-}

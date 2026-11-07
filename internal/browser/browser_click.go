@@ -57,7 +57,7 @@ func (t *BrowserClickTool) Execute(ctx context.Context, args map[string]any) (*a
 		return t.successResult(args, start, result), nil
 	}
 
-	selector, err := requireString(args, "selector")
+	selector, err := agentdomain.RequireStringArg(args, "selector")
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
@@ -79,7 +79,7 @@ func (t *BrowserClickTool) Validate(args map[string]any) error {
 		}
 		return nil
 	}
-	_, err := requireString(args, "selector")
+	_, err := agentdomain.RequireStringArg(args, "selector")
 	return err
 }
 

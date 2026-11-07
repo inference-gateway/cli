@@ -113,12 +113,12 @@ func (t *ScheduleTool) Validate(args map[string]any) error {
 	case scheduleOpList:
 		return nil
 	case scheduleOpGet, scheduleOpDelete:
-		if _, err := requireString(args, "job_id"); err != nil {
+		if _, err := agentdomain.RequireStringArg(args, "job_id"); err != nil {
 			return err
 		}
 		return nil
 	case scheduleOpUpdate:
-		if _, err := requireString(args, "job_id"); err != nil {
+		if _, err := agentdomain.RequireStringArg(args, "job_id"); err != nil {
 			return err
 		}
 		if expr, ok := args["cron_expression"].(string); ok && expr != "" {
@@ -138,25 +138,17 @@ func (t *ScheduleTool) IsEnabled() bool {
 }
 
 func validateCreateArgs(args map[string]any) error {
-	expr, err := requireString(args, "cron_expression")
+	expr, err := agentdomain.RequireStringArg(args, "cron_expression")
 	if err != nil {
 		return err
 	}
 	if err := scheddomain.ParseCron(expr); err != nil {
 		return fmt.Errorf("invalid cron_expression: %w", err)
 	}
-	if _, err := requireString(args, "prompt"); err != nil {
+	if _, err := agentdomain.RequireStringArg(args, "prompt"); err != nil {
 		return err
 	}
 	return nil
-}
-
-func requireString(args map[string]any, key string) (string, error) {
-	v, ok := args[key].(string)
-	if !ok || strings.TrimSpace(v) == "" {
-		return "", fmt.Errorf("%s is required and must be a non-empty string", key)
-	}
-	return v, nil
 }
 
 func optionalString(args map[string]any, key string) string {
@@ -274,7 +266,7 @@ func (t *ScheduleTool) execList(args map[string]any, store storage.ScheduledJobS
 }
 
 func (t *ScheduleTool) execGet(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
-	id, err := requireString(args, "job_id")
+	id, err := agentdomain.RequireStringArg(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
 	}
@@ -289,7 +281,7 @@ func (t *ScheduleTool) execGet(args map[string]any, store storage.ScheduledJobSt
 }
 
 func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
-	id, err := requireString(args, "job_id")
+	id, err := agentdomain.RequireStringArg(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
 	}
@@ -315,7 +307,7 @@ func (t *ScheduleTool) execUpdate(args map[string]any, store storage.ScheduledJo
 }
 
 func (t *ScheduleTool) execDelete(args map[string]any, store storage.ScheduledJobStorage, start time.Time) (*agentdomain.ToolExecutionResult, error) {
-	id, err := requireString(args, "job_id")
+	id, err := agentdomain.RequireStringArg(args, "job_id")
 	if err != nil {
 		return t.fail(args, start, err)
 	}
