@@ -9,7 +9,18 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 )
+
+func TestNewClientBoundsResponseHeaderWait(t *testing.T) {
+	transport, ok := NewClient().HTTP.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("NewClient().HTTP.Transport is not *http.Transport")
+	}
+	if transport.ResponseHeaderTimeout != 30*time.Second {
+		t.Errorf("ResponseHeaderTimeout = %v, want 30s", transport.ResponseHeaderTimeout)
+	}
+}
 
 func TestFileURL(t *testing.T) {
 	tests := []struct {

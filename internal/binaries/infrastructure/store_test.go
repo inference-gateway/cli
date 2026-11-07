@@ -14,9 +14,20 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 )
+
+func TestNewStoreBoundsResponseHeaderWait(t *testing.T) {
+	transport, ok := NewStore(true).client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("NewStore().client.Transport is not *http.Transport")
+	}
+	if transport.ResponseHeaderTimeout != 30*time.Second {
+		t.Errorf("ResponseHeaderTimeout = %v, want 30s", transport.ResponseHeaderTimeout)
+	}
+}
 
 // resetVerified clears the package-level process cache so tests stay isolated.
 func resetVerified(t *testing.T) {
