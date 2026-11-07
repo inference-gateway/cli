@@ -49,7 +49,7 @@ func (t *BrowserTypeTool) Execute(ctx context.Context, args map[string]any) (*ag
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	selector, err := requireString(args, "selector")
+	selector, err := agentdomain.RequireStringArg(args, "selector")
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
@@ -68,7 +68,7 @@ func (t *BrowserTypeTool) Execute(ctx context.Context, args map[string]any) (*ag
 
 // Validate checks if the tool arguments are valid
 func (t *BrowserTypeTool) Validate(args map[string]any) error {
-	if _, err := requireString(args, "selector"); err != nil {
+	if _, err := agentdomain.RequireStringArg(args, "selector"); err != nil {
 		return err
 	}
 	if _, ok := args["text"].(string); !ok {

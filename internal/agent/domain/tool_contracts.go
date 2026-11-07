@@ -4,6 +4,8 @@ package domain
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -99,6 +101,17 @@ func (r *ToolExecutionResult) WithoutImageData() *ToolExecutionResult {
 		out.Images[i] = img
 	}
 	return &out
+}
+
+// RequireStringArg reads a required, non-empty string out of a tool's map
+// arguments. It is the one wording every tool reports when a required
+// argument is missing, of the wrong type, or blank.
+func RequireStringArg(args map[string]any, key string) (string, error) {
+	v, ok := args[key].(string)
+	if !ok || strings.TrimSpace(v) == "" {
+		return "", fmt.Errorf("%s is required and must be a non-empty string", key)
+	}
+	return v, nil
 }
 
 // BashToolResult represents the result of a bash command execution

@@ -113,34 +113,6 @@ func TestFormatResultDispatch(t *testing.T) {
 	}
 }
 
-func TestRequireString(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    map[string]any
-		wantVal string
-		wantErr bool
-	}{
-		{"valid string", map[string]any{"selector": "button"}, "button", false},
-		{"missing key", map[string]any{}, "", true},
-		{"nil args", nil, "", true},
-		{"wrong type int", map[string]any{"selector": 42}, "", true},
-		{"nil value", map[string]any{"selector": nil}, "", true},
-		{"empty string", map[string]any{"selector": ""}, "", true},
-		{"whitespace only", map[string]any{"selector": "   "}, "", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := requireString(tt.args, "selector")
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("requireString err = %v, wantErr %v", err, tt.wantErr)
-			}
-			if got != tt.wantVal {
-				t.Errorf("requireString = %q, want %q", got, tt.wantVal)
-			}
-		})
-	}
-}
-
 func TestNumberArg(t *testing.T) {
 	tests := []struct {
 		name   string

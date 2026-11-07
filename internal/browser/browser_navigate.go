@@ -50,7 +50,7 @@ func (t *BrowserNavigateTool) Execute(ctx context.Context, args map[string]any) 
 		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	target, err := requireString(args, "url")
+	target, err := agentdomain.RequireStringArg(args, "url")
 	if err != nil {
 		return t.errorResult(args, start, err.Error()), nil
 	}
@@ -64,7 +64,7 @@ func (t *BrowserNavigateTool) Execute(ctx context.Context, args map[string]any) 
 
 // Validate checks if the tool arguments are valid
 func (t *BrowserNavigateTool) Validate(args map[string]any) error {
-	target, err := requireString(args, "url")
+	target, err := agentdomain.RequireStringArg(args, "url")
 	if err != nil {
 		return err
 	}

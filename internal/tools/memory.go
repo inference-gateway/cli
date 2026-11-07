@@ -351,7 +351,8 @@ func (t *MemoryTool) Validate(args map[string]any) error {
 	case OperationWrite:
 		return validateWriteArgs(args)
 	case OperationDelete:
-		return requireStringArg(args, "name")
+		_, err := agentdomain.RequireStringArg(args, "name")
+		return err
 	default:
 		return fmt.Errorf("invalid operation: %s (must be one of: read, write, delete)", operation)
 	}
@@ -469,26 +470,6 @@ func validMemoryType(memType string) bool {
 	default:
 		return false
 	}
-}
-
-func requireStringArg(args map[string]any, key string) error {
-	_, err := requireStringArgValue(args, key)
-	return err
-}
-
-func requireStringArgValue(args map[string]any, key string) (string, error) {
-	v, ok := args[key]
-	if !ok {
-		return "", fmt.Errorf("%s is required for this operation", key)
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", fmt.Errorf("%s must be a string", key)
-	}
-	if strings.TrimSpace(s) == "" {
-		return "", fmt.Errorf("%s must not be empty", key)
-	}
-	return s, nil
 }
 
 // buildMemoryFile renders a fact-file: YAML frontmatter (name/description/
