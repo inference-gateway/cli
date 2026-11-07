@@ -75,6 +75,21 @@ scenarios:
     turns:
       - content: "Hello! How can I help?"
 
+  - name: named-agent-own-model
+    match: '(?i)^which model are you running on'
+    turns:
+      - content: "Answered as the named agent."
+
+  - name: named-agent-write-outside-its-tools
+    match: '(?i)^write agent-blocked\.txt'
+    turns:
+      - tool_calls:
+          - name: Write
+            args:
+              file_path: agent-blocked.txt
+              content: "the agent's tools exclude Write"
+      - content: "The write did not run."
+
   - name: serve-browser-navigate
     match: '(?i)^open the example page'
     turns:
