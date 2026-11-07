@@ -3,6 +3,7 @@ package teleport
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -144,6 +145,47 @@ func TestRemoteWorkerRewritesTheProjectDirAndDropsDaemonFrames(t *testing.T) {
 	})
 	if workspace.ReachCallCount() != 1 || workspace.EnsureCallCount() != 0 {
 		t.Fatalf("a relay reached the workspace %d times and ensured it %d times", workspace.ReachCallCount(), workspace.EnsureCallCount())
+	}
+}
+
+func TestARelayOpensWithTheThreadsResolvedAgentOptions(t *testing.T) {
+	tests := []struct {
+		name  string
+		frame string
+	}{
+		{name: "resume_conversation", frame: `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1","agent":"reviewer","model":"provider/own","sandbox_directories":["/proj"]}`},
+		{name: "new_session", frame: `{"type":"new_session","project_dir":"/proj","agent":"reviewer","model":"provider/own"}`},
+	}
+	resolved := sessionsdomain.ThreadOptions{
+		Agent: "reviewer", Model: "provider/pinned", PinModel: true, SystemPrompt: "You review diffs.",
+		Tools: []string{"Read"}, DisallowedTools: []string{"Bash"}, SandboxDirectories: []string{"/proj"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			peer := startPeer(t, "peer", nil)
+			workspace := fakeWorkspace("peer", agentdomain.WorkspaceKindDaemon)
+			workspace.ReachReturns(peer.endpoint(), nil)
+			s, _ := newService(t, &launcher{}, workspace)
+			s.dial.Handshake = testHandshake
+
+			lease := agentdomain.Lease{ConversationID: "conv-1", Workspace: "peer", WorkspaceDir: "/remote/ws", Until: time.Now().Add(time.Hour)}
+			w, err := s.connectRemote(t.Context(), testKey, resolved, lease)
+			if err != nil {
+				t.Fatalf("connectRemote: %v", err)
+			}
+			t.Cleanup(w.Stop)
+			if err := w.Send([]byte(tt.frame)); err != nil {
+				t.Fatal(err)
+			}
+			var open resumeFrame
+			if err := json.Unmarshal(peer.received(t, 1)[0], &open); err != nil {
+				t.Fatal(err)
+			}
+			want := resumeFrame{Type: tt.name, ProjectDir: "/remote/ws", ID: "conv-1", ThreadOptions: resolved.Portable()}
+			if !reflect.DeepEqual(open, want) {
+				t.Fatalf("the peer was opened with %+v, want %+v", open, want)
+			}
+		})
 	}
 }
 

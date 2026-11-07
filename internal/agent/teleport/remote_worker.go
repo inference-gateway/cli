@@ -81,7 +81,7 @@ type remoteWorker struct {
 	conn         agentinfra.PeerConn
 	endpoint     agentdomain.Endpoint
 	workspaceDir string
-	open         []byte
+	open         resumeFrame
 	opened       sync.Once
 	ownSnapshot  atomic.Bool
 	lines        chan []byte
@@ -112,7 +112,7 @@ func (s *Service) connectRemote(ctx context.Context, key sessionsdomain.ThreadKe
 		return nil, fmt.Errorf("the daemon reached for workspace %s identifies as %q", lease.Workspace, info.Workspace)
 	}
 	refreshCtx, cancel := context.WithCancel(context.Background())
-	open := encode(resumeFrame{Type: frameResumeConversation, ProjectDir: lease.WorkspaceDir, ID: key.ConversationID, ThreadOptions: opts.Portable()})
+	open := resumeFrame{Type: frameResumeConversation, ProjectDir: lease.WorkspaceDir, ID: key.ConversationID, ThreadOptions: opts.Portable()}
 	w := &remoteWorker{conn: conn, endpoint: endpoint, workspaceDir: lease.WorkspaceDir, open: open, lines: make(chan []byte, 64), cancel: cancel}
 	go w.relay(frames)
 	go s.refreshRemote(refreshCtx, key.ConversationID, lease.Workspace, w)
@@ -157,12 +157,16 @@ func (w *remoteWorker) relay(frames *peerFrames) {
 }
 
 // Send forwards one client frame, naming the workspace dir where the frame
-// named the client's project dir.
+// named the client's project dir. An open goes as the relay's own, so the peer
+// gets the thread's portable options and never an agent only this daemon has.
 func (w *remoteWorker) Send(frame []byte) error {
 	var opening error
 	w.opened.Do(func() { opening = w.openUnlessOpenedBy(frame) })
 	if opening != nil {
 		return opening
+	}
+	if typ := frameType(frame); typ == frameResumeConversation || typ == frameNewSession {
+		return w.conn.Send(w.openAs(typ))
 	}
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, frame); err != nil {
@@ -188,7 +192,14 @@ func (w *remoteWorker) openUnlessOpenedBy(first []byte) error {
 		return nil
 	}
 	w.ownSnapshot.Store(true)
-	return w.conn.Send(w.open)
+	return w.conn.Send(w.openAs(frameResumeConversation))
+}
+
+// openAs is the relay's open frame of the given type, in the workspace dir.
+func (w *remoteWorker) openAs(typ string) []byte {
+	open := w.open
+	open.Type = typ
+	return encode(open)
 }
 
 func (w *remoteWorker) Lines() <-chan []byte {
