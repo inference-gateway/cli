@@ -84,6 +84,7 @@ type Options struct {
 	Format          string
 	Mode            string
 	Serve           bool
+	PinModel        bool
 	KeepAlive       bool
 	PromptOnly      bool
 }
@@ -236,7 +237,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 			ApprovalBrokerAttached:     opts.RequireApproval,
 			UserQuestionBrokerAttached: true,
 			GroupKey:                   groupKey,
-		}, notes)
+		}, notes, opts.PinModel)
 		return nil
 	}
 

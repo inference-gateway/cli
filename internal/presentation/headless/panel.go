@@ -542,11 +542,13 @@ func (f *projectFiles) list() {
 }
 
 // modelPicker answers the panel's model picker from the worker's model service,
-// listing the gateway's models with the configured default first.
+// listing the gateway's models with the configured default first. A pinned
+// picker never switches, for a thread whose agent fixes its model.
 type modelPicker struct {
 	write        frameWriter
 	service      convdomain.ModelService
 	defaultModel string
+	pinned       bool
 }
 
 // list answers list_models with the models the gateway serves, the configured
@@ -577,7 +579,7 @@ func (m *modelPicker) list() {
 // model list, so the panel reflects the outcome whether or not the switch was
 // accepted.
 func (m *modelPicker) selectModel(name string) {
-	if name != "" {
+	if name != "" && !m.pinned {
 		if err := m.service.SelectModel(name); err != nil {
 			logger.Debug("panel failed to select model", "model", name, "error", err)
 		}
