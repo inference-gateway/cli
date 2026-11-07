@@ -49,6 +49,7 @@ import (
 	sessions "github.com/inference-gateway/cli/internal/sessions"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 	sessionsinfra "github.com/inference-gateway/cli/internal/sessions/infrastructure"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {
@@ -367,6 +368,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		return threadHost{}, err
 	}
 	registry := sessions.NewRegistry(teleports.LaunchWorker, workerIdleTimeout)
+	registry.ResolveAgents(tools.ResolveThreadAgent)
 	teleports.AttachRegistry(registry)
 	if relay != nil {
 		registry.RouteBrowser(relay.Relay)

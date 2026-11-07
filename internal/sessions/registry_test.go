@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -371,6 +372,67 @@ func TestRegistryLaunchFailureReachesTheClient(t *testing.T) {
 	}
 	if l.attempts != 1 {
 		t.Fatalf("expected one launch attempt, got %d", l.attempts)
+	}
+}
+
+func TestRegistryResolvesANewThreadsAgentBeforeLaunch(t *testing.T) {
+	resolve := func(dir string, opts sessionsdomain.ThreadOptions) (sessionsdomain.ThreadOptions, error) {
+		if opts.Agent != "reviewer" {
+			return sessionsdomain.ThreadOptions{}, errors.New(`unknown agent "ghost"; available agents: reviewer`)
+		}
+		opts.Model, opts.PinModel, opts.SystemPrompt = "provider/pinned", true, "body from "+dir
+		return opts, nil
+	}
+	tests := []struct {
+		name      string
+		frame     string
+		wantOpts  sessionsdomain.ThreadOptions
+		wantError string
+	}{
+		{
+			name:     "no agent launches with the options as sent",
+			frame:    `{"type":"resume_conversation","project_dir":"/proj","id":"c-1","model":"provider/own"}`,
+			wantOpts: sessionsdomain.ThreadOptions{Model: "provider/own"},
+		},
+		{
+			name:  "a known agent launches with what it resolved to",
+			frame: `{"type":"resume_conversation","project_dir":"/proj","id":"c-1","agent":"reviewer","model":"provider/own","custom_instructions":"siblings"}`,
+			wantOpts: sessionsdomain.ThreadOptions{
+				Agent: "reviewer", Model: "provider/pinned", PinModel: true, SystemPrompt: "body from /proj", CustomInstructions: "siblings",
+			},
+		},
+		{
+			name:      "an unknown agent fails the open with a RUN_ERROR naming the available agents",
+			frame:     `{"type":"resume_conversation","project_dir":"/proj","id":"c-1","agent":"ghost"}`,
+			wantError: `available agents: reviewer`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &launcher{}
+			r := NewRegistry(l.launch, time.Hour)
+			r.ResolveAgents(resolve)
+			c := &sessionsmocks.FakeClient{}
+
+			handle(r, c, tt.frame)
+
+			key := sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "c-1"}
+			if tt.wantError != "" {
+				if got := delivered(c); len(got) != 1 || !strings.Contains(got[0], "RUN_ERROR") || !strings.Contains(got[0], tt.wantError) {
+					t.Fatalf("client got %q, want one RUN_ERROR containing %q", got, tt.wantError)
+				}
+				if l.attempts != 0 || !reflect.DeepEqual(r.Options(key), sessionsdomain.ThreadOptions{}) {
+					t.Fatalf("an unknown agent launched %d workers or left a thread behind", l.attempts)
+				}
+				return
+			}
+			if l.count() != 1 || !reflect.DeepEqual(l.opts[0], tt.wantOpts) {
+				t.Fatalf("launched %d workers with %+v, want one with %+v", l.count(), l.opts, tt.wantOpts)
+			}
+			if got := r.Options(key); !reflect.DeepEqual(got, tt.wantOpts) {
+				t.Fatalf("a teleport would open the thread with %+v, want %+v", got, tt.wantOpts)
+			}
+		})
 	}
 }
 

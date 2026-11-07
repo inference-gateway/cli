@@ -145,6 +145,7 @@ type Registry struct {
 	launch    sessionsdomain.LaunchWorker
 	idle      time.Duration
 	browser   sessionsdomain.BrowserRelay
+	agents    sessionsdomain.ResolveAgent
 	mu        sync.Mutex
 	closed    bool
 	threads   map[sessionsdomain.ThreadKey]*thread
@@ -209,6 +210,12 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 // lets pump read the field without the registry lock.
 func (r *Registry) RouteBrowser(relay sessionsdomain.BrowserRelay) {
 	r.browser = relay
+}
+
+// ResolveAgents wires how a thread opened with an agent option gets that
+// agent's options. Call it once before the first frame, like RouteBrowser.
+func (r *Registry) ResolveAgents(resolve sessionsdomain.ResolveAgent) {
+	r.agents = resolve
 }
 
 // Attach registers a connected client so thread_activity frames reach it even
@@ -362,7 +369,11 @@ func (r *Registry) openLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 	key := sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: id}
 	t := r.threads[key]
 	if t == nil {
-		t = newThread(key, f.ThreadOptions)
+		opts, err := r.resolveAgent(dir, f.ThreadOptions)
+		if err != nil {
+			return nil, err
+		}
+		t = newThread(key, opts)
 		r.threads[key] = t
 	}
 	if prev := r.subs[c]; prev != nil && prev != t {
@@ -372,6 +383,15 @@ func (r *Registry) openLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 	r.subs[c] = t
 	t.clients[c] = struct{}{}
 	return t, nil
+}
+
+// resolveAgent overlays the agent a new thread names onto its options, so the
+// thread keeps what the agent resolved to for its relaunches and teleports.
+func (r *Registry) resolveAgent(dir string, opts sessionsdomain.ThreadOptions) (sessionsdomain.ThreadOptions, error) {
+	if opts.Agent == "" || r.agents == nil {
+		return opts, nil
+	}
+	return r.agents(dir, opts)
 }
 
 // pickLocked picks the thread a panel request runs on: the client's own when

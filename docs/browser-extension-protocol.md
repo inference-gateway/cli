@@ -185,6 +185,17 @@ Both make the connection follow that thread:
   paths added to the user's `sandbox.yaml` allowed list), `max_turns` and
   `subagent` (`{"parent": "<conversation id>", "depth": 1, "tools": [...]}`,
   set by a worker's Agent tool when the thread is a subagent it spawned).
+- `agent` names a [Markdown agent](subagents.md) the thread runs as, looked
+  up in `<project_dir>/.infer/agents/` and then `~/.infer/agents/`. The daemon
+  the thread is opened on resolves it before the worker launches, the same
+  overlay a named subagent gets: the agent's body is the system prompt, a
+  front-matter `model` replaces `model` and stays fixed for the thread, and
+  `tools` / `disallowedTools` restrict the worker's tools. An empty, `inherit`
+  or alias model keeps the thread's `model`, and `custom_instructions` still
+  append. The agent resolves into `model`, `system_prompt`, `tools`,
+  `disallowed_tools` and `pin_model`, which a workspace relay and a teleport
+  carry instead of the name. An unknown agent fails the open with a
+  `RUN_ERROR` naming the available agents.
 - `workspace` and `workspace_dir` place a thread whose conversation no lease
   places: the registered workspace that holds it and its source code there.
   A client sends them when it opens a session it listed on a remote
@@ -675,7 +686,8 @@ CLI → client, the configured model ids (empty when unavailable):
 
 Client → CLI, switch the thread's model for its next turns (same effect as
 `/model` in the TUI). The CLI answers with a fresh `models` frame, where
-`current` shows whether the switch took effect, followed by a `mode` frame:
+`current` shows whether the switch took effect, followed by a `mode` frame.
+A thread whose `agent` pins a model keeps it, and `current` still reports it:
 
 ```json
 {"type": "select_model", "model": "openai/gpt-4o"}

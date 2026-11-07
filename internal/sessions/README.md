@@ -15,7 +15,11 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
   (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`, `subagent`)
   apply when the worker launches. `subagent` names the parent thread that spawned this one, its depth and its
-  tool allowlist, which the worker gets as its subagent env. `workspace` and `workspace_dir` place a thread no lease places on a
+  tool allowlist, which the worker gets as its subagent env. `agent` names a Markdown agent, which the
+  `ResolveAgent` port the daemon wires (`tools.ResolveThreadAgent`) overlays when the thread is created, from
+  the frame's `project_dir` and `~/.infer/agents`. The thread keeps what it resolved to (`model`, `system_prompt`,
+  `tools`, `disallowed_tools`, `pin_model`), so relaunches, relays and teleports carry those and never the name,
+  and an unknown agent fails the open with `RUN_ERROR`. `workspace` and `workspace_dir` place a thread no lease places on a
   remote workspace, which the launch seam relays it to.
 - **Forwarded frames** - `run_agent_input`, `add_note`, `interrupt` and `user_question_response` go to the
   client's thread unchanged. A `run_agent_input` relaunches a thread whose worker exited. A thread at rest for a teleport
@@ -58,8 +62,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 
 ## How it plugs in
 
-- `domain/` holds the ports: `Client` (a connection frames are delivered to), `Worker`, `LaunchWorker` and
-  `BrowserRelay`.
+- `domain/` holds the ports: `Client` (a connection frames are delivered to), `Worker`, `LaunchWorker`,
+  `ResolveAgent` and `BrowserRelay`.
 - `Registry.Handle` and `Registry.Detach` are what a driving adapter calls, per frame and on disconnect. This
   context imports no protocol: `cmd/daemon` puts the registry behind the AG-UI binding's handler, and each
   connection is a `Client`.
@@ -78,7 +82,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   `teleport` package drives them.
 - `infrastructure.LaunchWorker` is the worker adapter. It runs this binary as
   `headless --serve --require-approval` in the project dir, with the thread options as flags and `INFER_`
-  env overrides. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so
+  env overrides. `pin_model` becomes `--pin-model`, and an agent's `tools` and `disallowed_tools` reach the
+  worker's tool service as `INFER_SUBAGENT_TOOLS` and `INFER_DISALLOWED_TOOLS`, without the subagent's parent
+  and depth. It stops the worker with an `interrupt` frame and stdin EOF, which works on every platform, so
   the worker's gateway, MCP servers and containers shut down. The worker logs JSON to stderr instead of keeping
   a log file of its own, and the daemon collects its stderr into the daemon log with the thread's
   `project_dir`, `conversation_id` and `worker_pid`.
