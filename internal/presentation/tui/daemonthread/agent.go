@@ -89,9 +89,10 @@ type resumeEntry struct {
 }
 
 // RunWithStream sends the user's new messages to the thread, or with none
-// follows the run another client started, and streams the run's events. The
-// stream ends once the run finished and the conversation was reconciled. It
+// follows the run another client started, and streams the run's events. It
 // takes over from a turn the TUI abandoned, so one reader owns the run frames.
+// The stream ends after the run finished, the conversation was reconciled and
+// the turn let go of the thread, so a drop just after leaves no stale marker.
 func (a *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest) (<-chan agentdomain.ChatEvent, error) {
 	ctx, cancel := a.supersede(ctx)
 	release := a.thread.Consume()
@@ -104,8 +105,8 @@ func (a *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 	events := make(chan agentdomain.ChatEvent, 1000)
 	go func() {
 		defer cancel()
-		defer release()
 		defer close(events)
+		defer release()
 		a.pump(ctx, req.RequestID, sent, events)
 	}()
 	return events, nil
