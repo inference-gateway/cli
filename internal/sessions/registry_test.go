@@ -323,6 +323,28 @@ func TestRegistryCompletionResultsReachTheirOwnRequester(t *testing.T) {
 	}
 }
 
+func TestRegistryARequestTheWorkerDidNotTakeWaitsForNoReply(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	handle(r, &sessionsmocks.FakeClient{}, `{"type":"resume_conversation","project_dir":"/proj","id":"c-1"}`)
+	w, lines := l.worker(0)
+	poll := `{"type":"read_frame","project_dir":"/proj","id":"c-1"}`
+	dropped, next := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+
+	w.SendReturns(errors.New("gone"))
+	handle(r, dropped, poll)
+	receives(t, dropped, string(runError("", "the session worker did not take the frame: gone")))
+	w.SendReturns(nil)
+	handle(r, next, poll)
+	frame := `{"type":"frame","id":"c-1","frame":{"data":"anBlZw==","format":"jpeg"}}`
+	lines <- []byte(frame)
+
+	receives(t, next, frame)
+	if dropped.DeliverCallCount() != 1 {
+		t.Fatalf("a request the worker did not take must get no later reply, got %q", delivered(dropped))
+	}
+}
+
 func TestRegistryPanelRequestLaunchesInProjectDir(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)

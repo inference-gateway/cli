@@ -94,6 +94,29 @@ func TestAThreadAtRestLaunchesNoWorkerUntilItSettles(t *testing.T) {
 	}
 }
 
+func TestAScreenPollRefusedAtRestLeavesTheNextFrameToItsRequester(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	handle(r, &sessionsmocks.FakeClient{}, `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`)
+	if _, err := r.Quiesce(t.Context(), hooksKey); err != nil {
+		t.Fatalf("Quiesce: %v", err)
+	}
+	refused, next := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	poll := `{"type":"read_frame","project_dir":"/proj","id":"conv-1"}`
+	handle(r, refused, poll)
+	receives(t, refused, string(runError("", errAtRest.Error())))
+
+	r.Settle(hooksKey)
+	handle(r, next, poll)
+	_, lines := l.worker(1)
+	frame := `{"type":"frame","id":"conv-1","frame":{"data":"anBlZw==","format":"jpeg"}}`
+	lines <- []byte(frame)
+	receives(t, next, frame)
+	if refused.DeliverCallCount() != 1 {
+		t.Fatalf("the refused poll must get no later frame, got %q", delivered(refused))
+	}
+}
+
 func TestQuiesceWithoutARunStopsTheWorkerAtRest(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)
