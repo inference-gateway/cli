@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.247.0](https://github.com/inference-gateway/cli/compare/v0.246.2...v0.247.0) (2026-11-07)
+
+### 🚀 Features
+
+* **sessions:** open a daemon thread as a named Markdown agent ([#1751](https://github.com/inference-gateway/cli/issues/1751)) ([7e5533c](https://github.com/inference-gateway/cli/commit/7e5533cbf5849d366ceef776651d2db4ee19a7c1)), closes [#1750](https://github.com/inference-gateway/cli/issues/1750), references [inference-gateway/desktop#447](https://github.com/inference-gateway/desktop/issues/447) [inference-gateway/docs#1114](https://github.com/inference-gateway/docs/issues/1114)
+
 ## [0.246.2](https://github.com/inference-gateway/cli/compare/v0.246.1...v0.246.2) (2026-11-07)
 
 ### 🐛 Bug Fixes
