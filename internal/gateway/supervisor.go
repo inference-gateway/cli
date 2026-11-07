@@ -21,6 +21,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	github "github.com/inference-gateway/cli/internal/github"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
@@ -847,15 +848,6 @@ func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
 	return true
 }
 
-// githubToken returns the GitHub token from the environment, preferring
-// GITHUB_TOKEN and falling back to GH_TOKEN (matching the gh CLI)
-func githubToken() string {
-	if t := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); t != "" {
-		return t
-	}
-	return strings.TrimSpace(os.Getenv("GH_TOKEN"))
-}
-
 // latestGatewayTag resolves the latest gateway release tag via the GitHub
 // API, sending an Authorization header when a token is available
 func latestGatewayTag(ctx context.Context) (string, error) {
@@ -864,7 +856,7 @@ func latestGatewayTag(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create release request: %w", err)
 	}
-	if t := githubToken(); t != "" {
+	if t := github.Token(); t != "" {
 		req.Header.Set("Authorization", "Bearer "+t)
 	}
 
@@ -876,7 +868,7 @@ func latestGatewayTag(ctx context.Context) (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-		return "", fmt.Errorf("GitHub API rate limit exceeded (60 req/hour for unauthenticated requests) - set GITHUB_TOKEN (or GH_TOKEN) to raise the limit to 5,000/hour, or try again later")
+		return "", github.ErrRateLimited
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to query latest gateway release: HTTP %d", resp.StatusCode)
