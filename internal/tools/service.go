@@ -21,32 +21,40 @@ type Service struct {
 	enabled   bool
 	config    *config.Config
 	allowlist map[string]bool
+	denylist  map[string]bool
 }
 
-// NewService creates a new LLM tool service with an existing registry
+// NewService creates a new LLM tool service with an existing registry. A named
+// Markdown agent's allowlist and disallowedTools arrive as env, and only the
+// tools they leave are advertised to the model and accepted for execution.
 func NewService(cfg *config.Config, registry *Registry) *Service {
-	s := &Service{
-		registry: registry,
-		enabled:  cfg.Tools.Enabled,
-		config:   cfg,
+	return &Service{
+		registry:  registry,
+		enabled:   cfg.Tools.Enabled,
+		config:    cfg,
+		allowlist: envToolSet(scheddomain.EnvSubagentTools),
+		denylist:  envToolSet(scheddomain.EnvDisallowedTools),
 	}
-	// A named Markdown subagent receives its tool allowlist through the
-	// EnvSubagentTools channel; when set, only those tools are advertised to
-	// the model and accepted for execution.
-	if raw := os.Getenv(scheddomain.EnvSubagentTools); raw != "" {
-		s.allowlist = make(map[string]bool)
-		for _, name := range strings.Split(raw, ",") {
-			if name = strings.TrimSpace(name); name != "" {
-				s.allowlist[name] = true
-			}
+}
+
+// envToolSet reads a comma-separated tool list from the env, nil when unset.
+func envToolSet(key string) map[string]bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return nil
+	}
+	set := make(map[string]bool)
+	for _, name := range strings.Split(raw, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			set[name] = true
 		}
 	}
-	return s
+	return set
 }
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
 func (s *Service) isToolEnabled(toolName string) bool {
-	if s.allowlist != nil && !s.allowlist[toolName] {
+	if (s.allowlist != nil && !s.allowlist[toolName]) || s.denylist[toolName] {
 		return false
 	}
 	return (s.enabled || s.isSelfGated(toolName)) && s.registry.IsToolEnabled(toolName)

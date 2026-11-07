@@ -59,3 +59,33 @@ func TestSubagentToolAllowlistIgnoresWhitespaceAndEmptyEntries(t *testing.T) {
 		t.Fatalf("entries must be trimmed: Read=%v Grep=%v", svc.IsToolEnabled("Read"), svc.IsToolEnabled("Grep"))
 	}
 }
+
+func TestNamedAgentToolListsGate(t *testing.T) {
+	tests := []struct {
+		name       string
+		allowed    string
+		disallowed string
+		enabled    []string
+		disabled   []string
+	}{
+		{name: "disallowedTools alone keeps every other tool", disallowed: "Bash", enabled: []string{"Read", "Edit", "Write"}, disabled: []string{"Bash"}},
+		{name: "disallowedTools wins over the allowlist", allowed: "Read,Bash", disallowed: "Bash", enabled: []string{"Read"}, disabled: []string{"Bash", "Edit"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(scheddomain.EnvSubagentTools, tt.allowed)
+			t.Setenv(scheddomain.EnvDisallowedTools, tt.disallowed)
+			svc := newAllowlistTestService(t)
+			for _, name := range tt.enabled {
+				if !svc.IsToolEnabled(name) {
+					t.Errorf("%s must stay enabled", name)
+				}
+			}
+			for _, name := range tt.disabled {
+				if svc.IsToolEnabled(name) {
+					t.Errorf("%s must be disabled", name)
+				}
+			}
+		})
+	}
+}

@@ -31,9 +31,14 @@ const (
 // the Agent tool disables itself past the configured max_depth.
 const EnvSubagentDepth = "INFER_SUBAGENT_DEPTH"
 
-// EnvSubagentTools carries a named subagent's tool allowlist, which the tool
-// service enforces for what it advertises and what it executes.
+// EnvSubagentTools carries a named agent's tool allowlist, a subagent's or a
+// thread's, which the tool service enforces for what it advertises and what
+// it executes.
 const EnvSubagentTools = "INFER_SUBAGENT_TOOLS"
+
+// EnvDisallowedTools carries a named agent's disallowedTools, which the tool
+// service hides and refuses whatever else allows them.
+const EnvDisallowedTools = "INFER_DISALLOWED_TOOLS"
 
 // EnvSubagentParentSession names the session whose Agent tool spawned this
 // one, recorded in the conversation's metadata and reported each turn to.
