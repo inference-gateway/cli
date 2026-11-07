@@ -3,7 +3,9 @@
 **What** - the GitHub capability: expanding `#` issue references typed in chat, plus the `gh`/`git` helpers the scheduler reuses.
 **Why** - both depend on the `gh` CLI and a GitHub remote, which may be missing, so they stay optional and degrade to a no-op.
 **How** - `issues/` implements the GitHub port in `internal/agent/domain` by shelling out to `gh`. `setup/` keeps the workflow version pins for
-  the scheduler's rendered workflow plus `CommandRunner`/`RealRunner`, its `gh`/`git` execution port.
+  the scheduler's rendered workflow plus `CommandRunner`/`RealRunner`, its `gh`/`git` execution port. The root package holds the shared
+  `GITHUB_TOKEN`/`GH_TOKEN` credential lookup (`Token`) and the unauthenticated rate-limit sentinel (`ErrRateLimited`) that the gateway
+  supervisor and the skills/plugins installers reuse.
 
 ## How it plugs in
 
