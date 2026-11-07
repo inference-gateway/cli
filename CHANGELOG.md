@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.246.2](https://github.com/inference-gateway/cli/compare/v0.246.1...v0.246.2) (2026-11-07)
+
+### 🐛 Bug Fixes
+
+* **http:** replace the remaining http.DefaultClient call sites with timeout clients ([#1747](https://github.com/inference-gateway/cli/issues/1747)) ([5ef3ba6](https://github.com/inference-gateway/cli/commit/5ef3ba698c68edebd31893ca0ec3509992339a6d)), closes [#1741](https://github.com/inference-gateway/cli/issues/1741)
+
+### ♻️ Code Refactoring
+
+* **github:** deduplicate credential lookup and rate-limit error ([#1744](https://github.com/inference-gateway/cli/issues/1744)) ([8448dd4](https://github.com/inference-gateway/cli/commit/8448dd42b4e4e6f7eb54be104ef1393630fa02b9)), closes [#1737](https://github.com/inference-gateway/cli/issues/1737)
+* **platform:** deduplicate FileExists, RandomToken, ShortID and TokenCount helpers ([#1748](https://github.com/inference-gateway/cli/issues/1748)) ([c512692](https://github.com/inference-gateway/cli/commit/c5126924f320ce12fdbf4414d4ea00e525722bfe)), closes [#1739](https://github.com/inference-gateway/cli/issues/1739)
+* **tools:** merge the required-string argument helper into agent/domain ([#1746](https://github.com/inference-gateway/cli/issues/1746)) ([3deb5e9](https://github.com/inference-gateway/cli/commit/3deb5e93747ce77f372b2dbd01de6d7da03726b9)), closes [#1738](https://github.com/inference-gateway/cli/issues/1738)
+
+### 🔧 Build System
+
+* **deps:** bump sigstore/cosign-installer from 4.1.2 to 4.1.3 in the github-actions group ([#1743](https://github.com/inference-gateway/cli/issues/1743)) ([dd75ccf](https://github.com/inference-gateway/cli/commit/dd75ccf72a3bae7eb6326fde3f9ab62b728e0a82))
+
+### 🧹 Maintenance
+
+* **ci:** bump golangci-lint from v2.14.0 to v2.15.0 ([#1745](https://github.com/inference-gateway/cli/issues/1745)) ([72f2017](https://github.com/inference-gateway/cli/commit/72f2017d0687e6560f1d2702937a95e622f70692)), closes [#1740](https://github.com/inference-gateway/cli/issues/1740)
+
 ## [0.246.1](https://github.com/inference-gateway/cli/compare/v0.246.0...v0.246.1) (2026-11-07)
 
 ### 🐛 Bug Fixes
