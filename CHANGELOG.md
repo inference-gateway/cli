@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.246.0](https://github.com/inference-gateway/cli/compare/v0.245.3...v0.246.0) (2026-11-07)
+
+### 🚀 Features
+
+* **agui:** carry the next-step suggestion on the AG-UI run state ([#1712](https://github.com/inference-gateway/cli/issues/1712)) ([62f0913](https://github.com/inference-gateway/cli/commit/62f0913f56a89fec78fe7a42ee1c7c792a97eb15)), closes [#1710](https://github.com/inference-gateway/cli/issues/1710), references [#1546](https://github.com/inference-gateway/cli/issues/1546) [inference-gateway/desktop#439](https://github.com/inference-gateway/desktop/issues/439)
+* **daemon:** expose list_files and expand [@path](https://github.com/path) over AG-UI ([#1717](https://github.com/inference-gateway/cli/issues/1717)) ([d82aed1](https://github.com/inference-gateway/cli/commit/d82aed14d0c202379096a31663c108847a1095bd)), closes [#1714](https://github.com/inference-gateway/cli/issues/1714)
+* **daemon:** expose list_issues and expand #N over AG-UI ([#1716](https://github.com/inference-gateway/cli/issues/1716)) ([42db200](https://github.com/inference-gateway/cli/commit/42db200b2125efedff18e80c735f01d548700432)), closes [#1711](https://github.com/inference-gateway/cli/issues/1711), references [#N](https://github.com/inference-gateway/cli/issues/N) [#1714](https://github.com/inference-gateway/cli/issues/1714) [#1715](https://github.com/inference-gateway/cli/issues/1715) [inference-gateway/cli#1714](https://github.com/inference-gateway/cli/issues/1714)
+* **daemon:** expose list_shortcuts over AG-UI ([#1718](https://github.com/inference-gateway/cli/issues/1718)) ([04d7a0a](https://github.com/inference-gateway/cli/commit/04d7a0add7c7884e8e31badc17702c195be2fecd)), closes [#1715](https://github.com/inference-gateway/cli/issues/1715)
+* **daemon:** manage a session's background jobs from /tasks ([#1729](https://github.com/inference-gateway/cli/issues/1729)) ([f7a371c](https://github.com/inference-gateway/cli/commit/f7a371cbd71d1d6860262c90241c930075fd608a)), closes [#1731](https://github.com/inference-gateway/cli/issues/1731), references [#1731](https://github.com/inference-gateway/cli/issues/1731) [inference-gateway/docs#1111](https://github.com/inference-gateway/docs/issues/1111)
+* **chat:** render a local chat's runs through AG-UI behind an opt-in ([#1725](https://github.com/inference-gateway/cli/issues/1725)) ([3930ded](https://github.com/inference-gateway/cli/commit/3930ded0d8213e8b5ea9f34391caefdf23a612fd))
+* **chat:** render a local chat's runs through AG-UI by default ([#1728](https://github.com/inference-gateway/cli/issues/1728)) ([58f557e](https://github.com/inference-gateway/cli/commit/58f557e5ede2a6c7c876e7455b203c076770e36d)), closes [#1725](https://github.com/inference-gateway/cli/issues/1725), references [#1713](https://github.com/inference-gateway/cli/issues/1713)
+* **agui:** report a cancelled tool call and conversation optimization ([#1722](https://github.com/inference-gateway/cli/issues/1722)) ([68756dd](https://github.com/inference-gateway/cli/commit/68756ddb0284349aec2229208b89675d46058ce2)), references [#1713](https://github.com/inference-gateway/cli/issues/1713) [inference-gateway/docs#1110](https://github.com/inference-gateway/docs/issues/1110)
+
+### 🐛 Bug Fixes
+
+* **e2e:** guard the remote session against a file only this machine has ([#1723](https://github.com/inference-gateway/cli/issues/1723)) ([ba34c5a](https://github.com/inference-gateway/cli/commit/ba34c5a9aafae90ebd066f5e7e539b53c0906283)), references [#1717](https://github.com/inference-gateway/cli/issues/1717) [#1717](https://github.com/inference-gateway/cli/issues/1717) [#1714](https://github.com/inference-gateway/cli/issues/1714)
+* **tools:** keep the project as Bash's working directory in plan mode ([#1735](https://github.com/inference-gateway/cli/issues/1735)) ([89c2d1c](https://github.com/inference-gateway/cli/commit/89c2d1c6780300a7b735eaf9b3bf961f1330455a))
+* **tools:** offer Memory in plan and read-only modes ([#1733](https://github.com/inference-gateway/cli/issues/1733)) ([8f2870c](https://github.com/inference-gateway/cli/commit/8f2870c4c536a34a6c4983a7da06fb094cc8ade9)), closes [#1730](https://github.com/inference-gateway/cli/issues/1730)
+* **chat:** report a daemon chat's usage as each step ends ([#1734](https://github.com/inference-gateway/cli/issues/1734)) ([097509e](https://github.com/inference-gateway/cli/commit/097509e06c12b78cc908f7cd2acb0937c50d9569)), closes [#1732](https://github.com/inference-gateway/cli/issues/1732)
+* **agent:** run a tool batch only once every approval is answered ([#1727](https://github.com/inference-gateway/cli/issues/1727)) ([6713e5f](https://github.com/inference-gateway/cli/commit/6713e5f155618b2d66020a73503c1a96275d6827)), references [#1725](https://github.com/inference-gateway/cli/issues/1725) [#609](https://github.com/inference-gateway/cli/issues/609) [#1289](https://github.com/inference-gateway/cli/issues/1289) [inference-gateway/docs#1110](https://github.com/inference-gateway/docs/issues/1110)
+
+### ♻️ Code Refactoring
+
+* **agui:** decode a run's frames back into typed events ([#1719](https://github.com/inference-gateway/cli/issues/1719)) ([29623e6](https://github.com/inference-gateway/cli/commit/29623e6e2aa0eaaf7d8a4ead38df7bcc5cd6e615)), references [#1713](https://github.com/inference-gateway/cli/issues/1713)
+* **tui:** reduce AG-UI frames in the TUI over typed events ([#1724](https://github.com/inference-gateway/cli/issues/1724)) ([3d50e77](https://github.com/inference-gateway/cli/commit/3d50e77c9cef8a9bf96eb008f3aee418219e3d6e)), references [#1722](https://github.com/inference-gateway/cli/issues/1722) [#1721](https://github.com/inference-gateway/cli/issues/1721) [#1719](https://github.com/inference-gateway/cli/issues/1719) [#1722](https://github.com/inference-gateway/cli/issues/1722)
+* **agent:** remove the dead computer-use pause events ([#1721](https://github.com/inference-gateway/cli/issues/1721)) ([a87a232](https://github.com/inference-gateway/cli/commit/a87a232cb5c1b6aab12012bcc0a6e17f8890ab6d)), references [#1713](https://github.com/inference-gateway/cli/issues/1713) [#1713](https://github.com/inference-gateway/cli/issues/1713)
+
+### 📚 Documentation
+
+* **skills:** pin the bubbletea-v2 skill to v2.1.1 ([#1720](https://github.com/inference-gateway/cli/issues/1720)) ([e1b4ab3](https://github.com/inference-gateway/cli/commit/e1b4ab32112b16dc70de7acbe0d6a6bf616a91b1))
+
 ## [0.245.3](https://github.com/inference-gateway/cli/compare/v0.245.2...v0.245.3) (2026-11-06)
 
 ### 🐛 Bug Fixes
