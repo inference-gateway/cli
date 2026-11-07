@@ -4,8 +4,13 @@ import (
 	"slices"
 	"testing"
 
+	zap "go.uber.org/zap"
+	zapcore "go.uber.org/zap/zapcore"
+	observer "go.uber.org/zap/zaptest/observer"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -87,5 +92,22 @@ func TestNamedAgentToolListsGate(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAllowlistWarnsOnceForEachToolTheWorkerLacks(t *testing.T) {
+	core, logs := observer.New(zapcore.WarnLevel)
+	prev := logger.GetGlobalLogger()
+	logger.SetGlobalLogger(zap.New(core))
+	defer logger.SetGlobalLogger(prev)
+	t.Setenv(scheddomain.EnvSubagentTools, "Read,Grepp")
+	svc := newAllowlistTestService(t)
+
+	svc.ListTools()
+	svc.ListToolsForMode(agentdomain.AgentModeStandard)
+
+	warned := logs.FilterMessage("named agent allows a tool this worker does not have").All()
+	if len(warned) != 1 || warned[0].ContextMap()["tool"] != "Grepp" {
+		t.Fatalf("want one warning naming Grepp, got %v", warned)
 	}
 }
