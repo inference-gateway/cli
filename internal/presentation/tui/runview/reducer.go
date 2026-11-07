@@ -253,17 +253,10 @@ func (r *Reducer) sessionUsage(value any) []agentdomain.ChatEvent {
 	return []agentdomain.ChatEvent{SessionUsageEvent{
 		BaseChatEvent: r.base(),
 		Model:         usage[0].Model,
-		InputTokens:   tokenCount(usage[0].InputTokens),
-		OutputTokens:  tokenCount(usage[0].OutputTokens),
-		CachedTokens:  tokenCount(usage[0].CachedInputTokens),
+		InputTokens:   agentdomain.TokenCount(usage[0].InputTokens),
+		OutputTokens:  agentdomain.TokenCount(usage[0].OutputTokens),
+		CachedTokens:  agentdomain.TokenCount(usage[0].CachedInputTokens),
 	}}
-}
-
-func tokenCount(count *int64) int {
-	if count == nil {
-		return 0
-	}
-	return int(*count)
 }
 
 func (r *Reducer) todos(todos []agentdomain.TodoItem) agentdomain.ChatEvent {
