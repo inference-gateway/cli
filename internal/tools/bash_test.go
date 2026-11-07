@@ -220,19 +220,17 @@ func TestBashTool_Execute(t *testing.T) {
 	}
 }
 
-// TestBashTool_Execute_PlanModeWorkDir: plan-mode commands run in the project
-// scratchpad, which the first command creates, while other modes keep the
-// process working directory.
-func TestBashTool_Execute_PlanModeWorkDir(t *testing.T) {
+// TestBashTool_Execute_PlanModeKeepsWorkDir: plan-mode commands run in the
+// process working directory like every other mode, so git and the read-only
+// baseline see the project, and the scratchpad is not created as a side effect.
+func TestBashTool_Execute_PlanModeKeepsWorkDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Chdir(t.TempDir())
+	project := t.TempDir()
+	t.Chdir(project)
 
 	tool := NewBashTool(config.DefaultConfig(), nil)
 	scratchpad := config.ProjectScratchpadDir()
-	if _, err := os.Stat(scratchpad); err == nil {
-		t.Fatal("the scratchpad should not exist before the first plan-mode command")
-	}
 
 	result, err := tool.Execute(agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan), map[string]any{"command": "pwd -P"})
 	if err != nil {
@@ -245,8 +243,11 @@ func TestBashTool_Execute_PlanModeWorkDir(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected bash data, got %T", result.Data)
 	}
-	if got := strings.TrimSpace(bashData.Output); got != config.RealPath(scratchpad) {
-		t.Fatalf("plan-mode command ran in %q, want the scratchpad", got)
+	if got := strings.TrimSpace(bashData.Output); got != config.RealPath(project) {
+		t.Fatalf("plan-mode command ran in %q, want the project dir", got)
+	}
+	if _, err := os.Stat(scratchpad); err == nil {
+		t.Fatal("a plan-mode command must not create the scratchpad")
 	}
 }
 

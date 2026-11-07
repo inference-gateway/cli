@@ -541,7 +541,7 @@ tools:
           - 'gh api repos/[^ ]+/contents/[^ ]+( -H [''"]?Accept: application/vnd\.github\.raw[''"]?)?'
           - gh api '?user/repos[^ ]*'?( --paginate)?( --jq [^ ]+)?
           - infer binaries status( .*)?
-      plan:       # plan mode adds nothing - its commands run pinned to the scratchpad
+      plan:       # plan mode adds nothing - its commands run in the project dir, writes only in the scratchpad
         allow: []
       standard:   # interactive default: baseline only (same as plan)
         allow: []
@@ -593,9 +593,10 @@ default `~/.rustup`). Writes there stay denied.
 stripped before matching and remain allowed. A rejected command returns explanatory feedback naming
 the reason, and (in chat) still goes through the normal approval prompt.
 
-**Plan mode:** Bash stays available while planning and runs with its working directory pinned to the
-scratchpad (`~/.infer/projects/<project-slug>/tmp/scratchpad`, created on the first command), so
-verification touches only scratch copies. The `plan` allow-list stays empty by default, so only the
+**Plan mode:** Bash stays available while planning and keeps the project as its working directory,
+like every other mode, so `git`, `gh` and the read-only baseline inspect the repository. Builds, tests
+and writes go to the scratchpad (`~/.infer/projects/<project-slug>/tmp/scratchpad`) through absolute
+paths or a `cd` in the same command - the sandbox rejects a write anywhere else. The `plan` allow-list stays empty by default, so only the
 baseline approves commands there - add entries like `go build.*` or `go test.*` to opt into
 unattended verification. The file tools are the hard boundary: an allow-listed command can still
 reach paths outside the scratchpad through absolute arguments.
