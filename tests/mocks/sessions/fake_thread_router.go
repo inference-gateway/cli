@@ -10,29 +10,34 @@ import (
 type FakeThreadRouter struct {
 	DetachStub        func(domain.Client)
 	detachMutex       sync.RWMutex
-	detachArgsForCall []struct {
-		arg1 domain.Client
-	}
+	detachArgsForCall []FakeThreadRouterDetachArgs
 	HandleStub        func(domain.Client, []byte)
 	handleMutex       sync.RWMutex
-	handleArgsForCall []struct {
-		arg1 domain.Client
-		arg2 []byte
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	handleArgsForCall []FakeThreadRouterHandleArgs
+	invocations       map[string][][]interface{}
+	callOrder         []string
+	invocationsMutex  sync.RWMutex
+}
+
+// FakeThreadRouterDetachArgs holds the arguments of one call to Detach.
+type FakeThreadRouterDetachArgs struct {
+	Arg1 domain.Client
+}
+
+// FakeThreadRouterHandleArgs holds the arguments of one call to Handle.
+type FakeThreadRouterHandleArgs struct {
+	Arg1 domain.Client
+	Arg2 []byte
 }
 
 func (fake *FakeThreadRouter) Detach(arg1 domain.Client) {
 	fake.detachMutex.Lock()
-	fake.detachArgsForCall = append(fake.detachArgsForCall, struct {
-		arg1 domain.Client
-	}{arg1})
+	fake.detachArgsForCall = append(fake.detachArgsForCall, FakeThreadRouterDetachArgs{arg1})
 	stub := fake.DetachStub
 	fake.recordInvocation("Detach", []interface{}{arg1})
 	fake.detachMutex.Unlock()
 	if stub != nil {
-		fake.DetachStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -52,7 +57,15 @@ func (fake *FakeThreadRouter) DetachArgsForCall(i int) domain.Client {
 	fake.detachMutex.RLock()
 	defer fake.detachMutex.RUnlock()
 	argsForCall := fake.detachArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeThreadRouter) DetachArgs() []FakeThreadRouterDetachArgs {
+	fake.detachMutex.RLock()
+	defer fake.detachMutex.RUnlock()
+	args := make([]FakeThreadRouterDetachArgs, len(fake.detachArgsForCall))
+	copy(args, fake.detachArgsForCall)
+	return args
 }
 
 func (fake *FakeThreadRouter) Handle(arg1 domain.Client, arg2 []byte) {
@@ -62,15 +75,12 @@ func (fake *FakeThreadRouter) Handle(arg1 domain.Client, arg2 []byte) {
 		copy(arg2Copy, arg2)
 	}
 	fake.handleMutex.Lock()
-	fake.handleArgsForCall = append(fake.handleArgsForCall, struct {
-		arg1 domain.Client
-		arg2 []byte
-	}{arg1, arg2Copy})
+	fake.handleArgsForCall = append(fake.handleArgsForCall, FakeThreadRouterHandleArgs{arg1, arg2Copy})
 	stub := fake.HandleStub
 	fake.recordInvocation("Handle", []interface{}{arg1, arg2Copy})
 	fake.handleMutex.Unlock()
 	if stub != nil {
-		fake.HandleStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -90,7 +100,15 @@ func (fake *FakeThreadRouter) HandleArgsForCall(i int) (domain.Client, []byte) {
 	fake.handleMutex.RLock()
 	defer fake.handleMutex.RUnlock()
 	argsForCall := fake.handleArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeThreadRouter) HandleArgs() []FakeThreadRouterHandleArgs {
+	fake.handleMutex.RLock()
+	defer fake.handleMutex.RUnlock()
+	args := make([]FakeThreadRouterHandleArgs, len(fake.handleArgsForCall))
+	copy(args, fake.handleArgsForCall)
+	return args
 }
 
 func (fake *FakeThreadRouter) Invocations() map[string][][]interface{} {
@@ -103,9 +121,18 @@ func (fake *FakeThreadRouter) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeThreadRouter) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeThreadRouter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

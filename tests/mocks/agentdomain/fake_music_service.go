@@ -11,33 +11,31 @@ import (
 type FakeMusicService struct {
 	ComposeStub        func(context.Context, string, string, *float32, *bool) error
 	composeMutex       sync.RWMutex
-	composeArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 *float32
-		arg5 *bool
-	}
-	composeReturns struct {
+	composeArgsForCall []FakeMusicServiceComposeArgs
+	composeReturns     struct {
 		result1 error
 	}
 	composeReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeMusicServiceComposeArgs holds the arguments of one call to Compose.
+type FakeMusicServiceComposeArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 *float32
+	Arg5 *bool
 }
 
 func (fake *FakeMusicService) Compose(arg1 context.Context, arg2 string, arg3 string, arg4 *float32, arg5 *bool) error {
 	fake.composeMutex.Lock()
 	ret, specificReturn := fake.composeReturnsOnCall[len(fake.composeArgsForCall)]
-	fake.composeArgsForCall = append(fake.composeArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 *float32
-		arg5 *bool
-	}{arg1, arg2, arg3, arg4, arg5})
+	fake.composeArgsForCall = append(fake.composeArgsForCall, FakeMusicServiceComposeArgs{arg1, arg2, arg3, arg4, arg5})
 	stub := fake.ComposeStub
 	fakeReturns := fake.composeReturns
 	fake.recordInvocation("Compose", []interface{}{arg1, arg2, arg3, arg4, arg5})
@@ -67,7 +65,15 @@ func (fake *FakeMusicService) ComposeArgsForCall(i int) (context.Context, string
 	fake.composeMutex.RLock()
 	defer fake.composeMutex.RUnlock()
 	argsForCall := fake.composeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5
+}
+
+func (fake *FakeMusicService) ComposeArgs() []FakeMusicServiceComposeArgs {
+	fake.composeMutex.RLock()
+	defer fake.composeMutex.RUnlock()
+	args := make([]FakeMusicServiceComposeArgs, len(fake.composeArgsForCall))
+	copy(args, fake.composeArgsForCall)
+	return args
 }
 
 func (fake *FakeMusicService) ComposeReturns(result1 error) {
@@ -103,9 +109,18 @@ func (fake *FakeMusicService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeMusicService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeMusicService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

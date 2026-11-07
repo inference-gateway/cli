@@ -11,23 +11,22 @@ import (
 type FakeShortcutRegistry struct {
 	GetAllStub        func() []shortcuts.Shortcut
 	getAllMutex       sync.RWMutex
-	getAllArgsForCall []struct {
-	}
-	getAllReturns struct {
+	getAllArgsForCall []struct{}
+	getAllReturns     struct {
 		result1 []shortcuts.Shortcut
 	}
 	getAllReturnsOnCall map[int]struct {
 		result1 []shortcuts.Shortcut
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
 }
 
 func (fake *FakeShortcutRegistry) GetAll() []shortcuts.Shortcut {
 	fake.getAllMutex.Lock()
 	ret, specificReturn := fake.getAllReturnsOnCall[len(fake.getAllArgsForCall)]
-	fake.getAllArgsForCall = append(fake.getAllArgsForCall, struct {
-	}{})
+	fake.getAllArgsForCall = append(fake.getAllArgsForCall, struct{}{})
 	stub := fake.GetAllStub
 	fakeReturns := fake.getAllReturns
 	fake.recordInvocation("GetAll", []interface{}{})
@@ -86,9 +85,18 @@ func (fake *FakeShortcutRegistry) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeShortcutRegistry) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeShortcutRegistry) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

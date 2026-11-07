@@ -11,11 +11,8 @@ import (
 type FakeScreenControl struct {
 	DriveStub        func(context.Context, domain.ScreenInput) error
 	driveMutex       sync.RWMutex
-	driveArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.ScreenInput
-	}
-	driveReturns struct {
+	driveArgsForCall []FakeScreenControlDriveArgs
+	driveReturns     struct {
 		result1 error
 	}
 	driveReturnsOnCall map[int]struct {
@@ -23,9 +20,8 @@ type FakeScreenControl struct {
 	}
 	HandBackStub        func() bool
 	handBackMutex       sync.RWMutex
-	handBackArgsForCall []struct {
-	}
-	handBackReturns struct {
+	handBackArgsForCall []struct{}
+	handBackReturns     struct {
 		result1 bool
 	}
 	handBackReturnsOnCall map[int]struct {
@@ -33,9 +29,8 @@ type FakeScreenControl struct {
 	}
 	HeldStub        func() bool
 	heldMutex       sync.RWMutex
-	heldArgsForCall []struct {
-	}
-	heldReturns struct {
+	heldArgsForCall []struct{}
+	heldReturns     struct {
 		result1 bool
 	}
 	heldReturnsOnCall map[int]struct {
@@ -43,9 +38,8 @@ type FakeScreenControl struct {
 	}
 	TakeOverStub        func() error
 	takeOverMutex       sync.RWMutex
-	takeOverArgsForCall []struct {
-	}
-	takeOverReturns struct {
+	takeOverArgsForCall []struct{}
+	takeOverReturns     struct {
 		result1 error
 	}
 	takeOverReturnsOnCall map[int]struct {
@@ -53,26 +47,33 @@ type FakeScreenControl struct {
 	}
 	WaitReleaseStub        func(context.Context) error
 	waitReleaseMutex       sync.RWMutex
-	waitReleaseArgsForCall []struct {
-		arg1 context.Context
-	}
-	waitReleaseReturns struct {
+	waitReleaseArgsForCall []FakeScreenControlWaitReleaseArgs
+	waitReleaseReturns     struct {
 		result1 error
 	}
 	waitReleaseReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeScreenControlDriveArgs holds the arguments of one call to Drive.
+type FakeScreenControlDriveArgs struct {
+	Arg1 context.Context
+	Arg2 domain.ScreenInput
+}
+
+// FakeScreenControlWaitReleaseArgs holds the arguments of one call to WaitRelease.
+type FakeScreenControlWaitReleaseArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *FakeScreenControl) Drive(arg1 context.Context, arg2 domain.ScreenInput) error {
 	fake.driveMutex.Lock()
 	ret, specificReturn := fake.driveReturnsOnCall[len(fake.driveArgsForCall)]
-	fake.driveArgsForCall = append(fake.driveArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.ScreenInput
-	}{arg1, arg2})
+	fake.driveArgsForCall = append(fake.driveArgsForCall, FakeScreenControlDriveArgs{arg1, arg2})
 	stub := fake.DriveStub
 	fakeReturns := fake.driveReturns
 	fake.recordInvocation("Drive", []interface{}{arg1, arg2})
@@ -102,7 +103,15 @@ func (fake *FakeScreenControl) DriveArgsForCall(i int) (context.Context, domain.
 	fake.driveMutex.RLock()
 	defer fake.driveMutex.RUnlock()
 	argsForCall := fake.driveArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeScreenControl) DriveArgs() []FakeScreenControlDriveArgs {
+	fake.driveMutex.RLock()
+	defer fake.driveMutex.RUnlock()
+	args := make([]FakeScreenControlDriveArgs, len(fake.driveArgsForCall))
+	copy(args, fake.driveArgsForCall)
+	return args
 }
 
 func (fake *FakeScreenControl) DriveReturns(result1 error) {
@@ -131,8 +140,7 @@ func (fake *FakeScreenControl) DriveReturnsOnCall(i int, result1 error) {
 func (fake *FakeScreenControl) HandBack() bool {
 	fake.handBackMutex.Lock()
 	ret, specificReturn := fake.handBackReturnsOnCall[len(fake.handBackArgsForCall)]
-	fake.handBackArgsForCall = append(fake.handBackArgsForCall, struct {
-	}{})
+	fake.handBackArgsForCall = append(fake.handBackArgsForCall, struct{}{})
 	stub := fake.HandBackStub
 	fakeReturns := fake.handBackReturns
 	fake.recordInvocation("HandBack", []interface{}{})
@@ -184,8 +192,7 @@ func (fake *FakeScreenControl) HandBackReturnsOnCall(i int, result1 bool) {
 func (fake *FakeScreenControl) Held() bool {
 	fake.heldMutex.Lock()
 	ret, specificReturn := fake.heldReturnsOnCall[len(fake.heldArgsForCall)]
-	fake.heldArgsForCall = append(fake.heldArgsForCall, struct {
-	}{})
+	fake.heldArgsForCall = append(fake.heldArgsForCall, struct{}{})
 	stub := fake.HeldStub
 	fakeReturns := fake.heldReturns
 	fake.recordInvocation("Held", []interface{}{})
@@ -237,8 +244,7 @@ func (fake *FakeScreenControl) HeldReturnsOnCall(i int, result1 bool) {
 func (fake *FakeScreenControl) TakeOver() error {
 	fake.takeOverMutex.Lock()
 	ret, specificReturn := fake.takeOverReturnsOnCall[len(fake.takeOverArgsForCall)]
-	fake.takeOverArgsForCall = append(fake.takeOverArgsForCall, struct {
-	}{})
+	fake.takeOverArgsForCall = append(fake.takeOverArgsForCall, struct{}{})
 	stub := fake.TakeOverStub
 	fakeReturns := fake.takeOverReturns
 	fake.recordInvocation("TakeOver", []interface{}{})
@@ -290,9 +296,7 @@ func (fake *FakeScreenControl) TakeOverReturnsOnCall(i int, result1 error) {
 func (fake *FakeScreenControl) WaitRelease(arg1 context.Context) error {
 	fake.waitReleaseMutex.Lock()
 	ret, specificReturn := fake.waitReleaseReturnsOnCall[len(fake.waitReleaseArgsForCall)]
-	fake.waitReleaseArgsForCall = append(fake.waitReleaseArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.waitReleaseArgsForCall = append(fake.waitReleaseArgsForCall, FakeScreenControlWaitReleaseArgs{arg1})
 	stub := fake.WaitReleaseStub
 	fakeReturns := fake.waitReleaseReturns
 	fake.recordInvocation("WaitRelease", []interface{}{arg1})
@@ -322,7 +326,15 @@ func (fake *FakeScreenControl) WaitReleaseArgsForCall(i int) context.Context {
 	fake.waitReleaseMutex.RLock()
 	defer fake.waitReleaseMutex.RUnlock()
 	argsForCall := fake.waitReleaseArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeScreenControl) WaitReleaseArgs() []FakeScreenControlWaitReleaseArgs {
+	fake.waitReleaseMutex.RLock()
+	defer fake.waitReleaseMutex.RUnlock()
+	args := make([]FakeScreenControlWaitReleaseArgs, len(fake.waitReleaseArgsForCall))
+	copy(args, fake.waitReleaseArgsForCall)
+	return args
 }
 
 func (fake *FakeScreenControl) WaitReleaseReturns(result1 error) {
@@ -358,9 +370,18 @@ func (fake *FakeScreenControl) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeScreenControl) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeScreenControl) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -11,11 +11,8 @@ import (
 type FakeShellHistoryStorage struct {
 	AppendHistoryStub        func(context.Context, string) error
 	appendHistoryMutex       sync.RWMutex
-	appendHistoryArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	appendHistoryReturns struct {
+	appendHistoryArgsForCall []FakeShellHistoryStorageAppendHistoryArgs
+	appendHistoryReturns     struct {
 		result1 error
 	}
 	appendHistoryReturnsOnCall map[int]struct {
@@ -23,11 +20,8 @@ type FakeShellHistoryStorage struct {
 	}
 	LoadHistoryStub        func(context.Context, int) ([]string, error)
 	loadHistoryMutex       sync.RWMutex
-	loadHistoryArgsForCall []struct {
-		arg1 context.Context
-		arg2 int
-	}
-	loadHistoryReturns struct {
+	loadHistoryArgsForCall []FakeShellHistoryStorageLoadHistoryArgs
+	loadHistoryReturns     struct {
 		result1 []string
 		result2 error
 	}
@@ -36,16 +30,26 @@ type FakeShellHistoryStorage struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeShellHistoryStorageAppendHistoryArgs holds the arguments of one call to AppendHistory.
+type FakeShellHistoryStorageAppendHistoryArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakeShellHistoryStorageLoadHistoryArgs holds the arguments of one call to LoadHistory.
+type FakeShellHistoryStorageLoadHistoryArgs struct {
+	Arg1 context.Context
+	Arg2 int
 }
 
 func (fake *FakeShellHistoryStorage) AppendHistory(arg1 context.Context, arg2 string) error {
 	fake.appendHistoryMutex.Lock()
 	ret, specificReturn := fake.appendHistoryReturnsOnCall[len(fake.appendHistoryArgsForCall)]
-	fake.appendHistoryArgsForCall = append(fake.appendHistoryArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.appendHistoryArgsForCall = append(fake.appendHistoryArgsForCall, FakeShellHistoryStorageAppendHistoryArgs{arg1, arg2})
 	stub := fake.AppendHistoryStub
 	fakeReturns := fake.appendHistoryReturns
 	fake.recordInvocation("AppendHistory", []interface{}{arg1, arg2})
@@ -75,7 +79,15 @@ func (fake *FakeShellHistoryStorage) AppendHistoryArgsForCall(i int) (context.Co
 	fake.appendHistoryMutex.RLock()
 	defer fake.appendHistoryMutex.RUnlock()
 	argsForCall := fake.appendHistoryArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeShellHistoryStorage) AppendHistoryArgs() []FakeShellHistoryStorageAppendHistoryArgs {
+	fake.appendHistoryMutex.RLock()
+	defer fake.appendHistoryMutex.RUnlock()
+	args := make([]FakeShellHistoryStorageAppendHistoryArgs, len(fake.appendHistoryArgsForCall))
+	copy(args, fake.appendHistoryArgsForCall)
+	return args
 }
 
 func (fake *FakeShellHistoryStorage) AppendHistoryReturns(result1 error) {
@@ -104,10 +116,7 @@ func (fake *FakeShellHistoryStorage) AppendHistoryReturnsOnCall(i int, result1 e
 func (fake *FakeShellHistoryStorage) LoadHistory(arg1 context.Context, arg2 int) ([]string, error) {
 	fake.loadHistoryMutex.Lock()
 	ret, specificReturn := fake.loadHistoryReturnsOnCall[len(fake.loadHistoryArgsForCall)]
-	fake.loadHistoryArgsForCall = append(fake.loadHistoryArgsForCall, struct {
-		arg1 context.Context
-		arg2 int
-	}{arg1, arg2})
+	fake.loadHistoryArgsForCall = append(fake.loadHistoryArgsForCall, FakeShellHistoryStorageLoadHistoryArgs{arg1, arg2})
 	stub := fake.LoadHistoryStub
 	fakeReturns := fake.loadHistoryReturns
 	fake.recordInvocation("LoadHistory", []interface{}{arg1, arg2})
@@ -137,7 +146,15 @@ func (fake *FakeShellHistoryStorage) LoadHistoryArgsForCall(i int) (context.Cont
 	fake.loadHistoryMutex.RLock()
 	defer fake.loadHistoryMutex.RUnlock()
 	argsForCall := fake.loadHistoryArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeShellHistoryStorage) LoadHistoryArgs() []FakeShellHistoryStorageLoadHistoryArgs {
+	fake.loadHistoryMutex.RLock()
+	defer fake.loadHistoryMutex.RUnlock()
+	args := make([]FakeShellHistoryStorageLoadHistoryArgs, len(fake.loadHistoryArgsForCall))
+	copy(args, fake.loadHistoryArgsForCall)
+	return args
 }
 
 func (fake *FakeShellHistoryStorage) LoadHistoryReturns(result1 []string, result2 error) {
@@ -176,9 +193,18 @@ func (fake *FakeShellHistoryStorage) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeShellHistoryStorage) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeShellHistoryStorage) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

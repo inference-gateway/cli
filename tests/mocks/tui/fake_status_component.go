@@ -8,15 +8,13 @@ import (
 )
 
 type FakeStatusComponent struct {
-	ClearStatusStub        func()
-	clearStatusMutex       sync.RWMutex
-	clearStatusArgsForCall []struct {
-	}
+	ClearStatusStub          func()
+	clearStatusMutex         sync.RWMutex
+	clearStatusArgsForCall   []struct{}
 	HasSavedStateStub        func() bool
 	hasSavedStateMutex       sync.RWMutex
-	hasSavedStateArgsForCall []struct {
-	}
-	hasSavedStateReturns struct {
+	hasSavedStateArgsForCall []struct{}
+	hasSavedStateReturns     struct {
 		result1 bool
 	}
 	hasSavedStateReturnsOnCall map[int]struct {
@@ -24,9 +22,8 @@ type FakeStatusComponent struct {
 	}
 	IsShowingErrorStub        func() bool
 	isShowingErrorMutex       sync.RWMutex
-	isShowingErrorArgsForCall []struct {
-	}
-	isShowingErrorReturns struct {
+	isShowingErrorArgsForCall []struct{}
+	isShowingErrorReturns     struct {
 		result1 bool
 	}
 	isShowingErrorReturnsOnCall map[int]struct {
@@ -34,9 +31,8 @@ type FakeStatusComponent struct {
 	}
 	IsShowingSpinnerStub        func() bool
 	isShowingSpinnerMutex       sync.RWMutex
-	isShowingSpinnerArgsForCall []struct {
-	}
-	isShowingSpinnerReturns struct {
+	isShowingSpinnerArgsForCall []struct{}
+	isShowingSpinnerReturns     struct {
 		result1 bool
 	}
 	isShowingSpinnerReturnsOnCall map[int]struct {
@@ -44,9 +40,8 @@ type FakeStatusComponent struct {
 	}
 	RenderStub        func() string
 	renderMutex       sync.RWMutex
-	renderArgsForCall []struct {
-	}
-	renderReturns struct {
+	renderArgsForCall []struct{}
+	renderReturns     struct {
 		result1 string
 	}
 	renderReturnsOnCall map[int]struct {
@@ -54,50 +49,63 @@ type FakeStatusComponent struct {
 	}
 	RestoreSavedStateStub        func()
 	restoreSavedStateMutex       sync.RWMutex
-	restoreSavedStateArgsForCall []struct {
-	}
-	SaveCurrentStateStub        func()
-	saveCurrentStateMutex       sync.RWMutex
-	saveCurrentStateArgsForCall []struct {
-	}
-	SetHeightStub        func(int)
-	setHeightMutex       sync.RWMutex
-	setHeightArgsForCall []struct {
-		arg1 int
-	}
-	SetWidthStub        func(int)
-	setWidthMutex       sync.RWMutex
-	setWidthArgsForCall []struct {
-		arg1 int
-	}
-	ShowErrorStub        func(string)
-	showErrorMutex       sync.RWMutex
-	showErrorArgsForCall []struct {
-		arg1 string
-	}
-	ShowSpinnerStub        func(string)
-	showSpinnerMutex       sync.RWMutex
-	showSpinnerArgsForCall []struct {
-		arg1 string
-	}
-	ShowStatusStub        func(string)
-	showStatusMutex       sync.RWMutex
-	showStatusArgsForCall []struct {
-		arg1 string
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	restoreSavedStateArgsForCall []struct{}
+	SaveCurrentStateStub         func()
+	saveCurrentStateMutex        sync.RWMutex
+	saveCurrentStateArgsForCall  []struct{}
+	SetHeightStub                func(int)
+	setHeightMutex               sync.RWMutex
+	setHeightArgsForCall         []FakeStatusComponentSetHeightArgs
+	SetWidthStub                 func(int)
+	setWidthMutex                sync.RWMutex
+	setWidthArgsForCall          []FakeStatusComponentSetWidthArgs
+	ShowErrorStub                func(string)
+	showErrorMutex               sync.RWMutex
+	showErrorArgsForCall         []FakeStatusComponentShowErrorArgs
+	ShowSpinnerStub              func(string)
+	showSpinnerMutex             sync.RWMutex
+	showSpinnerArgsForCall       []FakeStatusComponentShowSpinnerArgs
+	ShowStatusStub               func(string)
+	showStatusMutex              sync.RWMutex
+	showStatusArgsForCall        []FakeStatusComponentShowStatusArgs
+	invocations                  map[string][][]interface{}
+	callOrder                    []string
+	invocationsMutex             sync.RWMutex
+}
+
+// FakeStatusComponentSetHeightArgs holds the arguments of one call to SetHeight.
+type FakeStatusComponentSetHeightArgs struct {
+	Arg1 int
+}
+
+// FakeStatusComponentSetWidthArgs holds the arguments of one call to SetWidth.
+type FakeStatusComponentSetWidthArgs struct {
+	Arg1 int
+}
+
+// FakeStatusComponentShowErrorArgs holds the arguments of one call to ShowError.
+type FakeStatusComponentShowErrorArgs struct {
+	Arg1 string
+}
+
+// FakeStatusComponentShowSpinnerArgs holds the arguments of one call to ShowSpinner.
+type FakeStatusComponentShowSpinnerArgs struct {
+	Arg1 string
+}
+
+// FakeStatusComponentShowStatusArgs holds the arguments of one call to ShowStatus.
+type FakeStatusComponentShowStatusArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeStatusComponent) ClearStatus() {
 	fake.clearStatusMutex.Lock()
-	fake.clearStatusArgsForCall = append(fake.clearStatusArgsForCall, struct {
-	}{})
+	fake.clearStatusArgsForCall = append(fake.clearStatusArgsForCall, struct{}{})
 	stub := fake.ClearStatusStub
 	fake.recordInvocation("ClearStatus", []interface{}{})
 	fake.clearStatusMutex.Unlock()
 	if stub != nil {
-		fake.ClearStatusStub()
+		stub()
 	}
 }
 
@@ -116,8 +124,7 @@ func (fake *FakeStatusComponent) ClearStatusCalls(stub func()) {
 func (fake *FakeStatusComponent) HasSavedState() bool {
 	fake.hasSavedStateMutex.Lock()
 	ret, specificReturn := fake.hasSavedStateReturnsOnCall[len(fake.hasSavedStateArgsForCall)]
-	fake.hasSavedStateArgsForCall = append(fake.hasSavedStateArgsForCall, struct {
-	}{})
+	fake.hasSavedStateArgsForCall = append(fake.hasSavedStateArgsForCall, struct{}{})
 	stub := fake.HasSavedStateStub
 	fakeReturns := fake.hasSavedStateReturns
 	fake.recordInvocation("HasSavedState", []interface{}{})
@@ -169,8 +176,7 @@ func (fake *FakeStatusComponent) HasSavedStateReturnsOnCall(i int, result1 bool)
 func (fake *FakeStatusComponent) IsShowingError() bool {
 	fake.isShowingErrorMutex.Lock()
 	ret, specificReturn := fake.isShowingErrorReturnsOnCall[len(fake.isShowingErrorArgsForCall)]
-	fake.isShowingErrorArgsForCall = append(fake.isShowingErrorArgsForCall, struct {
-	}{})
+	fake.isShowingErrorArgsForCall = append(fake.isShowingErrorArgsForCall, struct{}{})
 	stub := fake.IsShowingErrorStub
 	fakeReturns := fake.isShowingErrorReturns
 	fake.recordInvocation("IsShowingError", []interface{}{})
@@ -222,8 +228,7 @@ func (fake *FakeStatusComponent) IsShowingErrorReturnsOnCall(i int, result1 bool
 func (fake *FakeStatusComponent) IsShowingSpinner() bool {
 	fake.isShowingSpinnerMutex.Lock()
 	ret, specificReturn := fake.isShowingSpinnerReturnsOnCall[len(fake.isShowingSpinnerArgsForCall)]
-	fake.isShowingSpinnerArgsForCall = append(fake.isShowingSpinnerArgsForCall, struct {
-	}{})
+	fake.isShowingSpinnerArgsForCall = append(fake.isShowingSpinnerArgsForCall, struct{}{})
 	stub := fake.IsShowingSpinnerStub
 	fakeReturns := fake.isShowingSpinnerReturns
 	fake.recordInvocation("IsShowingSpinner", []interface{}{})
@@ -275,8 +280,7 @@ func (fake *FakeStatusComponent) IsShowingSpinnerReturnsOnCall(i int, result1 bo
 func (fake *FakeStatusComponent) Render() string {
 	fake.renderMutex.Lock()
 	ret, specificReturn := fake.renderReturnsOnCall[len(fake.renderArgsForCall)]
-	fake.renderArgsForCall = append(fake.renderArgsForCall, struct {
-	}{})
+	fake.renderArgsForCall = append(fake.renderArgsForCall, struct{}{})
 	stub := fake.RenderStub
 	fakeReturns := fake.renderReturns
 	fake.recordInvocation("Render", []interface{}{})
@@ -327,13 +331,12 @@ func (fake *FakeStatusComponent) RenderReturnsOnCall(i int, result1 string) {
 
 func (fake *FakeStatusComponent) RestoreSavedState() {
 	fake.restoreSavedStateMutex.Lock()
-	fake.restoreSavedStateArgsForCall = append(fake.restoreSavedStateArgsForCall, struct {
-	}{})
+	fake.restoreSavedStateArgsForCall = append(fake.restoreSavedStateArgsForCall, struct{}{})
 	stub := fake.RestoreSavedStateStub
 	fake.recordInvocation("RestoreSavedState", []interface{}{})
 	fake.restoreSavedStateMutex.Unlock()
 	if stub != nil {
-		fake.RestoreSavedStateStub()
+		stub()
 	}
 }
 
@@ -351,13 +354,12 @@ func (fake *FakeStatusComponent) RestoreSavedStateCalls(stub func()) {
 
 func (fake *FakeStatusComponent) SaveCurrentState() {
 	fake.saveCurrentStateMutex.Lock()
-	fake.saveCurrentStateArgsForCall = append(fake.saveCurrentStateArgsForCall, struct {
-	}{})
+	fake.saveCurrentStateArgsForCall = append(fake.saveCurrentStateArgsForCall, struct{}{})
 	stub := fake.SaveCurrentStateStub
 	fake.recordInvocation("SaveCurrentState", []interface{}{})
 	fake.saveCurrentStateMutex.Unlock()
 	if stub != nil {
-		fake.SaveCurrentStateStub()
+		stub()
 	}
 }
 
@@ -375,14 +377,12 @@ func (fake *FakeStatusComponent) SaveCurrentStateCalls(stub func()) {
 
 func (fake *FakeStatusComponent) SetHeight(arg1 int) {
 	fake.setHeightMutex.Lock()
-	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, FakeStatusComponentSetHeightArgs{arg1})
 	stub := fake.SetHeightStub
 	fake.recordInvocation("SetHeight", []interface{}{arg1})
 	fake.setHeightMutex.Unlock()
 	if stub != nil {
-		fake.SetHeightStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -402,19 +402,25 @@ func (fake *FakeStatusComponent) SetHeightArgsForCall(i int) int {
 	fake.setHeightMutex.RLock()
 	defer fake.setHeightMutex.RUnlock()
 	argsForCall := fake.setHeightArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStatusComponent) SetHeightArgs() []FakeStatusComponentSetHeightArgs {
+	fake.setHeightMutex.RLock()
+	defer fake.setHeightMutex.RUnlock()
+	args := make([]FakeStatusComponentSetHeightArgs, len(fake.setHeightArgsForCall))
+	copy(args, fake.setHeightArgsForCall)
+	return args
 }
 
 func (fake *FakeStatusComponent) SetWidth(arg1 int) {
 	fake.setWidthMutex.Lock()
-	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, FakeStatusComponentSetWidthArgs{arg1})
 	stub := fake.SetWidthStub
 	fake.recordInvocation("SetWidth", []interface{}{arg1})
 	fake.setWidthMutex.Unlock()
 	if stub != nil {
-		fake.SetWidthStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -434,19 +440,25 @@ func (fake *FakeStatusComponent) SetWidthArgsForCall(i int) int {
 	fake.setWidthMutex.RLock()
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStatusComponent) SetWidthArgs() []FakeStatusComponentSetWidthArgs {
+	fake.setWidthMutex.RLock()
+	defer fake.setWidthMutex.RUnlock()
+	args := make([]FakeStatusComponentSetWidthArgs, len(fake.setWidthArgsForCall))
+	copy(args, fake.setWidthArgsForCall)
+	return args
 }
 
 func (fake *FakeStatusComponent) ShowError(arg1 string) {
 	fake.showErrorMutex.Lock()
-	fake.showErrorArgsForCall = append(fake.showErrorArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.showErrorArgsForCall = append(fake.showErrorArgsForCall, FakeStatusComponentShowErrorArgs{arg1})
 	stub := fake.ShowErrorStub
 	fake.recordInvocation("ShowError", []interface{}{arg1})
 	fake.showErrorMutex.Unlock()
 	if stub != nil {
-		fake.ShowErrorStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -466,19 +478,25 @@ func (fake *FakeStatusComponent) ShowErrorArgsForCall(i int) string {
 	fake.showErrorMutex.RLock()
 	defer fake.showErrorMutex.RUnlock()
 	argsForCall := fake.showErrorArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStatusComponent) ShowErrorArgs() []FakeStatusComponentShowErrorArgs {
+	fake.showErrorMutex.RLock()
+	defer fake.showErrorMutex.RUnlock()
+	args := make([]FakeStatusComponentShowErrorArgs, len(fake.showErrorArgsForCall))
+	copy(args, fake.showErrorArgsForCall)
+	return args
 }
 
 func (fake *FakeStatusComponent) ShowSpinner(arg1 string) {
 	fake.showSpinnerMutex.Lock()
-	fake.showSpinnerArgsForCall = append(fake.showSpinnerArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.showSpinnerArgsForCall = append(fake.showSpinnerArgsForCall, FakeStatusComponentShowSpinnerArgs{arg1})
 	stub := fake.ShowSpinnerStub
 	fake.recordInvocation("ShowSpinner", []interface{}{arg1})
 	fake.showSpinnerMutex.Unlock()
 	if stub != nil {
-		fake.ShowSpinnerStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -498,19 +516,25 @@ func (fake *FakeStatusComponent) ShowSpinnerArgsForCall(i int) string {
 	fake.showSpinnerMutex.RLock()
 	defer fake.showSpinnerMutex.RUnlock()
 	argsForCall := fake.showSpinnerArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStatusComponent) ShowSpinnerArgs() []FakeStatusComponentShowSpinnerArgs {
+	fake.showSpinnerMutex.RLock()
+	defer fake.showSpinnerMutex.RUnlock()
+	args := make([]FakeStatusComponentShowSpinnerArgs, len(fake.showSpinnerArgsForCall))
+	copy(args, fake.showSpinnerArgsForCall)
+	return args
 }
 
 func (fake *FakeStatusComponent) ShowStatus(arg1 string) {
 	fake.showStatusMutex.Lock()
-	fake.showStatusArgsForCall = append(fake.showStatusArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.showStatusArgsForCall = append(fake.showStatusArgsForCall, FakeStatusComponentShowStatusArgs{arg1})
 	stub := fake.ShowStatusStub
 	fake.recordInvocation("ShowStatus", []interface{}{arg1})
 	fake.showStatusMutex.Unlock()
 	if stub != nil {
-		fake.ShowStatusStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -530,7 +554,15 @@ func (fake *FakeStatusComponent) ShowStatusArgsForCall(i int) string {
 	fake.showStatusMutex.RLock()
 	defer fake.showStatusMutex.RUnlock()
 	argsForCall := fake.showStatusArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStatusComponent) ShowStatusArgs() []FakeStatusComponentShowStatusArgs {
+	fake.showStatusMutex.RLock()
+	defer fake.showStatusMutex.RUnlock()
+	args := make([]FakeStatusComponentShowStatusArgs, len(fake.showStatusArgsForCall))
+	copy(args, fake.showStatusArgsForCall)
+	return args
 }
 
 func (fake *FakeStatusComponent) Invocations() map[string][][]interface{} {
@@ -543,9 +575,18 @@ func (fake *FakeStatusComponent) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeStatusComponent) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeStatusComponent) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

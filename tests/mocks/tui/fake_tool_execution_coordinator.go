@@ -12,9 +12,8 @@ import (
 type FakeToolExecutionCoordinator struct {
 	GetActiveToolCallIDStub        func() string
 	getActiveToolCallIDMutex       sync.RWMutex
-	getActiveToolCallIDArgsForCall []struct {
-	}
-	getActiveToolCallIDReturns struct {
+	getActiveToolCallIDArgsForCall []struct{}
+	getActiveToolCallIDReturns     struct {
 		result1 string
 	}
 	getActiveToolCallIDReturnsOnCall map[int]struct {
@@ -22,10 +21,8 @@ type FakeToolExecutionCoordinator struct {
 	}
 	HandleToolApprovalRequestedStub        func(domain.ToolApprovalRequestedEvent) tea.Cmd
 	handleToolApprovalRequestedMutex       sync.RWMutex
-	handleToolApprovalRequestedArgsForCall []struct {
-		arg1 domain.ToolApprovalRequestedEvent
-	}
-	handleToolApprovalRequestedReturns struct {
+	handleToolApprovalRequestedArgsForCall []FakeToolExecutionCoordinatorHandleToolApprovalRequestedArgs
+	handleToolApprovalRequestedReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolApprovalRequestedReturnsOnCall map[int]struct {
@@ -33,10 +30,8 @@ type FakeToolExecutionCoordinator struct {
 	}
 	HandleToolApprovalResponseStub        func(domain.ToolApprovalResponseEvent) tea.Cmd
 	handleToolApprovalResponseMutex       sync.RWMutex
-	handleToolApprovalResponseArgsForCall []struct {
-		arg1 domain.ToolApprovalResponseEvent
-	}
-	handleToolApprovalResponseReturns struct {
+	handleToolApprovalResponseArgsForCall []FakeToolExecutionCoordinatorHandleToolApprovalResponseArgs
+	handleToolApprovalResponseReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolApprovalResponseReturnsOnCall map[int]struct {
@@ -44,10 +39,8 @@ type FakeToolExecutionCoordinator struct {
 	}
 	HandleToolCancelledStub        func(domain.ToolCancelledEvent) tea.Cmd
 	handleToolCancelledMutex       sync.RWMutex
-	handleToolCancelledArgsForCall []struct {
-		arg1 domain.ToolCancelledEvent
-	}
-	handleToolCancelledReturns struct {
+	handleToolCancelledArgsForCall []FakeToolExecutionCoordinatorHandleToolCancelledArgs
+	handleToolCancelledReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolCancelledReturnsOnCall map[int]struct {
@@ -55,10 +48,8 @@ type FakeToolExecutionCoordinator struct {
 	}
 	HandleToolExecutionCompletedStub        func(domain.ToolExecutionCompletedEvent) tea.Cmd
 	handleToolExecutionCompletedMutex       sync.RWMutex
-	handleToolExecutionCompletedArgsForCall []struct {
-		arg1 domain.ToolExecutionCompletedEvent
-	}
-	handleToolExecutionCompletedReturns struct {
+	handleToolExecutionCompletedArgsForCall []FakeToolExecutionCoordinatorHandleToolExecutionCompletedArgs
+	handleToolExecutionCompletedReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolExecutionCompletedReturnsOnCall map[int]struct {
@@ -66,10 +57,8 @@ type FakeToolExecutionCoordinator struct {
 	}
 	HandleToolExecutionProgressStub        func(domain.ToolExecutionProgressEvent) tea.Cmd
 	handleToolExecutionProgressMutex       sync.RWMutex
-	handleToolExecutionProgressArgsForCall []struct {
-		arg1 domain.ToolExecutionProgressEvent
-	}
-	handleToolExecutionProgressReturns struct {
+	handleToolExecutionProgressArgsForCall []FakeToolExecutionCoordinatorHandleToolExecutionProgressArgs
+	handleToolExecutionProgressReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolExecutionProgressReturnsOnCall map[int]struct {
@@ -77,10 +66,8 @@ type FakeToolExecutionCoordinator struct {
 	}
 	HandleToolExecutionStartedStub        func(tui.ToolExecutionStartedEvent) tea.Cmd
 	handleToolExecutionStartedMutex       sync.RWMutex
-	handleToolExecutionStartedArgsForCall []struct {
-		arg1 tui.ToolExecutionStartedEvent
-	}
-	handleToolExecutionStartedReturns struct {
+	handleToolExecutionStartedArgsForCall []FakeToolExecutionCoordinatorHandleToolExecutionStartedArgs
+	handleToolExecutionStartedReturns     struct {
 		result1 tea.Cmd
 	}
 	handleToolExecutionStartedReturnsOnCall map[int]struct {
@@ -88,18 +75,51 @@ type FakeToolExecutionCoordinator struct {
 	}
 	SetActiveToolCallIDStub        func(string)
 	setActiveToolCallIDMutex       sync.RWMutex
-	setActiveToolCallIDArgsForCall []struct {
-		arg1 string
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setActiveToolCallIDArgsForCall []FakeToolExecutionCoordinatorSetActiveToolCallIDArgs
+	invocations                    map[string][][]interface{}
+	callOrder                      []string
+	invocationsMutex               sync.RWMutex
+}
+
+// FakeToolExecutionCoordinatorHandleToolApprovalRequestedArgs holds the arguments of one call to HandleToolApprovalRequested.
+type FakeToolExecutionCoordinatorHandleToolApprovalRequestedArgs struct {
+	Arg1 domain.ToolApprovalRequestedEvent
+}
+
+// FakeToolExecutionCoordinatorHandleToolApprovalResponseArgs holds the arguments of one call to HandleToolApprovalResponse.
+type FakeToolExecutionCoordinatorHandleToolApprovalResponseArgs struct {
+	Arg1 domain.ToolApprovalResponseEvent
+}
+
+// FakeToolExecutionCoordinatorHandleToolCancelledArgs holds the arguments of one call to HandleToolCancelled.
+type FakeToolExecutionCoordinatorHandleToolCancelledArgs struct {
+	Arg1 domain.ToolCancelledEvent
+}
+
+// FakeToolExecutionCoordinatorHandleToolExecutionCompletedArgs holds the arguments of one call to HandleToolExecutionCompleted.
+type FakeToolExecutionCoordinatorHandleToolExecutionCompletedArgs struct {
+	Arg1 domain.ToolExecutionCompletedEvent
+}
+
+// FakeToolExecutionCoordinatorHandleToolExecutionProgressArgs holds the arguments of one call to HandleToolExecutionProgress.
+type FakeToolExecutionCoordinatorHandleToolExecutionProgressArgs struct {
+	Arg1 domain.ToolExecutionProgressEvent
+}
+
+// FakeToolExecutionCoordinatorHandleToolExecutionStartedArgs holds the arguments of one call to HandleToolExecutionStarted.
+type FakeToolExecutionCoordinatorHandleToolExecutionStartedArgs struct {
+	Arg1 tui.ToolExecutionStartedEvent
+}
+
+// FakeToolExecutionCoordinatorSetActiveToolCallIDArgs holds the arguments of one call to SetActiveToolCallID.
+type FakeToolExecutionCoordinatorSetActiveToolCallIDArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeToolExecutionCoordinator) GetActiveToolCallID() string {
 	fake.getActiveToolCallIDMutex.Lock()
 	ret, specificReturn := fake.getActiveToolCallIDReturnsOnCall[len(fake.getActiveToolCallIDArgsForCall)]
-	fake.getActiveToolCallIDArgsForCall = append(fake.getActiveToolCallIDArgsForCall, struct {
-	}{})
+	fake.getActiveToolCallIDArgsForCall = append(fake.getActiveToolCallIDArgsForCall, struct{}{})
 	stub := fake.GetActiveToolCallIDStub
 	fakeReturns := fake.getActiveToolCallIDReturns
 	fake.recordInvocation("GetActiveToolCallID", []interface{}{})
@@ -151,9 +171,7 @@ func (fake *FakeToolExecutionCoordinator) GetActiveToolCallIDReturnsOnCall(i int
 func (fake *FakeToolExecutionCoordinator) HandleToolApprovalRequested(arg1 domain.ToolApprovalRequestedEvent) tea.Cmd {
 	fake.handleToolApprovalRequestedMutex.Lock()
 	ret, specificReturn := fake.handleToolApprovalRequestedReturnsOnCall[len(fake.handleToolApprovalRequestedArgsForCall)]
-	fake.handleToolApprovalRequestedArgsForCall = append(fake.handleToolApprovalRequestedArgsForCall, struct {
-		arg1 domain.ToolApprovalRequestedEvent
-	}{arg1})
+	fake.handleToolApprovalRequestedArgsForCall = append(fake.handleToolApprovalRequestedArgsForCall, FakeToolExecutionCoordinatorHandleToolApprovalRequestedArgs{arg1})
 	stub := fake.HandleToolApprovalRequestedStub
 	fakeReturns := fake.handleToolApprovalRequestedReturns
 	fake.recordInvocation("HandleToolApprovalRequested", []interface{}{arg1})
@@ -183,7 +201,15 @@ func (fake *FakeToolExecutionCoordinator) HandleToolApprovalRequestedArgsForCall
 	fake.handleToolApprovalRequestedMutex.RLock()
 	defer fake.handleToolApprovalRequestedMutex.RUnlock()
 	argsForCall := fake.handleToolApprovalRequestedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) HandleToolApprovalRequestedArgs() []FakeToolExecutionCoordinatorHandleToolApprovalRequestedArgs {
+	fake.handleToolApprovalRequestedMutex.RLock()
+	defer fake.handleToolApprovalRequestedMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorHandleToolApprovalRequestedArgs, len(fake.handleToolApprovalRequestedArgsForCall))
+	copy(args, fake.handleToolApprovalRequestedArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) HandleToolApprovalRequestedReturns(result1 tea.Cmd) {
@@ -212,9 +238,7 @@ func (fake *FakeToolExecutionCoordinator) HandleToolApprovalRequestedReturnsOnCa
 func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponse(arg1 domain.ToolApprovalResponseEvent) tea.Cmd {
 	fake.handleToolApprovalResponseMutex.Lock()
 	ret, specificReturn := fake.handleToolApprovalResponseReturnsOnCall[len(fake.handleToolApprovalResponseArgsForCall)]
-	fake.handleToolApprovalResponseArgsForCall = append(fake.handleToolApprovalResponseArgsForCall, struct {
-		arg1 domain.ToolApprovalResponseEvent
-	}{arg1})
+	fake.handleToolApprovalResponseArgsForCall = append(fake.handleToolApprovalResponseArgsForCall, FakeToolExecutionCoordinatorHandleToolApprovalResponseArgs{arg1})
 	stub := fake.HandleToolApprovalResponseStub
 	fakeReturns := fake.handleToolApprovalResponseReturns
 	fake.recordInvocation("HandleToolApprovalResponse", []interface{}{arg1})
@@ -244,7 +268,15 @@ func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseArgsForCall(
 	fake.handleToolApprovalResponseMutex.RLock()
 	defer fake.handleToolApprovalResponseMutex.RUnlock()
 	argsForCall := fake.handleToolApprovalResponseArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseArgs() []FakeToolExecutionCoordinatorHandleToolApprovalResponseArgs {
+	fake.handleToolApprovalResponseMutex.RLock()
+	defer fake.handleToolApprovalResponseMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorHandleToolApprovalResponseArgs, len(fake.handleToolApprovalResponseArgsForCall))
+	copy(args, fake.handleToolApprovalResponseArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseReturns(result1 tea.Cmd) {
@@ -273,9 +305,7 @@ func (fake *FakeToolExecutionCoordinator) HandleToolApprovalResponseReturnsOnCal
 func (fake *FakeToolExecutionCoordinator) HandleToolCancelled(arg1 domain.ToolCancelledEvent) tea.Cmd {
 	fake.handleToolCancelledMutex.Lock()
 	ret, specificReturn := fake.handleToolCancelledReturnsOnCall[len(fake.handleToolCancelledArgsForCall)]
-	fake.handleToolCancelledArgsForCall = append(fake.handleToolCancelledArgsForCall, struct {
-		arg1 domain.ToolCancelledEvent
-	}{arg1})
+	fake.handleToolCancelledArgsForCall = append(fake.handleToolCancelledArgsForCall, FakeToolExecutionCoordinatorHandleToolCancelledArgs{arg1})
 	stub := fake.HandleToolCancelledStub
 	fakeReturns := fake.handleToolCancelledReturns
 	fake.recordInvocation("HandleToolCancelled", []interface{}{arg1})
@@ -305,7 +335,15 @@ func (fake *FakeToolExecutionCoordinator) HandleToolCancelledArgsForCall(i int) 
 	fake.handleToolCancelledMutex.RLock()
 	defer fake.handleToolCancelledMutex.RUnlock()
 	argsForCall := fake.handleToolCancelledArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) HandleToolCancelledArgs() []FakeToolExecutionCoordinatorHandleToolCancelledArgs {
+	fake.handleToolCancelledMutex.RLock()
+	defer fake.handleToolCancelledMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorHandleToolCancelledArgs, len(fake.handleToolCancelledArgsForCall))
+	copy(args, fake.handleToolCancelledArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) HandleToolCancelledReturns(result1 tea.Cmd) {
@@ -334,9 +372,7 @@ func (fake *FakeToolExecutionCoordinator) HandleToolCancelledReturnsOnCall(i int
 func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompleted(arg1 domain.ToolExecutionCompletedEvent) tea.Cmd {
 	fake.handleToolExecutionCompletedMutex.Lock()
 	ret, specificReturn := fake.handleToolExecutionCompletedReturnsOnCall[len(fake.handleToolExecutionCompletedArgsForCall)]
-	fake.handleToolExecutionCompletedArgsForCall = append(fake.handleToolExecutionCompletedArgsForCall, struct {
-		arg1 domain.ToolExecutionCompletedEvent
-	}{arg1})
+	fake.handleToolExecutionCompletedArgsForCall = append(fake.handleToolExecutionCompletedArgsForCall, FakeToolExecutionCoordinatorHandleToolExecutionCompletedArgs{arg1})
 	stub := fake.HandleToolExecutionCompletedStub
 	fakeReturns := fake.handleToolExecutionCompletedReturns
 	fake.recordInvocation("HandleToolExecutionCompleted", []interface{}{arg1})
@@ -366,7 +402,15 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedArgsForCal
 	fake.handleToolExecutionCompletedMutex.RLock()
 	defer fake.handleToolExecutionCompletedMutex.RUnlock()
 	argsForCall := fake.handleToolExecutionCompletedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedArgs() []FakeToolExecutionCoordinatorHandleToolExecutionCompletedArgs {
+	fake.handleToolExecutionCompletedMutex.RLock()
+	defer fake.handleToolExecutionCompletedMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorHandleToolExecutionCompletedArgs, len(fake.handleToolExecutionCompletedArgsForCall))
+	copy(args, fake.handleToolExecutionCompletedArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedReturns(result1 tea.Cmd) {
@@ -395,9 +439,7 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionCompletedReturnsOnC
 func (fake *FakeToolExecutionCoordinator) HandleToolExecutionProgress(arg1 domain.ToolExecutionProgressEvent) tea.Cmd {
 	fake.handleToolExecutionProgressMutex.Lock()
 	ret, specificReturn := fake.handleToolExecutionProgressReturnsOnCall[len(fake.handleToolExecutionProgressArgsForCall)]
-	fake.handleToolExecutionProgressArgsForCall = append(fake.handleToolExecutionProgressArgsForCall, struct {
-		arg1 domain.ToolExecutionProgressEvent
-	}{arg1})
+	fake.handleToolExecutionProgressArgsForCall = append(fake.handleToolExecutionProgressArgsForCall, FakeToolExecutionCoordinatorHandleToolExecutionProgressArgs{arg1})
 	stub := fake.HandleToolExecutionProgressStub
 	fakeReturns := fake.handleToolExecutionProgressReturns
 	fake.recordInvocation("HandleToolExecutionProgress", []interface{}{arg1})
@@ -427,7 +469,15 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionProgressArgsForCall
 	fake.handleToolExecutionProgressMutex.RLock()
 	defer fake.handleToolExecutionProgressMutex.RUnlock()
 	argsForCall := fake.handleToolExecutionProgressArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionProgressArgs() []FakeToolExecutionCoordinatorHandleToolExecutionProgressArgs {
+	fake.handleToolExecutionProgressMutex.RLock()
+	defer fake.handleToolExecutionProgressMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorHandleToolExecutionProgressArgs, len(fake.handleToolExecutionProgressArgsForCall))
+	copy(args, fake.handleToolExecutionProgressArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) HandleToolExecutionProgressReturns(result1 tea.Cmd) {
@@ -456,9 +506,7 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionProgressReturnsOnCa
 func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStarted(arg1 tui.ToolExecutionStartedEvent) tea.Cmd {
 	fake.handleToolExecutionStartedMutex.Lock()
 	ret, specificReturn := fake.handleToolExecutionStartedReturnsOnCall[len(fake.handleToolExecutionStartedArgsForCall)]
-	fake.handleToolExecutionStartedArgsForCall = append(fake.handleToolExecutionStartedArgsForCall, struct {
-		arg1 tui.ToolExecutionStartedEvent
-	}{arg1})
+	fake.handleToolExecutionStartedArgsForCall = append(fake.handleToolExecutionStartedArgsForCall, FakeToolExecutionCoordinatorHandleToolExecutionStartedArgs{arg1})
 	stub := fake.HandleToolExecutionStartedStub
 	fakeReturns := fake.handleToolExecutionStartedReturns
 	fake.recordInvocation("HandleToolExecutionStarted", []interface{}{arg1})
@@ -488,7 +536,15 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedArgsForCall(
 	fake.handleToolExecutionStartedMutex.RLock()
 	defer fake.handleToolExecutionStartedMutex.RUnlock()
 	argsForCall := fake.handleToolExecutionStartedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedArgs() []FakeToolExecutionCoordinatorHandleToolExecutionStartedArgs {
+	fake.handleToolExecutionStartedMutex.RLock()
+	defer fake.handleToolExecutionStartedMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorHandleToolExecutionStartedArgs, len(fake.handleToolExecutionStartedArgsForCall))
+	copy(args, fake.handleToolExecutionStartedArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedReturns(result1 tea.Cmd) {
@@ -516,14 +572,12 @@ func (fake *FakeToolExecutionCoordinator) HandleToolExecutionStartedReturnsOnCal
 
 func (fake *FakeToolExecutionCoordinator) SetActiveToolCallID(arg1 string) {
 	fake.setActiveToolCallIDMutex.Lock()
-	fake.setActiveToolCallIDArgsForCall = append(fake.setActiveToolCallIDArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setActiveToolCallIDArgsForCall = append(fake.setActiveToolCallIDArgsForCall, FakeToolExecutionCoordinatorSetActiveToolCallIDArgs{arg1})
 	stub := fake.SetActiveToolCallIDStub
 	fake.recordInvocation("SetActiveToolCallID", []interface{}{arg1})
 	fake.setActiveToolCallIDMutex.Unlock()
 	if stub != nil {
-		fake.SetActiveToolCallIDStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -543,7 +597,15 @@ func (fake *FakeToolExecutionCoordinator) SetActiveToolCallIDArgsForCall(i int) 
 	fake.setActiveToolCallIDMutex.RLock()
 	defer fake.setActiveToolCallIDMutex.RUnlock()
 	argsForCall := fake.setActiveToolCallIDArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeToolExecutionCoordinator) SetActiveToolCallIDArgs() []FakeToolExecutionCoordinatorSetActiveToolCallIDArgs {
+	fake.setActiveToolCallIDMutex.RLock()
+	defer fake.setActiveToolCallIDMutex.RUnlock()
+	args := make([]FakeToolExecutionCoordinatorSetActiveToolCallIDArgs, len(fake.setActiveToolCallIDArgsForCall))
+	copy(args, fake.setActiveToolCallIDArgsForCall)
+	return args
 }
 
 func (fake *FakeToolExecutionCoordinator) Invocations() map[string][][]interface{} {
@@ -556,9 +618,18 @@ func (fake *FakeToolExecutionCoordinator) Invocations() map[string][][]interface
 	return copiedInvocations
 }
 
+func (fake *FakeToolExecutionCoordinator) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeToolExecutionCoordinator) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

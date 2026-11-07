@@ -9,15 +9,13 @@ import (
 )
 
 type FakeAutocompleteComponent struct {
-	ClearUsageHintStub        func()
-	clearUsageHintMutex       sync.RWMutex
-	clearUsageHintArgsForCall []struct {
-	}
+	ClearUsageHintStub                func()
+	clearUsageHintMutex               sync.RWMutex
+	clearUsageHintArgsForCall         []struct{}
 	GetCompletionCursorPosStub        func() int
 	getCompletionCursorPosMutex       sync.RWMutex
-	getCompletionCursorPosArgsForCall []struct {
-	}
-	getCompletionCursorPosReturns struct {
+	getCompletionCursorPosArgsForCall []struct{}
+	getCompletionCursorPosReturns     struct {
 		result1 int
 	}
 	getCompletionCursorPosReturnsOnCall map[int]struct {
@@ -25,9 +23,8 @@ type FakeAutocompleteComponent struct {
 	}
 	GetSelectedShortcutStub        func() string
 	getSelectedShortcutMutex       sync.RWMutex
-	getSelectedShortcutArgsForCall []struct {
-	}
-	getSelectedShortcutReturns struct {
+	getSelectedShortcutArgsForCall []struct{}
+	getSelectedShortcutReturns     struct {
 		result1 string
 	}
 	getSelectedShortcutReturnsOnCall map[int]struct {
@@ -35,9 +32,8 @@ type FakeAutocompleteComponent struct {
 	}
 	GetUsageHintStub        func() string
 	getUsageHintMutex       sync.RWMutex
-	getUsageHintArgsForCall []struct {
-	}
-	getUsageHintReturns struct {
+	getUsageHintArgsForCall []struct{}
+	getUsageHintReturns     struct {
 		result1 string
 	}
 	getUsageHintReturnsOnCall map[int]struct {
@@ -45,10 +41,8 @@ type FakeAutocompleteComponent struct {
 	}
 	HandleKeyStub        func(tea.KeyPressMsg) (bool, string)
 	handleKeyMutex       sync.RWMutex
-	handleKeyArgsForCall []struct {
-		arg1 tea.KeyPressMsg
-	}
-	handleKeyReturns struct {
+	handleKeyArgsForCall []FakeAutocompleteComponentHandleKeyArgs
+	handleKeyReturns     struct {
 		result1 bool
 		result2 string
 	}
@@ -56,15 +50,13 @@ type FakeAutocompleteComponent struct {
 		result1 bool
 		result2 string
 	}
-	HideStub        func()
-	hideMutex       sync.RWMutex
-	hideArgsForCall []struct {
-	}
+	HideStub             func()
+	hideMutex            sync.RWMutex
+	hideArgsForCall      []struct{}
 	IsVisibleStub        func() bool
 	isVisibleMutex       sync.RWMutex
-	isVisibleArgsForCall []struct {
-	}
-	isVisibleReturns struct {
+	isVisibleArgsForCall []struct{}
+	isVisibleReturns     struct {
 		result1 bool
 	}
 	isVisibleReturnsOnCall map[int]struct {
@@ -72,13 +64,11 @@ type FakeAutocompleteComponent struct {
 	}
 	RefreshToolsListStub        func()
 	refreshToolsListMutex       sync.RWMutex
-	refreshToolsListArgsForCall []struct {
-	}
-	RenderStub        func() string
-	renderMutex       sync.RWMutex
-	renderArgsForCall []struct {
-	}
-	renderReturns struct {
+	refreshToolsListArgsForCall []struct{}
+	RenderStub                  func() string
+	renderMutex                 sync.RWMutex
+	renderArgsForCall           []struct{}
+	renderReturns               struct {
 		result1 string
 	}
 	renderReturnsOnCall map[int]struct {
@@ -86,33 +76,47 @@ type FakeAutocompleteComponent struct {
 	}
 	SetHeightStub        func(int)
 	setHeightMutex       sync.RWMutex
-	setHeightArgsForCall []struct {
-		arg1 int
-	}
-	SetWidthStub        func(int)
-	setWidthMutex       sync.RWMutex
-	setWidthArgsForCall []struct {
-		arg1 int
-	}
-	UpdateStub        func(string, int)
-	updateMutex       sync.RWMutex
-	updateArgsForCall []struct {
-		arg1 string
-		arg2 int
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	setHeightArgsForCall []FakeAutocompleteComponentSetHeightArgs
+	SetWidthStub         func(int)
+	setWidthMutex        sync.RWMutex
+	setWidthArgsForCall  []FakeAutocompleteComponentSetWidthArgs
+	UpdateStub           func(string, int)
+	updateMutex          sync.RWMutex
+	updateArgsForCall    []FakeAutocompleteComponentUpdateArgs
+	invocations          map[string][][]interface{}
+	callOrder            []string
+	invocationsMutex     sync.RWMutex
+}
+
+// FakeAutocompleteComponentHandleKeyArgs holds the arguments of one call to HandleKey.
+type FakeAutocompleteComponentHandleKeyArgs struct {
+	Arg1 tea.KeyPressMsg
+}
+
+// FakeAutocompleteComponentSetHeightArgs holds the arguments of one call to SetHeight.
+type FakeAutocompleteComponentSetHeightArgs struct {
+	Arg1 int
+}
+
+// FakeAutocompleteComponentSetWidthArgs holds the arguments of one call to SetWidth.
+type FakeAutocompleteComponentSetWidthArgs struct {
+	Arg1 int
+}
+
+// FakeAutocompleteComponentUpdateArgs holds the arguments of one call to Update.
+type FakeAutocompleteComponentUpdateArgs struct {
+	Arg1 string
+	Arg2 int
 }
 
 func (fake *FakeAutocompleteComponent) ClearUsageHint() {
 	fake.clearUsageHintMutex.Lock()
-	fake.clearUsageHintArgsForCall = append(fake.clearUsageHintArgsForCall, struct {
-	}{})
+	fake.clearUsageHintArgsForCall = append(fake.clearUsageHintArgsForCall, struct{}{})
 	stub := fake.ClearUsageHintStub
 	fake.recordInvocation("ClearUsageHint", []interface{}{})
 	fake.clearUsageHintMutex.Unlock()
 	if stub != nil {
-		fake.ClearUsageHintStub()
+		stub()
 	}
 }
 
@@ -131,8 +135,7 @@ func (fake *FakeAutocompleteComponent) ClearUsageHintCalls(stub func()) {
 func (fake *FakeAutocompleteComponent) GetCompletionCursorPos() int {
 	fake.getCompletionCursorPosMutex.Lock()
 	ret, specificReturn := fake.getCompletionCursorPosReturnsOnCall[len(fake.getCompletionCursorPosArgsForCall)]
-	fake.getCompletionCursorPosArgsForCall = append(fake.getCompletionCursorPosArgsForCall, struct {
-	}{})
+	fake.getCompletionCursorPosArgsForCall = append(fake.getCompletionCursorPosArgsForCall, struct{}{})
 	stub := fake.GetCompletionCursorPosStub
 	fakeReturns := fake.getCompletionCursorPosReturns
 	fake.recordInvocation("GetCompletionCursorPos", []interface{}{})
@@ -184,8 +187,7 @@ func (fake *FakeAutocompleteComponent) GetCompletionCursorPosReturnsOnCall(i int
 func (fake *FakeAutocompleteComponent) GetSelectedShortcut() string {
 	fake.getSelectedShortcutMutex.Lock()
 	ret, specificReturn := fake.getSelectedShortcutReturnsOnCall[len(fake.getSelectedShortcutArgsForCall)]
-	fake.getSelectedShortcutArgsForCall = append(fake.getSelectedShortcutArgsForCall, struct {
-	}{})
+	fake.getSelectedShortcutArgsForCall = append(fake.getSelectedShortcutArgsForCall, struct{}{})
 	stub := fake.GetSelectedShortcutStub
 	fakeReturns := fake.getSelectedShortcutReturns
 	fake.recordInvocation("GetSelectedShortcut", []interface{}{})
@@ -237,8 +239,7 @@ func (fake *FakeAutocompleteComponent) GetSelectedShortcutReturnsOnCall(i int, r
 func (fake *FakeAutocompleteComponent) GetUsageHint() string {
 	fake.getUsageHintMutex.Lock()
 	ret, specificReturn := fake.getUsageHintReturnsOnCall[len(fake.getUsageHintArgsForCall)]
-	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct {
-	}{})
+	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct{}{})
 	stub := fake.GetUsageHintStub
 	fakeReturns := fake.getUsageHintReturns
 	fake.recordInvocation("GetUsageHint", []interface{}{})
@@ -290,9 +291,7 @@ func (fake *FakeAutocompleteComponent) GetUsageHintReturnsOnCall(i int, result1 
 func (fake *FakeAutocompleteComponent) HandleKey(arg1 tea.KeyPressMsg) (bool, string) {
 	fake.handleKeyMutex.Lock()
 	ret, specificReturn := fake.handleKeyReturnsOnCall[len(fake.handleKeyArgsForCall)]
-	fake.handleKeyArgsForCall = append(fake.handleKeyArgsForCall, struct {
-		arg1 tea.KeyPressMsg
-	}{arg1})
+	fake.handleKeyArgsForCall = append(fake.handleKeyArgsForCall, FakeAutocompleteComponentHandleKeyArgs{arg1})
 	stub := fake.HandleKeyStub
 	fakeReturns := fake.handleKeyReturns
 	fake.recordInvocation("HandleKey", []interface{}{arg1})
@@ -322,7 +321,15 @@ func (fake *FakeAutocompleteComponent) HandleKeyArgsForCall(i int) tea.KeyPressM
 	fake.handleKeyMutex.RLock()
 	defer fake.handleKeyMutex.RUnlock()
 	argsForCall := fake.handleKeyArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAutocompleteComponent) HandleKeyArgs() []FakeAutocompleteComponentHandleKeyArgs {
+	fake.handleKeyMutex.RLock()
+	defer fake.handleKeyMutex.RUnlock()
+	args := make([]FakeAutocompleteComponentHandleKeyArgs, len(fake.handleKeyArgsForCall))
+	copy(args, fake.handleKeyArgsForCall)
+	return args
 }
 
 func (fake *FakeAutocompleteComponent) HandleKeyReturns(result1 bool, result2 string) {
@@ -353,13 +360,12 @@ func (fake *FakeAutocompleteComponent) HandleKeyReturnsOnCall(i int, result1 boo
 
 func (fake *FakeAutocompleteComponent) Hide() {
 	fake.hideMutex.Lock()
-	fake.hideArgsForCall = append(fake.hideArgsForCall, struct {
-	}{})
+	fake.hideArgsForCall = append(fake.hideArgsForCall, struct{}{})
 	stub := fake.HideStub
 	fake.recordInvocation("Hide", []interface{}{})
 	fake.hideMutex.Unlock()
 	if stub != nil {
-		fake.HideStub()
+		stub()
 	}
 }
 
@@ -378,8 +384,7 @@ func (fake *FakeAutocompleteComponent) HideCalls(stub func()) {
 func (fake *FakeAutocompleteComponent) IsVisible() bool {
 	fake.isVisibleMutex.Lock()
 	ret, specificReturn := fake.isVisibleReturnsOnCall[len(fake.isVisibleArgsForCall)]
-	fake.isVisibleArgsForCall = append(fake.isVisibleArgsForCall, struct {
-	}{})
+	fake.isVisibleArgsForCall = append(fake.isVisibleArgsForCall, struct{}{})
 	stub := fake.IsVisibleStub
 	fakeReturns := fake.isVisibleReturns
 	fake.recordInvocation("IsVisible", []interface{}{})
@@ -430,13 +435,12 @@ func (fake *FakeAutocompleteComponent) IsVisibleReturnsOnCall(i int, result1 boo
 
 func (fake *FakeAutocompleteComponent) RefreshToolsList() {
 	fake.refreshToolsListMutex.Lock()
-	fake.refreshToolsListArgsForCall = append(fake.refreshToolsListArgsForCall, struct {
-	}{})
+	fake.refreshToolsListArgsForCall = append(fake.refreshToolsListArgsForCall, struct{}{})
 	stub := fake.RefreshToolsListStub
 	fake.recordInvocation("RefreshToolsList", []interface{}{})
 	fake.refreshToolsListMutex.Unlock()
 	if stub != nil {
-		fake.RefreshToolsListStub()
+		stub()
 	}
 }
 
@@ -455,8 +459,7 @@ func (fake *FakeAutocompleteComponent) RefreshToolsListCalls(stub func()) {
 func (fake *FakeAutocompleteComponent) Render() string {
 	fake.renderMutex.Lock()
 	ret, specificReturn := fake.renderReturnsOnCall[len(fake.renderArgsForCall)]
-	fake.renderArgsForCall = append(fake.renderArgsForCall, struct {
-	}{})
+	fake.renderArgsForCall = append(fake.renderArgsForCall, struct{}{})
 	stub := fake.RenderStub
 	fakeReturns := fake.renderReturns
 	fake.recordInvocation("Render", []interface{}{})
@@ -507,14 +510,12 @@ func (fake *FakeAutocompleteComponent) RenderReturnsOnCall(i int, result1 string
 
 func (fake *FakeAutocompleteComponent) SetHeight(arg1 int) {
 	fake.setHeightMutex.Lock()
-	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, FakeAutocompleteComponentSetHeightArgs{arg1})
 	stub := fake.SetHeightStub
 	fake.recordInvocation("SetHeight", []interface{}{arg1})
 	fake.setHeightMutex.Unlock()
 	if stub != nil {
-		fake.SetHeightStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -534,19 +535,25 @@ func (fake *FakeAutocompleteComponent) SetHeightArgsForCall(i int) int {
 	fake.setHeightMutex.RLock()
 	defer fake.setHeightMutex.RUnlock()
 	argsForCall := fake.setHeightArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAutocompleteComponent) SetHeightArgs() []FakeAutocompleteComponentSetHeightArgs {
+	fake.setHeightMutex.RLock()
+	defer fake.setHeightMutex.RUnlock()
+	args := make([]FakeAutocompleteComponentSetHeightArgs, len(fake.setHeightArgsForCall))
+	copy(args, fake.setHeightArgsForCall)
+	return args
 }
 
 func (fake *FakeAutocompleteComponent) SetWidth(arg1 int) {
 	fake.setWidthMutex.Lock()
-	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, FakeAutocompleteComponentSetWidthArgs{arg1})
 	stub := fake.SetWidthStub
 	fake.recordInvocation("SetWidth", []interface{}{arg1})
 	fake.setWidthMutex.Unlock()
 	if stub != nil {
-		fake.SetWidthStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -566,20 +573,25 @@ func (fake *FakeAutocompleteComponent) SetWidthArgsForCall(i int) int {
 	fake.setWidthMutex.RLock()
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAutocompleteComponent) SetWidthArgs() []FakeAutocompleteComponentSetWidthArgs {
+	fake.setWidthMutex.RLock()
+	defer fake.setWidthMutex.RUnlock()
+	args := make([]FakeAutocompleteComponentSetWidthArgs, len(fake.setWidthArgsForCall))
+	copy(args, fake.setWidthArgsForCall)
+	return args
 }
 
 func (fake *FakeAutocompleteComponent) Update(arg1 string, arg2 int) {
 	fake.updateMutex.Lock()
-	fake.updateArgsForCall = append(fake.updateArgsForCall, struct {
-		arg1 string
-		arg2 int
-	}{arg1, arg2})
+	fake.updateArgsForCall = append(fake.updateArgsForCall, FakeAutocompleteComponentUpdateArgs{arg1, arg2})
 	stub := fake.UpdateStub
 	fake.recordInvocation("Update", []interface{}{arg1, arg2})
 	fake.updateMutex.Unlock()
 	if stub != nil {
-		fake.UpdateStub(arg1, arg2)
+		stub(arg1, arg2)
 	}
 }
 
@@ -599,7 +611,15 @@ func (fake *FakeAutocompleteComponent) UpdateArgsForCall(i int) (string, int) {
 	fake.updateMutex.RLock()
 	defer fake.updateMutex.RUnlock()
 	argsForCall := fake.updateArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeAutocompleteComponent) UpdateArgs() []FakeAutocompleteComponentUpdateArgs {
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
+	args := make([]FakeAutocompleteComponentUpdateArgs, len(fake.updateArgsForCall))
+	copy(args, fake.updateArgsForCall)
+	return args
 }
 
 func (fake *FakeAutocompleteComponent) Invocations() map[string][][]interface{} {
@@ -612,9 +632,18 @@ func (fake *FakeAutocompleteComponent) Invocations() map[string][][]interface{} 
 	return copiedInvocations
 }
 
+func (fake *FakeAutocompleteComponent) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeAutocompleteComponent) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

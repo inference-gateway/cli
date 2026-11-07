@@ -11,12 +11,8 @@ import (
 type FakeImageAnnotator struct {
 	AnnotateImageStub        func(context.Context, domain.ImageAttachment, domain.AnnotateOptions) (*domain.ImageAnnotation, error)
 	annotateImageMutex       sync.RWMutex
-	annotateImageArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.ImageAttachment
-		arg3 domain.AnnotateOptions
-	}
-	annotateImageReturns struct {
+	annotateImageArgsForCall []FakeImageAnnotatorAnnotateImageArgs
+	annotateImageReturns     struct {
 		result1 *domain.ImageAnnotation
 		result2 error
 	}
@@ -25,17 +21,21 @@ type FakeImageAnnotator struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeImageAnnotatorAnnotateImageArgs holds the arguments of one call to AnnotateImage.
+type FakeImageAnnotatorAnnotateImageArgs struct {
+	Arg1 context.Context
+	Arg2 domain.ImageAttachment
+	Arg3 domain.AnnotateOptions
 }
 
 func (fake *FakeImageAnnotator) AnnotateImage(arg1 context.Context, arg2 domain.ImageAttachment, arg3 domain.AnnotateOptions) (*domain.ImageAnnotation, error) {
 	fake.annotateImageMutex.Lock()
 	ret, specificReturn := fake.annotateImageReturnsOnCall[len(fake.annotateImageArgsForCall)]
-	fake.annotateImageArgsForCall = append(fake.annotateImageArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.ImageAttachment
-		arg3 domain.AnnotateOptions
-	}{arg1, arg2, arg3})
+	fake.annotateImageArgsForCall = append(fake.annotateImageArgsForCall, FakeImageAnnotatorAnnotateImageArgs{arg1, arg2, arg3})
 	stub := fake.AnnotateImageStub
 	fakeReturns := fake.annotateImageReturns
 	fake.recordInvocation("AnnotateImage", []interface{}{arg1, arg2, arg3})
@@ -65,7 +65,15 @@ func (fake *FakeImageAnnotator) AnnotateImageArgsForCall(i int) (context.Context
 	fake.annotateImageMutex.RLock()
 	defer fake.annotateImageMutex.RUnlock()
 	argsForCall := fake.annotateImageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeImageAnnotator) AnnotateImageArgs() []FakeImageAnnotatorAnnotateImageArgs {
+	fake.annotateImageMutex.RLock()
+	defer fake.annotateImageMutex.RUnlock()
+	args := make([]FakeImageAnnotatorAnnotateImageArgs, len(fake.annotateImageArgsForCall))
+	copy(args, fake.annotateImageArgsForCall)
+	return args
 }
 
 func (fake *FakeImageAnnotator) AnnotateImageReturns(result1 *domain.ImageAnnotation, result2 error) {
@@ -104,9 +112,18 @@ func (fake *FakeImageAnnotator) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeImageAnnotator) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeImageAnnotator) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

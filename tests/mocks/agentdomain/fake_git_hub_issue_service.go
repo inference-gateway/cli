@@ -11,11 +11,8 @@ import (
 type FakeGitHubIssueService struct {
 	GetIssueStub        func(context.Context, int) (*domain.GitHubIssue, error)
 	getIssueMutex       sync.RWMutex
-	getIssueArgsForCall []struct {
-		arg1 context.Context
-		arg2 int
-	}
-	getIssueReturns struct {
+	getIssueArgsForCall []FakeGitHubIssueServiceGetIssueArgs
+	getIssueReturns     struct {
 		result1 *domain.GitHubIssue
 		result2 error
 	}
@@ -25,9 +22,8 @@ type FakeGitHubIssueService struct {
 	}
 	IsAvailableStub        func() bool
 	isAvailableMutex       sync.RWMutex
-	isAvailableArgsForCall []struct {
-	}
-	isAvailableReturns struct {
+	isAvailableArgsForCall []struct{}
+	isAvailableReturns     struct {
 		result1 bool
 	}
 	isAvailableReturnsOnCall map[int]struct {
@@ -35,10 +31,8 @@ type FakeGitHubIssueService struct {
 	}
 	ListIssuesStub        func(context.Context) ([]domain.GitHubIssue, error)
 	listIssuesMutex       sync.RWMutex
-	listIssuesArgsForCall []struct {
-		arg1 context.Context
-	}
-	listIssuesReturns struct {
+	listIssuesArgsForCall []FakeGitHubIssueServiceListIssuesArgs
+	listIssuesReturns     struct {
 		result1 []domain.GitHubIssue
 		result2 error
 	}
@@ -47,16 +41,25 @@ type FakeGitHubIssueService struct {
 		result2 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeGitHubIssueServiceGetIssueArgs holds the arguments of one call to GetIssue.
+type FakeGitHubIssueServiceGetIssueArgs struct {
+	Arg1 context.Context
+	Arg2 int
+}
+
+// FakeGitHubIssueServiceListIssuesArgs holds the arguments of one call to ListIssues.
+type FakeGitHubIssueServiceListIssuesArgs struct {
+	Arg1 context.Context
 }
 
 func (fake *FakeGitHubIssueService) GetIssue(arg1 context.Context, arg2 int) (*domain.GitHubIssue, error) {
 	fake.getIssueMutex.Lock()
 	ret, specificReturn := fake.getIssueReturnsOnCall[len(fake.getIssueArgsForCall)]
-	fake.getIssueArgsForCall = append(fake.getIssueArgsForCall, struct {
-		arg1 context.Context
-		arg2 int
-	}{arg1, arg2})
+	fake.getIssueArgsForCall = append(fake.getIssueArgsForCall, FakeGitHubIssueServiceGetIssueArgs{arg1, arg2})
 	stub := fake.GetIssueStub
 	fakeReturns := fake.getIssueReturns
 	fake.recordInvocation("GetIssue", []interface{}{arg1, arg2})
@@ -86,7 +89,15 @@ func (fake *FakeGitHubIssueService) GetIssueArgsForCall(i int) (context.Context,
 	fake.getIssueMutex.RLock()
 	defer fake.getIssueMutex.RUnlock()
 	argsForCall := fake.getIssueArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeGitHubIssueService) GetIssueArgs() []FakeGitHubIssueServiceGetIssueArgs {
+	fake.getIssueMutex.RLock()
+	defer fake.getIssueMutex.RUnlock()
+	args := make([]FakeGitHubIssueServiceGetIssueArgs, len(fake.getIssueArgsForCall))
+	copy(args, fake.getIssueArgsForCall)
+	return args
 }
 
 func (fake *FakeGitHubIssueService) GetIssueReturns(result1 *domain.GitHubIssue, result2 error) {
@@ -118,8 +129,7 @@ func (fake *FakeGitHubIssueService) GetIssueReturnsOnCall(i int, result1 *domain
 func (fake *FakeGitHubIssueService) IsAvailable() bool {
 	fake.isAvailableMutex.Lock()
 	ret, specificReturn := fake.isAvailableReturnsOnCall[len(fake.isAvailableArgsForCall)]
-	fake.isAvailableArgsForCall = append(fake.isAvailableArgsForCall, struct {
-	}{})
+	fake.isAvailableArgsForCall = append(fake.isAvailableArgsForCall, struct{}{})
 	stub := fake.IsAvailableStub
 	fakeReturns := fake.isAvailableReturns
 	fake.recordInvocation("IsAvailable", []interface{}{})
@@ -171,9 +181,7 @@ func (fake *FakeGitHubIssueService) IsAvailableReturnsOnCall(i int, result1 bool
 func (fake *FakeGitHubIssueService) ListIssues(arg1 context.Context) ([]domain.GitHubIssue, error) {
 	fake.listIssuesMutex.Lock()
 	ret, specificReturn := fake.listIssuesReturnsOnCall[len(fake.listIssuesArgsForCall)]
-	fake.listIssuesArgsForCall = append(fake.listIssuesArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.listIssuesArgsForCall = append(fake.listIssuesArgsForCall, FakeGitHubIssueServiceListIssuesArgs{arg1})
 	stub := fake.ListIssuesStub
 	fakeReturns := fake.listIssuesReturns
 	fake.recordInvocation("ListIssues", []interface{}{arg1})
@@ -203,7 +211,15 @@ func (fake *FakeGitHubIssueService) ListIssuesArgsForCall(i int) context.Context
 	fake.listIssuesMutex.RLock()
 	defer fake.listIssuesMutex.RUnlock()
 	argsForCall := fake.listIssuesArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeGitHubIssueService) ListIssuesArgs() []FakeGitHubIssueServiceListIssuesArgs {
+	fake.listIssuesMutex.RLock()
+	defer fake.listIssuesMutex.RUnlock()
+	args := make([]FakeGitHubIssueServiceListIssuesArgs, len(fake.listIssuesArgsForCall))
+	copy(args, fake.listIssuesArgsForCall)
+	return args
 }
 
 func (fake *FakeGitHubIssueService) ListIssuesReturns(result1 []domain.GitHubIssue, result2 error) {
@@ -242,9 +258,18 @@ func (fake *FakeGitHubIssueService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeGitHubIssueService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeGitHubIssueService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

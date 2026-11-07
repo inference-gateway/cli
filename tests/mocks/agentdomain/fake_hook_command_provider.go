@@ -10,25 +10,27 @@ import (
 type FakeHookCommandProvider struct {
 	CommandsDueStub        func(domain.HookPoint) []domain.HookCommand
 	commandsDueMutex       sync.RWMutex
-	commandsDueArgsForCall []struct {
-		arg1 domain.HookPoint
-	}
-	commandsDueReturns struct {
+	commandsDueArgsForCall []FakeHookCommandProviderCommandsDueArgs
+	commandsDueReturns     struct {
 		result1 []domain.HookCommand
 	}
 	commandsDueReturnsOnCall map[int]struct {
 		result1 []domain.HookCommand
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeHookCommandProviderCommandsDueArgs holds the arguments of one call to CommandsDue.
+type FakeHookCommandProviderCommandsDueArgs struct {
+	Arg1 domain.HookPoint
 }
 
 func (fake *FakeHookCommandProvider) CommandsDue(arg1 domain.HookPoint) []domain.HookCommand {
 	fake.commandsDueMutex.Lock()
 	ret, specificReturn := fake.commandsDueReturnsOnCall[len(fake.commandsDueArgsForCall)]
-	fake.commandsDueArgsForCall = append(fake.commandsDueArgsForCall, struct {
-		arg1 domain.HookPoint
-	}{arg1})
+	fake.commandsDueArgsForCall = append(fake.commandsDueArgsForCall, FakeHookCommandProviderCommandsDueArgs{arg1})
 	stub := fake.CommandsDueStub
 	fakeReturns := fake.commandsDueReturns
 	fake.recordInvocation("CommandsDue", []interface{}{arg1})
@@ -58,7 +60,15 @@ func (fake *FakeHookCommandProvider) CommandsDueArgsForCall(i int) domain.HookPo
 	fake.commandsDueMutex.RLock()
 	defer fake.commandsDueMutex.RUnlock()
 	argsForCall := fake.commandsDueArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeHookCommandProvider) CommandsDueArgs() []FakeHookCommandProviderCommandsDueArgs {
+	fake.commandsDueMutex.RLock()
+	defer fake.commandsDueMutex.RUnlock()
+	args := make([]FakeHookCommandProviderCommandsDueArgs, len(fake.commandsDueArgsForCall))
+	copy(args, fake.commandsDueArgsForCall)
+	return args
 }
 
 func (fake *FakeHookCommandProvider) CommandsDueReturns(result1 []domain.HookCommand) {
@@ -94,9 +104,18 @@ func (fake *FakeHookCommandProvider) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeHookCommandProvider) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeHookCommandProvider) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

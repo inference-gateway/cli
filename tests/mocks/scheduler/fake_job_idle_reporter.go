@@ -13,13 +13,11 @@ import (
 type FakeJobIdleReporter struct {
 	CloseStub        func()
 	closeMutex       sync.RWMutex
-	closeArgsForCall []struct {
-	}
-	IdleStub        func() bool
-	idleMutex       sync.RWMutex
-	idleArgsForCall []struct {
-	}
-	idleReturns struct {
+	closeArgsForCall []struct{}
+	IdleStub         func() bool
+	idleMutex        sync.RWMutex
+	idleArgsForCall  []struct{}
+	idleReturns      struct {
 		result1 bool
 	}
 	idleReturnsOnCall map[int]struct {
@@ -27,9 +25,8 @@ type FakeJobIdleReporter struct {
 	}
 	IdleSinceStub        func() time.Time
 	idleSinceMutex       sync.RWMutex
-	idleSinceArgsForCall []struct {
-	}
-	idleSinceReturns struct {
+	idleSinceArgsForCall []struct{}
+	idleSinceReturns     struct {
 		result1 time.Time
 	}
 	idleSinceReturnsOnCall map[int]struct {
@@ -37,9 +34,8 @@ type FakeJobIdleReporter struct {
 	}
 	MetaStub        func() domain.JobMeta
 	metaMutex       sync.RWMutex
-	metaArgsForCall []struct {
-	}
-	metaReturns struct {
+	metaArgsForCall []struct{}
+	metaReturns     struct {
 		result1 domain.JobMeta
 	}
 	metaReturnsOnCall map[int]struct {
@@ -47,11 +43,8 @@ type FakeJobIdleReporter struct {
 	}
 	RunStub        func(context.Context, func(domain.JobSignal)) domaina.ToolExecutionResult
 	runMutex       sync.RWMutex
-	runArgsForCall []struct {
-		arg1 context.Context
-		arg2 func(domain.JobSignal)
-	}
-	runReturns struct {
+	runArgsForCall []FakeJobIdleReporterRunArgs
+	runReturns     struct {
 		result1 domaina.ToolExecutionResult
 	}
 	runReturnsOnCall map[int]struct {
@@ -59,29 +52,38 @@ type FakeJobIdleReporter struct {
 	}
 	WindStub        func(context.Context, domain.WindSignal) error
 	windMutex       sync.RWMutex
-	windArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.WindSignal
-	}
-	windReturns struct {
+	windArgsForCall []FakeJobIdleReporterWindArgs
+	windReturns     struct {
 		result1 error
 	}
 	windReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeJobIdleReporterRunArgs holds the arguments of one call to Run.
+type FakeJobIdleReporterRunArgs struct {
+	Arg1 context.Context
+	Arg2 func(domain.JobSignal)
+}
+
+// FakeJobIdleReporterWindArgs holds the arguments of one call to Wind.
+type FakeJobIdleReporterWindArgs struct {
+	Arg1 context.Context
+	Arg2 domain.WindSignal
 }
 
 func (fake *FakeJobIdleReporter) Close() {
 	fake.closeMutex.Lock()
-	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
-	}{})
+	fake.closeArgsForCall = append(fake.closeArgsForCall, struct{}{})
 	stub := fake.CloseStub
 	fake.recordInvocation("Close", []interface{}{})
 	fake.closeMutex.Unlock()
 	if stub != nil {
-		fake.CloseStub()
+		stub()
 	}
 }
 
@@ -100,8 +102,7 @@ func (fake *FakeJobIdleReporter) CloseCalls(stub func()) {
 func (fake *FakeJobIdleReporter) Idle() bool {
 	fake.idleMutex.Lock()
 	ret, specificReturn := fake.idleReturnsOnCall[len(fake.idleArgsForCall)]
-	fake.idleArgsForCall = append(fake.idleArgsForCall, struct {
-	}{})
+	fake.idleArgsForCall = append(fake.idleArgsForCall, struct{}{})
 	stub := fake.IdleStub
 	fakeReturns := fake.idleReturns
 	fake.recordInvocation("Idle", []interface{}{})
@@ -153,8 +154,7 @@ func (fake *FakeJobIdleReporter) IdleReturnsOnCall(i int, result1 bool) {
 func (fake *FakeJobIdleReporter) IdleSince() time.Time {
 	fake.idleSinceMutex.Lock()
 	ret, specificReturn := fake.idleSinceReturnsOnCall[len(fake.idleSinceArgsForCall)]
-	fake.idleSinceArgsForCall = append(fake.idleSinceArgsForCall, struct {
-	}{})
+	fake.idleSinceArgsForCall = append(fake.idleSinceArgsForCall, struct{}{})
 	stub := fake.IdleSinceStub
 	fakeReturns := fake.idleSinceReturns
 	fake.recordInvocation("IdleSince", []interface{}{})
@@ -206,8 +206,7 @@ func (fake *FakeJobIdleReporter) IdleSinceReturnsOnCall(i int, result1 time.Time
 func (fake *FakeJobIdleReporter) Meta() domain.JobMeta {
 	fake.metaMutex.Lock()
 	ret, specificReturn := fake.metaReturnsOnCall[len(fake.metaArgsForCall)]
-	fake.metaArgsForCall = append(fake.metaArgsForCall, struct {
-	}{})
+	fake.metaArgsForCall = append(fake.metaArgsForCall, struct{}{})
 	stub := fake.MetaStub
 	fakeReturns := fake.metaReturns
 	fake.recordInvocation("Meta", []interface{}{})
@@ -259,10 +258,7 @@ func (fake *FakeJobIdleReporter) MetaReturnsOnCall(i int, result1 domain.JobMeta
 func (fake *FakeJobIdleReporter) Run(arg1 context.Context, arg2 func(domain.JobSignal)) domaina.ToolExecutionResult {
 	fake.runMutex.Lock()
 	ret, specificReturn := fake.runReturnsOnCall[len(fake.runArgsForCall)]
-	fake.runArgsForCall = append(fake.runArgsForCall, struct {
-		arg1 context.Context
-		arg2 func(domain.JobSignal)
-	}{arg1, arg2})
+	fake.runArgsForCall = append(fake.runArgsForCall, FakeJobIdleReporterRunArgs{arg1, arg2})
 	stub := fake.RunStub
 	fakeReturns := fake.runReturns
 	fake.recordInvocation("Run", []interface{}{arg1, arg2})
@@ -292,7 +288,15 @@ func (fake *FakeJobIdleReporter) RunArgsForCall(i int) (context.Context, func(do
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	argsForCall := fake.runArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeJobIdleReporter) RunArgs() []FakeJobIdleReporterRunArgs {
+	fake.runMutex.RLock()
+	defer fake.runMutex.RUnlock()
+	args := make([]FakeJobIdleReporterRunArgs, len(fake.runArgsForCall))
+	copy(args, fake.runArgsForCall)
+	return args
 }
 
 func (fake *FakeJobIdleReporter) RunReturns(result1 domaina.ToolExecutionResult) {
@@ -321,10 +325,7 @@ func (fake *FakeJobIdleReporter) RunReturnsOnCall(i int, result1 domaina.ToolExe
 func (fake *FakeJobIdleReporter) Wind(arg1 context.Context, arg2 domain.WindSignal) error {
 	fake.windMutex.Lock()
 	ret, specificReturn := fake.windReturnsOnCall[len(fake.windArgsForCall)]
-	fake.windArgsForCall = append(fake.windArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.WindSignal
-	}{arg1, arg2})
+	fake.windArgsForCall = append(fake.windArgsForCall, FakeJobIdleReporterWindArgs{arg1, arg2})
 	stub := fake.WindStub
 	fakeReturns := fake.windReturns
 	fake.recordInvocation("Wind", []interface{}{arg1, arg2})
@@ -354,7 +355,15 @@ func (fake *FakeJobIdleReporter) WindArgsForCall(i int) (context.Context, domain
 	fake.windMutex.RLock()
 	defer fake.windMutex.RUnlock()
 	argsForCall := fake.windArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeJobIdleReporter) WindArgs() []FakeJobIdleReporterWindArgs {
+	fake.windMutex.RLock()
+	defer fake.windMutex.RUnlock()
+	args := make([]FakeJobIdleReporterWindArgs, len(fake.windArgsForCall))
+	copy(args, fake.windArgsForCall)
+	return args
 }
 
 func (fake *FakeJobIdleReporter) WindReturns(result1 error) {
@@ -390,9 +399,18 @@ func (fake *FakeJobIdleReporter) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeJobIdleReporter) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeJobIdleReporter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

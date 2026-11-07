@@ -11,9 +11,8 @@ import (
 type FakeConversationRenderer struct {
 	CanScrollDownStub        func() bool
 	canScrollDownMutex       sync.RWMutex
-	canScrollDownArgsForCall []struct {
-	}
-	canScrollDownReturns struct {
+	canScrollDownArgsForCall []struct{}
+	canScrollDownReturns     struct {
 		result1 bool
 	}
 	canScrollDownReturnsOnCall map[int]struct {
@@ -21,9 +20,8 @@ type FakeConversationRenderer struct {
 	}
 	CanScrollUpStub        func() bool
 	canScrollUpMutex       sync.RWMutex
-	canScrollUpArgsForCall []struct {
-	}
-	canScrollUpReturns struct {
+	canScrollUpArgsForCall []struct{}
+	canScrollUpReturns     struct {
 		result1 bool
 	}
 	canScrollUpReturnsOnCall map[int]struct {
@@ -31,9 +29,8 @@ type FakeConversationRenderer struct {
 	}
 	GetScrollOffsetStub        func() int
 	getScrollOffsetMutex       sync.RWMutex
-	getScrollOffsetArgsForCall []struct {
-	}
-	getScrollOffsetReturns struct {
+	getScrollOffsetArgsForCall []struct{}
+	getScrollOffsetReturns     struct {
 		result1 int
 	}
 	getScrollOffsetReturnsOnCall map[int]struct {
@@ -41,9 +38,8 @@ type FakeConversationRenderer struct {
 	}
 	IsRawFormatStub        func() bool
 	isRawFormatMutex       sync.RWMutex
-	isRawFormatArgsForCall []struct {
-	}
-	isRawFormatReturns struct {
+	isRawFormatArgsForCall []struct{}
+	isRawFormatReturns     struct {
 		result1 bool
 	}
 	isRawFormatReturnsOnCall map[int]struct {
@@ -51,9 +47,8 @@ type FakeConversationRenderer struct {
 	}
 	IsStreamingStub        func() bool
 	isStreamingMutex       sync.RWMutex
-	isStreamingArgsForCall []struct {
-	}
-	isStreamingReturns struct {
+	isStreamingArgsForCall []struct{}
+	isStreamingReturns     struct {
 		result1 bool
 	}
 	isStreamingReturnsOnCall map[int]struct {
@@ -61,10 +56,8 @@ type FakeConversationRenderer struct {
 	}
 	IsThinkingExpandedStub        func(int) bool
 	isThinkingExpandedMutex       sync.RWMutex
-	isThinkingExpandedArgsForCall []struct {
-		arg1 int
-	}
-	isThinkingExpandedReturns struct {
+	isThinkingExpandedArgsForCall []FakeConversationRendererIsThinkingExpandedArgs
+	isThinkingExpandedReturns     struct {
 		result1 bool
 	}
 	isThinkingExpandedReturnsOnCall map[int]struct {
@@ -72,10 +65,8 @@ type FakeConversationRenderer struct {
 	}
 	IsToolResultExpandedStub        func(int) bool
 	isToolResultExpandedMutex       sync.RWMutex
-	isToolResultExpandedArgsForCall []struct {
-		arg1 int
-	}
-	isToolResultExpandedReturns struct {
+	isToolResultExpandedArgsForCall []FakeConversationRendererIsToolResultExpandedArgs
+	isToolResultExpandedReturns     struct {
 		result1 bool
 	}
 	isToolResultExpandedReturnsOnCall map[int]struct {
@@ -83,59 +74,76 @@ type FakeConversationRenderer struct {
 	}
 	RenderStub        func() string
 	renderMutex       sync.RWMutex
-	renderArgsForCall []struct {
-	}
-	renderReturns struct {
+	renderArgsForCall []struct{}
+	renderReturns     struct {
 		result1 string
 	}
 	renderReturnsOnCall map[int]struct {
 		result1 string
 	}
-	ResetUserScrollStub        func()
-	resetUserScrollMutex       sync.RWMutex
-	resetUserScrollArgsForCall []struct {
-	}
-	SetConversationStub        func([]domain.ConversationEntry)
-	setConversationMutex       sync.RWMutex
-	setConversationArgsForCall []struct {
-		arg1 []domain.ConversationEntry
-	}
-	SetHeightStub        func(int)
-	setHeightMutex       sync.RWMutex
-	setHeightArgsForCall []struct {
-		arg1 int
-	}
-	SetWidthStub        func(int)
-	setWidthMutex       sync.RWMutex
-	setWidthArgsForCall []struct {
-		arg1 int
-	}
-	ToggleAllThinkingExpansionStub        func()
-	toggleAllThinkingExpansionMutex       sync.RWMutex
-	toggleAllThinkingExpansionArgsForCall []struct {
-	}
+	ResetUserScrollStub                      func()
+	resetUserScrollMutex                     sync.RWMutex
+	resetUserScrollArgsForCall               []struct{}
+	SetConversationStub                      func([]domain.ConversationEntry)
+	setConversationMutex                     sync.RWMutex
+	setConversationArgsForCall               []FakeConversationRendererSetConversationArgs
+	SetHeightStub                            func(int)
+	setHeightMutex                           sync.RWMutex
+	setHeightArgsForCall                     []FakeConversationRendererSetHeightArgs
+	SetWidthStub                             func(int)
+	setWidthMutex                            sync.RWMutex
+	setWidthArgsForCall                      []FakeConversationRendererSetWidthArgs
+	ToggleAllThinkingExpansionStub           func()
+	toggleAllThinkingExpansionMutex          sync.RWMutex
+	toggleAllThinkingExpansionArgsForCall    []struct{}
 	ToggleAllToolResultsExpansionStub        func()
 	toggleAllToolResultsExpansionMutex       sync.RWMutex
-	toggleAllToolResultsExpansionArgsForCall []struct {
-	}
-	ToggleRawFormatStub        func()
-	toggleRawFormatMutex       sync.RWMutex
-	toggleRawFormatArgsForCall []struct {
-	}
-	ToggleToolResultExpansionStub        func(int)
-	toggleToolResultExpansionMutex       sync.RWMutex
-	toggleToolResultExpansionArgsForCall []struct {
-		arg1 int
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	toggleAllToolResultsExpansionArgsForCall []struct{}
+	ToggleRawFormatStub                      func()
+	toggleRawFormatMutex                     sync.RWMutex
+	toggleRawFormatArgsForCall               []struct{}
+	ToggleToolResultExpansionStub            func(int)
+	toggleToolResultExpansionMutex           sync.RWMutex
+	toggleToolResultExpansionArgsForCall     []FakeConversationRendererToggleToolResultExpansionArgs
+	invocations                              map[string][][]interface{}
+	callOrder                                []string
+	invocationsMutex                         sync.RWMutex
+}
+
+// FakeConversationRendererIsThinkingExpandedArgs holds the arguments of one call to IsThinkingExpanded.
+type FakeConversationRendererIsThinkingExpandedArgs struct {
+	Arg1 int
+}
+
+// FakeConversationRendererIsToolResultExpandedArgs holds the arguments of one call to IsToolResultExpanded.
+type FakeConversationRendererIsToolResultExpandedArgs struct {
+	Arg1 int
+}
+
+// FakeConversationRendererSetConversationArgs holds the arguments of one call to SetConversation.
+type FakeConversationRendererSetConversationArgs struct {
+	Arg1 []domain.ConversationEntry
+}
+
+// FakeConversationRendererSetHeightArgs holds the arguments of one call to SetHeight.
+type FakeConversationRendererSetHeightArgs struct {
+	Arg1 int
+}
+
+// FakeConversationRendererSetWidthArgs holds the arguments of one call to SetWidth.
+type FakeConversationRendererSetWidthArgs struct {
+	Arg1 int
+}
+
+// FakeConversationRendererToggleToolResultExpansionArgs holds the arguments of one call to ToggleToolResultExpansion.
+type FakeConversationRendererToggleToolResultExpansionArgs struct {
+	Arg1 int
 }
 
 func (fake *FakeConversationRenderer) CanScrollDown() bool {
 	fake.canScrollDownMutex.Lock()
 	ret, specificReturn := fake.canScrollDownReturnsOnCall[len(fake.canScrollDownArgsForCall)]
-	fake.canScrollDownArgsForCall = append(fake.canScrollDownArgsForCall, struct {
-	}{})
+	fake.canScrollDownArgsForCall = append(fake.canScrollDownArgsForCall, struct{}{})
 	stub := fake.CanScrollDownStub
 	fakeReturns := fake.canScrollDownReturns
 	fake.recordInvocation("CanScrollDown", []interface{}{})
@@ -187,8 +195,7 @@ func (fake *FakeConversationRenderer) CanScrollDownReturnsOnCall(i int, result1 
 func (fake *FakeConversationRenderer) CanScrollUp() bool {
 	fake.canScrollUpMutex.Lock()
 	ret, specificReturn := fake.canScrollUpReturnsOnCall[len(fake.canScrollUpArgsForCall)]
-	fake.canScrollUpArgsForCall = append(fake.canScrollUpArgsForCall, struct {
-	}{})
+	fake.canScrollUpArgsForCall = append(fake.canScrollUpArgsForCall, struct{}{})
 	stub := fake.CanScrollUpStub
 	fakeReturns := fake.canScrollUpReturns
 	fake.recordInvocation("CanScrollUp", []interface{}{})
@@ -240,8 +247,7 @@ func (fake *FakeConversationRenderer) CanScrollUpReturnsOnCall(i int, result1 bo
 func (fake *FakeConversationRenderer) GetScrollOffset() int {
 	fake.getScrollOffsetMutex.Lock()
 	ret, specificReturn := fake.getScrollOffsetReturnsOnCall[len(fake.getScrollOffsetArgsForCall)]
-	fake.getScrollOffsetArgsForCall = append(fake.getScrollOffsetArgsForCall, struct {
-	}{})
+	fake.getScrollOffsetArgsForCall = append(fake.getScrollOffsetArgsForCall, struct{}{})
 	stub := fake.GetScrollOffsetStub
 	fakeReturns := fake.getScrollOffsetReturns
 	fake.recordInvocation("GetScrollOffset", []interface{}{})
@@ -293,8 +299,7 @@ func (fake *FakeConversationRenderer) GetScrollOffsetReturnsOnCall(i int, result
 func (fake *FakeConversationRenderer) IsRawFormat() bool {
 	fake.isRawFormatMutex.Lock()
 	ret, specificReturn := fake.isRawFormatReturnsOnCall[len(fake.isRawFormatArgsForCall)]
-	fake.isRawFormatArgsForCall = append(fake.isRawFormatArgsForCall, struct {
-	}{})
+	fake.isRawFormatArgsForCall = append(fake.isRawFormatArgsForCall, struct{}{})
 	stub := fake.IsRawFormatStub
 	fakeReturns := fake.isRawFormatReturns
 	fake.recordInvocation("IsRawFormat", []interface{}{})
@@ -346,8 +351,7 @@ func (fake *FakeConversationRenderer) IsRawFormatReturnsOnCall(i int, result1 bo
 func (fake *FakeConversationRenderer) IsStreaming() bool {
 	fake.isStreamingMutex.Lock()
 	ret, specificReturn := fake.isStreamingReturnsOnCall[len(fake.isStreamingArgsForCall)]
-	fake.isStreamingArgsForCall = append(fake.isStreamingArgsForCall, struct {
-	}{})
+	fake.isStreamingArgsForCall = append(fake.isStreamingArgsForCall, struct{}{})
 	stub := fake.IsStreamingStub
 	fakeReturns := fake.isStreamingReturns
 	fake.recordInvocation("IsStreaming", []interface{}{})
@@ -399,9 +403,7 @@ func (fake *FakeConversationRenderer) IsStreamingReturnsOnCall(i int, result1 bo
 func (fake *FakeConversationRenderer) IsThinkingExpanded(arg1 int) bool {
 	fake.isThinkingExpandedMutex.Lock()
 	ret, specificReturn := fake.isThinkingExpandedReturnsOnCall[len(fake.isThinkingExpandedArgsForCall)]
-	fake.isThinkingExpandedArgsForCall = append(fake.isThinkingExpandedArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.isThinkingExpandedArgsForCall = append(fake.isThinkingExpandedArgsForCall, FakeConversationRendererIsThinkingExpandedArgs{arg1})
 	stub := fake.IsThinkingExpandedStub
 	fakeReturns := fake.isThinkingExpandedReturns
 	fake.recordInvocation("IsThinkingExpanded", []interface{}{arg1})
@@ -431,7 +433,15 @@ func (fake *FakeConversationRenderer) IsThinkingExpandedArgsForCall(i int) int {
 	fake.isThinkingExpandedMutex.RLock()
 	defer fake.isThinkingExpandedMutex.RUnlock()
 	argsForCall := fake.isThinkingExpandedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpandedArgs() []FakeConversationRendererIsThinkingExpandedArgs {
+	fake.isThinkingExpandedMutex.RLock()
+	defer fake.isThinkingExpandedMutex.RUnlock()
+	args := make([]FakeConversationRendererIsThinkingExpandedArgs, len(fake.isThinkingExpandedArgsForCall))
+	copy(args, fake.isThinkingExpandedArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationRenderer) IsThinkingExpandedReturns(result1 bool) {
@@ -460,9 +470,7 @@ func (fake *FakeConversationRenderer) IsThinkingExpandedReturnsOnCall(i int, res
 func (fake *FakeConversationRenderer) IsToolResultExpanded(arg1 int) bool {
 	fake.isToolResultExpandedMutex.Lock()
 	ret, specificReturn := fake.isToolResultExpandedReturnsOnCall[len(fake.isToolResultExpandedArgsForCall)]
-	fake.isToolResultExpandedArgsForCall = append(fake.isToolResultExpandedArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.isToolResultExpandedArgsForCall = append(fake.isToolResultExpandedArgsForCall, FakeConversationRendererIsToolResultExpandedArgs{arg1})
 	stub := fake.IsToolResultExpandedStub
 	fakeReturns := fake.isToolResultExpandedReturns
 	fake.recordInvocation("IsToolResultExpanded", []interface{}{arg1})
@@ -492,7 +500,15 @@ func (fake *FakeConversationRenderer) IsToolResultExpandedArgsForCall(i int) int
 	fake.isToolResultExpandedMutex.RLock()
 	defer fake.isToolResultExpandedMutex.RUnlock()
 	argsForCall := fake.isToolResultExpandedArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRenderer) IsToolResultExpandedArgs() []FakeConversationRendererIsToolResultExpandedArgs {
+	fake.isToolResultExpandedMutex.RLock()
+	defer fake.isToolResultExpandedMutex.RUnlock()
+	args := make([]FakeConversationRendererIsToolResultExpandedArgs, len(fake.isToolResultExpandedArgsForCall))
+	copy(args, fake.isToolResultExpandedArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationRenderer) IsToolResultExpandedReturns(result1 bool) {
@@ -521,8 +537,7 @@ func (fake *FakeConversationRenderer) IsToolResultExpandedReturnsOnCall(i int, r
 func (fake *FakeConversationRenderer) Render() string {
 	fake.renderMutex.Lock()
 	ret, specificReturn := fake.renderReturnsOnCall[len(fake.renderArgsForCall)]
-	fake.renderArgsForCall = append(fake.renderArgsForCall, struct {
-	}{})
+	fake.renderArgsForCall = append(fake.renderArgsForCall, struct{}{})
 	stub := fake.RenderStub
 	fakeReturns := fake.renderReturns
 	fake.recordInvocation("Render", []interface{}{})
@@ -573,13 +588,12 @@ func (fake *FakeConversationRenderer) RenderReturnsOnCall(i int, result1 string)
 
 func (fake *FakeConversationRenderer) ResetUserScroll() {
 	fake.resetUserScrollMutex.Lock()
-	fake.resetUserScrollArgsForCall = append(fake.resetUserScrollArgsForCall, struct {
-	}{})
+	fake.resetUserScrollArgsForCall = append(fake.resetUserScrollArgsForCall, struct{}{})
 	stub := fake.ResetUserScrollStub
 	fake.recordInvocation("ResetUserScroll", []interface{}{})
 	fake.resetUserScrollMutex.Unlock()
 	if stub != nil {
-		fake.ResetUserScrollStub()
+		stub()
 	}
 }
 
@@ -602,14 +616,12 @@ func (fake *FakeConversationRenderer) SetConversation(arg1 []domain.Conversation
 		copy(arg1Copy, arg1)
 	}
 	fake.setConversationMutex.Lock()
-	fake.setConversationArgsForCall = append(fake.setConversationArgsForCall, struct {
-		arg1 []domain.ConversationEntry
-	}{arg1Copy})
+	fake.setConversationArgsForCall = append(fake.setConversationArgsForCall, FakeConversationRendererSetConversationArgs{arg1Copy})
 	stub := fake.SetConversationStub
 	fake.recordInvocation("SetConversation", []interface{}{arg1Copy})
 	fake.setConversationMutex.Unlock()
 	if stub != nil {
-		fake.SetConversationStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -629,19 +641,25 @@ func (fake *FakeConversationRenderer) SetConversationArgsForCall(i int) []domain
 	fake.setConversationMutex.RLock()
 	defer fake.setConversationMutex.RUnlock()
 	argsForCall := fake.setConversationArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRenderer) SetConversationArgs() []FakeConversationRendererSetConversationArgs {
+	fake.setConversationMutex.RLock()
+	defer fake.setConversationMutex.RUnlock()
+	args := make([]FakeConversationRendererSetConversationArgs, len(fake.setConversationArgsForCall))
+	copy(args, fake.setConversationArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationRenderer) SetHeight(arg1 int) {
 	fake.setHeightMutex.Lock()
-	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setHeightArgsForCall = append(fake.setHeightArgsForCall, FakeConversationRendererSetHeightArgs{arg1})
 	stub := fake.SetHeightStub
 	fake.recordInvocation("SetHeight", []interface{}{arg1})
 	fake.setHeightMutex.Unlock()
 	if stub != nil {
-		fake.SetHeightStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -661,19 +679,25 @@ func (fake *FakeConversationRenderer) SetHeightArgsForCall(i int) int {
 	fake.setHeightMutex.RLock()
 	defer fake.setHeightMutex.RUnlock()
 	argsForCall := fake.setHeightArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRenderer) SetHeightArgs() []FakeConversationRendererSetHeightArgs {
+	fake.setHeightMutex.RLock()
+	defer fake.setHeightMutex.RUnlock()
+	args := make([]FakeConversationRendererSetHeightArgs, len(fake.setHeightArgsForCall))
+	copy(args, fake.setHeightArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationRenderer) SetWidth(arg1 int) {
 	fake.setWidthMutex.Lock()
-	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.setWidthArgsForCall = append(fake.setWidthArgsForCall, FakeConversationRendererSetWidthArgs{arg1})
 	stub := fake.SetWidthStub
 	fake.recordInvocation("SetWidth", []interface{}{arg1})
 	fake.setWidthMutex.Unlock()
 	if stub != nil {
-		fake.SetWidthStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -693,18 +717,25 @@ func (fake *FakeConversationRenderer) SetWidthArgsForCall(i int) int {
 	fake.setWidthMutex.RLock()
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRenderer) SetWidthArgs() []FakeConversationRendererSetWidthArgs {
+	fake.setWidthMutex.RLock()
+	defer fake.setWidthMutex.RUnlock()
+	args := make([]FakeConversationRendererSetWidthArgs, len(fake.setWidthArgsForCall))
+	copy(args, fake.setWidthArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationRenderer) ToggleAllThinkingExpansion() {
 	fake.toggleAllThinkingExpansionMutex.Lock()
-	fake.toggleAllThinkingExpansionArgsForCall = append(fake.toggleAllThinkingExpansionArgsForCall, struct {
-	}{})
+	fake.toggleAllThinkingExpansionArgsForCall = append(fake.toggleAllThinkingExpansionArgsForCall, struct{}{})
 	stub := fake.ToggleAllThinkingExpansionStub
 	fake.recordInvocation("ToggleAllThinkingExpansion", []interface{}{})
 	fake.toggleAllThinkingExpansionMutex.Unlock()
 	if stub != nil {
-		fake.ToggleAllThinkingExpansionStub()
+		stub()
 	}
 }
 
@@ -722,13 +753,12 @@ func (fake *FakeConversationRenderer) ToggleAllThinkingExpansionCalls(stub func(
 
 func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansion() {
 	fake.toggleAllToolResultsExpansionMutex.Lock()
-	fake.toggleAllToolResultsExpansionArgsForCall = append(fake.toggleAllToolResultsExpansionArgsForCall, struct {
-	}{})
+	fake.toggleAllToolResultsExpansionArgsForCall = append(fake.toggleAllToolResultsExpansionArgsForCall, struct{}{})
 	stub := fake.ToggleAllToolResultsExpansionStub
 	fake.recordInvocation("ToggleAllToolResultsExpansion", []interface{}{})
 	fake.toggleAllToolResultsExpansionMutex.Unlock()
 	if stub != nil {
-		fake.ToggleAllToolResultsExpansionStub()
+		stub()
 	}
 }
 
@@ -746,13 +776,12 @@ func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansionCalls(stub fu
 
 func (fake *FakeConversationRenderer) ToggleRawFormat() {
 	fake.toggleRawFormatMutex.Lock()
-	fake.toggleRawFormatArgsForCall = append(fake.toggleRawFormatArgsForCall, struct {
-	}{})
+	fake.toggleRawFormatArgsForCall = append(fake.toggleRawFormatArgsForCall, struct{}{})
 	stub := fake.ToggleRawFormatStub
 	fake.recordInvocation("ToggleRawFormat", []interface{}{})
 	fake.toggleRawFormatMutex.Unlock()
 	if stub != nil {
-		fake.ToggleRawFormatStub()
+		stub()
 	}
 }
 
@@ -770,14 +799,12 @@ func (fake *FakeConversationRenderer) ToggleRawFormatCalls(stub func()) {
 
 func (fake *FakeConversationRenderer) ToggleToolResultExpansion(arg1 int) {
 	fake.toggleToolResultExpansionMutex.Lock()
-	fake.toggleToolResultExpansionArgsForCall = append(fake.toggleToolResultExpansionArgsForCall, struct {
-		arg1 int
-	}{arg1})
+	fake.toggleToolResultExpansionArgsForCall = append(fake.toggleToolResultExpansionArgsForCall, FakeConversationRendererToggleToolResultExpansionArgs{arg1})
 	stub := fake.ToggleToolResultExpansionStub
 	fake.recordInvocation("ToggleToolResultExpansion", []interface{}{arg1})
 	fake.toggleToolResultExpansionMutex.Unlock()
 	if stub != nil {
-		fake.ToggleToolResultExpansionStub(arg1)
+		stub(arg1)
 	}
 }
 
@@ -797,7 +824,15 @@ func (fake *FakeConversationRenderer) ToggleToolResultExpansionArgsForCall(i int
 	fake.toggleToolResultExpansionMutex.RLock()
 	defer fake.toggleToolResultExpansionMutex.RUnlock()
 	argsForCall := fake.toggleToolResultExpansionArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRenderer) ToggleToolResultExpansionArgs() []FakeConversationRendererToggleToolResultExpansionArgs {
+	fake.toggleToolResultExpansionMutex.RLock()
+	defer fake.toggleToolResultExpansionMutex.RUnlock()
+	args := make([]FakeConversationRendererToggleToolResultExpansionArgs, len(fake.toggleToolResultExpansionArgsForCall))
+	copy(args, fake.toggleToolResultExpansionArgsForCall)
+	return args
 }
 
 func (fake *FakeConversationRenderer) Invocations() map[string][][]interface{} {
@@ -810,9 +845,18 @@ func (fake *FakeConversationRenderer) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeConversationRenderer) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeConversationRenderer) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

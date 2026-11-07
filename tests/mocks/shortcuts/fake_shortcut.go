@@ -11,10 +11,8 @@ import (
 type FakeShortcut struct {
 	CanExecuteStub        func([]string) bool
 	canExecuteMutex       sync.RWMutex
-	canExecuteArgsForCall []struct {
-		arg1 []string
-	}
-	canExecuteReturns struct {
+	canExecuteArgsForCall []FakeShortcutCanExecuteArgs
+	canExecuteReturns     struct {
 		result1 bool
 	}
 	canExecuteReturnsOnCall map[int]struct {
@@ -22,11 +20,8 @@ type FakeShortcut struct {
 	}
 	ExecuteStub        func(context.Context, []string) (shortcuts.ShortcutResult, error)
 	executeMutex       sync.RWMutex
-	executeArgsForCall []struct {
-		arg1 context.Context
-		arg2 []string
-	}
-	executeReturns struct {
+	executeArgsForCall []FakeShortcutExecuteArgs
+	executeReturns     struct {
 		result1 shortcuts.ShortcutResult
 		result2 error
 	}
@@ -36,9 +31,8 @@ type FakeShortcut struct {
 	}
 	GetDescriptionStub        func() string
 	getDescriptionMutex       sync.RWMutex
-	getDescriptionArgsForCall []struct {
-	}
-	getDescriptionReturns struct {
+	getDescriptionArgsForCall []struct{}
+	getDescriptionReturns     struct {
 		result1 string
 	}
 	getDescriptionReturnsOnCall map[int]struct {
@@ -46,9 +40,8 @@ type FakeShortcut struct {
 	}
 	GetNameStub        func() string
 	getNameMutex       sync.RWMutex
-	getNameArgsForCall []struct {
-	}
-	getNameReturns struct {
+	getNameArgsForCall []struct{}
+	getNameReturns     struct {
 		result1 string
 	}
 	getNameReturnsOnCall map[int]struct {
@@ -56,16 +49,27 @@ type FakeShortcut struct {
 	}
 	GetUsageStub        func() string
 	getUsageMutex       sync.RWMutex
-	getUsageArgsForCall []struct {
-	}
-	getUsageReturns struct {
+	getUsageArgsForCall []struct{}
+	getUsageReturns     struct {
 		result1 string
 	}
 	getUsageReturnsOnCall map[int]struct {
 		result1 string
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeShortcutCanExecuteArgs holds the arguments of one call to CanExecute.
+type FakeShortcutCanExecuteArgs struct {
+	Arg1 []string
+}
+
+// FakeShortcutExecuteArgs holds the arguments of one call to Execute.
+type FakeShortcutExecuteArgs struct {
+	Arg1 context.Context
+	Arg2 []string
 }
 
 func (fake *FakeShortcut) CanExecute(arg1 []string) bool {
@@ -76,9 +80,7 @@ func (fake *FakeShortcut) CanExecute(arg1 []string) bool {
 	}
 	fake.canExecuteMutex.Lock()
 	ret, specificReturn := fake.canExecuteReturnsOnCall[len(fake.canExecuteArgsForCall)]
-	fake.canExecuteArgsForCall = append(fake.canExecuteArgsForCall, struct {
-		arg1 []string
-	}{arg1Copy})
+	fake.canExecuteArgsForCall = append(fake.canExecuteArgsForCall, FakeShortcutCanExecuteArgs{arg1Copy})
 	stub := fake.CanExecuteStub
 	fakeReturns := fake.canExecuteReturns
 	fake.recordInvocation("CanExecute", []interface{}{arg1Copy})
@@ -108,7 +110,15 @@ func (fake *FakeShortcut) CanExecuteArgsForCall(i int) []string {
 	fake.canExecuteMutex.RLock()
 	defer fake.canExecuteMutex.RUnlock()
 	argsForCall := fake.canExecuteArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeShortcut) CanExecuteArgs() []FakeShortcutCanExecuteArgs {
+	fake.canExecuteMutex.RLock()
+	defer fake.canExecuteMutex.RUnlock()
+	args := make([]FakeShortcutCanExecuteArgs, len(fake.canExecuteArgsForCall))
+	copy(args, fake.canExecuteArgsForCall)
+	return args
 }
 
 func (fake *FakeShortcut) CanExecuteReturns(result1 bool) {
@@ -142,10 +152,7 @@ func (fake *FakeShortcut) Execute(arg1 context.Context, arg2 []string) (shortcut
 	}
 	fake.executeMutex.Lock()
 	ret, specificReturn := fake.executeReturnsOnCall[len(fake.executeArgsForCall)]
-	fake.executeArgsForCall = append(fake.executeArgsForCall, struct {
-		arg1 context.Context
-		arg2 []string
-	}{arg1, arg2Copy})
+	fake.executeArgsForCall = append(fake.executeArgsForCall, FakeShortcutExecuteArgs{arg1, arg2Copy})
 	stub := fake.ExecuteStub
 	fakeReturns := fake.executeReturns
 	fake.recordInvocation("Execute", []interface{}{arg1, arg2Copy})
@@ -175,7 +182,15 @@ func (fake *FakeShortcut) ExecuteArgsForCall(i int) (context.Context, []string) 
 	fake.executeMutex.RLock()
 	defer fake.executeMutex.RUnlock()
 	argsForCall := fake.executeArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeShortcut) ExecuteArgs() []FakeShortcutExecuteArgs {
+	fake.executeMutex.RLock()
+	defer fake.executeMutex.RUnlock()
+	args := make([]FakeShortcutExecuteArgs, len(fake.executeArgsForCall))
+	copy(args, fake.executeArgsForCall)
+	return args
 }
 
 func (fake *FakeShortcut) ExecuteReturns(result1 shortcuts.ShortcutResult, result2 error) {
@@ -207,8 +222,7 @@ func (fake *FakeShortcut) ExecuteReturnsOnCall(i int, result1 shortcuts.Shortcut
 func (fake *FakeShortcut) GetDescription() string {
 	fake.getDescriptionMutex.Lock()
 	ret, specificReturn := fake.getDescriptionReturnsOnCall[len(fake.getDescriptionArgsForCall)]
-	fake.getDescriptionArgsForCall = append(fake.getDescriptionArgsForCall, struct {
-	}{})
+	fake.getDescriptionArgsForCall = append(fake.getDescriptionArgsForCall, struct{}{})
 	stub := fake.GetDescriptionStub
 	fakeReturns := fake.getDescriptionReturns
 	fake.recordInvocation("GetDescription", []interface{}{})
@@ -260,8 +274,7 @@ func (fake *FakeShortcut) GetDescriptionReturnsOnCall(i int, result1 string) {
 func (fake *FakeShortcut) GetName() string {
 	fake.getNameMutex.Lock()
 	ret, specificReturn := fake.getNameReturnsOnCall[len(fake.getNameArgsForCall)]
-	fake.getNameArgsForCall = append(fake.getNameArgsForCall, struct {
-	}{})
+	fake.getNameArgsForCall = append(fake.getNameArgsForCall, struct{}{})
 	stub := fake.GetNameStub
 	fakeReturns := fake.getNameReturns
 	fake.recordInvocation("GetName", []interface{}{})
@@ -313,8 +326,7 @@ func (fake *FakeShortcut) GetNameReturnsOnCall(i int, result1 string) {
 func (fake *FakeShortcut) GetUsage() string {
 	fake.getUsageMutex.Lock()
 	ret, specificReturn := fake.getUsageReturnsOnCall[len(fake.getUsageArgsForCall)]
-	fake.getUsageArgsForCall = append(fake.getUsageArgsForCall, struct {
-	}{})
+	fake.getUsageArgsForCall = append(fake.getUsageArgsForCall, struct{}{})
 	stub := fake.GetUsageStub
 	fakeReturns := fake.getUsageReturns
 	fake.recordInvocation("GetUsage", []interface{}{})
@@ -373,9 +385,18 @@ func (fake *FakeShortcut) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeShortcut) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeShortcut) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

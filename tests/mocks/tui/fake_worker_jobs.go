@@ -12,10 +12,8 @@ import (
 type FakeWorkerJobs struct {
 	ListStub        func(context.Context) ([]domain.TrackedJob, error)
 	listMutex       sync.RWMutex
-	listArgsForCall []struct {
-		arg1 context.Context
-	}
-	listReturns struct {
+	listArgsForCall []FakeWorkerJobsListArgs
+	listReturns     struct {
 		result1 []domain.TrackedJob
 		result2 error
 	}
@@ -25,26 +23,33 @@ type FakeWorkerJobs struct {
 	}
 	StopStub        func(context.Context, string) error
 	stopMutex       sync.RWMutex
-	stopArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	stopReturns struct {
+	stopArgsForCall []FakeWorkerJobsStopArgs
+	stopReturns     struct {
 		result1 error
 	}
 	stopReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeWorkerJobsListArgs holds the arguments of one call to List.
+type FakeWorkerJobsListArgs struct {
+	Arg1 context.Context
+}
+
+// FakeWorkerJobsStopArgs holds the arguments of one call to Stop.
+type FakeWorkerJobsStopArgs struct {
+	Arg1 context.Context
+	Arg2 string
 }
 
 func (fake *FakeWorkerJobs) List(arg1 context.Context) ([]domain.TrackedJob, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
-	fake.listArgsForCall = append(fake.listArgsForCall, struct {
-		arg1 context.Context
-	}{arg1})
+	fake.listArgsForCall = append(fake.listArgsForCall, FakeWorkerJobsListArgs{arg1})
 	stub := fake.ListStub
 	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{arg1})
@@ -74,7 +79,15 @@ func (fake *FakeWorkerJobs) ListArgsForCall(i int) context.Context {
 	fake.listMutex.RLock()
 	defer fake.listMutex.RUnlock()
 	argsForCall := fake.listArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeWorkerJobs) ListArgs() []FakeWorkerJobsListArgs {
+	fake.listMutex.RLock()
+	defer fake.listMutex.RUnlock()
+	args := make([]FakeWorkerJobsListArgs, len(fake.listArgsForCall))
+	copy(args, fake.listArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkerJobs) ListReturns(result1 []domain.TrackedJob, result2 error) {
@@ -106,10 +119,7 @@ func (fake *FakeWorkerJobs) ListReturnsOnCall(i int, result1 []domain.TrackedJob
 func (fake *FakeWorkerJobs) Stop(arg1 context.Context, arg2 string) error {
 	fake.stopMutex.Lock()
 	ret, specificReturn := fake.stopReturnsOnCall[len(fake.stopArgsForCall)]
-	fake.stopArgsForCall = append(fake.stopArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.stopArgsForCall = append(fake.stopArgsForCall, FakeWorkerJobsStopArgs{arg1, arg2})
 	stub := fake.StopStub
 	fakeReturns := fake.stopReturns
 	fake.recordInvocation("Stop", []interface{}{arg1, arg2})
@@ -139,7 +149,15 @@ func (fake *FakeWorkerJobs) StopArgsForCall(i int) (context.Context, string) {
 	fake.stopMutex.RLock()
 	defer fake.stopMutex.RUnlock()
 	argsForCall := fake.stopArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeWorkerJobs) StopArgs() []FakeWorkerJobsStopArgs {
+	fake.stopMutex.RLock()
+	defer fake.stopMutex.RUnlock()
+	args := make([]FakeWorkerJobsStopArgs, len(fake.stopArgsForCall))
+	copy(args, fake.stopArgsForCall)
+	return args
 }
 
 func (fake *FakeWorkerJobs) StopReturns(result1 error) {
@@ -175,9 +193,18 @@ func (fake *FakeWorkerJobs) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeWorkerJobs) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeWorkerJobs) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

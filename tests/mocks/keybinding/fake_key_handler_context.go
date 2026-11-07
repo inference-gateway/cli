@@ -15,9 +15,8 @@ import (
 type FakeKeyHandlerContext struct {
 	GetAgentServiceStub        func() domain.AgentService
 	getAgentServiceMutex       sync.RWMutex
-	getAgentServiceArgsForCall []struct {
-	}
-	getAgentServiceReturns struct {
+	getAgentServiceArgsForCall []struct{}
+	getAgentServiceReturns     struct {
 		result1 domain.AgentService
 	}
 	getAgentServiceReturnsOnCall map[int]struct {
@@ -25,9 +24,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetAutocompleteStub        func() tui.AutocompleteComponent
 	getAutocompleteMutex       sync.RWMutex
-	getAutocompleteArgsForCall []struct {
-	}
-	getAutocompleteReturns struct {
+	getAutocompleteArgsForCall []struct{}
+	getAutocompleteReturns     struct {
 		result1 tui.AutocompleteComponent
 	}
 	getAutocompleteReturnsOnCall map[int]struct {
@@ -35,9 +33,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetConfigStub        func() *config.Config
 	getConfigMutex       sync.RWMutex
-	getConfigArgsForCall []struct {
-	}
-	getConfigReturns struct {
+	getConfigArgsForCall []struct{}
+	getConfigReturns     struct {
 		result1 *config.Config
 	}
 	getConfigReturnsOnCall map[int]struct {
@@ -45,9 +42,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetConversationRepositoryStub        func() domaina.ConversationRepository
 	getConversationRepositoryMutex       sync.RWMutex
-	getConversationRepositoryArgsForCall []struct {
-	}
-	getConversationRepositoryReturns struct {
+	getConversationRepositoryArgsForCall []struct{}
+	getConversationRepositoryReturns     struct {
 		result1 domaina.ConversationRepository
 	}
 	getConversationRepositoryReturnsOnCall map[int]struct {
@@ -55,9 +51,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetConversationViewStub        func() tui.ConversationRenderer
 	getConversationViewMutex       sync.RWMutex
-	getConversationViewArgsForCall []struct {
-	}
-	getConversationViewReturns struct {
+	getConversationViewArgsForCall []struct{}
+	getConversationViewReturns     struct {
 		result1 tui.ConversationRenderer
 	}
 	getConversationViewReturnsOnCall map[int]struct {
@@ -65,9 +60,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetImageServiceStub        func() domain.ImageService
 	getImageServiceMutex       sync.RWMutex
-	getImageServiceArgsForCall []struct {
-	}
-	getImageServiceReturns struct {
+	getImageServiceArgsForCall []struct{}
+	getImageServiceReturns     struct {
 		result1 domain.ImageService
 	}
 	getImageServiceReturnsOnCall map[int]struct {
@@ -75,9 +69,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetInputViewStub        func() tui.InputComponent
 	getInputViewMutex       sync.RWMutex
-	getInputViewArgsForCall []struct {
-	}
-	getInputViewReturns struct {
+	getInputViewArgsForCall []struct{}
+	getInputViewReturns     struct {
 		result1 tui.InputComponent
 	}
 	getInputViewReturnsOnCall map[int]struct {
@@ -85,9 +78,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetPageSizeStub        func() int
 	getPageSizeMutex       sync.RWMutex
-	getPageSizeArgsForCall []struct {
-	}
-	getPageSizeReturns struct {
+	getPageSizeArgsForCall []struct{}
+	getPageSizeReturns     struct {
 		result1 int
 	}
 	getPageSizeReturnsOnCall map[int]struct {
@@ -95,9 +87,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetStateStoreStub        func() keybinding.StateStore
 	getStateStoreMutex       sync.RWMutex
-	getStateStoreArgsForCall []struct {
-	}
-	getStateStoreReturns struct {
+	getStateStoreArgsForCall []struct{}
+	getStateStoreReturns     struct {
 		result1 keybinding.StateStore
 	}
 	getStateStoreReturnsOnCall map[int]struct {
@@ -105,9 +96,8 @@ type FakeKeyHandlerContext struct {
 	}
 	GetStatusViewStub        func() tui.StatusComponent
 	getStatusViewMutex       sync.RWMutex
-	getStatusViewArgsForCall []struct {
-	}
-	getStatusViewReturns struct {
+	getStatusViewArgsForCall []struct{}
+	getStatusViewReturns     struct {
 		result1 tui.StatusComponent
 	}
 	getStatusViewReturnsOnCall map[int]struct {
@@ -115,35 +105,31 @@ type FakeKeyHandlerContext struct {
 	}
 	SendMessageStub        func() tea.Cmd
 	sendMessageMutex       sync.RWMutex
-	sendMessageArgsForCall []struct {
-	}
-	sendMessageReturns struct {
+	sendMessageArgsForCall []struct{}
+	sendMessageReturns     struct {
 		result1 tea.Cmd
 	}
 	sendMessageReturnsOnCall map[int]struct {
 		result1 tea.Cmd
 	}
-	ToggleRawFormatStub        func()
-	toggleRawFormatMutex       sync.RWMutex
-	toggleRawFormatArgsForCall []struct {
-	}
-	ToggleThinkingExpansionStub        func()
-	toggleThinkingExpansionMutex       sync.RWMutex
-	toggleThinkingExpansionArgsForCall []struct {
-	}
+	ToggleRawFormatStub                  func()
+	toggleRawFormatMutex                 sync.RWMutex
+	toggleRawFormatArgsForCall           []struct{}
+	ToggleThinkingExpansionStub          func()
+	toggleThinkingExpansionMutex         sync.RWMutex
+	toggleThinkingExpansionArgsForCall   []struct{}
 	ToggleToolResultExpansionStub        func()
 	toggleToolResultExpansionMutex       sync.RWMutex
-	toggleToolResultExpansionArgsForCall []struct {
-	}
-	invocations      map[string][][]interface{}
-	invocationsMutex sync.RWMutex
+	toggleToolResultExpansionArgsForCall []struct{}
+	invocations                          map[string][][]interface{}
+	callOrder                            []string
+	invocationsMutex                     sync.RWMutex
 }
 
 func (fake *FakeKeyHandlerContext) GetAgentService() domain.AgentService {
 	fake.getAgentServiceMutex.Lock()
 	ret, specificReturn := fake.getAgentServiceReturnsOnCall[len(fake.getAgentServiceArgsForCall)]
-	fake.getAgentServiceArgsForCall = append(fake.getAgentServiceArgsForCall, struct {
-	}{})
+	fake.getAgentServiceArgsForCall = append(fake.getAgentServiceArgsForCall, struct{}{})
 	stub := fake.GetAgentServiceStub
 	fakeReturns := fake.getAgentServiceReturns
 	fake.recordInvocation("GetAgentService", []interface{}{})
@@ -195,8 +181,7 @@ func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 d
 func (fake *FakeKeyHandlerContext) GetAutocomplete() tui.AutocompleteComponent {
 	fake.getAutocompleteMutex.Lock()
 	ret, specificReturn := fake.getAutocompleteReturnsOnCall[len(fake.getAutocompleteArgsForCall)]
-	fake.getAutocompleteArgsForCall = append(fake.getAutocompleteArgsForCall, struct {
-	}{})
+	fake.getAutocompleteArgsForCall = append(fake.getAutocompleteArgsForCall, struct{}{})
 	stub := fake.GetAutocompleteStub
 	fakeReturns := fake.getAutocompleteReturns
 	fake.recordInvocation("GetAutocomplete", []interface{}{})
@@ -248,8 +233,7 @@ func (fake *FakeKeyHandlerContext) GetAutocompleteReturnsOnCall(i int, result1 t
 func (fake *FakeKeyHandlerContext) GetConfig() *config.Config {
 	fake.getConfigMutex.Lock()
 	ret, specificReturn := fake.getConfigReturnsOnCall[len(fake.getConfigArgsForCall)]
-	fake.getConfigArgsForCall = append(fake.getConfigArgsForCall, struct {
-	}{})
+	fake.getConfigArgsForCall = append(fake.getConfigArgsForCall, struct{}{})
 	stub := fake.GetConfigStub
 	fakeReturns := fake.getConfigReturns
 	fake.recordInvocation("GetConfig", []interface{}{})
@@ -301,8 +285,7 @@ func (fake *FakeKeyHandlerContext) GetConfigReturnsOnCall(i int, result1 *config
 func (fake *FakeKeyHandlerContext) GetConversationRepository() domaina.ConversationRepository {
 	fake.getConversationRepositoryMutex.Lock()
 	ret, specificReturn := fake.getConversationRepositoryReturnsOnCall[len(fake.getConversationRepositoryArgsForCall)]
-	fake.getConversationRepositoryArgsForCall = append(fake.getConversationRepositoryArgsForCall, struct {
-	}{})
+	fake.getConversationRepositoryArgsForCall = append(fake.getConversationRepositoryArgsForCall, struct{}{})
 	stub := fake.GetConversationRepositoryStub
 	fakeReturns := fake.getConversationRepositoryReturns
 	fake.recordInvocation("GetConversationRepository", []interface{}{})
@@ -354,8 +337,7 @@ func (fake *FakeKeyHandlerContext) GetConversationRepositoryReturnsOnCall(i int,
 func (fake *FakeKeyHandlerContext) GetConversationView() tui.ConversationRenderer {
 	fake.getConversationViewMutex.Lock()
 	ret, specificReturn := fake.getConversationViewReturnsOnCall[len(fake.getConversationViewArgsForCall)]
-	fake.getConversationViewArgsForCall = append(fake.getConversationViewArgsForCall, struct {
-	}{})
+	fake.getConversationViewArgsForCall = append(fake.getConversationViewArgsForCall, struct{}{})
 	stub := fake.GetConversationViewStub
 	fakeReturns := fake.getConversationViewReturns
 	fake.recordInvocation("GetConversationView", []interface{}{})
@@ -407,8 +389,7 @@ func (fake *FakeKeyHandlerContext) GetConversationViewReturnsOnCall(i int, resul
 func (fake *FakeKeyHandlerContext) GetImageService() domain.ImageService {
 	fake.getImageServiceMutex.Lock()
 	ret, specificReturn := fake.getImageServiceReturnsOnCall[len(fake.getImageServiceArgsForCall)]
-	fake.getImageServiceArgsForCall = append(fake.getImageServiceArgsForCall, struct {
-	}{})
+	fake.getImageServiceArgsForCall = append(fake.getImageServiceArgsForCall, struct{}{})
 	stub := fake.GetImageServiceStub
 	fakeReturns := fake.getImageServiceReturns
 	fake.recordInvocation("GetImageService", []interface{}{})
@@ -460,8 +441,7 @@ func (fake *FakeKeyHandlerContext) GetImageServiceReturnsOnCall(i int, result1 d
 func (fake *FakeKeyHandlerContext) GetInputView() tui.InputComponent {
 	fake.getInputViewMutex.Lock()
 	ret, specificReturn := fake.getInputViewReturnsOnCall[len(fake.getInputViewArgsForCall)]
-	fake.getInputViewArgsForCall = append(fake.getInputViewArgsForCall, struct {
-	}{})
+	fake.getInputViewArgsForCall = append(fake.getInputViewArgsForCall, struct{}{})
 	stub := fake.GetInputViewStub
 	fakeReturns := fake.getInputViewReturns
 	fake.recordInvocation("GetInputView", []interface{}{})
@@ -513,8 +493,7 @@ func (fake *FakeKeyHandlerContext) GetInputViewReturnsOnCall(i int, result1 tui.
 func (fake *FakeKeyHandlerContext) GetPageSize() int {
 	fake.getPageSizeMutex.Lock()
 	ret, specificReturn := fake.getPageSizeReturnsOnCall[len(fake.getPageSizeArgsForCall)]
-	fake.getPageSizeArgsForCall = append(fake.getPageSizeArgsForCall, struct {
-	}{})
+	fake.getPageSizeArgsForCall = append(fake.getPageSizeArgsForCall, struct{}{})
 	stub := fake.GetPageSizeStub
 	fakeReturns := fake.getPageSizeReturns
 	fake.recordInvocation("GetPageSize", []interface{}{})
@@ -566,8 +545,7 @@ func (fake *FakeKeyHandlerContext) GetPageSizeReturnsOnCall(i int, result1 int) 
 func (fake *FakeKeyHandlerContext) GetStateStore() keybinding.StateStore {
 	fake.getStateStoreMutex.Lock()
 	ret, specificReturn := fake.getStateStoreReturnsOnCall[len(fake.getStateStoreArgsForCall)]
-	fake.getStateStoreArgsForCall = append(fake.getStateStoreArgsForCall, struct {
-	}{})
+	fake.getStateStoreArgsForCall = append(fake.getStateStoreArgsForCall, struct{}{})
 	stub := fake.GetStateStoreStub
 	fakeReturns := fake.getStateStoreReturns
 	fake.recordInvocation("GetStateStore", []interface{}{})
@@ -619,8 +597,7 @@ func (fake *FakeKeyHandlerContext) GetStateStoreReturnsOnCall(i int, result1 key
 func (fake *FakeKeyHandlerContext) GetStatusView() tui.StatusComponent {
 	fake.getStatusViewMutex.Lock()
 	ret, specificReturn := fake.getStatusViewReturnsOnCall[len(fake.getStatusViewArgsForCall)]
-	fake.getStatusViewArgsForCall = append(fake.getStatusViewArgsForCall, struct {
-	}{})
+	fake.getStatusViewArgsForCall = append(fake.getStatusViewArgsForCall, struct{}{})
 	stub := fake.GetStatusViewStub
 	fakeReturns := fake.getStatusViewReturns
 	fake.recordInvocation("GetStatusView", []interface{}{})
@@ -672,8 +649,7 @@ func (fake *FakeKeyHandlerContext) GetStatusViewReturnsOnCall(i int, result1 tui
 func (fake *FakeKeyHandlerContext) SendMessage() tea.Cmd {
 	fake.sendMessageMutex.Lock()
 	ret, specificReturn := fake.sendMessageReturnsOnCall[len(fake.sendMessageArgsForCall)]
-	fake.sendMessageArgsForCall = append(fake.sendMessageArgsForCall, struct {
-	}{})
+	fake.sendMessageArgsForCall = append(fake.sendMessageArgsForCall, struct{}{})
 	stub := fake.SendMessageStub
 	fakeReturns := fake.sendMessageReturns
 	fake.recordInvocation("SendMessage", []interface{}{})
@@ -724,13 +700,12 @@ func (fake *FakeKeyHandlerContext) SendMessageReturnsOnCall(i int, result1 tea.C
 
 func (fake *FakeKeyHandlerContext) ToggleRawFormat() {
 	fake.toggleRawFormatMutex.Lock()
-	fake.toggleRawFormatArgsForCall = append(fake.toggleRawFormatArgsForCall, struct {
-	}{})
+	fake.toggleRawFormatArgsForCall = append(fake.toggleRawFormatArgsForCall, struct{}{})
 	stub := fake.ToggleRawFormatStub
 	fake.recordInvocation("ToggleRawFormat", []interface{}{})
 	fake.toggleRawFormatMutex.Unlock()
 	if stub != nil {
-		fake.ToggleRawFormatStub()
+		stub()
 	}
 }
 
@@ -748,13 +723,12 @@ func (fake *FakeKeyHandlerContext) ToggleRawFormatCalls(stub func()) {
 
 func (fake *FakeKeyHandlerContext) ToggleThinkingExpansion() {
 	fake.toggleThinkingExpansionMutex.Lock()
-	fake.toggleThinkingExpansionArgsForCall = append(fake.toggleThinkingExpansionArgsForCall, struct {
-	}{})
+	fake.toggleThinkingExpansionArgsForCall = append(fake.toggleThinkingExpansionArgsForCall, struct{}{})
 	stub := fake.ToggleThinkingExpansionStub
 	fake.recordInvocation("ToggleThinkingExpansion", []interface{}{})
 	fake.toggleThinkingExpansionMutex.Unlock()
 	if stub != nil {
-		fake.ToggleThinkingExpansionStub()
+		stub()
 	}
 }
 
@@ -772,13 +746,12 @@ func (fake *FakeKeyHandlerContext) ToggleThinkingExpansionCalls(stub func()) {
 
 func (fake *FakeKeyHandlerContext) ToggleToolResultExpansion() {
 	fake.toggleToolResultExpansionMutex.Lock()
-	fake.toggleToolResultExpansionArgsForCall = append(fake.toggleToolResultExpansionArgsForCall, struct {
-	}{})
+	fake.toggleToolResultExpansionArgsForCall = append(fake.toggleToolResultExpansionArgsForCall, struct{}{})
 	stub := fake.ToggleToolResultExpansionStub
 	fake.recordInvocation("ToggleToolResultExpansion", []interface{}{})
 	fake.toggleToolResultExpansionMutex.Unlock()
 	if stub != nil {
-		fake.ToggleToolResultExpansionStub()
+		stub()
 	}
 }
 
@@ -804,9 +777,18 @@ func (fake *FakeKeyHandlerContext) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeKeyHandlerContext) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeKeyHandlerContext) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

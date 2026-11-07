@@ -10,9 +10,8 @@ import (
 type FakeFileService struct {
 	ListProjectFilesStub        func() ([]string, error)
 	listProjectFilesMutex       sync.RWMutex
-	listProjectFilesArgsForCall []struct {
-	}
-	listProjectFilesReturns struct {
+	listProjectFilesArgsForCall []struct{}
+	listProjectFilesReturns     struct {
 		result1 []string
 		result2 error
 	}
@@ -22,10 +21,8 @@ type FakeFileService struct {
 	}
 	ReadFileStub        func(string) (string, error)
 	readFileMutex       sync.RWMutex
-	readFileArgsForCall []struct {
-		arg1 string
-	}
-	readFileReturns struct {
+	readFileArgsForCall []FakeFileServiceReadFileArgs
+	readFileReturns     struct {
 		result1 string
 		result2 error
 	}
@@ -35,24 +32,32 @@ type FakeFileService struct {
 	}
 	ValidateFileStub        func(string) error
 	validateFileMutex       sync.RWMutex
-	validateFileArgsForCall []struct {
-		arg1 string
-	}
-	validateFileReturns struct {
+	validateFileArgsForCall []FakeFileServiceValidateFileArgs
+	validateFileReturns     struct {
 		result1 error
 	}
 	validateFileReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeFileServiceReadFileArgs holds the arguments of one call to ReadFile.
+type FakeFileServiceReadFileArgs struct {
+	Arg1 string
+}
+
+// FakeFileServiceValidateFileArgs holds the arguments of one call to ValidateFile.
+type FakeFileServiceValidateFileArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeFileService) ListProjectFiles() ([]string, error) {
 	fake.listProjectFilesMutex.Lock()
 	ret, specificReturn := fake.listProjectFilesReturnsOnCall[len(fake.listProjectFilesArgsForCall)]
-	fake.listProjectFilesArgsForCall = append(fake.listProjectFilesArgsForCall, struct {
-	}{})
+	fake.listProjectFilesArgsForCall = append(fake.listProjectFilesArgsForCall, struct{}{})
 	stub := fake.ListProjectFilesStub
 	fakeReturns := fake.listProjectFilesReturns
 	fake.recordInvocation("ListProjectFiles", []interface{}{})
@@ -107,9 +112,7 @@ func (fake *FakeFileService) ListProjectFilesReturnsOnCall(i int, result1 []stri
 func (fake *FakeFileService) ReadFile(arg1 string) (string, error) {
 	fake.readFileMutex.Lock()
 	ret, specificReturn := fake.readFileReturnsOnCall[len(fake.readFileArgsForCall)]
-	fake.readFileArgsForCall = append(fake.readFileArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.readFileArgsForCall = append(fake.readFileArgsForCall, FakeFileServiceReadFileArgs{arg1})
 	stub := fake.ReadFileStub
 	fakeReturns := fake.readFileReturns
 	fake.recordInvocation("ReadFile", []interface{}{arg1})
@@ -139,7 +142,15 @@ func (fake *FakeFileService) ReadFileArgsForCall(i int) string {
 	fake.readFileMutex.RLock()
 	defer fake.readFileMutex.RUnlock()
 	argsForCall := fake.readFileArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeFileService) ReadFileArgs() []FakeFileServiceReadFileArgs {
+	fake.readFileMutex.RLock()
+	defer fake.readFileMutex.RUnlock()
+	args := make([]FakeFileServiceReadFileArgs, len(fake.readFileArgsForCall))
+	copy(args, fake.readFileArgsForCall)
+	return args
 }
 
 func (fake *FakeFileService) ReadFileReturns(result1 string, result2 error) {
@@ -171,9 +182,7 @@ func (fake *FakeFileService) ReadFileReturnsOnCall(i int, result1 string, result
 func (fake *FakeFileService) ValidateFile(arg1 string) error {
 	fake.validateFileMutex.Lock()
 	ret, specificReturn := fake.validateFileReturnsOnCall[len(fake.validateFileArgsForCall)]
-	fake.validateFileArgsForCall = append(fake.validateFileArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.validateFileArgsForCall = append(fake.validateFileArgsForCall, FakeFileServiceValidateFileArgs{arg1})
 	stub := fake.ValidateFileStub
 	fakeReturns := fake.validateFileReturns
 	fake.recordInvocation("ValidateFile", []interface{}{arg1})
@@ -203,7 +212,15 @@ func (fake *FakeFileService) ValidateFileArgsForCall(i int) string {
 	fake.validateFileMutex.RLock()
 	defer fake.validateFileMutex.RUnlock()
 	argsForCall := fake.validateFileArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeFileService) ValidateFileArgs() []FakeFileServiceValidateFileArgs {
+	fake.validateFileMutex.RLock()
+	defer fake.validateFileMutex.RUnlock()
+	args := make([]FakeFileServiceValidateFileArgs, len(fake.validateFileArgsForCall))
+	copy(args, fake.validateFileArgsForCall)
+	return args
 }
 
 func (fake *FakeFileService) ValidateFileReturns(result1 error) {
@@ -239,9 +256,18 @@ func (fake *FakeFileService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeFileService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeFileService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

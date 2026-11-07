@@ -10,9 +10,8 @@ import (
 type FakeThemeService struct {
 	GetCurrentThemeStub        func() tui.Theme
 	getCurrentThemeMutex       sync.RWMutex
-	getCurrentThemeArgsForCall []struct {
-	}
-	getCurrentThemeReturns struct {
+	getCurrentThemeArgsForCall []struct{}
+	getCurrentThemeReturns     struct {
 		result1 tui.Theme
 	}
 	getCurrentThemeReturnsOnCall map[int]struct {
@@ -20,9 +19,8 @@ type FakeThemeService struct {
 	}
 	GetCurrentThemeNameStub        func() string
 	getCurrentThemeNameMutex       sync.RWMutex
-	getCurrentThemeNameArgsForCall []struct {
-	}
-	getCurrentThemeNameReturns struct {
+	getCurrentThemeNameArgsForCall []struct{}
+	getCurrentThemeNameReturns     struct {
 		result1 string
 	}
 	getCurrentThemeNameReturnsOnCall map[int]struct {
@@ -30,9 +28,8 @@ type FakeThemeService struct {
 	}
 	ListThemesStub        func() []string
 	listThemesMutex       sync.RWMutex
-	listThemesArgsForCall []struct {
-	}
-	listThemesReturns struct {
+	listThemesArgsForCall []struct{}
+	listThemesReturns     struct {
 		result1 []string
 	}
 	listThemesReturnsOnCall map[int]struct {
@@ -40,24 +37,27 @@ type FakeThemeService struct {
 	}
 	SetThemeStub        func(string) error
 	setThemeMutex       sync.RWMutex
-	setThemeArgsForCall []struct {
-		arg1 string
-	}
-	setThemeReturns struct {
+	setThemeArgsForCall []FakeThemeServiceSetThemeArgs
+	setThemeReturns     struct {
 		result1 error
 	}
 	setThemeReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeThemeServiceSetThemeArgs holds the arguments of one call to SetTheme.
+type FakeThemeServiceSetThemeArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeThemeService) GetCurrentTheme() tui.Theme {
 	fake.getCurrentThemeMutex.Lock()
 	ret, specificReturn := fake.getCurrentThemeReturnsOnCall[len(fake.getCurrentThemeArgsForCall)]
-	fake.getCurrentThemeArgsForCall = append(fake.getCurrentThemeArgsForCall, struct {
-	}{})
+	fake.getCurrentThemeArgsForCall = append(fake.getCurrentThemeArgsForCall, struct{}{})
 	stub := fake.GetCurrentThemeStub
 	fakeReturns := fake.getCurrentThemeReturns
 	fake.recordInvocation("GetCurrentTheme", []interface{}{})
@@ -109,8 +109,7 @@ func (fake *FakeThemeService) GetCurrentThemeReturnsOnCall(i int, result1 tui.Th
 func (fake *FakeThemeService) GetCurrentThemeName() string {
 	fake.getCurrentThemeNameMutex.Lock()
 	ret, specificReturn := fake.getCurrentThemeNameReturnsOnCall[len(fake.getCurrentThemeNameArgsForCall)]
-	fake.getCurrentThemeNameArgsForCall = append(fake.getCurrentThemeNameArgsForCall, struct {
-	}{})
+	fake.getCurrentThemeNameArgsForCall = append(fake.getCurrentThemeNameArgsForCall, struct{}{})
 	stub := fake.GetCurrentThemeNameStub
 	fakeReturns := fake.getCurrentThemeNameReturns
 	fake.recordInvocation("GetCurrentThemeName", []interface{}{})
@@ -162,8 +161,7 @@ func (fake *FakeThemeService) GetCurrentThemeNameReturnsOnCall(i int, result1 st
 func (fake *FakeThemeService) ListThemes() []string {
 	fake.listThemesMutex.Lock()
 	ret, specificReturn := fake.listThemesReturnsOnCall[len(fake.listThemesArgsForCall)]
-	fake.listThemesArgsForCall = append(fake.listThemesArgsForCall, struct {
-	}{})
+	fake.listThemesArgsForCall = append(fake.listThemesArgsForCall, struct{}{})
 	stub := fake.ListThemesStub
 	fakeReturns := fake.listThemesReturns
 	fake.recordInvocation("ListThemes", []interface{}{})
@@ -215,9 +213,7 @@ func (fake *FakeThemeService) ListThemesReturnsOnCall(i int, result1 []string) {
 func (fake *FakeThemeService) SetTheme(arg1 string) error {
 	fake.setThemeMutex.Lock()
 	ret, specificReturn := fake.setThemeReturnsOnCall[len(fake.setThemeArgsForCall)]
-	fake.setThemeArgsForCall = append(fake.setThemeArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.setThemeArgsForCall = append(fake.setThemeArgsForCall, FakeThemeServiceSetThemeArgs{arg1})
 	stub := fake.SetThemeStub
 	fakeReturns := fake.setThemeReturns
 	fake.recordInvocation("SetTheme", []interface{}{arg1})
@@ -247,7 +243,15 @@ func (fake *FakeThemeService) SetThemeArgsForCall(i int) string {
 	fake.setThemeMutex.RLock()
 	defer fake.setThemeMutex.RUnlock()
 	argsForCall := fake.setThemeArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeThemeService) SetThemeArgs() []FakeThemeServiceSetThemeArgs {
+	fake.setThemeMutex.RLock()
+	defer fake.setThemeMutex.RUnlock()
+	args := make([]FakeThemeServiceSetThemeArgs, len(fake.setThemeArgsForCall))
+	copy(args, fake.setThemeArgsForCall)
+	return args
 }
 
 func (fake *FakeThemeService) SetThemeReturns(result1 error) {
@@ -283,9 +287,18 @@ func (fake *FakeThemeService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeThemeService) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeThemeService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

@@ -10,10 +10,8 @@ import (
 type FakeStateHandler struct {
 	HandleStub        func(states.AgentEvent) error
 	handleMutex       sync.RWMutex
-	handleArgsForCall []struct {
-		arg1 states.AgentEvent
-	}
-	handleReturns struct {
+	handleArgsForCall []FakeStateHandlerHandleArgs
+	handleReturns     struct {
 		result1 error
 	}
 	handleReturnsOnCall map[int]struct {
@@ -21,24 +19,27 @@ type FakeStateHandler struct {
 	}
 	NameStub        func() states.AgentExecutionState
 	nameMutex       sync.RWMutex
-	nameArgsForCall []struct {
-	}
-	nameReturns struct {
+	nameArgsForCall []struct{}
+	nameReturns     struct {
 		result1 states.AgentExecutionState
 	}
 	nameReturnsOnCall map[int]struct {
 		result1 states.AgentExecutionState
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeStateHandlerHandleArgs holds the arguments of one call to Handle.
+type FakeStateHandlerHandleArgs struct {
+	Arg1 states.AgentEvent
 }
 
 func (fake *FakeStateHandler) Handle(arg1 states.AgentEvent) error {
 	fake.handleMutex.Lock()
 	ret, specificReturn := fake.handleReturnsOnCall[len(fake.handleArgsForCall)]
-	fake.handleArgsForCall = append(fake.handleArgsForCall, struct {
-		arg1 states.AgentEvent
-	}{arg1})
+	fake.handleArgsForCall = append(fake.handleArgsForCall, FakeStateHandlerHandleArgs{arg1})
 	stub := fake.HandleStub
 	fakeReturns := fake.handleReturns
 	fake.recordInvocation("Handle", []interface{}{arg1})
@@ -68,7 +69,15 @@ func (fake *FakeStateHandler) HandleArgsForCall(i int) states.AgentEvent {
 	fake.handleMutex.RLock()
 	defer fake.handleMutex.RUnlock()
 	argsForCall := fake.handleArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeStateHandler) HandleArgs() []FakeStateHandlerHandleArgs {
+	fake.handleMutex.RLock()
+	defer fake.handleMutex.RUnlock()
+	args := make([]FakeStateHandlerHandleArgs, len(fake.handleArgsForCall))
+	copy(args, fake.handleArgsForCall)
+	return args
 }
 
 func (fake *FakeStateHandler) HandleReturns(result1 error) {
@@ -97,8 +106,7 @@ func (fake *FakeStateHandler) HandleReturnsOnCall(i int, result1 error) {
 func (fake *FakeStateHandler) Name() states.AgentExecutionState {
 	fake.nameMutex.Lock()
 	ret, specificReturn := fake.nameReturnsOnCall[len(fake.nameArgsForCall)]
-	fake.nameArgsForCall = append(fake.nameArgsForCall, struct {
-	}{})
+	fake.nameArgsForCall = append(fake.nameArgsForCall, struct{}{})
 	stub := fake.NameStub
 	fakeReturns := fake.nameReturns
 	fake.recordInvocation("Name", []interface{}{})
@@ -157,9 +165,18 @@ func (fake *FakeStateHandler) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeStateHandler) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeStateHandler) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

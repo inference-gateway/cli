@@ -10,25 +10,27 @@ import (
 type FakeJobLivenessReporter struct {
 	IsJobRunningStub        func(string) bool
 	isJobRunningMutex       sync.RWMutex
-	isJobRunningArgsForCall []struct {
-		arg1 string
-	}
-	isJobRunningReturns struct {
+	isJobRunningArgsForCall []FakeJobLivenessReporterIsJobRunningArgs
+	isJobRunningReturns     struct {
 		result1 bool
 	}
 	isJobRunningReturnsOnCall map[int]struct {
 		result1 bool
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeJobLivenessReporterIsJobRunningArgs holds the arguments of one call to IsJobRunning.
+type FakeJobLivenessReporterIsJobRunningArgs struct {
+	Arg1 string
 }
 
 func (fake *FakeJobLivenessReporter) IsJobRunning(arg1 string) bool {
 	fake.isJobRunningMutex.Lock()
 	ret, specificReturn := fake.isJobRunningReturnsOnCall[len(fake.isJobRunningArgsForCall)]
-	fake.isJobRunningArgsForCall = append(fake.isJobRunningArgsForCall, struct {
-		arg1 string
-	}{arg1})
+	fake.isJobRunningArgsForCall = append(fake.isJobRunningArgsForCall, FakeJobLivenessReporterIsJobRunningArgs{arg1})
 	stub := fake.IsJobRunningStub
 	fakeReturns := fake.isJobRunningReturns
 	fake.recordInvocation("IsJobRunning", []interface{}{arg1})
@@ -58,7 +60,15 @@ func (fake *FakeJobLivenessReporter) IsJobRunningArgsForCall(i int) string {
 	fake.isJobRunningMutex.RLock()
 	defer fake.isJobRunningMutex.RUnlock()
 	argsForCall := fake.isJobRunningArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.Arg1
+}
+
+func (fake *FakeJobLivenessReporter) IsJobRunningArgs() []FakeJobLivenessReporterIsJobRunningArgs {
+	fake.isJobRunningMutex.RLock()
+	defer fake.isJobRunningMutex.RUnlock()
+	args := make([]FakeJobLivenessReporterIsJobRunningArgs, len(fake.isJobRunningArgsForCall))
+	copy(args, fake.isJobRunningArgsForCall)
+	return args
 }
 
 func (fake *FakeJobLivenessReporter) IsJobRunningReturns(result1 bool) {
@@ -94,9 +104,18 @@ func (fake *FakeJobLivenessReporter) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeJobLivenessReporter) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeJobLivenessReporter) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}

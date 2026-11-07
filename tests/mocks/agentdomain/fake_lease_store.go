@@ -12,11 +12,8 @@ import (
 type FakeLeaseStore struct {
 	ClaimLeaseStub        func(context.Context, domain.Lease) (domain.Lease, bool, error)
 	claimLeaseMutex       sync.RWMutex
-	claimLeaseArgsForCall []struct {
-		arg1 context.Context
-		arg2 domain.Lease
-	}
-	claimLeaseReturns struct {
+	claimLeaseArgsForCall []FakeLeaseStoreClaimLeaseArgs
+	claimLeaseReturns     struct {
 		result1 domain.Lease
 		result2 bool
 		result3 error
@@ -28,11 +25,8 @@ type FakeLeaseStore struct {
 	}
 	GetLeaseStub        func(context.Context, string) (domain.Lease, bool, error)
 	getLeaseMutex       sync.RWMutex
-	getLeaseArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	getLeaseReturns struct {
+	getLeaseArgsForCall []FakeLeaseStoreGetLeaseArgs
+	getLeaseReturns     struct {
 		result1 domain.Lease
 		result2 bool
 		result3 error
@@ -44,12 +38,8 @@ type FakeLeaseStore struct {
 	}
 	ReleaseLeaseStub        func(context.Context, string, string) error
 	releaseLeaseMutex       sync.RWMutex
-	releaseLeaseArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-	}
-	releaseLeaseReturns struct {
+	releaseLeaseArgsForCall []FakeLeaseStoreReleaseLeaseArgs
+	releaseLeaseReturns     struct {
 		result1 error
 	}
 	releaseLeaseReturnsOnCall map[int]struct {
@@ -57,29 +47,49 @@ type FakeLeaseStore struct {
 	}
 	RenewLeaseStub        func(context.Context, string, string, time.Time) error
 	renewLeaseMutex       sync.RWMutex
-	renewLeaseArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 time.Time
-	}
-	renewLeaseReturns struct {
+	renewLeaseArgsForCall []FakeLeaseStoreRenewLeaseArgs
+	renewLeaseReturns     struct {
 		result1 error
 	}
 	renewLeaseReturnsOnCall map[int]struct {
 		result1 error
 	}
 	invocations      map[string][][]interface{}
+	callOrder        []string
 	invocationsMutex sync.RWMutex
+}
+
+// FakeLeaseStoreClaimLeaseArgs holds the arguments of one call to ClaimLease.
+type FakeLeaseStoreClaimLeaseArgs struct {
+	Arg1 context.Context
+	Arg2 domain.Lease
+}
+
+// FakeLeaseStoreGetLeaseArgs holds the arguments of one call to GetLease.
+type FakeLeaseStoreGetLeaseArgs struct {
+	Arg1 context.Context
+	Arg2 string
+}
+
+// FakeLeaseStoreReleaseLeaseArgs holds the arguments of one call to ReleaseLease.
+type FakeLeaseStoreReleaseLeaseArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+}
+
+// FakeLeaseStoreRenewLeaseArgs holds the arguments of one call to RenewLease.
+type FakeLeaseStoreRenewLeaseArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 time.Time
 }
 
 func (fake *FakeLeaseStore) ClaimLease(arg1 context.Context, arg2 domain.Lease) (domain.Lease, bool, error) {
 	fake.claimLeaseMutex.Lock()
 	ret, specificReturn := fake.claimLeaseReturnsOnCall[len(fake.claimLeaseArgsForCall)]
-	fake.claimLeaseArgsForCall = append(fake.claimLeaseArgsForCall, struct {
-		arg1 context.Context
-		arg2 domain.Lease
-	}{arg1, arg2})
+	fake.claimLeaseArgsForCall = append(fake.claimLeaseArgsForCall, FakeLeaseStoreClaimLeaseArgs{arg1, arg2})
 	stub := fake.ClaimLeaseStub
 	fakeReturns := fake.claimLeaseReturns
 	fake.recordInvocation("ClaimLease", []interface{}{arg1, arg2})
@@ -109,7 +119,15 @@ func (fake *FakeLeaseStore) ClaimLeaseArgsForCall(i int) (context.Context, domai
 	fake.claimLeaseMutex.RLock()
 	defer fake.claimLeaseMutex.RUnlock()
 	argsForCall := fake.claimLeaseArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeLeaseStore) ClaimLeaseArgs() []FakeLeaseStoreClaimLeaseArgs {
+	fake.claimLeaseMutex.RLock()
+	defer fake.claimLeaseMutex.RUnlock()
+	args := make([]FakeLeaseStoreClaimLeaseArgs, len(fake.claimLeaseArgsForCall))
+	copy(args, fake.claimLeaseArgsForCall)
+	return args
 }
 
 func (fake *FakeLeaseStore) ClaimLeaseReturns(result1 domain.Lease, result2 bool, result3 error) {
@@ -144,10 +162,7 @@ func (fake *FakeLeaseStore) ClaimLeaseReturnsOnCall(i int, result1 domain.Lease,
 func (fake *FakeLeaseStore) GetLease(arg1 context.Context, arg2 string) (domain.Lease, bool, error) {
 	fake.getLeaseMutex.Lock()
 	ret, specificReturn := fake.getLeaseReturnsOnCall[len(fake.getLeaseArgsForCall)]
-	fake.getLeaseArgsForCall = append(fake.getLeaseArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
+	fake.getLeaseArgsForCall = append(fake.getLeaseArgsForCall, FakeLeaseStoreGetLeaseArgs{arg1, arg2})
 	stub := fake.GetLeaseStub
 	fakeReturns := fake.getLeaseReturns
 	fake.recordInvocation("GetLease", []interface{}{arg1, arg2})
@@ -177,7 +192,15 @@ func (fake *FakeLeaseStore) GetLeaseArgsForCall(i int) (context.Context, string)
 	fake.getLeaseMutex.RLock()
 	defer fake.getLeaseMutex.RUnlock()
 	argsForCall := fake.getLeaseArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.Arg1, argsForCall.Arg2
+}
+
+func (fake *FakeLeaseStore) GetLeaseArgs() []FakeLeaseStoreGetLeaseArgs {
+	fake.getLeaseMutex.RLock()
+	defer fake.getLeaseMutex.RUnlock()
+	args := make([]FakeLeaseStoreGetLeaseArgs, len(fake.getLeaseArgsForCall))
+	copy(args, fake.getLeaseArgsForCall)
+	return args
 }
 
 func (fake *FakeLeaseStore) GetLeaseReturns(result1 domain.Lease, result2 bool, result3 error) {
@@ -212,11 +235,7 @@ func (fake *FakeLeaseStore) GetLeaseReturnsOnCall(i int, result1 domain.Lease, r
 func (fake *FakeLeaseStore) ReleaseLease(arg1 context.Context, arg2 string, arg3 string) error {
 	fake.releaseLeaseMutex.Lock()
 	ret, specificReturn := fake.releaseLeaseReturnsOnCall[len(fake.releaseLeaseArgsForCall)]
-	fake.releaseLeaseArgsForCall = append(fake.releaseLeaseArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-	}{arg1, arg2, arg3})
+	fake.releaseLeaseArgsForCall = append(fake.releaseLeaseArgsForCall, FakeLeaseStoreReleaseLeaseArgs{arg1, arg2, arg3})
 	stub := fake.ReleaseLeaseStub
 	fakeReturns := fake.releaseLeaseReturns
 	fake.recordInvocation("ReleaseLease", []interface{}{arg1, arg2, arg3})
@@ -246,7 +265,15 @@ func (fake *FakeLeaseStore) ReleaseLeaseArgsForCall(i int) (context.Context, str
 	fake.releaseLeaseMutex.RLock()
 	defer fake.releaseLeaseMutex.RUnlock()
 	argsForCall := fake.releaseLeaseArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeLeaseStore) ReleaseLeaseArgs() []FakeLeaseStoreReleaseLeaseArgs {
+	fake.releaseLeaseMutex.RLock()
+	defer fake.releaseLeaseMutex.RUnlock()
+	args := make([]FakeLeaseStoreReleaseLeaseArgs, len(fake.releaseLeaseArgsForCall))
+	copy(args, fake.releaseLeaseArgsForCall)
+	return args
 }
 
 func (fake *FakeLeaseStore) ReleaseLeaseReturns(result1 error) {
@@ -275,12 +302,7 @@ func (fake *FakeLeaseStore) ReleaseLeaseReturnsOnCall(i int, result1 error) {
 func (fake *FakeLeaseStore) RenewLease(arg1 context.Context, arg2 string, arg3 string, arg4 time.Time) error {
 	fake.renewLeaseMutex.Lock()
 	ret, specificReturn := fake.renewLeaseReturnsOnCall[len(fake.renewLeaseArgsForCall)]
-	fake.renewLeaseArgsForCall = append(fake.renewLeaseArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-		arg3 string
-		arg4 time.Time
-	}{arg1, arg2, arg3, arg4})
+	fake.renewLeaseArgsForCall = append(fake.renewLeaseArgsForCall, FakeLeaseStoreRenewLeaseArgs{arg1, arg2, arg3, arg4})
 	stub := fake.RenewLeaseStub
 	fakeReturns := fake.renewLeaseReturns
 	fake.recordInvocation("RenewLease", []interface{}{arg1, arg2, arg3, arg4})
@@ -310,7 +332,15 @@ func (fake *FakeLeaseStore) RenewLeaseArgsForCall(i int) (context.Context, strin
 	fake.renewLeaseMutex.RLock()
 	defer fake.renewLeaseMutex.RUnlock()
 	argsForCall := fake.renewLeaseArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4
+}
+
+func (fake *FakeLeaseStore) RenewLeaseArgs() []FakeLeaseStoreRenewLeaseArgs {
+	fake.renewLeaseMutex.RLock()
+	defer fake.renewLeaseMutex.RUnlock()
+	args := make([]FakeLeaseStoreRenewLeaseArgs, len(fake.renewLeaseArgsForCall))
+	copy(args, fake.renewLeaseArgsForCall)
+	return args
 }
 
 func (fake *FakeLeaseStore) RenewLeaseReturns(result1 error) {
@@ -346,9 +376,18 @@ func (fake *FakeLeaseStore) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
+func (fake *FakeLeaseStore) CallOrder() []string {
+	fake.invocationsMutex.RLock()
+	defer fake.invocationsMutex.RUnlock()
+	order := make([]string, len(fake.callOrder))
+	copy(order, fake.callOrder)
+	return order
+}
+
 func (fake *FakeLeaseStore) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
+	fake.callOrder = append(fake.callOrder, key)
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
 	}
