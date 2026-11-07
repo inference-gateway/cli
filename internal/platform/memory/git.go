@@ -315,11 +315,11 @@ func (b *GitBackend) ensureRepo(ctx context.Context, dir string) error {
 // the agent never reads conflict markers and later syncs don't fail on it.
 func (b *GitBackend) abortInterruptedSync(ctx context.Context, dir string) {
 	gitDir := filepath.Join(dir, ".git")
-	if fileExists(filepath.Join(gitDir, "rebase-merge")) || fileExists(filepath.Join(gitDir, "rebase-apply")) {
+	if utils.FileExists(filepath.Join(gitDir, "rebase-merge")) || utils.FileExists(filepath.Join(gitDir, "rebase-apply")) {
 		logger.Warn("memory git sync: aborting interrupted rebase", "dir", dir)
 		_, _ = b.run(ctx, dir, "rebase", "--abort")
 	}
-	if fileExists(filepath.Join(gitDir, "MERGE_HEAD")) {
+	if utils.FileExists(filepath.Join(gitDir, "MERGE_HEAD")) {
 		logger.Warn("memory git sync: aborting interrupted merge", "dir", dir)
 		_, _ = b.run(ctx, dir, "merge", "--abort")
 	}
@@ -401,11 +401,6 @@ func (b *GitBackend) run(ctx context.Context, workdir string, args ...string) ([
 func isGitRepo(dir string) bool {
 	info, err := os.Stat(filepath.Join(dir, ".git"))
 	return err == nil && info.IsDir()
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func isEmptyOrMissing(dir string) bool {

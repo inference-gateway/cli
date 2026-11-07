@@ -14,6 +14,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // isolatedGitEnv points git at empty global/system config and a fixed identity
@@ -76,7 +77,7 @@ func writeFile(t *testing.T, path, content string) {
 
 func requireFile(t *testing.T, path string) {
 	t.Helper()
-	if !fileExists(path) {
+	if !utils.FileExists(path) {
 		t.Fatalf("expected file to exist: %s", path)
 	}
 }
@@ -230,7 +231,7 @@ func TestGitBackend_SyncInRunsOnce(t *testing.T) {
 	if err := b.SyncIn(context.Background()); err != nil {
 		t.Fatalf("SyncIn 2: %v", err)
 	}
-	if fileExists(filepath.Join(memDir, "b.md")) {
+	if utils.FileExists(filepath.Join(memDir, "b.md")) {
 		t.Fatal("expected SyncIn to run at most once per process; the second call should not have pulled")
 	}
 }
@@ -480,7 +481,7 @@ func TestGitBackend_RecoversInterruptedRebase(t *testing.T) {
 	if err := b.SyncOut(context.Background()); err != nil && strings.Contains(err.Error(), "rebase-merge") {
 		t.Fatalf("SyncOut still tripped over the interrupted rebase: %v", err)
 	}
-	if fileExists(filepath.Join(memDir, ".git", "rebase-merge")) {
+	if utils.FileExists(filepath.Join(memDir, ".git", "rebase-merge")) {
 		t.Fatal("expected the interrupted rebase to be aborted")
 	}
 	if got, _ := os.ReadFile(filepath.Join(memDir, "x.md")); string(got) != "local\n" {

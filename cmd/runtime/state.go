@@ -10,6 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // State owns configuration and logging initialized for one Cobra command tree.
@@ -134,16 +135,11 @@ func ParseDelimitedList(value string) []string {
 
 func resolveProjectConfigPath() string {
 	for _, path := range []string{config.ConfigFileName, config.DefaultConfigPath} {
-		if FileExists(path) {
+		if utils.FileExists(path) {
 			return path
 		}
 	}
 	return ""
-}
-
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // ConfigWriteTarget returns a fresh Viper instance for a userspace baseline or

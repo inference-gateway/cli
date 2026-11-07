@@ -9,6 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -149,7 +150,7 @@ func RenderWorkflow(job *scheddomain.ScheduledJob, ghCron, defaultModel string, 
 	}
 	name := job.Name
 	if name == "" {
-		name = "infer job " + shortID(job.ID)
+		name = "infer job " + utils.ShortID(job.ID)
 	}
 
 	permissions := workflowPermissions{Contents: "read"}
@@ -240,13 +241,6 @@ func RenderWorkflow(job *scheddomain.ScheduledJob, ghCron, defaultModel string, 
 # NOTE: GitHub Actions schedules run in UTC.
 `, job.ID, name, job.CronExpression)
 	return append([]byte(header), body...), nil
-}
-
-func shortID(id string) string {
-	if len(id) > 8 {
-		return id[:8]
-	}
-	return id
 }
 
 // providerSecrets lists the provider API key secrets the rendered workflow

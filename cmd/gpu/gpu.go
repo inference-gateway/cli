@@ -2,8 +2,6 @@ package gpu
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"strconv"
 	"time"
@@ -155,7 +153,7 @@ func gpuProvision(state *runtime.State, cmd *cobra.Command) error {
 		}
 	}
 
-	token, err := randomToken()
+	token, err := utils.RandomToken()
 	if err != nil {
 		return err
 	}
@@ -338,12 +336,4 @@ func uptimeHours(p provisioner.Pod) float64 {
 		return 0
 	}
 	return time.Since(t).Hours()
-}
-
-func randomToken() (string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
 }
