@@ -613,6 +613,10 @@ func (t *TelegramChannel) downloadInboundVideo(ctx context.Context, b *bot.Bot, 
 	t.saveInboundMedia(msg, mime, filePath, data)
 }
 
+// fileDownloadClient fetches Bot API files, which cap at 20 MB - so a bounded
+// overall timeout is safe for that size.
+var fileDownloadClient = &http.Client{Timeout: 5 * time.Minute}
+
 // fetchTelegramFile resolves a file_id to its download path and returns the raw
 // file bytes along with the Telegram file path (used for extension/MIME hints).
 func fetchTelegramFile(ctx context.Context, b *bot.Bot, fileID string) ([]byte, string, error) {
@@ -629,7 +633,7 @@ func fetchTelegramFile(ctx context.Context, b *bot.Bot, fileID string) ([]byte, 
 		return nil, "", fmt.Errorf("creating request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := fileDownloadClient.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("downloading file: %w", err)
 	}

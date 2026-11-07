@@ -397,6 +397,28 @@ func TestFetchTelegramFile(t *testing.T) {
 	}
 }
 
+func TestFetchTelegramFileTimesOutStalledDownload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/getFile"):
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"ok":true,"result":{"file_id":"x","file_path":"photos/file_1.jpg"}}`)
+		case strings.Contains(r.URL.Path, "/file/bot"):
+			time.Sleep(2 * time.Second)
+		}
+	}))
+	defer srv.Close()
+	ch := newTestChannel(t, srv.URL)
+
+	restored := fileDownloadClient
+	fileDownloadClient = &http.Client{Timeout: 100 * time.Millisecond}
+	t.Cleanup(func() { fileDownloadClient = restored })
+
+	if _, _, err := fetchTelegramFile(context.Background(), ch.bot, "photo123"); err == nil {
+		t.Fatal("expected a stalled Bot API download to fail with a timeout")
+	}
+}
+
 func TestMediaAcceptable(t *testing.T) {
 	tests := []struct {
 		name    string

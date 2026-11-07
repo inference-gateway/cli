@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	download "github.com/inference-gateway/cli/internal/platform/download"
 )
@@ -34,9 +35,13 @@ type Client struct {
 	HTTP    *http.Client
 }
 
-// NewClient returns a Client for the public Hub.
+// NewClient returns a Client for the public Hub. Its transport bounds the
+// response-header wait so a non-responding Hub errors instead of hanging the
+// download - the request context bounds the body read for large models.
 func NewClient() *Client {
-	return &Client{BaseURL: DefaultBaseURL, HTTP: http.DefaultClient}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	return &Client{BaseURL: DefaultBaseURL, HTTP: &http.Client{Transport: transport}}
 }
 
 // fileURL returns the Hub's resolve URL for file in repo.
