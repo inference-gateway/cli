@@ -51,7 +51,7 @@ type Installer struct {
 }
 
 // NewInstaller returns an Installer pointed at github.com, authenticated via
-// GITHUB_TOKEN / GH_TOKEN when set.
+// github.Token (GITHUB_TOKEN, then GH_TOKEN) when set.
 func NewInstaller() *Installer {
 	return &Installer{Installer: *skills.NewInstaller("")}
 }

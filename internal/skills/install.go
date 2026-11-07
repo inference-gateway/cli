@@ -16,6 +16,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	github "github.com/inference-gateway/cli/internal/github"
 )
 
 const (
@@ -156,27 +157,17 @@ type Installer struct {
 // NewInstaller returns an Installer pointed at github.com with a 30s HTTP
 // timeout, resolving shorthand targets against the given "<owner>/<repo>"
 // skills repository (empty = config.DefaultSkillsRepository). The GitHub token
-// is read from the environment (GITHUB_TOKEN, then GH_TOKEN); when neither is
-// set requests are made unauthenticated. Tests substitute APIBase / RawBase to
+// comes from github.Token (GITHUB_TOKEN, then GH_TOKEN); when neither is set
+// requests are made unauthenticated. Tests substitute APIBase / RawBase to
 // point at httptest.Server.
 func NewInstaller(repository string) *Installer {
 	return &Installer{
 		Client:     &http.Client{Timeout: installerTimeout},
 		APIBase:    githubAPIBase,
 		RawBase:    githubRawBase,
-		Token:      githubToken(),
+		Token:      github.Token(),
 		Repository: repository,
 	}
-}
-
-// githubToken returns the GitHub token from the environment, preferring
-// GITHUB_TOKEN and falling back to GH_TOKEN (matching the gh CLI). It returns
-// "" when neither is set.
-func githubToken() string {
-	if t := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); t != "" {
-		return t
-	}
-	return strings.TrimSpace(os.Getenv("GH_TOKEN"))
 }
 
 // setAuth adds the bearer token to req when the installer is authenticated.
@@ -296,7 +287,7 @@ func (i *Installer) FetchTree(ctx context.Context, loc *GitHubLocation) ([]TreeE
 	}
 	if resp.StatusCode == http.StatusForbidden {
 		if i.Token == "" {
-			return nil, fmt.Errorf("GitHub API rate limit exceeded (60 req/hour for unauthenticated requests) - set GITHUB_TOKEN (or GH_TOKEN) to raise the limit to 5,000/hour, or try again later")
+			return nil, github.ErrRateLimited
 		}
 		return nil, fmt.Errorf("GitHub API request forbidden (403) for %s/%s - the token may lack access or a secondary rate limit was hit; try again later", loc.Owner, loc.Repo)
 	}

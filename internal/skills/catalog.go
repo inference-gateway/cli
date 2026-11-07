@@ -17,6 +17,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	github "github.com/inference-gateway/cli/internal/github"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -109,7 +110,7 @@ func (c *CatalogClient) Index(ctx context.Context) []catalogEntry {
 	}
 	req.Header.Set("User-Agent", catalogUA)
 	req.Header.Set("Accept", "application/json")
-	if token := githubToken(); token != "" && isGitHubHost(req.URL.Host) {
+	if token := github.Token(); token != "" && isGitHubHost(req.URL.Host) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
