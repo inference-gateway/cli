@@ -89,7 +89,10 @@ verification space: what it proves there goes into the plan's
 
 How it behaves:
 
-- Created lazily on the first write or the first plan-mode command.
+- Bash keeps the project as its working directory, like every other mode,
+  so `git`, `gh` and the read-only baseline inspect the repository. Reach
+  the scratchpad through absolute paths or a `cd` in the same command, and
+  create it first with `mkdir -p` - nothing creates it for you.
 - Sits outside the git working tree, so nothing leaks into commits, and is
   wiped by `/reset` together with the other runtime dirs. It survives into
   the fresh session that starts when a plan is approved, so the executing

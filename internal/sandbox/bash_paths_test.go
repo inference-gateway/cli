@@ -104,7 +104,7 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 
 // TestIsBashCommandAllowed_PlanModeCreatesOnlyInScratchpad: allow-listed
 // creating commands follow the plan-mode scratchpad gate, with relative paths
-// anchored to the scratchpad where the Bash tool runs them.
+// resolving against the project working directory like in every other mode.
 func TestIsBashCommandAllowed_PlanModeCreatesOnlyInScratchpad(t *testing.T) {
 	project := t.TempDir()
 	t.Chdir(project)
@@ -117,7 +117,7 @@ func TestIsBashCommandAllowed_PlanModeCreatesOnlyInScratchpad(t *testing.T) {
 		command string
 		allowed bool
 	}{
-		{command: "mkdir -p build/out", allowed: true},
+		{command: "mkdir -p build/out"},
 		{command: "mkdir " + filepath.Join(scratchpad, "out"), allowed: true},
 		{command: "ls " + filepath.Join(project, "src"), allowed: true},
 		{command: "mkdir " + filepath.Join(project, "out")},

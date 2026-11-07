@@ -31,22 +31,17 @@ var creatingCommands = []string{"mkdir", "ln"}
 // bashPathOutsideSandbox reports the first path an allow-listed command would
 // read or create outside the sandbox or on a protected path. A path the check
 // cannot predict counts as outside. Writes carry the agent mode so the
-// plan-mode scratchpad gate applies, with relative paths anchored where the
-// Bash tool runs plan-mode commands.
+// plan-mode scratchpad gate applies to a path that resolves into the project.
 func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.AgentMode) (string, bool) {
 	words := splitShellWords(seg)
 	if len(words) < 2 || slices.Contains(printOnlyCommands, words[0].text) {
 		return "", false
 	}
 
-	resolve := func(path string) string { return path }
-	if mode == agentdomain.AgentModePlan {
-		resolve = func(path string) string { return anchorRelative(path, config.ProjectScratchpadDir()) }
-	}
-	validate := func(path string) error { return ValidateRead(cfg, resolve(path)) }
+	validate := func(path string) error { return ValidateRead(cfg, path) }
 	if slices.Contains(creatingCommands, words[0].text) {
 		ctx := agentdomain.WithAgentMode(context.Background(), mode)
-		validate = func(path string) error { return ValidateWrite(ctx, cfg, resolve(path)) }
+		validate = func(path string) error { return ValidateWrite(ctx, cfg, path) }
 	}
 	args := words[1:]
 	if words[0].text == "ln" {
@@ -61,13 +56,6 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 		}
 	}
 	return "", false
-}
-
-func anchorRelative(path, dir string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(dir, path)
 }
 
 // pathCandidates returns the parts of an argument that may name a file: the

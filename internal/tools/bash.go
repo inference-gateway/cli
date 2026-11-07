@@ -170,14 +170,6 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		return result, err
 	}
 
-	workDir, err := planModeWorkDir(mode)
-	if err != nil {
-		result.ExitCode = -1
-		result.Duration = time.Since(start).String()
-		result.Error = err.Error()
-		return result, err
-	}
-
 	outputCallback := agentdomain.GetBashOutputCallback(ctx)
 	hasCallback := agentdomain.HasBashOutputCallback(ctx)
 	detachChan := agentdomain.GetBashDetachChannel(ctx)
@@ -198,7 +190,6 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	}
 
 	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
-	cmd.Dir = workDir
 	cmd.WaitDelay = bashPipeGrace
 	process.KillTreeOnCancel(cmd)
 
@@ -434,19 +425,6 @@ func (t *BashTool) notAllowedError(command string, mode agentdomain.AgentMode) e
 		return fmt.Errorf("command not allowed: %s - %s", command, hint)
 	}
 	return fmt.Errorf("command not allowed: %s (%s mode)", command, mode.ModeKey())
-}
-
-// planModeWorkDir pins plan-mode commands to the scratchpad, which it creates
-// since the first command there needs a working directory that exists.
-func planModeWorkDir(mode agentdomain.AgentMode) (string, error) {
-	if mode != agentdomain.AgentModePlan {
-		return "", nil
-	}
-	dir := config.ProjectScratchpadDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("failed to prepare the plan-mode scratchpad: %w", err)
-	}
-	return dir, nil
 }
 
 // FormatResult formats tool execution results for different contexts
