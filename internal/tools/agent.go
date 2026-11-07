@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -714,17 +713,6 @@ func (t *AgentTool) setMarkdownAgents(agents []markdownAgent, toolManifests agen
 	t.toolManifests = toolManifests
 }
 
-// lookupMarkdownAgent returns the named agent, exact-match on the frontmatter
-// name (which need not equal the file name).
-func (t *AgentTool) lookupMarkdownAgent(name string) (markdownAgent, bool) {
-	for _, agent := range t.mdAgents {
-		if agent.name == name {
-			return agent, true
-		}
-	}
-	return markdownAgent{}, false
-}
-
 // markdownAgentCatalog renders the Available agents list appended to the tool
 // description, or "" when no agents are loaded (description stays unchanged).
 func (t *AgentTool) markdownAgentCatalog() string {
@@ -743,17 +731,6 @@ func (t *AgentTool) markdownAgentCatalog() string {
 	return out.String()
 }
 
-// markdownAgentNames returns the sorted names of the loaded agents, for the
-// unknown-agent error message.
-func (t *AgentTool) markdownAgentNames() []string {
-	names := make([]string, 0, len(t.mdAgents))
-	for _, agent := range t.mdAgents {
-		names = append(names, agent.name)
-	}
-	sort.Strings(names)
-	return names
-}
-
 // applyNamedAgent overlays a Markdown-defined agent preset onto the task spec:
 // the file body wins as the system prompt, a frontmatter model wins over the
 // per-task model (inherit falls through to resolveModel), and the capability
@@ -764,9 +741,9 @@ func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	if spec.Agent == "" {
 		return nil
 	}
-	agent, ok := t.lookupMarkdownAgent(spec.Agent)
-	if !ok {
-		return fmt.Errorf("unknown agent %q; available agents: %s", spec.Agent, strings.Join(t.markdownAgentNames(), ", "))
+	agent, err := findMarkdownAgent(t.mdAgents, spec.Agent)
+	if err != nil {
+		return err
 	}
 	spec.SystemPrompt = agent.systemPrompt
 	if agent.model != "" {

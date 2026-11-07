@@ -46,6 +46,24 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				"INFER_SUBAGENT_TOOLS=Read,Grep",
 			},
 		},
+		{
+			name: "a named agent sets its model and restricts the tools without the subagent env",
+			opts: sessionsdomain.ThreadOptions{
+				Agent:           "reviewer",
+				Model:           "deepseek/deepseek-v4-pro",
+				SystemPrompt:    "You review diffs.",
+				Tools:           []string{"Read", "Grep"},
+				DisallowedTools: []string{"Bash"},
+			},
+			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1", "--model", "deepseek/deepseek-v4-pro"},
+			wantEnv: []string{
+				"PWD=/work/proj",
+				"INFER_LOG_STDERR_JSON=true",
+				"INFER_PROMPTS_AGENT_SYSTEM_PROMPT=You review diffs.",
+				"INFER_SUBAGENT_TOOLS=Read,Grep",
+				"INFER_DISALLOWED_TOOLS=Bash",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

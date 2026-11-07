@@ -7,11 +7,13 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -21,32 +23,53 @@ type Service struct {
 	enabled   bool
 	config    *config.Config
 	allowlist map[string]bool
+	denylist  map[string]bool
+
+	warnUnknownOnce sync.Once
 }
 
-// NewService creates a new LLM tool service with an existing registry
+// NewService creates a new LLM tool service with an existing registry. A named
+// Markdown agent's allowlist and disallowedTools arrive as env, and only the
+// tools they leave are advertised to the model and accepted for execution.
 func NewService(cfg *config.Config, registry *Registry) *Service {
-	s := &Service{
-		registry: registry,
-		enabled:  cfg.Tools.Enabled,
-		config:   cfg,
+	return &Service{
+		registry:  registry,
+		enabled:   cfg.Tools.Enabled,
+		config:    cfg,
+		allowlist: envToolSet(scheddomain.EnvSubagentTools),
+		denylist:  envToolSet(scheddomain.EnvDisallowedTools),
 	}
-	// A named Markdown subagent receives its tool allowlist through the
-	// EnvSubagentTools channel; when set, only those tools are advertised to
-	// the model and accepted for execution.
-	if raw := os.Getenv(scheddomain.EnvSubagentTools); raw != "" {
-		s.allowlist = make(map[string]bool)
-		for _, name := range strings.Split(raw, ",") {
-			if name = strings.TrimSpace(name); name != "" {
-				s.allowlist[name] = true
-			}
+}
+
+// envToolSet reads a comma-separated tool list from the env, nil when unset.
+func envToolSet(key string) map[string]bool {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return nil
+	}
+	set := make(map[string]bool)
+	for _, name := range strings.Split(raw, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			set[name] = true
 		}
 	}
-	return s
+	return set
+}
+
+// warnUnknownAllowedTools logs each allowlisted tool this worker lacks, since a
+// typo in a named agent's tools otherwise leaves it silently without them. It
+// runs on the first listing, once MCP tools are registered too.
+func (s *Service) warnUnknownAllowedTools() {
+	for name := range s.allowlist {
+		if _, err := s.registry.GetTool(name); err != nil {
+			logger.Warn("named agent allows a tool this worker does not have", "tool", name)
+		}
+	}
 }
 
 // isToolEnabled checks if a tool should be included based on its type and configuration
 func (s *Service) isToolEnabled(toolName string) bool {
-	if s.allowlist != nil && !s.allowlist[toolName] {
+	if (s.allowlist != nil && !s.allowlist[toolName]) || s.denylist[toolName] {
 		return false
 	}
 	return (s.enabled || s.isSelfGated(toolName)) && s.registry.IsToolEnabled(toolName)
@@ -65,6 +88,7 @@ func (s *Service) isSelfGated(toolName string) bool {
 
 // ListTools returns definitions for all enabled tools
 func (s *Service) ListTools() []sdk.ChatCompletionTool {
+	s.warnUnknownOnce.Do(s.warnUnknownAllowedTools)
 	var definitions []sdk.ChatCompletionTool
 
 	allTools := s.registry.GetToolDefinitions()
@@ -79,6 +103,7 @@ func (s *Service) ListTools() []sdk.ChatCompletionTool {
 
 // ListToolsForMode returns definitions for enabled tools filtered by agent mode
 func (s *Service) ListToolsForMode(mode agentdomain.AgentMode) []sdk.ChatCompletionTool {
+	s.warnUnknownOnce.Do(s.warnUnknownAllowedTools)
 	var definitions []sdk.ChatCompletionTool
 	for _, tool := range s.registry.GetToolDefinitions() {
 		name := tool.Function.Name

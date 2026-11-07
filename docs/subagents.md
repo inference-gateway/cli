@@ -67,11 +67,14 @@ Agent definitions are looked up in this order - first match wins on a name
 collision:
 
 1. **Project**: `.infer/agents/<name>.md`
-2. **User-global**: `~/.infer/agents/<name>.md`
+2. **Project, open standard**: `.agents/agents/<name>.md`
+3. **User-global**: `~/.infer/agents/<name>.md`
+4. **User-global, open standard**: `~/.agents/agents/<name>.md`
 
-A project can therefore override a personal agent with the same name, the
-same way project skills override user skills. Commit `.infer/agents/` with
-your project to share its agents; `~/.infer/agents/` stays personal.
+This is the layout skills and custom tools use. A project can therefore
+override a personal agent with the same name, the same way project skills
+override user skills. Commit `.infer/agents/` or `.agents/agents/` with your
+project to share its agents - the home dirs stay personal.
 
 ## Tools Allowlist
 
@@ -253,7 +256,7 @@ Gemini CLI agent files load as-is:
 ## Limitations
 
 - Reading `.claude/agents/` or `.gemini/agents/` directly is not supported
-  yet - copy or symlink the files into `.infer/agents/`.
+  yet - copy or symlink the files into `.infer/agents/` or `.agents/agents/`.
 - No hot reload: files are scanned once per session.
 - Per-agent `mcpServers`, `temperature`, `max_turns`, `permissionMode` and
   tool wildcards such as `mcp_*` are not honored in v1; MCP tools register

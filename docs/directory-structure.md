@@ -113,10 +113,11 @@ for the full precedence rules.
 ├── tools/                # project custom tools (<Name>.yaml), always need approval, see docs/custom-tools.md
 └── agents/               # project Markdown subagents (override ~/.infer/agents/ by name)
 
-.agents/                  # open-standard project layer (cross-tool skills and tools)
+.agents/                  # open-standard project layer (cross-tool skills, tools and agents)
 ├── skills/               # Agent Skills - SKILL.md folders (read-only discovery)
 │   └── <name>/SKILL.md   # e.g. .agents/skills/pdf/SKILL.md
-└── tools/                # project custom tools, like .infer/tools/ (which wins on a name clash)
+├── tools/                # project custom tools, like .infer/tools/ (which wins on a name clash)
+└── agents/               # project Markdown agents, like .infer/agents/ (which wins on a name clash)
 ```
 
 ---
@@ -177,8 +178,9 @@ project wants to override a config file it commits its own sparse
   See [Skills](skills.md).
 - **`agents/`** - Markdown subagent definitions you create yourself, one
   `<name>.md` per agent (frontmatter plus a system-prompt body, Claude Code /
-  Gemini CLI compatible); not seeded by init. A project `.infer/agents/`
-  overrides a same-named file here. See [Markdown Subagents](subagents.md).
+  Gemini CLI compatible); not seeded by init. `~/.agents/agents/` is read
+  after it, and a project `.infer/agents/` or `.agents/agents/` overrides a
+  same-named file here. See [Markdown Subagents](subagents.md).
 
 The split into separate YAML files (rather than one giant `config.yaml`) is
 deliberate: each concern has its own file so changes stay focused and

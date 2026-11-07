@@ -116,6 +116,12 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	if opts.MaxTurns > 0 {
 		env = append(env, "INFER_AGENT_MAX_TURNS="+strconv.Itoa(opts.MaxTurns))
 	}
+	if len(opts.Tools) > 0 {
+		env = append(env, scheddomain.EnvSubagentTools+"="+strings.Join(opts.Tools, ","))
+	}
+	if len(opts.DisallowedTools) > 0 {
+		env = append(env, scheddomain.EnvDisallowedTools+"="+strings.Join(opts.DisallowedTools, ","))
+	}
 	env = append(env, opts.Env...)
 	if sub := opts.Subagent; sub != nil {
 		env = append(env,

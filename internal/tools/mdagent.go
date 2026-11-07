@@ -13,11 +13,12 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
-// agentsSubdir is the directory (under .infer/ and ~/.infer/) holding Markdown
-// subagent definitions, one <name>.md per agent.
+// agentsSubdir is the directory (under .infer/ and .agents/, in the project and
+// in the home dir) holding Markdown agent definitions, one <name>.md per agent.
 const agentsSubdir = "agents"
 
 // markdownAgentNameMax mirrors the 64-char cap used by Claude Code and skills.
@@ -31,12 +32,15 @@ var markdownAgentNameRegex = regexp.MustCompile(`^[a-z0-9_-]+$`)
 // YAML frontmatter (Claude Code / Gemini CLI compatible): the body is the
 // system prompt, the frontmatter the configuration.
 type markdownAgent struct {
-	name         string
-	description  string
-	model        string
-	tools        []string
-	systemPrompt string
-	path         string
+	name        string
+	description string
+	model       string
+	tools       []string
+	// disallowedTools is the frontmatter's list as written, which a thread's
+	// worker applies against the tools it has.
+	disallowedTools []string
+	systemPrompt    string
+	path            string
 	// source classifies where the file was loaded from ("project" or "user"),
 	// for user-facing listings.
 	source string
@@ -53,25 +57,33 @@ type markdownAgentFrontmatter struct {
 	DisallowedTools any    `yaml:"disallowedTools"`
 }
 
-// markdownAgentDirs returns the search paths in precedence order: the project's
-// .infer/agents first, then the user-global ~/.infer/agents, so a project can
-// override a personal agent of the same name.
-func markdownAgentDirs() []string {
-	dirs := []string{filepath.Join(config.ConfigDirName, agentsSubdir)}
+// markdownAgentDirs returns the search paths in precedence order, laid out like
+// skills and custom tools: the project's .infer/agents and .agents/agents, then
+// the user's ~/.infer/agents and ~/.agents/agents, so a project overrides a
+// personal agent of the same name. An empty projectDir is the cwd.
+func markdownAgentDirs(projectDir string) []string {
+	dirs := agentDirsUnder(projectDir)
 	if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, config.ConfigDirName, agentsSubdir))
+		dirs = append(dirs, agentDirsUnder(home)...)
 	}
 	return dirs
 }
 
+// agentDirsUnder is root's .infer/agents, then its .agents/agents.
+func agentDirsUnder(root string) []string {
+	return []string{
+		filepath.Join(root, config.ConfigDirName, agentsSubdir),
+		filepath.Join(root, config.AgentsDirName, agentsSubdir),
+	}
+}
+
 // loadMarkdownAgents scans the given directories (nil selects the defaults)
 // and returns the valid named agents, first match winning on a name collision.
-// knownTools is the set of tool names the subagent process can actually have;
-// anything else in a tools list is dropped with a warning. Invalid files are
-// skipped with a warning - they never fail startup.
+// A tools list keeps only knownTools, the names the agent's process can have,
+// and a nil knownTools keeps every name. Invalid files are skipped with a warning.
 func loadMarkdownAgents(dirs []string, knownTools map[string]bool) []markdownAgent {
 	if dirs == nil {
-		dirs = markdownAgentDirs()
+		dirs = markdownAgentDirs("")
 	}
 	seen := make(map[string]bool)
 	var agents []markdownAgent
@@ -143,13 +155,46 @@ func loadMarkdownAgent(path string, knownTools map[string]bool) (*markdownAgent,
 	}
 
 	return &markdownAgent{
-		name:         fm.Name,
-		description:  strings.TrimSpace(fm.Description),
-		model:        resolveMarkdownAgentModel(fm.Model, path),
-		tools:        tools,
-		systemPrompt: strings.TrimSpace(body),
-		path:         path,
+		name:            fm.Name,
+		description:     strings.TrimSpace(fm.Description),
+		model:           resolveMarkdownAgentModel(fm.Model, path),
+		tools:           tools,
+		disallowedTools: flexStringList(fm.DisallowedTools),
+		systemPrompt:    strings.TrimSpace(body),
+		path:            path,
 	}, ""
+}
+
+// findMarkdownAgent returns the named agent, exact-match on the frontmatter
+// name (which need not equal the file name), or an error listing the others.
+func findMarkdownAgent(agents []markdownAgent, name string) (markdownAgent, error) {
+	names := make([]string, 0, len(agents))
+	for _, agent := range agents {
+		if agent.name == name {
+			return agent, nil
+		}
+		names = append(names, agent.name)
+	}
+	sort.Strings(names)
+	return markdownAgent{}, fmt.Errorf("unknown agent %q; available agents: %s", name, strings.Join(names, ", "))
+}
+
+// ResolveThreadAgent overlays the Markdown agent a daemon thread names, from
+// projectDir's .infer/agents then ~/.infer/agents, onto the thread's options.
+// As for a named subagent, the body is the system prompt and a frontmatter model
+// wins over the thread's. The tool lists stay unresolved for the worker.
+func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (sessionsdomain.ThreadOptions, error) {
+	agent, err := findMarkdownAgent(loadMarkdownAgents(markdownAgentDirs(projectDir), nil), opts.Agent)
+	if err != nil {
+		return sessionsdomain.ThreadOptions{}, err
+	}
+	opts.SystemPrompt = agent.systemPrompt
+	if agent.model != "" {
+		opts.Model = agent.model
+	}
+	opts.Tools = agent.tools
+	opts.DisallowedTools = agent.disallowedTools
+	return opts, nil
 }
 
 // resolveMarkdownAgentModel validates the frontmatter model: empty or
@@ -168,18 +213,18 @@ func resolveMarkdownAgentModel(model, path string) string {
 	return model
 }
 
-// resolveMarkdownAgentTools computes the tool allowlist: an explicit `tools`
-// list (or the full known set when only `disallowedTools` is given) minus
-// unknown names and the disallowed set. A restriction that resolves to no
-// tool is a broken definition and skips the file; with neither key set the
-// agent inherits the parent's tools (nil allowlist).
+// resolveMarkdownAgentTools computes the tool allowlist: the `tools` list, or
+// the known set when only `disallowedTools` is given, minus unknown names and
+// the disallowed set. A restriction that resolves to no tool skips the file,
+// and nil inherits the parent's tools. A nil knownTools treats every name as
+// known and leaves a lone `disallowedTools` to the worker's own tools.
 func resolveMarkdownAgentTools(fm markdownAgentFrontmatter, path string, knownTools map[string]bool) ([]string, string) {
 	requested := flexStringList(fm.Tools)
 	disallowed := make(map[string]bool)
 	for _, name := range flexStringList(fm.DisallowedTools) {
 		disallowed[name] = true
 	}
-	if requested == nil && len(disallowed) == 0 {
+	if requested == nil && (len(disallowed) == 0 || knownTools == nil) {
 		return nil, ""
 	}
 
@@ -193,7 +238,7 @@ func resolveMarkdownAgentTools(fm markdownAgentFrontmatter, path string, knownTo
 	dropped := make(map[string]bool)
 	for _, name := range requested {
 		switch {
-		case !knownTools[name]:
+		case knownTools != nil && !knownTools[name]:
 			if !dropped[name] {
 				dropped[name] = true
 				logger.Warn("markdown agent requests unknown tool, dropping it", "file", path, "tool", name)
@@ -247,8 +292,10 @@ func subagentSourceLabel(dir string) string {
 		if abs, err := filepath.Abs(dir); err == nil {
 			dir = abs
 		}
-		if same, _ := filepath.Rel(filepath.Join(home, config.ConfigDirName), dir); same == "." || !strings.HasPrefix(same, "..") {
-			return "user"
+		for _, userDir := range agentDirsUnder(home) {
+			if same, _ := filepath.Rel(filepath.Dir(userDir), dir); same == "." || !strings.HasPrefix(same, "..") {
+				return "user"
+			}
 		}
 	}
 	return "project"

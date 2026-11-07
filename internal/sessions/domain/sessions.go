@@ -23,6 +23,12 @@ type ThreadOptions struct {
 	MaxTurns           int      `json:"max_turns,omitempty"`
 	// Subagent marks a thread another thread's Agent tool spawned.
 	Subagent *Subagent `json:"subagent,omitempty"`
+	// Agent names the Markdown agent the thread runs as. The daemon it is
+	// opened on resolves it into the model, system prompt and tool lists
+	// below, so a relay or a teleport carries those instead of the name.
+	Agent           string   `json:"agent,omitempty"`
+	Tools           []string `json:"tools,omitempty"`
+	DisallowedTools []string `json:"disallowed_tools,omitempty"`
 	// Workspace and WorkspaceDir place a thread no lease places: the
 	// workspace that holds its conversation and the source code there, as
 	// when a client opens a session it listed on a remote workspace.
@@ -34,8 +40,8 @@ type ThreadOptions struct {
 }
 
 // Portable is what of the options follows a session to another workspace: the
-// agent's model, mode, prompts and turn limit. Placement, sandbox paths, the
-// spawn and Env belong to the daemon the thread was opened on.
+// agent's model, mode, prompts, tools and turn limit. The agent name, placement,
+// sandbox paths, the spawn and Env belong to the daemon the thread was opened on.
 func (o ThreadOptions) Portable() ThreadOptions {
 	return ThreadOptions{
 		Model:              o.Model,
@@ -43,6 +49,8 @@ func (o ThreadOptions) Portable() ThreadOptions {
 		SystemPrompt:       o.SystemPrompt,
 		CustomInstructions: o.CustomInstructions,
 		MaxTurns:           o.MaxTurns,
+		Tools:              o.Tools,
+		DisallowedTools:    o.DisallowedTools,
 	}
 }
 
@@ -66,6 +74,11 @@ type Worker interface {
 
 // LaunchWorker starts the worker for a thread.
 type LaunchWorker func(key ThreadKey, opts ThreadOptions) (Worker, error)
+
+// ResolveAgent overlays the Markdown agent opts.Agent names, as the project dir
+// and the user define it, onto a new thread's options. It fails for an agent
+// neither defines.
+type ResolveAgent func(projectDir string, opts ThreadOptions) (ThreadOptions, error)
 
 // Client is one connected client of a thread, such as a WebSocket connection.
 // Deliver hands it one frame.

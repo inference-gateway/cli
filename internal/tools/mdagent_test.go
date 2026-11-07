@@ -2,10 +2,15 @@ package tools
 
 import (
 	"os"
+	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 func writeAgentFile(t *testing.T, dir, name, content string) {
@@ -225,5 +230,147 @@ func TestDeriveSubagentMode(t *testing.T) {
 	}
 	if got := deriveSubagentMode([]string{ToolRead, ToolBash}, toolManifests); got != agentdomain.AgentModeStandard {
 		t.Errorf("any mutating tool -> ReadWrite, got %v", got)
+	}
+}
+
+func TestMarkdownAgentDirsFollowTheSkillsLayout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := t.TempDir()
+	want := []string{
+		filepath.Join(proj, config.ConfigDirName, agentsSubdir),
+		filepath.Join(proj, config.AgentsDirName, agentsSubdir),
+		filepath.Join(home, config.ConfigDirName, agentsSubdir),
+		filepath.Join(home, config.AgentsDirName, agentsSubdir),
+	}
+	if got := markdownAgentDirs(proj); !slices.Equal(got, want) {
+		t.Fatalf("markdownAgentDirs = %v, want %v", got, want)
+	}
+}
+
+func TestLoadMarkdownAgentsFromTheAgentsDirs(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := t.TempDir()
+	writeAgentFile(t, filepath.Join(proj, config.AgentsDirName, agentsSubdir), "shared.md",
+		"---\nname: shared\ndescription: The project's .agents copy.\n---\n\nProject agents body.")
+	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, agentsSubdir), "shared.md",
+		"---\nname: shared\ndescription: The user's copy, shadowed.\n---\n\nUser body.")
+	writeAgentFile(t, filepath.Join(home, config.AgentsDirName, agentsSubdir), "portable.md",
+		"---\nname: portable\ndescription: Only in ~/.agents/agents.\n---\n\nPortable body.")
+
+	bodies := map[string]string{}
+	for _, agent := range loadMarkdownAgents(markdownAgentDirs(proj), nil) {
+		bodies[agent.name] = agent.systemPrompt
+	}
+	want := map[string]string{"shared": "Project agents body.", "portable": "Portable body."}
+	if !reflect.DeepEqual(bodies, want) {
+		t.Fatalf("loaded agents = %v, want %v", bodies, want)
+	}
+}
+
+func TestResolveThreadAgent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := t.TempDir()
+	projectAgents := filepath.Join(proj, config.ConfigDirName, agentsSubdir)
+	userAgents := filepath.Join(home, config.ConfigDirName, agentsSubdir)
+
+	writeAgentFile(t, projectAgents, "reviewer.md", `---
+name: reviewer
+description: Reviews a diff.
+model: deepseek/deepseek-v4-pro
+tools: Read, Grep, Bash, project_tool
+disallowedTools: Bash
+---
+
+You review diffs.`)
+	writeAgentFile(t, userAgents, "reviewer.md", `---
+name: reviewer
+description: The user's reviewer, shadowed by the project's.
+---
+
+User body.`)
+	writeAgentFile(t, userAgents, "helper.md", `---
+name: helper
+description: Inherits the model and drops Bash.
+model: inherit
+disallowedTools: Bash
+---
+
+You help.`)
+	writeAgentFile(t, userAgents, "aliased.md", `---
+name: aliased
+description: A Claude Code alias model.
+model: sonnet
+---
+
+Aliased.`)
+	writeAgentFile(t, projectAgents, "no-tools.md", `---
+name: no-tools
+description: An empty allowlist.
+tools: []
+---
+
+Nothing.`)
+
+	thread := sessionsdomain.ThreadOptions{Model: "provider/thread", CustomInstructions: "siblings"}
+	tests := []struct {
+		name    string
+		agent   string
+		want    sessionsdomain.ThreadOptions
+		wantErr string
+	}{
+		{
+			name:  "a project agent's model wins and it keeps its tools for the worker",
+			agent: "reviewer",
+			want: sessionsdomain.ThreadOptions{
+				Agent: "reviewer", Model: "deepseek/deepseek-v4-pro",
+				SystemPrompt: "You review diffs.", CustomInstructions: "siblings",
+				Tools: []string{ToolGrep, ToolRead, "project_tool"}, DisallowedTools: []string{ToolBash},
+			},
+		},
+		{
+			name:  "an inherit agent keeps the thread's model and leaves disallowedTools to the worker",
+			agent: "helper",
+			want: sessionsdomain.ThreadOptions{
+				Agent: "helper", Model: "provider/thread", SystemPrompt: "You help.", CustomInstructions: "siblings",
+				DisallowedTools: []string{ToolBash},
+			},
+		},
+		{
+			name:  "a bare alias model inherits",
+			agent: "aliased",
+			want:  sessionsdomain.ThreadOptions{Agent: "aliased", Model: "provider/thread", SystemPrompt: "Aliased.", CustomInstructions: "siblings"},
+		},
+		{
+			name:    "an unknown agent names the available ones",
+			agent:   "ghost",
+			wantErr: `unknown agent "ghost"; available agents: aliased, helper, reviewer`,
+		},
+		{
+			name:    "an empty allowlist is invalid instead of granting every tool",
+			agent:   "no-tools",
+			wantErr: `unknown agent "no-tools"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := thread
+			opts.Agent = tt.agent
+			got, err := ResolveThreadAgent(proj, opts)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("resolved %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
