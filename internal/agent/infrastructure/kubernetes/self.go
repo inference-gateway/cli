@@ -4,7 +4,8 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"strconv"
+
+	operatorv1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
 )
 
 // TerminationLog is the file Kubernetes reads a container's termination
@@ -28,6 +29,10 @@ func writeTerminationMessage(path string, done bool) error {
 	if err != nil {
 		return err
 	}
-	_, err = file.WriteString("agents-done=" + strconv.FormatBool(done))
+	message := "agents-done=false"
+	if done {
+		message = operatorv1alpha1.AgentsDoneMessage
+	}
+	_, err = file.WriteString(message)
 	return errors.Join(err, file.Close())
 }
