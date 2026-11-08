@@ -161,6 +161,10 @@ type WorkspaceEntry struct {
 	// GatewayEnv names the environment variables a teleport hands the gateway,
 	// such as provider keys: its Secret in standard, the pod in all-in-one.
 	GatewayEnv []string `yaml:"gateway_env,omitempty" mapstructure:"gateway_env"`
+	// Secrets names Secrets in the namespace whose every key the pod daemon
+	// gets as an environment variable, so each workspace holds its own
+	// credentials and they never pass through this machine.
+	Secrets []string `yaml:"secrets,omitempty" mapstructure:"secrets"`
 	// BindingService is metadata for the session's binding Service, for
 	// controllers that act on Service metadata such as a VPN operator.
 	BindingService BindingServiceConfig `yaml:"binding_service,omitempty" mapstructure:"binding_service"`
@@ -367,8 +371,8 @@ func (e WorkspaceEntry) validate(identity string) error {
 	default:
 		return fmt.Errorf("invalid mode %q for workspace %q: must be %q or %q", e.Mode, e.Name, WorkspaceModeStandard, WorkspaceModeAllInOne)
 	}
-	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || !e.BindingService.IsZero()) {
-		return fmt.Errorf("workspace %q sets mode, gateway_env or binding_service, which only a kubernetes workspace uses", e.Name)
+	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || !e.BindingService.IsZero()) {
+		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets or binding_service, which only a kubernetes workspace uses", e.Name)
 	}
 	switch e.Kind {
 	case WorkspaceKindLocal:

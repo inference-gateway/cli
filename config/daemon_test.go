@@ -109,6 +109,7 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"unknown protocol", DaemonConfig{Workspaces: []WorkspaceEntry{withProtocol(kubernetes, "grpc")}}, "invalid protocol"},
 		{"mode on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{withMode(daemon, WorkspaceModeStandard)}}, "only a kubernetes workspace"},
 		{"gateway_env on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", GatewayEnv: []string{"OPENAI_API_KEY"}}}}, "only a kubernetes workspace"},
+		{"secrets on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", Secrets: []string{"agent-credentials"}}}}, "only a kubernetes workspace"},
 		{"binding_service on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", BindingService: BindingServiceConfig{Labels: map[string]string{"a": "b"}}}}}, "only a kubernetes workspace"},
 		{"kubernetes address template", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Orchestrator}}.ts.net:52789")}}, ""},
 		{"kubernetes address template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Pod}}.ts.net:52789")}}, "address of workspace"},

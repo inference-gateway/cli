@@ -181,6 +181,34 @@ workspaces:
   to the target's certificate for its workers, such as a token the agent pushes with. They never land in
   a Kubernetes object, but the agent can read them, so provider keys belong under `gateway_env`. The pod
   daemon keeps them in memory, so a pod that idled out gets them again with the next teleport.
+- `secrets` names Secrets in the workspace's `namespace`. The pod daemon gets every key of each as a
+  variable through a `secretKeyRef`, so its workers and the `${VAR}`s of its
+  [`mcp.yaml`](mcp-integration.md) see them. The values stay in the cluster and never pass
+  through this machine, unlike `forward_env`. The keys are read when a session's Orchestrator is created,
+  and a rotated value reaches the next pod start. A missing Secret fails the teleport before anything is
+  created. Give each agent its own workspace to give it its own credentials:
+
+  ```yaml
+  workspaces:
+    - name: code-reviewer
+      kind: kubernetes
+      namespace: agents
+      image: ghcr.io/inference-gateway/cli:latest
+      secrets:
+        - code-reviewer-credentials
+    - name: release-manager
+      kind: kubernetes
+      namespace: agents
+      image: ghcr.io/inference-gateway/cli:latest
+      secrets:
+        - release-manager-credentials
+  ```
+
+  ```bash
+  kubectl -n agents create secret generic code-reviewer-credentials \
+    --from-literal=AGENTMAIL_API_KEY=am_us_...
+  ```
+
 - `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
