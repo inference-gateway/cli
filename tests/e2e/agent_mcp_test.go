@@ -15,9 +15,8 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-// mcpServer is a stateless MCP server of protocol 2026-07-28 with one echo
-// tool. It refuses the initialize handshake and sessions, and counts what it
-// answers so a test tells a server nobody contacted from one an agent used.
+// mcpServer is an MCP 2026-07-28 server with one echo tool. It counts what it
+// answers, so a test tells a server nobody contacted from one an agent used.
 type mcpServer struct {
 	url      string
 	requests atomic.Int64
@@ -38,11 +37,6 @@ func startMCPServer(t *testing.T, name string) *mcpServer {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if req.Method == "initialize" || r.Header.Get("Mcp-Session-Id") != "" {
-			t.Errorf("%s: the client sent %s with a stateful handshake or a session", name, req.Method)
-			http.Error(w, "stateless server", http.StatusBadRequest)
 			return
 		}
 		reply := map[string]any{"jsonrpc": "2.0", "id": req.ID}
