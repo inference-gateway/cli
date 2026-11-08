@@ -17,10 +17,9 @@ import (
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
 )
 
-// infer speaks one MCP revision. 2026-07-28 is stateless: there is no
-// initialize handshake and no session, and every request carries its version
-// in params._meta, mirrored into headers. Servers on older revisions are not
-// supported; there is no fallback.
+// infer speaks one MCP revision. 2026-07-28 is stateless: every request stands
+// alone and carries its version in params._meta, mirrored into headers. Servers
+// on other revisions are not supported, and there is no fallback.
 const (
 	ProtocolVersion = "2026-07-28"
 
