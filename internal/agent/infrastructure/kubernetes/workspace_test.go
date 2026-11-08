@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -124,7 +125,7 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 	e.entry.Storage = "1Gi"
 	e.entry.Retention = 24 * time.Hour
 	e.entry.Env = map[string]string{"INFER_GATEWAY_URL": "http://gateway:8080", "INFER_AGENT_MODEL": "mock/model"}
-	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"})
+	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestOrchestratorCarriesTheBindingServiceMetadata(t *testing.T) {
 		Annotations: map[string]string{"vpn/expose": "true", "vpn/hostname": "{{.Orchestrator}}"},
 		Labels:      map[string]string{"session": "{{.Orchestrator}}"},
 	}
-	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"})
+	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,6 +230,66 @@ func TestAwaitReadyResumesASuspendedOrchestrator(t *testing.T) {
 	sandbox, _, _ := k8sunstructured.NestedMap(resumed.Object, "spec", "sandbox")
 	if sandbox["operatingMode"] != modeRunning || sandbox["retention"] != "24h" {
 		t.Fatalf("spec.sandbox = %v, want Running with its retention kept", sandbox)
+	}
+}
+
+func TestCreateReferencesEveryKeyOfTheWorkspaceSecrets(t *testing.T) {
+	mail := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "reviewer-mail", Namespace: "ns"}, Data: map[string][]byte{
+		"AGENTMAIL_API_KEY": []byte("am_us_reviewer"),
+		"AGENTMAIL_INBOX":   []byte("reviewer@agentmail.to"),
+	}}
+	github := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "reviewer-github", Namespace: "ns"}, Data: map[string][]byte{"GITHUB_TOKEN": []byte("ghp_x")}}
+
+	tests := []struct {
+		name    string
+		secrets []string
+		want    []any
+		wantErr string
+	}{
+		{name: "no secrets adds nothing", secrets: nil, want: []any{}},
+		{
+			name:    "every key of every Secret in order, never the values",
+			secrets: []string{"reviewer-mail", "reviewer-github"},
+			want: []any{
+				secretEnvVar("AGENTMAIL_API_KEY", "reviewer-mail"),
+				secretEnvVar("AGENTMAIL_INBOX", "reviewer-mail"),
+				secretEnvVar("GITHUB_TOKEN", "reviewer-github"),
+			},
+		},
+		{name: "a missing Secret fails before anything is created", secrets: []string{"reviewer-mail", "ghost"}, wantErr: "names Secret ghost, which namespace ns does not have"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, dynamic := testWorkspace(t, true, testSecret(t, mail.DeepCopy()), testSecret(t, github.DeepCopy()))
+			e.entry.Secrets = tt.secrets
+
+			_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("create = %v, want an error containing %q", err, tt.wantErr)
+				}
+				for _, action := range dynamic.Actions() {
+					if action.GetVerb() == "create" {
+						t.Fatalf("created %s although a Secret is missing", action.GetResource().Resource)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored, err := e.orchestrators().Get(t.Context(), "infer-1", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			env, _, _ := k8sunstructured.NestedSlice(stored.Object, "spec", "env")
+			if got := env[len(e.env()):]; !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("secret env = %v, want %v", got, tt.want)
+			}
+			if strings.Contains(fmt.Sprint(env), "am_us_reviewer") {
+				t.Fatal("a Secret value landed in the Orchestrator")
+			}
+		})
 	}
 }
 

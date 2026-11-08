@@ -338,7 +338,11 @@ func addOwner(owners []metav1.OwnerReference, orchestrator *k8sunstructured.Unst
 // an older operator refuse a field it does not know, such as the Sandbox
 // runtime or the gateway ref, instead of silently dropping it.
 func (e *Workspace) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
-	orchestrator, err := e.orchestrator(name, session)
+	secretEnv, err := e.secretEnv(ctx)
+	if err != nil {
+		return nil, err
+	}
+	orchestrator, err := e.orchestrator(name, session, secretEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +484,7 @@ func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) err
 // orchestrator is the Orchestrator for a session: the infer image as a daemon
 // in a Sandbox, its binding authenticated by the session's Secret, with tools
 // and A2A on as they are by default outside the cluster.
-func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
+func (e *Workspace) orchestrator(name string, session agentdomain.Session, secretEnv []any) (*k8sunstructured.Unstructured, error) {
 	sandbox := map[string]any{"operatingMode": modeRunning}
 	if e.entry.Storage != "" {
 		if _, err := k8sresource.ParseQuantity(e.entry.Storage); err != nil {
@@ -511,7 +515,7 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session) (*k8s
 		"daemon":  map[string]any{"binding": binding},
 		"tools":   map[string]any{"enabled": true},
 		"a2a":     map[string]any{"enabled": true},
-		"env":     e.env(),
+		"env":     slices.Concat(e.env(), secretEnv),
 	}
 	if gateway := e.orchestratorGateway(); gateway != nil {
 		spec["gateway"] = gateway
@@ -546,6 +550,34 @@ func (e *Workspace) env() []any {
 
 func envVar(name, value string) map[string]any {
 	return map[string]any{"name": name, "value": value}
+}
+
+// secretEnv references every key of the entry's Secrets, read when the
+// Orchestrator is created. The pod resolves the values itself, so they never
+// pass through this machine, and a rotated value reaches the next pod start.
+func (e *Workspace) secretEnv(ctx context.Context) ([]any, error) {
+	var env []any
+	for _, name := range e.entry.Secrets {
+		object, err := e.secrets().Get(ctx, name, metav1.GetOptions{})
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("workspace %s names Secret %s, which namespace %s does not have", e.entry.Name, name, e.entry.Namespace)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading Secret %s of workspace %s: %w", name, e.entry.Name, err)
+		}
+		secret, err := secretFrom(object)
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range slices.Sorted(maps.Keys(secret.Data)) {
+			env = append(env, secretEnvVar(key, name))
+		}
+	}
+	return env, nil
+}
+
+func secretEnvVar(key, secret string) map[string]any {
+	return map[string]any{"name": key, "valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": secret, "key": key}}}
 }
 
 // bindingService is the Service metadata as an unstructured value, which
