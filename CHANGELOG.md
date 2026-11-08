@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.249.0](https://github.com/inference-gateway/cli/compare/v0.248.0...v0.249.0) (2026-11-08)
+
+### 🚀 Features
+
+* **compute:** manage clusters, machines and GPUs with infer compute ([#1763](https://github.com/inference-gateway/cli/issues/1763)) ([1d83422](https://github.com/inference-gateway/cli/commit/1d83422cf1c45631b142d78dbf58b64acf53cc5b)), closes [#1761](https://github.com/inference-gateway/cli/issues/1761), references [#1762](https://github.com/inference-gateway/cli/issues/1762) [inference-gateway/desktop#474](https://github.com/inference-gateway/desktop/issues/474)
+* **compute:** write clusters and machines down once in compute.yaml ([#1762](https://github.com/inference-gateway/cli/issues/1762)) ([6d741ae](https://github.com/inference-gateway/cli/commit/6d741aeb8ef81043abd205ab600773c7a522948b)), references [#1761](https://github.com/inference-gateway/cli/issues/1761)
+
 ## [0.248.0](https://github.com/inference-gateway/cli/compare/v0.247.1...v0.248.0) (2026-11-08)
 
 ### 🚀 Features
