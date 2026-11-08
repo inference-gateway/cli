@@ -56,7 +56,7 @@ func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPCo
 func (c *mcpClient) initializeClient(serverURL string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.rpc = mcpinfra.NewClient(serverURL)
+	c.rpc = mcpinfra.NewClient(serverURL, c.serverConfig.Headers)
 	logger.Debug("initialized MCP client", "server", c.serverName, "url", serverURL)
 }
 
@@ -162,14 +162,18 @@ func NewSupervisor(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtim
 	clients := make(map[string]*mcpClient)
 
 	for _, server := range cfg.Servers {
-		if server.Enabled {
-			client := newMCPClient(server, cfg)
-			if !server.Run {
-				serverURL := server.GetURL()
-				client.initializeClient(serverURL)
-			}
-			clients[server.Name] = client
+		if !server.Enabled {
+			continue
 		}
+		if unresolved := server.UnresolvedHeaders(); len(unresolved) > 0 {
+			logger.Warn("skipping MCP server with empty headers", "server", server.Name, "headers", unresolved)
+			continue
+		}
+		client := newMCPClient(server, cfg)
+		if !server.Run {
+			client.initializeClient(server.GetURL())
+		}
+		clients[server.Name] = client
 	}
 
 	return &Supervisor{
@@ -556,7 +560,7 @@ func (s *Supervisor) StartServers(ctx context.Context) error {
 
 	serversToStart := make([]config.MCPServerEntry, 0)
 	for _, server := range s.config.Servers {
-		if server.Run && server.Enabled {
+		if server.Run && server.Enabled && len(server.UnresolvedHeaders()) == 0 {
 			serversToStart = append(serversToStart, server)
 		}
 	}

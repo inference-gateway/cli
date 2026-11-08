@@ -35,7 +35,7 @@ func stub(t *testing.T, handle func(w http.ResponseWriter, r *http.Request, req 
 		handle(w, r, req)
 	}))
 	t.Cleanup(srv.Close)
-	return NewClient(srv.URL)
+	return NewClient(srv.URL, nil)
 }
 
 func writeResult(w http.ResponseWriter, result any) {
@@ -96,6 +96,27 @@ func TestClient_RequestMetadata(t *testing.T) {
 	}
 	if _, err := client.CallTool(ctx, tool, nil); err != nil {
 		t.Fatalf("CallTool: %v", err)
+	}
+}
+
+func TestClient_SendsConfiguredHeaders(t *testing.T) {
+	var got http.Header
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Clone()
+		w.Header().Set("Content-Type", contentTypeJSON)
+		_, _ = fmt.Fprint(w, `{"jsonrpc":"2.0","id":1,"result":{"supportedVersions":["`+ProtocolVersion+`"]}}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewClient(srv.URL, map[string]string{"x-api-key": "am_us_secret", "Content-Type": "text/plain"})
+	if err := client.Discover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got.Get("x-api-key") != "am_us_secret" {
+		t.Fatalf("x-api-key = %q, want the configured value", got.Get("x-api-key"))
+	}
+	if got.Get("Content-Type") != contentTypeJSON {
+		t.Fatalf("Content-Type = %q, a configured header must not override the protocol's", got.Get("Content-Type"))
 	}
 }
 
@@ -244,7 +265,7 @@ func TestClient_Discover_UnsupportedProtocol(t *testing.T) {
 	t.Run("unreachable server", func(t *testing.T) {
 		srv := httptest.NewServer(http.NotFoundHandler())
 		srv.Close()
-		if err := NewClient(srv.URL).Discover(context.Background()); err == nil || errors.Is(err, errUnsupportedProtocol) {
+		if err := NewClient(srv.URL, nil).Discover(context.Background()); err == nil || errors.Is(err, errUnsupportedProtocol) {
 			t.Errorf("err = %v, want a plain transport error", err)
 		}
 	})

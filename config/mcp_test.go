@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -187,6 +188,35 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 			result := entry.GetTimeout(tt.globalTimeout)
 			if result != tt.expectedResult {
 				t.Errorf("GetTimeout(%d) = %d, want %d", tt.globalTimeout, result, tt.expectedResult)
+			}
+		})
+	}
+}
+
+func TestMCPServerEntry_URLAndHeaders(t *testing.T) {
+	hosted := config.MCPServerEntry{Name: "agentmail", URL: "https://mcp.agentmail.to/mcp", Host: "ignored", Port: 1}
+	if got := hosted.GetURL(); got != "https://mcp.agentmail.to/mcp" {
+		t.Fatalf("GetURL() = %q, want the url field", got)
+	}
+	built := config.MCPServerEntry{Host: "localhost", Port: 3000}
+	if got := built.GetURL(); got != "http://localhost:3000/mcp" {
+		t.Fatalf("GetURL() = %q, want it built from host and port", got)
+	}
+
+	tests := []struct {
+		name    string
+		headers map[string]string
+		want    []string
+	}{
+		{name: "no headers", headers: nil, want: nil},
+		{name: "all set", headers: map[string]string{"x-api-key": "k"}, want: nil},
+		{name: "unset expand to empty", headers: map[string]string{"x-api-key": "", "x-b": " ", "x-c": "v"}, want: []string{"x-api-key", "x-b"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := config.MCPServerEntry{Headers: tt.headers}
+			if got := e.UnresolvedHeaders(); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("UnresolvedHeaders() = %v, want %v", got, tt.want)
 			}
 		})
 	}
