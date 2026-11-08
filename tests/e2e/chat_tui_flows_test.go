@@ -10,12 +10,15 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
+// TestChatTUIAnswersAQuestion presses Enter once the picker's own help line
+// shows. The question is on the tool call line earlier, before the picker
+// takes keys, and an Enter sent then is dropped.
 func TestChatTUIAnswersAQuestion(t *testing.T) {
 	const session = "infer-e2e-question"
 	startLocalChat(t, session)
 
 	chatSay(t, session, "question form probe")
-	expectPane(t, session, "Which color fits best")
+	expectPane(t, session, "enter submit")
 	tmuxSendKeys(t, session, "Enter")
 	expectPane(t, session, "-> Red")
 	expectPane(t, session, "QUESTION-FORM-DONE")
