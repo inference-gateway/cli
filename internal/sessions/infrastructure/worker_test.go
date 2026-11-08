@@ -54,6 +54,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				SystemPrompt:    "You review diffs.",
 				Tools:           []string{"Read", "Grep"},
 				DisallowedTools: []string{"Bash"},
+				MCPServers:      []string{"agentmail", "github"},
 			},
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1", "--model", "deepseek/deepseek-v4-pro"},
 			wantEnv: []string{
@@ -62,7 +63,14 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				"INFER_PROMPTS_AGENT_SYSTEM_PROMPT=You review diffs.",
 				"INFER_SUBAGENT_TOOLS=Read,Grep",
 				"INFER_DISALLOWED_TOOLS=Bash",
+				"INFER_AGENT_MCP_SERVERS=agentmail,github",
 			},
+		},
+		{
+			name:     "an agent with an empty MCP server list brings up none",
+			opts:     sessionsdomain.ThreadOptions{Agent: "offline", MCPServers: []string{}},
+			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
+			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true", "INFER_AGENT_MCP_SERVERS="},
 		},
 	}
 	for _, tt := range tests {

@@ -39,15 +39,18 @@ type markdownAgent struct {
 	// disallowedTools is the frontmatter's list as written, which a thread's
 	// worker applies against the tools it has.
 	disallowedTools []string
-	systemPrompt    string
-	path            string
+	// mcpServers names the servers of mcp.yaml its threads bring up, nil the
+	// enabled ones and an empty list none.
+	mcpServers   []string
+	systemPrompt string
+	path         string
 	// source classifies where the file was loaded from ("project" or "user"),
 	// for user-facing listings.
 	source string
 }
 
 // markdownAgentFrontmatter is deliberately permissive: only the keys we honor
-// are declared, everything else (color, temperature, max_turns, mcpServers,
+// are declared, everything else (color, temperature, max_turns,
 // permissionMode, ...) is accepted and ignored for vendor-file portability.
 type markdownAgentFrontmatter struct {
 	Name            string `yaml:"name"`
@@ -55,6 +58,7 @@ type markdownAgentFrontmatter struct {
 	Model           string `yaml:"model"`
 	Tools           any    `yaml:"tools"`
 	DisallowedTools any    `yaml:"disallowedTools"`
+	MCPServers      any    `yaml:"mcpServers"`
 }
 
 // markdownAgentDirs returns the search paths in precedence order, laid out like
@@ -160,6 +164,7 @@ func loadMarkdownAgent(path string, knownTools map[string]bool) (*markdownAgent,
 		model:           resolveMarkdownAgentModel(fm.Model, path),
 		tools:           tools,
 		disallowedTools: flexStringList(fm.DisallowedTools),
+		mcpServers:      resolveMarkdownAgentMCPServers(fm.MCPServers, path),
 		systemPrompt:    strings.TrimSpace(body),
 		path:            path,
 	}, ""
@@ -182,7 +187,8 @@ func findMarkdownAgent(agents []markdownAgent, name string) (markdownAgent, erro
 // ResolveThreadAgent overlays the Markdown agent a daemon thread names, from
 // projectDir's .infer/agents then ~/.infer/agents, onto the thread's options.
 // As for a named subagent, the body is the system prompt and a frontmatter model
-// wins over the thread's. The tool lists stay unresolved for the worker.
+// wins over the thread's. The tool lists and MCP servers stay unresolved for the
+// worker, which checks them against what its computer has.
 func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (sessionsdomain.ThreadOptions, error) {
 	agent, err := findMarkdownAgent(loadMarkdownAgents(markdownAgentDirs(projectDir), nil), opts.Agent)
 	if err != nil {
@@ -194,7 +200,32 @@ func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (s
 	}
 	opts.Tools = agent.tools
 	opts.DisallowedTools = agent.disallowedTools
+	opts.MCPServers = agent.mcpServers
 	return opts, nil
+}
+
+// resolveMarkdownAgentMCPServers reads mcpServers as names of servers in the
+// mcp.yaml of the computer a thread runs on. An inline definition, which Claude
+// Code also accepts, is ignored with a warning, since agent files travel and
+// must never carry a URL, a header or a secret. Nil keeps the enabled servers.
+func resolveMarkdownAgentMCPServers(v any, path string) []string {
+	if v == nil {
+		return nil
+	}
+	items, isList := v.([]any)
+	if !isList {
+		items = []any{v}
+	}
+	names := []string{}
+	for _, item := range items {
+		name, isName := item.(string)
+		if !isName {
+			logger.Warn("markdown agent defines an MCP server inline, ignoring it", "file", path)
+			continue
+		}
+		names = append(names, flexStringList(name)...)
+	}
+	return names
 }
 
 // resolveMarkdownAgentModel validates the frontmatter model: empty or

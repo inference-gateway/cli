@@ -314,6 +314,26 @@ tools: []
 
 Nothing.`)
 
+	writeAgentFile(t, projectAgents, "mailer.md", `---
+name: mailer
+description: Mails with the servers it names.
+mcpServers:
+  - agentmail
+  - github:
+      url: https://api.example.com/mcp
+      headers:
+        Authorization: Bearer secret
+---
+
+You mail.`)
+	writeAgentFile(t, projectAgents, "offline.md", `---
+name: offline
+description: Brings up no MCP server.
+mcpServers: []
+---
+
+Offline.`)
+
 	thread := sessionsdomain.ThreadOptions{Model: "provider/thread", CustomInstructions: "siblings"}
 	tests := []struct {
 		name    string
@@ -344,9 +364,25 @@ Nothing.`)
 			want:  sessionsdomain.ThreadOptions{Agent: "aliased", Model: "provider/thread", SystemPrompt: "Aliased.", CustomInstructions: "siblings"},
 		},
 		{
+			name:  "named MCP servers follow the agent and an inline definition is ignored",
+			agent: "mailer",
+			want: sessionsdomain.ThreadOptions{
+				Agent: "mailer", Model: "provider/thread", SystemPrompt: "You mail.", CustomInstructions: "siblings",
+				MCPServers: []string{"agentmail"},
+			},
+		},
+		{
+			name:  "an empty mcpServers list brings up no server",
+			agent: "offline",
+			want: sessionsdomain.ThreadOptions{
+				Agent: "offline", Model: "provider/thread", SystemPrompt: "Offline.", CustomInstructions: "siblings",
+				MCPServers: []string{},
+			},
+		},
+		{
 			name:    "an unknown agent names the available ones",
 			agent:   "ghost",
-			wantErr: `unknown agent "ghost"; available agents: aliased, helper, reviewer`,
+			wantErr: `unknown agent "ghost"; available agents: aliased, helper, mailer, offline, reviewer`,
 		},
 		{
 			name:    "an empty allowlist is invalid instead of granting every tool",

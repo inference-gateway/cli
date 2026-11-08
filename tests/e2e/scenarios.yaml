@@ -90,6 +90,15 @@ scenarios:
               content: "the agent's tools exclude Write"
       - content: "The write did not run."
 
+  - name: agent-mcp-echo
+    match: "(?i)^echo ping through the agent's mcp server"
+    turns:
+      - tool_calls:
+          - name: MCP_chosen_echo
+            args:
+              text: ping
+      - content: "The agent's MCP server answered."
+
   - name: serve-browser-navigate
     match: '(?i)^open the example page'
     turns:

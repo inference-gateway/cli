@@ -49,6 +49,7 @@ services:
       INFER_MCP_DISCOVERY_TIMEOUT: "30"
     volumes:
       - ./mcp-config.yaml:/home/infer/.infer/mcp.yaml:ro
+      - ./agents:/home/infer/.infer/agents:ro
       - infer-data:/home/infer/.infer/data
     command:
       - chat

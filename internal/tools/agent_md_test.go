@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,7 +22,12 @@ func namedAgentTool(t *testing.T) *AgentTool {
 		description:  "Reviews a diff for correctness bugs.",
 		model:        "deepseek/deepseek-v4-pro",
 		tools:        []string{ToolGrep, ToolRead},
+		mcpServers:   []string{"agentmail"},
 		systemPrompt: "You are a senior reviewer.",
+	}, {
+		name:        "offline",
+		description: "Brings up no MCP server.",
+		mcpServers:  []string{},
 	}, {
 		name:        "all-readonly",
 		description: "Only read-only tools.",
@@ -207,5 +214,34 @@ func TestAgentTool_NamedAgentDefaults(t *testing.T) {
 	}
 	if specs[0].Tools != nil {
 		t.Fatalf("named agent without tools must inherit the parent's tools, got %v", specs[0].Tools)
+	}
+}
+
+func TestAgentTool_NamedAgentMCPServers(t *testing.T) {
+	tests := []struct {
+		agent   string
+		want    []string
+		wantEnv string
+	}{
+		{agent: "code-reviewer", want: []string{"agentmail"}, wantEnv: "INFER_AGENT_MCP_SERVERS=agentmail"},
+		{agent: "offline", want: []string{}, wantEnv: "INFER_AGENT_MCP_SERVERS="},
+		{agent: "unrestricted"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.agent, func(t *testing.T) {
+			tool := namedAgentTool(t)
+			spec := AgentTaskSpec{Agent: tt.agent}
+			if err := tool.applyNamedAgent(&spec); err != nil {
+				t.Fatal(err)
+			}
+			if got := tool.threadOptions(context.Background(), spec).MCPServers; !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("thread MCP servers = %#v, want %#v", got, tt.want)
+			}
+			env := tool.subagentExtraEnv(context.Background(), spec)
+			listed := slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "INFER_AGENT_MCP_SERVERS=") })
+			if tt.wantEnv == "" && listed || tt.wantEnv != "" && !slices.Contains(env, tt.wantEnv) {
+				t.Fatalf("env = %q, want %q", env, tt.wantEnv)
+			}
+		})
 	}
 }

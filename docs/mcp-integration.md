@@ -280,6 +280,13 @@ servers:
 - If only `exclude_tools` is set, all tools except excluded ones are available
 - If neither is set, all tools from the server are available
 
+### Servers Per Agent
+
+A Markdown agent can name the servers it uses with `mcpServers` in its
+frontmatter. Its sessions then connect only those servers, and a server set to
+`enabled: false` here comes up for an agent that names it. See
+[Markdown Subagents](subagents.md#mcp-servers).
+
 ### Environment Variables
 
 All configuration values support environment variable expansion:

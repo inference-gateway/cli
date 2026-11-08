@@ -468,3 +468,40 @@ func TestSupervisor_StartServer_UsesContainerRuntime(t *testing.T) {
 		}
 	})
 }
+
+func TestSelectServers(t *testing.T) {
+	servers := []config.MCPServerEntry{
+		{Name: "github", Enabled: true},
+		{Name: "agentmail", Enabled: false},
+		{Name: "filesystem", Enabled: true},
+	}
+	tests := []struct {
+		name  string
+		names []string
+		want  []config.MCPServerEntry
+	}{
+		{
+			name:  "a named server comes up in mcp.yaml's order even when mcp.yaml disables it",
+			names: []string{"filesystem", "agentmail"},
+			want:  []config.MCPServerEntry{{Name: "agentmail", Enabled: true}, {Name: "filesystem", Enabled: true}},
+		},
+		{
+			name:  "a name mcp.yaml lacks is skipped",
+			names: []string{"ghost", "github"},
+			want:  []config.MCPServerEntry{{Name: "github", Enabled: true}},
+		},
+		{name: "an empty list brings up none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SelectServers(servers, tt.names); !slices.EqualFunc(got, tt.want, func(a, b config.MCPServerEntry) bool {
+				return a.Name == b.Name && a.Enabled == b.Enabled
+			}) || len(got) != len(tt.want) {
+				t.Fatalf("SelectServers(%q) = %+v, want %+v", tt.names, got, tt.want)
+			}
+		})
+	}
+	if servers[1].Enabled {
+		t.Fatal("selecting a server enabled it in the caller's config")
+	}
+}

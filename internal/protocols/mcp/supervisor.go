@@ -188,6 +188,29 @@ func NewSupervisor(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtim
 	}
 }
 
+// SelectServers keeps the servers a named agent lists, in mcp.yaml's order and
+// enabled whether or not mcp.yaml enables them, so a server can stay off for
+// every other thread. A name mcp.yaml lacks is skipped with a warning, and the
+// thread still opens.
+func SelectServers(servers []config.MCPServerEntry, names []string) []config.MCPServerEntry {
+	missing := make(map[string]bool, len(names))
+	for _, name := range names {
+		missing[name] = true
+	}
+	var selected []config.MCPServerEntry
+	for _, server := range servers {
+		if missing[server.Name] {
+			delete(missing, server.Name)
+			server.Enabled = true
+			selected = append(selected, server)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(missing)) {
+		logger.Warn("agent names an MCP server this computer does not configure, skipping it", "server", name)
+	}
+	return selected
+}
+
 // notify pushes an event to the UI loop. NewSupervisor defaults a nil notifier to
 // NoopUINotifier, so s.notifier is always non-nil here.
 func (s *Supervisor) notify(event any) {
