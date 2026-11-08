@@ -40,6 +40,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   client's thread when it is in the frame's `project_dir`, else on any live worker there, else on a fresh idle
   one. The reply (`conversations`, `models`, `artifacts`, `artifact`, `tool_result`, `completion_result`, ...) goes back to the requester
   only. A `tool_result` and a `completion_result` reach the request with the same `id`, so concurrent ones never cross.
+  A request no worker takes, refused at rest or failing to send, waits for no reply, so the next reply still reaches its own
+  requester.
 - **Panel approvals** - a `tool_request`'s CUSTOM `approval_request` reaches its requester. The first
   `approval_response` for a `tool_call_id` goes to the worker, and any other client of the thread that saw it
   gets CUSTOM `approval_resolved`.

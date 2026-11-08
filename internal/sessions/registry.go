@@ -259,6 +259,7 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 	}
 	if err := w.Send(frame); err != nil {
 		logger.Warn("sessions could not deliver a frame to the thread's worker", append(t.tags(), "frame", f.Type, "error", err)...)
+		r.unwait(t, c, f)
 		c.Deliver(runError("", fmt.Sprintf("the session worker did not take the frame: %v", err)))
 	}
 }
@@ -319,9 +320,7 @@ func (r *Registry) route(c sessionsdomain.Client, f clientFrame, frame []byte) (
 		if err != nil {
 			return nil, nil, err
 		}
-		t.wait(frameMessagesSnapshot, c)
-		w, err := r.workerLocked(t)
-		return t, w, err
+		return r.awaitWorkerLocked(t, c, f)
 	case forwarded[f.Type]:
 		t := r.subs[c]
 		if t == nil {
@@ -343,13 +342,45 @@ func (r *Registry) route(c sessionsdomain.Client, f clientFrame, frame []byte) (
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, reply := range replyTypes[f.Type] {
-			t.wait(replyKey(reply, f.ID), c)
-		}
-		w, err := r.workerLocked(t)
-		return t, w, err
+		return r.awaitWorkerLocked(t, c, f)
 	}
 	return nil, nil, nil
+}
+
+// awaitWorkerLocked returns t's worker and queues c for the replies f asks
+// for. A frame no worker takes queues nothing, so a refused request never
+// takes the reply of a later one.
+func (r *Registry) awaitWorkerLocked(t *thread, c sessionsdomain.Client, f clientFrame) (*thread, sessionsdomain.Worker, error) {
+	w, err := r.workerLocked(t)
+	if err != nil {
+		return t, nil, err
+	}
+	for _, key := range replyKeys(f) {
+		t.wait(key, c)
+	}
+	return t, w, nil
+}
+
+// unwait takes c out of the reply queues of a frame its worker did not take.
+func (r *Registry) unwait(t *thread, c sessionsdomain.Client, f clientFrame) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, key := range replyKeys(f) {
+		t.unwait(key, c)
+	}
+}
+
+// replyKeys names the reply queues a client frame waits in: the snapshot of
+// the thread it opens, or the replies of its panel request.
+func replyKeys(f clientFrame) []string {
+	if f.Type == frameNewSession || f.Type == frameResumeConversation {
+		return []string{frameMessagesSnapshot}
+	}
+	keys := make([]string, 0, len(replyTypes[f.Type]))
+	for _, reply := range replyTypes[f.Type] {
+		keys = append(keys, replyKey(reply, f.ID))
+	}
+	return keys
 }
 
 // openLocked gets or creates the thread a new_session or resume_conversation
@@ -879,6 +910,19 @@ func (t *thread) tags() []any {
 
 func (t *thread) wait(key string, c sessionsdomain.Client) {
 	t.waiting[key] = append(t.waiting[key], c)
+}
+
+// unwait takes one wait of c out of the key's queue.
+func (t *thread) unwait(key string, c sessionsdomain.Client) {
+	queue := t.waiting[key]
+	if i := slices.Index(queue, c); i >= 0 {
+		queue = slices.Delete(queue, i, i+1)
+	}
+	if len(queue) == 0 {
+		delete(t.waiting, key)
+		return
+	}
+	t.waiting[key] = queue
 }
 
 func (t *thread) peek(key string) sessionsdomain.Client {
