@@ -29,6 +29,7 @@ const (
 	gatewayKind       = "Gateway"
 	gatewayResource   = "gateways"
 	credentialsSuffix = "-credentials"
+	computeOwner      = "compute/"
 	revisionEnv       = "CREDENTIALS_REVISION"
 	revisionKey       = "inference-gateway.com/credentials-revision"
 	inPodGatewayURL   = "http://127.0.0.1:8080"
@@ -36,11 +37,29 @@ const (
 
 var gatewayGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: gatewayResource}
 
-// gatewayName is the Gateway a workspace's sessions share. Workspaces sharing
-// a namespace never share one.
-func gatewayName(workspace string) string {
-	sum := sha256.Sum256([]byte(workspace))
+// gatewayName is the Gateway one owner's sessions share, so two owners in a
+// namespace never share one.
+func gatewayName(owner string) string {
+	sum := sha256.Sum256([]byte(owner))
 	return "infer-gateway-" + hex.EncodeToString(sum[:])[:12]
+}
+
+// gateway is the Gateway the workspace's sessions call: its cluster's when it
+// runs on one, so every workspace there shares it and its keys, else its own.
+func (e *Workspace) gateway() string {
+	if e.entry.Compute != "" {
+		return gatewayName(computeOwner + e.entry.Compute)
+	}
+	return gatewayName(e.entry.Name)
+}
+
+// gatewayLabels mark the Gateway and its Secret with what owns them: the
+// cluster for a shared one, else the workspace.
+func (e *Workspace) gatewayLabels() map[string]string {
+	if e.entry.Compute != "" {
+		return map[string]string{labelCompute: e.entry.Compute}
+	}
+	return map[string]string{labelWorkspace: e.entry.Name}
 }
 
 // orchestratorGateway is the spec.gateway the pod's workers call: inside the
@@ -52,7 +71,7 @@ func (e *Workspace) orchestratorGateway() map[string]any {
 	case e.entry.Mode == config.WorkspaceModeAllInOne:
 		return map[string]any{"url": inPodGatewayURL}
 	case e.entry.DeploysGateway():
-		return map[string]any{"ref": gatewayName(e.entry.Name)}
+		return map[string]any{"ref": e.gateway()}
 	}
 	return nil
 }
@@ -71,7 +90,7 @@ func (e *Workspace) ensureGateway(ctx context.Context, orchestrator *k8sunstruct
 // writeCredentials stores the credentials in the gateway's Secret and returns
 // their revision, a counter on the Secret that only moves when the values do.
 func (e *Workspace) writeCredentials(ctx context.Context, orchestrator *k8sunstructured.Unstructured) (string, error) {
-	name := gatewayName(e.entry.Name) + credentialsSuffix
+	name := e.gateway() + credentialsSuffix
 	var revision string
 	err := k8sretry.OnError(k8sretry.DefaultRetry, raced, func() error {
 		secret, err := e.upsertCredentials(ctx, name, orchestrator)
@@ -92,7 +111,7 @@ func (e *Workspace) upsertCredentials(ctx context.Context, name string, orchestr
 	case k8serrors.IsNotFound(err):
 		return writeSecret(&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name, Namespace: e.entry.Namespace, Labels: map[string]string{labelWorkspace: e.entry.Name},
+				Name: name, Namespace: e.entry.Namespace, Labels: e.gatewayLabels(),
 				Annotations:     map[string]string{revisionKey: "1"},
 				OwnerReferences: []metav1.OwnerReference{ownerOf(orchestrator)},
 			},
@@ -163,7 +182,7 @@ func (e *Workspace) credentials(stored map[string][]byte) map[string][]byte {
 // adding the session's Orchestrator to its owners.
 func (e *Workspace) applyGateway(ctx context.Context, orchestrator *k8sunstructured.Unstructured, revision string) error {
 	gateways := e.dynamic.Resource(gatewayGVR).Namespace(e.entry.Namespace)
-	name := gatewayName(e.entry.Name)
+	name := e.gateway()
 	err := k8sretry.OnError(k8sretry.DefaultRetry, raced, func() error {
 		gateway, err := gateways.Get(ctx, name, metav1.GetOptions{})
 		missing := k8serrors.IsNotFound(err)
@@ -176,7 +195,7 @@ func (e *Workspace) applyGateway(ctx context.Context, orchestrator *k8sunstructu
 			gateway.SetKind(gatewayKind)
 			gateway.SetName(name)
 			gateway.SetNamespace(e.entry.Namespace)
-			gateway.SetLabels(map[string]string{labelWorkspace: e.entry.Name})
+			gateway.SetLabels(e.gatewayLabels())
 		}
 		gateway.SetOwnerReferences(addOwner(gateway.GetOwnerReferences(), orchestrator))
 		gateway.Object["spec"] = e.gatewaySpec(revision)
@@ -204,7 +223,7 @@ func (e *Workspace) awaitGateway(ctx context.Context) error {
 	defer cancel()
 	ticker := time.NewTicker(readyPoll)
 	defer ticker.Stop()
-	name := gatewayName(e.entry.Name)
+	name := e.gateway()
 	deployed := false
 	for {
 		deployment, err := e.dynamic.Resource(deploymentGVR).Namespace(e.entry.Namespace).Get(ctx, name, metav1.GetOptions{})
@@ -235,7 +254,7 @@ func availableReplicas(deployment *k8sunstructured.Unstructured) int64 {
 // grouped by provider, and serves on the operator's default port. The Secret's
 // revision rides along, so a rotated key changes the spec and rolls the pods.
 func (e *Workspace) gatewaySpec(revision string) map[string]any {
-	secret := gatewayName(e.entry.Name) + credentialsSuffix
+	secret := e.gateway() + credentialsSuffix
 	byProvider := map[string][]any{}
 	for _, name := range e.entry.GatewayEnv {
 		provider := providerOf(name)

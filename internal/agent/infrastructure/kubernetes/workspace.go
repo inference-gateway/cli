@@ -41,6 +41,7 @@ const (
 	orchestratorResource = "orchestrators"
 
 	labelWorkspace    = "inference-gateway.com/workspace"
+	labelCompute      = "inference-gateway.com/compute"
 	labelConversation = "inference-gateway.com/conversation"
 
 	bindingPort      = 52789
@@ -432,7 +433,7 @@ func readyCondition(orchestrator *k8sunstructured.Unstructured) condition {
 // operator or an unreachable cluster is the error.
 func (e *Workspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
 	status := agentdomain.WorkspaceStatus{
-		Name: e.entry.Name, Kind: agentdomain.WorkspaceKindKubernetes, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol()),
+		Name: e.entry.Name, Compute: e.entry.Compute, Kind: agentdomain.WorkspaceKindKubernetes, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol()),
 		Capabilities: map[string]string{
 			"namespace": e.entry.Namespace, "image": e.entry.Image,
 		},

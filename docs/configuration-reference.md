@@ -1122,11 +1122,15 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   [Daemon Binding Protocol](browser-extension-protocol.md).
 - **`mcp.yaml`** - `enabled`, `connection_timeout`, `discovery_timeout`, `liveness_probe_enabled`,
   `liveness_probe_interval`, `max_retries`, `servers`. See [MCP Integration](mcp-integration.md).
+- **`compute.yaml`** - read from home only: `clusters` (`name`, `kubeconfig`, `context`, `namespace`, `mode`,
+  `gateway_env`) and `machines` (`name`, `address`, `token`, `tls`) that workspaces run on. See
+  [Compute](daemon.md#compute).
 - **`daemon.yaml`** - `workspace` (this daemon's name in session leases, default the hostname), `projects_root`,
   `idle_exit`, `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
   with client certificates), `binding.tls` (`mode` off|files|ca, `cert_file`, `key_file`, `ca_file`,
-  `client_auth`) and `workspaces`, a list of `name` and `kind` (local|daemon|kubernetes) entries with
+  `client_auth`) and `workspaces`, a list of `name` entries that name their `compute` from `compute.yaml` or
+  carry a `kind` (local|daemon|kubernetes) with
   `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
   and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
   `forward_env`, `secrets`, `mode` (standard|all-in-one), `gateway_env` and `binding_service` (`annotations`, `labels`, with

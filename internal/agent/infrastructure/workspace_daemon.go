@@ -47,7 +47,7 @@ func (e *DaemonWorkspace) Reach(ctx context.Context, session agentdomain.Session
 // Probe dials the daemon and reports what its ack declared.
 func (e *DaemonWorkspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
 	status := agentdomain.WorkspaceStatus{
-		Name: e.entry.Name, Kind: agentdomain.WorkspaceKindDaemon, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol()),
+		Name: e.entry.Name, Compute: e.entry.Compute, Kind: agentdomain.WorkspaceKindDaemon, Protocol: agentdomain.WorkspaceProtocol(e.entry.EffectiveProtocol()),
 	}
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()

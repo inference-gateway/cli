@@ -61,6 +61,7 @@ for the full precedence rules.
 ├── agents.yaml           # A2A agent registry
 ├── agents/               # Markdown subagent definitions (<name>.md), see docs/subagents.md
 ├── mcp.yaml              # MCP server registry
+├── compute.yaml          # clusters and machines workspaces run on, see docs/daemon.md
 ├── memory.yaml           # persistent memory settings, see docs/memory.md
 ├── heartbeat.yaml        # heartbeat prompt and interval, see docs/heartbeat.md
 ├── judge.yaml            # LLM judge settings, see docs/judge-mode.md
@@ -159,6 +160,8 @@ project wants to override a config file it commits its own sparse
   [A2A Agents](agents-configuration.md).
 - **`mcp.yaml`** - MCP server registry and liveness probe settings. Manage
   via `infer mcp ...` or by hand. See [MCP Integration](mcp-integration.md).
+- **`compute.yaml`** - the clusters and machines workspaces run on, read from
+  home only. See [Compute](daemon.md#compute).
 - **`hooks.yaml`** - command hooks the agent runs at hook points, disabled by
   default. See [Reminders & Command Hooks](hooks.md).
 - **`reminders.yaml`** - system reminders injected at hook points, enabled by

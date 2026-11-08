@@ -47,6 +47,7 @@ var sidecars = []sidecar{
 	{key: "computer_use", file: config.ComputerUseFileName},
 	{key: "browser_use", file: config.BrowserUseFileName},
 	{key: "daemon", file: config.DaemonFileName, fixup: keepWorkspaceMapCase},
+	{key: "compute", file: config.ComputeFileName, homeOnly: true},
 	{key: "memory", file: config.MemoryConfigFileName},
 	{key: "plugins", file: config.PluginsFileName, homeOnly: true},
 }

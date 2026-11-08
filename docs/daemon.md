@@ -277,6 +277,57 @@ starts its `retention`. Teleporting the session to that workspace again before t
 resumes the Orchestrator with its volumes. The daemon remembers the workspace a session came home from in
 `~/.infer/daemon/runtimes/`, so `infer daemon stop <conversation-id>` deletes that runtime at once.
 
+### Compute
+
+Clusters and standalone machines live in `~/.infer/compute.yaml`, apart from any daemon. Each one is written
+down once, however many workspaces run on it, and a workspace names its compute with `compute`:
+
+```yaml
+# ~/.infer/compute.yaml
+clusters:
+  - name: k3d-agents
+    context: k3d-agents
+    namespace: agents
+    gateway_env:
+      - ANTHROPIC_API_KEY
+machines:
+  - name: workstation
+    address: workstation.lan:52789
+    token: ${WORKSTATION_TOKEN}
+    tls:
+      ca_file: ~/.infer/daemon/workstation-ca.crt
+```
+
+```yaml
+# ~/.infer/daemon.yaml
+workspaces:
+  - name: code-reviewer
+    compute: k3d-agents
+    image: ghcr.io/inference-gateway/cli:latest
+    secrets:
+      - code-reviewer-credentials
+  - name: release-manager
+    compute: k3d-agents
+    image: ghcr.io/inference-gateway/cli:latest
+    secrets:
+      - release-manager-credentials
+  - name: build-box
+    compute: workstation
+```
+
+- A cluster holds `kubeconfig`, `context`, `namespace`, `mode` and `gateway_env`. Every workspace on it
+  shares its namespace, because an Orchestrator only references a Gateway in its own namespace. A
+  standard-mode cluster deploys one Gateway and one credentials Secret for all of its workspaces,
+  labelled `inference-gateway.com/compute`, and the last session to go takes them along.
+- A machine holds `address`, `token` and `tls`, the connection of a `kind: daemon` workspace.
+- A workspace on compute keeps what describes the computer itself, such as `image`, `storage`, `idle_ttl`,
+  `env`, `forward_env`, `secrets` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
+  key its compute sets, fails at startup, and so does naming compute that `compute.yaml` does not define.
+- `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
+  because clusters and machines belong to the user, not to a project.
+- A workspace that carries its own connection keeps working as before, with a Gateway of its own.
+  `infer daemon workspaces` shows the compute each workspace runs on.
+
 ### Daemons on other machines
 
 A VPN such as [Tailscale](https://tailscale.com/) gives two machines network identity and encryption, so

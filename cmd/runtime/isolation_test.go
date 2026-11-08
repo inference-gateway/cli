@@ -70,6 +70,29 @@ func TestSidecarLayersHomeThenProject(t *testing.T) {
 	assert.Equal(t, []string{"c"}, cfg.Channels.Telegram.AllowedUsers, "lists are replaced wholesale")
 }
 
+// compute.yaml is read from home only, and a workspace that names a cluster
+// there arrives resolved, with the cluster's kind, connection and gateway.
+func TestComputeResolvesWorkspacesFromHome(t *testing.T) {
+	homeDir, projectDir := splitHomeProjectEnv(t)
+	homeFile := filepath.Join(homeDir, config.ConfigDirName, config.ComputeFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(homeFile), 0o755))
+	require.NoError(t, os.WriteFile(homeFile, []byte("clusters:\n  - name: k3d\n    context: k3d-agents\n    namespace: agents\n    gateway_env:\n      - ANTHROPIC_API_KEY\n"), 0o644))
+	projectFile := filepath.Join(projectDir, config.ConfigDirName, config.ComputeFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(projectFile), 0o755))
+	require.NoError(t, os.WriteFile(projectFile, []byte("clusters:\n  - name: project-only\n    namespace: elsewhere\n"), 0o644))
+	writeHomeFile(t, config.DaemonFileName, "workspaces:\n  - name: reviewer\n    compute: k3d\n    image: infer:1\n")
+
+	cfg := loadTestConfig(t)
+	require.Len(t, cfg.Compute.Clusters, 1)
+	assert.Equal(t, "k3d", cfg.Compute.Clusters[0].Name, "a project compute.yaml is never read")
+	require.Len(t, cfg.Daemon.Workspaces, 1)
+	workspace := cfg.Daemon.Workspaces[0]
+	assert.Equal(t, config.WorkspaceKindKubernetes, workspace.Kind)
+	assert.Equal(t, "k3d-agents", workspace.Context)
+	assert.Equal(t, "agents", workspace.Namespace)
+	assert.Equal(t, []string{"ANTHROPIC_API_KEY"}, workspace.GatewayEnv)
+}
+
 // MCP server env keys keep their case: Viper lowercases untyped map keys.
 func TestMCPServerEnvKeepsCase(t *testing.T) {
 	withHermeticEnv(t)
