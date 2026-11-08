@@ -95,3 +95,10 @@ func TestPlugins_EnabledEntries(t *testing.T) {
 	cfg.Enabled = false
 	require.Empty(t, cfg.EnabledEntries(), "master switch off must disable all")
 }
+
+func TestPlugins_ResolveDirExpandsItsReferences(t *testing.T) {
+	t.Setenv("PLUGINS_TEST_ROOT", "/opt/plugins")
+	dir, err := PluginsConfig{Dir: "${PLUGINS_TEST_ROOT}/infer"}.ResolveDir()
+	require.NoError(t, err)
+	require.Equal(t, "/opt/plugins/infer", dir)
+}

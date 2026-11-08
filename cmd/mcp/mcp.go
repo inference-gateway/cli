@@ -440,7 +440,7 @@ func (c *command) addMCPServer(cmd *cobra.Command, args []string) error {
 		server.Ports = nil
 	}
 
-	cfg, err := config.LoadMCP(configPath)
+	cfg, err := config.LoadMCPForEdit(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}
@@ -479,7 +479,7 @@ func (c *command) removeMCPServer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadMCP(configPath)
+	cfg, err := config.LoadMCPForEdit(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}
@@ -502,7 +502,7 @@ func (c *command) updateMCPServer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cfg, err := config.LoadMCP(configPath)
+	cfg, err := config.LoadMCPForEdit(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}
@@ -564,7 +564,7 @@ func (c *command) setMCPServerEnabled(cmd *cobra.Command, name string, enable bo
 		return err
 	}
 
-	cfg, err := config.LoadMCP(configPath)
+	cfg, err := config.LoadMCPForEdit(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}
@@ -591,7 +591,7 @@ func (c *command) setMCPGlobalEnabled(cmd *cobra.Command, enable bool) error {
 		return err
 	}
 
-	cfg, err := config.LoadMCP(configPath)
+	cfg, err := config.LoadMCPForEdit(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load MCP config: %w", err)
 	}

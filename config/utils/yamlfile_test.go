@@ -118,3 +118,60 @@ func TestSaveYAML_CreatesParentDirectory(t *testing.T) {
 		t.Errorf("file not created: %v", err)
 	}
 }
+
+func TestLoadYAMLAsWritten_KeepsReferencesThroughASave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fixture.yaml")
+	if err := os.WriteFile(path, []byte("name: ${YAMLFILE_TEST_VAR}\nvalue: v\n"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	t.Setenv("YAMLFILE_TEST_VAR", "resolved-secret")
+
+	cfg, err := configutils.LoadYAMLAsWritten(path, "fixture", defaultsForFixture)
+	if err != nil {
+		t.Fatalf("LoadYAMLAsWritten() error = %v", err)
+	}
+	if cfg.Name != "${YAMLFILE_TEST_VAR}" {
+		t.Fatalf("Name = %q, want the reference as written", cfg.Name)
+	}
+	cfg.Value = "edited"
+	if err := configutils.SaveYAML(path, "fixture", cfg); err != nil {
+		t.Fatalf("SaveYAML() error = %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !strings.Contains(string(data), "${YAMLFILE_TEST_VAR}") || strings.Contains(string(data), "resolved-secret") {
+		t.Fatalf("saved file = %q, want the reference and never its value", data)
+	}
+}
+
+func TestSaveYAML_KeepsTheFileMode(t *testing.T) {
+	dir := t.TempDir()
+	tightened := filepath.Join(dir, "tightened.yaml")
+	if err := os.WriteFile(tightened, []byte("name: a\n"), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	tests := []struct {
+		name string
+		path string
+		want os.FileMode
+	}{
+		{"a file its owner tightened stays tight", tightened, 0o600},
+		{"a new file is readable by all", filepath.Join(dir, "new.yaml"), 0o644},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := configutils.SaveYAML(tt.path, "fixture", defaultsForFixture()); err != nil {
+				t.Fatalf("SaveYAML() error = %v", err)
+			}
+			info, err := os.Stat(tt.path)
+			if err != nil {
+				t.Fatalf("stat: %v", err)
+			}
+			if got := info.Mode().Perm(); got != tt.want {
+				t.Errorf("mode = %o, want %o", got, tt.want)
+			}
+		})
+	}
+}

@@ -47,10 +47,10 @@ func DefaultPluginsConfig() *PluginsConfig {
 	}
 }
 
-// LoadPlugins reads plugins.yaml from disk, returning defaults when the file
-// is missing.
+// LoadPlugins reads plugins.yaml as written to edit it, returning defaults when
+// the file is missing. A run reads it from the merged config instead.
 func LoadPlugins(path string) (*PluginsConfig, error) {
-	cfg, err := configutils.LoadYAML(path, "Plugins", DefaultPluginsConfig)
+	cfg, err := configutils.LoadYAMLAsWritten(path, "Plugins", DefaultPluginsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +69,11 @@ func SavePlugins(path string, cfg *PluginsConfig) error {
 	return configutils.SaveYAML(path, "Plugins", cfg)
 }
 
-// ResolveDir returns the plugins storage root: Dir when set, otherwise
-// ~/.infer/plugins.
+// ResolveDir returns the plugins storage root: Dir when set, with its ${VAR}
+// references expanded, otherwise ~/.infer/plugins.
 func (c PluginsConfig) ResolveDir() (string, error) {
 	if c.Dir != "" {
-		return c.Dir, nil
+		return os.ExpandEnv(c.Dir), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

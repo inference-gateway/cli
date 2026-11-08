@@ -235,6 +235,10 @@ The variable comes from the environment of the process that loads the file. A da
 session workers inherit the daemon's environment, so the key belongs to the machine the
 agent runs on, not to the client that opens the thread.
 
+The commands that edit `mcp.yaml` (`infer mcp add`, `update`, `remove`, `enable`,
+`disable`, `enable-global` and `disable-global`) save every `${VAR}` reference as written
+and keep the file's mode, so an edit never puts a key into the file.
+
 ### Tool Filtering
 
 #### Include Tools

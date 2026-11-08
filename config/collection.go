@@ -1,6 +1,13 @@
 package config
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// errLoadedToRun refuses to save a config loaded with its ${VAR} references
+// expanded, which would write the variables' values over them.
+var errLoadedToRun = errors.New("loaded to run with ${VAR} references expanded, so it cannot be saved without writing their values")
 
 // appendEntry returns slice with entry appended, after rejecting duplicates
 // by name. kind is used in the duplicate-error message (e.g. "MCP server").

@@ -45,7 +45,7 @@ func TestCreateEntry_Agent(t *testing.T) {
 			tmpDir := t.TempDir()
 			agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-			cfg, err := config.LoadAgents(agentsPath)
+			cfg, err := config.LoadAgentsForEdit(agentsPath)
 			require.NoError(t, err)
 
 			if tt.seedFirst {
@@ -105,7 +105,7 @@ func TestDeleteEntry_Agent(t *testing.T) {
 			tmpDir := t.TempDir()
 			agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-			cfg, err := config.LoadAgents(agentsPath)
+			cfg, err := config.LoadAgentsForEdit(agentsPath)
 			require.NoError(t, err)
 
 			for _, name := range tt.seedNames {
@@ -132,7 +132,7 @@ func TestListEntries_Agents(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	cfg, err := config.LoadAgents(agentsPath)
+	cfg, err := config.LoadAgentsForEdit(agentsPath)
 	require.NoError(t, err)
 	for _, agent := range []config.AgentEntry{
 		{Name: "agent1", URL: "https://agent1.example.com"},
@@ -173,7 +173,7 @@ func TestReadEntry_Agent(t *testing.T) {
 			tmpDir := t.TempDir()
 			agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-			cfg, err := config.LoadAgents(agentsPath)
+			cfg, err := config.LoadAgentsForEdit(agentsPath)
 			require.NoError(t, err)
 
 			if tt.seedName != "" {
@@ -196,7 +196,7 @@ func TestGetAgentURLs(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-	cfg, err := config.LoadAgents(agentsPath)
+	cfg, err := config.LoadAgentsForEdit(agentsPath)
 	require.NoError(t, err)
 	for _, agent := range []config.AgentEntry{
 		{Name: "agent1", URL: "https://agent1.example.com"},
@@ -227,7 +227,7 @@ func TestLoadAgents_NonexistentFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	agentsPath := filepath.Join(tmpDir, "nonexistent.yaml")
 
-	cfg, err := config.LoadAgents(agentsPath)
+	cfg, err := config.LoadAgentsForEdit(agentsPath)
 	require.NoError(t, err)
 	require.Empty(t, cfg.Agents)
 }
@@ -266,7 +266,7 @@ func TestUpdateEntry_Agent(t *testing.T) {
 			tmpDir := t.TempDir()
 			agentsPath := filepath.Join(tmpDir, "agents.yaml")
 
-			cfg, err := config.LoadAgents(agentsPath)
+			cfg, err := config.LoadAgentsForEdit(agentsPath)
 			require.NoError(t, err)
 
 			if tt.seed != nil {
@@ -393,7 +393,7 @@ func TestLoadAgents_EnvironmentVariableExpansion(t *testing.T) {
 
 func TestIsLocalA2AAgent(t *testing.T) {
 	t.Chdir(t.TempDir())
-	agents, err := config.LoadAgents(config.DefaultAgentsPath)
+	agents, err := config.LoadAgentsForEdit(config.DefaultAgentsPath)
 	require.NoError(t, err)
 	for _, agent := range []config.AgentEntry{
 		{Name: "calendar", URL: "http://calendar-agent:8080", Run: true},
@@ -482,7 +482,7 @@ func TestLoadAgents_AuthNamesVariablesNotSecrets(t *testing.T) {
       token_command: [gcloud, auth, print-identity-token, --audiences=https://cloud.example.com]
 `), 0o600))
 
-	cfg, err := config.LoadAgents(path)
+	cfg, err := config.LoadAgentsForEdit(path)
 	require.NoError(t, err)
 	research, err := cfg.ReadEntry("research")
 	require.NoError(t, err)
@@ -508,4 +508,28 @@ func TestLoadAgents_AuthNamesVariablesNotSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(rewritten), "client_secret_env: BILLING_CLIENT_SECRET")
 	require.NotContains(t, string(rewritten), "s3cret")
+}
+
+func TestAgentEditsKeepEnvironmentReferences(t *testing.T) {
+	path := filepath.Join(t.TempDir(), config.AgentsFileName)
+	require.NoError(t, os.WriteFile(path, []byte("agents:\n  - name: research\n    url: http://localhost:8080\n    environment:\n      API_KEY: ${RESEARCH_API_KEY}\n"), 0o600))
+	t.Setenv("RESEARCH_API_KEY", "resolved-secret")
+
+	running, err := config.LoadAgents(path)
+	require.NoError(t, err)
+	require.Equal(t, "resolved-secret", running.Agents[0].Environment["API_KEY"])
+	require.ErrorContains(t, running.DeleteEntry("research"), "cannot be saved")
+
+	editing, err := config.LoadAgentsForEdit(path)
+	require.NoError(t, err)
+	research, err := editing.ReadEntry("research")
+	require.NoError(t, err)
+	research.URL = "http://localhost:9090"
+	require.NoError(t, editing.UpdateEntry(*research))
+
+	saved, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(saved), "API_KEY: ${RESEARCH_API_KEY}")
+	require.Contains(t, string(saved), "http://localhost:9090")
+	require.NotContains(t, string(saved), "resolved-secret")
 }

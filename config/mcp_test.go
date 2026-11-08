@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -390,9 +391,9 @@ func TestSaveMCP(t *testing.T) {
 
 func loadMCPForTest(t *testing.T, path string) *config.MCPConfig {
 	t.Helper()
-	cfg, err := config.LoadMCP(path)
+	cfg, err := config.LoadMCPForEdit(path)
 	if err != nil {
-		t.Fatalf("LoadMCP() failed: %v", err)
+		t.Fatalf("LoadMCPForEdit() failed: %v", err)
 	}
 	return cfg
 }
@@ -671,5 +672,34 @@ func TestReadEntry_MCPServer(t *testing.T) {
 				t.Errorf("Expected URL %q, got %q", expectedServer.GetURL(), server.GetURL())
 			}
 		})
+	}
+}
+
+func TestLoadMCPRefusesToSaveExpandedReferences(t *testing.T) {
+	path := filepath.Join(t.TempDir(), config.MCPFileName)
+	seed := "servers:\n  - name: hosted\n    enabled: true\n    url: https://hosted.example.com/mcp\n    headers:\n      x-api-key: ${MCP_TEST_KEY}\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	t.Setenv("MCP_TEST_KEY", "resolved-secret")
+
+	running, err := config.LoadMCP(path)
+	if err != nil {
+		t.Fatalf("LoadMCP() error = %v", err)
+	}
+	if got := running.Servers[0].Headers["x-api-key"]; got != "resolved-secret" {
+		t.Fatalf("running header = %q, want the expanded value", got)
+	}
+	server := running.Servers[0]
+	server.Enabled = false
+	if err := running.UpdateEntry(server); err == nil || !strings.Contains(err.Error(), "cannot be saved") {
+		t.Fatalf("UpdateEntry() on a running config error = %v, want it refused", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(data) != seed {
+		t.Fatalf("mcp.yaml = %q, want it untouched", data)
 	}
 }

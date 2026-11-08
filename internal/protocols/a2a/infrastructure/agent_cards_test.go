@@ -18,7 +18,7 @@ func TestAgentCardClient_GetConfiguredAgents_EnvVarPrecedence(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 	agentsPath := filepath.Join(tmpDir, config.DefaultAgentsPath)
 
-	agentsCfg, err := config.LoadAgents(agentsPath)
+	agentsCfg, err := config.LoadAgentsForEdit(agentsPath)
 	require.NoError(t, err)
 	require.NoError(t, agentsCfg.CreateEntry(config.AgentEntry{
 		Name: "yaml-agent",
