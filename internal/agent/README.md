@@ -34,7 +34,7 @@ on another workspace.
   receiving side restores into `projects_root`, imports the conversation through a worker there and claims the lease.
   `infrastructure/` also holds the daemon CA, the TLS provider for the `files` and `ca` modes, and the peer
   dialer.
-- client-go stays in `infrastructure/kubernetes/`. depguard enforces it.
+- client-go and the operator's API types stay in `infrastructure/kubernetes/`. depguard enforces it.
 - The tools context never imports `loop/`. depguard enforces it, because the loop consumes tools.
 - `internal/container/container.go` builds the loop and wires every port.
 

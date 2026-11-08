@@ -110,6 +110,8 @@ linters:
               desc: "client-go is confined to the compute context's cluster adapter and the agent context's kubernetes workspace"
             - pkg: sigs.k8s.io
               desc: "client-go is confined to the compute context's cluster adapter and the agent context's kubernetes workspace"
+            - pkg: github.com/inference-gateway/operator
+              desc: "the operator's API types are confined to the compute context's cluster adapter and the agent context's kubernetes workspace"
         robotgo-only-in-computer:
           list-mode: lax
           files:

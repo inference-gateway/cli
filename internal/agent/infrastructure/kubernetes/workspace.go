@@ -26,6 +26,8 @@ import (
 	k8sdynamic "k8s.io/client-go/dynamic"
 	k8srest "k8s.io/client-go/rest"
 
+	operatorv1alpha1 "github.com/inference-gateway/operator/api/v1alpha1"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
@@ -69,7 +71,8 @@ var (
 
 // unrecoverableReasons are the Ready reasons the operator reports for an
 // Orchestrator that never runs without a change to the cluster or its spec.
-var unrecoverableReasons = []string{"SandboxCRDMissing", "InvalidSpec"}
+// SandboxSuspended needs one too, which awaitReady makes by resuming it.
+var unrecoverableReasons = []string{operatorv1alpha1.ReasonSandboxCRDMissing, operatorv1alpha1.ReasonInvalidSpec}
 
 // Workspace runs sessions as Inference Gateway operator Orchestrators: one per
 // session, running the infer daemon in an agent-sandbox Sandbox, reached
@@ -379,7 +382,7 @@ func readyCondition(orchestrator *k8sunstructured.Unstructured) condition {
 	conditions, _, _ := k8sunstructured.NestedSlice(orchestrator.Object, "status", "conditions")
 	for _, raw := range conditions {
 		ready, ok := raw.(map[string]any)
-		if !ok || ready["type"] != "Ready" {
+		if !ok || ready["type"] != operatorv1alpha1.OrchestratorConditionReady {
 			continue
 		}
 		if observed, found, _ := k8sunstructured.NestedInt64(ready, "observedGeneration"); found && observed != orchestrator.GetGeneration() {
