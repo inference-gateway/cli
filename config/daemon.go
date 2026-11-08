@@ -168,6 +168,10 @@ type WorkspaceEntry struct {
 	// gets as an environment variable, so each workspace holds its own
 	// credentials and they never pass through this machine.
 	Secrets []string `yaml:"secrets,omitempty" mapstructure:"secrets"`
+	// MCPServers names hosted servers of this machine's mcp.yaml the pod
+	// daemon gets, their headers as written so each stays a ${VAR} reference
+	// the pod expands from its own Secrets.
+	MCPServers []string `yaml:"mcp_servers,omitempty" mapstructure:"mcp_servers"`
 	// BindingService is metadata for the session's binding Service, for
 	// controllers that act on Service metadata such as a VPN operator.
 	BindingService BindingServiceConfig `yaml:"binding_service,omitempty" mapstructure:"binding_service"`
@@ -372,8 +376,8 @@ func (e WorkspaceEntry) validate(identity string) error {
 	if err := e.Mode.validate(); err != nil {
 		return fmt.Errorf("workspace %q: %w", e.Name, err)
 	}
-	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || !e.BindingService.IsZero()) {
-		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets or binding_service, which only a kubernetes workspace uses", e.Name)
+	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || len(e.MCPServers) > 0 || !e.BindingService.IsZero()) {
+		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers or binding_service, which only a kubernetes workspace uses", e.Name)
 	}
 	switch e.Kind {
 	case WorkspaceKindLocal:

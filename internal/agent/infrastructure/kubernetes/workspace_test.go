@@ -18,6 +18,7 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	k8sdynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
 
@@ -125,7 +126,7 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 	e.entry.Storage = "1Gi"
 	e.entry.Retention = 24 * time.Hour
 	e.entry.Env = map[string]string{"INFER_GATEWAY_URL": "http://gateway:8080", "INFER_AGENT_MODEL": "mock/model"}
-	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil)
+	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +168,7 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 func TestOrchestratorOnAClusterCarriesItsComputeLabel(t *testing.T) {
 	e, _ := testWorkspace(t, true)
 	session := agentdomain.Session{ConversationID: "conv-1"}
-	orchestrator, err := e.orchestrator("infer-1", session, nil)
+	orchestrator, err := e.orchestrator("infer-1", session, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +176,7 @@ func TestOrchestratorOnAClusterCarriesItsComputeLabel(t *testing.T) {
 		t.Fatalf("a workspace with its own connection labels its Orchestrator %v", orchestrator.GetLabels())
 	}
 	e.entry.Compute = "k3d"
-	if orchestrator, err = e.orchestrator("infer-1", session, nil); err != nil {
+	if orchestrator, err = e.orchestrator("infer-1", session, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := orchestrator.GetLabels(); got[labelCompute] != "k3d" || got[labelWorkspace] != "k8s" || got[labelConversation] != "conv-1" {
@@ -190,7 +191,7 @@ func TestOrchestratorCarriesTheBindingServiceMetadata(t *testing.T) {
 		Annotations: map[string]string{"vpn/expose": "true", "vpn/hostname": "{{.Orchestrator}}"},
 		Labels:      map[string]string{"session": "{{.Orchestrator}}"},
 	}
-	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil)
+	orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,4 +357,121 @@ func TestReportIdleWritesTheAgentsDoneMessage(t *testing.T) {
 			t.Fatalf("writeTerminationMessage created %s", path)
 		}
 	})
+}
+
+const testMCPYAML = `enabled: true
+servers:
+  - name: mailbox
+    enabled: true
+    url: https://mcp.example.com/mcp
+    headers:
+      x-api-key: ${MAILBOX_API_KEY}
+      Authorization: Bearer ${MAILBOX_TOKEN}
+  - name: split
+    enabled: false
+    scheme: https
+    host: split.example.com
+    port: 8443
+    path: /rpc
+  - name: container
+    enabled: true
+    run: true
+    oci: example/mcp:latest
+  - name: leaky
+    enabled: true
+    url: https://leaky.example.com/mcp
+    headers:
+      x-api-key: plain-secret-value
+`
+
+// userMCPConfig makes testMCPYAML this user's ~/.infer/mcp.yaml and returns its path.
+func userMCPConfig(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, config.ConfigDirName, config.MCPFileName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(testMCPYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
+	t.Setenv("MAILBOX_API_KEY", "expanded-on-this-machine")
+	mcpPath := userMCPConfig(t)
+	tests := []struct {
+		name    string
+		servers []string
+		want    map[string]any
+		wantErr string
+	}{
+		{name: "no servers leaves MCP to the image"},
+		{
+			name:    "every named server with its URL and its header references",
+			servers: []string{"mailbox", "split"},
+			want: map[string]any{"enabled": true, "servers": []any{
+				map[string]any{"name": "mailbox", "url": "https://mcp.example.com/mcp", "headers": map[string]any{
+					"x-api-key":     "${MAILBOX_API_KEY}",
+					"Authorization": "Bearer ${MAILBOX_TOKEN}",
+				}},
+				map[string]any{"name": "split", "url": "https://split.example.com:8443/rpc"},
+			}},
+		},
+		{name: "a name mcp.yaml lacks", servers: []string{"mailbox", "ghost"}, wantErr: "names MCP server ghost, which " + mcpPath + " does not have"},
+		{name: "a container server", servers: []string{"container"}, wantErr: "names MCP server container, a container on this machine"},
+		{name: "a header holding a value", servers: []string{"leaky"}, wantErr: "MCP server leaky gives header x-api-key a value rather than a ${VAR} reference"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, dynamic := testWorkspace(t, true)
+			e.entry.MCPServers = tt.servers
+
+			_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("create = %v, want an error containing %q", err, tt.wantErr)
+				}
+				if strings.Contains(err.Error(), "plain-secret-value") {
+					t.Fatalf("the error shows the header's value: %v", err)
+				}
+				for _, action := range dynamic.Actions() {
+					if action.GetVerb() == "create" {
+						t.Fatalf("created %s although an MCP server cannot reach the pod", action.GetResource().Resource)
+					}
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored, err := e.orchestrators().Get(t.Context(), "infer-1", metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, _, _ := k8sunstructured.NestedMap(stored.Object, "spec", "mcp")
+			if tt.want == nil && got != nil || tt.want != nil && !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("spec.mcp = %v, want %v", got, tt.want)
+			}
+			if strings.Contains(fmt.Sprint(stored.Object), "expanded-on-this-machine") {
+				t.Fatal("a header was expanded on this machine into the Orchestrator")
+			}
+		})
+	}
+}
+
+func TestCreateNamesTheOperatorVersionMCPServersNeed(t *testing.T) {
+	userMCPConfig(t)
+	e, dynamic := testWorkspace(t, true)
+	e.entry.MCPServers = []string{"mailbox"}
+	dynamic.PrependReactor("create", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		invalid := k8sfield.Invalid(k8sfield.NewPath("spec", "mcp", "servers").Index(0), "object", "must be of type string")
+		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
+	})
+	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
+	if err == nil || !strings.Contains(err.Error(), "may predate "+newFieldsOperatorVersion+", upgrade it") {
+		t.Fatalf("create on an older operator = %v", err)
+	}
 }

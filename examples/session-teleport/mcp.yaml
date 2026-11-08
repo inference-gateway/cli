@@ -1,0 +1,7 @@
+enabled: true
+servers:
+  - name: demo-server
+    enabled: false
+    url: http://demo-mcp.infer-workspaces.svc.cluster.local:3000/mcp
+    headers:
+      x-api-key: ${DEMO_MCP_KEY}

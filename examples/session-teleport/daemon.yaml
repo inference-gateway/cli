@@ -50,6 +50,22 @@ workspaces:
       ARTIFACTS_BUCKET: infer-artifacts
       AWS_ACCESS_KEY_ID: rustfsadmin
       AWS_SECRET_ACCESS_KEY: rustfsadmin
+  - name: k8s-mcp
+    kind: kubernetes
+    context: k3d-infer-workspaces
+    namespace: infer-workspaces
+    image: ghcr.io/inference-gateway/cli:local
+    storage: 1Gi
+    idle_ttl: 30m
+    away_ttl: 1m
+    retention: 24h
+    secrets:
+      - demo-mcp-credentials
+    mcp_servers:
+      - demo-server
+    env:
+      INFER_GATEWAY_MOCK: "true"
+      INFER_AGENT_MODEL: mock/openai/gpt-4o
 binding:
   enabled: true
   port: 52790

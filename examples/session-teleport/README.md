@@ -31,8 +31,10 @@ for the wire frames.
 | File | Purpose |
 | --- | --- |
 | `Cluster.yaml` | The ctlptl cluster: k3d `infer-workspaces` with one agent node, pinned to k3s v1.37.1 |
-| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev`, `k8s-cloud` and `k8s-desktop` workspaces |
+| `daemon.yaml` | The laptop daemon's config: the binding and the `k8s-dev`, `k8s-cloud`, `k8s-desktop` and `k8s-mcp` workspaces |
+| `mcp.yaml` | The laptop's MCP servers: the demo server the `k8s-mcp` pods get, its key a `${DEMO_MCP_KEY}` reference |
 | `desktop/` | The `k8s-desktop` image: Xvfb, Chromium and ffmpeg on the infer image, the browse scenario and the artifact upload hook |
+| `k8s/demo-mcp.yaml` | The demo MCP server from `examples/mcp` and the Secret holding the key the `k8s-mcp` pods send it |
 | `k8s/rustfs.yaml` | RustFS, the S3-compatible store the desktop's artifacts are uploaded to, with a 2Gi volume |
 | `k8s/namespace.yaml` | The `infer-workspaces` namespace. The pods need no ServiceAccount, the operator parks them |
 | `Taskfile.yml` | Every step below |
@@ -154,6 +156,37 @@ shows Chromium on example.com. The recording is an artifact, see the next sectio
 `INFER_GATEWAY_MOCK_SCENARIOS` and the agent picks the steps from its own
 screenshots, so choose a vision model. The desktop lives as long as the pod: a suspended Orchestrator comes back
 with a fresh display and browser, and only the workspace dir and the conversation persist.
+
+## MCP servers for the pod: the mcp workspace
+
+The `k8s-mcp` workspace gives its pods the `demo-server` of the laptop's `mcp.yaml` through `mcp_servers`.
+The server's header is written as `x-api-key: ${DEMO_MCP_KEY}`, and the laptop forwards it as written into
+the session's Orchestrator. The pod expands the reference from `DEMO_MCP_KEY`, which the workspace's
+`secrets` give it from the `demo-mcp-credentials` Secret, so the key never passes through the laptop. The
+laptop's own chats leave the server off (`enabled: false`), since only the cluster reaches it. This needs
+operator v0.33.0 or newer.
+
+```bash
+# 1. Install an operator that renders hosted MCP servers
+task operator:install OPERATOR_VERSION=v0.33.0
+
+# 2. Deploy the demo MCP server and the Secret with its key
+task mcp:install
+
+# 3. With the laptop daemon running: teleport a fresh conversation to the mcp workspace
+task demo TARGET=k8s-mcp
+
+# 4. Ask the pod which MCP servers it connected
+task mcp:status
+```
+
+`infer mcp status` in the pod lists `demo-server` as connected with its four tools. The Orchestrator carries
+the header as `${DEMO_MCP_KEY}`, never the key:
+
+```bash
+kubectl --context k3d-infer-workspaces -n infer-workspaces get orchestrators -l inference-gateway.com/workspace=k8s-mcp \
+  -o jsonpath='{.items[*].spec.mcp}'
+```
 
 ## From the chat TUI: infer chat --daemon
 

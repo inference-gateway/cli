@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"regexp"
 	"slices"
 	"strconv"
 	"time"
@@ -206,15 +207,16 @@ func (e *Workspace) requireOperator(ctx context.Context) error {
 	return computek8s.RequireOperator(ctx, e.dynamic, e.entry.Namespace, "the cluster of workspace "+e.entry.Name)
 }
 
-// bindingServiceOperatorVersion is the first operator release that copies
-// binding_service metadata onto the binding Service.
-const bindingServiceOperatorVersion = "v0.33.0"
+// newFieldsOperatorVersion is the first operator release that copies
+// binding_service metadata onto the binding Service and gives the pod MCP
+// servers with headers.
+const newFieldsOperatorVersion = "v0.33.0"
 
 func (e *Workspace) requiredOperatorVersion() string {
-	if e.entry.BindingService.IsZero() {
+	if e.entry.BindingService.IsZero() && len(e.entry.MCPServers) == 0 {
 		return computek8s.MinOperatorVersion
 	}
-	return bindingServiceOperatorVersion
+	return newFieldsOperatorVersion
 }
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
@@ -294,18 +296,23 @@ func addOwner(owners []metav1.OwnerReference, orchestrator *k8sunstructured.Unst
 
 // create submits the Orchestrator for a session. Strict field validation makes
 // an older operator refuse a field it does not know, such as the Sandbox
-// runtime or the gateway ref, instead of silently dropping it.
+// runtime or the gateway ref, or one it types differently, such as an MCP
+// server, instead of silently dropping it.
 func (e *Workspace) create(ctx context.Context, name string, session agentdomain.Session) (*k8sunstructured.Unstructured, error) {
 	secretEnv, err := e.secretEnv(ctx)
 	if err != nil {
 		return nil, err
 	}
-	orchestrator, err := e.orchestrator(name, session, secretEnv)
+	mcpServers, err := e.mcpServers()
+	if err != nil {
+		return nil, err
+	}
+	orchestrator, err := e.orchestrator(name, session, secretEnv, mcpServers)
 	if err != nil {
 		return nil, err
 	}
 	created, err := e.orchestrators().Create(ctx, orchestrator, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict})
-	if k8serrors.IsBadRequest(err) {
+	if k8serrors.IsBadRequest(err) || k8serrors.IsInvalid(err) {
 		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s may predate %s, upgrade it: %w", name, e.entry.Name, e.requiredOperatorVersion(), err)
 	}
 	if err != nil {
@@ -437,7 +444,7 @@ func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) err
 // orchestrator is the Orchestrator for a session: the infer image as a daemon
 // in a Sandbox, its binding authenticated by the session's Secret, with tools
 // and A2A on as they are by default outside the cluster.
-func (e *Workspace) orchestrator(name string, session agentdomain.Session, secretEnv []any) (*k8sunstructured.Unstructured, error) {
+func (e *Workspace) orchestrator(name string, session agentdomain.Session, secretEnv, mcpServers []any) (*k8sunstructured.Unstructured, error) {
 	sandbox := map[string]any{"operatingMode": modeRunning}
 	if e.entry.Storage != "" {
 		if _, err := k8sresource.ParseQuantity(e.entry.Storage); err != nil {
@@ -472,6 +479,9 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 	}
 	if gateway := e.orchestratorGateway(); gateway != nil {
 		spec["gateway"] = gateway
+	}
+	if len(mcpServers) > 0 {
+		spec["mcp"] = map[string]any{"enabled": true, "servers": mcpServers}
 	}
 	return &k8sunstructured.Unstructured{Object: map[string]any{
 		"apiVersion": orchestratorGroup + "/" + orchestratorVersion,
@@ -538,6 +548,48 @@ func (e *Workspace) secretEnv(ctx context.Context) ([]any, error) {
 		}
 	}
 	return env, nil
+}
+
+// headerReference is a header value that names a variable rather than holding
+// a value: a ${VAR} reference with an optional prefix, such as "Bearer ".
+var headerReference = regexp.MustCompile(`^[^$]*\$\{[A-Za-z_][A-Za-z0-9_]*\}$`)
+
+// mcpServers are the servers of ~/.infer/mcp.yaml the entry names, read as
+// written when the Orchestrator is created, so a header stays a ${VAR} reference
+// the pod expands from its own Secrets and no value lands in a Kubernetes object.
+// A name mcp.yaml lacks, a container server and a header holding a value fail.
+func (e *Workspace) mcpServers() ([]any, error) {
+	if len(e.entry.MCPServers) == 0 {
+		return nil, nil
+	}
+	path := config.UserMCPPath()
+	cfg, err := config.LoadMCPForEdit(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading the MCP servers of workspace %s: %w", e.entry.Name, err)
+	}
+	servers := make([]any, 0, len(e.entry.MCPServers))
+	for _, name := range e.entry.MCPServers {
+		server, err := cfg.ReadEntry(name)
+		if err != nil {
+			return nil, fmt.Errorf("workspace %s names MCP server %s, which %s does not have", e.entry.Name, name, path)
+		}
+		if server.Run {
+			return nil, fmt.Errorf("workspace %s names MCP server %s, a container on this machine, and only a hosted server reaches its pods", e.entry.Name, name)
+		}
+		headers := make(map[string]any, len(server.Headers))
+		for key, value := range server.Headers {
+			if !headerReference.MatchString(value) {
+				return nil, fmt.Errorf("MCP server %s gives header %s a value rather than a ${VAR} reference, which workspace %s would write into its Orchestrator", name, key, e.entry.Name)
+			}
+			headers[key] = value
+		}
+		entry := map[string]any{"name": name, "url": server.GetURL()}
+		if len(headers) > 0 {
+			entry["headers"] = headers
+		}
+		servers = append(servers, entry)
+	}
+	return servers, nil
 }
 
 func secretEnvVar(key, secret string) map[string]any {
