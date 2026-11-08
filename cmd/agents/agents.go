@@ -342,7 +342,7 @@ func (c *command) addAgent(cmd *cobra.Command, name, url, artifactsURL, oci stri
 		Environment:  environment,
 	}
 
-	cfg, err := config.LoadAgents(path)
+	cfg, err := config.LoadAgentsForEdit(path)
 	if err != nil {
 		return err
 	}
@@ -378,7 +378,7 @@ func (c *command) updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci s
 		return err
 	}
 
-	cfg, err := config.LoadAgents(path)
+	cfg, err := config.LoadAgentsForEdit(path)
 	if err != nil {
 		return err
 	}
@@ -439,7 +439,7 @@ func (c *command) removeAgent(cmd *cobra.Command, name string) error {
 		return err
 	}
 
-	cfg, err := config.LoadAgents(path)
+	cfg, err := config.LoadAgentsForEdit(path)
 	if err != nil {
 		return err
 	}

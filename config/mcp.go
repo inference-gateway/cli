@@ -178,16 +178,29 @@ const (
 	DefaultMCPPath = ConfigDirName + "/" + MCPFileName
 )
 
-// LoadMCP reads mcp.yaml from disk. When the file is missing it returns
-// the in-code defaults so callers can treat absence as "use defaults"
-// without special-casing.
+// LoadMCP reads mcp.yaml to run with, its ${VAR} references expanded, or the
+// defaults when the file is missing. Its entries cannot be saved, since that
+// would write the variables' values over the references. LoadMCPForEdit can.
 func LoadMCP(path string) (*MCPConfig, error) {
-	cfg, err := configutils.LoadYAML(path, "MCP", DefaultMCPConfig)
+	return configutils.LoadYAML(path, "MCP", DefaultMCPConfig)
+}
+
+// LoadMCPForEdit reads mcp.yaml as written, so an entry changed and saved back
+// keeps every ${VAR} reference in the file.
+func LoadMCPForEdit(path string) (*MCPConfig, error) {
+	cfg, err := configutils.LoadYAMLAsWritten(path, "MCP", DefaultMCPConfig)
 	if err != nil {
 		return nil, err
 	}
 	cfg.path = path
 	return cfg, nil
+}
+
+func (c *MCPConfig) save() error {
+	if c.path == "" {
+		return fmt.Errorf("%s: %w", MCPFileName, errLoadedToRun)
+	}
+	return SaveMCP(c.path, c)
 }
 
 // SaveMCP writes the MCP configuration to disk, creating any missing
@@ -207,7 +220,7 @@ func (c *MCPConfig) CreateEntry(entry MCPServerEntry) error {
 		return err
 	}
 	c.Servers = next
-	return SaveMCP(c.path, c)
+	return c.save()
 }
 
 // ReadEntry implements CollectionConfig.
@@ -222,7 +235,7 @@ func (c *MCPConfig) UpdateEntry(entry MCPServerEntry) error {
 		return err
 	}
 	c.Servers = next
-	return SaveMCP(c.path, c)
+	return c.save()
 }
 
 // DeleteEntry implements CollectionConfig.
@@ -232,7 +245,7 @@ func (c *MCPConfig) DeleteEntry(name string) error {
 		return err
 	}
 	c.Servers = next
-	return SaveMCP(c.path, c)
+	return c.save()
 }
 
 // ListEntries implements CollectionConfig.

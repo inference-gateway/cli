@@ -82,3 +82,20 @@ func TestSandboxIsNotInConfigYAML(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(out), "sandbox:", "the policy must not serialise into config.yaml")
 }
+
+func TestLoadSandboxKeepsReferencesThroughASavedGrant(t *testing.T) {
+	path := filepath.Join(t.TempDir(), SandboxFileName)
+	require.NoError(t, os.WriteFile(path, []byte("filesystem:\n  allowed:\n    - ${HOME}/repositories\n"), 0o644))
+	t.Setenv("HOME", "/home/someone")
+
+	cfg, err := LoadSandbox(path)
+	require.NoError(t, err)
+	require.Equal(t, "${HOME}/repositories", cfg.Filesystem.Allowed[0].Path)
+	cfg.Filesystem.Allowed = append(cfg.Filesystem.Allowed, sandboxdomain.Allowed{Path: "/tmp/scratch"})
+	require.NoError(t, SaveSandbox(path, cfg))
+
+	saved, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(saved), "${HOME}/repositories")
+	require.NotContains(t, string(saved), "/home/someone")
+}

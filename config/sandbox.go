@@ -74,8 +74,10 @@ func (c *SandboxConfig) Validate() error {
 	return nil
 }
 
-// LoadSandbox reads sandbox.yaml over the defaults, so a missing file or a
-// missing list keeps the default one. A list that is present replaces it.
+// LoadSandbox reads sandbox.yaml as written over the defaults to edit it, so a
+// `${HOME}` in a path survives a saved grant. A missing file or list keeps the
+// default one, and a list that is present replaces it. A run reads the file
+// from the merged config, which expands ${VAR} references.
 func LoadSandbox(path string) (*SandboxConfig, error) {
 	cfg := DefaultSandboxConfig()
 	data, err := os.ReadFile(path)
@@ -85,7 +87,7 @@ func LoadSandbox(path string) (*SandboxConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read sandbox config: %w", err)
 	}
-	if err := yaml.Unmarshal([]byte(os.ExpandEnv(string(data))), cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse sandbox config: %w", err)
 	}
 	if err := cfg.Validate(); err != nil {

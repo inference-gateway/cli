@@ -2,6 +2,7 @@ package config
 
 import (
 	"cmp"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -114,16 +115,29 @@ func (a *AgentEntry) GetEnvironmentWithModel() map[string]string {
 	return env
 }
 
-// LoadAgents reads agents.yaml from disk. When the file is missing it
-// returns the in-code defaults so callers can treat absence as "use
-// defaults" without special-casing.
+// LoadAgents reads agents.yaml to run with, its ${VAR} references expanded,
+// or the defaults when the file is missing. Its entries cannot be saved, since
+// that would write the variables' values over the references. LoadAgentsForEdit can.
 func LoadAgents(path string) (*AgentsConfig, error) {
-	cfg, err := configutils.LoadYAML(path, "agents", DefaultAgentsConfig)
+	return configutils.LoadYAML(path, "agents", DefaultAgentsConfig)
+}
+
+// LoadAgentsForEdit reads agents.yaml as written, so an entry changed and saved
+// back keeps every ${VAR} reference in the file, such as one in its environment.
+func LoadAgentsForEdit(path string) (*AgentsConfig, error) {
+	cfg, err := configutils.LoadYAMLAsWritten(path, "agents", DefaultAgentsConfig)
 	if err != nil {
 		return nil, err
 	}
 	cfg.path = path
 	return cfg, nil
+}
+
+func (c *AgentsConfig) save() error {
+	if c.path == "" {
+		return fmt.Errorf("%s: %w", AgentsFileName, errLoadedToRun)
+	}
+	return SaveAgents(c.path, c)
 }
 
 // SaveAgents writes the agents configuration to disk, creating any
@@ -143,7 +157,7 @@ func (c *AgentsConfig) CreateEntry(entry AgentEntry) error {
 		return err
 	}
 	c.Agents = next
-	return SaveAgents(c.path, c)
+	return c.save()
 }
 
 // ReadEntry implements CollectionConfig.
@@ -158,7 +172,7 @@ func (c *AgentsConfig) UpdateEntry(entry AgentEntry) error {
 		return err
 	}
 	c.Agents = next
-	return SaveAgents(c.path, c)
+	return c.save()
 }
 
 // DeleteEntry implements CollectionConfig.
@@ -168,7 +182,7 @@ func (c *AgentsConfig) DeleteEntry(name string) error {
 		return err
 	}
 	c.Agents = next
-	return SaveAgents(c.path, c)
+	return c.save()
 }
 
 // ListEntries implements CollectionConfig.

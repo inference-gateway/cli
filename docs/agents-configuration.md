@@ -395,6 +395,8 @@ agents:
    `:-default` is treated as the variable name
 3. **Escaping**: There is no escape mechanism - all `$` characters trigger substitution
 4. **Load time**: Variables are expanded when the configuration is loaded, not when agents start
+5. **Edits keep references**: `infer agents add`, `update` and `remove` save `agents.yaml` with every
+   reference as written and keep the file's mode, so an edit never puts a value into the file
 
 ## Usage Examples
 
