@@ -11,6 +11,8 @@ connections, their containers and their liveness.
 - The `Supervisor` discovers each server's tools and names them `MCP_<server>_<tool>`. Chat registers them as
   server status updates arrive; headless registers them once at start-up.
 - Servers are configured in `.infer/mcp.yaml` or `~/.infer/mcp.yaml`. `infer mcp` and the `/mcp` shortcut manage them.
+- A hosted server has a `url` and `headers`, with `${VAR}` expansion keeping credentials out of the file. A server
+  whose expanded header is empty is skipped, so a worker without the credential starts without it.
 - Only tools are consumed. Embedded resource blocks in a tool result are flattened into text.
 
 ## Related

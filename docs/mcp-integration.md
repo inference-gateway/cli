@@ -197,6 +197,8 @@ Each server in the `servers` array supports:
 | `include_tools` | ❌ | array | Include specific tools |
 | `exclude_tools` | ❌ | array | Exclude specific tools |
 | `run` | ❌ | boolean | Auto-start server in OCI container (default: false) |
+| `url` | ❌ | string | Full endpoint of a hosted server, replaces `scheme`/`host`/`port`/`path` |
+| `headers` | ❌ | object | HTTP headers sent on every request, such as an API key |
 | `host` | ❌ | string | Container host (default: localhost) |
 | `scheme` | ❌ | string | URL scheme (default: http) |
 | `port` | ❌ | integer | Simple port mapping (auto-assigned if omitted) |
@@ -212,6 +214,26 @@ Each server in the `servers` array supports:
 > **Manual servers** (`run: false`): set `host` / `port` / `path` to point at the running
 > server's MCP endpoint. The URL is built as `{scheme}://{host}:{port}{path}` (defaults:
 > `http`, `localhost`, `/mcp`).
+
+### Hosted Servers
+
+A hosted server takes a full `url` and the `headers` it authenticates with. Keep the
+credential out of the file with `${VAR}` expansion. A server whose expanded header is
+empty is skipped with a warning, so a process without the credential starts without
+that server instead of failing discovery.
+
+```yaml
+servers:
+  - name: agentmail
+    enabled: true
+    url: https://mcp.agentmail.to/mcp
+    headers:
+      x-api-key: ${AGENTMAIL_API_KEY}
+```
+
+The variable comes from the environment of the process that loads the file. A daemon's
+session workers inherit the daemon's environment, so the key belongs to the machine the
+agent runs on, not to the client that opens the thread.
 
 ### Tool Filtering
 

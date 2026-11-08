@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"sync"
 	"testing"
@@ -103,6 +104,30 @@ func TestSupervisor_GetClients_DisabledServer(t *testing.T) {
 
 	if len(clients) != 0 {
 		t.Errorf("Expected 0 clients for disabled server, got %d", len(clients))
+	}
+}
+
+func TestSupervisor_SkipsServerWithUnresolvedHeaders(t *testing.T) {
+	cfg := &config.MCPConfig{
+		Enabled: true,
+		Servers: []config.MCPServerEntry{
+			{Name: "keyless", Enabled: true, URL: "https://mcp.example.com/mcp", Headers: map[string]string{"x-api-key": ""}},
+			{Name: "keyed", Enabled: true, URL: "https://mcp.example.com/mcp", Headers: map[string]string{"x-api-key": "k"}},
+			{Name: "keyless-container", Enabled: true, Run: true, OCI: "example/mcp", Headers: map[string]string{"x-api-key": ""}},
+		},
+	}
+	runtime := &containermocks.FakeContainerRuntime{}
+
+	supervisor := NewSupervisor(convdomain.GenerateSessionID(), cfg, runtime, nil)
+
+	if got := slices.Sorted(maps.Keys(supervisor.clients)); !slices.Equal(got, []string{"keyed"}) {
+		t.Fatalf("clients = %v, want only the server whose headers resolved", got)
+	}
+	if err := supervisor.StartServers(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if calls := runtime.Invocations(); len(calls) != 0 {
+		t.Fatalf("container runtime called %v, want no start for a server whose headers did not resolve", slices.Sorted(maps.Keys(calls)))
 	}
 }
 

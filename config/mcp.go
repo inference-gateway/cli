@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
@@ -29,6 +30,8 @@ type MCPServerEntry struct {
 	IncludeTools   []string          `yaml:"include_tools,omitempty" mapstructure:"include_tools,omitempty"`
 	ExcludeTools   []string          `yaml:"exclude_tools,omitempty" mapstructure:"exclude_tools,omitempty"`
 	Run            bool              `yaml:"run" mapstructure:"run"`
+	URL            string            `yaml:"url,omitempty" mapstructure:"url,omitempty"`
+	Headers        map[string]string `yaml:"headers,omitempty" mapstructure:"headers,omitempty"`
 	Host           string            `yaml:"host,omitempty" mapstructure:"host,omitempty"`
 	Scheme         string            `yaml:"scheme,omitempty" mapstructure:"scheme,omitempty"`
 	Port           int               `yaml:"port,omitempty" mapstructure:"port,omitempty"`
@@ -85,9 +88,13 @@ func (e *MCPServerEntry) GetStartupTimeout() int {
 	return 30
 }
 
-// GetURL returns the full URL for the server
-// Builds from host, scheme, ports, and path
+// GetURL returns the server's URL: the url field when set, otherwise built
+// from scheme, host, port and path.
 func (e *MCPServerEntry) GetURL() string {
+	if e.URL != "" {
+		return e.URL
+	}
+
 	scheme := e.Scheme
 	if scheme == "" {
 		scheme = "http"
@@ -109,6 +116,20 @@ func (e *MCPServerEntry) GetURL() string {
 	}
 
 	return fmt.Sprintf("%s://%s%s", scheme, host, path)
+}
+
+// UnresolvedHeaders names the headers whose value is empty, as when the
+// ${VAR} they expand from is unset. A server with any is skipped, so a
+// process without the credential starts without the server instead of failing.
+func (e *MCPServerEntry) UnresolvedHeaders() []string {
+	var names []string
+	for name, value := range e.Headers {
+		if strings.TrimSpace(value) == "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // GetPrimaryPort returns the primary (first) host port

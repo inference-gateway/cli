@@ -52,14 +52,16 @@ var clientInfo = map[string]string{"name": "inference-gateway-cli", "version": "
 
 // Client speaks MCP 2026-07-28 to one server.
 type Client struct {
-	url  string
-	http *http.Client
+	url     string
+	headers map[string]string
+	http    *http.Client
 }
 
-// NewClient returns a client for the server at url. Callers bound each call
-// with the context's deadline.
-func NewClient(url string) *Client {
-	return &Client{url: url, http: &http.Client{}}
+// NewClient returns a client for the server at url that sends headers, such
+// as an API key, on every request. Callers bound each call with the context's
+// deadline.
+func NewClient(url string, headers map[string]string) *Client {
+	return &Client{url: url, headers: headers, http: &http.Client{}}
 }
 
 // Discover asks the server which protocol versions it speaks. Anything but a
@@ -195,6 +197,9 @@ func (c *Client) rpc(ctx context.Context, method, name string, params map[string
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("building %s request: %w", method, err)
+	}
+	for name, value := range c.headers {
+		req.Header.Set(name, value)
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("Accept", contentTypeJSON+", "+contentTypeSSE)
