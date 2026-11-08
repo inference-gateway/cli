@@ -18,6 +18,7 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
 	k8sdynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
 
@@ -383,12 +384,24 @@ servers:
       x-api-key: plain-secret-value
 `
 
-func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
-	t.Setenv("MAILBOX_API_KEY", "expanded-on-this-machine")
-	mcpPath := filepath.Join(t.TempDir(), "mcp.yaml")
-	if err := os.WriteFile(mcpPath, []byte(testMCPYAML), 0o600); err != nil {
+// userMCPConfig makes testMCPYAML this user's ~/.infer/mcp.yaml and returns its path.
+func userMCPConfig(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, config.ConfigDirName, config.MCPFileName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(path, []byte(testMCPYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
+	t.Setenv("MAILBOX_API_KEY", "expanded-on-this-machine")
+	mcpPath := userMCPConfig(t)
 	tests := []struct {
 		name    string
 		servers []string
@@ -399,7 +412,7 @@ func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
 		{
 			name:    "every named server with its URL and its header references",
 			servers: []string{"mailbox", "split"},
-			want: map[string]any{"enabled": true, "hostedServers": []any{
+			want: map[string]any{"enabled": true, "servers": []any{
 				map[string]any{"name": "mailbox", "url": "https://mcp.example.com/mcp", "headers": map[string]any{
 					"x-api-key":     "${MAILBOX_API_KEY}",
 					"Authorization": "Bearer ${MAILBOX_TOKEN}",
@@ -414,7 +427,6 @@ func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e, dynamic := testWorkspace(t, true)
-			e.mcpPath = mcpPath
 			e.entry.MCPServers = tt.servers
 
 			_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
@@ -450,19 +462,16 @@ func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
 	}
 }
 
-func TestCreateNamesTheOperatorVersionHostedMCPServersNeed(t *testing.T) {
-	mcpPath := filepath.Join(t.TempDir(), "mcp.yaml")
-	if err := os.WriteFile(mcpPath, []byte(testMCPYAML), 0o600); err != nil {
-		t.Fatal(err)
-	}
+func TestCreateNamesTheOperatorVersionMCPServersNeed(t *testing.T) {
+	userMCPConfig(t)
 	e, dynamic := testWorkspace(t, true)
-	e.mcpPath = mcpPath
 	e.entry.MCPServers = []string{"mailbox"}
 	dynamic.PrependReactor("create", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
-		return true, nil, k8serrors.NewBadRequest(`strict decoding error: unknown field "spec.mcp.hostedServers"`)
+		invalid := k8sfield.Invalid(k8sfield.NewPath("spec", "mcp", "servers").Index(0), "object", "must be of type string")
+		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
 	})
 	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
-	if err == nil || !strings.Contains(err.Error(), "may predate "+hostedMCPOperatorVersion+", upgrade it") {
+	if err == nil || !strings.Contains(err.Error(), "may predate "+newFieldsOperatorVersion+", upgrade it") {
 		t.Fatalf("create on an older operator = %v", err)
 	}
 }

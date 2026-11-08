@@ -163,8 +163,8 @@ The `k8s-mcp` workspace gives its pods the `demo-server` of the laptop's `mcp.ya
 The server's header is written as `x-api-key: ${DEMO_MCP_KEY}`, and the laptop forwards it as written into
 the session's Orchestrator. The pod expands the reference from `DEMO_MCP_KEY`, which the workspace's
 `secrets` give it from the `demo-mcp-credentials` Secret, so the key never passes through the laptop. The
-laptop's own chats leave the server off (`enabled: false`), since only the cluster reaches it. This needs an
-operator that renders `spec.mcp.hostedServers`, v0.33.0 or newer.
+laptop's own chats leave the server off (`enabled: false`), since only the cluster reaches it. This needs
+operator v0.33.0 or newer.
 
 ```bash
 # 1. Install an operator that renders hosted MCP servers
