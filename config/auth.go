@@ -47,6 +47,31 @@ func LoadAuthKeys() (map[string]string, error) {
 	return keys, nil
 }
 
+// SetAuthKey saves one key in the userspace auth file, keeping every other
+// entry, and leaves the file readable by its owner only. A malformed file is
+// refused rather than overwritten.
+func SetAuthKey(name, value string) error {
+	path := AuthFilePath()
+	keys := map[string]string{}
+	if data, err := os.ReadFile(path); err == nil && len(bytes.TrimSpace(data)) > 0 {
+		if err := yaml.Unmarshal(data, &keys); err != nil {
+			return fmt.Errorf("refusing to rewrite malformed %s: %w", path, err)
+		}
+	}
+	keys[name] = value
+	data, err := yaml.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
 // Credentials resolves names the way the local gateway does: the environment
 // first, then the userspace auth file. Unset names are left out, and the error
 // is the auth file's warning, so callers log it and go on.

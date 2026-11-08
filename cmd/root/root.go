@@ -15,6 +15,7 @@ import (
 	avatarscmd "github.com/inference-gateway/cli/cmd/avatars"
 	binaries "github.com/inference-gateway/cli/cmd/binaries"
 	chat "github.com/inference-gateway/cli/cmd/chat"
+	computecmd "github.com/inference-gateway/cli/cmd/compute"
 	configcmd "github.com/inference-gateway/cli/cmd/config"
 	conversations "github.com/inference-gateway/cli/cmd/conversations"
 	conversationtitle "github.com/inference-gateway/cli/cmd/conversationtitle"
@@ -22,7 +23,6 @@ import (
 	debug "github.com/inference-gateway/cli/cmd/debug"
 	envcmd "github.com/inference-gateway/cli/cmd/env"
 	export "github.com/inference-gateway/cli/cmd/export"
-	gpu "github.com/inference-gateway/cli/cmd/gpu"
 	headless "github.com/inference-gateway/cli/cmd/headless"
 	initcmd "github.com/inference-gateway/cli/cmd/init"
 	insightscmd "github.com/inference-gateway/cli/cmd/insights"
@@ -99,7 +99,8 @@ deployment, monitoring, and management of inference services.`,
 		debug.NewCommand(state),
 		envcmd.NewCommand(),
 		export.NewCommand(state),
-		gpu.NewCommand(state),
+		computecmd.NewCommand(state),
+		computecmd.NewGPUAlias(state),
 		headless.NewCommand(state),
 		initcmd.NewCommand(state),
 		insightscmd.NewCommand(state),
