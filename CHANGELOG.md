@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.248.0](https://github.com/inference-gateway/cli/compare/v0.247.1...v0.248.0) (2026-11-08)
+
+### 🚀 Features
+
+* **workspaces:** give a kubernetes workspace its own Secrets ([#1758](https://github.com/inference-gateway/cli/issues/1758)) ([ac1082b](https://github.com/inference-gateway/cli/commit/ac1082bbd5e951360459ebe526acd77aff3efcb2)), closes [#1756](https://github.com/inference-gateway/cli/issues/1756)
+* **mcp:** reach hosted servers through a url and headers in mcp.yaml ([#1757](https://github.com/inference-gateway/cli/issues/1757)) ([d69b73e](https://github.com/inference-gateway/cli/commit/d69b73eeedd2dd7f57b880dccafd401b814395a0)), closes [#1755](https://github.com/inference-gateway/cli/issues/1755), references [#1754](https://github.com/inference-gateway/cli/issues/1754)
+
 ## [0.247.1](https://github.com/inference-gateway/cli/compare/v0.247.0...v0.247.1) (2026-11-08)
 
 ### 🐛 Bug Fixes
