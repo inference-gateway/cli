@@ -6,7 +6,7 @@ RTX A6000 48GB at roughly $0.33/hr and an RTX PRO 6000 Blackwell 96GB at
 roughly $1.69/hr, so occasional heavy sessions cost pocket change compared to
 owning the card.
 
-`infer gpu provision` creates the pod running the official
+`infer compute gpus provision` creates the pod running the official
 `ghcr.io/ggml-org/llama.cpp:server-cuda` image, which downloads the GGUF you
 picked from Hugging Face by itself on boot. To the gateway the pod is just an
 ordinary llamacpp provider: the handoff is the standard `LLAMACPP_API_URL` +
@@ -28,14 +28,14 @@ cp .env.example .env   # paste your RunPod API key
 ## Provision
 
 ```bash
-docker compose run --rm cli gpu provision
+docker compose run --rm cli compute gpus provision
 ```
 
-(Host-installed `infer` instead? `infer gpu provision` - the form asks for the
-API key on first run and stores it as `provisioner.runpod.api_key` in
-`~/.infer/config.yaml`; with `INFER_PROVISIONER_RUNPOD_API_KEY` set, as the
-compose service does, the key question is skipped and the form only asks what
-to provision.)
+(Host-installed `infer` instead? `infer compute gpus provision` - the form asks
+for the API key on first run and saves it as `RUNPOD_API_KEY` in
+`~/.infer/auth.yaml`. With `RUNPOD_API_KEY` in the environment the key question
+is skipped. The compose service's `.env` still sets the older
+`INFER_PROVISIONER_RUNPOD_API_KEY`, which works with a deprecation warning.)
 
 An interactive form asks what to provision: GPU type (live $/hr pricing,
 cheapest first), model as `<hf-repo>:<quant>` (default
@@ -43,7 +43,7 @@ cheapest first), model as `<hf-repo>:<quant>` (default
 price before anything is created. Non-interactive:
 
 ```bash
-docker compose run --rm cli gpu provision --gpu-type "NVIDIA GeForce RTX 5090" \
+docker compose run --rm cli compute gpus provision --gpu-type "NVIDIA GeForce RTX 5090" \
   --model "ggml-org/gemma-4-E4B-it-GGUF:Q4_0" --yes
 ```
 
@@ -55,7 +55,7 @@ Ready. Point the gateway at it:
   LLAMACPP_API_URL=https://<pod-id>-8080.proxy.runpod.net/v1
   LLAMACPP_API_KEY=<per-session token>
 
-When done: infer gpu destroy <pod-id>
+When done: infer compute gpus destroy <pod-id>
 ```
 
 (Provisioned from the container? The key is saved nowhere - it came from
@@ -90,15 +90,15 @@ infer chat
 ## Cost control
 
 ```bash
-docker compose run --rm cli gpu list           # every infer-provisioned pod, any session
-docker compose run --rm cli gpu status <id>    # state, uptime, $/hr, estimated total
-docker compose run --rm cli gpu destroy <id>   # billing stops
+docker compose run --rm cli compute gpus list           # every infer-provisioned pod, any session
+docker compose run --rm cli compute gpus status <id>    # state, uptime, $/hr, estimated total
+docker compose run --rm cli compute gpus destroy <id>   # billing stops
 ```
 
 `list` queries RunPod for pods created by infer (name-prefixed), so a pod
 forgotten by a previous session is always visible. Set
-`provisioner.max_hourly` in config as a hard price guard - provisioning
-refuses anything above it.
+`gpus.max_hourly` in `~/.infer/compute.yaml` as a hard price guard -
+provisioning refuses anything above it.
 
 Destroying the pod wipes its container disk, including the downloaded GGUF;
 the next session re-downloads it on boot. That cold start (a few minutes for

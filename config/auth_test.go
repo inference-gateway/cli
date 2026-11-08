@@ -118,3 +118,21 @@ func TestCredentialsPreferTheEnvironmentOverTheAuthFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{"OLLAMA_CLOUD_API_KEY": "from-auth", "OPENAI_API_KEY": "openai-from-env"}, got)
 }
+
+func TestSetAuthKeyKeepsTheOtherKeysAndTightensTheFile(t *testing.T) {
+	path := writeAuthFile(t, "OPENAI_API_KEY: sk-provider\nRUNPOD_API_KEY: old\n", 0o644)
+
+	require.NoError(t, SetAuthKey("RUNPOD_API_KEY", "rp-new"))
+
+	keys, err := LoadAuthKeys()
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"OPENAI_API_KEY": "sk-provider", "RUNPOD_API_KEY": "rp-new"}, keys)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+func TestSetAuthKeyRefusesAMalformedFile(t *testing.T) {
+	writeAuthFile(t, "not: [valid", 0o600)
+	require.ErrorContains(t, SetAuthKey("RUNPOD_API_KEY", "rp"), "refusing to rewrite malformed")
+}

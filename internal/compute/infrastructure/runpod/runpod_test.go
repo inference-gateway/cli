@@ -1,4 +1,4 @@
-package provisioner
+package runpod
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	computedomain "github.com/inference-gateway/cli/internal/compute/domain"
 )
 
 func testDriver(t *testing.T, handler http.Handler) *RunPod {
@@ -20,7 +22,7 @@ func testDriver(t *testing.T, handler http.Handler) *RunPod {
 	return r
 }
 
-func TestRunPodCRUD(t *testing.T) {
+func TestRunPodCRUD(t *testing.T) { //nolint:cyclop
 	var gotAuth, gotMethod, gotPath string
 	var gotBody map[string]any
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -30,14 +32,14 @@ func TestRunPodCRUD(t *testing.T) {
 		case req.Method == http.MethodPost && req.URL.Path == "/pods":
 			_ = json.NewDecoder(req.Body).Decode(&gotBody)
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(Pod{ID: "abc123", Name: "infer-x", CostPerHr: 1.69})
+			_ = json.NewEncoder(w).Encode(pod{ID: "abc123", Name: "infer-x", CostPerHr: 1.69})
 		case req.Method == http.MethodGet && req.URL.Path == "/pods":
-			_ = json.NewEncoder(w).Encode([]Pod{
+			_ = json.NewEncoder(w).Encode([]pod{
 				{ID: "abc123", Name: "infer-x", DesiredStatus: "RUNNING"},
 				{ID: "other", Name: "someone-elses-pod"},
 			})
 		case req.Method == http.MethodGet && req.URL.Path == "/pods/abc123":
-			_ = json.NewEncoder(w).Encode(Pod{ID: "abc123", DesiredStatus: "RUNNING"})
+			_ = json.NewEncoder(w).Encode(pod{ID: "abc123", DesiredStatus: "RUNNING"})
 		case req.Method == http.MethodDelete && req.URL.Path == "/pods/abc123":
 			w.WriteHeader(http.StatusOK)
 		case req.URL.Path == "/graphql":
@@ -52,14 +54,14 @@ func TestRunPodCRUD(t *testing.T) {
 	r := testDriver(t, handler)
 	ctx := context.Background()
 
-	pod, err := r.Provision(ctx, ProvisionRequest{Name: "infer-x", GPUTypeID: "A6000", Image: "img", DiskGB: 50})
-	if err != nil || pod.ID != "abc123" {
-		t.Fatalf("Provision: pod=%+v err=%v", pod, err)
+	instance, err := r.Provision(ctx, computedomain.ProvisionRequest{Name: "infer-x", GPUTypeID: "A6000", Image: "img", DiskGB: 50, Cloud: computedomain.CloudCommunity})
+	if err != nil || instance.ID != "abc123" || instance.HourlyCost != 1.69 {
+		t.Fatalf("Provision: instance=%+v err=%v", instance, err)
 	}
 	if gotAuth != "Bearer test-key" {
 		t.Fatalf("auth header = %q", gotAuth)
 	}
-	if gotBody["imageName"] != "img" || gotBody["containerDiskInGb"] != float64(50) {
+	if gotBody["imageName"] != "img" || gotBody["containerDiskInGb"] != float64(50) || gotBody["cloudType"] != "COMMUNITY" {
 		t.Fatalf("create body = %v", gotBody)
 	}
 
@@ -68,8 +70,8 @@ func TestRunPodCRUD(t *testing.T) {
 		t.Fatalf("List should filter to infer- prefixed pods, got %+v err=%v", pods, err)
 	}
 
-	if _, err := r.Status(ctx, "abc123"); err != nil {
-		t.Fatalf("Status: %v", err)
+	if status, err := r.Status(ctx, "abc123"); err != nil || !status.Running() {
+		t.Fatalf("Status: instance=%+v err=%v", status, err)
 	}
 
 	if err := r.Destroy(ctx, "abc123"); err != nil {
@@ -104,7 +106,7 @@ func TestWaitReadyReportsDownloadPhase(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch req.URL.Path {
 		case "/pods/abc123":
-			_ = json.NewEncoder(w).Encode(Pod{ID: "abc123", DesiredStatus: "RUNNING"})
+			_ = json.NewEncoder(w).Encode(pod{ID: "abc123", DesiredStatus: "RUNNING"})
 		case "/health":
 			probes++
 			if probes == 1 {
@@ -130,9 +132,8 @@ func TestWaitReadyReportsDownloadPhase(t *testing.T) {
 	}
 }
 
-func TestProxyURL(t *testing.T) {
-	p := Pod{ID: "abc123"}
-	if got := p.ProxyURL(8080); got != "https://abc123-8080.proxy.runpod.net" {
-		t.Fatalf("ProxyURL = %q", got)
+func TestURL(t *testing.T) {
+	if got := NewRunPod("k").URL("abc123", 8080); got != "https://abc123-8080.proxy.runpod.net" {
+		t.Fatalf("URL = %q", got)
 	}
 }

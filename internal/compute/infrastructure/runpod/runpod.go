@@ -1,22 +1,22 @@
-package provisioner
+package runpod
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"time"
+
+	computedomain "github.com/inference-gateway/cli/internal/compute/domain"
 )
 
-// PodNamePrefix tags every pod created by infer so List can find them.
-const PodNamePrefix = "infer-"
-
-// Pod is the subset of RunPod's Pod object the CLI cares about.
-type Pod struct {
+// pod is the part of RunPod's Pod object infer reads, as RunPod spells it.
+type pod struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
 	Image         string  `json:"image"`
@@ -25,13 +25,12 @@ type Pod struct {
 	LastStartedAt string  `json:"lastStartedAt"`
 }
 
-// ProxyURL is the pod's public HTTPS endpoint for the given internal port.
-func (p Pod) ProxyURL(port int) string {
-	return fmt.Sprintf("https://%s-%d.proxy.runpod.net", p.ID, port)
+func (p pod) instance() computedomain.GPUInstance {
+	return computedomain.GPUInstance{ID: p.ID, Name: p.Name, Image: p.Image, Status: p.DesiredStatus, HourlyCost: p.CostPerHr, StartedAt: p.LastStartedAt}
 }
 
-// GPUType is a rentable GPU with live pricing.
-type GPUType struct {
+// gpuType is a GPU type as RunPod's GraphQL API spells it.
+type gpuType struct {
 	ID             string  `json:"id"`
 	DisplayName    string  `json:"displayName"`
 	MemoryInGb     int     `json:"memoryInGb"`
@@ -39,24 +38,22 @@ type GPUType struct {
 	SecurePrice    float64 `json:"securePrice"`
 }
 
-// ProvisionRequest describes the pod to create.
-type ProvisionRequest struct {
-	Name      string
-	GPUTypeID string
-	Image     string
-	StartCmd  []string
-	CloudType string // COMMUNITY or SECURE
-	DiskGB    int
-	Env       map[string]string
-	Ports     []string
+func (t gpuType) asGPUType() computedomain.GPUType {
+	return computedomain.GPUType{ID: t.ID, DisplayName: t.DisplayName, MemoryGB: t.MemoryInGb, CommunityPrice: t.CommunityPrice, SecurePrice: t.SecurePrice}
 }
 
-// RunPod is the RunPod driver. Base URLs are fields so tests can point at httptest.
+// URL is the public HTTPS endpoint RunPod proxies to the instance's port.
+func (r *RunPod) URL(id string, port int) string {
+	return fmt.Sprintf("https://%s-%d.proxy.runpod.net", id, port)
+}
+
+// RunPod rents GPU instances from RunPod and translates its API into compute's
+// domain. Base URLs are fields so tests can point at httptest.
 type RunPod struct {
 	APIKey     string
 	RestURL    string // default https://rest.runpod.io/v1
 	GraphQLURL string // default https://api.runpod.io/graphql
-	ProxyBase  string // overrides Pod.ProxyURL in WaitReady; tests only
+	ProxyBase  string // overrides URL in WaitReady; tests only
 	Client     *http.Client
 
 	pollInterval time.Duration // WaitReady probe interval; 0 means 10s (short in tests)
@@ -101,103 +98,100 @@ func (r *RunPod) do(ctx context.Context, method, url string, body any, out any) 
 	return nil
 }
 
-// Provision creates a pod. CRUD: create.
-func (r *RunPod) Provision(ctx context.Context, req ProvisionRequest) (Pod, error) {
+// Provision rents a GPU instance. CRUD: create.
+func (r *RunPod) Provision(ctx context.Context, req computedomain.ProvisionRequest) (computedomain.GPUInstance, error) {
 	payload := map[string]any{
 		"name":              req.Name,
 		"imageName":         req.Image,
 		"dockerStartCmd":    req.StartCmd,
 		"ports":             req.Ports,
 		"gpuTypeIds":        []string{req.GPUTypeID},
-		"cloudType":         req.CloudType,
+		"cloudType":         string(req.Cloud),
 		"containerDiskInGb": req.DiskGB,
 	}
 	if len(req.Env) > 0 {
 		payload["env"] = req.Env
 	}
-	var pod Pod
-	err := r.do(ctx, http.MethodPost, r.RestURL+"/pods", payload, &pod)
-	return pod, err
+	var created pod
+	err := r.do(ctx, http.MethodPost, r.RestURL+"/pods", payload, &created)
+	return created.instance(), err
 }
 
-// List returns pods created by infer (name-prefix filtered). CRUD: read.
-func (r *RunPod) List(ctx context.Context) ([]Pod, error) {
-	var pods []Pod
+// List returns the instances infer rented, told by their name prefix. CRUD: read.
+func (r *RunPod) List(ctx context.Context) ([]computedomain.GPUInstance, error) {
+	var pods []pod
 	if err := r.do(ctx, http.MethodGet, r.RestURL+"/pods", nil, &pods); err != nil {
 		return nil, err
 	}
-	mine := pods[:0]
+	var mine []computedomain.GPUInstance
 	for _, p := range pods {
-		if strings.HasPrefix(p.Name, PodNamePrefix) {
-			mine = append(mine, p)
+		if strings.HasPrefix(p.Name, computedomain.InstanceNamePrefix) {
+			mine = append(mine, p.instance())
 		}
 	}
 	return mine, nil
 }
 
-// Status returns a single pod. CRUD: read.
-func (r *RunPod) Status(ctx context.Context, id string) (Pod, error) {
-	var pod Pod
-	err := r.do(ctx, http.MethodGet, r.RestURL+"/pods/"+id, nil, &pod)
-	return pod, err
+// Status returns a single instance. CRUD: read.
+func (r *RunPod) Status(ctx context.Context, id string) (computedomain.GPUInstance, error) {
+	var found pod
+	err := r.do(ctx, http.MethodGet, r.RestURL+"/pods/"+id, nil, &found)
+	return found.instance(), err
 }
 
-// Destroy terminates a pod; billing stops. CRUD: delete.
+// Destroy terminates an instance, and billing stops. CRUD: delete.
 func (r *RunPod) Destroy(ctx context.Context, id string) error {
 	return r.do(ctx, http.MethodDelete, r.RestURL+"/pods/"+id, nil, nil)
 }
 
 // GPUTypes returns rentable GPU types with live pricing, cheapest first.
 // This is the one non-REST call (RunPod exposes pricing only via GraphQL).
-func (r *RunPod) GPUTypes(ctx context.Context) ([]GPUType, error) {
+func (r *RunPod) GPUTypes(ctx context.Context) ([]computedomain.GPUType, error) {
 	query := map[string]string{
 		"query": `query { gpuTypes { id displayName memoryInGb communityPrice securePrice } }`,
 	}
 	var out struct {
 		Data struct {
-			GPUTypes []GPUType `json:"gpuTypes"`
+			GPUTypes []gpuType `json:"gpuTypes"`
 		} `json:"data"`
 	}
 	if err := r.do(ctx, http.MethodPost, r.GraphQLURL, query, &out); err != nil {
 		return nil, err
 	}
-	types := out.Data.GPUTypes[:0]
+	var types []computedomain.GPUType
 	for _, t := range out.Data.GPUTypes {
-		if t.CommunityPrice > 0 || t.SecurePrice > 0 {
-			types = append(types, t)
+		if gpu := t.asGPUType(); gpu.Rentable() {
+			types = append(types, gpu)
 		}
 	}
-	sort.Slice(types, func(i, j int) bool { return price(types[i]) < price(types[j]) })
+	slices.SortStableFunc(types, func(a, b computedomain.GPUType) int {
+		priceA, _ := a.HourlyPrice()
+		priceB, _ := b.HourlyPrice()
+		return cmp.Compare(priceA, priceB)
+	})
 	return types, nil
-}
-
-func price(t GPUType) float64 {
-	if t.CommunityPrice > 0 {
-		return t.CommunityPrice
-	}
-	return t.SecurePrice
 }
 
 // WaitReady polls the pod, then the llama.cpp /health endpoint through the
 // proxy until the model answers. /health is unauthenticated in llama.cpp, so
 // this needs no per-session token and works for `gpu status --wait` too.
-func (r *RunPod) WaitReady(ctx context.Context, id string, port int, report func(string)) (Pod, error) {
-	var pod Pod
+func (r *RunPod) WaitReady(ctx context.Context, id string, port int, report func(string)) (computedomain.GPUInstance, error) {
+	var instance computedomain.GPUInstance
 	for {
 		var err error
-		pod, err = r.Status(ctx, id)
+		instance, err = r.Status(ctx, id)
 		if err != nil {
-			return pod, err
+			return instance, err
 		}
-		if pod.DesiredStatus == "RUNNING" {
+		if instance.Running() {
 			break
 		}
-		report("waiting for pod to start (" + pod.DesiredStatus + ")...")
+		report("waiting for pod to start (" + instance.Status + ")...")
 		if err := sleep(ctx, 5*time.Second); err != nil {
-			return pod, err
+			return instance, err
 		}
 	}
-	base := pod.ProxyURL(port)
+	base := r.URL(instance.ID, port)
 	if r.ProxyBase != "" {
 		base = r.ProxyBase
 	}
@@ -212,7 +206,7 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, report func
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
-				return pod, nil
+				return instance, nil
 			}
 			if resp.StatusCode == http.StatusServiceUnavailable {
 				phase = "downloading/loading model..."
@@ -224,7 +218,7 @@ func (r *RunPod) WaitReady(ctx context.Context, id string, port int, report func
 			interval = 10 * time.Second
 		}
 		if err := sleep(ctx, interval); err != nil {
-			return pod, err
+			return instance, err
 		}
 	}
 }

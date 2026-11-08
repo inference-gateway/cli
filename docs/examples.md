@@ -24,7 +24,7 @@ Most examples ship a Docker Compose file:
 | [web-terminal](../examples/web-terminal/) | The chat TUI in browser tabs served by the daemon, on loopback and over TLS for the LAN |
 | [telegram-channel](../examples/telegram-channel/) | Driving the agent from a Telegram channel |
 | [working-offline](../examples/working-offline/) | Fully offline usage with local models via Ollama or llama.cpp |
-| [gpu-provisioning](../examples/gpu-provisioning/) | Renting an on-demand cloud GPU running llama.cpp via `infer gpu` (RunPod) |
+| [gpu-provisioning](../examples/gpu-provisioning/) | Renting an on-demand cloud GPU running llama.cpp via `infer compute gpus` (RunPod) |
 | [postgres-storage](../examples/postgres-storage/) | Persisting conversations to PostgreSQL |
 | [queue-backends](../examples/queue-backends/) | Every message queue backend (`memory`, `sqlite`, `postgres`, `redis`) plus external producers |
 | [a2a-traces](../examples/a2a-traces/) | End-to-end OpenTelemetry traces between the CLI and an A2A agent |

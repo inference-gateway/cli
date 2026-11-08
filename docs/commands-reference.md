@@ -1037,23 +1037,64 @@ infer shortcuts list --format json
 
 See [Shortcuts Guide](shortcuts-guide.md) for the built-ins and how to write your own.
 
-### `infer gpu`
+### `infer compute`
+
+Manage what infer runs on, kept in `~/.infer/compute.yaml` apart from any daemon. See
+[Compute](daemon.md#compute) for the clusters and machines workspaces run on. `add` and `remove` edit
+`compute.yaml` as written, so a `${VAR}` reference is saved back as a reference, and `remove` refuses compute
+a workspace in `daemon.yaml` still runs on.
+
+#### `infer compute clusters`
+
+- `add <name> --namespace <ns>`: Register a Kubernetes cluster. `--context` and `--kubeconfig` pick it,
+  the current context of the default kubeconfig without them. `--mode` is `standard` or `all-in-one`, and
+  `--gateway-env` names the variables its gateway gets.
+- `list`: List the clusters.
+- `status [name]`: Check every cluster at once: whether it is reachable and runs the operator, its Kubernetes
+  version, and how many sessions the workspaces on it run.
+- `remove <name>`: Remove a cluster no workspace runs on.
+
+#### `infer compute machines`
+
+- `add <name> --address <host:port>`: Register a standalone `infer daemon`. `--token` is its binding token,
+  best written as a `${VAR}` reference, and `--ca-file`, `--cert-file` and `--key-file` set its TLS.
+- `list`: List the machines. A token is never printed.
+- `status [name]`: Probe every machine at once, the way the daemon probes a daemon-kind workspace.
+- `remove <name>`: Remove a machine no workspace runs on.
+
+```bash
+infer compute clusters add k3d-agents --context k3d-agents --namespace agents --gateway-env ANTHROPIC_API_KEY
+infer compute machines add workstation --address workstation.lan:52789 --token '${WORKSTATION_TOKEN}'
+infer compute clusters status
+```
+
+#### `infer compute gpus`
 
 Provision, inspect and destroy on-demand GPU instances running a llama.cpp server, so you pay only for the
 hours used. The instance is exposed through the standard llamacpp provider environment variables
 (`LLAMACPP_API_URL` / `LLAMACPP_API_KEY`), which makes connecting to it indistinguishable from any other
-llamacpp backend.
+llamacpp backend. `infer gpu` still works as a deprecated alias.
 
-The RunPod API key is management-plane only, used for the create, list and destroy calls. It is asked for on
-first provision and stored as `provisioner.runpod.api_key` in `config.yaml`, or supplied through
-`INFER_PROVISIONER_RUNPOD_API_KEY`.
+The RunPod API key is management-plane only, used for the create, list and destroy calls. It is read from
+`RUNPOD_API_KEY` in the environment or `~/.infer/auth.yaml`, and asked for and saved to `auth.yaml` on first
+use. The older `provisioner.runpod.api_key` in `config.yaml`, or `INFER_PROVISIONER_RUNPOD_API_KEY`, still
+works with a deprecation warning. Defaults and the hourly price cap live under `gpus` in `compute.yaml`:
+
+```yaml
+# ~/.infer/compute.yaml
+gpus:
+  provider: runpod
+  gpu_type: NVIDIA GeForce RTX 5090
+  model: ggml-org/gemma-4-E4B-it-GGUF:Q4_0
+  max_hourly: 1.50
+```
 
 **Subcommands:**
 
-- `provision`: Provision a GPU pod running llama.cpp (interactive)
+- `provision`: Provision a GPU instance running llama.cpp (interactive)
 - `list`: List the instances provisioned by infer
-- `status <pod-id>`: Show state, uptime and cost of a pod
-- `destroy <pod-id>`: Destroy a pod, which stops billing
+- `status <instance-id>`: Show state, uptime and cost of an instance
+- `destroy <instance-id>`: Destroy an instance, which stops billing
 
 **`provision` flags:**
 
@@ -1072,10 +1113,10 @@ first provision and stored as `provisioner.runpod.api_key` in `config.yaml`, or 
 **Examples:**
 
 ```bash
-infer gpu provision --model "bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M" -y
-infer gpu status <pod-id> --wait
-infer gpu list
-infer gpu destroy <pod-id> -y
+infer compute gpus provision --model "bartowski/Qwen2.5-7B-Instruct-GGUF:Q4_K_M" -y
+infer compute gpus status <instance-id> --wait
+infer compute gpus list
+infer compute gpus destroy <instance-id> -y
 ```
 
 ## Global Flags

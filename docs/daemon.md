@@ -327,6 +327,8 @@ workspaces:
   because clusters and machines belong to the user, not to a project.
 - A workspace that carries its own connection keeps working as before, with a Gateway of its own.
   `infer daemon workspaces` shows the compute each workspace runs on.
+- `infer compute clusters` and `infer compute machines` add, list, check and remove them. See the
+  [commands reference](commands-reference.md#infer-compute).
 
 ### Daemons on other machines
 

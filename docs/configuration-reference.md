@@ -1123,8 +1123,9 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
 - **`mcp.yaml`** - `enabled`, `connection_timeout`, `discovery_timeout`, `liveness_probe_enabled`,
   `liveness_probe_interval`, `max_retries`, `servers`. See [MCP Integration](mcp-integration.md).
 - **`compute.yaml`** - read from home only: `clusters` (`name`, `kubeconfig`, `context`, `namespace`, `mode`,
-  `gateway_env`) and `machines` (`name`, `address`, `token`, `tls`) that workspaces run on. See
-  [Compute](daemon.md#compute).
+  `gateway_env`) and `machines` (`name`, `address`, `token`, `tls`) that workspaces run on, and `gpus`
+  (`provider`, `gpu_type`, `cloud_type`, `model`, `image`, `disk_gb`, `max_hourly`) for `infer compute gpus`.
+  See [Compute](daemon.md#compute).
 - **`daemon.yaml`** - `workspace` (this daemon's name in session leases, default the hostname), `projects_root`,
   `idle_exit`, `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
