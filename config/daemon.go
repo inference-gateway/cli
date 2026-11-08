@@ -126,8 +126,11 @@ type PeerTLSConfig struct {
 // uses Address, Token and TLS, the kubernetes kind the cluster fields, and
 // Address overrides the port-forward when an Ingress exposes the pods.
 type WorkspaceEntry struct {
-	Name     string            `yaml:"name" mapstructure:"name"`
-	Kind     WorkspaceKind     `yaml:"kind" mapstructure:"kind"`
+	Name string `yaml:"name" mapstructure:"name"`
+	// Compute names the cluster or machine in compute.yaml the workspace runs
+	// on, which then decides its kind and connection.
+	Compute  string            `yaml:"compute,omitempty" mapstructure:"compute"`
+	Kind     WorkspaceKind     `yaml:"kind,omitempty" mapstructure:"kind"`
 	Protocol WorkspaceProtocol `yaml:"protocol,omitempty" mapstructure:"protocol"`
 	Address  string            `yaml:"address,omitempty" mapstructure:"address"`
 	Token    string            `yaml:"token,omitempty" mapstructure:"token"`
@@ -366,10 +369,8 @@ func (e WorkspaceEntry) validate(identity string) error {
 	default:
 		return fmt.Errorf("invalid protocol %q for workspace %q: must be %q or %q", e.Protocol, e.Name, WorkspaceProtocolAGUI, WorkspaceProtocolA2A)
 	}
-	switch e.Mode {
-	case "", WorkspaceModeStandard, WorkspaceModeAllInOne:
-	default:
-		return fmt.Errorf("invalid mode %q for workspace %q: must be %q or %q", e.Mode, e.Name, WorkspaceModeStandard, WorkspaceModeAllInOne)
+	if err := e.Mode.validate(); err != nil {
+		return fmt.Errorf("workspace %q: %w", e.Name, err)
 	}
 	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || !e.BindingService.IsZero()) {
 		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets or binding_service, which only a kubernetes workspace uses", e.Name)
@@ -395,6 +396,14 @@ func (e WorkspaceEntry) validate(identity string) error {
 			e.Kind, e.Name, WorkspaceKindLocal, WorkspaceKindDaemon, WorkspaceKindKubernetes)
 	}
 	return nil
+}
+
+func (m WorkspaceMode) validate() error {
+	switch m {
+	case "", WorkspaceModeStandard, WorkspaceModeAllInOne:
+		return nil
+	}
+	return fmt.Errorf("invalid mode %q: must be %q or %q", m, WorkspaceModeStandard, WorkspaceModeAllInOne)
 }
 
 func (m TLSMode) off() bool {

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -153,7 +154,7 @@ func printWorkspaces(out io.Writer, frame map[string]any) error {
 		return err
 	}
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	say(w, "NAME\tKIND\tPROTOCOL\tREACHABLE\tDETAILS\n")
+	say(w, "NAME\tCOMPUTE\tKIND\tPROTOCOL\tREACHABLE\tDETAILS\n")
 	for _, workspace := range workspaces {
 		details := workspace.Error
 		if workspace.Reachable {
@@ -163,7 +164,7 @@ func printWorkspaces(out io.Writer, frame map[string]any) error {
 			}
 			details = strings.Join(parts, " ")
 		}
-		say(w, "%s\t%s\t%s\t%t\t%s\n", workspace.Name, workspace.Kind, workspace.Protocol, workspace.Reachable, details)
+		say(w, "%s\t%s\t%s\t%s\t%t\t%s\n", workspace.Name, cmp.Or(workspace.Compute, "-"), workspace.Kind, workspace.Protocol, workspace.Reachable, details)
 	}
 	return w.Flush()
 }

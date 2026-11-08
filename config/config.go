@@ -68,6 +68,7 @@ type Config struct {
 	Channels         ChannelsConfig         `yaml:"-" mapstructure:"channels"`
 	Heartbeat        HeartbeatConfig        `yaml:"-" mapstructure:"heartbeat"`
 	Daemon           DaemonConfig           `yaml:"-" mapstructure:"daemon"`
+	Compute          ComputeConfig          `yaml:"-" mapstructure:"compute"`
 	Prompts          PromptsConfig          `yaml:"-" mapstructure:"prompts"`
 	Reminders        RemindersConfig        `yaml:"-" mapstructure:"reminders"`
 	Memory           MemoryConfig           `yaml:"-" mapstructure:"memory"`
@@ -1466,6 +1467,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 
 	if err := c.Tools.Sandbox.Validate(); err != nil {
 		return fmt.Errorf("invalid sandbox policy: %w", err)
+	}
+
+	if err := c.Compute.Validate(); err != nil {
+		return fmt.Errorf("invalid compute config: %w", err)
 	}
 
 	if err := c.Daemon.Validate(); err != nil {

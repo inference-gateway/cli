@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -224,4 +225,47 @@ func gatewayDeployment(available int64) *k8sunstructured.Unstructured {
 		"metadata":   map[string]any{"name": gatewayName("k8s"), "namespace": "ns"},
 		"status":     map[string]any{"availableReplicas": available},
 	}}
+}
+
+// Workspaces on one cluster share its Gateway and credentials Secret, marked
+// with the cluster, while a workspace with its own connection keeps the
+// Gateway it always had.
+func TestWorkspacesOnOneClusterShareItsGateway(t *testing.T) {
+	isolateAuthFile(t)
+	t.Setenv("OLLAMA_CLOUD_API_KEY", "ollama-secret")
+	reviewer, dynamic := testWorkspace(t, true)
+	reviewer.entry = config.WorkspaceEntry{Name: "reviewer", Compute: "k3d", Namespace: "ns", GatewayEnv: []string{"OLLAMA_CLOUD_API_KEY"}}
+	releaser := &Workspace{entry: config.WorkspaceEntry{Name: "releaser", Compute: "k3d", Namespace: "ns", GatewayEnv: []string{"OLLAMA_CLOUD_API_KEY"}}, dynamic: dynamic}
+
+	for i, e := range []*Workspace{reviewer, releaser} {
+		if err := e.ensureGateway(t.Context(), testOrchestrator(fmt.Sprintf("infer-%d", i), map[string]any{}, nil)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if reviewer.gateway() != releaser.gateway() {
+		t.Fatalf("workspaces on one cluster call %s and %s", reviewer.gateway(), releaser.gateway())
+	}
+	gateways, err := dynamic.Resource(gatewayGVR).Namespace("ns").List(t.Context(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gateways.Items) != 1 {
+		t.Fatalf("deployed %d Gateways, want one for the cluster", len(gateways.Items))
+	}
+	gateway := gateways.Items[0]
+	if len(gateway.GetOwnerReferences()) != 2 {
+		t.Fatalf("Gateway owners = %v, want both sessions", gateway.GetOwnerReferences())
+	}
+	if labels := gateway.GetLabels(); labels[labelCompute] != "k3d" || labels[labelWorkspace] != "" {
+		t.Fatalf("Gateway labels = %v, want the cluster and no workspace", labels)
+	}
+	if labels := storedSecret(t, reviewer, reviewer.gateway()+credentialsSuffix).GetLabels(); labels[labelCompute] != "k3d" {
+		t.Fatalf("credentials Secret labels = %v, want the cluster", labels)
+	}
+
+	legacy := &Workspace{entry: config.WorkspaceEntry{Name: "k3d", Namespace: "ns"}}
+	if legacy.gateway() != gatewayName("k3d") || legacy.gateway() == reviewer.gateway() {
+		t.Fatalf("a workspace named k3d with its own connection calls %s, want its own %s", legacy.gateway(), gatewayName("k3d"))
+	}
 }

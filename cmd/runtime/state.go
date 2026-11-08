@@ -97,6 +97,12 @@ func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 		return nil, nil, fmt.Errorf("loading config: %w", err)
 	}
 	postProcess(cfg, v, root)
+	if err := cfg.Compute.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("loading config: invalid compute config: %w", err)
+	}
+	if err := cfg.Daemon.ResolveCompute(cfg.Compute); err != nil {
+		return nil, nil, fmt.Errorf("loading config: invalid daemon config: %w", err)
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, nil, fmt.Errorf("loading config: %w", err)
 	}

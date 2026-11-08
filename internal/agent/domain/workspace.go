@@ -64,9 +64,11 @@ func (e Endpoint) Release() {
 	}
 }
 
-// WorkspaceStatus is what list_workspaces reports per workspace.
+// WorkspaceStatus is what list_workspaces reports per workspace. Compute names
+// the cluster or machine it runs on, empty when the entry carries its own.
 type WorkspaceStatus struct {
 	Name         string            `json:"name"`
+	Compute      string            `json:"compute,omitempty"`
 	Kind         WorkspaceKind     `json:"kind"`
 	Protocol     WorkspaceProtocol `json:"protocol"`
 	Reachable    bool              `json:"reachable"`
