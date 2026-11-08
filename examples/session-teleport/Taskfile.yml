@@ -55,6 +55,22 @@ tasks:
       - kubectl --context k3d-{{.CLUSTER}} apply -f k8s/rustfs.yaml
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} rollout status deployment/rustfs --timeout=180s
 
+  mcp:install:
+    desc: Build the demo MCP server from examples/mcp, import it and deploy it with the Secret holding its key
+    cmds:
+      - docker build -t demo-mcp-server:local ../mcp/mcp-server
+      - k3d image import demo-mcp-server:local -c {{.CLUSTER}}
+      - kubectl --context k3d-{{.CLUSTER}} apply -f k8s/demo-mcp.yaml
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} rollout status deployment/demo-mcp --timeout=180s
+
+  mcp:status:
+    desc: Show the MCP servers the newest k8s-mcp pod connected
+    vars:
+      POD:
+        sh: kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get orchestrators -l inference-gateway.com/workspace=k8s-mcp --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1:].status.podName}'
+    cmds:
+      - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} exec {{.POD}} -- infer mcp status
+
   artifacts:list:
     desc: List the artifacts in RustFS, one prefix per session
     cmds:
@@ -73,10 +89,11 @@ tasks:
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} port-forward svc/rustfs 9001:9001
 
   home:
-    desc: Seed the demo HOME with daemon.yaml and a small git project to teleport
+    desc: Seed the demo HOME with daemon.yaml, mcp.yaml and a small git project to teleport
     cmds:
       - mkdir -p {{.HOME_DIR}}/.infer {{.HOME_DIR}}/project
       - cp daemon.yaml {{.HOME_DIR}}/.infer/daemon.yaml
+      - cp mcp.yaml {{.HOME_DIR}}/.infer/mcp.yaml
       - |
         cd {{.HOME_DIR}}/project
         if [ ! -d .git ]; then

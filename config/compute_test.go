@@ -56,10 +56,11 @@ func TestResolveCompute(t *testing.T) {
 	}{
 		{
 			name:      "a workspace on a cluster takes its kind, connection and gateway",
-			workspace: WorkspaceEntry{Name: "reviewer", Compute: "k3d", Image: "infer:1", Secrets: []string{"reviewer-mail"}},
+			workspace: WorkspaceEntry{Name: "reviewer", Compute: "k3d", Image: "infer:1", Secrets: []string{"reviewer-mail"}, MCPServers: []string{"mailbox"}},
 			want: WorkspaceEntry{
 				Name: "reviewer", Compute: "k3d", Kind: WorkspaceKindKubernetes, Context: "k3d-agents", Namespace: "agents",
 				Mode: WorkspaceModeStandard, GatewayEnv: []string{"ANTHROPIC_API_KEY"}, Image: "infer:1", Secrets: []string{"reviewer-mail"},
+				MCPServers: []string{"mailbox"},
 			},
 		},
 		{

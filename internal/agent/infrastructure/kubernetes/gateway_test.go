@@ -51,7 +51,7 @@ func TestOrchestratorPointsTheWorkersAtTheGateway(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e, _ := testWorkspace(t, true)
 			e.entry.Mode, e.entry.GatewayEnv = tt.mode, tt.gatewayEnv
-			orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil)
+			orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

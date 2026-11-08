@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-mcp-credentials
+  namespace: infer-workspaces
+stringData:
+  DEMO_MCP_KEY: demo-key-for-the-pod
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-mcp
+  namespace: infer-workspaces
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-mcp
+  template:
+    metadata:
+      labels:
+        app: demo-mcp
+    spec:
+      containers:
+        - name: demo-mcp
+          image: demo-mcp-server:local
+          imagePullPolicy: Never
+          ports:
+            - name: mcp
+              containerPort: 3000
+          readinessProbe:
+            tcpSocket:
+              port: mcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-mcp
+  namespace: infer-workspaces
+spec:
+  selector:
+    app: demo-mcp
+  ports:
+    - name: mcp
+      port: 3000
+      targetPort: mcp

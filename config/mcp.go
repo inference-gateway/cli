@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -177,6 +179,12 @@ const (
 	MCPFileName    = "mcp.yaml"
 	DefaultMCPPath = ConfigDirName + "/" + MCPFileName
 )
+
+// UserMCPPath is ~/.infer/mcp.yaml, the servers of this machine's user.
+func UserMCPPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ConfigDirName, MCPFileName)
+}
 
 // LoadMCP reads mcp.yaml to run with, its ${VAR} references expanded, or the
 // defaults when the file is missing. Its entries cannot be saved, since that

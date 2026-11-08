@@ -209,6 +209,39 @@ workspaces:
     --from-literal=AGENTMAIL_API_KEY=am_us_...
   ```
 
+- `mcp_servers` names hosted servers of this machine's `~/.infer/mcp.yaml` that the pod daemon gets. Each
+  one goes into the session's Orchestrator with its name, URL and headers, and the operator renders it
+  into the pod's [`mcp.yaml`](mcp-integration.md). The headers are forwarded as written, so a
+  `${AGENTMAIL_API_KEY}` stays a reference the pod expands from its `secrets`. A header that holds a value
+  rather than a `${VAR}` reference is refused, so no secret is written into the cluster. A container
+  server (`run: true`) or a name `mcp.yaml` lacks fails the teleport before anything is created. The
+  servers are read when a session's Orchestrator is created, so running sessions keep theirs. It needs an
+  operator that renders `spec.mcp.hostedServers` (v0.33.0 or newer) and an infer image of v0.248.0 or
+  newer, which reads `url` and `headers`:
+
+  ```yaml
+  # ~/.infer/mcp.yaml
+  servers:
+    - name: agentmail
+      enabled: true
+      url: https://mcp.agentmail.to/mcp
+      headers:
+        x-api-key: ${AGENTMAIL_API_KEY}
+  ```
+
+  ```yaml
+  # ~/.infer/daemon.yaml
+  workspaces:
+    - name: code-reviewer
+      kind: kubernetes
+      namespace: agents
+      image: ghcr.io/inference-gateway/cli:latest
+      secrets:
+        - code-reviewer-credentials
+      mcp_servers:
+        - agentmail
+  ```
+
 - `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
@@ -321,7 +354,7 @@ workspaces:
   labelled `inference-gateway.com/compute`, and the last session to go takes them along.
 - A machine holds `address`, `token` and `tls`, the connection of a `kind: daemon` workspace.
 - A workspace on compute keeps what describes the computer itself, such as `image`, `storage`, `idle_ttl`,
-  `env`, `forward_env`, `secrets` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
+  `env`, `forward_env`, `secrets`, `mcp_servers` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
   key its compute sets, fails at startup, and so does naming compute that `compute.yaml` does not define.
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
   because clusters and machines belong to the user, not to a project.
