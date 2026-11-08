@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 
 	yaml "gopkg.in/yaml.v3"
@@ -30,6 +31,10 @@ type ComputeConfig struct {
 	Machines []MachineEntry `yaml:"machines,omitempty" mapstructure:"machines"`
 	GPUs     GPUConfig      `yaml:"gpus,omitempty" mapstructure:"gpus"`
 }
+
+// clusterNameRegex keeps a cluster name a valid Kubernetes label value, since
+// it labels the Gateway and the sessions every workspace on it runs.
+var clusterNameRegex = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$`)
 
 // GPUConfig is how infer rents GPUs: the provider, what an instance serves by
 // default, and the most an hour of one may cost. Zero values keep the
@@ -124,6 +129,9 @@ func (c ComputeConfig) Validate() error {
 		if err := name("cluster", cluster.Name); err != nil {
 			return err
 		}
+		if !clusterNameRegex.MatchString(cluster.Name) {
+			return fmt.Errorf("cluster name %q must be a Kubernetes label value: up to 63 letters, digits, '-', '_' or '.', starting and ending with a letter or digit", cluster.Name)
+		}
 		if cluster.Namespace == "" {
 			return fmt.Errorf("cluster %q needs a namespace", cluster.Name)
 		}
@@ -143,6 +151,17 @@ func (c ComputeConfig) Validate() error {
 		return fmt.Errorf("invalid gpus.provider %q: must be %q", c.GPUs.Provider, GPUProviderRunPod)
 	}
 	return nil
+}
+
+// WorkspacesOn names the workspaces that run on compute, in file order.
+func (d DaemonConfig) WorkspacesOn(compute string) []string {
+	var names []string
+	for _, workspace := range d.Workspaces {
+		if workspace.Compute == compute {
+			names = append(names, workspace.Name)
+		}
+	}
+	return names
 }
 
 // ResolveCompute fills every workspace that names its compute with that
@@ -190,5 +209,60 @@ func (e *WorkspaceEntry) runOnMachine(machine MachineEntry) error {
 	}
 	e.Kind = WorkspaceKindDaemon
 	e.Address, e.Token, e.TLS = machine.Address, machine.Token, machine.TLS
+	return nil
+}
+
+func clusterName(c ClusterEntry) string { return c.Name }
+
+func machineName(m MachineEntry) string { return m.Name }
+
+// AddCluster registers a cluster, refusing one the file could not keep, such
+// as a name another cluster or a machine already has.
+func (c *ComputeConfig) AddCluster(entry ClusterEntry) error {
+	next, err := appendEntry(c.Clusters, entry, entry.Name, clusterName, "cluster")
+	if err != nil {
+		return err
+	}
+	return c.apply(func(candidate *ComputeConfig) { candidate.Clusters = next })
+}
+
+// RemoveCluster drops a registered cluster.
+func (c *ComputeConfig) RemoveCluster(name string) error {
+	next, err := removeEntry(c.Clusters, name, clusterName, "cluster")
+	if err != nil {
+		return err
+	}
+	c.Clusters = next
+	return nil
+}
+
+// AddMachine registers a machine, refusing one the file could not keep.
+func (c *ComputeConfig) AddMachine(entry MachineEntry) error {
+	next, err := appendEntry(c.Machines, entry, entry.Name, machineName, "machine")
+	if err != nil {
+		return err
+	}
+	return c.apply(func(candidate *ComputeConfig) { candidate.Machines = next })
+}
+
+// RemoveMachine drops a registered machine.
+func (c *ComputeConfig) RemoveMachine(name string) error {
+	next, err := removeEntry(c.Machines, name, machineName, "machine")
+	if err != nil {
+		return err
+	}
+	c.Machines = next
+	return nil
+}
+
+// apply validates the change on a copy and only then takes it, so a refused
+// change leaves the config as it was.
+func (c *ComputeConfig) apply(change func(*ComputeConfig)) error {
+	candidate := *c
+	change(&candidate)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*c = candidate
 	return nil
 }

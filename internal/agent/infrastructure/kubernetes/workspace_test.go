@@ -164,6 +164,25 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 	}
 }
 
+func TestOrchestratorOnAClusterCarriesItsComputeLabel(t *testing.T) {
+	e, _ := testWorkspace(t, true)
+	session := agentdomain.Session{ConversationID: "conv-1"}
+	orchestrator, err := e.orchestrator("infer-1", session, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, labelled := orchestrator.GetLabels()[labelCompute]; labelled {
+		t.Fatalf("a workspace with its own connection labels its Orchestrator %v", orchestrator.GetLabels())
+	}
+	e.entry.Compute = "k3d"
+	if orchestrator, err = e.orchestrator("infer-1", session, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := orchestrator.GetLabels(); got[labelCompute] != "k3d" || got[labelWorkspace] != "k8s" || got[labelConversation] != "conv-1" {
+		t.Fatalf("labels = %v, want the cluster beside the workspace and conversation", got)
+	}
+}
+
 func TestOrchestratorCarriesTheBindingServiceMetadata(t *testing.T) {
 	e, _ := testWorkspace(t, true)
 	e.entry.Image = "infer:local"

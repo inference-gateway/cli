@@ -98,13 +98,13 @@ func NewGPUAlias(state *runtime.State) *cobra.Command {
 
 // gpuDriver builds the RunPod driver from the key in the environment or
 // auth.yaml, else the legacy config.yaml key, else one it asks for and saves.
-func gpuDriver(state *runtime.State, warn io.Writer) (*runpod.RunPod, error) {
-	key, err := runPodAPIKey(state.Config(), warn)
+func gpuDriver(state *runtime.State, cmd *cobra.Command) (*runpod.RunPod, error) {
+	key, err := runPodAPIKey(state.Config(), cmd.ErrOrStderr())
 	if err != nil {
 		return nil, err
 	}
 	if key == "" {
-		if key, err = promptAndSaveAPIKey(); err != nil {
+		if key, err = promptAndSaveAPIKey(cmd.OutOrStdout()); err != nil {
 			return nil, err
 		}
 	}
@@ -128,7 +128,7 @@ func runPodAPIKey(cfg *config.Config, warn io.Writer) (string, error) {
 	return "", nil
 }
 
-func promptAndSaveAPIKey() (string, error) {
+func promptAndSaveAPIKey(out io.Writer) (string, error) {
 	var key string
 	if err := huh.NewInput().
 		Title("RunPod API key").
@@ -143,7 +143,7 @@ func promptAndSaveAPIKey() (string, error) {
 	if err := config.SetAuthKey(config.RunPodAPIKeyName, key); err != nil {
 		return "", fmt.Errorf("failed to save API key: %w", err)
 	}
-	fmt.Printf("API key saved to %s\n", config.AuthFilePath())
+	say(out, "API key saved to %s\n", config.AuthFilePath())
 	return key, nil
 }
 
@@ -158,8 +158,9 @@ func gpuSettings(cfg *config.Config, warn io.Writer) config.GPUConfig {
 }
 
 func gpuProvision(state *runtime.State, cmd *cobra.Command) error {
+	out := cmd.OutOrStdout()
 	settings := gpuSettings(state.Config(), cmd.ErrOrStderr())
-	drv, err := gpuDriver(state, cmd.ErrOrStderr())
+	drv, err := gpuDriver(state, cmd)
 	if err != nil {
 		return err
 	}
@@ -213,20 +214,20 @@ func gpuProvision(state *runtime.State, cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to provision instance: %w", err)
 	}
-	fmt.Printf("Instance %s created (~$%.2f/hr)\n", instance.ID, instance.HourlyCost)
-	fmt.Printf("Spec: %s (%s), %d GB disk, image %s, model %s\n", gpuType, cloud, diskGB, image, model)
-	fmt.Println("Waiting until the model answers...")
+	say(out, "Instance %s created (~$%.2f/hr)\n", instance.ID, instance.HourlyCost)
+	say(out, "Spec: %s (%s), %d GB disk, image %s, model %s\n", gpuType, cloud, diskGB, image, model)
+	say(out, "Waiting until the model answers...\n")
 
-	instance, err = drv.WaitReady(ctx, instance.ID, gpuLlamaPort, gpuHeartbeat)
-	fmt.Println()
+	instance, err = drv.WaitReady(ctx, instance.ID, gpuLlamaPort, heartbeat(out))
+	say(out, "\n")
 	if err != nil {
 		return fmt.Errorf("instance %s did not become ready (destroy it with `infer compute gpus destroy %s`): %w", instance.ID, instance.ID, err)
 	}
 
-	fmt.Println("\nReady. Point the gateway at it:")
-	fmt.Printf("  LLAMACPP_API_URL=%s/v1\n", drv.URL(instance.ID, gpuLlamaPort))
-	fmt.Printf("  LLAMACPP_API_KEY=%s\n", token)
-	fmt.Printf("\nWhen done: infer compute gpus destroy %s\n", instance.ID)
+	say(out, "\nReady. Point the gateway at it:\n")
+	say(out, "  LLAMACPP_API_URL=%s/v1\n", drv.URL(instance.ID, gpuLlamaPort))
+	say(out, "  LLAMACPP_API_KEY=%s\n", token)
+	say(out, "\nWhen done: infer compute gpus destroy %s\n", instance.ID)
 	return nil
 }
 
@@ -278,7 +279,8 @@ func gpuResolveChoices(ctx context.Context, drv *runpod.RunPod, configuredCloud,
 }
 
 func gpuList(state *runtime.State, cmd *cobra.Command) error {
-	drv, err := gpuDriver(state, cmd.ErrOrStderr())
+	out := cmd.OutOrStdout()
+	drv, err := gpuDriver(state, cmd)
 	if err != nil {
 		return err
 	}
@@ -287,21 +289,25 @@ func gpuList(state *runtime.State, cmd *cobra.Command) error {
 		return err
 	}
 	if len(instances) == 0 {
-		fmt.Println("No infer-provisioned instances.")
+		say(out, "No infer-provisioned instances.\n")
 		return nil
 	}
 	now := time.Now()
-	fmt.Printf("%-16s %-16s %-10s %-10s %s\n", "ID", "NAME", "STATUS", "$/HR", "UPTIME")
+	say(out, "%-16s %-16s %-10s %-10s %s\n", "ID", "NAME", "STATUS", "$/HR", "UPTIME")
 	for _, instance := range instances {
-		fmt.Printf("%-16s %-16s %-10s %-10.2f %s\n", instance.ID, instance.Name, instance.Status, instance.HourlyCost, uptime(instance, now))
+		say(out, "%-16s %-16s %-10s %-10.2f %s\n", instance.ID, instance.Name, instance.Status, instance.HourlyCost, uptime(instance, now))
 	}
 	return nil
 }
 
-func gpuHeartbeat(msg string) { fmt.Printf("\r\033[K• %s", msg) }
+// heartbeat rewrites one progress line on out while an instance comes up.
+func heartbeat(out io.Writer) func(string) {
+	return func(msg string) { say(out, "\r\033[K• %s", msg) }
+}
 
 func gpuStatus(state *runtime.State, cmd *cobra.Command, id string) error {
-	drv, err := gpuDriver(state, cmd.ErrOrStderr())
+	out := cmd.OutOrStdout()
+	drv, err := gpuDriver(state, cmd)
 	if err != nil {
 		return err
 	}
@@ -310,24 +316,25 @@ func gpuStatus(state *runtime.State, cmd *cobra.Command, id string) error {
 		return err
 	}
 	if wait, _ := cmd.Flags().GetBool("wait"); wait {
-		instance, err = drv.WaitReady(cmd.Context(), instance.ID, gpuLlamaPort, gpuHeartbeat)
-		fmt.Println()
+		instance, err = drv.WaitReady(cmd.Context(), instance.ID, gpuLlamaPort, heartbeat(out))
+		say(out, "\n")
 		if err != nil {
 			return err
 		}
-		fmt.Println("Ready.")
+		say(out, "Ready.\n")
 	}
 	now := time.Now()
-	fmt.Printf("ID:      %s\nName:    %s\nStatus:  %s\nImage:   %s\nCost:    $%.2f/hr\nUptime:  %s\nURL:     %s/v1\n",
+	say(out, "ID:      %s\nName:    %s\nStatus:  %s\nImage:   %s\nCost:    $%.2f/hr\nUptime:  %s\nURL:     %s/v1\n",
 		instance.ID, instance.Name, instance.Status, instance.Image, instance.HourlyCost, uptime(instance, now), drv.URL(instance.ID, gpuLlamaPort))
 	if spent := instance.SpentSoFar(now); spent > 0 {
-		fmt.Printf("Est. total: $%.2f\n", spent)
+		say(out, "Est. total: $%.2f\n", spent)
 	}
 	return nil
 }
 
 func gpuDestroy(state *runtime.State, cmd *cobra.Command, id string) error {
-	drv, err := gpuDriver(state, cmd.ErrOrStderr())
+	out := cmd.OutOrStdout()
+	drv, err := gpuDriver(state, cmd)
 	if err != nil {
 		return err
 	}
@@ -340,7 +347,7 @@ func gpuDestroy(state *runtime.State, cmd *cobra.Command, id string) error {
 	if err := drv.Destroy(cmd.Context(), id); err != nil {
 		return err
 	}
-	fmt.Printf("Instance %s destroyed, billing stopped.\n", id)
+	say(out, "Instance %s destroyed, billing stopped.\n", id)
 	return nil
 }
 

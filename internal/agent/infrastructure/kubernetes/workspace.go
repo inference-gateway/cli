@@ -24,24 +24,24 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	k8sdynamic "k8s.io/client-go/dynamic"
 	k8srest "k8s.io/client-go/rest"
-	k8sclientcmd "k8s.io/client-go/tools/clientcmd"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
+	computek8s "github.com/inference-gateway/cli/internal/compute/infrastructure/kubernetes"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // The operator API this workspace drives, and the labels it writes.
 const (
-	orchestratorGroup    = "core.inference-gateway.com"
-	orchestratorVersion  = "v1alpha1"
+	orchestratorGroup    = computek8s.OrchestratorGroup
+	orchestratorVersion  = computek8s.OrchestratorVersion
 	orchestratorKind     = "Orchestrator"
 	orchestratorResource = "orchestrators"
 
 	labelWorkspace    = "inference-gateway.com/workspace"
-	labelCompute      = "inference-gateway.com/compute"
+	labelCompute      = computek8s.LabelCompute
 	labelConversation = "inference-gateway.com/conversation"
 
 	bindingPort      = 52789
@@ -61,7 +61,7 @@ const (
 )
 
 var (
-	orchestratorGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: orchestratorResource}
+	orchestratorGVR = computek8s.OrchestratorGVR
 	secretGVR       = k8sschema.GroupVersionResource{Version: "v1", Resource: "secrets"}
 	deploymentGVR   = k8sschema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 )
@@ -85,43 +85,11 @@ type Workspace struct {
 
 // New connects to the cluster the entry names and returns the workspace.
 func New(entry config.WorkspaceEntry, identity string, tls *agentinfra.TLSProvider, pki *agentinfra.PKI) (*Workspace, error) {
-	restConfig, err := restConfigFor(entry)
+	clients, err := computek8s.Connect(entry.Kubeconfig, entry.Context, "workspace "+entry.Name)
 	if err != nil {
 		return nil, err
 	}
-	dynamicClient, err := k8sdynamic.NewForConfig(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("building the Kubernetes client for workspace %s: %w", entry.Name, err)
-	}
-	core, err := coreClientFor(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("building the Kubernetes client for workspace %s: %w", entry.Name, err)
-	}
-	return &Workspace{entry: entry, identity: identity, tls: tls, pki: pki, rest: restConfig, dynamic: dynamicClient, core: core}, nil
-}
-
-// coreClientFor is a core/v1 REST client for the calls no resource client
-// makes, the port-forward URL and the server version. Unlike the typed
-// clientset it carries no scheme, which keeps every other API group out of
-// the binary.
-func coreClientFor(restConfig *k8srest.Config) (*k8srest.RESTClient, error) {
-	coreConfig := k8sdynamic.ConfigFor(restConfig)
-	coreConfig.APIPath = "/api"
-	coreConfig.GroupVersion = &k8sschema.GroupVersion{Version: "v1"}
-	return k8srest.RESTClientFor(coreConfig)
-}
-
-func restConfigFor(entry config.WorkspaceEntry) (*k8srest.Config, error) {
-	rules := k8sclientcmd.NewDefaultClientConfigLoadingRules()
-	if entry.Kubeconfig != "" {
-		rules.ExplicitPath = entry.Kubeconfig
-	}
-	overrides := &k8sclientcmd.ConfigOverrides{CurrentContext: entry.Context}
-	restConfig, err := k8sclientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
-	if err != nil {
-		return nil, fmt.Errorf("loading the kubeconfig for workspace %s: %w", entry.Name, err)
-	}
-	return restConfig, nil
+	return &Workspace{entry: entry, identity: identity, tls: tls, pki: pki, rest: clients.Rest, dynamic: clients.Dynamic, core: clients.Core}, nil
 }
 
 func (e *Workspace) Name() string { return e.entry.Name }
@@ -235,19 +203,8 @@ func (e *Workspace) reach(ctx context.Context, session agentdomain.Session, crea
 // aborts before it leaves anything behind in a cluster without the operator.
 // A cluster without the CRD answers the list with not found.
 func (e *Workspace) requireOperator(ctx context.Context) error {
-	_, err := e.orchestrators().List(ctx, metav1.ListOptions{Limit: 1})
-	if err == nil {
-		return nil
-	}
-	if !k8serrors.IsNotFound(err) {
-		return fmt.Errorf("looking for the Inference Gateway operator in the cluster of workspace %s: %w", e.entry.Name, err)
-	}
-	return fmt.Errorf("the Inference Gateway operator is not installed in the cluster of workspace %s: install %s or later from https://github.com/inference-gateway/operator/releases", e.entry.Name, minOperatorVersion)
+	return computek8s.RequireOperator(ctx, e.dynamic, e.entry.Namespace, "the cluster of workspace "+e.entry.Name)
 }
-
-// minOperatorVersion is the first operator release that runs an Orchestrator
-// in a Sandbox from the image's own entrypoint and links it to a Gateway by ref.
-const minOperatorVersion = "v0.29.0"
 
 // bindingServiceOperatorVersion is the first operator release that copies
 // binding_service metadata onto the binding Service.
@@ -255,7 +212,7 @@ const bindingServiceOperatorVersion = "v0.33.0"
 
 func (e *Workspace) requiredOperatorVersion() string {
 	if e.entry.BindingService.IsZero() {
-		return minOperatorVersion
+		return computek8s.MinOperatorVersion
 	}
 	return bindingServiceOperatorVersion
 }
@@ -456,12 +413,7 @@ func (e *Workspace) Probe(ctx context.Context) agentdomain.WorkspaceStatus {
 }
 
 func (e *Workspace) serverVersion(ctx context.Context) (string, error) {
-	raw, err := e.core.Get().AbsPath("/version").DoRaw(ctx)
-	if err != nil {
-		return "", err
-	}
-	var version struct{ GitVersion string }
-	return version.GitVersion, json.Unmarshal(raw, &version)
+	return computek8s.ServerVersion(ctx, e.core)
 }
 
 // Suspend parks the session's Orchestrator, keeping its volumes.
@@ -527,10 +479,21 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 		"metadata": map[string]any{
 			"name":      name,
 			"namespace": e.entry.Namespace,
-			"labels":    map[string]any{labelWorkspace: e.entry.Name, labelConversation: session.ConversationID},
+			"labels":    e.orchestratorLabels(session),
 		},
 		"spec": spec,
 	}}, nil
+}
+
+// orchestratorLabels mark a session's Orchestrator with its workspace and
+// conversation, and with its cluster when it runs on one, so a cluster's
+// status counts the sessions of every workspace on it.
+func (e *Workspace) orchestratorLabels(session agentdomain.Session) map[string]any {
+	labels := map[string]any{labelWorkspace: e.entry.Name, labelConversation: session.ConversationID}
+	if e.entry.Compute != "" {
+		labels[labelCompute] = e.entry.Compute
+	}
+	return labels
 }
 
 // env is what the pod daemon needs beyond what the operator sets: which

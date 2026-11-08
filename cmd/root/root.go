@@ -87,6 +87,7 @@ deployment, monitoring, and management of inference services.`,
 	command.PersistentFlags().String("reminders-file", "",
 		"path to a reminders YAML file, overriding project .infer/ and ~/.infer reminders.yaml (INFER_REMINDERS_CONFIG inline YAML takes precedence)")
 
+	command.AddGroup(&cobra.Group{ID: "platform", Title: "Platform"})
 	command.AddCommand(
 		agents.NewCommand(state, renderer),
 		avatarscmd.NewCommand(state, renderer),

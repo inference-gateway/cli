@@ -1040,7 +1040,33 @@ See [Shortcuts Guide](shortcuts-guide.md) for the built-ins and how to write you
 ### `infer compute`
 
 Manage what infer runs on, kept in `~/.infer/compute.yaml` apart from any daemon. See
-[Compute](daemon.md#compute) for the clusters and machines workspaces run on.
+[Compute](daemon.md#compute) for the clusters and machines workspaces run on. `add` and `remove` edit
+`compute.yaml` as written, so a `${VAR}` reference is saved back as a reference, and `remove` refuses compute
+a workspace in `daemon.yaml` still runs on.
+
+#### `infer compute clusters`
+
+- `add <name> --namespace <ns>`: Register a Kubernetes cluster. `--context` and `--kubeconfig` pick it,
+  the current context of the default kubeconfig without them. `--mode` is `standard` or `all-in-one`, and
+  `--gateway-env` names the variables its gateway gets.
+- `list`: List the clusters.
+- `status [name]`: Check every cluster at once: whether it is reachable and runs the operator, its Kubernetes
+  version, and how many sessions the workspaces on it run.
+- `remove <name>`: Remove a cluster no workspace runs on.
+
+#### `infer compute machines`
+
+- `add <name> --address <host:port>`: Register a standalone `infer daemon`. `--token` is its binding token,
+  best written as a `${VAR}` reference, and `--ca-file`, `--cert-file` and `--key-file` set its TLS.
+- `list`: List the machines. A token is never printed.
+- `status [name]`: Probe every machine at once, the way the daemon probes a daemon-kind workspace.
+- `remove <name>`: Remove a machine no workspace runs on.
+
+```bash
+infer compute clusters add k3d-agents --context k3d-agents --namespace agents --gateway-env ANTHROPIC_API_KEY
+infer compute machines add workstation --address workstation.lan:52789 --token '${WORKSTATION_TOKEN}'
+infer compute clusters status
+```
 
 #### `infer compute gpus`
 

@@ -186,3 +186,37 @@ func TestComputeFileKeepsReferencesUnexpanded(t *testing.T) {
 		t.Fatalf("a missing compute.yaml loads as %+v, %v, want an empty one", missing, err)
 	}
 }
+
+func TestComputeEditsKeepTheFileValid(t *testing.T) {
+	cfg := &ComputeConfig{}
+	if err := cfg.AddCluster(ClusterEntry{Name: "k3d", Namespace: "agents"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.AddMachine(MachineEntry{Name: "box", Address: "box:1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.AddMachine(MachineEntry{Name: "k3d", Address: "a:1"}); err == nil || !strings.Contains(err.Error(), "defined twice") {
+		t.Fatalf("AddMachine() of a cluster's name = %v, want it refused", err)
+	}
+	if err := cfg.AddCluster(ClusterEntry{Name: "no namespace"}); err == nil {
+		t.Fatal("AddCluster() took a cluster the file cannot keep")
+	}
+	if len(cfg.Clusters) != 1 || len(cfg.Machines) != 1 {
+		t.Fatalf("a refused change left %+v", cfg)
+	}
+	if err := cfg.RemoveCluster("k3d"); err != nil || len(cfg.Clusters) != 0 {
+		t.Fatalf("RemoveCluster() = %v, left %+v", err, cfg.Clusters)
+	}
+	if err := cfg.RemoveMachine("ghost"); err == nil {
+		t.Fatal("RemoveMachine() of an unknown machine succeeded")
+	}
+}
+
+func TestClusterNamesAreLabelValues(t *testing.T) {
+	for name, ok := range map[string]bool{"k3d-agents": true, "Prod.EU_1": true, "has space": false, "-leading": false, strings.Repeat("a", 64): false} {
+		err := (ComputeConfig{Clusters: []ClusterEntry{{Name: name, Namespace: "agents"}}}).Validate()
+		if (err == nil) != ok {
+			t.Fatalf("cluster name %q: Validate() = %v, want accepted %v", name, err, ok)
+		}
+	}
+}
