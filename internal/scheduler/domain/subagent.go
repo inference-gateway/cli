@@ -40,6 +40,11 @@ const EnvSubagentTools = "INFER_SUBAGENT_TOOLS"
 // service hides and refuses whatever else allows them.
 const EnvDisallowedTools = "INFER_DISALLOWED_TOOLS"
 
+// EnvMCPServers carries the comma-separated MCP servers a named agent brings
+// up, a subagent's or a thread's. Unset keeps the enabled servers of mcp.yaml,
+// and an empty value brings up none.
+const EnvMCPServers = "INFER_AGENT_MCP_SERVERS"
+
 // EnvSubagentParentSession names the session whose Agent tool spawned this
 // one, recorded in the conversation's metadata and reported each turn to.
 const EnvSubagentParentSession = "INFER_PARENT_SESSION_ID"

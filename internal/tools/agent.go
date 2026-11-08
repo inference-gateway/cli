@@ -46,6 +46,9 @@ type AgentTaskSpec struct {
 	// Tools is the resolved allowlist passed to the subagent via
 	// EnvSubagentTools; nil means inherit the parent's tools.
 	Tools []string
+	// MCPServers names the servers the subagent brings up, passed via
+	// EnvMCPServers; nil means inherit the parent's servers.
+	MCPServers []string
 	// Mode is the subagent's capability, resolved from the `type` argument:
 	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
 	// AgentModeStandard (can mutate, approval applies).
@@ -363,6 +366,7 @@ func (t *AgentTool) threadOptions(ctx context.Context, spec AgentTaskSpec) sessi
 	opts := sessionsdomain.ThreadOptions{
 		Model:        spec.Model,
 		SystemPrompt: spec.SystemPrompt,
+		MCPServers:   spec.MCPServers,
 		Subagent: &sessionsdomain.Subagent{
 			Parent: agentdomain.GetSessionID(ctx),
 			Depth:  currentSubagentDepth() + 1,
@@ -523,6 +527,9 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 	if len(spec.Tools) > 0 {
 		parts = append(parts, scheddomain.EnvSubagentTools+"="+shellQuote(strings.Join(spec.Tools, ",")))
 	}
+	if spec.MCPServers != nil {
+		parts = append(parts, scheddomain.EnvMCPServers+"="+shellQuote(strings.Join(spec.MCPServers, ",")))
+	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		parts = append(parts, scheddomain.EnvSubagentAgentMode+"="+shellQuote(spec.Mode.ModeKey()))
 	}
@@ -560,6 +567,9 @@ func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []
 	}
 	if len(spec.Tools) > 0 {
 		env = append(env, scheddomain.EnvSubagentTools+"="+strings.Join(spec.Tools, ","))
+	}
+	if spec.MCPServers != nil {
+		env = append(env, scheddomain.EnvMCPServers+"="+strings.Join(spec.MCPServers, ","))
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		env = append(env, scheddomain.EnvSubagentAgentMode+"="+spec.Mode.ModeKey())
@@ -749,6 +759,7 @@ func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	if agent.model != "" {
 		spec.Model = agent.model
 	}
+	spec.MCPServers = agent.mcpServers
 	if len(agent.tools) > 0 {
 		spec.Tools = agent.tools
 		spec.Mode = deriveSubagentMode(agent.tools, t.toolManifests)

@@ -122,6 +122,9 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	if len(opts.DisallowedTools) > 0 {
 		env = append(env, scheddomain.EnvDisallowedTools+"="+strings.Join(opts.DisallowedTools, ","))
 	}
+	if opts.MCPServers != nil {
+		env = append(env, scheddomain.EnvMCPServers+"="+strings.Join(opts.MCPServers, ","))
+	}
 	env = append(env, opts.Env...)
 	if sub := opts.Subagent; sub != nil {
 		env = append(env,

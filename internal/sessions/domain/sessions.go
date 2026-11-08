@@ -24,11 +24,15 @@ type ThreadOptions struct {
 	// Subagent marks a thread another thread's Agent tool spawned.
 	Subagent *Subagent `json:"subagent,omitempty"`
 	// Agent names the Markdown agent the thread runs as. The daemon it is
-	// opened on resolves it into the model, system prompt and tool lists
-	// below, so a relay or a teleport carries those instead of the name.
+	// opened on resolves it into the model, system prompt, tool lists and MCP
+	// servers below, so a relay or a teleport carries those instead of the name.
 	Agent           string   `json:"agent,omitempty"`
 	Tools           []string `json:"tools,omitempty"`
 	DisallowedTools []string `json:"disallowed_tools,omitempty"`
+	// MCPServers names the servers of mcp.yaml the worker brings up. Nil keeps
+	// the enabled ones and an empty list brings up none, so it is omitted only
+	// when nil.
+	MCPServers []string `json:"mcp_servers,omitzero"`
 	// Workspace and WorkspaceDir place a thread no lease places: the
 	// workspace that holds its conversation and the source code there, as
 	// when a client opens a session it listed on a remote workspace.
@@ -40,7 +44,7 @@ type ThreadOptions struct {
 }
 
 // Portable is what of the options follows a session to another workspace: the
-// agent's model, mode, prompts, tools and turn limit. The agent name, placement,
+// agent's model, mode, prompts, tools, MCP servers and turn limit. The agent name, placement,
 // sandbox paths, the spawn and Env belong to the daemon the thread was opened on.
 func (o ThreadOptions) Portable() ThreadOptions {
 	return ThreadOptions{
@@ -51,6 +55,7 @@ func (o ThreadOptions) Portable() ThreadOptions {
 		MaxTurns:           o.MaxTurns,
 		Tools:              o.Tools,
 		DisallowedTools:    o.DisallowedTools,
+		MCPServers:         o.MCPServers,
 	}
 }
 

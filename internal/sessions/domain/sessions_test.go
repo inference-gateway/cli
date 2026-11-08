@@ -18,6 +18,7 @@ func TestPortableKeepsTheAgentAndDropsWhatBelongsToTheDaemon(t *testing.T) {
 		Agent:              "reviewer",
 		Tools:              []string{"Read", "Grep"},
 		DisallowedTools:    []string{"Bash"},
+		MCPServers:         []string{"agentmail"},
 		Workspace:          "remote",
 		WorkspaceDir:       "/workspace/project",
 		Env:                []string{"TOKEN=secret"},
@@ -30,6 +31,7 @@ func TestPortableKeepsTheAgentAndDropsWhatBelongsToTheDaemon(t *testing.T) {
 		MaxTurns:           500,
 		Tools:              []string{"Read", "Grep"},
 		DisallowedTools:    []string{"Bash"},
+		MCPServers:         []string{"agentmail"},
 	}
 	if got := opened.Portable(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Portable() = %+v, want %+v", got, want)
@@ -52,6 +54,11 @@ func TestThreadOptionsJSON(t *testing.T) {
 			wire: `{"model":"provider/agent","system_prompt":"body","tools":["Read","Grep"],"disallowed_tools":["Bash"]}`,
 			want: ThreadOptions{Model: "provider/agent", SystemPrompt: "body", Tools: []string{"Read", "Grep"}, DisallowedTools: []string{"Bash"}},
 		},
+		{
+			name: "a relay keeps an agent's empty MCP server list apart from none named",
+			wire: `{"system_prompt":"body","mcp_servers":[]}`,
+			want: ThreadOptions{SystemPrompt: "body", MCPServers: []string{}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -70,6 +77,13 @@ func TestThreadOptionsJSON(t *testing.T) {
 			_ = json.Unmarshal(encoded, &relayed)
 			if _, ok := relayed["agent"]; ok {
 				t.Fatalf("the portable options name the agent: %s", encoded)
+			}
+			var arrived ThreadOptions
+			if err := json.Unmarshal(encoded, &arrived); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(arrived, got.Portable()) {
+				t.Fatalf("relayed %+v, want %+v", arrived, got.Portable())
 			}
 		})
 	}

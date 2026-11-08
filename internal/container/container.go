@@ -425,6 +425,9 @@ func (c *ServiceContainer) initializeMCPSupervisor() {
 	if !c.config.MCP.Enabled || c.daemonOpts != nil {
 		return
 	}
+	if names, listed := os.LookupEnv(scheddomain.EnvMCPServers); listed {
+		c.config.MCP.Servers = mcp.SelectServers(c.config.MCP.Servers, strings.FieldsFunc(names, func(r rune) bool { return r == ',' }))
+	}
 
 	c.mcpSupervisor = mcp.NewSupervisor(c.sessionID, &c.config.MCP, c.containerRuntime, c.uiNotifier)
 

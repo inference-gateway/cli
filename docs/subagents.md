@@ -22,6 +22,7 @@ does the same in one view.
 - [Format](#format)
 - [Locations and Precedence](#locations-and-precedence)
 - [Tools Allowlist](#tools-allowlist)
+- [MCP Servers](#mcp-servers)
 - [Model](#model)
 - [Headless Subagents](#headless-subagents)
 - [Interactive Subagents](#interactive-subagents)
@@ -51,10 +52,11 @@ numbered list ordered by severity.
 - `model` (optional): `provider/model`, or `inherit` to use the parent's model. See [Model](#model).
 - `tools` (optional): tools the subagent may use. See [Tools Allowlist](#tools-allowlist).
 - `disallowedTools` (optional): tools removed from the resolved list. Same format as `tools`.
+- `mcpServers` (optional): names of the MCP servers the subagent brings up. See [MCP Servers](#mcp-servers).
 
 Any other frontmatter key (`color`, `temperature`, `max_turns`, `maxTurns`,
-`mcpServers`, `permissionMode`, ...) is accepted and ignored, so agent files
-written for other orchestrators load unchanged.
+`permissionMode`, ...) is accepted and ignored, so agent files written for
+other orchestrators load unchanged.
 
 The file is loaded once per session. Files with broken frontmatter, a missing
 or invalid `name`/`description`, or a `tools` list that resolves to no known
@@ -105,6 +107,46 @@ While the parent run is in plan mode a subagent is always read-only, whatever
 its `type` or its derived allowlist says: planning is a read-only mode, so a
 delegated subagent may explore but never mutate the repo (see
 [Plan Mode](plan-mode.md)).
+
+## MCP Servers
+
+`mcpServers` lists the MCP servers the agent brings up, by the names they have
+in the `mcp.yaml` of the computer the agent runs on:
+
+```markdown
+---
+name: timekeeper
+description: Tells the current time in any timezone.
+mcpServers:
+  - demo-server
+---
+
+You answer questions about the current time with the get_time tool.
+```
+
+- Without `mcpServers` the agent gets every enabled server, like any chat. An
+  empty list (`mcpServers: []`) gives it none.
+- Only the named servers are connected, and only those of them with
+  `run: true` are started, so an agent never starts a container it does not use.
+- A named server comes up even when `mcp.yaml` sets `enabled: false` for it, so
+  a server can stay off for every chat and serve one agent. A top-level
+  `enabled: false` in `mcp.yaml` still turns MCP off for every agent.
+- A name the computer's `mcp.yaml` does not have is skipped with a warning, and
+  the agent still runs.
+- An inline server definition, which Claude Code also accepts, is ignored with a
+  warning. Agent files are shared and travel with a session, so they never carry
+  a URL, a header or a secret. Define the server in `mcp.yaml` and name it here.
+
+The list applies to a subagent the `Agent` tool starts and to a session opened
+as the agent on `infer daemon`. It reaches the agent's process through the
+`INFER_AGENT_MCP_SERVERS` environment variable. A session that moves to another
+workspace keeps the list and brings those servers up from that workspace's
+`mcp.yaml`.
+
+A `tools` list hides every MCP tool it does not name, so leave `tools` out to
+give the agent all the tools of its servers (see [Limitations](#limitations)).
+The [MCP example](../examples/mcp/) has an agent with one server and one with
+none.
 
 ## Model
 
@@ -245,6 +287,8 @@ Claude Code agent files load as-is:
 
 - comma-separated `tools` string: yes
 - `disallowedTools`: honored
+- `mcpServers` naming configured servers: honored. Inline server definitions:
+  warning, ignored
 - `model: sonnet` (alias, no provider prefix): warning, falls back to inherit
 - `color` and unknown keys: accepted and ignored
 
@@ -258,10 +302,12 @@ Gemini CLI agent files load as-is:
 - Reading `.claude/agents/` or `.gemini/agents/` directly is not supported
   yet - copy or symlink the files into `.infer/agents/` or `.agents/agents/`.
 - No hot reload: files are scanned once per session.
-- Per-agent `mcpServers`, `temperature`, `max_turns`, `permissionMode` and
-  tool wildcards such as `mcp_*` are not honored in v1; MCP tools register
-  after session start, so MCP tool names in a `tools` list are treated as
-  unknown and dropped with a warning.
+- Per-agent `temperature`, `max_turns`, `permissionMode` and tool wildcards
+  such as `mcp_*` are not honored in v1.
+- For a subagent the `Agent` tool starts, MCP tool names in a `tools` list are
+  treated as unknown and dropped with a warning, because MCP tools register
+  after the session starts. A session opened as the agent on `infer daemon`
+  keeps them.
 - Markdown agents are created by writing the file yourself - there is no
   scaffolding command yet (they are listed via `infer agents list` and the
   `/agents` view).
