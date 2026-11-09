@@ -29,6 +29,36 @@ and Windows fall back to screenshots. Actions are governed by
 [examples/computer-use](../examples/computer-use/). To give an agent a desktop of its own in a Kubernetes
 pod, see the [desktop workspace](../examples/session-teleport/README.md#a-computer-of-its-own-the-desktop-workspace).
 
+## The computer image
+
+`ghcr.io/inference-gateway/computer`, released with the CLI under the same version tags, is a minimal Ubuntu
+26.04 desktop for an agent of its own: `infer daemon` on an Xvfb display (`:99`, 1280x800) with openbox and a
+tint2 taskbar, its launchers built from the apps in `/usr/share/applications` and normal windows opened
+maximized. It ships no browser or other apps. A workspace installs what its agents need with
+[`user_data`](daemon.md#workspaces-and-teleports), a cloud-init user-data script the pod runs as root when it
+boots, before the image drops to the `infer` user and starts the desktop. Its output lands in
+`/var/log/cloud-init-output.log`, and an app it adds to `/etc/xdg/autostart` opens on the desktop at boot:
+
+```yaml
+# ~/.infer/daemon.yaml
+workspaces:
+  - name: ubuntu-desktop
+    kind: kubernetes
+    namespace: agents
+    image: ghcr.io/inference-gateway/computer:latest
+    env:
+      INFER_COMPUTER_USE_ENABLED: "true"
+    user_data: |
+      #!/bin/sh
+      set -e
+      apt-get update
+      apt-get install -y --no-install-recommends gimp
+      cp /usr/share/applications/gimp.desktop /etc/xdg/autostart/
+```
+
+Without `user_data` the pod boots straight to the desktop as `infer`. `task container:build:computer` builds
+the image locally as `ghcr.io/inference-gateway/computer:local`.
+
 ## The person's take-over
 
 A person can drive the same screen from the web terminal's Screen view without

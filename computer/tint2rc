@@ -1,0 +1,47 @@
+rounded = 0
+border_width = 0
+background_color = #3b4252 100
+border_color = #3b4252 100
+
+rounded = 4
+border_width = 0
+background_color = #4c566a 100
+border_color = #4c566a 100
+
+panel_items = LTSC
+panel_size = 100% 36
+panel_margin = 0 0
+panel_padding = 4 2 4
+panel_background_id = 1
+panel_position = bottom center horizontal
+panel_layer = top
+wm_menu = 1
+panel_dock = 0
+strut_policy = follow_size
+
+launcher_padding = 4 4 6
+launcher_background_id = 0
+launcher_icon_size = 24
+launcher_icon_theme = Adwaita
+launcher_tooltip = 1
+
+taskbar_mode = single_desktop
+taskbar_padding = 4 0 4
+taskbar_background_id = 0
+task_text = 1
+task_icon = 1
+task_centered = 0
+task_maximum_size = 220 30
+task_padding = 6 4 6
+task_font_color = #eceff4 100
+task_background_id = 0
+task_active_background_id = 2
+
+systray_padding = 4 0 4
+systray_background_id = 0
+systray_icon_size = 20
+
+time1_format = %H:%M
+clock_font_color = #eceff4 100
+clock_padding = 8 0
+clock_background_id = 0

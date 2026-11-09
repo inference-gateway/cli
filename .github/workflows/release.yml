@@ -397,4 +397,4 @@ jobs:
           DATE: ${{ steps.version.outputs.date }}
           PUSH_LATEST: ${{ steps.version.outputs.is_prerelease == 'false' }}
         run: |
-          task container:push
+          task container:push container:push:computer
