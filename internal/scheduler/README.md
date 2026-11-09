@@ -14,6 +14,8 @@ run the same way. Each is one process per run, no client follows it, and its std
 - The scheduler polls every few seconds, so new jobs fire without a restart. `schedule_notifier.go` delivers
   results back through the originating channel.
 - `heartbeat/` wakes the agent periodically to check pending work. `jobs/` supervises long-running background jobs.
+- A background shell holds the run at its completion boundary unless it is a window app. The `WindowApps` port
+  in `domain/` answers that, implemented by the `computer` context and wired only when computer use is enabled.
 - Title backfill runs under `infer conversation-title daemon`.
 - Channels do not use `agentheadless`: they drive the daemon's session workers through the `sessions` registry.
 

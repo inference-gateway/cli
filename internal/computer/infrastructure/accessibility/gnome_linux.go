@@ -41,25 +41,33 @@ func gnomeSession() bool {
 
 // gnomeWindows asks the shell for its windows, which it answers only in unsafe mode.
 func gnomeWindows(ctx context.Context) ([]gnomeWindow, error) {
+	var windows []gnomeWindow
+	if err := evalShell(ctx, windowsScript, &windows); err != nil {
+		return nil, err
+	}
+	return windows, nil
+}
+
+// evalShell runs script in the shell and decodes its JSON answer into answer.
+func evalShell(ctx context.Context, script string, answer any) error {
 	conn, err := dbus.ConnectSessionBus(dbus.WithContext(ctx))
 	if err != nil {
-		return nil, fmt.Errorf("connect to the session bus: %w", err)
+		return fmt.Errorf("connect to the session bus: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
 	var ok bool
 	var result string
 	shell := conn.Object(shellName, shellPath)
-	if err := shell.CallWithContext(ctx, shellName+".Eval", 0, windowsScript).Store(&ok, &result); err != nil {
-		return nil, fmt.Errorf("ask the shell: %w", err)
+	if err := shell.CallWithContext(ctx, shellName+".Eval", 0, script).Store(&ok, &result); err != nil {
+		return fmt.Errorf("ask the shell: %w", err)
 	}
 	if !ok {
-		return nil, errors.New("the shell refused Eval, it needs unsafe mode")
+		return errors.New("the shell refused Eval, it needs unsafe mode")
 	}
-	var windows []gnomeWindow
-	if err := json.Unmarshal([]byte(result), &windows); err != nil {
-		return nil, fmt.Errorf("unexpected shell answer %q: %w", result, err)
+	if err := json.Unmarshal([]byte(result), answer); err != nil {
+		return fmt.Errorf("unexpected shell answer %q: %w", result, err)
 	}
-	return windows, nil
+	return nil
 }
 
 // pickWindow resolves a Computer target to its topmost window.

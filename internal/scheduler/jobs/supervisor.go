@@ -515,15 +515,34 @@ func (s *Supervisor) IsRunning(id string) bool {
 // subagent panes set it false so a one-shot `infer headless` does not wait on a
 // user-driven pane.
 func (s *Supervisor) HasPending() bool {
+	return slices.ContainsFunc(s.runningSessionHolders(), holdsSessionNow)
+}
+
+// runningSessionHolders copies out the running jobs that opted into holding the
+// session, so asking each one about its hold never happens under the lock.
+func (s *Supervisor) runningSessionHolders() []scheddomain.BackgroundJob {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	var holders []scheddomain.BackgroundJob
 	for _, sj := range s.jobs {
-		if sj.status == scheddomain.JobRunning && sj.meta.HoldsSession && !isIdle(sj.job) {
-			return true
+		if sj.status == scheddomain.JobRunning && sj.meta.HoldsSession {
+			holders = append(holders, sj.job)
 		}
 	}
-	return false
+	return holders
+}
+
+// holdsSessionNow reports whether a running session-holding job still holds it:
+// not while it idles between turns, and not once it yielded the session.
+func holdsSessionNow(job scheddomain.BackgroundJob) bool {
+	return !isIdle(job) && !yieldsSession(job)
+}
+
+// yieldsSession reports whether a running job let go of the session.
+func yieldsSession(job scheddomain.BackgroundJob) bool {
+	yielder, ok := job.(scheddomain.JobSessionYielder)
+	return ok && yielder.YieldsSession()
 }
 
 // isIdle reports whether a running job is between turns and so holds nothing.

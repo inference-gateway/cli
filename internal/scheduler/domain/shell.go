@@ -27,6 +27,12 @@ func (s ShellState) IsTerminal() bool {
 	return s == ShellStateCompleted || s == ShellStateFailed || s == ShellStateCancelled
 }
 
+// WindowApps tells a window app from other background work: whether a process
+// shows a window on the computer's display, itself or through one it started.
+type WindowApps interface {
+	ShowsWindow(ctx context.Context, pid int) bool
+}
+
 // BackgroundShell represents a command running in the background. The
 // supervisor records its outcome while parallel tool calls read it, so the
 // outcome and the read position sit behind mu.
