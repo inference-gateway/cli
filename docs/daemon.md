@@ -210,14 +210,17 @@ workspaces:
   ```
 
 - `mcp_servers` names hosted servers of this machine's `~/.infer/mcp.yaml` that the pod daemon gets. Each
-  one goes into the session's Orchestrator with its name, URL and headers, and the operator renders it
-  into the pod's [`mcp.yaml`](mcp-integration.md). The headers are forwarded as written, so a
-  `${AGENTMAIL_API_KEY}` stays a reference the pod expands from its `secrets`. A header that holds a value
-  rather than a `${VAR}` reference is refused, so no secret is written into the cluster. A container
-  server (`run: true`) or a name `mcp.yaml` lacks fails the teleport before the Orchestrator is created.
+  one goes into the session's Orchestrator with its name, URL, headers, `include_tools`, `exclude_tools`
+  and `timeout`, and the operator renders it into the pod's [`mcp.yaml`](mcp-integration.md). So the pod
+  gets the same tools of a server as this machine, and a `timeout` of 0 or less stays unset. The headers
+  are forwarded as written, so a `${AGENTMAIL_API_KEY}` stays a reference the pod expands from its
+  `secrets`. A header that holds a value rather than a `${VAR}` reference is refused, so no secret is
+  written into the cluster. A container server (`run: true`) or a name `mcp.yaml` lacks fails the teleport
+  before the Orchestrator is created.
   The servers are read when a session's Orchestrator is created, so running sessions keep theirs. It needs
-  operator v0.33.0 or newer, which gives the pod MCP servers with headers, and an infer image of v0.248.0
-  or newer, which reads `url` and `headers`:
+  operator v0.34.0 or newer, which takes tool filters and a timeout, and an infer image of v0.248.0 or
+  newer, which reads `url` and `headers`. A server with no filter and no timeout also runs on operator
+  v0.33.0:
 
   ```yaml
   # ~/.infer/mcp.yaml

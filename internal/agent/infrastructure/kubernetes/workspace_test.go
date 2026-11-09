@@ -382,6 +382,18 @@ servers:
     url: https://leaky.example.com/mcp
     headers:
       x-api-key: plain-secret-value
+  - name: filtered
+    enabled: true
+    url: https://filtered.example.com/mcp
+    include_tools:
+      - search
+    exclude_tools:
+      - delete
+    timeout: 10
+  - name: unbounded
+    enabled: true
+    url: https://unbounded.example.com/mcp
+    timeout: -5
 `
 
 // userMCPConfig makes testMCPYAML this user's ~/.infer/mcp.yaml and returns its path.
@@ -418,6 +430,20 @@ func TestCreateGivesThePodTheNamedMCPServersAsWritten(t *testing.T) {
 					"Authorization": "Bearer ${MAILBOX_TOKEN}",
 				}},
 				map[string]any{"name": "split", "url": "https://split.example.com:8443/rpc"},
+			}},
+		},
+		{
+			name:    "a server's tool filters and timeout, and no timeout below one second",
+			servers: []string{"filtered", "unbounded"},
+			want: map[string]any{"enabled": true, "servers": []any{
+				map[string]any{
+					"name":           "filtered",
+					"url":            "https://filtered.example.com/mcp",
+					"includeTools":   []any{"search"},
+					"excludeTools":   []any{"delete"},
+					"timeoutSeconds": int64(10),
+				},
+				map[string]any{"name": "unbounded", "url": "https://unbounded.example.com/mcp"},
 			}},
 		},
 		{name: "a name mcp.yaml lacks", servers: []string{"mailbox", "ghost"}, wantErr: "names MCP server ghost, which " + mcpPath + " does not have"},
@@ -471,7 +497,7 @@ func TestCreateNamesTheOperatorVersionMCPServersNeed(t *testing.T) {
 		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
 	})
 	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
-	if err == nil || !strings.Contains(err.Error(), "may predate "+newFieldsOperatorVersion+", upgrade it") {
+	if err == nil || !strings.Contains(err.Error(), "may predate "+mcpServersOperatorVersion+", upgrade it") {
 		t.Fatalf("create on an older operator = %v", err)
 	}
 }

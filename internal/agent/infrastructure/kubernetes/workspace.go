@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net"
 	"regexp"
 	"slices"
@@ -210,16 +211,24 @@ func (e *Workspace) requireOperator(ctx context.Context) error {
 	return computek8s.RequireOperator(ctx, e.dynamic, e.entry.Namespace, "the cluster of workspace "+e.entry.Name)
 }
 
-// newFieldsOperatorVersion is the first operator release that copies
-// binding_service metadata onto the binding Service and gives the pod MCP
-// servers with headers.
-const newFieldsOperatorVersion = "v0.33.0"
+// bindingServiceOperatorVersion is the first operator release that copies
+// binding_service metadata onto the binding Service.
+const bindingServiceOperatorVersion = "v0.33.0"
+
+// mcpServersOperatorVersion is the first operator release that takes all a
+// workspace's MCP servers carry: headers, tool filters and a timeout. One with
+// headers alone also runs on bindingServiceOperatorVersion.
+const mcpServersOperatorVersion = "v0.34.0"
 
 func (e *Workspace) requiredOperatorVersion() string {
-	if e.entry.BindingService.IsZero() && len(e.entry.MCPServers) == 0 {
+	switch {
+	case len(e.entry.MCPServers) > 0:
+		return mcpServersOperatorVersion
+	case !e.entry.BindingService.IsZero():
+		return bindingServiceOperatorVersion
+	default:
 		return computek8s.MinOperatorVersion
 	}
-	return newFieldsOperatorVersion
 }
 
 // ensureSecret holds what the pod daemon authenticates with: a binding token
@@ -560,7 +569,8 @@ var headerReference = regexp.MustCompile(`^[^$]*\$\{[A-Za-z_][A-Za-z0-9_]*\}$`)
 // mcpServers are the servers of ~/.infer/mcp.yaml the entry names, read as
 // written when the Orchestrator is created, so a header stays a ${VAR} reference
 // the pod expands from its own Secrets and no value lands in a Kubernetes object.
-// A name mcp.yaml lacks, a container server and a header holding a value fail.
+// Each keeps its tool filters and timeout. A name mcp.yaml lacks, a container
+// server and a header holding a value fail.
 func (e *Workspace) mcpServers() ([]any, error) {
 	if len(e.entry.MCPServers) == 0 {
 		return nil, nil
@@ -579,16 +589,21 @@ func (e *Workspace) mcpServers() ([]any, error) {
 		if server.Run {
 			return nil, fmt.Errorf("workspace %s names MCP server %s, a container on this machine, and only a hosted server reaches its pods", e.entry.Name, name)
 		}
-		headers := make(map[string]any, len(server.Headers))
 		for key, value := range server.Headers {
 			if !headerReference.MatchString(value) {
 				return nil, fmt.Errorf("MCP server %s gives header %s a value rather than a ${VAR} reference, which workspace %s would write into its Orchestrator", name, key, e.entry.Name)
 			}
-			headers[key] = value
 		}
-		entry := map[string]any{"name": name, "url": server.GetURL()}
-		if len(headers) > 0 {
-			entry["headers"] = headers
+		entry, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(&operatorv1alpha1.OrchestratorMCPServer{
+			Name:           name,
+			URL:            server.GetURL(),
+			Headers:        server.Headers,
+			IncludeTools:   server.IncludeTools,
+			ExcludeTools:   server.ExcludeTools,
+			TimeoutSeconds: int32(min(max(server.Timeout, 0), math.MaxInt32)),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("writing MCP server %s for workspace %s: %w", name, e.entry.Name, err)
 		}
 		servers = append(servers, entry)
 	}
