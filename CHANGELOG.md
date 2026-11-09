@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.251.1](https://github.com/inference-gateway/cli/compare/v0.251.0...v0.251.1) (2026-11-09)
+
+### 🐛 Bug Fixes
+
+* **config:** keep a workspace's user_data script as written ([#1780](https://github.com/inference-gateway/cli/issues/1780)) ([d03f437](https://github.com/inference-gateway/cli/commit/d03f437704428c3b50b9d0b268f7600731763bac))
+
 ## [0.251.0](https://github.com/inference-gateway/cli/compare/v0.250.0...v0.251.0) (2026-11-09)
 
 ### 🚀 Features
