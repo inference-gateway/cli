@@ -2,8 +2,11 @@ package display
 
 import (
 	"image"
+	"os"
 	"testing"
 )
+
+const driveSessionEnv = "INFER_TEST_DRIVE_GNOME_SESSION"
 
 func TestUseGNOME(t *testing.T) {
 	tests := []struct {
@@ -53,20 +56,50 @@ func TestKeyKeysym(t *testing.T) {
 
 func TestWheelSteps(t *testing.T) {
 	tests := []struct {
-		direction string
+		name      string
+		direction []any
 		axis      uint32
 		steps     int32
+		wantErr   bool
 	}{
-		{direction: "down", axis: verticalAxis, steps: 3},
-		{direction: "up", axis: verticalAxis, steps: -3},
-		{direction: "right", axis: horizontalAxis, steps: 3},
-		{direction: "left", axis: horizontalAxis, steps: -3},
+		{name: "down", direction: []any{"down"}, axis: verticalAxis, steps: 3},
+		{name: "up", direction: []any{"up"}, axis: verticalAxis, steps: -3},
+		{name: "right", direction: []any{"right"}, axis: horizontalAxis, steps: 3},
+		{name: "left", direction: []any{"left"}, axis: horizontalAxis, steps: -3},
+		{name: "default is down", axis: verticalAxis, steps: 3},
+		{name: "unknown direction", direction: []any{"sideways"}, wantErr: true},
+		{name: "not a name", direction: []any{7}, wantErr: true},
 	}
 	for _, tt := range tests {
-		t.Run(tt.direction, func(t *testing.T) {
-			axis, steps := wheelSteps(3, []any{tt.direction})
-			if axis != tt.axis || steps != tt.steps {
-				t.Errorf("wheelSteps(3, %q) = %d, %d, want %d, %d", tt.direction, axis, steps, tt.axis, tt.steps)
+		t.Run(tt.name, func(t *testing.T) {
+			axis, steps, err := wheelSteps(3, tt.direction)
+			if (err != nil) != tt.wantErr || axis != tt.axis || steps != tt.steps {
+				t.Errorf("wheelSteps(3, %v) = %d, %d, %v, want %d, %d", tt.direction, axis, steps, err, tt.axis, tt.steps)
+			}
+		})
+	}
+}
+
+func TestClickArguments(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []any
+		button  int32
+		double  bool
+		wantErr bool
+	}{
+		{name: "default is one left click", button: evdevLeftButton},
+		{name: "right", args: []any{"right", false}, button: evdevRightButton},
+		{name: "double middle", args: []any{"center", true}, button: evdevMiddleButton, double: true},
+		{name: "unknown button", args: []any{"thumb"}, wantErr: true},
+		{name: "button is not a name", args: []any{1}, wantErr: true},
+		{name: "double is not a boolean", args: []any{"left", "twice"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			button, double, err := clickArguments(tt.args)
+			if (err != nil) != tt.wantErr || button != tt.button || double != tt.double {
+				t.Errorf("clickArguments(%v) = %#x, %v, %v, want %#x, %v", tt.args, button, double, err, tt.button, tt.double)
 			}
 		})
 	}
@@ -82,11 +115,11 @@ func TestParsePair(t *testing.T) {
 	}
 }
 
-// TestGnomeSessionIntegration drives a live GNOME Wayland session: it runs only
-// inside one, such as the computer image.
+// TestGnomeSessionIntegration clicks and types in a live GNOME Wayland session, so it
+// runs only when asked to, inside a throwaway one such as the computer image.
 func TestGnomeSessionIntegration(t *testing.T) {
-	if !useGNOME() {
-		t.Skip("needs a GNOME Wayland session")
+	if os.Getenv(driveSessionEnv) == "" || !useGNOME() {
+		t.Skipf("set %s=1 inside a throwaway GNOME Wayland session", driveSessionEnv)
 	}
 	robot := gnomeRobot()
 	width, height := robot.GetScreenSize()
