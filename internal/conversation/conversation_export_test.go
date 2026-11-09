@@ -83,9 +83,9 @@ func TestInMemoryConversationRepository_Export(t *testing.T) {
 			format: convdomain.ExportText,
 			contains: []string{
 				"Chat Session Export",
-				"[15:04:05] You:",
-				"[15:04:05] Assistant (openai/gpt-4o):",
-				"[15:04:05] Tool:",
+				"[15:04:05] You: hello there\n",
+				"[15:04:05] Assistant (openai/gpt-4o): assistant reply\n",
+				"[15:04:05] Tool: tool output\n",
 			},
 			notContains: []string{"secret system prompt"},
 		},

@@ -24,7 +24,7 @@ for the wire frames.
 - [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5 (ctlptl drives k3d)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [docker](https://docs.docker.com/get-docker/) (k3d runs on it, `task image:import` builds with it)
-- [task](https://taskfile.dev/) and Go 1.26: the tasks build `infer` at the repository root before they run it (`INFER=<path>` overrides it)
+- [task](https://taskfile.dev/) and Go 1.27: the tasks build `infer` at the repository root before they run it (`INFER=<path>` overrides it)
 
 ## Layout
 

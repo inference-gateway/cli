@@ -49,7 +49,7 @@ The default run needs no account and no API key, `task gateway:real` needs your 
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [docker](https://docs.docker.com/get-docker/) with Compose v2, on a kernel with `/dev/net/tun` (Docker Desktop and
   OrbStack have it)
-- [task](https://taskfile.dev/) and Go 1.26: `task image:import` builds the infer image from this checkout
+- [task](https://taskfile.dev/) and Go 1.27: `task image:import` builds the infer image from this checkout
 - `jq`, `openssl` and `column`
 
 ## Layout
