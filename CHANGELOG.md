@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.251.0](https://github.com/inference-gateway/cli/compare/v0.250.0...v0.251.0) (2026-11-09)
+
+### 🚀 Features
+
+* **workspaces:** pass cloud-init user_data to kubernetes workspaces ([#1777](https://github.com/inference-gateway/cli/issues/1777)) ([bebc06d](https://github.com/inference-gateway/cli/commit/bebc06d319fa15f8c5543d0e84b29662c8dd0439)), references [inference-gateway/operator#337](https://github.com/inference-gateway/operator/issues/337)
+* **container:** publish an Ubuntu computer image for computer-use workspaces ([#1778](https://github.com/inference-gateway/cli/issues/1778)) ([acec124](https://github.com/inference-gateway/cli/commit/acec12492003ec28d92551544a43f02b6371898a)), references [#1777](https://github.com/inference-gateway/cli/issues/1777) [inference-gateway/operator#337](https://github.com/inference-gateway/operator/issues/337)
+
+### 🐛 Bug Fixes
+
+* **daemon:** serve the browser extension on loopback when the binding needs client certs ([#1779](https://github.com/inference-gateway/cli/issues/1779)) ([223c60b](https://github.com/inference-gateway/cli/commit/223c60b58f159a756487b5e3c14124af5da7eb44)), references [#1778](https://github.com/inference-gateway/cli/issues/1778) [#1777](https://github.com/inference-gateway/cli/issues/1777) [inference-gateway/operator#337](https://github.com/inference-gateway/operator/issues/337)
+
+### ♻️ Code Refactoring
+
+* bump go toolchain to 1.27.3 ([#1775](https://github.com/inference-gateway/cli/issues/1775)) ([79dcb9b](https://github.com/inference-gateway/cli/commit/79dcb9b704908395484532423d955cbbb2783d85)), references [inference-gateway/operator#336](https://github.com/inference-gateway/operator/issues/336)
+
+### 🔧 Build System
+
+* **deps:** bump docker/login-action from 4.7.0 to 4.8.0 in the github-actions group ([#1776](https://github.com/inference-gateway/cli/issues/1776)) ([979b3d3](https://github.com/inference-gateway/cli/commit/979b3d3eee459897bb3d5277b34752ba7f82edd1))
+
 ## [0.250.0](https://github.com/inference-gateway/cli/compare/v0.249.0...v0.250.0) (2026-11-09)
 
 ### 🚀 Features
