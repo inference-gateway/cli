@@ -152,7 +152,7 @@ func TestCollectStopsAtTreeLimits(t *testing.T) {
 		want  int
 	}{
 		{name: "cycle", nodes: cycleTree(), want: 2},
-		{name: "depth", nodes: chainTree(maxTreeDepth + 8), want: maxTreeDepth},
+		{name: "depth", nodes: chainTree(maxAtspiDepth + 8), want: maxAtspiDepth},
 		{name: "element cap", nodes: wideTree(maxTreeElements + 50), want: maxTreeElements},
 	}
 	for _, tt := range tests {
