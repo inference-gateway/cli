@@ -147,16 +147,20 @@ func TestCollectFollowsReferencesAcrossBusNames(t *testing.T) {
 
 func TestCollectStopsAtTreeLimits(t *testing.T) {
 	tests := []struct {
-		name  string
-		nodes map[accessible]fakeNode
-		want  int
+		name    string
+		desktop string
+		nodes   map[accessible]fakeNode
+		want    int
 	}{
 		{name: "cycle", nodes: cycleTree(), want: 2},
-		{name: "depth", nodes: chainTree(maxAtspiDepth + 8), want: maxAtspiDepth},
+		{name: "depth", nodes: chainTree(maxTreeDepth + 8), want: maxTreeDepth},
+		{name: "depth on GNOME Wayland", desktop: "ubuntu:GNOME", nodes: chainTree(maxGnomeTreeDepth + 8), want: maxGnomeTreeDepth},
 		{name: "element cap", nodes: wideTree(maxTreeElements + 50), want: maxTreeElements},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+			t.Setenv("XDG_CURRENT_DESKTOP", tt.desktop)
 			got := collect(t.Context(), &fakeBus{nodes: tt.nodes}, ref(":1.1", "/0"))
 			if len(got) != tt.want {
 				t.Fatalf("collect() returned %d elements, want %d", len(got), tt.want)
