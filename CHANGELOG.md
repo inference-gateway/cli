@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.250.0](https://github.com/inference-gateway/cli/compare/v0.249.0...v0.250.0) (2026-11-09)
+
+### 🚀 Features
+
+* **workspaces:** forward a server's tool filters and timeout to the pods ([#1774](https://github.com/inference-gateway/cli/issues/1774)) ([b66e3b2](https://github.com/inference-gateway/cli/commit/b66e3b20ed62ccd8e8e64668ee55ef1c2f82c5cf)), closes [#1773](https://github.com/inference-gateway/cli/issues/1773), references [inference-gateway/operator#332](https://github.com/inference-gateway/operator/issues/332) [inference-gateway/docs#1152](https://github.com/inference-gateway/docs/issues/1152)
+* **workspaces:** Kubernetes workspaces give their pods MCP servers ([#1767](https://github.com/inference-gateway/cli/issues/1767)) ([1d82267](https://github.com/inference-gateway/cli/commit/1d82267dc8792564dd222231b9c2706524545b50)), closes [#1760](https://github.com/inference-gateway/cli/issues/1760), references [inference-gateway/operator#324](https://github.com/inference-gateway/operator/issues/324) [operator#324](https://github.com/operator/issues/324) [inference-gateway/operator#324](https://github.com/inference-gateway/operator/issues/324) [inference-gateway/desktop#480](https://github.com/inference-gateway/desktop/issues/480) [inference-gateway/docs#1146](https://github.com/inference-gateway/docs/issues/1146)
+* **agents:** Markdown agents pick their MCP servers with mcpServers ([#1766](https://github.com/inference-gateway/cli/issues/1766)) ([65b8c22](https://github.com/inference-gateway/cli/commit/65b8c228f3f52ceea0061b14a7fb5cfe1d23fe24))
+
+### 🐛 Bug Fixes
+
+* **config:** keep ${VAR} references when a command edits a config file ([#1765](https://github.com/inference-gateway/cli/issues/1765)) ([d0732cc](https://github.com/inference-gateway/cli/commit/d0732cc850b39f759a19758ca11afc6a3268e733)), closes [#1764](https://github.com/inference-gateway/cli/issues/1764), references [inference-gateway/desktop#480](https://github.com/inference-gateway/desktop/issues/480)
+
+### ♻️ Code Refactoring
+
+* **kubernetes:** read the Orchestrator status contract from the operator's api/v1alpha1 ([#1770](https://github.com/inference-gateway/cli/issues/1770)) ([f0f2874](https://github.com/inference-gateway/cli/commit/f0f287448aabb31c6f47bee40ee791301af72047)), closes [#1769](https://github.com/inference-gateway/cli/issues/1769), references [inference-gateway/operator#322](https://github.com/inference-gateway/operator/issues/322) [inference-gateway/cli#1767](https://github.com/inference-gateway/cli/issues/1767)
+
+### ✅ Tests
+
+* **e2e:** answer the question picker once it takes keys ([#1772](https://github.com/inference-gateway/cli/issues/1772)) ([6f83550](https://github.com/inference-gateway/cli/commit/6f83550a8e1a642336829743d4abed8ac3e7c6e4)), closes [#1771](https://github.com/inference-gateway/cli/issues/1771)
+* **e2e:** serve the fake MCP server as a plain 2026-07-28 echo server ([#1768](https://github.com/inference-gateway/cli/issues/1768)) ([f085047](https://github.com/inference-gateway/cli/commit/f085047214bd0680c573986f36eef73c8e99b51e))
+
 ## [0.249.0](https://github.com/inference-gateway/cli/compare/v0.248.0...v0.249.0) (2026-11-08)
 
 ### 🚀 Features
