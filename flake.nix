@@ -20,7 +20,7 @@
 
         version = "0.250.0";
 
-        infer = pkgs.buildGoModule (finalAttrs: {
+        infer = pkgs.buildGo127Module (finalAttrs: {
           __structuredAttrs = true;
 
           pname = "infer";
@@ -131,7 +131,7 @@
 
         devShells.default = pkgs.mkShell {
           packages = [
-            pkgs.go
+            pkgs.go_1_27
             pkgs.go-task
             pkgs.golangci-lint
             pkgs.gopls
