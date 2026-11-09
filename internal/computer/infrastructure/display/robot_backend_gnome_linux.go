@@ -1,6 +1,7 @@
 package display
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,14 +31,23 @@ const (
 	monitorSizeScript = "(g => [g.width, g.height])(global.display.get_monitor_geometry(0))"
 	pointerScript     = "global.get_pointer().slice(0, 2)"
 
+	shellTimeout   = 5 * time.Second
 	keyPause       = 10 * time.Millisecond
 	verticalAxis   = uint32(0)
 	horizontalAxis = uint32(1)
 	unicodeKeysym  = 0x01000000
+
+	evdevLeftButton   = int32(0x110)
+	evdevRightButton  = int32(0x111)
+	evdevMiddleButton = int32(0x112)
 )
 
 var (
-	gnomeButtons = map[string]int32{"left": 0x110, "right": 0x111, "center": 0x112}
+	gnomeButtons = map[string]int32{
+		"left":   evdevLeftButton,
+		"right":  evdevRightButton,
+		"center": evdevMiddleButton,
+	}
 
 	gnomeModifiers = map[string]uint32{"cmd": 0xffeb, "ctrl": 0xffe3, "alt": 0xffe9, "shift": 0xffe1}
 
@@ -48,6 +58,16 @@ var (
 		"f1": 0xffbe, "f2": 0xffbf, "f3": 0xffc0, "f4": 0xffc1, "f5": 0xffc2, "f6": 0xffc3,
 		"f7": 0xffc4, "f8": 0xffc5, "f9": 0xffc6, "f10": 0xffc7, "f11": 0xffc8, "f12": 0xffc9,
 	}
+
+	wheelTurns = map[string]struct {
+		axis uint32
+		sign int32
+	}{
+		"down":  {verticalAxis, 1},
+		"up":    {verticalAxis, -1},
+		"right": {horizontalAxis, 1},
+		"left":  {horizontalAxis, -1},
+	}
 )
 
 // useGNOME reports a GNOME Wayland session. Mutter implements none of the
@@ -57,98 +77,174 @@ func useGNOME() bool {
 	return os.Getenv("WAYLAND_DISPLAY") != "" && strings.Contains(desktop, "GNOME")
 }
 
-// gnomeSession drives a GNOME Wayland session over the session D-Bus: input
-// through mutter's remote desktop session, the screen through the shell.
-// The shell answers Eval and Screenshot only in unsafe mode.
-type gnomeSession struct {
-	open   sync.Once
-	err    error
+// gnomeLink is one live connection to the session: the bus, mutter's remote
+// desktop session and the screen cast stream absolute pointer motion names.
+type gnomeLink struct {
 	conn   *dbus.Conn
 	remote dbus.BusObject
 	stream dbus.ObjectPath
 }
 
+// gnomeDesktop drives a GNOME Wayland session over the session D-Bus: input
+// through mutter's remote desktop session, the screen through the shell, which
+// answers only in unsafe mode. It lives as long as the process: a controller
+// is made per action, so closing one must not end the session.
+type gnomeDesktop struct {
+	linking sync.Mutex
+	link    *gnomeLink
+	typing  sync.Mutex
+}
+
 func gnomeRobot() robotBackend {
-	session := &gnomeSession{}
+	desktop := &gnomeDesktop{}
 	return robotBackend{
-		GetScreenSize: session.screenSize,
-		GetScaleSize:  func(...int) (int, int) { return session.screenSize() },
-		CaptureImg:    session.capture,
-		Location:      session.location,
-		Move:          func(x, y int, _ ...int) error { return session.move(x, y) },
-		Click:         session.click,
-		ScrollDir:     session.scroll,
-		Type:          func(text string, _ ...int) int { return session.typeText(text) },
-		KeyTap:        session.keyTap,
+		GetScreenSize: desktop.screenSize,
+		GetScaleSize:  func(...int) (int, int) { return desktop.screenSize() },
+		CaptureImg:    desktop.capture,
+		Location:      desktop.location,
+		Move:          func(x, y int, _ ...int) error { return desktop.move(x, y) },
+		Click:         desktop.click,
+		ScrollDir:     desktop.scroll,
+		Type:          func(text string, _ ...int) int { return desktop.typeText(text) },
+		KeyTap:        desktop.keyTap,
 	}
 }
 
-func (s *gnomeSession) connect() error {
-	s.open.Do(func() { s.err = s.start() })
-	return s.err
+// call sends one D-Bus method and gives a frozen shell shellTimeout to answer.
+func call(object dbus.BusObject, method string, args ...any) *dbus.Call {
+	ctx, cancel := context.WithTimeout(context.Background(), shellTimeout)
+	defer cancel()
+	return object.CallWithContext(ctx, method, 0, args...)
 }
 
-func (s *gnomeSession) start() error {
+// linked answers the live link, opening one when there is none. A failed
+// opening is not kept, so the next action tries again once the shell is up.
+func (d *gnomeDesktop) linked() (*gnomeLink, error) {
+	d.linking.Lock()
+	defer d.linking.Unlock()
+	if d.link != nil {
+		return d.link, nil
+	}
+	link, err := openGnomeLink()
+	if err != nil {
+		return nil, err
+	}
+	d.link = link
+	return link, nil
+}
+
+// drop forgets a link whose session the shell no longer serves, as after a
+// shell restart, so the next action opens a new one.
+func (d *gnomeDesktop) drop(link *gnomeLink) {
+	d.linking.Lock()
+	defer d.linking.Unlock()
+	if d.link != link {
+		return
+	}
+	d.link = nil
+	_ = link.conn.Close()
+}
+
+func openGnomeLink() (*gnomeLink, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		return fmt.Errorf("connect to the session bus: %w", err)
+		return nil, fmt.Errorf("connect to the session bus: %w", err)
 	}
+	link, err := startRemoteDesktop(conn)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return link, nil
+}
+
+func startRemoteDesktop(conn *dbus.Conn) (*gnomeLink, error) {
 	var remotePath dbus.ObjectPath
 	manager := conn.Object(remoteDesktopName, remoteDesktopPath)
-	if err := manager.Call(remoteDesktopName+".CreateSession", 0).Store(&remotePath); err != nil {
-		return fmt.Errorf("create a remote desktop session: %w", err)
+	if err := call(manager, remoteDesktopName+".CreateSession").Store(&remotePath); err != nil {
+		return nil, fmt.Errorf("create a remote desktop session: %w", err)
 	}
 	remote := conn.Object(remoteDesktopName, remotePath)
 	sessionID, err := remote.GetProperty(remoteDesktopSession + ".SessionId")
 	if err != nil {
-		return fmt.Errorf("read the remote desktop session id: %w", err)
+		return nil, fmt.Errorf("read the remote desktop session id: %w", err)
 	}
+	stream, err := recordMonitor(conn, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := call(remote, remoteDesktopSession+".Start").Err; err != nil {
+		return nil, fmt.Errorf("start the remote desktop session: %w", err)
+	}
+	link := &gnomeLink{conn: conn, remote: remote, stream: stream}
+	return link, link.wakeKeyboard()
+}
+
+func recordMonitor(conn *dbus.Conn, sessionID dbus.Variant) (dbus.ObjectPath, error) {
 	var castPath dbus.ObjectPath
 	properties := map[string]dbus.Variant{"remote-desktop-session-id": sessionID}
 	cast := conn.Object(screenCastName, screenCastPath)
-	if err := cast.Call(screenCastName+".CreateSession", 0, properties).Store(&castPath); err != nil {
-		return fmt.Errorf("create a screen cast session: %w", err)
+	if err := call(cast, screenCastName+".CreateSession", properties).Store(&castPath); err != nil {
+		return "", fmt.Errorf("create a screen cast session: %w", err)
 	}
 	var stream dbus.ObjectPath
 	recording := conn.Object(screenCastName, castPath)
 	noOptions := map[string]dbus.Variant{}
-	if err := recording.Call(screenCastSession+".RecordMonitor", 0, "", noOptions).Store(&stream); err != nil {
-		return fmt.Errorf("record the monitor: %w", err)
+	if err := call(recording, screenCastSession+".RecordMonitor", "", noOptions).Store(&stream); err != nil {
+		return "", fmt.Errorf("record the monitor: %w", err)
 	}
-	if err := remote.Call(remoteDesktopSession+".Start", 0).Err; err != nil {
-		return fmt.Errorf("start the remote desktop session: %w", err)
-	}
-	s.conn, s.remote, s.stream = conn, remote, stream
-	return wakeKeyboard(remote)
+	return stream, nil
 }
 
-// wakeKeyboard taps Shift once, as mutter drops the first key a new session sends.
-func wakeKeyboard(remote dbus.BusObject) error {
-	for _, pressed := range []bool{true, false} {
-		shift := gnomeModifiers["shift"]
-		if err := remote.Call(remoteDesktopSession+".NotifyKeyboardKeysym", 0, shift, pressed).Err; err != nil {
-			return fmt.Errorf("wake the keyboard: %w", err)
-		}
-		time.Sleep(keyPause)
+func (l *gnomeLink) notify(method string, args ...any) error {
+	return call(l.remote, remoteDesktopSession+"."+method, args...).Err
+}
+
+// wakeKeyboard taps Shift once: the first key a new session sent was dropped
+// in every run against mutter 50.
+func (l *gnomeLink) wakeKeyboard() error {
+	if err := l.tap("NotifyKeyboardKeysym", gnomeModifiers["shift"]); err != nil {
+		return fmt.Errorf("wake the keyboard: %w", err)
 	}
 	return nil
 }
 
-func (s *gnomeSession) notify(method string, args ...any) error {
-	if err := s.connect(); err != nil {
+// tap presses and releases one button or key.
+func (l *gnomeLink) tap(method string, code any) error {
+	if err := l.notify(method, code, true); err != nil {
 		return err
 	}
-	return s.remote.Call(remoteDesktopSession+"."+method, 0, args...).Err
+	time.Sleep(keyPause)
+	err := l.notify(method, code, false)
+	time.Sleep(keyPause)
+	return err
+}
+
+// input runs one whole pointer or keyboard sequence. Sequences never
+// interleave, so a person taking over cannot land a key inside the agent's combo.
+func (d *gnomeDesktop) input(sequence func(*gnomeLink) error) error {
+	d.typing.Lock()
+	defer d.typing.Unlock()
+	link, err := d.linked()
+	if err != nil {
+		return err
+	}
+	if err := sequence(link); err != nil {
+		d.drop(link)
+		return err
+	}
+	return nil
 }
 
 // evalPair runs a shell script that answers a JSON pair of numbers.
-func (s *gnomeSession) evalPair(script string) (int, int, error) {
-	if err := s.connect(); err != nil {
+func (d *gnomeDesktop) evalPair(script string) (int, int, error) {
+	link, err := d.linked()
+	if err != nil {
 		return 0, 0, err
 	}
 	var ok bool
 	var result string
-	if err := s.conn.Object(shellName, shellPath).Call(shellName+".Eval", 0, script).Store(&ok, &result); err != nil {
+	if err := call(link.conn.Object(shellName, shellPath), shellName+".Eval", script).Store(&ok, &result); err != nil {
 		return 0, 0, err
 	}
 	if !ok {
@@ -165,18 +261,24 @@ func parsePair(result string) (int, int, error) {
 	return int(pair[0]), int(pair[1]), nil
 }
 
-func (s *gnomeSession) screenSize() (int, int) {
-	width, height, _ := s.evalPair(monitorSizeScript)
+// screenSize answers 0x0 when the shell does not: the backend's robotgo shape
+// has no error to return, and the controller treats a zero size as unknown.
+func (d *gnomeDesktop) screenSize() (int, int) {
+	width, height, _ := d.evalPair(monitorSizeScript)
 	return width, height
 }
 
-func (s *gnomeSession) location() (int, int) {
-	x, y, _ := s.evalPair(pointerScript)
+func (d *gnomeDesktop) location() (int, int) {
+	x, y, _ := d.evalPair(pointerScript)
 	return x, y
 }
 
-func (s *gnomeSession) capture(area ...int) (image.Image, error) {
-	if err := s.connect(); err != nil {
+// capture reads the screen from a PNG the shell writes.
+// ponytail: one file and one PNG round trip per frame. Read the screen cast's
+// PipeWire stream instead once frame rate matters.
+func (d *gnomeDesktop) capture(area ...int) (image.Image, error) {
+	link, err := d.linked()
+	if err != nil {
 		return nil, err
 	}
 	directory, err := os.MkdirTemp("", "infer-screen-")
@@ -185,7 +287,7 @@ func (s *gnomeSession) capture(area ...int) (image.Image, error) {
 	}
 	defer func() { _ = os.RemoveAll(directory) }()
 	filename := filepath.Join(directory, "screen.png")
-	if err := s.screenshot(filename, area); err != nil {
+	if err := screenshot(link.conn, filename, area); err != nil {
 		return nil, fmt.Errorf("shell screenshot: %w", err)
 	}
 	file, err := os.Open(filename)
@@ -196,94 +298,102 @@ func (s *gnomeSession) capture(area ...int) (image.Image, error) {
 	return png.Decode(file)
 }
 
-func (s *gnomeSession) screenshot(filename string, area []int) error {
-	shell := s.conn.Object(screenshotName, screenshotPath)
+func screenshot(conn *dbus.Conn, filename string, area []int) error {
+	shell := conn.Object(screenshotName, screenshotPath)
 	if len(area) < 4 {
-		return shell.Call(screenshotName+".Screenshot", 0, true, false, filename).Err
+		return call(shell, screenshotName+".Screenshot", true, false, filename).Err
 	}
 	x, y, width, height := int32(area[0]), int32(area[1]), int32(area[2]), int32(area[3])
-	return shell.Call(screenshotName+".ScreenshotArea", 0, x, y, width, height, false, filename).Err
+	return call(shell, screenshotName+".ScreenshotArea", x, y, width, height, false, filename).Err
 }
 
-func (s *gnomeSession) move(x, y int) error {
-	return s.notify("NotifyPointerMotionAbsolute", string(s.streamPath()), float64(x), float64(y))
+func (d *gnomeDesktop) move(x, y int) error {
+	return d.input(func(link *gnomeLink) error {
+		return link.notify("NotifyPointerMotionAbsolute", string(link.stream), float64(x), float64(y))
+	})
 }
 
-func (s *gnomeSession) streamPath() dbus.ObjectPath {
-	_ = s.connect()
-	return s.stream
-}
-
-func (s *gnomeSession) click(args ...any) error {
-	button, double := clickArguments(args)
-	code, ok := gnomeButtons[button]
-	if !ok {
-		return fmt.Errorf("unknown mouse button %q", button)
+func (d *gnomeDesktop) click(args ...any) error {
+	button, double, err := clickArguments(args)
+	if err != nil {
+		return err
 	}
 	presses := 1
 	if double {
 		presses = 2
 	}
-	for range presses {
-		if err := s.tap("NotifyPointerButton", code); err != nil {
-			return err
+	return d.input(func(link *gnomeLink) error {
+		for range presses {
+			if err := link.tap("NotifyPointerButton", button); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
-func clickArguments(args []any) (string, bool) {
-	button, double := "left", false
+// clickArguments reads robotgo's Click arguments: the button name, then whether to double click.
+func clickArguments(args []any) (int32, bool, error) {
+	name, double := "left", false
 	if len(args) > 0 {
-		button, _ = args[0].(string)
+		given, ok := args[0].(string)
+		if !ok {
+			return 0, false, fmt.Errorf("mouse button %v is not a name", args[0])
+		}
+		name = given
 	}
 	if len(args) > 1 {
-		double, _ = args[1].(bool)
+		given, ok := args[1].(bool)
+		if !ok {
+			return 0, false, fmt.Errorf("double click %v is not a boolean", args[1])
+		}
+		double = given
 	}
-	return button, double
+	button, ok := gnomeButtons[name]
+	if !ok {
+		return 0, false, fmt.Errorf("unknown mouse button %q", name)
+	}
+	return button, double, nil
 }
 
-// tap presses and releases one button or key.
-func (s *gnomeSession) tap(method string, code any) error {
-	if err := s.notify(method, code, true); err != nil {
+func (d *gnomeDesktop) scroll(clicks int, direction ...any) error {
+	axis, steps, err := wheelSteps(clicks, direction)
+	if err != nil {
 		return err
 	}
-	time.Sleep(keyPause)
-	err := s.notify(method, code, false)
-	time.Sleep(keyPause)
-	return err
+	return d.input(func(link *gnomeLink) error {
+		return link.notify("NotifyPointerAxisDiscrete", axis, steps)
+	})
 }
 
-func (s *gnomeSession) scroll(clicks int, direction ...any) error {
-	axis, steps := wheelSteps(clicks, direction)
-	return s.notify("NotifyPointerAxisDiscrete", axis, steps)
-}
-
-func wheelSteps(clicks int, direction []any) (uint32, int32) {
+// wheelSteps reads robotgo's ScrollDir arguments: a click count and the way the wheel turns.
+func wheelSteps(clicks int, direction []any) (uint32, int32, error) {
 	name := "down"
 	if len(direction) > 0 {
-		name, _ = direction[0].(string)
+		given, ok := direction[0].(string)
+		if !ok {
+			return 0, 0, fmt.Errorf("scroll direction %v is not a name", direction[0])
+		}
+		name = given
 	}
-	switch name {
-	case "up":
-		return verticalAxis, int32(-clicks)
-	case "left":
-		return horizontalAxis, int32(-clicks)
-	case "right":
-		return horizontalAxis, int32(clicks)
-	default:
-		return verticalAxis, int32(clicks)
+	turn, ok := wheelTurns[name]
+	if !ok {
+		return 0, 0, fmt.Errorf("unknown scroll direction %q", name)
 	}
+	return turn.axis, turn.sign * int32(clicks), nil
 }
 
-func (s *gnomeSession) typeText(text string) int {
+func (d *gnomeDesktop) typeText(text string) int {
 	typed := 0
-	for _, char := range text {
-		if err := s.tap("NotifyKeyboardKeysym", runeKeysym(char)); err != nil {
-			return typed
+	_ = d.input(func(link *gnomeLink) error {
+		for _, char := range text {
+			if err := link.tap("NotifyKeyboardKeysym", runeKeysym(char)); err != nil {
+				return err
+			}
+			typed++
 		}
-		typed++
-	}
+		return nil
+	})
 	return typed
 }
 
@@ -300,7 +410,7 @@ func runeKeysym(char rune) uint32 {
 	}
 }
 
-func (s *gnomeSession) keyTap(key string, modifiers ...any) error {
+func (d *gnomeDesktop) keyTap(key string, modifiers ...any) error {
 	keysym, err := keyKeysym(key)
 	if err != nil {
 		return err
@@ -309,18 +419,25 @@ func (s *gnomeSession) keyTap(key string, modifiers ...any) error {
 	if err != nil {
 		return err
 	}
-	for _, modifier := range held {
-		if err := s.notify("NotifyKeyboardKeysym", modifier, true); err != nil {
+	return d.input(func(link *gnomeLink) error { return link.combo(keysym, held) })
+}
+
+// combo taps a key with modifiers held, and lets go of every modifier it
+// pressed even when a step fails, so none stays down in the session.
+func (l *gnomeLink) combo(keysym uint32, modifiers []uint32) (err error) {
+	pressed := 0
+	defer func() {
+		for _, modifier := range modifiers[:pressed] {
+			err = errors.Join(err, l.notify("NotifyKeyboardKeysym", modifier, false))
+		}
+	}()
+	for _, modifier := range modifiers {
+		if err := l.notify("NotifyKeyboardKeysym", modifier, true); err != nil {
 			return err
 		}
+		pressed++
 	}
-	tapErr := s.tap("NotifyKeyboardKeysym", keysym)
-	for _, modifier := range held {
-		if err := s.notify("NotifyKeyboardKeysym", modifier, false); err != nil {
-			return err
-		}
-	}
-	return tapErr
+	return l.tap("NotifyKeyboardKeysym", keysym)
 }
 
 func keyKeysym(key string) (uint32, error) {
@@ -340,7 +457,7 @@ func modifierKeysyms(modifiers []any) ([]uint32, error) {
 		name, _ := modifier.(string)
 		keysym, ok := gnomeModifiers[name]
 		if !ok {
-			return nil, fmt.Errorf("unknown modifier %q", modifier)
+			return nil, fmt.Errorf("unknown modifier %v", modifier)
 		}
 		keysyms = append(keysyms, keysym)
 	}
