@@ -306,7 +306,7 @@ tasks:
           --build-arg REVISION={{.COMMIT}} \
           --build-arg BUILD_DATE={{.DATE}} \
           --annotation "index:org.opencontainers.image.title=Inference Gateway Computer" \
-          --annotation "index:org.opencontainers.image.description=A minimal Ubuntu desktop for computer-use agents: infer daemon on an Xvfb display with openbox and a tint2 taskbar. Install what an agent needs with cloud-init user-data." \
+          --annotation "index:org.opencontainers.image.description=The Ubuntu desktop for computer-use agents: infer daemon on a headless GNOME Shell session with the Ubuntu dock and theme. Install what an agent needs with cloud-init user-data." \
           --annotation "index:org.opencontainers.image.vendor=Inference Gateway" \
           --annotation "index:org.opencontainers.image.source=https://github.com/inference-gateway/cli" \
           --annotation "index:org.opencontainers.image.licenses=Apache-2.0" \

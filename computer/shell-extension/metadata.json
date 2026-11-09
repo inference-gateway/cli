@@ -1,0 +1,6 @@
+{
+  "uuid": "computer@inference-gateway.com",
+  "name": "Computer",
+  "description": "Puts the shell in unsafe mode, so the infer daemon of this machine can take screenshots and place windows on the screen.",
+  "shell-version": ["50"]
+}

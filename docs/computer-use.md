@@ -34,13 +34,19 @@ pod, see the [desktop workspace](../examples/session-teleport/README.md#a-comput
 
 ## The computer image
 
-`ghcr.io/inference-gateway/computer`, released with the CLI under the same version tags, is a minimal Ubuntu
-26.04 desktop for an agent of its own: `infer daemon` on an Xvfb display (`:99`, 1280x800) with openbox and a
-tint2 taskbar, its launchers built from the apps in `/usr/share/applications` and normal windows opened
-maximized. It ships no browser or other apps. A workspace installs what its agents need with
+`ghcr.io/inference-gateway/computer`, released with the CLI under the same version tags, is an Ubuntu 26.04
+desktop for an agent of its own: `infer daemon` on a headless GNOME Shell session (Wayland, 1280x800) in Ubuntu
+mode, with the dock, the Yaru theme, Files, Terminal and Text Editor, plus `tmux` so an agent can run
+interactive programs such as `infer chat` from its Bash tool. GTK apps expose their accessibility tree
+there, so the agent reads and presses controls by label before it falls back to screenshots. A small shell
+extension puts the shell in unsafe mode, which is what lets the daemon take screenshots and place windows, and a
+stand-in `org.freedesktop.login1` answers the shell, as a pod runs no systemd. The container starts as root for
+that and drops to the `infer` user before the desktop starts.
+
+It ships no browser. A workspace installs what its agents need with
 [`user_data`](daemon.md#workspaces-and-teleports), a cloud-init user-data script the pod runs as root when it
-boots, before the image drops to the `infer` user and starts the desktop. Its output lands in
-`/var/log/cloud-init-output.log`, and an app it adds to `/etc/xdg/autostart` opens on the desktop at boot:
+boots. Its output lands in `/var/log/cloud-init-output.log`. Nothing opens at boot - an app with a desktop entry
+shows in the app grid, and `firefox-esr` is pinned to the dock once it is installed:
 
 ```yaml
 # ~/.infer/daemon.yaml
@@ -56,10 +62,9 @@ workspaces:
       set -e
       apt-get update
       apt-get install -y --no-install-recommends gimp
-      cp /usr/share/applications/gimp.desktop /etc/xdg/autostart/
 ```
 
-Without `user_data` the pod boots straight to the desktop as `infer`. `task container:build:computer` builds
+Without `user_data` the pod boots straight to the desktop. `task container:build:computer` builds
 the image locally as `ghcr.io/inference-gateway/computer:local`.
 
 ## The person's take-over
