@@ -16,6 +16,7 @@ const (
 	callTimeout     = time.Second
 	accessibleIface = "org.a11y.atspi.Accessible"
 	coordTypeScreen = uint32(0)
+	coordTypeWindow = uint32(1)
 )
 
 var (
@@ -25,7 +26,8 @@ var (
 
 // dbusBus is the AT-SPI2 accessibility bus, reached with godbus.
 type dbusBus struct {
-	conn *dbus.Conn
+	conn      *dbus.Conn
+	coordType uint32
 }
 
 // dialA11yBus connects to the accessibility bus. ctx bounds the connection and every
@@ -39,7 +41,7 @@ func dialA11yBus(ctx context.Context) (*dbusBus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &dbusBus{conn: conn}, nil
+	return &dbusBus{conn: conn, coordType: sessionTree().coordType}, nil
 }
 
 // a11yBusAddress finds the accessibility bus in libatspi's order: AT_SPI_BUS_ADDRESS, the
@@ -149,7 +151,7 @@ func (b *dbusBus) states(ctx context.Context, node accessible) (uint64, error) {
 
 func (b *dbusBus) extents(ctx context.Context, node accessible) (rect, error) {
 	var r rect
-	err := b.call(ctx, node, componentInterface+".GetExtents", coordTypeScreen).Store(&r)
+	err := b.call(ctx, node, componentInterface+".GetExtents", b.coordType).Store(&r)
 	return r, err
 }
 

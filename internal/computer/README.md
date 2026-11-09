@@ -10,9 +10,10 @@ bridges and the screenshot stream.
 
 - `NewTools(...)` builds `Computer`, `GetLatestFrame`, `RecordStart` and `RecordStop` from the manifests in
   `tools/`, and the container registers them into the tools registry.
-- The accessibility provider runs in a helper subprocess: AXUIElement on macOS, AT-SPI2 over D-Bus on Linux X11.
-  Wayland and Windows return an unsupported error and the tool falls back to screenshot guidance, so a native
-  failure never takes down the CLI. The X11 window lookup it uses to resolve a target also serves window recording.
+- The accessibility provider runs in a helper subprocess: AXUIElement on macOS, AT-SPI2 over D-Bus on Linux X11
+  and GNOME Wayland, where the shell says where each window stands. Other Wayland compositors and Windows
+  return an unsupported error and the tool falls back to screenshot guidance, so a native failure never takes
+  down the CLI. The X11 window lookup it uses to resolve a target also serves window recording.
 - The display backend is robotgo, X11 or wlroots Wayland on Linux. A GNOME Wayland session gets its own backend
   over the session D-Bus, as mutter implements none of the wlroots protocols: input through
   `org.gnome.Mutter.RemoteDesktop`, the screen through `org.gnome.Shell.Screenshot` in unsafe mode.
