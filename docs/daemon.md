@@ -81,6 +81,13 @@ With `ca` the token may be empty, since every connection carries a verified cert
 The `infer daemon workspaces`, `teleport`, `run` and `stop` commands dial the local binding over whichever
 mode it serves, with the token or, when it requires them, a client certificate.
 
+The opentask extension cannot present a client certificate. So when the browser-use extension backend is on and
+the binding requires client certificates (`ca`, or `files` with `client_auth: true`), the daemon also serves the
+extension a plain `ws://127.0.0.1:<extension.port>/ws` authorized by `browser_use.extension.token`. That loopback
+listener speaks the same handshake but serves none of the HTTP routes, so the terminal, the screen, the artifacts
+and the A2A peer endpoint stay behind mutual TLS. Set `binding.port` to a port other than `extension.port` and
+keep the extension token set, or the daemon refuses to start. Every other setup keeps the single listener.
+
 An enabled binding with neither a token nor a client-certificate mode uses this machine's local token: the
 daemon and its local clients share one generated into `~/.infer/daemon/binding.token`, readable only by its
 owner, on first use. `infer chat --daemon` turns the binding on whatever `daemon.yaml` says, and a daemon a

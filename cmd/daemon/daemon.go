@@ -383,6 +383,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		})
 	}
 
+	handler := bindingHandler{relay: relay, teleports: teleports, registry: registry}
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {
 		if !b.Dialable() {
@@ -409,11 +410,18 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 					Frame: screenFrame(registry), Control: screenControl(registry), Input: screenInput(registry),
 				},
 			},
-		}, bindingHandler{relay: relay, teleports: teleports, registry: registry})
+		}, handler)
 		if err := binding.Start(); err != nil {
 			return threadHost{}, fmt.Errorf("failed to start the AG-UI binding: %w", err)
 		}
 		logger.Info("web terminal available", "url", web.URL(b, b.Token))
+	}
+	extensionLoopback, err := startExtensionLoopback(cfg, teleports.AckAttrs(), handler)
+	if err != nil {
+		if binding != nil {
+			binding.Close()
+		}
+		return threadHost{}, err
 	}
 
 	stopped := make(chan struct{})
@@ -427,10 +435,39 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 			if binding != nil {
 				binding.Close()
 			}
+			if extensionLoopback != nil {
+				extensionLoopback.Close()
+			}
 			<-stopped
 		},
 		idle: idle,
 	}, nil
+}
+
+// startExtensionLoopback serves the opentask extension a plain loopback binding
+// when the main one requires client certificates the extension cannot present.
+// It shares the main binding's handler and handshake but none of its HTTP
+// routes, so the terminal, screen, artifacts and peer endpoint stay behind mTLS.
+func startExtensionLoopback(cfg *config.Config, ackAttrs map[string]any, handler agui.Handler) (*agui.Binding, error) {
+	loopback, err := cfg.ExtensionLoopback()
+	if err != nil {
+		return nil, err
+	}
+	if !loopback.Enabled {
+		return nil, nil
+	}
+	listener := agui.NewBinding(agui.BindingConfig{
+		Host:        loopback.ListenHost(),
+		Port:        loopback.Port,
+		Token:       loopback.Token,
+		AckAttrs:    ackAttrs,
+		Handshake:   browserinfra.BindingHandshake,
+		AllowOrigin: browserinfra.AllowExtensionOrigin,
+	}, handler)
+	if err := listener.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start the extension's loopback binding on %s: %w", loopback.Addr(), err)
+	}
+	return listener, nil
 }
 
 // idleCheck is how often the daemon looks at whether it idled out.
