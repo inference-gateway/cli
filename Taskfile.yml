@@ -268,6 +268,54 @@ tasks:
           -f Dockerfile \
           .
 
+  container:build:computer:
+    desc: Build the computer image (an Ubuntu desktop for computer-use agents) locally for testing
+    cmds:
+      - task: release:build:linux
+      - |
+        docker build \
+          --build-context binaries=dist/ \
+          --build-arg VERSION={{.VERSION}} \
+          --build-arg REVISION={{.COMMIT}} \
+          --build-arg BUILD_DATE={{.DATE}} \
+          -t ghcr.io/inference-gateway/computer:local \
+          -f computer/Dockerfile \
+          .
+
+  container:push:computer:
+    desc: Push the pre-built computer image to the registry
+    vars:
+      PUSH_LATEST:
+        sh: echo "${PUSH_LATEST:-true}"
+      LATEST_TAG:
+        sh: |
+          if [ "{{.PUSH_LATEST}}" = "true" ]; then
+            echo "-t ghcr.io/inference-gateway/computer:latest"
+          else
+            echo ""
+          fi
+    cmds:
+      - |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --push \
+          -t ghcr.io/inference-gateway/computer:{{.VERSION}} \
+          {{.LATEST_TAG}} \
+          --build-context binaries=dist/ \
+          --build-arg VERSION={{.VERSION}} \
+          --build-arg REVISION={{.COMMIT}} \
+          --build-arg BUILD_DATE={{.DATE}} \
+          --annotation "index:org.opencontainers.image.title=Inference Gateway Computer" \
+          --annotation "index:org.opencontainers.image.description=A minimal Ubuntu desktop for computer-use agents: infer daemon on an Xvfb display with openbox and a tint2 taskbar. Install what an agent needs with cloud-init user-data." \
+          --annotation "index:org.opencontainers.image.vendor=Inference Gateway" \
+          --annotation "index:org.opencontainers.image.source=https://github.com/inference-gateway/cli" \
+          --annotation "index:org.opencontainers.image.licenses=Apache-2.0" \
+          --annotation "index:org.opencontainers.image.version={{.VERSION}}" \
+          --annotation "index:org.opencontainers.image.revision={{.COMMIT}}" \
+          --annotation "index:org.opencontainers.image.created={{.DATE}}" \
+          -f computer/Dockerfile \
+          .
+
   precommit:install:
     desc: Install pre-commit hooks
     cmds:
