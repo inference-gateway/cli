@@ -22,7 +22,7 @@ import (
 
 const (
 	busDeadline        = 6 * time.Second
-	maxAtspiDepth      = 32
+	maxGnomeTreeDepth  = 32
 	nullPath           = "/org/a11y/atspi/null"
 	componentInterface = "org.a11y.atspi.Component"
 	actionInterface    = "org.a11y.atspi.Action"
@@ -66,8 +66,10 @@ type atspiBus interface {
 }
 
 func runNative(req request) ([]computerdomain.UIElement, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), busDeadline)
+	defer cancel()
 	if gnomeSession() {
-		return runOnGnome(req)
+		return runOnGnome(ctx, req)
 	}
 	if !x11Session() {
 		return nil, fmt.Errorf("%w: AT-SPI needs an X11 or a GNOME Wayland session", ErrUnsupported)
@@ -76,25 +78,23 @@ func runNative(req request) ([]computerdomain.UIElement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runOnBus(pid, req)
+	return runOnBus(ctx, pid, req)
 }
 
-func runOnGnome(req request) ([]computerdomain.UIElement, error) {
-	windows, err := gnomeWindows()
+func runOnGnome(ctx context.Context, req request) ([]computerdomain.UIElement, error) {
+	windows, err := gnomeWindows(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("%w: list the shell's windows: %v", ErrUnavailable, err)
+		return nil, fmt.Errorf("%w: list the shell's windows: %w", ErrUnavailable, err)
 	}
 	window, err := pickWindow(windows, req.Target)
 	if err != nil {
 		return nil, err
 	}
-	elements, err := runOnBus(window.PID, req)
+	elements, err := runOnBus(ctx, window.PID, req)
 	return placeOnScreen(elements, window), err
 }
 
-func runOnBus(pid uint32, req request) ([]computerdomain.UIElement, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), busDeadline)
-	defer cancel()
+func runOnBus(ctx context.Context, pid uint32, req request) ([]computerdomain.UIElement, error) {
 	bus, err := dialA11yBus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: no AT-SPI bus (needs at-spi2-core and a session D-Bus): %v", ErrUnavailable, err)
@@ -239,9 +239,10 @@ func applicationOf(ctx context.Context, bus atspiBus, pid uint32) (accessible, e
 func descendants(ctx context.Context, bus atspiBus, root accessible) iter.Seq[accessible] {
 	return func(yield func(accessible) bool) {
 		visited := make(map[accessible]bool)
+		maxDepth := sessionTree().maxDepth
 		var walk func(accessible, int) bool
 		walk = func(node accessible, depth int) bool {
-			if depth > maxAtspiDepth || node.Bus == "" || node.Path == nullPath || visited[node] {
+			if depth > maxDepth || node.Bus == "" || node.Path == nullPath || visited[node] {
 				return true
 			}
 			visited[node] = true

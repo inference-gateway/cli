@@ -26,7 +26,8 @@ var (
 
 // dbusBus is the AT-SPI2 accessibility bus, reached with godbus.
 type dbusBus struct {
-	conn *dbus.Conn
+	conn      *dbus.Conn
+	coordType uint32
 }
 
 // dialA11yBus connects to the accessibility bus. ctx bounds the connection and every
@@ -40,7 +41,7 @@ func dialA11yBus(ctx context.Context) (*dbusBus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &dbusBus{conn: conn}, nil
+	return &dbusBus{conn: conn, coordType: sessionTree().coordType}, nil
 }
 
 // a11yBusAddress finds the accessibility bus in libatspi's order: AT_SPI_BUS_ADDRESS, the
@@ -148,18 +149,9 @@ func (b *dbusBus) states(ctx context.Context, node accessible) (uint64, error) {
 	return states, nil
 }
 
-// extentsCoordType asks for window coordinates on GNOME Wayland, where a toolkit
-// answers every screen position as the origin, and placeOnScreen adds the window's place.
-func extentsCoordType() uint32 {
-	if gnomeSession() {
-		return coordTypeWindow
-	}
-	return coordTypeScreen
-}
-
 func (b *dbusBus) extents(ctx context.Context, node accessible) (rect, error) {
 	var r rect
-	err := b.call(ctx, node, componentInterface+".GetExtents", extentsCoordType()).Store(&r)
+	err := b.call(ctx, node, componentInterface+".GetExtents", b.coordType).Store(&r)
 	return r, err
 }
 

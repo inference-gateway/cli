@@ -1,10 +1,12 @@
 package accessibility
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -38,16 +40,17 @@ func gnomeSession() bool {
 }
 
 // gnomeWindows asks the shell for its windows, which it answers only in unsafe mode.
-func gnomeWindows() ([]gnomeWindow, error) {
-	conn, err := dbus.ConnectSessionBus()
+func gnomeWindows(ctx context.Context) ([]gnomeWindow, error) {
+	conn, err := dbus.ConnectSessionBus(dbus.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("connect to the session bus: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
 	var ok bool
 	var result string
-	if err := conn.Object(shellName, shellPath).Call(shellName+".Eval", 0, windowsScript).Store(&ok, &result); err != nil {
-		return nil, err
+	shell := conn.Object(shellName, shellPath)
+	if err := shell.CallWithContext(ctx, shellName+".Eval", 0, windowsScript).Store(&ok, &result); err != nil {
+		return nil, fmt.Errorf("ask the shell: %w", err)
 	}
 	if !ok {
 		return nil, errors.New("the shell refused Eval, it needs unsafe mode")
@@ -59,28 +62,42 @@ func gnomeWindows() ([]gnomeWindow, error) {
 	return windows, nil
 }
 
-// pickWindow resolves a Computer target to its topmost window. A pid without a
-// window stands at the screen origin, which is where the shell's own tree lives.
+// pickWindow resolves a Computer target to its topmost window.
 func pickWindow(windows []gnomeWindow, target string) (gnomeWindow, error) {
 	target = strings.TrimSpace(target)
 	if target == "dock" || target == "menubar" {
 		return gnomeWindow{}, fmt.Errorf("%w: target %q exists only on macOS", ErrUnsupported, target)
 	}
-	matches := windowMatcher(target)
 	if value, ok := strings.CutPrefix(target, "pid:"); ok {
 		pid, err := strconv.ParseUint(value, 10, 32)
 		if err != nil || pid == 0 {
 			return gnomeWindow{}, fmt.Errorf("%w: invalid target %q", ErrUnavailable, target)
 		}
-		matches = func(window gnomeWindow) bool { return window.PID == uint32(pid) }
-		windows = append([]gnomeWindow{{PID: uint32(pid)}}, windows...)
+		return windowOfProcess(windows, uint32(pid)), nil
 	}
-	for i := len(windows) - 1; i >= 0; i-- {
-		if matches(windows[i]) {
-			return windows[i], nil
-		}
+	if window, ok := topmost(windows, windowMatcher(target)); ok {
+		return window, nil
 	}
 	return gnomeWindow{}, fmt.Errorf("%w: no visible window for target %q", ErrUnavailable, target)
+}
+
+// windowOfProcess answers the topmost window of pid. A process without one, such as
+// the shell with its dock and top bar, stands at the screen origin.
+func windowOfProcess(windows []gnomeWindow, pid uint32) gnomeWindow {
+	owned := func(window gnomeWindow) bool { return window.PID == pid }
+	if window, ok := topmost(windows, owned); ok {
+		return window
+	}
+	return gnomeWindow{PID: pid}
+}
+
+func topmost(windows []gnomeWindow, matches func(gnomeWindow) bool) (gnomeWindow, bool) {
+	for _, window := range slices.Backward(windows) {
+		if matches(window) {
+			return window, true
+		}
+	}
+	return gnomeWindow{}, false
 }
 
 func windowMatcher(target string) func(gnomeWindow) bool {
@@ -94,8 +111,8 @@ func windowMatcher(target string) func(gnomeWindow) bool {
 	}
 }
 
-// placeOnScreen moves window-relative boxes, which is what AT-SPI answers under
-// Wayland, to where the window stands on the screen.
+// placeOnScreen moves the window-relative boxes a GNOME session's bus answers
+// (see gnomeTree) to where the window stands on the screen, in place.
 // ponytail: one origin per application, so a dialog or popover of its own surface is
 // off by its offset. Match each AT-SPI frame to its shell window when that bites.
 func placeOnScreen(elements []computerdomain.UIElement, window gnomeWindow) []computerdomain.UIElement {
@@ -105,4 +122,26 @@ func placeOnScreen(elements []computerdomain.UIElement, window gnomeWindow) []co
 		box[1], box[3] = box[1]+window.Y, box[3]+window.Y
 	}
 	return elements
+}
+
+// treeShape is how a session's accessibility tree has to be read: in which
+// coordinates its boxes come, and how deep the walk goes.
+type treeShape struct {
+	coordType uint32
+	maxDepth  int
+}
+
+var (
+	screenTree = treeShape{coordType: coordTypeScreen, maxDepth: maxTreeDepth}
+	gnomeTree  = treeShape{coordType: coordTypeWindow, maxDepth: maxGnomeTreeDepth}
+)
+
+// sessionTree picks the shape once per walk. On GNOME Wayland a toolkit answers every
+// screen position as the origin, so boxes are asked relative to the window and
+// placeOnScreen adds its place. GTK 4 also nests controls about 30 levels deep.
+func sessionTree() treeShape {
+	if gnomeSession() {
+		return gnomeTree
+	}
+	return screenTree
 }
