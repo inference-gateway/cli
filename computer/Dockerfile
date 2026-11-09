@@ -21,7 +21,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates curl git \
+      ca-certificates curl git tmux \
       dbus dbus-user-session libglib2.0-bin python3-dbusmock \
       gnome-shell ubuntu-session ubuntu-settings gnome-shell-extension-ubuntu-dock \
       yaru-theme-gnome-shell yaru-theme-gtk yaru-theme-icon ubuntu-wallpapers fonts-ubuntu \
