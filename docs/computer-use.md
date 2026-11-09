@@ -22,8 +22,10 @@ screenshot:
 
 The display backend is detected automatically on macOS, Linux and Windows. The accessibility tree is
 read on macOS and on Linux under X11 or GNOME Wayland (AT-SPI2, which needs `at-spi2-core` and a session
-D-Bus, and on GNOME Wayland the shell in unsafe mode to place windows on the screen). Other Wayland compositors
-and Windows fall back to screenshots. Actions are governed by
+D-Bus). Other Wayland compositors and Windows fall back to screenshots. On GNOME Wayland
+(`XDG_CURRENT_DESKTOP` names GNOME) the pointer and keyboard go through mutter's remote desktop session, and
+screenshots and window positions come from the shell, which answers only in unsafe mode - the
+[computer image](#the-computer-image) is the place for that, not your own desktop. Actions are governed by
 `computer_use.enabled`, rate limits and `computer_use.approval`. The
 [desktop app](https://github.com/inference-gateway/desktop) visualizes what the agent is doing
 (monitor, screen overlay, approvals). For a sandboxed desktop to drive, see

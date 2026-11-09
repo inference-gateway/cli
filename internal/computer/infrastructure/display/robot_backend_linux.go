@@ -10,6 +10,9 @@ import (
 var robot = linuxRobot()
 
 func linuxRobot() robotBackend {
+	if useGNOME() {
+		return gnomeRobot()
+	}
 	if useX11() {
 		return robotBackend{
 			GetScreenSize: rgx11.GetScreenSize,
