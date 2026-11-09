@@ -255,7 +255,8 @@ workspaces:
 - `user_data` is a [cloud-init](https://cloudinit.readthedocs.io/) user-data script the pod runs as root
   when it boots, before the daemon starts, the way a cloud VM runs it - for example to install a browser on
   the [computer image](computer-use.md). It must start with `#!`, as `#cloud-config` is not supported yet. It
-  lands in the session's Secret under the key `userdata`, never in the Orchestrator, and the operator mounts
+  is the one value in `daemon.yaml` whose `$VAR` references are never expanded, as they belong to the shell
+  that runs the script. It lands in the session's Secret under the key `userdata`, never in the Orchestrator, and the operator mounts
   it at cloud-init's NoCloud seed path, `/var/lib/cloud/seed/nocloud/user-data`. The pod then boots in a user
   namespace, so its root is never root on the node. Like an instance's user-data it is fixed when the
   session's Orchestrator is created, and it runs again on every boot of the pod, as each boot starts from the
