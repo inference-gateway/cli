@@ -47,7 +47,7 @@ The default run needs no account and no API key, `task gateway:real` needs your 
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) and [helm](https://helm.sh/) v3.12 or later
 - [docker](https://docs.docker.com/get-docker/) with Compose v2, on a kernel with WireGuard (Docker Desktop and OrbStack
   have it)
-- [task](https://taskfile.dev/) and Go 1.26: `task image:import` builds the infer image from this checkout
+- [task](https://taskfile.dev/) and Go 1.27: `task image:import` builds the infer image from this checkout
 - `curl`, `jq` and `openssl`
 - ports 18080 (NetBird API) and 18081 (dashboard) free on localhost
 

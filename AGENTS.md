@@ -4,7 +4,7 @@ A README for coding agents on the **Inference Gateway CLI** — an agentic CLI (
 
 ## Stack
 
-- Go 1.26, module `github.com/inference-gateway/cli`. Entry: `cmd/infer/main.go` → `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
+- Go 1.27, module `github.com/inference-gateway/cli`. Entry: `cmd/infer/main.go` → `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
 - Dev env pinned by **flox** (`.flox/env/manifest.toml`). Run everything through `flox activate --`.
 
 ## Build / Test / Lint

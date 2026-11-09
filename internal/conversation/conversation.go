@@ -406,8 +406,9 @@ func (r *InMemoryConversationRepository) exportText() []byte {
 			role = string(entry.Message.Role)
 		}
 
+		text, _ := entry.Message.Content.AsMessageContent0()
 		fmt.Fprintf(&content, "[%s] %s: %s\n\n",
-			entry.Time.Format("15:04:05"), role, entry.Message.Content)
+			entry.Time.Format("15:04:05"), role, text)
 	}
 
 	return []byte(content.String())
