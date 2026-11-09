@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.252.0](https://github.com/inference-gateway/cli/compare/v0.251.1...v0.252.0) (2026-11-09)
+
+### 🚀 Features
+
+* **computer:** drive GNOME on Wayland ([#1782](https://github.com/inference-gateway/cli/issues/1782)) ([962df0d](https://github.com/inference-gateway/cli/commit/962df0d749648f03d55c39da481b411b841ddd6d))
+* **computer:** read the accessibility tree on GNOME Wayland ([#1783](https://github.com/inference-gateway/cli/issues/1783)) ([9ded439](https://github.com/inference-gateway/cli/commit/9ded4398c700d3daef90681b24633a9773950429))
+* **computer:** ship the Ubuntu GNOME desktop ([#1784](https://github.com/inference-gateway/cli/issues/1784)) ([f12b15c](https://github.com/inference-gateway/cli/commit/f12b15c62acad0ba25b5795c3c9df5c0be94c6ec)), references [#1782](https://github.com/inference-gateway/cli/issues/1782) [#1783](https://github.com/inference-gateway/cli/issues/1783)
+
 ## [0.251.1](https://github.com/inference-gateway/cli/compare/v0.251.0...v0.251.1) (2026-11-09)
 
 ### 🐛 Bug Fixes
