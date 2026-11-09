@@ -5,3 +5,6 @@ servers:
     url: http://demo-mcp.infer-workspaces.svc.cluster.local:3000/mcp
     headers:
       x-api-key: ${DEMO_MCP_KEY}
+    include_tools:
+      - get_time
+      - calculate

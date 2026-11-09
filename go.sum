@@ -228,8 +228,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/inference-gateway/adk v0.34.0 h1:me6aGRtkQ8m45K+ayzV1OyL94SkYhOrIQ8SS28+FaUI=
 github.com/inference-gateway/adk v0.34.0/go.mod h1:XhX6mteE8YTMwsNIF78BMIYwRZSv6AjFCTDVPbcWzGI=
-github.com/inference-gateway/operator v0.33.0 h1:BLYf3/ISI6czH++sqhunpL1EyLdJEtMSikqGcFM2lZk=
-github.com/inference-gateway/operator v0.33.0/go.mod h1:xg7qksIOcIb0Mnmt2mGnEnoEs7jjqr7sPKQXubfnxh0=
+github.com/inference-gateway/operator v0.34.0 h1:IjNEapvIvEY852OQNQunkfblOzVR60oFCwLoKzjjH/c=
+github.com/inference-gateway/operator v0.34.0/go.mod h1:xg7qksIOcIb0Mnmt2mGnEnoEs7jjqr7sPKQXubfnxh0=
 github.com/inference-gateway/sdk v1.45.0 h1:KavbrZQrn/5ZCXT2uiB8086N8nmY9XC6/jiKkOg9KZw=
 github.com/inference-gateway/sdk v1.45.0/go.mod h1:Kod/SizELrQy057g7Jf/hfdo3riMEBd7nCuulh+edkg=
 github.com/inference-gateway/tokenless v0.12.0 h1:JrfIArlHgZCkzGh5LFMG3zeYwdO4R0Wd700lyA2YWL8=

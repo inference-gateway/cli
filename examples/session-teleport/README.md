@@ -163,12 +163,13 @@ The `k8s-mcp` workspace gives its pods the `demo-server` of the laptop's `mcp.ya
 The server's header is written as `x-api-key: ${DEMO_MCP_KEY}`, and the laptop forwards it as written into
 the session's Orchestrator. The pod expands the reference from `DEMO_MCP_KEY`, which the workspace's
 `secrets` give it from the `demo-mcp-credentials` Secret, so the key never passes through the laptop. The
-laptop's own chats leave the server off (`enabled: false`), since only the cluster reaches it. This needs
-operator v0.33.0 or newer.
+laptop's own chats leave the server off (`enabled: false`), since only the cluster reaches it. Its
+`include_tools` reaches the pod too, so the agent there gets `get_time` and `calculate` and none of the
+server's file and environment tools. This needs operator v0.34.0 or newer.
 
 ```bash
 # 1. Install an operator that renders hosted MCP servers
-task operator:install OPERATOR_VERSION=v0.33.0
+task operator:install OPERATOR_VERSION=v0.34.0
 
 # 2. Deploy the demo MCP server and the Secret with its key
 task mcp:install

@@ -28,7 +28,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/inference-gateway/adk v0.34.0
-	github.com/inference-gateway/operator v0.33.0
+	github.com/inference-gateway/operator v0.34.0
 	github.com/inference-gateway/sdk v1.45.0
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/lib/pq v1.12.3
