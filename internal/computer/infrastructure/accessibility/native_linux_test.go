@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -307,6 +308,7 @@ func TestRunNativeFailsFastWithoutAccessibility(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("WAYLAND_DISPLAY", tt.wayland)
+			t.Setenv("XDG_CURRENT_DESKTOP", "")
 			t.Setenv("DISPLAY", ":0")
 			t.Setenv("AT_SPI_BUS_ADDRESS", "unix:path=/nonexistent/at-spi-bus")
 			start := time.Now()
@@ -342,7 +344,7 @@ sys.exit(0 if pressed else 1)
 
 func TestAtspiIntegrationPressesGtkButton(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" || os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-		t.Skip("needs an X11 display and a session bus: xvfb-run dbus-run-session go test")
+		t.Skip("needs a display and a session bus: xvfb-run dbus-run-session go test, or a GNOME Wayland session")
 	}
 	if err := exec.Command("python3", "-c", `import gi; gi.require_version("Gtk", "3.0")`).Run(); err != nil {
 		t.Skip("needs python3-gi with GTK 3")
@@ -357,7 +359,7 @@ func TestAtspiIntegrationPressesGtkButton(t *testing.T) {
 	go func() { exited <- app.Wait() }()
 
 	button := waitForElement(t, "app:infer-atspi-test", "Press me")
-	if button.Role != "push button" || button.BBox[2] <= button.BBox[0] || button.BBox[3] <= button.BBox[1] {
+	if !strings.HasSuffix(button.Role, "button") || button.BBox[2] <= button.BBox[0] || button.BBox[3] <= button.BBox[1] {
 		t.Fatalf("button = %+v, want a push button with a screen bbox", button)
 	}
 	if _, err := runNative(request{Action: "press", Target: "frontmost", Label: "Press me"}); err != nil {

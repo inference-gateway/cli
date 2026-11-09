@@ -65,13 +65,33 @@ type atspiBus interface {
 }
 
 func runNative(req request) ([]computerdomain.UIElement, error) {
+	if gnomeSession() {
+		return runOnGnome(req)
+	}
 	if !x11Session() {
-		return nil, fmt.Errorf("%w: AT-SPI needs an X11 session, Wayland is not supported yet", ErrUnsupported)
+		return nil, fmt.Errorf("%w: AT-SPI needs an X11 or a GNOME Wayland session", ErrUnsupported)
 	}
 	pid, err := targetPID(req.Target)
 	if err != nil {
 		return nil, err
 	}
+	return runOnBus(pid, req)
+}
+
+func runOnGnome(req request) ([]computerdomain.UIElement, error) {
+	windows, err := gnomeWindows()
+	if err != nil {
+		return nil, fmt.Errorf("%w: list the shell's windows: %v", ErrUnavailable, err)
+	}
+	window, err := pickWindow(windows, req.Target)
+	if err != nil {
+		return nil, err
+	}
+	elements, err := runOnBus(window.PID, req)
+	return placeOnScreen(elements, window), err
+}
+
+func runOnBus(pid uint32, req request) ([]computerdomain.UIElement, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), busDeadline)
 	defer cancel()
 	bus, err := dialA11yBus(ctx)

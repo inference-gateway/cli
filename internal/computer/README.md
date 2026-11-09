@@ -10,9 +10,10 @@ bridges and the screenshot stream.
 
 - `NewTools(...)` builds `Computer`, `GetLatestFrame`, `RecordStart` and `RecordStop` from the manifests in
   `tools/`, and the container registers them into the tools registry.
-- The accessibility provider runs in a helper subprocess: AXUIElement on macOS, AT-SPI2 over D-Bus on Linux X11.
-  Wayland and Windows return an unsupported error and the tool falls back to screenshot guidance, so a native
-  failure never takes down the CLI. The X11 window lookup it uses to resolve a target also serves window recording.
+- The accessibility provider runs in a helper subprocess: AXUIElement on macOS, AT-SPI2 over D-Bus on Linux X11
+  and GNOME Wayland, where the shell says where each window stands. Other Wayland compositors and Windows
+  return an unsupported error and the tool falls back to screenshot guidance, so a native failure never takes
+  down the CLI. The X11 window lookup it uses to resolve a target also serves window recording.
 - `PublishedEvent` maps this context's chat events onto the run stream: the `screenRecording` state key, and
   the `computer_use` activity each Computer pointer or keyboard action publishes before it runs. Headless
   passes it to its run encoder. A pause or resume publishes nothing: pausing stops the run and resuming
