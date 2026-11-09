@@ -172,6 +172,9 @@ type WorkspaceEntry struct {
 	// daemon gets, their headers as written so each stays a ${VAR} reference
 	// the pod expands from its own Secrets.
 	MCPServers []string `yaml:"mcp_servers,omitempty" mapstructure:"mcp_servers"`
+	// UserData is a cloud-init user-data script the pod runs as root when it
+	// boots, before the daemon starts, for example to install a browser.
+	UserData string `yaml:"user_data,omitempty" mapstructure:"user_data"`
 	// BindingService is metadata for the session's binding Service, for
 	// controllers that act on Service metadata such as a VPN operator.
 	BindingService BindingServiceConfig `yaml:"binding_service,omitempty" mapstructure:"binding_service"`
@@ -367,6 +370,17 @@ func (b BindingConfig) validate() error {
 	return nil
 }
 
+// userDataScriptPrefix starts a cloud-init user-data script, the one user-data
+// format a workspace runs today.
+const userDataScriptPrefix = "#!"
+
+// setsKubernetesOnlyFields reports whether the entry sets a field only a
+// kubernetes workspace uses.
+func (e WorkspaceEntry) setsKubernetesOnlyFields() bool {
+	return e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || len(e.MCPServers) > 0 ||
+		!e.BindingService.IsZero() || e.UserData != ""
+}
+
 func (e WorkspaceEntry) validate(identity string) error {
 	switch e.Protocol {
 	case "", WorkspaceProtocolAGUI, WorkspaceProtocolA2A:
@@ -376,8 +390,11 @@ func (e WorkspaceEntry) validate(identity string) error {
 	if err := e.Mode.validate(); err != nil {
 		return fmt.Errorf("workspace %q: %w", e.Name, err)
 	}
-	if e.Kind != WorkspaceKindKubernetes && (e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || len(e.MCPServers) > 0 || !e.BindingService.IsZero()) {
-		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers or binding_service, which only a kubernetes workspace uses", e.Name)
+	if e.Kind != WorkspaceKindKubernetes && e.setsKubernetesOnlyFields() {
+		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers, binding_service or user_data, which only a kubernetes workspace uses", e.Name)
+	}
+	if e.UserData != "" && !strings.HasPrefix(e.UserData, userDataScriptPrefix) {
+		return fmt.Errorf("workspace %q has user_data that is not a script: it must start with %q, as cloud-config is not supported yet", e.Name, userDataScriptPrefix)
 	}
 	switch e.Kind {
 	case WorkspaceKindLocal:

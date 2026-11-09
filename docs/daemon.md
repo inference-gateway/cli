@@ -245,6 +245,30 @@ workspaces:
         - agentmail
   ```
 
+- `user_data` is a [cloud-init](https://cloudinit.readthedocs.io/) user-data script the pod runs as root
+  when it boots, before the daemon starts, the way a cloud VM runs it - for example to install a browser on
+  the [computer image](computer-use.md). It must start with `#!`, as `#cloud-config` is not supported yet. It
+  lands in the session's Secret under the key `userdata`, never in the Orchestrator, and the operator mounts
+  it at cloud-init's NoCloud seed path, `/var/lib/cloud/seed/nocloud/user-data`. The pod then boots in a user
+  namespace, so its root is never root on the node. Like an instance's user-data it is fixed when the
+  session's Orchestrator is created, and it runs again on every boot of the pod, as each boot starts from the
+  image. It needs operator v0.35.0 or newer and nodes with user-namespace support (Kubernetes 1.36+,
+  containerd 2.0+, Linux 6.3+):
+
+  ```yaml
+  # ~/.infer/daemon.yaml
+  workspaces:
+    - name: ubuntu-desktop
+      kind: kubernetes
+      namespace: agents
+      image: ghcr.io/inference-gateway/computer:latest
+      user_data: |
+        #!/bin/sh
+        set -e
+        apt-get update
+        apt-get install -y --no-install-recommends gimp
+  ```
+
 - `projects_root` is where a daemon restores teleported projects: `<root>/<project slug>/<conversation id>`.
 - `idle_exit` stops a daemon that had no thread and no client for that long. Zero keeps it running,
   except for a daemon a client starts on demand, which stops after 30 minutes. Pod daemons get `idle_ttl`.
@@ -357,7 +381,7 @@ workspaces:
   labelled `inference-gateway.com/compute`, and the last session to go takes them along.
 - A machine holds `address`, `token` and `tls`, the connection of a `kind: daemon` workspace.
 - A workspace on compute keeps what describes the computer itself, such as `image`, `storage`, `idle_ttl`,
-  `env`, `forward_env`, `secrets`, `mcp_servers` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
+  `env`, `forward_env`, `secrets`, `mcp_servers`, `user_data` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
   key its compute sets, fails at startup, and so does naming compute that `compute.yaml` does not define.
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
   because clusters and machines belong to the user, not to a project.

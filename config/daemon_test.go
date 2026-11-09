@@ -112,6 +112,9 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"secrets on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", Secrets: []string{"agent-credentials"}}}}, "only a kubernetes workspace"},
 		{"mcp_servers on a local kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindLocal, MCPServers: []string{"mailbox"}}}}, "only a kubernetes workspace"},
 		{"binding_service on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", BindingService: BindingServiceConfig{Labels: map[string]string{"a": "b"}}}}}, "only a kubernetes workspace"},
+		{"user_data on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", UserData: "#!/bin/sh\n"}}}, "only a kubernetes workspace"},
+		{"user_data script", DaemonConfig{Workspaces: []WorkspaceEntry{withUserData(kubernetes, "#!/bin/sh\napt-get install -y firefox-esr\n")}}, ""},
+		{"user_data cloud-config", DaemonConfig{Workspaces: []WorkspaceEntry{withUserData(kubernetes, "#cloud-config\npackages:\n  - firefox-esr\n")}}, "must start with \"#!\""},
 		{"kubernetes address template", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Orchestrator}}.ts.net:52789")}}, ""},
 		{"kubernetes address template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Pod}}.ts.net:52789")}}, "address of workspace"},
 		{"kubernetes annotation template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAnnotation(kubernetes, "vpn/hostname", "{{.Orchestrator")}}, "binding_service.annotations"},
@@ -193,6 +196,11 @@ func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
 
 func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
 	entry.Mode = mode
+	return entry
+}
+
+func withUserData(entry WorkspaceEntry, userData string) WorkspaceEntry {
+	entry.UserData = userData
 	return entry
 }
 

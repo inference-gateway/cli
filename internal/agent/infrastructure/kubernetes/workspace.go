@@ -48,17 +48,18 @@ const (
 	labelCompute      = computek8s.LabelCompute
 	labelConversation = "inference-gateway.com/conversation"
 
-	bindingPort      = 52789
-	readyTimeout     = 5 * time.Minute
-	readyPoll        = 2 * time.Second
-	workspaceMount   = "/workspace"
-	tlsSecretSuffix  = "-tls"
-	secretTokenKey   = "token"
-	secretCertKey    = "tls.crt"
-	secretKeyKey     = "tls.key"
-	secretCAKey      = "ca.crt"
-	secretClientCert = "client.crt"
-	secretClientKey  = "client.key"
+	bindingPort       = 52789
+	readyTimeout      = 5 * time.Minute
+	readyPoll         = 2 * time.Second
+	workspaceMount    = "/workspace"
+	tlsSecretSuffix   = "-tls"
+	secretTokenKey    = "token"
+	secretCertKey     = "tls.crt"
+	secretKeyKey      = "tls.key"
+	secretCAKey       = "ca.crt"
+	secretClientCert  = "client.crt"
+	secretClientKey   = "client.key"
+	secretUserDataKey = "userdata"
 
 	modeRunning   = "Running"
 	modeSuspended = "Suspended"
@@ -220,8 +221,14 @@ const bindingServiceOperatorVersion = "v0.33.0"
 // headers alone also runs on bindingServiceOperatorVersion.
 const mcpServersOperatorVersion = "v0.34.0"
 
+// userDataOperatorVersion is the first operator release that boots a pod with
+// cloud-init user-data.
+const userDataOperatorVersion = "v0.35.0"
+
 func (e *Workspace) requiredOperatorVersion() string {
 	switch {
+	case e.entry.UserData != "":
+		return userDataOperatorVersion
 	case len(e.entry.MCPServers) > 0:
 		return mcpServersOperatorVersion
 	case !e.entry.BindingService.IsZero():
@@ -231,8 +238,9 @@ func (e *Workspace) requiredOperatorVersion() string {
 	}
 }
 
-// ensureSecret holds what the pod daemon authenticates with: a binding token
-// and the certificates the daemon CA issued.
+// ensureSecret holds what the pod daemon authenticates with, a binding token
+// and the certificates the daemon CA issued, and the user-data the pod boots
+// with, fixed for the session like an instance's.
 func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, error) {
 	existing, err := e.secrets().Get(ctx, name+tlsSecretSuffix, metav1.GetOptions{})
 	if err == nil {
@@ -267,6 +275,9 @@ func (e *Workspace) ensureSecret(ctx context.Context, name string) (string, erro
 		secretCAKey:      server.CAPEM,
 		secretClientCert: client.CertPEM,
 		secretClientKey:  client.KeyPEM,
+	}
+	if e.entry.UserData != "" {
+		data[secretUserDataKey] = []byte(e.entry.UserData)
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: name + tlsSecretSuffix, Namespace: e.entry.Namespace, Labels: map[string]string{labelWorkspace: e.entry.Name}},
@@ -454,8 +465,9 @@ func (e *Workspace) Delete(ctx context.Context, session agentdomain.Session) err
 }
 
 // orchestrator is the Orchestrator for a session: the infer image as a daemon
-// in a Sandbox, its binding authenticated by the session's Secret, with tools
-// and A2A on as they are by default outside the cluster.
+// in a Sandbox, its binding authenticated by and its user-data read from the
+// session's Secret, with tools and A2A on as they are by default outside the
+// cluster.
 func (e *Workspace) orchestrator(name string, session agentdomain.Session, secretEnv, mcpServers []any) (*k8sunstructured.Unstructured, error) {
 	sandbox := map[string]any{"operatingMode": modeRunning}
 	if e.entry.Storage != "" {
@@ -494,6 +506,9 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 	}
 	if len(mcpServers) > 0 {
 		spec["mcp"] = map[string]any{"enabled": true, "servers": mcpServers}
+	}
+	if e.entry.UserData != "" {
+		spec["userData"] = map[string]any{"secretRef": map[string]any{"name": secret, "key": secretUserDataKey}}
 	}
 	return &k8sunstructured.Unstructured{Object: map[string]any{
 		"apiVersion": orchestratorGroup + "/" + orchestratorVersion,

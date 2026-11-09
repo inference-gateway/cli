@@ -24,6 +24,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agentinfra "github.com/inference-gateway/cli/internal/agent/infrastructure"
 )
 
 // testWorkspace backs a workspace with a fake dynamic client holding the given
@@ -162,6 +163,47 @@ func TestOrchestratorRunsTheDaemonInASandbox(t *testing.T) {
 	}
 	if _, found, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "daemon", "binding", "service"); found {
 		t.Fatal("spec.daemon.binding.service is set without binding_service")
+	}
+}
+
+func TestOrchestratorBootsWithTheUserDataOfTheSessionSecret(t *testing.T) {
+	e, _ := testWorkspace(t, true)
+	session := agentdomain.Session{ConversationID: "conv-1"}
+	orchestrator, err := e.orchestrator("infer-1", session, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "userData"); found {
+		t.Fatal("spec.userData is set without user_data")
+	}
+
+	e.entry.UserData = "#!/bin/sh\napt-get install -y firefox-esr\n"
+	if orchestrator, err = e.orchestrator("infer-1", session, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	secretRef, _, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "userData", "secretRef")
+	if want := map[string]any{"name": "infer-1-tls", "key": "userdata"}; !reflect.DeepEqual(secretRef, want) {
+		t.Fatalf("spec.userData.secretRef = %v, want %v", secretRef, want)
+	}
+	if strings.Contains(fmt.Sprint(orchestrator.Object), "firefox-esr") {
+		t.Fatal("the user-data landed in the Orchestrator instead of its Secret")
+	}
+}
+
+func TestEnsureSecretHoldsTheUserDataThePodBootsWith(t *testing.T) {
+	e, _ := testWorkspace(t, true)
+	pki, err := agentinfra.LoadOrCreatePKI(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.pki = pki
+	e.entry.UserData = "#!/bin/sh\napt-get install -y firefox-esr\n"
+	if _, err := e.ensureSecret(t.Context(), "infer-1"); err != nil {
+		t.Fatal(err)
+	}
+	stored := storedSecret(t, e, "infer-1"+tlsSecretSuffix)
+	if got := string(stored.Data[secretUserDataKey]); got != e.entry.UserData {
+		t.Fatalf("Secret key %s = %q, want the workspace's user_data", secretUserDataKey, got)
 	}
 }
 
