@@ -143,9 +143,9 @@ func mergeUnderKey(v *viper.Viper, key string, settings map[string]any) error {
 	return v.MergeConfigMap(nested.(map[string]any))
 }
 
-// readYAMLMap parses a YAML file into a map, nil when the file is missing.
-// Sidecar bodies go through os.ExpandEnv so ${VAR} references resolve, as
-// documented for the split files. config.yaml is never expanded.
+// readYAMLMap parses a YAML file into a map, nil when the file is missing or
+// empty. Sidecar values go through os.ExpandEnv so ${VAR} references resolve,
+// as documented for the split files. config.yaml is never expanded.
 func readYAMLMap(path string, expandEnv bool) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -154,14 +154,45 @@ func readYAMLMap(path string, expandEnv bool) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, err
+	}
+	if document.Kind == 0 {
+		return nil, nil
+	}
 	if expandEnv {
-		data = []byte(os.ExpandEnv(string(data)))
+		expandEnvValues(&document)
 	}
 	var settings map[string]any
-	if err := yaml.Unmarshal(data, &settings); err != nil {
+	if err := document.Decode(&settings); err != nil {
 		return nil, err
 	}
 	return settings, nil
+}
+
+// scriptKey holds a script whose $VARS belong to the shell that runs it, so
+// its value is never expanded.
+const scriptKey = "user_data"
+
+// expandEnvValues resolves ${VAR} references in every scalar except a script.
+// An unquoted scalar takes the type of its expanded value, as `port: ${PORT}`
+// is a number, and a value can never add YAML structure.
+func expandEnvValues(node *yaml.Node) {
+	for i, child := range node.Content {
+		isScript := node.Kind == yaml.MappingNode && i%2 == 1 && node.Content[i-1].Value == scriptKey
+		if !isScript {
+			expandEnvValues(child)
+		}
+	}
+	if node.Kind != yaml.ScalarNode {
+		return
+	}
+	expanded := os.ExpandEnv(node.Value)
+	if expanded != node.Value && node.Style == 0 {
+		node.Tag = ""
+	}
+	node.Value = expanded
 }
 
 func deletePath(m map[string]any, key string) {

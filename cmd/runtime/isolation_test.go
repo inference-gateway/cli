@@ -93,6 +93,32 @@ func TestComputeResolvesWorkspacesFromHome(t *testing.T) {
 	assert.Equal(t, []string{"ANTHROPIC_API_KEY"}, workspace.GatewayEnv)
 }
 
+// A workspace's user_data is a script for the computer's shell, so its $VARS
+// stay as written while the rest of daemon.yaml resolves ${VAR} references.
+func TestWorkspaceUserDataKeepsItsShellVariables(t *testing.T) {
+	withHermeticEnv(t)
+	t.Setenv("WORKSPACE_IMAGE", "computer:1")
+	t.Setenv("1", "leaked")
+	script := "#!/bin/sh\ndir=/opt/opentask\ninstall -d \"$dir\" \"${1}\"\n"
+	writeHomeFile(t, config.DaemonFileName, "workspaces:\n  - name: desktop\n    kind: kubernetes\n    namespace: agents\n    image: ${WORKSPACE_IMAGE}\n    user_data: |\n      #!/bin/sh\n      dir=/opt/opentask\n      install -d \"$dir\" \"${1}\"\n")
+
+	cfg := loadTestConfig(t)
+	require.Len(t, cfg.Daemon.Workspaces, 1)
+	assert.Equal(t, "computer:1", cfg.Daemon.Workspaces[0].Image)
+	assert.Equal(t, script, cfg.Daemon.Workspaces[0].UserData)
+}
+
+// An unquoted ${VAR} takes the type of its value, so a number reaches a
+// number field even through a sidecar that reshapes its file.
+func TestExpandedUnquotedValueKeepsItsType(t *testing.T) {
+	withHermeticEnv(t)
+	t.Setenv("MAX_RESULT_BYTES", "42")
+	writeHomeFile(t, config.ToolsFileName, "max_result_bytes: ${MAX_RESULT_BYTES}\n")
+
+	cfg := loadTestConfig(t)
+	assert.Equal(t, 42, cfg.Tools.MaxResultBytes)
+}
+
 // MCP server env keys keep their case: Viper lowercases untyped map keys.
 func TestMCPServerEnvKeepsCase(t *testing.T) {
 	withHermeticEnv(t)
