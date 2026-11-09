@@ -289,6 +289,40 @@ func TestSupervisor_HasPending(t *testing.T) {
 	}
 }
 
+// TestSupervisor_HasPendingSkipsJobsThatYieldTheSession: a running
+// session-holding job that yields the session, like a shell that shows a window,
+// does not hold it, and still reads as running in the task views.
+func TestSupervisor_HasPendingSkipsJobsThatYieldTheSession(t *testing.T) {
+	sup := NewSupervisor(&convmocks.FakeMessageQueue{}, &convmocks.FakeConversationRepository{}, nil)
+	started := make(chan struct{})
+	finish := make(chan struct{})
+	windowApp := &schedmocks.FakeJobSessionYielder{}
+	windowApp.MetaReturns(scheddomain.JobMeta{ID: "shell-1", Kind: scheddomain.JobKindShell, Label: "shell-1", StartedAt: time.Now(), HoldsSession: true})
+	windowApp.RunStub = func(context.Context, func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
+		close(started)
+		<-finish
+		return agentdomain.ToolExecutionResult{Success: true}
+	}
+	sup.Submit(windowApp)
+	<-started
+	if !sup.HasPending() {
+		t.Fatalf("a shell that shows no window should count as pending")
+	}
+	windowApp.YieldsSessionReturns(true)
+	if sup.HasPending() {
+		t.Fatalf("a job that yields the session must not hold it")
+	}
+	if j, _ := snapByID(sup, "shell-1"); j.Status != scheddomain.JobRunning {
+		t.Fatalf("a job that yields the session still runs, got %+v", j)
+	}
+	windowApp.YieldsSessionReturns(false)
+	if !sup.HasPending() {
+		t.Fatalf("a job that stopped yielding holds the session again")
+	}
+	close(finish)
+	sup.Stop()
+}
+
 // TestSupervisor_HasPendingSkipsIdleJobs: a running session-holding job that
 // reports itself idle between turns does not hold the session, and the task
 // views read it as completed until it is busy again.

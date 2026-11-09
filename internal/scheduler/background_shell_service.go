@@ -28,21 +28,25 @@ type BackgroundShellService struct {
 	supervisor   *jobs.Supervisor
 	config       *config.Config
 	eventChannel chan<- agentdomain.ChatEvent
+	windowApps   scheddomain.WindowApps
 }
 
 // NewBackgroundShellService creates a new background shell service. supervisor
-// monitors and reaps each detached shell.
+// monitors and reaps each detached shell. windowApps tells which shells are
+// window apps on the computer's display, nil where there is no such display.
 func NewBackgroundShellService(
 	tracker scheddomain.ShellTracker,
 	supervisor *jobs.Supervisor,
 	cfg *config.Config,
 	eventChannel chan<- agentdomain.ChatEvent,
+	windowApps scheddomain.WindowApps,
 ) *BackgroundShellService {
 	return &BackgroundShellService{
 		shellTracker: tracker,
 		supervisor:   supervisor,
 		config:       cfg,
 		eventChannel: eventChannel,
+		windowApps:   windowApps,
 	}
 }
 
@@ -73,7 +77,7 @@ func (s *BackgroundShellService) DetachToBackground(
 		return "", fmt.Errorf("failed to add shell to tracker: %w", err)
 	}
 
-	s.supervisor.Submit(jobs.NewShellJob(shell, s.shellTracker))
+	s.supervisor.Submit(jobs.NewShellJob(shell, s.shellTracker, s.windowApps))
 
 	if s.eventChannel != nil {
 		select {

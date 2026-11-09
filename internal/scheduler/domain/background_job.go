@@ -152,6 +152,14 @@ type JobIdleReporter interface {
 	IdleSince() time.Time
 }
 
+// JobSessionYielder is a BackgroundJob that can let go of the session while it
+// still runs, like a shell that turned out to be a window app the person keeps
+// open. While YieldsSession reports true the job does not hold the session.
+type JobSessionYielder interface {
+	BackgroundJob
+	YieldsSession() bool
+}
+
 // JobFinisher is an optional BackgroundJob extension the supervisor calls once
 // with the terminal result of a job it did not discard, before the task view
 // refreshes. An A2A task uses it to keep its outcome listed in the task view

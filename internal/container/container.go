@@ -29,6 +29,7 @@ import (
 	computer "github.com/inference-gateway/cli/internal/computer"
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	computerinfra "github.com/inference-gateway/cli/internal/computer/infrastructure"
+	accessibility "github.com/inference-gateway/cli/internal/computer/infrastructure/accessibility"
 	clipboardtext "github.com/inference-gateway/cli/internal/computer/infrastructure/clipboard/text"
 	vlm "github.com/inference-gateway/cli/internal/computer/infrastructure/vlm"
 	conversation "github.com/inference-gateway/cli/internal/conversation"
@@ -1273,9 +1274,19 @@ func (c *ServiceContainer) BackgroundShellService() *scheduler.BackgroundShellSe
 			c.jobSupervisor,
 			c.config,
 			nil,
+			c.windowApps(),
 		)
 	}
 	return c.backgroundShellService
+}
+
+// windowApps is how a background shell is told from a window app, which only a
+// session with a computer of its own has.
+func (c *ServiceContainer) windowApps() scheddomain.WindowApps {
+	if !c.config.ComputerUse.Enabled {
+		return nil
+	}
+	return accessibility.WindowApps{}
 }
 
 // ensureBackgroundTaskRegistry lazily constructs the unified registry. Called

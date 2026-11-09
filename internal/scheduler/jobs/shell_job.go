@@ -17,15 +17,33 @@ import (
 // goroutine, the completion notification, and reaping - this replaces
 // BackgroundShellService.monitorShell.
 type shellJob struct {
-	shell   *scheddomain.BackgroundShell
-	tracker scheddomain.ShellTracker
+	shell      *scheddomain.BackgroundShell
+	tracker    scheddomain.ShellTracker
+	windowApps scheddomain.WindowApps
 }
+
+// windowCheckTimeout bounds one question to the computer's display, so a
+// display that stopped answering cannot wedge the completion boundary.
+const windowCheckTimeout = 2 * time.Second
 
 // NewShellJob wraps a running background shell as a supervised job. The shell
 // must already be registered in tracker (so the bash tools can read its output);
-// Close removes it on reap.
-func NewShellJob(shell *scheddomain.BackgroundShell, tracker scheddomain.ShellTracker) scheddomain.BackgroundJob {
-	return &shellJob{shell: shell, tracker: tracker}
+// Close removes it on reap. A nil windowApps means no shell is a window app.
+func NewShellJob(shell *scheddomain.BackgroundShell, tracker scheddomain.ShellTracker, windowApps scheddomain.WindowApps) scheddomain.BackgroundJob {
+	return &shellJob{shell: shell, tracker: tracker, windowApps: windowApps}
+}
+
+// YieldsSession reports a shell that shows a window on the computer's display.
+// A window app stays open for the person and for later turns, so the run does
+// not wait on it the way it waits on a build or a script.
+func (j *shellJob) YieldsSession() bool {
+	proc := j.shell.Cmd.Process
+	if j.windowApps == nil || proc == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), windowCheckTimeout)
+	defer cancel()
+	return j.windowApps.ShowsWindow(ctx, proc.Pid)
 }
 
 // Meta describes the shell for the task view.

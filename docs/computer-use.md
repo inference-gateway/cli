@@ -67,6 +67,17 @@ workspaces:
 Without `user_data` the pod boots straight to the desktop. `task container:build:computer` builds
 the image locally as `ghcr.io/inference-gateway/computer:local`.
 
+## Window apps and the run
+
+An agent opens a window app on its computer with a detached `Bash` call, which makes it a background shell.
+A run normally waits for its background shells before it finishes, up to
+`a2a.task.agent_mode_max_wait_seconds`. A shell whose process shows a window on the computer's display is the
+exception: it stays open for the person and for later turns, so the run finishes without it. When the app
+exits later, its completion note starts a new turn like any background note.
+
+This needs `computer_use.enabled` and a GNOME Wayland session, which the computer image provides. Every other
+background shell - a build, a server, a long script - holds the run exactly as before.
+
 ## The person's take-over
 
 A person can drive the same screen from the web terminal's Screen view without

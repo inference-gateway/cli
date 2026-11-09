@@ -6,6 +6,7 @@ import (
 	"time"
 
 	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
+	schedmocks "github.com/inference-gateway/cli/tests/mocks/scheduler"
 
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
@@ -69,7 +70,7 @@ func TestShellJob_WaitsForReadersDoneBeforeReaping(t *testing.T) {
 	readersDone := make(chan struct{})
 	shell.ReadersDone = readersDone
 	_ = tracker.Add(shell)
-	sup.Submit(NewShellJob(shell, tracker))
+	sup.Submit(NewShellJob(shell, tracker, nil))
 
 	time.Sleep(50 * time.Millisecond)
 	if isTerminal(sup, "s-drain") {
@@ -97,7 +98,7 @@ func TestShellJob_WindStopUnblocksReadersWait(t *testing.T) {
 	shell := startShell(t, "s-stuck", "sleep", "60")
 	shell.ReadersDone = make(chan struct{})
 	_ = tracker.Add(shell)
-	sup.Submit(NewShellJob(shell, tracker))
+	sup.Submit(NewShellJob(shell, tracker, nil))
 
 	time.Sleep(20 * time.Millisecond)
 	if err := sup.Wind("s-stuck", scheddomain.WindStop); err != nil {
@@ -117,7 +118,7 @@ func TestShellJob_CompletesAndNotifies(t *testing.T) {
 
 	shell := startShell(t, "s-ok", "true")
 	_ = tracker.Add(shell)
-	sup.Submit(NewShellJob(shell, tracker))
+	sup.Submit(NewShellJob(shell, tracker, nil))
 
 	if got := waitTerminal(t, sup, "s-ok"); got != scheddomain.JobCompleted {
 		t.Fatalf("status = %s, want completed", got)
@@ -137,7 +138,7 @@ func TestShellJob_FailureRecordsExitCode(t *testing.T) {
 
 	shell := startShell(t, "s-fail", "false")
 	_ = tracker.Add(shell)
-	sup.Submit(NewShellJob(shell, tracker))
+	sup.Submit(NewShellJob(shell, tracker, nil))
 
 	if got := waitTerminal(t, sup, "s-fail"); got != scheddomain.JobFailed {
 		t.Fatalf("status = %s, want failed", got)
@@ -154,7 +155,7 @@ func TestShellJob_WindStopCancels(t *testing.T) {
 
 	shell := startShell(t, "s-sleep", "sleep", "60")
 	_ = tracker.Add(shell)
-	sup.Submit(NewShellJob(shell, tracker))
+	sup.Submit(NewShellJob(shell, tracker, nil))
 
 	time.Sleep(20 * time.Millisecond)
 	if err := sup.Wind("s-sleep", scheddomain.WindStop); err != nil {
@@ -165,8 +166,38 @@ func TestShellJob_WindStopCancels(t *testing.T) {
 		t.Fatalf("shell state = %s, want cancelled", shell.Status().State)
 	}
 
-	NewShellJob(shell, tracker).Close()
+	NewShellJob(shell, tracker, nil).Close()
 	if tracker.Get("s-sleep") != nil {
 		t.Fatalf("Close did not remove the shell from the tracker")
+	}
+}
+
+// TestShellJob_YieldsTheSessionOnceItShowsAWindow: a shell holds the session
+// like any background shell until its process shows a window on the computer's
+// display, and a session without such a display never asks.
+func TestShellJob_YieldsTheSessionOnceItShowsAWindow(t *testing.T) {
+	shell := startShell(t, "shell-window", "sleep", "30")
+	t.Cleanup(func() { _ = shell.Cmd.Process.Kill(); _ = shell.Cmd.Wait() })
+	tracker := schedinfra.NewShellTracker(10)
+	windowApps := &schedmocks.FakeWindowApps{}
+
+	job, ok := NewShellJob(shell, tracker, windowApps).(scheddomain.JobSessionYielder)
+	if !ok {
+		t.Fatal("a shell job must be able to yield the session")
+	}
+	if job.YieldsSession() {
+		t.Fatal("a shell that shows no window must hold the session")
+	}
+	windowApps.ShowsWindowReturns(true)
+	if !job.YieldsSession() {
+		t.Fatal("a shell that shows a window must yield the session")
+	}
+	if _, pid := windowApps.ShowsWindowArgsForCall(0); pid != shell.Cmd.Process.Pid {
+		t.Fatalf("asked about pid %d, want the shell's %d", pid, shell.Cmd.Process.Pid)
+	}
+
+	plain := NewShellJob(shell, tracker, nil).(scheddomain.JobSessionYielder)
+	if plain.YieldsSession() {
+		t.Fatal("without a computer's display no shell is a window app")
 	}
 }

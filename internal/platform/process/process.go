@@ -67,6 +67,39 @@ func KillTreeOnCancel(cmd *exec.Cmd) {
 	}
 }
 
+// maxAncestors bounds the walk up a process tree, far past any real depth.
+const maxAncestors = 64
+
+// StartedBy reports whether ancestor is pid itself or a process up its parent
+// chain. A process whose parent already exited was reparented and is not found.
+func StartedBy(ctx context.Context, pid, ancestor int) bool {
+	return startedBy(pid, ancestor, func(child int) (int, error) {
+		p, err := psutil.NewProcessWithContext(ctx, int32(child))
+		if err != nil {
+			return 0, err
+		}
+		parent, err := p.PpidWithContext(ctx)
+		return int(parent), err
+	})
+}
+
+func startedBy(pid, ancestor int, parentOf func(int) (int, error)) bool {
+	for range maxAncestors {
+		if pid <= 1 {
+			return false
+		}
+		if pid == ancestor {
+			return true
+		}
+		parent, err := parentOf(pid)
+		if err != nil {
+			return false
+		}
+		pid = parent
+	}
+	return false
+}
+
 // killTree lists p's children before killing p, so none is reparented out of
 // reach, then kills each child's tree the same way.
 func killTree(p *psutil.Process) error {
