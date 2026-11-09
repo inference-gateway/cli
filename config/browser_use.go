@@ -24,6 +24,12 @@ type BrowserUseConfig struct {
 // BrowserBackendExtension selects the opentask extension bridge backend.
 const BrowserBackendExtension = "extension"
 
+// extensionBackend reports whether browser use is on and drives the opentask
+// extension.
+func (b BrowserUseConfig) extensionBackend() bool {
+	return b.Enabled && b.Backend == BrowserBackendExtension
+}
+
 // DefaultExtensionPort is used when extension.port is absent from
 // browser_use.yaml (LoadYAML unmarshals into a zero struct, so files written
 // before the extension section existed load with Port 0).

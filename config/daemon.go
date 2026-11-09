@@ -322,6 +322,12 @@ func (t BindingTLSConfig) RequiresClientAuth() bool {
 	return t.ClientAuth || t.Mode == TLSModeCA
 }
 
+// servesMutualTLS reports whether the binding serves TLS and admits only
+// clients that present a verified certificate.
+func (t BindingTLSConfig) servesMutualTLS() bool {
+	return !t.Mode.off() && t.RequiresClientAuth()
+}
+
 // Validate checks daemon.yaml: the TLS mode, that a non-loopback binding
 // serves TLS, and that every workspace entry carries what its kind needs.
 func (d DaemonConfig) Validate() error {
@@ -473,6 +479,26 @@ func (c *Config) Binding() Binding {
 		b.Token = c.BrowserUse.Extension.Token
 	}
 	return b
+}
+
+// ExtensionLoopback resolves the plain loopback listener the opentask extension
+// dials when the binding serves mutual TLS, since an extension cannot present a
+// client certificate. It is disabled in every other setup, and an error when it
+// would share the binding's port or has no token to authenticate the extension.
+func (c *Config) ExtensionLoopback() (Binding, error) {
+	binding := c.Binding()
+	if !c.BrowserUse.extensionBackend() || !binding.TLS.servesMutualTLS() {
+		return Binding{}, nil
+	}
+	extension := c.BrowserUse.Extension
+	port := extension.EffectivePort()
+	if port == binding.Port {
+		return Binding{}, fmt.Errorf("browser_use.extension.port %d is also the AG-UI binding port - the binding requires client certificates, so set daemon.binding.port to another port and leave %d to the extension's loopback listener", port, port)
+	}
+	if extension.Token == "" {
+		return Binding{}, fmt.Errorf("browser_use.extension.token is empty - the binding requires client certificates, so the extension's loopback listener on port %d needs the token to authenticate the extension", port)
+	}
+	return Binding{Enabled: true, Port: port, Token: extension.Token}, nil
 }
 
 // DefaultDaemonConfig returns the in-code defaults used when no daemon.yaml

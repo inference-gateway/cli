@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -333,4 +334,39 @@ func TestDaemonPanelRequestsAnswerFromTheProject(t *testing.T) {
 	require.Empty(t, client.next("conversations")["conversations"])
 	client.send(map[string]any{"type": "list_models", "project_dir": project})
 	require.Contains(t, client.next("models")["models"], testModel)
+}
+
+// TestDaemonServesTheExtensionOnLoopbackBehindMutualTLS checks that a binding
+// requiring client certificates leaves the extension a plain loopback listener
+// on its own port, with the handshake but none of the binding's HTTP routes.
+func TestDaemonServesTheExtensionOnLoopbackBehindMutualTLS(t *testing.T) {
+	home := t.TempDir()
+	certFile, keyFile, caFile, clientTLS := peerCA(t, home)
+	bindingPort := freePort(t)
+	d := startDaemon(t, home,
+		"INFER_DAEMON_BINDING_PORT="+strconv.Itoa(bindingPort),
+		"INFER_DAEMON_BINDING_TLS_MODE=files",
+		"INFER_DAEMON_BINDING_TLS_CERT_FILE="+certFile,
+		"INFER_DAEMON_BINDING_TLS_KEY_FILE="+keyFile,
+		"INFER_DAEMON_BINDING_TLS_CA_FILE="+caFile,
+		"INFER_DAEMON_BINDING_TLS_CLIENT_AUTH=true",
+	)
+
+	certless := &websocket.Dialer{TLSClientConfig: clientTLS, HandshakeTimeout: 5 * time.Second}
+	_, _, err := certless.Dial(fmt.Sprintf("wss://127.0.0.1:%d/ws", bindingPort), nil)
+	require.Error(t, err, "the binding must refuse a client without a certificate")
+
+	extensionOrigin := http.Header{"Origin": {"chrome-extension://opentask"}}
+	conn, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://127.0.0.1:%d/ws", d.port), extensionOrigin)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	require.NoError(t, conn.WriteJSON(map[string]any{"type": "browser_hello", "token": daemonToken, "client": "extension"}))
+	var ack map[string]any
+	require.NoError(t, conn.ReadJSON(&ack))
+	require.Equal(t, "browser_hello_ack", ack["type"])
+
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/terminal/", d.port))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNotFound, resp.StatusCode, "the loopback listener must not serve the web terminal")
 }

@@ -191,6 +191,101 @@ func TestBindingDialableWithATokenOrAClientCertificate(t *testing.T) {
 	}
 }
 
+func TestExtensionLoopbackServesTheExtensionOnlyBehindMutualTLS(t *testing.T) {
+	mutualTLS := BindingTLSConfig{Mode: TLSModeFiles, CertFile: "c", KeyFile: "k", CAFile: "ca", ClientAuth: true}
+	extensionBehind := func(tls BindingTLSConfig) func(c *Config) {
+		return func(c *Config) {
+			c.BrowserUse.Enabled = true
+			c.BrowserUse.Backend = BrowserBackendExtension
+			c.BrowserUse.Extension = ExtensionConfig{Port: 52790, Token: "ext"}
+			c.Daemon.Binding = BindingConfig{Port: 52789, Token: "daemon", TLS: tls}
+		}
+	}
+	tests := []struct {
+		name    string
+		set     func(c *Config)
+		want    Binding
+		wantErr string
+	}{
+		{
+			name: "plain binding keeps one listener",
+			set:  extensionBehind(BindingTLSConfig{Mode: TLSModeOff}),
+		},
+		{
+			name: "TLS without client auth keeps one listener",
+			set:  extensionBehind(BindingTLSConfig{Mode: TLSModeFiles, CertFile: "c", KeyFile: "k"}),
+		},
+		{
+			name: "client auth without TLS keeps one listener",
+			set:  extensionBehind(BindingTLSConfig{Mode: TLSModeOff, ClientAuth: true}),
+		},
+		{
+			name: "mutual TLS without the extension backend keeps one listener",
+			set: func(c *Config) {
+				extensionBehind(mutualTLS)(c)
+				c.BrowserUse.Backend = "playwright"
+			},
+		},
+		{
+			name: "mutual TLS serves the extension port and token on loopback",
+			set:  extensionBehind(mutualTLS),
+			want: Binding{Enabled: true, Port: 52790, Token: "ext"},
+		},
+		{
+			name: "the ca mode serves the extension on loopback",
+			set:  extensionBehind(BindingTLSConfig{Mode: TLSModeCA}),
+			want: Binding{Enabled: true, Port: 52790, Token: "ext"},
+		},
+		{
+			name: "an unset extension port falls back to the default",
+			set: func(c *Config) {
+				extensionBehind(mutualTLS)(c)
+				c.BrowserUse.Extension.Port = 0
+				c.Daemon.Binding.Port = 52800
+			},
+			want: Binding{Enabled: true, Port: DefaultExtensionPort, Token: "ext"},
+		},
+		{
+			name: "the extension port clashing with the binding port fails",
+			set: func(c *Config) {
+				extensionBehind(mutualTLS)(c)
+				c.Daemon.Binding.Port = 0
+			},
+			wantErr: "set daemon.binding.port",
+		},
+		{
+			name: "an empty extension token fails",
+			set: func(c *Config) {
+				extensionBehind(mutualTLS)(c)
+				c.BrowserUse.Extension.Token = ""
+			},
+			wantErr: "browser_use.extension.token is empty",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			tt.set(cfg)
+			got, err := cfg.ExtensionLoopback()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("ExtensionLoopback() error = %v, want it to mention %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ExtensionLoopback() error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("ExtensionLoopback() = %+v, want %+v", got, tt.want)
+			}
+			if got.Enabled && got.ListenHost() != "127.0.0.1" {
+				t.Fatalf("ExtensionLoopback() listens on %q, want loopback", got.ListenHost())
+			}
+		})
+	}
+}
+
 func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
 	entry.Mode = mode
 	return entry
