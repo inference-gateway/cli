@@ -22,6 +22,7 @@ import (
 
 const (
 	busDeadline        = 6 * time.Second
+	maxAtspiDepth      = 32
 	nullPath           = "/org/a11y/atspi/null"
 	componentInterface = "org.a11y.atspi.Component"
 	actionInterface    = "org.a11y.atspi.Action"
@@ -240,7 +241,7 @@ func descendants(ctx context.Context, bus atspiBus, root accessible) iter.Seq[ac
 		visited := make(map[accessible]bool)
 		var walk func(accessible, int) bool
 		walk = func(node accessible, depth int) bool {
-			if depth > maxTreeDepth || node.Bus == "" || node.Path == nullPath || visited[node] {
+			if depth > maxAtspiDepth || node.Bus == "" || node.Path == nullPath || visited[node] {
 				return true
 			}
 			visited[node] = true

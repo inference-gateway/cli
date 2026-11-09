@@ -16,6 +16,7 @@ const (
 	callTimeout     = time.Second
 	accessibleIface = "org.a11y.atspi.Accessible"
 	coordTypeScreen = uint32(0)
+	coordTypeWindow = uint32(1)
 )
 
 var (
@@ -147,9 +148,18 @@ func (b *dbusBus) states(ctx context.Context, node accessible) (uint64, error) {
 	return states, nil
 }
 
+// extentsCoordType asks for window coordinates on GNOME Wayland, where a toolkit
+// answers every screen position as the origin, and placeOnScreen adds the window's place.
+func extentsCoordType() uint32 {
+	if gnomeSession() {
+		return coordTypeWindow
+	}
+	return coordTypeScreen
+}
+
 func (b *dbusBus) extents(ctx context.Context, node accessible) (rect, error) {
 	var r rect
-	err := b.call(ctx, node, componentInterface+".GetExtents", coordTypeScreen).Store(&r)
+	err := b.call(ctx, node, componentInterface+".GetExtents", extentsCoordType()).Store(&r)
 	return r, err
 }
 
