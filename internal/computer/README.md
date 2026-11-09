@@ -13,6 +13,9 @@ bridges and the screenshot stream.
 - The accessibility provider runs in a helper subprocess: AXUIElement on macOS, AT-SPI2 over D-Bus on Linux X11.
   Wayland and Windows return an unsupported error and the tool falls back to screenshot guidance, so a native
   failure never takes down the CLI. The X11 window lookup it uses to resolve a target also serves window recording.
+- The display backend is robotgo, X11 or wlroots Wayland on Linux. A GNOME Wayland session gets its own backend
+  over the session D-Bus, as mutter implements none of the wlroots protocols: input through
+  `org.gnome.Mutter.RemoteDesktop`, the screen through `org.gnome.Shell.Screenshot` in unsafe mode.
 - `PublishedEvent` maps this context's chat events onto the run stream: the `screenRecording` state key, and
   the `computer_use` activity each Computer pointer or keyboard action publishes before it runs. Headless
   passes it to its run encoder. A pause or resume publishes nothing: pausing stops the run and resuming
