@@ -189,8 +189,6 @@ type WorkspaceVolume struct {
 	Name      string `yaml:"name" mapstructure:"name"`
 	Claim     string `yaml:"claim" mapstructure:"claim"`
 	MountPath string `yaml:"mount_path" mapstructure:"mount_path"`
-	// ReadOnly is for content an agent copies before it changes it, so the
-	// original stays as it is.
 	ReadOnly bool `yaml:"read_only,omitempty" mapstructure:"read_only"`
 }
 
