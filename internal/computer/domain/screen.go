@@ -61,6 +61,13 @@ func (s ScreenInput) Action() (Action, error) {
 	return a, nil
 }
 
+// ScreenFollower keeps the streamed screen current for the person who holds
+// it. It is told when a hold starts or ends and when an input has landed.
+type ScreenFollower interface {
+	HoldChanged(held bool)
+	InputLanded()
+}
+
 // ScreenControl owns the take-over invariant: exactly one actor, the person at
 // the keyboard or the agent, drives a screen at a time. TakeOver claims it for
 // the person, HandBack hands it to the agent and WaitRelease blocks one agent
@@ -80,4 +87,7 @@ type ScreenControl interface {
 	// Drive performs one person input on the held screen in frame space,
 	// and refuses with ErrScreenNotHeld when nobody holds it.
 	Drive(ctx context.Context, input ScreenInput) error
+	// Follow names who keeps the streamed screen current during a hold,
+	// replacing the follower before it.
+	Follow(follower ScreenFollower)
 }

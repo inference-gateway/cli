@@ -18,6 +18,9 @@ type FakeScreenControl struct {
 	driveReturnsOnCall map[int]struct {
 		result1 error
 	}
+	FollowStub          func(domain.ScreenFollower)
+	followMutex         sync.RWMutex
+	followArgsForCall   []FakeScreenControlFollowArgs
 	HandBackStub        func() bool
 	handBackMutex       sync.RWMutex
 	handBackArgsForCall []struct{}
@@ -63,6 +66,11 @@ type FakeScreenControl struct {
 type FakeScreenControlDriveArgs struct {
 	Arg1 context.Context
 	Arg2 domain.ScreenInput
+}
+
+// FakeScreenControlFollowArgs holds the arguments of one call to Follow.
+type FakeScreenControlFollowArgs struct {
+	Arg1 domain.ScreenFollower
 }
 
 // FakeScreenControlWaitReleaseArgs holds the arguments of one call to WaitRelease.
@@ -135,6 +143,44 @@ func (fake *FakeScreenControl) DriveReturnsOnCall(i int, result1 error) {
 	fake.driveReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *FakeScreenControl) Follow(arg1 domain.ScreenFollower) {
+	fake.followMutex.Lock()
+	fake.followArgsForCall = append(fake.followArgsForCall, FakeScreenControlFollowArgs{arg1})
+	stub := fake.FollowStub
+	fake.recordInvocation("Follow", []interface{}{arg1})
+	fake.followMutex.Unlock()
+	if stub != nil {
+		stub(arg1)
+	}
+}
+
+func (fake *FakeScreenControl) FollowCallCount() int {
+	fake.followMutex.RLock()
+	defer fake.followMutex.RUnlock()
+	return len(fake.followArgsForCall)
+}
+
+func (fake *FakeScreenControl) FollowCalls(stub func(domain.ScreenFollower)) {
+	fake.followMutex.Lock()
+	defer fake.followMutex.Unlock()
+	fake.FollowStub = stub
+}
+
+func (fake *FakeScreenControl) FollowArgsForCall(i int) domain.ScreenFollower {
+	fake.followMutex.RLock()
+	defer fake.followMutex.RUnlock()
+	argsForCall := fake.followArgsForCall[i]
+	return argsForCall.Arg1
+}
+
+func (fake *FakeScreenControl) FollowArgs() []FakeScreenControlFollowArgs {
+	fake.followMutex.RLock()
+	defer fake.followMutex.RUnlock()
+	args := make([]FakeScreenControlFollowArgs, len(fake.followArgsForCall))
+	copy(args, fake.followArgsForCall)
+	return args
 }
 
 func (fake *FakeScreenControl) HandBack() bool {

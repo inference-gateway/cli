@@ -451,6 +451,9 @@ CLI → client:
   not open there answers a `RUN_ERROR`, never another session's screen.
 - `error` replaces `frame` when the worker streams no screen or captured
   nothing yet.
+- While a person holds the screen the worker captures twice a second and once
+  more right after each `screen_input`. A `read_frame` that follows an input
+  waits up to a second for that capture, so its frame shows the input's effect.
 
 The same listener takes the screen's take-over, for the web terminal's
 **Take over**: `POST /screen/?id=<conversation id>` with the same bearer token

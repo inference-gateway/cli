@@ -8,6 +8,7 @@ import (
 	"testing/synctest"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	computermocks "github.com/inference-gateway/cli/tests/mocks/computer"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -135,5 +136,33 @@ func TestScreenControlDriveRefusesAnUnheldScreen(t *testing.T) {
 	err := control.Drive(t.Context(), computerdomain.ScreenInput{Kind: computerdomain.ActionClick})
 	if !errors.Is(err, computerdomain.ErrScreenNotHeld) {
 		t.Fatalf("Drive on an unheld screen = %v, want ErrScreenNotHeld", err)
+	}
+}
+
+func TestScreenControlTellsItsFollowerAboutTheHold(t *testing.T) {
+	control := NewScreenControl(&config.Config{}, nil)
+	if err := control.TakeOver(); err != nil {
+		t.Fatal(err)
+	}
+
+	follower := &computermocks.FakeScreenFollower{}
+	control.Follow(follower)
+	if follower.HoldChangedCallCount() != 1 || !follower.HoldChangedArgsForCall(0) {
+		t.Fatal("a follower that joins during a hold must be told the screen is held")
+	}
+
+	control.HandBack()
+	if follower.HoldChangedCallCount() != 2 || follower.HoldChangedArgsForCall(1) {
+		t.Fatal("handing back must tell the follower the hold ended")
+	}
+
+	if err := control.TakeOver(); err != nil {
+		t.Fatal(err)
+	}
+	if follower.HoldChangedCallCount() != 3 || !follower.HoldChangedArgsForCall(2) {
+		t.Fatal("taking over must tell the follower the hold started")
+	}
+	if follower.InputLandedCallCount() != 0 {
+		t.Fatal("no input landed yet")
 	}
 }

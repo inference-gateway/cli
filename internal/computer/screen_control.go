@@ -24,7 +24,15 @@ type ScreenControl struct {
 	mu       sync.Mutex
 	held     bool
 	released chan struct{}
+	follower computerdomain.ScreenFollower
 }
+
+// unfollowed is the follower of a screen nobody streams.
+type unfollowed struct{}
+
+func (unfollowed) HoldChanged(bool) {}
+
+func (unfollowed) InputLanded() {}
 
 // NewScreenControl creates the screen control. The notifier may be nil, in
 // which case take-overs publish nothing.
@@ -32,7 +40,23 @@ func NewScreenControl(cfg *config.Config, notifier agentdomain.UINotifier) *Scre
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
 	}
-	return &ScreenControl{cfg: cfg, notifier: notifier}
+	return &ScreenControl{cfg: cfg, notifier: notifier, follower: unfollowed{}}
+}
+
+// Follow names who keeps the streamed screen current during a hold. A hold
+// that already started is announced at once, so a late follower catches up.
+func (s *ScreenControl) Follow(follower computerdomain.ScreenFollower) {
+	s.mu.Lock()
+	s.follower = follower
+	held := s.held
+	s.mu.Unlock()
+	follower.HoldChanged(held)
+}
+
+func (s *ScreenControl) currentFollower() computerdomain.ScreenFollower {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.follower
 }
 
 // TakeOver claims the screen for the person. A second claim, from another tab
@@ -45,7 +69,9 @@ func (s *ScreenControl) TakeOver() error {
 	}
 	s.held = true
 	s.released = make(chan struct{})
+	follower := s.follower
 	s.mu.Unlock()
+	follower.HoldChanged(true)
 	s.notifier.Notify(agentdomain.ScreenTakenOverEvent{Timestamp: time.Now()})
 	return nil
 }
@@ -60,8 +86,10 @@ func (s *ScreenControl) HandBack() bool {
 	}
 	released := s.released
 	s.held = false
+	follower := s.follower
 	s.mu.Unlock()
 	close(released)
+	follower.HoldChanged(false)
 	s.notifier.Notify(agentdomain.ScreenHandedBackEvent{Timestamp: time.Now()})
 	return true
 }
@@ -122,5 +150,9 @@ func (s *ScreenControl) Drive(ctx context.Context, input computerdomain.ScreenIn
 	}
 	frameW, frameH := s.cfg.ComputerUse.Screenshot.FitDims(screenW, screenH)
 	obs := &computerdomain.Observation{Width: frameW, Height: frameH}
-	return inputDispatch(ctx, controller, action, obs, screenW, screenH, func(computerdomain.ActionKind, int, int) {})
+	if err := inputDispatch(ctx, controller, action, obs, screenW, screenH, func(computerdomain.ActionKind, int, int) {}); err != nil {
+		return err
+	}
+	s.currentFollower().InputLanded()
+	return nil
 }
