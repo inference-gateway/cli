@@ -348,6 +348,9 @@ func (t *MultiEditTool) executeMultiEdit(ctx context.Context, filePath string, e
 // normalized reports whether the fallback was used. A non-nil error means neither matched and
 // the whole MultiEdit must abort before any write.
 func (t *MultiEditTool) resolveEdit(filePath, currentContent string, edit EditOperation, idx int) (effectiveOld, effectiveNew string, normalized bool, err error) {
+	if edit.OldString == "" && currentContent != "" {
+		return "", "", false, fmt.Errorf("edit %d failed: old_string cannot be empty unless %s is new or empty", idx+1, filePath)
+	}
 	if strings.Contains(currentContent, edit.OldString) {
 		return edit.OldString, edit.NewString, false, nil
 	}

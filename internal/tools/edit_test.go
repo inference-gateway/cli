@@ -630,6 +630,16 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 			},
 			expectedErrorSubstring: "new_string must be different from old_string",
 		},
+		{
+			name: "empty old_string with replace_all",
+			args: map[string]any{
+				"file_path":   testFile,
+				"old_string":  "",
+				"new_string":  "X",
+				"replace_all": true,
+			},
+			expectedErrorSubstring: "old_string cannot be empty",
+		},
 	}
 
 	for _, tt := range tests {

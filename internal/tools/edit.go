@@ -106,6 +106,16 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 		}, nil
 	}
 
+	if oldString == "" {
+		return &agentdomain.ToolExecutionResult{
+			ToolName:  ToolEdit,
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "old_string cannot be empty",
+		}, nil
+	}
+
 	newString, ok := args["new_string"].(string)
 	if !ok {
 		return &agentdomain.ToolExecutionResult{
