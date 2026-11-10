@@ -76,7 +76,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 	if hasExistingConversation && r.GetMessageCount() > 0 {
 		ctx := context.Background()
 		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("failed to save current conversation before starting new one", "error", err, "conversation_id", existingConversationID)
+			return fmt.Errorf("failed to save conversation %s before starting a new one: %w", existingConversationID, err)
 		}
 	}
 
