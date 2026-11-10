@@ -144,6 +144,10 @@ chat:
     context_messages: 4 # Recent non-hidden messages grounding the suggestion
     max_tokens: 512 # Output cap for the suggestion call, reasoning models spend thinking tokens against it
     timeout: 10 # Seconds before the suggestion request is abandoned
+    logs:
+      enabled: true # Add a digest of the session's recent warnings and errors to the suggestion's context
+      max_lines: 5 # Most distinct problems the digest lists
+      max_chars: 600 # Most characters the digest takes
   status_bar:
     enabled: true
     indicators:
@@ -875,6 +879,22 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
   The call is silent-fail - errors and non-conforming answers leave the input untouched and log at
   debug level
 
+- **chat.suggestions.logs.enabled**: Let the suggestion take the session's recent warnings and errors
+  into account (default: `true`). The model never reads the logs themselves. It gets a digest of what
+  this session's process logged since your last message: one line per distinct problem with its
+  severity, message and error, repeats collapsed into a count, secrets masked, and no stack traces,
+  callers, timestamps or ids. Another session's problems are left out. When nothing was logged the
+  request is exactly what it is without this setting, so it costs no extra tokens
+- **chat.suggestions.logs.max_lines**: Most distinct problems the digest lists (default: `5`). The
+  most repeated come first, then the newest
+- **chat.suggestions.logs.max_chars**: Most characters the digest takes (default: `600`). Lines that
+  do not fit are dropped, and one line is capped at 200 characters
+
+A suggestion that a logged problem prompted asks to file a GitHub issue for it as a follow-up, and
+never asks to fix it: an error in the logs is usually outside what you are working on. The digest
+only covers what the session's own process logged. A problem another process logged for the session,
+such as a teleport the daemon ran, is not part of it.
+
 The suggestion system prompt lives in `prompts.yaml` under `chat.suggestions.system_prompt` and can
 be overridden with the `INFER_PROMPTS_CHAT_SUGGESTIONS_SYSTEM_PROMPT` environment variable.
 
@@ -889,6 +909,10 @@ chat:
     context_messages: 4
     max_tokens: 512
     timeout: 10         # Seconds before the suggestion request is abandoned
+    logs:
+      enabled: true     # Digest of the session's recent warnings and errors
+      max_lines: 5
+      max_chars: 600
   status_bar:
     enabled: true
     indicators:

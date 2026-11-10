@@ -47,6 +47,11 @@ var credentialShapes = regexp.MustCompile(strings.Join([]string{
 	`gh[pours]_[A-Za-z0-9]{36,}`,
 }, "|"))
 
+// Redact masks secrets in text that is about to leave the machine for a model.
+func Redact(s string) string {
+	return redact(s)
+}
+
 // redact masks credential shapes and the values of secret env vars set in this
 // environment, so session content reaches the analysis model and the saved
 // report without carrying secrets. It runs entirely locally, before any

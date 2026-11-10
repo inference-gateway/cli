@@ -850,6 +850,16 @@ type ChatSuggestionsConfig struct {
 	ContextMessages int    `yaml:"context_messages" mapstructure:"context_messages"`
 	MaxTokens       int    `yaml:"max_tokens" mapstructure:"max_tokens"`
 	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+
+	Logs ChatSuggestionsLogsConfig `yaml:"logs" mapstructure:"logs"`
+}
+
+// ChatSuggestionsLogsConfig bounds what the suggestion reads of the session's
+// logs: a digest of its recent warnings and errors, never the logs themselves.
+type ChatSuggestionsLogsConfig struct {
+	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxLines int  `yaml:"max_lines" mapstructure:"max_lines"`
+	MaxChars int  `yaml:"max_chars" mapstructure:"max_chars"`
 }
 
 // EffectiveSuggestions returns chat.suggestions with defaults applied: an
@@ -868,6 +878,12 @@ func (c *Config) EffectiveSuggestions() ChatSuggestionsConfig {
 	}
 	if s.Timeout <= 0 {
 		s.Timeout = 10
+	}
+	if s.Logs.MaxLines <= 0 {
+		s.Logs.MaxLines = 5
+	}
+	if s.Logs.MaxChars <= 0 {
+		s.Logs.MaxChars = 600
 	}
 	return s
 }
@@ -1361,6 +1377,11 @@ func DefaultConfig() *Config { //nolint:funlen
 				ContextMessages: 4,
 				MaxTokens:       512,
 				Timeout:         10,
+				Logs: ChatSuggestionsLogsConfig{
+					Enabled:  true,
+					MaxLines: 5,
+					MaxChars: 600,
+				},
 			},
 			Daemon: false,
 		},

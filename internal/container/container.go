@@ -1101,7 +1101,8 @@ func (c *ServiceContainer) GetNextStepSuggestionRunner() *conversation.ChatSugge
 		if c.telemetryRecorder != nil {
 			recorder = c.telemetryRecorder
 		}
-		c.suggestionRunner = conversation.NewChatSuggestionGenerator(c.createRawSDKClient(), c.conversationRepo, c.config, c.modelService.GetCurrentModel, recorder)
+		c.suggestionRunner = conversation.NewChatSuggestionGenerator(c.createRawSDKClient(), c.conversationRepo, c.config, c.modelService.GetCurrentModel, recorder).
+			ReadingLogs(conversation.ProcessLog(), insights.Redact)
 	}
 	return c.suggestionRunner
 }

@@ -9,6 +9,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	sdkmocks "github.com/inference-gateway/cli/tests/mocks/sdk"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -161,4 +162,78 @@ func TestChatSuggestionGenerator_suggestionDialogReducesToolPayloads(t *testing.
 	assert.Contains(t, dialog, "Assistant: final answer")
 	assert.NotContains(t, dialog, "older message beyond the window")
 	assert.NotContains(t, dialog, "hidden system")
+}
+
+// askedWith runs one suggestion over a conversation of a single exchange and
+// returns the context the model was asked with.
+func askedWith(t *testing.T, logs config.ChatSuggestionsLogsConfig, problems *convmocks.FakeProblemLog) string {
+	t.Helper()
+	repo := NewInMemoryConversationRepository(nil, nil)
+	wroteAt := time.Now().Add(-time.Minute)
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("open the terminal")},
+		Time:    wroteAt,
+	}))
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.Assistant, Content: sdk.NewMessageContent("The terminal is open.")},
+		Time:    wroteAt.Add(time.Second),
+	}))
+
+	var asked string
+	client := &sdkmocks.FakeClient{}
+	client.WithOptionsReturns(client)
+	client.WithMiddlewareOptionsReturns(client)
+	client.GenerateContentStub = func(_ context.Context, _ sdk.Provider, _ string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
+		asked, _ = messages[1].Content.AsMessageContent0()
+		return &sdk.CreateChatCompletionResponse{
+			Choices: []sdk.ChatCompletionChoice{{Message: sdk.Message{Content: sdk.NewMessageContent("ok")}}},
+		}, nil
+	}
+	cfg := &config.Config{
+		Chat:    config.ChatConfig{Suggestions: config.ChatSuggestionsConfig{Enabled: true, Logs: logs}},
+		Prompts: *config.DefaultPromptsConfig(),
+	}
+	generator := NewChatSuggestionGenerator(client, repo, cfg, func() string { return "anthropic/claude-4-haiku" }, nil)
+	if problems != nil {
+		generator.ReadingLogs(problems, func(s string) string { return s })
+		t.Cleanup(func() {
+			if problems.ProblemsSinceCallCount() > 0 && !problems.ProblemsSinceArgsForCall(0).Equal(wroteAt) {
+				t.Errorf("the logs were read from %v, want from the last user message at %v", problems.ProblemsSinceArgsForCall(0), wroteAt)
+			}
+		})
+	}
+
+	generator.GenerateNextStepSuggestion(context.Background())
+	return asked
+}
+
+const conversationOnly = "Recent conversation:\n\nUser: open the terminal\nAssistant: The terminal is open."
+
+func TestChatSuggestionGenerator_AddsTheSessionsLoggedProblems(t *testing.T) {
+	problems := &convmocks.FakeProblemLog{}
+	problems.ProblemsSinceReturns([]convdomain.LoggedProblem{
+		{Time: time.Now(), Severity: "error", Message: "teleport failed", Detail: "pod is in CrashLoopBackOff"},
+	})
+
+	asked := askedWith(t, config.ChatSuggestionsLogsConfig{Enabled: true}, problems)
+
+	assert.Equal(t, conversationOnly+"\n\n"+problemsPreamble+"\n- error: teleport failed: pod is in CrashLoopBackOff", asked)
+	assert.Contains(t, asked, "file a GitHub issue")
+	assert.Contains(t, asked, "never ask to fix it")
+}
+
+func TestChatSuggestionGenerator_AsksAsBeforeWithoutLoggedProblems(t *testing.T) {
+	quiet := &convmocks.FakeProblemLog{}
+
+	assert.Equal(t, conversationOnly, askedWith(t, config.ChatSuggestionsLogsConfig{Enabled: true}, quiet))
+	assert.Equal(t, 1, quiet.ProblemsSinceCallCount())
+	assert.Equal(t, conversationOnly, askedWith(t, config.ChatSuggestionsLogsConfig{Enabled: true}, nil))
+}
+
+func TestChatSuggestionGenerator_LeavesTheLogsUnreadWhenSwitchedOff(t *testing.T) {
+	problems := &convmocks.FakeProblemLog{}
+	problems.ProblemsSinceReturns([]convdomain.LoggedProblem{{Time: time.Now(), Severity: "error", Message: "teleport failed"}})
+
+	assert.Equal(t, conversationOnly, askedWith(t, config.ChatSuggestionsLogsConfig{Enabled: false}, problems))
+	assert.Equal(t, 0, problems.ProblemsSinceCallCount())
 }
