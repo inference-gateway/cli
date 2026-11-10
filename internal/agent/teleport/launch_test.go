@@ -120,9 +120,42 @@ func TestLazyWorkerReplaysAndRelays(t *testing.T) {
 			return false
 		}
 	})
+	eventually(t, "the exited worker to be stopped", func() bool { return inner.StopCallCount() == 1 })
 	w.Stop()
 	if inner.StopCallCount() != 1 {
-		t.Fatal("Stop did not reach the inner worker")
+		t.Fatalf("the inner worker was stopped %d times, want once", inner.StopCallCount())
+	}
+}
+
+func TestLazyWorkerReplaysBufferedFramesBeforeLaterOnes(t *testing.T) {
+	w := newLazyWorker()
+	_ = w.Send([]byte("first"))
+	_ = w.Send([]byte("second"))
+	inner := &sessionsmocks.FakeWorker{}
+	inner.LinesReturns(make(chan []byte))
+	var mu sync.Mutex
+	var order []string
+	late := make(chan struct{})
+	inner.SendStub = func(frame []byte) error {
+		mu.Lock()
+		order = append(order, string(frame))
+		racing := len(order) == 1
+		mu.Unlock()
+		if racing {
+			go func() {
+				_ = w.Send([]byte("late"))
+				close(late)
+			}()
+			time.Sleep(20 * time.Millisecond)
+		}
+		return nil
+	}
+
+	w.attach(inner)
+	<-late
+
+	if got := strings.Join(order, ","); got != "first,second,late" {
+		t.Fatalf("frames reached the worker as %s", got)
 	}
 }
 

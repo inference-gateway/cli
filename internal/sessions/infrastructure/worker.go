@@ -26,6 +26,10 @@ import (
 // own children. Setpgid plus a group kill if that ever shows up.
 const workerStopGrace = 25 * time.Second
 
+// hangUpGrace is how long a hang-up waits for the worker to take the interrupt
+// frame before it closes stdin anyway.
+const hangUpGrace = time.Second
+
 // processWorker is a running `infer headless --serve` process: frames go to
 // its stdin one line each, and its stdout lines come back on lines.
 type processWorker struct {
@@ -180,11 +184,18 @@ func (w *processWorker) Lines() <-chan []byte {
 
 // hangUp asks the worker to stop the same way on every platform: an interrupt
 // frame ends the running turn, and stdin EOF makes the worker run its own
-// cleanup and exit. The grace period's kill covers a worker that does not.
+// cleanup and exit. A worker that stopped reading stdin gets the EOF alone, so
+// the hang-up returns and the grace period's kill still covers it.
 func (w *processWorker) hangUp() error {
-	_ = w.Send([]byte(`{"type":"interrupt"}`))
-	w.sendMu.Lock()
-	defer w.sendMu.Unlock()
+	sent := make(chan struct{})
+	go func() {
+		defer close(sent)
+		_ = w.Send([]byte(`{"type":"interrupt"}`))
+	}()
+	select {
+	case <-sent:
+	case <-time.After(hangUpGrace):
+	}
 	return w.stdin.Close()
 }
 

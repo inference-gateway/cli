@@ -61,8 +61,8 @@ func TestMessageHistoryHandler_HandleEditSubmit_FirstMessage(t *testing.T) {
 	}
 
 	remainingMessages := repo.GetMessages()
-	if len(remainingMessages) != 4 {
-		t.Errorf("Expected 4 messages (deletion happens in app layer), got %d", len(remainingMessages))
+	if len(remainingMessages) != 0 {
+		t.Errorf("Expected the edited message and everything after it to be gone, got %d", len(remainingMessages))
 	}
 }
 
@@ -115,8 +115,8 @@ func TestMessageHistoryHandler_HandleEditSubmit_MiddleMessage(t *testing.T) {
 	}
 
 	remainingMessages := repo.GetMessages()
-	expectedCount := 4
+	expectedCount := 2
 	if len(remainingMessages) != expectedCount {
-		t.Errorf("Expected %d messages (deletion happens in app layer), got %d", expectedCount, len(remainingMessages))
+		t.Errorf("Expected %d messages before the edited one, got %d", expectedCount, len(remainingMessages))
 	}
 }

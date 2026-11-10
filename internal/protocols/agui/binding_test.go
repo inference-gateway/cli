@@ -295,3 +295,28 @@ func TestDialReportsARejectedHello(t *testing.T) {
 		t.Fatalf("Dial err = %v, want the missing ack", err)
 	}
 }
+
+func TestBindingDetachesAClientThatStopsAnsweringPings(t *testing.T) {
+	t.Cleanup(agui.SetPingInterval(20 * time.Millisecond))
+	binding, handler := testBinding(t)
+
+	silent := dial(t, binding)
+	helloAs(t, silent, "test-token", "panel")
+	eventually(t, "Attach", func() bool { return handler.AttachCallCount() == 1 })
+	eventually(t, "the silent client to be detached", func() bool { return handler.DetachCallCount() == 1 })
+
+	answering := dial(t, binding)
+	helloAs(t, answering, "test-token", "panel")
+	go func() {
+		for {
+			if _, _, err := answering.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+	eventually(t, "the second Attach", func() bool { return handler.AttachCallCount() == 2 })
+	time.Sleep(10 * 20 * time.Millisecond)
+	if handler.DetachCallCount() != 1 {
+		t.Fatal("a client that answers pings was detached")
+	}
+}

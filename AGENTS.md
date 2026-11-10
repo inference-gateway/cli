@@ -32,7 +32,7 @@ Contexts: `agent`, `binaries`, `browser`, `compute`, `computer`, `conversation`,
 
 Repo-wide invariants:
 
-- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root. The A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the loop (`agent/loop`) back. `domain/` packages stay pure (the depguard rule covers the single-level `<context>/domain/` packages, the nested `protocols/*/domain` packages follow the same rule by convention), and only `cmd/` may import `internal/container`.
+- Import direction is enforced by depguard (`.golangci.yml`), not convention: nothing outside `presentation/` may import it or bubbletea, except the `internal/container` composition root. The A2A ADK stays in `protocols/a2a/`, the AG-UI SDK and the binding's socket in `protocols/agui/`, whose import list is closed (see its README), Playwright in `browser/`, robotgo in `computer/`, go-telegram in `presentation/telegram/`, and the tools context never imports the loop (`agent/loop`) back. `domain/` packages stay pure (the depguard rule covers the `<context>/domain/` packages and the nested `protocols/*/domain` ones), and only `cmd/` may import `internal/container`.
 - `internal/tools/registry.go` is the source of truth for registered tools. Read `internal/tools/AGENTS.md` before touching a tool manifest, a tool name or the registry.
 
 ## Package AGENTS files

@@ -505,3 +505,20 @@ func TestPersistentConversationRepository_StoresToolImagesWithoutTheirBytes(t *t
 	assert.Contains(t, string(record), "/shots/1.jpg")
 	assert.Contains(t, string(record), `"mime_type":"image/jpeg"`)
 }
+
+func TestPersistentConversationRepository_StartNewConversationKeepsMessagesWhenTheSaveFails(t *testing.T) {
+	mockStorage := &storagemocks.FakeConversationStorage{}
+	repo := NewPersistentConversationRepository(nil, nil, mockStorage)
+	repo.SetConversationID("conv-1")
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("keep me")},
+		Time:    time.Now(),
+	}))
+	mockStorage.SaveConversationReturns(fmt.Errorf("disk full"))
+
+	err := repo.StartNewConversation("New Conversation")
+
+	require.ErrorContains(t, err, "disk full")
+	assert.Equal(t, 1, repo.GetMessageCount())
+	assert.Equal(t, "conv-1", repo.GetCurrentConversationID())
+}

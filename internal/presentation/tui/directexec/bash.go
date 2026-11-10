@@ -3,6 +3,7 @@ package directexec
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -144,7 +145,7 @@ func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 		ID: toolCallID,
 		Function: sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",
-			Arguments: fmt.Sprintf(`{"command":"%s"}`, command),
+			Arguments: bashArguments(command),
 		},
 	}}); err != nil {
 		return func() tea.Msg {
@@ -174,6 +175,13 @@ func (s *Service) executeBashCommand(commandText, command string) tea.Cmd {
 	)
 }
 
+// bashArguments is the Bash tool call's arguments for a command the user
+// typed. Encoding it as JSON keeps quotes, backslashes and newlines as typed.
+func bashArguments(command string) string {
+	arguments, _ := json.Marshal(map[string]string{"command": command})
+	return string(arguments)
+}
+
 // executeBashCommandAsync spawns the goroutine that runs the bash command and
 // pipes progress events over a fresh per-invocation channel.
 func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
@@ -193,7 +201,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 
 		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",
-			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
+			Arguments: bashArguments(command),
 		}
 
 		eventChan <- agentdomain.ToolExecutionProgressEvent{

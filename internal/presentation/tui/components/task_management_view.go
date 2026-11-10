@@ -66,7 +66,7 @@ type TaskView struct {
 	searchMode            bool
 	loading               bool
 	loadError             error
-	confirmCancel         bool
+	pendingCancel         *TaskInfo
 	showInfo              bool
 	currentView           TaskViewMode
 	infoViewport          viewport.Model
@@ -158,7 +158,7 @@ func (t *TaskView) armRefreshTick() tea.Cmd {
 func (t *TaskView) Reset() {
 	t.done = false
 	t.cancelled = false
-	t.confirmCancel = false
+	t.pendingCancel = nil
 	t.showInfo = false
 	t.searchMode = false
 	t.searchQuery = ""
@@ -420,7 +420,7 @@ func (t *TaskView) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd
 }
 
 func (t *TaskView) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if t.confirmCancel {
+	if t.pendingCancel != nil {
 		return t.handleCancelConfirmation(msg)
 	}
 
@@ -463,7 +463,7 @@ func (t *TaskView) handleKeyInput(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
 			if isCancellable(task) {
-				t.confirmCancel = true
+				t.pendingCancel = &task
 				return t, nil
 			}
 		}
@@ -541,14 +541,12 @@ func (t *TaskView) transcriptCmd() tea.Cmd {
 func (t *TaskView) handleCancelConfirmation(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, taskManagerKeys.confirm):
-		t.confirmCancel = false
-		if t.selected < len(t.filteredTasks) {
-			task := t.filteredTasks[t.selected]
-			return t, t.cancelTaskCmd(task)
-		}
+		task := *t.pendingCancel
+		t.pendingCancel = nil
+		return t, t.cancelTaskCmd(task)
 
 	case key.Matches(msg, taskManagerKeys.deny):
-		t.confirmCancel = false
+		t.pendingCancel = nil
 	}
 
 	return t, nil
@@ -1051,7 +1049,7 @@ func (t *TaskView) renderTaskList() string {
 
 	t.writeTaskSections(&content)
 
-	if t.confirmCancel {
+	if t.pendingCancel != nil {
 		content.WriteString("\n")
 		errorColor := t.styleProvider.GetThemeColor("error")
 		warning := t.styleProvider.RenderWithColor("⚠ Cancel this task? (y/n)", errorColor)

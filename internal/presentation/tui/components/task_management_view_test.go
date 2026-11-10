@@ -453,3 +453,25 @@ func TestIsCancellableKeepsAFinishedWorkerA2ATaskOut(t *testing.T) {
 		t.Error("a finished A2A task with no retained record must not offer cancel")
 	}
 }
+
+func TestCancelConfirmationCancelsTheTaskThePromptWasOpenedFor(t *testing.T) {
+	reg := &schedmocks.FakeBackgroundTaskRegistry{}
+	shell := func(id string) TaskInfo {
+		return TaskInfo{TaskPollingState: a2adomain.TaskPollingState{TaskID: id}, Kind: scheddomain.JobKindShell, Status: "Running"}
+	}
+	asked := shell("shell-b")
+	tm := &TaskView{backgroundJobRegistry: reg, filteredTasks: []TaskInfo{shell("shell-a"), asked}, selected: 1, pendingCancel: &asked}
+
+	tm.filteredTasks = []TaskInfo{shell("shell-b"), shell("shell-c")}
+	_, cmd := tm.handleCancelConfirmation(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	if cmd == nil {
+		t.Fatal("confirming returned no cancel command")
+	}
+	cancelled, ok := cmd().(tui.TaskCancelledEvent)
+	if !ok || cancelled.TaskID != "shell-b" {
+		t.Fatalf("cancelled %+v after the list reordered, want shell-b", cancelled)
+	}
+	if tm.pendingCancel != nil {
+		t.Fatal("the prompt stayed open after the answer")
+	}
+}

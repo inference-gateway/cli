@@ -1673,3 +1673,32 @@ func TestMultiEditTool_ShouldCollapseArg(t *testing.T) {
 		})
 	}
 }
+
+func TestMultiEditTool_Execute_EmptyOldStringNeverRewritesAnExistingFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "main.go")
+	original := "package main\n"
+	if err := os.WriteFile(testFile, []byte(original), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{Tools: config.ToolsConfig{
+		Enabled: true,
+		Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
+		Edit:    config.EditToolConfig{Enabled: true},
+	}}
+	tool := NewMultiEditTool(cfg, &MockReadToolTracker{readToolUsed: true})
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"file_path": testFile,
+		"edits":     []any{map[string]any{"old_string": "", "new_string": "X", "replace_all": true}},
+	})
+
+	checkExecuteErrorResult(t, err, result, "old_string cannot be empty")
+	content, readErr := os.ReadFile(testFile)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if string(content) != original {
+		t.Fatalf("file was rewritten to %q", content)
+	}
+}

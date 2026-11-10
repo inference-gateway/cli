@@ -1043,3 +1043,44 @@ func TestReadTool_Execute_ImageFile(t *testing.T) {
 		})
 	}
 }
+
+func TestReadTool_Execute_ReadsALineLongerThanTheScannerLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{Tools: config.ToolsConfig{
+		Enabled: true,
+		Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{Allowed: sandboxdomain.Allow(tmpDir)}},
+		Read:    config.ReadToolConfig{Enabled: true},
+	}}
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"long line in the middle", "first\n" + strings.Repeat("a", 200_000) + "\nlast\n"},
+		{"long last line without a newline", "first\nsecond\n" + strings.Repeat("a", 200_000)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testFile := filepath.Join(tmpDir, strings.ReplaceAll(tt.name, " ", "_")+".js")
+			if err := os.WriteFile(testFile, []byte(tt.content), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			result, err := NewReadTool(cfg, nil).Execute(context.Background(), map[string]any{"file_path": testFile})
+			if err != nil {
+				t.Fatalf("Execute() failed: %v", err)
+			}
+			if !result.Success {
+				t.Fatalf("Execute() did not succeed: %s", result.Error)
+			}
+			lines := strings.Split(result.Data.(*agentdomain.FileReadToolResult).Content, "\n")
+			if len(lines) != 3 {
+				t.Fatalf("got %d lines, want 3", len(lines))
+			}
+			for _, line := range lines {
+				if len(line) > MaxLineLength+len("     1\t") {
+					t.Fatalf("a line of %d bytes was not truncated", len(line))
+				}
+			}
+		})
+	}
+}

@@ -200,7 +200,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	cmd.Env = append(cmd.Env, "NO_COLOR=1")
 
 	if hasCallback && outputCallback != nil {
-		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, cancel, timeout, start)
+		return t.executeBashWithStreaming(cmdCtx, ctx, cmd, outputCallback, cancel, timeout, start)
 	}
 
 	defer cancel(nil)
@@ -247,9 +247,9 @@ func (t *BashTool) commandTimeout() time.Duration {
 }
 
 // executeBashWithStreaming executes a bash command and streams output through
-// the callback. A detachable command has no deadline on its context, so the
-// timeout is enforced here while the command is still in the foreground.
-func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
+// the callback. A detachable command's context follows neither the timeout nor
+// the request, so both end it here while it is still in the foreground.
+func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
 	result := &BashResult{
 		Command: cmd.Args[len(cmd.Args)-1],
 	}
@@ -313,6 +313,9 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		select {
 		case <-time.After(timeout):
 			cancel(context.DeadlineExceeded)
+			<-done
+		case <-request.Done():
+			cancel(context.Cause(request))
 			<-done
 		case <-detachChan:
 			detachedMux.Lock()

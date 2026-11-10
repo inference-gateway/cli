@@ -59,7 +59,8 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
 - **Crashes and idling** - a worker that exits mid-turn ends its open run with a synthesized `RUN_ERROR`. A
   worker nobody follows is stopped once it sat on the user's turn for the idle timeout with no open run,
   no pending reply and no background job (tracked from its `backgroundTasks` state), and daemon shutdown
-  stops every worker. A run suspended on an open interrupt waits at least as long as an approval does
+  stops every worker. Until a stopped idle worker has exited, a frame that would launch its thread again is
+  refused with `RUN_ERROR`, so two workers never write one conversation. A run suspended on an open interrupt waits at least as long as an approval does
   (`constants.ApprovalTimeout`), so a client that reattaches within it can still answer.
 
 ## How it plugs in

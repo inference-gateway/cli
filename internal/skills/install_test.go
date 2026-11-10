@@ -500,7 +500,48 @@ func TestInstallFromGitHub_OverwriteReplaces(t *testing.T) {
 
 	_, statErr := os.Stat(filepath.Join(dest, "pdf", "marker"))
 	require.True(t, os.IsNotExist(statErr))
+	info, err := os.Stat(filepath.Join(dest, "pdf"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+	leftovers, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Len(t, leftovers, 1)
 	body, err := os.ReadFile(filepath.Join(dest, "pdf", "SKILL.md"))
 	require.NoError(t, err)
 	require.Contains(t, string(body), "fresh")
+}
+
+func TestInstallFromGitHub_FailedOverwriteKeepsTheExistingSkill(t *testing.T) {
+	dest := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dest, "pdf"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dest, "pdf", "marker"), []byte("old"), 0o644))
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "rate limit exceeded", http.StatusForbidden)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	_, err := newTestInstaller(srv.URL).InstallFromGitHub(context.Background(),
+		"https://github.com/foo/bar/tree/main/skills/pdf", dest, true)
+	require.Error(t, err)
+
+	body, readErr := os.ReadFile(filepath.Join(dest, "pdf", "marker"))
+	require.NoError(t, readErr)
+	require.Equal(t, "old", string(body))
+}
+
+func TestInstallFromGitHub_RejectsParentDirectoryName(t *testing.T) {
+	base := t.TempDir()
+	dest := filepath.Join(base, "skills")
+	require.NoError(t, os.MkdirAll(dest, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(base, "config.yaml"), []byte("keep"), 0o644))
+
+	_, err := newTestInstaller("http://127.0.0.1:0").InstallFromGitHub(context.Background(),
+		"https://github.com/foo/bar/tree/main/..", dest, true)
+	require.Error(t, err)
+
+	_, statErr := os.Stat(filepath.Join(base, "config.yaml"))
+	require.NoError(t, statErr)
 }

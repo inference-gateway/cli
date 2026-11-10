@@ -4,6 +4,7 @@ import (
 	"io"
 	"slices"
 	"testing"
+	"time"
 
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
@@ -98,5 +99,24 @@ func TestWorkerHangUpInterruptsAndClosesStdin(t *testing.T) {
 	}
 	if string(got) != "{\"type\":\"interrupt\"}\n" {
 		t.Fatalf("the worker read %q, want one interrupt line then EOF", got)
+	}
+}
+
+func TestWorkerHangUpReturnsWhenTheWorkerStoppedReadingStdin(t *testing.T) {
+	_, writer := io.Pipe()
+	w := &processWorker{stdin: writer}
+	hungUp := make(chan struct{})
+	go func() {
+		defer close(hungUp)
+		_ = w.hangUp()
+	}()
+
+	select {
+	case <-hungUp:
+	case <-time.After(hangUpGrace + 2*time.Second):
+		t.Fatal("hangUp never returned, so the kill after the grace period never starts")
+	}
+	if err := w.Send([]byte(`{"type":"interrupt"}`)); err == nil {
+		t.Fatal("stdin stayed open after the hang-up")
 	}
 }

@@ -98,14 +98,32 @@ func (h *MessageHistoryHandler) HandleEdit(event tui.MessageHistoryEditEvent) te
 	}
 }
 
-// HandleEditSubmit processes the message edit submission
+// HandleEditSubmit drops the edited message and everything after it, then
+// sends the edit as new input. The drop waits for the submit so that
+// cancelling an edit leaves the conversation as it was.
 func (h *MessageHistoryHandler) HandleEditSubmit(event tui.MessageEditSubmitEvent) tea.Cmd {
 	return func() tea.Msg {
+		if err := h.dropFrom(h.adjustRestoreIndex(h.conversationRepo.GetMessages(), event.OriginalIndex)); err != nil {
+			logger.Error("failed to delete messages during edit", "error", err)
+			return agentdomain.ChatErrorEvent{
+				RequestID: event.RequestID,
+				Error:     fmt.Errorf("failed to delete messages: %w", err),
+				Timestamp: time.Now(),
+			}
+		}
 		return agentdomain.UserInputEvent{
 			Content: event.EditedContent,
 			Images:  event.Images,
 		}
 	}
+}
+
+// dropFrom deletes the message at index and every message after it.
+func (h *MessageHistoryHandler) dropFrom(index int) error {
+	if index == 0 {
+		return h.conversationRepo.Clear()
+	}
+	return h.conversationRepo.DeleteMessagesAfterIndex(index - 1)
 }
 
 // adjustRestoreIndex adjusts the restore index based on message role and tool calls
