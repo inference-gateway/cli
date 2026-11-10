@@ -16,6 +16,8 @@ type DisplayController interface {
 	GetCursorPosition(ctx context.Context) (x, y int, err error)
 	MoveMouse(ctx context.Context, x, y int) error
 	ClickMouse(ctx context.Context, button MouseButton, clicks int) error
+	PressMouse(ctx context.Context, button MouseButton) error
+	ReleaseMouse(ctx context.Context, button MouseButton) error
 	ScrollMouse(ctx context.Context, clicks int, direction string) error
 
 	// Keyboard operations

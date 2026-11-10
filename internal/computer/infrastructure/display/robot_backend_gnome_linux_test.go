@@ -105,6 +105,31 @@ func TestClickArguments(t *testing.T) {
 	}
 }
 
+func TestToggleArguments(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []any
+		button  int32
+		pressed bool
+		wantErr bool
+	}{
+		{name: "default presses the left button", button: evdevLeftButton, pressed: true},
+		{name: "a button without a state goes down", args: []any{"right"}, button: evdevRightButton, pressed: true},
+		{name: "down", args: []any{"center", "down"}, button: evdevMiddleButton, pressed: true},
+		{name: "up", args: []any{"left", "up"}, button: evdevLeftButton},
+		{name: "unknown button", args: []any{"thumb", "down"}, wantErr: true},
+		{name: "argument is not a name", args: []any{1}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			button, pressed, err := toggleArguments(tt.args)
+			if (err != nil) != tt.wantErr || button != tt.button || pressed != tt.pressed {
+				t.Errorf("toggleArguments(%v) = %#x, %v, %v, want %#x, %v", tt.args, button, pressed, err, tt.button, tt.pressed)
+			}
+		})
+	}
+}
+
 func TestParsePair(t *testing.T) {
 	x, y, err := parsePair("[1280,800]")
 	if err != nil || x != 1280 || y != 800 {

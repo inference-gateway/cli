@@ -1,9 +1,11 @@
 package domain
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 )
 
@@ -14,7 +16,12 @@ var ErrScreenNotHeld = errors.New("the screen is not held")
 // screenInputKinds are the kinds a person drives a held screen with: the
 // pointer, wheel and keyboard. Observations stay out, and so does the
 // accessibility press, which the person's own click replaces.
-var screenInputKinds = []ActionKind{ActionMove, ActionClick, ActionDoubleClick, ActionScroll, ActionType, ActionKey}
+var screenInputKinds = []ActionKind{
+	ActionMove, ActionClick, ActionDoubleClick, ActionMouseDown, ActionMouseUp, ActionScroll, ActionType, ActionKey,
+}
+
+// pointerInputKinds are the person's inputs that happen at a place on the screen.
+var pointerInputKinds = []ActionKind{ActionMove, ActionClick, ActionDoubleClick, ActionMouseDown, ActionMouseUp}
 
 // IsInputAction reports whether the agent executes the kind by driving the
 // pointer, keyboard or clipboard, so it waits while the person holds the
@@ -31,12 +38,12 @@ func IsInputAction(kind ActionKind) bool {
 // coordinate space (the space the Screen view's image and its X-Frame-Width
 // and X-Frame-Height headers use): what to do and, per kind, on what.
 type ScreenInput struct {
-	Kind      ActionKind `json:"kind"` // move, click, double_click, scroll, type, key
+	Kind      ActionKind `json:"kind"` // move, click, double_click, mouse_down, mouse_up, scroll, type, key
 	X         int        `json:"x,omitempty"`
 	Y         int        `json:"y,omitempty"`
 	Text      string     `json:"text,omitempty"`      // type: the text to type
 	Combo     string     `json:"combo,omitempty"`     // key: a combo such as "ctrl+shift+t" or a key name
-	Button    string     `json:"button,omitempty"`    // click kinds: left (default), right, middle
+	Button    string     `json:"button,omitempty"`    // click and mouse kinds: left (default), right, middle
 	Direction string     `json:"direction,omitempty"` // scroll: vertical (default) or horizontal
 	Amount    int        `json:"amount,omitempty"`    // scroll: wheel clicks, negative reverses
 }
@@ -55,10 +62,31 @@ func (s ScreenInput) Action() (Action, error) {
 		Direction: s.Direction,
 		Amount:    s.Amount,
 	}
-	if a.Kind == ActionMove || a.Kind == ActionClick || a.Kind == ActionDoubleClick {
+	if slices.Contains(pointerInputKinds, a.Kind) {
 		a.Target = &Target{X: s.X, Y: s.Y}
 	}
 	return a, nil
+}
+
+// HeldButtons are the pointer buttons a person pressed and has not let go of,
+// so a hold that ends mid-drag can release them.
+type HeldButtons map[string]struct{}
+
+// Track follows one performed action: a mouse_down holds its button and a
+// mouse_up lets it go. Every other action leaves the buttons as they are.
+func (h HeldButtons) Track(a Action) {
+	button := cmp.Or(a.Button, "left")
+	switch a.Kind {
+	case ActionMouseDown:
+		h[button] = struct{}{}
+	case ActionMouseUp:
+		delete(h, button)
+	}
+}
+
+// Names lists the held buttons in a stable order.
+func (h HeldButtons) Names() []string {
+	return slices.Sorted(maps.Keys(h))
 }
 
 // ScreenFollower keeps the streamed screen current for the person who holds

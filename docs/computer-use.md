@@ -83,7 +83,8 @@ background shell - a build, a server, a long script - holds the run exactly as b
 A person can drive the same screen from the web terminal's Screen view without
 going through the tool layer: the **Take over** button claims it, pointer,
 wheel and keyboard on the image act on it directly, and **Done** (or `Esc`
-twice) hands it back. While the person holds the screen the agent is held - its
+twice) hands it back. A client can also hold a pointer button down, move and
+let go, which drags, and a button still down at the hand-back is released. While the person holds the screen the agent is held - its
 input actions wait until the hand-back and its observations keep working - and
 the run state tells every client who drives (`screenControl.held` on the run
 stream). The take-over resolves an open approval box for a `Computer` call as

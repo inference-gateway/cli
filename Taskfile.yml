@@ -395,6 +395,7 @@ tasks:
       - mkdir -p tests/mocks/computer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/computer internal/computer/domain ScreenControl
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/computer internal/computer/domain ScreenFollower
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/computer internal/computer/infrastructure/display DisplayController
       - mkdir -p tests/mocks/agui
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agui internal/protocols/agui Handler
       - mkdir -p tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states

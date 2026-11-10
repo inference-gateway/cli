@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -30,6 +31,16 @@ func TestScreenInputBuildsTheActionsItDrives(t *testing.T) {
 			name:  "a move carries its target",
 			input: ScreenInput{Kind: ActionMove, X: 5, Y: 6},
 			want:  Action{Kind: ActionMove, Target: &Target{X: 5, Y: 6}},
+		},
+		{
+			name:  "a button press carries its target and button",
+			input: ScreenInput{Kind: ActionMouseDown, X: 7, Y: 8, Button: "right"},
+			want:  Action{Kind: ActionMouseDown, Target: &Target{X: 7, Y: 8}, Button: "right"},
+		},
+		{
+			name:  "a button release carries its target",
+			input: ScreenInput{Kind: ActionMouseUp, X: 9, Y: 10},
+			want:  Action{Kind: ActionMouseUp, Target: &Target{X: 9, Y: 10}},
 		},
 		{
 			name:  "type carries its text",
@@ -79,5 +90,21 @@ func TestIsInputActionTellsTheAgentWaitFromTheObservation(t *testing.T) {
 		if IsInputAction(kind) {
 			t.Errorf("IsInputAction(%s) = true, want false", kind)
 		}
+	}
+}
+
+func TestHeldButtonsFollowPressesAndReleases(t *testing.T) {
+	held := HeldButtons{}
+	held.Track(Action{Kind: ActionMouseDown})
+	held.Track(Action{Kind: ActionMouseDown, Button: "right"})
+	held.Track(Action{Kind: ActionClick, Button: "middle"})
+	if got := held.Names(); !slices.Equal(got, []string{"left", "right"}) {
+		t.Fatalf("held %v, want the two pressed buttons with left as the default", got)
+	}
+
+	held.Track(Action{Kind: ActionMouseUp, Button: "left"})
+	held.Track(Action{Kind: ActionMouseUp, Button: "middle"})
+	if got := held.Names(); !slices.Equal(got, []string{"right"}) {
+		t.Fatalf("held %v, want only the button still down", got)
 	}
 }

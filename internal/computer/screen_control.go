@@ -25,6 +25,7 @@ type ScreenControl struct {
 	held     bool
 	released chan struct{}
 	follower computerdomain.ScreenFollower
+	pressed  computerdomain.HeldButtons
 }
 
 // unfollowed is the follower of a screen nobody streams.
@@ -69,6 +70,7 @@ func (s *ScreenControl) TakeOver() error {
 	}
 	s.held = true
 	s.released = make(chan struct{})
+	s.pressed = computerdomain.HeldButtons{}
 	follower := s.follower
 	s.mu.Unlock()
 	follower.HoldChanged(true)
@@ -85,9 +87,12 @@ func (s *ScreenControl) HandBack() bool {
 		return false
 	}
 	released := s.released
+	stillPressed := s.pressed.Names()
 	s.held = false
+	s.pressed = nil
 	follower := s.follower
 	s.mu.Unlock()
+	releaseButtons(stillPressed)
 	close(released)
 	follower.HoldChanged(false)
 	s.notifier.Notify(agentdomain.ScreenHandedBackEvent{Timestamp: time.Now()})
@@ -131,11 +136,7 @@ func (s *ScreenControl) Drive(ctx context.Context, input computerdomain.ScreenIn
 	if err != nil {
 		return err
 	}
-	provider, err := display.DetectDisplay()
-	if err != nil {
-		return err
-	}
-	controller, err := provider.GetController()
+	controller, err := openDisplay()
 	if err != nil {
 		return err
 	}
@@ -153,6 +154,41 @@ func (s *ScreenControl) Drive(ctx context.Context, input computerdomain.ScreenIn
 	if err := inputDispatch(ctx, controller, action, obs, screenW, screenH, func(computerdomain.ActionKind, int, int) {}); err != nil {
 		return err
 	}
+	s.track(action)
 	s.currentFollower().InputLanded()
 	return nil
+}
+
+// track remembers the buttons the person holds down. An input that lands as
+// the screen is handed back has nothing left to track.
+func (s *ScreenControl) track(action computerdomain.Action) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pressed != nil {
+		s.pressed.Track(action)
+	}
+}
+
+func openDisplay() (display.DisplayController, error) {
+	provider, err := display.DetectDisplay()
+	if err != nil {
+		return nil, err
+	}
+	return provider.GetController()
+}
+
+// releaseButtons lets go of the buttons a hold ended with, so the agent does
+// not get the screen back mid-drag. A display that is gone has nothing held.
+func releaseButtons(buttons []string) {
+	if len(buttons) == 0 {
+		return
+	}
+	controller, err := openDisplay()
+	if err != nil {
+		return
+	}
+	defer func() { _ = controller.Close() }()
+	for _, button := range buttons {
+		_ = controller.ReleaseMouse(context.Background(), display.ParseMouseButton(button))
+	}
 }

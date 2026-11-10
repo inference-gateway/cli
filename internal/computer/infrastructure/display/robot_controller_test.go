@@ -102,3 +102,34 @@ func tapKeysWith(t *testing.T, tap func(key string, args ...any) error) {
 	t.Cleanup(func() { robot.KeyTap = restore })
 	robot.KeyTap = tap
 }
+
+func TestPressAndReleaseMouseToggleTheNamedButton(t *testing.T) {
+	restore := robot.Toggle
+	t.Cleanup(func() { robot.Toggle = restore })
+	var toggled [][]any
+	robot.Toggle = func(args ...any) error {
+		toggled = append(toggled, args)
+		return nil
+	}
+	controller := &robotController{}
+
+	if err := controller.PressMouse(t.Context(), MouseButtonMiddle); err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.ReleaseMouse(t.Context(), MouseButtonLeft); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]any{{"center", "down"}, {"left", "up"}}
+	if len(toggled) != len(want) {
+		t.Fatalf("toggled %v, want %v", toggled, want)
+	}
+	for i := range want {
+		if toggled[i][0] != want[i][0] || toggled[i][1] != want[i][1] {
+			t.Fatalf("toggle %d was %v, want %v", i, toggled[i], want[i])
+		}
+	}
+
+	if err := controller.PressMouse(t.Context(), MouseButton(9)); err == nil {
+		t.Fatal("an unknown button must be refused")
+	}
+}
