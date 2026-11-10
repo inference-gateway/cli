@@ -104,6 +104,7 @@ func gnomeRobot() robotBackend {
 		Location:      desktop.location,
 		Move:          func(x, y int, _ ...int) error { return desktop.move(x, y) },
 		Click:         desktop.click,
+		Toggle:        desktop.toggle,
 		ScrollDir:     desktop.scroll,
 		Type:          func(text string, _ ...int) int { return desktop.typeText(text) },
 		KeyTap:        desktop.keyTap,
@@ -330,6 +331,42 @@ func (d *gnomeDesktop) click(args ...any) error {
 		}
 		return nil
 	})
+}
+
+// toggle holds a button down or lets it go, without the release a tap adds.
+func (d *gnomeDesktop) toggle(args ...any) error {
+	button, pressed, err := toggleArguments(args)
+	if err != nil {
+		return err
+	}
+	return d.input(func(link *gnomeLink) error {
+		return link.notify("NotifyPointerButton", button, pressed)
+	})
+}
+
+// toggleArguments reads robotgo's Toggle arguments: the button name, then "up"
+// or "down". A button without a state goes down.
+func toggleArguments(args []any) (int32, bool, error) {
+	name, pressed := "left", true
+	for _, arg := range args {
+		given, ok := arg.(string)
+		if !ok {
+			return 0, false, fmt.Errorf("mouse toggle argument %v is not a name", arg)
+		}
+		switch given {
+		case "down":
+			pressed = true
+		case "up":
+			pressed = false
+		default:
+			name = given
+		}
+	}
+	button, ok := gnomeButtons[name]
+	if !ok {
+		return 0, false, fmt.Errorf("unknown mouse button %q", name)
+	}
+	return button, pressed, nil
 }
 
 // clickArguments reads robotgo's Click arguments: the button name, then whether to double click.

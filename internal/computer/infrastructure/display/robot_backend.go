@@ -13,6 +13,7 @@ var robot = robotBackend{
 	Location:      robotgo.Location,
 	Move:          robotgo.Move,
 	Click:         robotgo.Click,
+	Toggle:        robotgo.Toggle,
 	ScrollDir:     robotgo.ScrollDir,
 	Type:          robotgo.Type,
 	KeyTap:        robotgo.KeyTap,

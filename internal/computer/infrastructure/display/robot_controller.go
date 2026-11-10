@@ -21,6 +21,7 @@ type robotBackend struct {
 	Location      func() (int, int)
 	Move          func(x, y int, displayId ...int) error
 	Click         func(args ...any) error
+	Toggle        func(args ...any) error
 	ScrollDir     func(x int, direction ...any) error
 	Type          func(str string, args ...int) int
 	KeyTap        func(key string, args ...any) error
@@ -167,14 +168,41 @@ func (c *robotController) MoveMouse(ctx context.Context, x, y int) error {
 	return robot.Move(x, y)
 }
 
-func (c *robotController) ClickMouse(ctx context.Context, button MouseButton, clicks int) error {
-	robotButton := button.String()
-	if robotButton == "middle" {
-		robotButton = "center"
+// robotButtonName is the name robotgo knows a button by.
+func robotButtonName(button MouseButton) (string, error) {
+	switch button {
+	case MouseButtonLeft:
+		return "left", nil
+	case MouseButtonRight:
+		return "right", nil
+	case MouseButtonMiddle:
+		return "center", nil
 	}
+	return "", fmt.Errorf("invalid button: %s (must be left, right, or middle)", button)
+}
 
-	if robotButton != "left" && robotButton != "right" && robotButton != "center" {
-		return fmt.Errorf("invalid button: %s (must be left, right, or middle)", button)
+// PressMouse holds a button down where the pointer is, until ReleaseMouse.
+func (c *robotController) PressMouse(ctx context.Context, button MouseButton) error {
+	return toggleMouse(button, "down")
+}
+
+// ReleaseMouse lets go of a button PressMouse holds.
+func (c *robotController) ReleaseMouse(ctx context.Context, button MouseButton) error {
+	return toggleMouse(button, "up")
+}
+
+func toggleMouse(button MouseButton, state string) error {
+	robotButton, err := robotButtonName(button)
+	if err != nil {
+		return err
+	}
+	return robot.Toggle(robotButton, state)
+}
+
+func (c *robotController) ClickMouse(ctx context.Context, button MouseButton, clicks int) error {
+	robotButton, err := robotButtonName(button)
+	if err != nil {
+		return err
 	}
 
 	if clicks < 1 || clicks > 3 {

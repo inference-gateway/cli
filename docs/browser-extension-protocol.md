@@ -476,9 +476,13 @@ CLI → client, one reply per request id:
   approval box the worker's `Computer` call parks on, so the person decides.
 - `hand_back` releases the screen and queues the worker's continue message.
 - `screen_input` carries one person input in the frame space the GET's image
-  answers in: `{"kind": "move" | "click" | "double_click" | "scroll" | "type" |
-  "key", "x", "y", "text", "combo", "button", "direction", "amount"}`. It drives
-  the display directly - no approval, no judge and no conversation entry.
+  answers in: `{"kind": "move" | "click" | "double_click" | "mouse_down" |
+  "mouse_up" | "scroll" | "type" | "key", "x", "y", "text", "combo", "button",
+  "direction", "amount"}`. It drives the display directly - no approval, no
+  judge and no conversation entry.
+- `mouse_down` holds `button` down at `x`, `y` and `mouse_up` lets it go there,
+  so a `mouse_down`, one or more `move` and a `mouse_up` drag. A button still
+  down at the `hand_back` is released first.
 - An input for a screen nobody holds errors, and the HTTP POST answers it with
   `409 Conflict`, so a stale tab cannot drive what it handed back.
 

@@ -15,6 +15,8 @@ const (
 	ActionType          ActionKind = "type"
 	ActionKey           ActionKind = "key"
 	ActionPress         ActionKind = "press"
+	ActionMouseDown     ActionKind = "mouse_down"
+	ActionMouseUp       ActionKind = "mouse_up"
 )
 
 // Action is one computer-use request: what to do and, where relevant, on

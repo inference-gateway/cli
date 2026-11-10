@@ -15,7 +15,8 @@ import (
 // Coordinates go in, in frame space.
 func inputDispatch(ctx context.Context, controller display.DisplayController, a computerdomain.Action, obs *computerdomain.Observation, screenW, screenH int, publish func(kind computerdomain.ActionKind, x, y int)) error {
 	switch a.Kind {
-	case computerdomain.ActionMove, computerdomain.ActionClick, computerdomain.ActionDoubleClick, computerdomain.ActionTripleClick:
+	case computerdomain.ActionMove, computerdomain.ActionClick, computerdomain.ActionDoubleClick, computerdomain.ActionTripleClick,
+		computerdomain.ActionMouseDown, computerdomain.ActionMouseUp:
 		return dispatchPointer(ctx, controller, a, obs, screenW, screenH, publish)
 	case computerdomain.ActionScroll:
 		return dispatchScroll(ctx, controller, a, obs)
@@ -44,9 +45,17 @@ func dispatchPointer(ctx context.Context, controller display.DisplayController, 
 	}
 	obs.CursorX, obs.CursorY = a.Target.X, a.Target.Y
 
-	if a.Kind == computerdomain.ActionMove {
+	button := display.ParseMouseButton(a.Button)
+	switch a.Kind {
+	case computerdomain.ActionMove:
 		obs.Message = fmt.Sprintf("moved cursor to (%d, %d)", a.Target.X, a.Target.Y)
 		return nil
+	case computerdomain.ActionMouseDown:
+		obs.Message = fmt.Sprintf("pressed the %s button at (%d, %d)", button, a.Target.X, a.Target.Y)
+		return controller.PressMouse(ctx, button)
+	case computerdomain.ActionMouseUp:
+		obs.Message = fmt.Sprintf("released the %s button at (%d, %d)", button, a.Target.X, a.Target.Y)
+		return controller.ReleaseMouse(ctx, button)
 	}
 	clicks := 1
 	switch a.Kind {
@@ -55,7 +64,6 @@ func dispatchPointer(ctx context.Context, controller display.DisplayController, 
 	case computerdomain.ActionTripleClick:
 		clicks = 3
 	}
-	button := display.ParseMouseButton(a.Button)
 	if err := controller.ClickMouse(ctx, button, clicks); err != nil {
 		return err
 	}
