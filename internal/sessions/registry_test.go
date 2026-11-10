@@ -753,3 +753,37 @@ func TestRegistryReadFrameRunsOnlyOnTheSessionItNames(t *testing.T) {
 		t.Fatalf("a frame for an open session must relaunch its own worker, launched %v", l.keys)
 	}
 }
+
+func TestRegistryLaunchesNoSecondWorkerWhileAReapedOneDrains(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Minute)
+	c := &sessionsmocks.FakeClient{}
+	resume := `{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`
+	handle(r, c, resume)
+	worker, lines := l.worker(0)
+	lines <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
+	eventually(t, "the snapshot", func() bool { return c.DeliverCallCount() >= 1 })
+	exit := make(chan struct{})
+	worker.StopCalls(func() {
+		<-exit
+		close(lines)
+	})
+	r.Detach(c)
+	r.reap(time.Now().Add(2 * time.Minute))
+	eventually(t, "the reaped worker to be stopped", func() bool { return worker.StopCallCount() == 1 })
+
+	handle(r, c, resume)
+	if l.count() != 1 {
+		t.Fatalf("launched %d workers while the first still drains, want 1", l.count())
+	}
+	eventually(t, "the refusal", func() bool {
+		got := delivered(c)
+		return got[len(got)-1] == string(runError("", errDraining.Error()))
+	})
+
+	close(exit)
+	eventually(t, "the thread to launch again once the worker exited", func() bool {
+		handle(r, c, resume)
+		return l.count() == 2
+	})
+}

@@ -78,6 +78,8 @@ var replyTypes = map[string][]string{
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
 
+var errDraining = errors.New("the session's previous worker is still shutting down, try again in a moment")
+
 var errAtRest = errors.New("the session is moving to another workspace, try again once it arrived")
 
 type clientFrame struct {
@@ -163,6 +165,9 @@ type Registry struct {
 	// another workspace (true) or arrived here (false). Read by AgentsDone and
 	// AllTeleportedAway.
 	away map[sessionsdomain.ThreadKey]bool
+	// draining holds the threads whose reaped worker has not exited yet. No
+	// worker launches for one, since two would write the same conversation.
+	draining map[sessionsdomain.ThreadKey]struct{}
 }
 
 // thread is one project dir plus conversation id and the worker running it.
@@ -202,6 +207,7 @@ func NewRegistry(launch sessionsdomain.LaunchWorker, idle time.Duration) *Regist
 		lastActive: time.Now(),
 		finished:   make(map[sessionsdomain.ThreadKey]bool),
 		away:       make(map[sessionsdomain.ThreadKey]bool),
+		draining:   make(map[sessionsdomain.ThreadKey]struct{}),
 	}
 }
 
@@ -481,6 +487,9 @@ func (r *Registry) workerLocked(t *thread) (sessionsdomain.Worker, error) {
 	}
 	if t.atRest {
 		return nil, errAtRest
+	}
+	if _, draining := r.draining[t.key]; draining {
+		return nil, errDraining
 	}
 	w, err := r.launch(t.key, t.opts)
 	if err != nil {
@@ -824,22 +833,31 @@ func (r *Registry) exited(t *thread, w sessionsdomain.Worker) {
 // answer it.
 func (r *Registry) reap(now time.Time) {
 	r.mu.Lock()
-	var idle []sessionsdomain.Worker
+	idle := map[sessionsdomain.ThreadKey]sessionsdomain.Worker{}
 	for key, t := range r.threads {
 		if len(t.clients) > 0 || t.runID != "" || len(t.waiting) > 0 || t.jobs > 0 || now.Sub(t.active) < r.idleFor(t) {
 			continue
 		}
 		if t.worker != nil {
-			idle = append(idle, t.worker)
+			idle[key] = t.worker
+			r.draining[key] = struct{}{}
 			t.worker = nil
 		}
 		delete(r.threads, key)
 		r.lastActive = now
 	}
 	r.mu.Unlock()
-	for _, w := range idle {
-		go w.Stop()
+	for key, w := range idle {
+		go r.drain(key, w)
 	}
+}
+
+// drain stops a reaped worker and lets its thread launch again once it exited.
+func (r *Registry) drain(key sessionsdomain.ThreadKey, w sessionsdomain.Worker) {
+	w.Stop()
+	r.mu.Lock()
+	delete(r.draining, key)
+	r.mu.Unlock()
 }
 
 // idleFor is how long a thread nobody follows may sit before reap stops it.
