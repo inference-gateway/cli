@@ -140,3 +140,41 @@ func TestBashTool_DetachableCommandTimesOut(t *testing.T) {
 		t.Fatalf("the command's child survived the timeout: pids %s", strings.TrimSpace(string(out)))
 	}
 }
+
+func TestBashTool_InterruptKillsADetachableCommand(t *testing.T) {
+	fake := &schedmocks.FakeBackgroundShellService{}
+	tool := NewBashTool(config.DefaultConfig(), fake)
+
+	ctx, interrupt := context.WithCancel(agentdomain.WithToolApproved(context.Background()))
+	started := make(chan struct{}, 1)
+	ctx = agentdomain.WithBashOutputCallback(ctx, func(string) {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+	})
+	ctx = agentdomain.WithBashDetachChannel(ctx, make(chan struct{}, 1))
+	marker := "infer-bash-interrupt-" + t.Name()
+	go func() {
+		<-started
+		interrupt()
+	}()
+
+	startedAt := time.Now()
+	r, err := tool.Execute(ctx, map[string]any{"command": ": " + marker + "; (sleep 30) & echo started; wait"})
+	if err != nil {
+		t.Fatalf("Execute returned an error: %v", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > 5*time.Second {
+		t.Fatalf("Execute took %s to follow the interrupt", elapsed)
+	}
+	if r.Success {
+		t.Fatal("an interrupted command must not be reported as success")
+	}
+	if got := fake.DetachToBackgroundCallCount(); got != 0 {
+		t.Fatalf("DetachToBackground called %d times, want 0", got)
+	}
+	if out, _ := exec.Command("pgrep", "-f", marker).Output(); len(out) > 0 {
+		t.Fatalf("the command's child survived the interrupt: pids %s", strings.TrimSpace(string(out)))
+	}
+}
