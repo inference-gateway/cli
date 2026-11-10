@@ -3,7 +3,6 @@ package computer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -26,6 +25,7 @@ type ScreenControl struct {
 	released chan struct{}
 	follower computerdomain.ScreenFollower
 	pressed  computerdomain.HeldButtons
+	display  *heldDisplay
 }
 
 // unfollowed is the follower of a screen nobody streams.
@@ -41,7 +41,7 @@ func NewScreenControl(cfg *config.Config, notifier agentdomain.UINotifier) *Scre
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
 	}
-	return &ScreenControl{cfg: cfg, notifier: notifier, follower: unfollowed{}}
+	return &ScreenControl{cfg: cfg, notifier: notifier, follower: unfollowed{}, display: &heldDisplay{open: openDisplay}}
 }
 
 // Follow names who keeps the streamed screen current during a hold. A hold
@@ -73,6 +73,7 @@ func (s *ScreenControl) TakeOver() error {
 	s.pressed = computerdomain.HeldButtons{}
 	follower := s.follower
 	s.mu.Unlock()
+	s.display.begin()
 	follower.HoldChanged(true)
 	s.notifier.Notify(agentdomain.ScreenTakenOverEvent{Timestamp: time.Now()})
 	return nil
@@ -92,7 +93,7 @@ func (s *ScreenControl) HandBack() bool {
 	s.pressed = nil
 	follower := s.follower
 	s.mu.Unlock()
-	releaseButtons(stillPressed)
+	s.display.end(stillPressed)
 	close(released)
 	follower.HoldChanged(false)
 	s.notifier.Notify(agentdomain.ScreenHandedBackEvent{Timestamp: time.Now()})
@@ -136,22 +137,12 @@ func (s *ScreenControl) Drive(ctx context.Context, input computerdomain.ScreenIn
 	if err != nil {
 		return err
 	}
-	controller, err := openDisplay()
+	err = s.display.drive(ctx, func(controller display.DisplayController, screenW, screenH int) error {
+		frameW, frameH := s.cfg.ComputerUse.Screenshot.FitDims(screenW, screenH)
+		obs := &computerdomain.Observation{Width: frameW, Height: frameH}
+		return inputDispatch(ctx, controller, action, obs, screenW, screenH, func(computerdomain.ActionKind, int, int) {})
+	})
 	if err != nil {
-		return err
-	}
-	defer func() { _ = controller.Close() }()
-
-	screenW, screenH, err := controller.GetScreenDimensions(ctx)
-	if err != nil {
-		return err
-	}
-	if screenW <= 0 || screenH <= 0 {
-		return fmt.Errorf("no usable display (reported %dx%d)", screenW, screenH)
-	}
-	frameW, frameH := s.cfg.ComputerUse.Screenshot.FitDims(screenW, screenH)
-	obs := &computerdomain.Observation{Width: frameW, Height: frameH}
-	if err := inputDispatch(ctx, controller, action, obs, screenW, screenH, func(computerdomain.ActionKind, int, int) {}); err != nil {
 		return err
 	}
 	s.track(action)
@@ -166,29 +157,5 @@ func (s *ScreenControl) track(action computerdomain.Action) {
 	defer s.mu.Unlock()
 	if s.pressed != nil {
 		s.pressed.Track(action)
-	}
-}
-
-func openDisplay() (display.DisplayController, error) {
-	provider, err := display.DetectDisplay()
-	if err != nil {
-		return nil, err
-	}
-	return provider.GetController()
-}
-
-// releaseButtons lets go of the buttons a hold ended with, so the agent does
-// not get the screen back mid-drag. A display that is gone has nothing held.
-func releaseButtons(buttons []string) {
-	if len(buttons) == 0 {
-		return
-	}
-	controller, err := openDisplay()
-	if err != nil {
-		return
-	}
-	defer func() { _ = controller.Close() }()
-	for _, button := range buttons {
-		_ = controller.ReleaseMouse(context.Background(), display.ParseMouseButton(button))
 	}
 }
