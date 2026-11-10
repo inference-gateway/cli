@@ -462,3 +462,40 @@ func TestDeleteTool_SandboxValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteTool_RecursiveDeleteKeepsDeniedEntries(t *testing.T) {
+	tests := []struct {
+		name      string
+		entry     string
+		expectErr bool
+	}{
+		{"plain file", "notes.txt", false},
+		{"credential file", "nested/prod.env", true},
+		{"git metadata", ".git/config", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			target := filepath.Join(tempDir, "target")
+			entry := filepath.Join(target, tt.entry)
+			if err := os.MkdirAll(filepath.Dir(entry), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(entry, []byte("x"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			cfg := config.DefaultConfig()
+			cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(tempDir)
+			tool := NewDeleteTool(cfg)
+
+			err := tool.deleteSinglePath(target, true, &DeleteResult{})
+
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("deleteSinglePath() error = %v, expectErr %v", err, tt.expectErr)
+			}
+			if _, statErr := os.Stat(entry); (statErr == nil) != tt.expectErr {
+				t.Fatalf("entry survives = %v, want %v", statErr == nil, tt.expectErr)
+			}
+		})
+	}
+}

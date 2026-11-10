@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -261,6 +262,10 @@ func (t *DeleteTool) deleteDirectory(path string, recursive bool, result *Delete
 		return fmt.Errorf("path %s is a directory, use recursive=true to delete directories", path)
 	}
 
+	if denied := t.deniedEntryWithin(path); denied != "" {
+		return fmt.Errorf("directory %s holds %s, which the sandbox denies, delete the entries you mean one by one", path, denied)
+	}
+
 	if err := os.RemoveAll(path); err != nil {
 		return fmt.Errorf("failed to delete directory %s: %w", path, err)
 	}
@@ -279,6 +284,25 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 	result.DeletedFiles = append(result.DeletedFiles, path)
 	result.TotalFilesDeleted++
 	return nil
+}
+
+// deniedEntryWithin is the first entry beneath dir that a denied rule of the
+// sandbox covers, empty when there is none. The check on dir itself says
+// nothing about what a recursive delete takes with it.
+func (t *DeleteTool) deniedEntryWithin(dir string) string {
+	absDir, err := filepath.Abs(dir)
+	if err != nil || t.config == nil {
+		return ""
+	}
+	denied := ""
+	_ = filepath.WalkDir(absDir, func(path string, _ fs.DirEntry, err error) error {
+		if err != nil || path == absDir || !sandbox.Denies(t.config, absDir, path) {
+			return nil
+		}
+		denied = path
+		return fs.SkipAll
+	})
+	return denied
 }
 
 // validatePathSecurity checks if a path is allowed for deletion within the sandbox
