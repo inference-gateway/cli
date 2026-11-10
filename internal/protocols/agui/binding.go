@@ -31,8 +31,11 @@ const handshakeTimeout = 5 * time.Second
 // of stalling whoever feeds it.
 const connWriteTimeout = 10 * time.Second
 
-// pingInterval keeps an idle connection alive.
-const pingInterval = 20 * time.Second
+// pingInterval keeps an idle connection alive. A client that answers none of
+// missedPings pings in a row is gone, and its read loop ends.
+var pingInterval = 20 * time.Second
+
+const missedPings = 3
 
 // MaxInboundFrameBytes caps one frame a dialing end sends, its hello
 // included, so a peer cannot pin the listener's memory with a single message.
@@ -354,12 +357,23 @@ func (b *Binding) adopt(c *Conn) {
 	b.conns[c] = struct{}{}
 	b.mu.Unlock()
 
+	c.expectPongs()
 	b.handler.Attach(c)
 	go func() {
 		defer b.drop(c)
 		c.serve(b.handler)
 	}()
 	go c.pingLoop()
+}
+
+// expectPongs ends the read loop of a client that stops answering pings, such
+// as one that vanished without closing its socket. It must run before serve.
+func (c *Conn) expectPongs() {
+	extend := func(string) error {
+		return c.ws.SetReadDeadline(time.Now().Add(missedPings * pingInterval))
+	}
+	_ = extend("")
+	c.ws.SetPongHandler(extend)
 }
 
 func (c *Conn) pingLoop() {
