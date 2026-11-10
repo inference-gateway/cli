@@ -91,6 +91,11 @@ rejected and queues one continue message on hand-back, so the next turn starts
 from a fresh screenshot; the person's inputs enter no transcript. See the
 web terminal's [live screen](web-terminal.md#live-screen).
 
+The streamed screen follows the person while they hold it. Outside a hold the worker captures a frame every
+`computer_use.screenshot.capture_interval` seconds (3 by default). During a hold it captures twice a second
+and once more right after each input, and a frame read that follows an input waits up to a second for that
+capture, so the view shows what the input did. The configured interval applies again after the hand-back.
+
 ## Related
 
 - [Tools Reference](tools-reference.md#accessibility-provider) - the computer-use tools and the accessibility provider

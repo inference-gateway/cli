@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -21,7 +22,17 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// ScreenshotServer provides an HTTP API for screenshot streaming
+const (
+	defaultCaptureInterval = 3 * time.Second
+	// heldCaptureInterval paces the stream while a person drives the screen.
+	heldCaptureInterval = 500 * time.Millisecond
+	// freshFrameWait bounds how long a reader waits for the frame an input owes.
+	freshFrameWait = time.Second
+)
+
+// ScreenshotServer provides an HTTP API for screenshot streaming. While a
+// person holds the screen it captures faster and right after each input, so
+// the view they drive follows what they do.
 type ScreenshotServer struct {
 	cfg         *config.Config
 	port        int
@@ -33,15 +44,91 @@ type ScreenshotServer struct {
 	sessionID   string
 	imageSvc    agentdomain.ImageService
 	running     bool
+	capture     func() error
+	held        atomic.Bool
+	wake        chan struct{}
+	owedMu      sync.Mutex
+	owed        chan struct{}
 }
 
 // NewScreenshotServer creates a new screenshot server
 func NewScreenshotServer(cfg *config.Config, imageService agentdomain.ImageService, sessionID string) *ScreenshotServer {
-	return &ScreenshotServer{
+	s := &ScreenshotServer{
 		cfg:       cfg,
 		sessionID: sessionID,
 		imageSvc:  imageService,
 		running:   false,
+		wake:      make(chan struct{}, 1),
+	}
+	s.capture = s.captureScreenshot
+	return s
+}
+
+// HoldChanged switches the capture pace as a person takes the screen or hands
+// it back, without waiting out the interval in force.
+func (s *ScreenshotServer) HoldChanged(held bool) {
+	s.held.Store(held)
+	s.captureSoon()
+}
+
+// InputLanded owes readers a frame captured after the input, and captures it.
+func (s *ScreenshotServer) InputLanded() {
+	s.owedMu.Lock()
+	s.owed = make(chan struct{})
+	s.owedMu.Unlock()
+	s.captureSoon()
+}
+
+// captureSoon wakes the capture loop. A wake-up already waiting covers this one.
+func (s *ScreenshotServer) captureSoon() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *ScreenshotServer) captureInterval() time.Duration {
+	if s.held.Load() {
+		return heldCaptureInterval
+	}
+	if seconds := s.cfg.ComputerUse.Screenshot.CaptureInterval; seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return defaultCaptureInterval
+}
+
+// captureOwedFrame captures once and settles the frame owed when it started.
+// An input that lands during the capture stays owed for the next one.
+func (s *ScreenshotServer) captureOwedFrame() error {
+	s.owedMu.Lock()
+	settling := s.owed
+	s.owedMu.Unlock()
+
+	err := s.capture()
+	if settling == nil {
+		return err
+	}
+	s.owedMu.Lock()
+	if s.owed == settling {
+		s.owed = nil
+	}
+	s.owedMu.Unlock()
+	close(settling)
+	return err
+}
+
+// awaitOwedFrame waits for the frame an input owes, so a reader right after
+// an input sees its effect. It gives up after freshFrameWait.
+func (s *ScreenshotServer) awaitOwedFrame() {
+	s.owedMu.Lock()
+	owed := s.owed
+	s.owedMu.Unlock()
+	if owed == nil {
+		return
+	}
+	select {
+	case <-owed:
+	case <-time.After(freshFrameWait):
 	}
 }
 
@@ -152,24 +239,21 @@ func (s *ScreenshotServer) Port() int {
 	return s.port
 }
 
-// startCaptureLoop runs the background screenshot capture loop
+// startCaptureLoop captures at the interval in force, and at once when woken.
 func (s *ScreenshotServer) startCaptureLoop() {
-	interval := s.cfg.ComputerUse.Screenshot.CaptureInterval
-	if interval <= 0 {
-		interval = 3
-	}
+	timer := time.NewTimer(s.captureInterval())
+	defer timer.Stop()
 
-	ticker := time.NewTicker(time.Duration(interval) * time.Second)
-	defer ticker.Stop()
-
-	failing := logCaptureResult(s.captureScreenshot(), false)
+	failing := logCaptureResult(s.captureOwedFrame(), false)
 	for {
 		select {
 		case <-s.captureCtx.Done():
 			return
-		case <-ticker.C:
-			failing = logCaptureResult(s.captureScreenshot(), failing)
+		case <-timer.C:
+		case <-s.wake:
 		}
+		failing = logCaptureResult(s.captureOwedFrame(), failing)
+		timer.Reset(s.captureInterval())
 	}
 }
 
@@ -345,8 +429,10 @@ func (s *ScreenshotServer) handleGetStatus(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// GetLatestFrame retrieves the latest screenshot from the buffer
+// GetLatestFrame retrieves the latest screenshot from the buffer, after the
+// frame a person's input owes when one is on its way.
 func (s *ScreenshotServer) GetLatestFrame() (*agentdomain.Frame, error) {
+	s.awaitOwedFrame()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

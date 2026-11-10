@@ -1055,6 +1055,9 @@ func (c *ServiceContainer) StartScreenshotServer(sessionID string) *computerinfr
 		return nil
 	}
 	c.toolRegistry.RegisterFrameSource("screen", server)
+	if c.screenControl != nil {
+		c.screenControl.Follow(server)
+	}
 	return server
 }
 
