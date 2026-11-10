@@ -1165,3 +1165,34 @@ func TestGrepTool_SearchPathDenialKeepsTheSandboxError(t *testing.T) {
 		t.Fatalf("the denial must keep the sandbox wording so the agent can ask for access, got %q", result.Error)
 	}
 }
+
+func TestGrepTool_RipgrepDropsFilesTheSandboxDenies(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	tool := &GrepTool{config: &config.Config{Tools: config.ToolsConfig{
+		Enabled: true,
+		Sandbox: config.SandboxConfig{Filesystem: config.FilesystemPolicy{
+			Allowed: sandboxdomain.Allow("."),
+			Denied:  sandboxdomain.Deny("*.pem"),
+		}},
+	}}}
+
+	tests := []struct {
+		name       string
+		outputMode string
+		output     string
+		want       string
+	}{
+		{"content", "content", "ok.txt\x001:key\nserver.pem\x002:key\n", "ok.txt:1:key"},
+		{"count", "count", "ok.txt\x001\nserver.pem\x003\n", "ok.txt:1"},
+		{"files", "files_with_matches", "ok.txt\x00server.pem\x00", "ok.txt"},
+		{"only denied", "files_with_matches", "server.pem\x00", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tool.readableLines(tt.output, tt.outputMode); got != tt.want {
+				t.Fatalf("readableLines() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

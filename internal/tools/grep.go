@@ -298,7 +298,7 @@ func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, arg
 	}
 
 	rgArgs := t.buildRipgrepArgs(outputMode, args)
-	rgArgs = append(rgArgs, "-e", pattern, "--", searchPath)
+	rgArgs = append(rgArgs, "--null", "-e", pattern, "--", searchPath)
 
 	headLimit, _ := args["head_limit"].(float64)
 	result, err := t.executeRipgrep(ctx, rgArgs, outputMode, pattern, int(headLimit), start)
@@ -410,9 +410,45 @@ func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMo
 		return nil, fmt.Errorf("ripgrep execution failed: %w", err)
 	}
 
-	result := t.parseRipgrepOutput(string(output), outputMode, pattern, headLimit)
+	result := t.parseRipgrepOutput(t.readableLines(string(output), outputMode), outputMode, pattern, headLimit)
 	result.Duration = time.Since(start).String()
 	return result, nil
+}
+
+// readableLines turns ripgrep's NUL-separated output back into file:rest
+// lines, dropping every line of a file the sandbox does not let the agent
+// read. Ripgrep walks the whole tree, so the search root's check is not enough.
+func (t *GrepTool) readableLines(output, outputMode string) string {
+	separator := "\n"
+	if outputMode == "files_with_matches" {
+		separator = "\x00"
+	}
+	readable := map[string]bool{}
+	var lines []string
+	for record := range strings.SplitSeq(strings.Trim(output, separator), separator) {
+		file, rest, named := strings.Cut(record, "\x00")
+		if outputMode == "files_with_matches" {
+			named = record != ""
+		}
+		if !named {
+			lines = append(lines, record)
+			continue
+		}
+		allowed, seen := readable[file]
+		if !seen {
+			allowed = t.config == nil || sandbox.ValidateRead(t.config, file) == nil
+			readable[file] = allowed
+		}
+		if !allowed {
+			continue
+		}
+		if outputMode == "files_with_matches" {
+			lines = append(lines, file)
+			continue
+		}
+		lines = append(lines, file+":"+rest)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // parseRipgrepOutput parses ripgrep output into GrepResult, keeping only the
