@@ -188,7 +188,9 @@ func (w *lazyWorker) Stop() {
 }
 
 // attach hands the lazy worker its connection, replays the buffered frames
-// and relays its lines until it exits.
+// and relays its lines until it exits. The replay holds the lock so a frame
+// sent meanwhile cannot overtake it, and a worker that exits by itself is
+// stopped, which ends its lease heartbeat.
 func (w *lazyWorker) attach(inner sessionsdomain.Worker) {
 	w.mu.Lock()
 	if w.stopped || w.failed != nil {
@@ -197,19 +199,19 @@ func (w *lazyWorker) attach(inner sessionsdomain.Worker) {
 		return
 	}
 	w.inner = inner
-	pending := w.pending
-	w.pending = nil
-	w.mu.Unlock()
-	for _, frame := range pending {
+	for _, frame := range w.pending {
 		if err := inner.Send(frame); err != nil {
 			logger.Warn("teleport could not replay a frame into the connected worker", "error", err)
 		}
 	}
+	w.pending = nil
+	w.mu.Unlock()
 	go func() {
 		for line := range inner.Lines() {
 			w.lines <- line
 		}
 		close(w.lines)
+		w.Stop()
 	}()
 }
 
