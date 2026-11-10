@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -29,6 +30,21 @@ type ChatMessageProcessor struct {
 	// ponytail: session-scoped and never cleared - `infer skills install`
 	// remains the way to change your mind.
 	declinedSkills map[string]bool
+	// declinedMu guards declinedSkills, which the install command writes off
+	// the update loop while the next message reads it.
+	declinedMu sync.Mutex
+}
+
+func (p *ChatMessageProcessor) declineSkill(name string) {
+	p.declinedMu.Lock()
+	defer p.declinedMu.Unlock()
+	p.declinedSkills[name] = true
+}
+
+func (p *ChatMessageProcessor) declinedSkill(name string) bool {
+	p.declinedMu.Lock()
+	defer p.declinedMu.Unlock()
+	return p.declinedSkills[name]
 }
 
 // NewChatMessageProcessor creates a new message processor
@@ -132,7 +148,7 @@ func (p *ChatMessageProcessor) pendingCatalogSkills(content string) []string {
 		if _, _, isPlugin := strings.Cut(name, ":"); isPlugin {
 			continue
 		}
-		if seen[name] || p.declinedSkills[name] {
+		if seen[name] || p.declinedSkill(name) {
 			continue
 		}
 		sk, found := p.handler.skillsService.Get(name)
@@ -184,14 +200,14 @@ func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEv
 			answers, open := <-responseChan
 			if !open || !approvedInstall(answers) {
 				for _, name := range names {
-					p.declinedSkills[name] = true
+					p.declineSkill(name)
 				}
 				return msg
 			}
 			for _, name := range names {
 				if _, ok := p.handler.skillsService.Discover(context.Background(), name); !ok {
 					logger.Warn("failed to install skill from catalog", "name", name)
-					p.declinedSkills[name] = true
+					p.declineSkill(name)
 				}
 			}
 			return msg
