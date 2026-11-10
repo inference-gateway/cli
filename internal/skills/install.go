@@ -182,11 +182,9 @@ func (i *Installer) setAuth(req *http.Request) {
 // <destBase>/<dirname>/, where dirname is the last path segment of the
 // repo URL. Existing folders are rejected unless overwrite is true.
 //
-// The downloaded folder is post-validated with LoadSkillMetadata - if frontmatter
-// fails the spec checks, the folder is removed and the validation error is
-// returned. There is never a half-installed state.
-//
-// Returns the absolute path of the installed skill on success.
+// The download is staged beside the destination and validated with
+// LoadSkillMetadata before it replaces anything, so a failed install leaves an
+// existing skill as it was. Returns the absolute path of the installed skill.
 func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase string, overwrite bool) (string, error) {
 	rawURL = ExpandShorthand(rawURL, i.Repository)
 	loc, err := ParseGitHubTreeURL(rawURL)
@@ -195,7 +193,7 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 	}
 
 	skillDirName := path.Base(loc.Path)
-	if skillDirName == "" || skillDirName == "." || skillDirName == "/" {
+	if skillDirName == "" || skillDirName == "." || skillDirName == ".." || skillDirName == "/" {
 		return "", fmt.Errorf("could not derive skill directory name from URL path %q", loc.Path)
 	}
 
@@ -203,9 +201,6 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 	if _, statErr := os.Stat(destDir); statErr == nil {
 		if !overwrite {
 			return "", fmt.Errorf("skill already exists at %s (use --overwrite to replace)", destDir)
-		}
-		if rmErr := os.RemoveAll(destDir); rmErr != nil {
-			return "", fmt.Errorf("failed to remove existing skill: %w", rmErr)
 		}
 	}
 
@@ -229,31 +224,39 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		return "", fmt.Errorf("no files found under %s/%s/%s @ %s - check the URL", loc.Owner, loc.Repo, loc.Path, loc.Ref)
 	}
 
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destBase, 0755); err != nil {
 		return "", fmt.Errorf("failed to create destination dir: %w", err)
 	}
+	stageDir, err := os.MkdirTemp(destBase, ".install-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create staging dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(stageDir) }()
 
 	for _, f := range files {
 		rel := strings.TrimPrefix(f.Path, prefix)
-		outPath := filepath.Join(destDir, rel)
+		outPath := filepath.Join(stageDir, rel)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
-			_ = os.RemoveAll(destDir)
 			return "", fmt.Errorf("failed to create dir for %s: %w", rel, err)
 		}
 		if err := i.DownloadFile(ctx, loc, f.Path, outPath); err != nil {
-			_ = os.RemoveAll(destDir)
 			return "", err
 		}
 	}
 
-	skill, loadErr := LoadSkillMetadata(destDir, skillDirName, agentdomain.SkillScopeProject, "")
+	skill, loadErr := LoadSkillMetadata(stageDir, skillDirName, agentdomain.SkillScopeProject, "")
 	if loadErr != nil {
-		_ = os.RemoveAll(destDir)
 		return "", fmt.Errorf("downloaded skill failed validation: %s", loadErr.Reason)
 	}
 	if skill == nil {
-		_ = os.RemoveAll(destDir)
 		return "", fmt.Errorf("downloaded folder has no SKILL.md at its root")
+	}
+
+	if err := os.RemoveAll(destDir); err != nil {
+		return "", fmt.Errorf("failed to remove existing skill: %w", err)
+	}
+	if err := os.Rename(stageDir, destDir); err != nil {
+		return "", fmt.Errorf("failed to install skill into %s: %w", destDir, err)
 	}
 
 	abs, err := filepath.Abs(destDir)
