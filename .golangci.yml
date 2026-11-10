@@ -43,6 +43,7 @@ linters:
           list-mode: lax
           files:
             - "**/internal/*/domain/**"
+            - "**/internal/protocols/*/domain/**"
             - "!$test"
           allow:
             - github.com/inference-gateway/cli/internal/agent/domain
