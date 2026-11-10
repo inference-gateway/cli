@@ -175,9 +175,23 @@ type WorkspaceEntry struct {
 	// UserData is a cloud-init user-data script the pod runs as root when it
 	// boots, before the daemon starts, for example to install a browser.
 	UserData string `yaml:"user_data,omitempty" mapstructure:"user_data"`
+	// Volumes mounts PersistentVolumeClaims that already exist in the
+	// namespace into the pod, for an app or content its sessions share.
+	Volumes []WorkspaceVolume `yaml:"volumes,omitempty" mapstructure:"volumes"`
 	// BindingService is metadata for the session's binding Service, for
 	// controllers that act on Service metadata such as a VPN operator.
 	BindingService BindingServiceConfig `yaml:"binding_service,omitempty" mapstructure:"binding_service"`
+}
+
+// WorkspaceVolume mounts one existing claim into a session's pod. The claim is
+// created and filled elsewhere, and a session never creates or deletes it.
+type WorkspaceVolume struct {
+	Name      string `yaml:"name" mapstructure:"name"`
+	Claim     string `yaml:"claim" mapstructure:"claim"`
+	MountPath string `yaml:"mount_path" mapstructure:"mount_path"`
+	// ReadOnly is for content an agent copies before it changes it, so the
+	// original stays as it is.
+	ReadOnly bool `yaml:"read_only,omitempty" mapstructure:"read_only"`
 }
 
 // BindingServiceConfig is copied verbatim onto each session's binding Service,
@@ -384,7 +398,27 @@ const userDataScriptPrefix = "#!"
 // kubernetes workspace uses.
 func (e WorkspaceEntry) setsKubernetesOnlyFields() bool {
 	return e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || len(e.MCPServers) > 0 ||
-		!e.BindingService.IsZero() || e.UserData != ""
+		!e.BindingService.IsZero() || e.UserData != "" || len(e.Volumes) > 0
+}
+
+// validateVolumes rejects a volume the pod could not mount: one without a
+// name or a claim, a mount path that is not absolute, or a name used twice.
+func (e WorkspaceEntry) validateVolumes() error {
+	seen := map[string]bool{}
+	for i, volume := range e.Volumes {
+		switch {
+		case volume.Name == "":
+			return fmt.Errorf("workspace %q: volumes[%d] needs a name", e.Name, i)
+		case seen[volume.Name]:
+			return fmt.Errorf("workspace %q has two volumes named %q", e.Name, volume.Name)
+		case volume.Claim == "":
+			return fmt.Errorf("workspace %q: volume %q needs a claim, the PersistentVolumeClaim to mount", e.Name, volume.Name)
+		case !strings.HasPrefix(volume.MountPath, "/"):
+			return fmt.Errorf("workspace %q: volume %q needs an absolute mount_path, got %q", e.Name, volume.Name, volume.MountPath)
+		}
+		seen[volume.Name] = true
+	}
+	return nil
 }
 
 func (e WorkspaceEntry) validate(identity string) error {
@@ -397,10 +431,13 @@ func (e WorkspaceEntry) validate(identity string) error {
 		return fmt.Errorf("workspace %q: %w", e.Name, err)
 	}
 	if e.Kind != WorkspaceKindKubernetes && e.setsKubernetesOnlyFields() {
-		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers, binding_service or user_data, which only a kubernetes workspace uses", e.Name)
+		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers, binding_service, user_data or volumes, which only a kubernetes workspace uses", e.Name)
 	}
 	if e.UserData != "" && !strings.HasPrefix(e.UserData, userDataScriptPrefix) {
 		return fmt.Errorf("workspace %q has user_data that is not a script: it must start with %q, as cloud-config is not supported yet", e.Name, userDataScriptPrefix)
+	}
+	if err := e.validateVolumes(); err != nil {
+		return err
 	}
 	switch e.Kind {
 	case WorkspaceKindLocal:
