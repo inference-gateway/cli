@@ -189,7 +189,7 @@ type WorkspaceVolume struct {
 	Name      string `yaml:"name" mapstructure:"name"`
 	Claim     string `yaml:"claim" mapstructure:"claim"`
 	MountPath string `yaml:"mount_path" mapstructure:"mount_path"`
-	ReadOnly bool `yaml:"read_only,omitempty" mapstructure:"read_only"`
+	ReadOnly  bool   `yaml:"read_only,omitempty" mapstructure:"read_only"`
 }
 
 // BindingServiceConfig is copied verbatim onto each session's binding Service,
