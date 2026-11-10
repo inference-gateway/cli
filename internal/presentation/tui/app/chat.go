@@ -2305,33 +2305,6 @@ func (app *ChatApplication) handleEditReady(event tui.MessageHistoryEditReadyEve
 		OriginalMessageIndex: event.MessageIndex,
 	})
 
-	entries := app.conversationRepo.GetMessages()
-	deleteIndex := app.adjustRestoreIndexForEdit(entries, event.MessageIndex)
-
-	var err error
-	if deleteIndex == 0 {
-		err = app.conversationRepo.Clear()
-	} else {
-		err = app.conversationRepo.DeleteMessagesAfterIndex(deleteIndex - 1)
-	}
-
-	if err != nil {
-		logger.Error("failed to delete messages during edit", "error", err)
-		cmds = append(cmds, func() tea.Msg {
-			return tui.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to delete messages: %v", err),
-				Sticky: true,
-			}
-		})
-		return cmds
-	}
-
-	cmds = append(cmds, func() tea.Msg {
-		return tui.UpdateHistoryEvent{
-			History: app.conversationRepo.GetMessages(),
-		}
-	})
-
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetText(event.Content)
 		iv.SetCursor(len(event.Content))
@@ -2342,33 +2315,6 @@ func (app *ChatApplication) handleEditReady(event tui.MessageHistoryEditReadyEve
 	}
 
 	return cmds
-}
-
-// adjustRestoreIndexForEdit adjusts the restore index based on message role and tool calls
-// This is similar to the logic in message_history_handler.go but adapted for the app layer
-func (app *ChatApplication) adjustRestoreIndexForEdit(entries []convdomain.ConversationEntry, restoreIndex int) int {
-	if restoreIndex >= len(entries) {
-		return restoreIndex
-	}
-
-	msg := entries[restoreIndex]
-	if msg.Message.Role == sdk.Assistant && msg.Message.ToolCalls != nil && len(*msg.Message.ToolCalls) > 0 {
-		toolResponsesFound := 0
-		for i := restoreIndex + 1; i < len(entries); i++ {
-			if entries[i].Message.Role == sdk.Tool {
-				restoreIndex = i
-				toolResponsesFound++
-			} else {
-				break
-			}
-		}
-	} else {
-		for restoreIndex > 0 && entries[restoreIndex].Message.Role == sdk.Tool {
-			restoreIndex--
-		}
-	}
-
-	return restoreIndex
 }
 
 // handleMessageHistoryEnter handles the enter key press in message history mode
