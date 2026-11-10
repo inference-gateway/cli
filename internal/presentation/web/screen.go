@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -30,6 +31,10 @@ const (
 	ScreenActionHandBack = "hand_back"
 )
 
+// ErrFrameUnchanged is Frame's answer when the latest frame is the one the
+// viewer already has.
+var ErrFrameUnchanged = errors.New("the screen frame is unchanged")
+
 // ScreenOutcome is the worker's answer to a screen control or input call: the
 // screen's held state after it and what failed, if it came to that.
 type ScreenOutcome struct {
@@ -45,7 +50,7 @@ type ScreenOutcome struct {
 type Screen struct {
 	Token       string
 	ClientCerts bool
-	Frame       func(ctx context.Context, sessionID string) (*agentdomain.Frame, error)
+	Frame       func(ctx context.Context, sessionID, have string) (*agentdomain.Frame, error)
 	Control     func(ctx context.Context, sessionID, action string) (*ScreenOutcome, error)
 	Input       func(ctx context.Context, sessionID string, input json.RawMessage) (*ScreenOutcome, error)
 }
@@ -63,7 +68,8 @@ func (s *Screen) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // serveFrame answers the GET the Screen view polls: the latest frame as an
 // image, its frame space in the X-Frame-Width and X-Frame-Height headers a
-// take-over maps the person's pointer with.
+// take-over maps the person's pointer with. The frame's id is its ETag, and a
+// poll that names it in If-None-Match gets 304 while the screen stands still.
 func (s *Screen) serveFrame(w http.ResponseWriter, r *http.Request) {
 	if !s.authorized(w, r) {
 		return
@@ -75,7 +81,11 @@ func (s *Screen) serveFrame(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), frameTimeout)
 	defer cancel()
-	frame, err := s.Frame(ctx, id)
+	frame, err := s.Frame(ctx, id, frameIDOf(r.Header.Get("If-None-Match")))
+	if errors.Is(err, ErrFrameUnchanged) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -87,10 +97,18 @@ func (s *Screen) serveFrame(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", imageType(frame.Format))
 	w.Header().Set("Cache-Control", "no-store")
+	if frame.ID != "" {
+		w.Header().Set("ETag", strconv.Quote(frame.ID))
+	}
 	w.Header().Set("X-Frame-Width", strconv.Itoa(frame.Width))
 	w.Header().Set("X-Frame-Height", strconv.Itoa(frame.Height))
 	w.Header().Set("X-Frame-Timestamp", frame.Timestamp.UTC().Format(time.RFC3339))
 	_, _ = w.Write(data)
+}
+
+// frameIDOf reads the frame id out of an If-None-Match header, which quotes it.
+func frameIDOf(ifNoneMatch string) string {
+	return strings.Trim(strings.TrimPrefix(ifNoneMatch, "W/"), `"`)
 }
 
 // serveControl answers a POST: a take over, a hand back or one screen input

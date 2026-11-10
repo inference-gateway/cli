@@ -16,12 +16,14 @@ const (
 	screenFrameSource = "screen"
 )
 
-// frameFrame answers read_frame with the latest screen frame, its data in base64.
+// frameFrame answers read_frame with the latest screen frame, its data in
+// base64. Unchanged stands in for the frame when the client already has it.
 type frameFrame struct {
-	Type  string             `json:"type"`
-	ID    string             `json:"id"`
-	Frame *agentdomain.Frame `json:"frame,omitempty"`
-	Error string             `json:"error,omitempty"`
+	Type      string             `json:"type"`
+	ID        string             `json:"id"`
+	Frame     *agentdomain.Frame `json:"frame,omitempty"`
+	Unchanged bool               `json:"unchanged,omitempty"`
+	Error     string             `json:"error,omitempty"`
 }
 
 // frames answers read_frame from the worker's screen source, looked up by
@@ -31,10 +33,16 @@ type frames struct {
 	sources func(name string) (agentdomain.FrameSource, bool)
 }
 
-func (f *frames) read(id string) {
+// read answers with the latest frame, or with unchanged when it is the frame
+// the client names as the one it has, so a poll of a still screen stays small.
+func (f *frames) read(id, have string) {
 	frame, err := f.latest()
 	if err != nil {
 		f.write(frameFrame{Type: outboundFrame, ID: id, Error: err.Error()})
+		return
+	}
+	if have != "" && frame.ID == have {
+		f.write(frameFrame{Type: outboundFrame, ID: id, Unchanged: true})
 		return
 	}
 	f.write(frameFrame{Type: outboundFrame, ID: id, Frame: frame})

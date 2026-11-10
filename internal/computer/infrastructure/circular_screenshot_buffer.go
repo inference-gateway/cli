@@ -43,11 +43,16 @@ func NewCircularScreenshotBuffer(maxSize int, tempDir string, sessionID string) 
 	}, nil
 }
 
-// Add adds a new screenshot to the buffer
-// If the buffer is full, it evicts the oldest screenshot
+// Add adds a new screenshot to the buffer, evicting the oldest when it is
+// full. A screenshot that shows what the latest one shows is not stored again,
+// so a screen that stands still keeps its frame and that frame's id.
 func (b *CircularScreenshotBuffer) Add(screenshot *agentdomain.Frame) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	if b.showsTheLatest(screenshot) {
+		return nil
+	}
 
 	if screenshot.ID == "" {
 		screenshot.ID = uuid.New().String()
@@ -76,6 +81,16 @@ func (b *CircularScreenshotBuffer) Add(screenshot *agentdomain.Frame) error {
 	}
 
 	return nil
+}
+
+// showsTheLatest reports whether screenshot carries the image of the latest
+// stored one. Frames without image data are never taken for the same.
+func (b *CircularScreenshotBuffer) showsTheLatest(screenshot *agentdomain.Frame) bool {
+	if b.count == 0 || screenshot.Data == "" {
+		return false
+	}
+	latest := b.screenshots[(b.currentIndex-1+b.maxSize)%b.maxSize]
+	return latest != nil && latest.Data == screenshot.Data
 }
 
 // GetLatest returns the most recent screenshot

@@ -31,7 +31,9 @@ from a terminal. `/teleport <workspace>` moves a tab's session to another machin
 With [Computer Use](computer-use.md) streaming on (`computer_use.screenshot.streaming_enabled`), the
 **Screen** button shows what the tab's session sees: the daemon asks the session's worker for its latest frame
 (`read_frame` in the [binding protocol](browser-extension-protocol.md#session-screen)) and serves it at
-`/screen/?id=<session>`, which the page polls every two seconds. The frame comes from wherever the session runs,
+`/screen/?id=<session>`, which the page polls every two seconds. A poll names the frame the page already shows
+(`If-None-Match`), and a screen that has not changed answers `304 Not Modified` instead of the image again.
+The frame comes from wherever the session runs,
 so after `/teleport` to a desktop workspace the view shows that desktop, relayed through this daemon.
 [examples/computer-use](../examples/computer-use/) runs it against a sandboxed desktop on a second daemon.
 

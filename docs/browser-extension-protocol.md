@@ -433,7 +433,7 @@ Client → CLI, the latest frame of the screen a session's worker streams
 view polls through `GET /screen/?id=<conversation id>` on the same listener:
 
 ```json
-{"type": "read_frame", "project_dir": "/abs/path/to/project", "id": "<conversation id>"}
+{"type": "read_frame", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "have": "f-1"}
 ```
 
 CLI → client:
@@ -443,6 +443,14 @@ CLI → client:
  "frame": {"id": "f-1", "timestamp": "2026-11-04T12:00:00Z", "data": "<base64>", "width": 1280, "height": 800, "format": "jpeg"}}
 ```
 
+- `have` is optional: the `frame.id` of the frame the client already shows. When
+  the latest frame is still that one, the reply is
+  `{"type": "frame", "id": "<conversation id>", "unchanged": true}` with no
+  `frame`. Without `have` the full frame is always sent.
+- A screen that stands still keeps its frame: a capture that shows what the
+  latest frame shows is not stored again, so the frame's `id` only changes
+  when the picture does. `GET /screen/` serves that id as the `ETag` and
+  answers `304 Not Modified` to a matching `If-None-Match`.
 - The frame comes from the worker that runs the session, so it is the screen
   of the workspace the session teleported to, relayed by the daemon like
   `read_artifact`.

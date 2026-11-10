@@ -53,3 +53,21 @@ func TestPanelAnswersReadFrameErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestPanelAnswersUnchangedForTheFrameTheClientHas(t *testing.T) {
+	deps := panelDeps()
+	deps.Frames = screenSource(&agentdomain.Frame{ID: "f1", Data: "anVwZw==", Format: "jpeg"}, nil)
+	p, sink := startPanel(deps)
+
+	handle(t, p, map[string]any{"type": "read_frame", "id": "s1", "have": "f1"})
+	same := readFrame(t, sink, "frame")
+	if same["unchanged"] != true || same["frame"] != nil || same["id"] != "s1" {
+		t.Fatalf("want unchanged without a frame for the frame the client has, got %v", same)
+	}
+
+	handle(t, p, map[string]any{"type": "read_frame", "id": "s1", "have": "f0"})
+	newer := readFrame(t, sink, "frame")
+	if newer["unchanged"] != nil || newer["frame"] == nil {
+		t.Fatalf("want the frame for a client that has an older one, got %v", newer)
+	}
+}

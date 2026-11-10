@@ -420,9 +420,11 @@ class ScreenView {
 
     fetchScreen() {
         const base = window.location.pathname.replace(/terminal\/?$/, '');
-        return fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, {
-            headers: { Authorization: `Bearer ${this.tab.manager.token}` }
-        });
+        const headers = { Authorization: `Bearer ${this.tab.manager.token}` };
+        if (this.frameTag) {
+            headers['If-None-Match'] = this.frameTag;
+        }
+        return fetch(`${base}screen/?id=${encodeURIComponent(this.tab.sessionID)}`, { headers });
     }
 
     async fetchFrame() {
@@ -431,6 +433,10 @@ class ScreenView {
         }
         try {
             const response = await this.fetchScreen();
+            if (response.status === 304) {
+                this.setAvailable(true, '');
+                return;
+            }
             if (!response.ok) {
                 this.status.textContent = await response.text();
                 this.status.classList.remove('hidden');
@@ -440,6 +446,7 @@ class ScreenView {
             this.setAvailable(true, '');
             this.frameWidth = parseInt(response.headers.get('X-Frame-Width') || '0', 10);
             this.frameHeight = parseInt(response.headers.get('X-Frame-Height') || '0', 10);
+            this.frameTag = response.headers.get('ETag');
             const url = URL.createObjectURL(await response.blob());
             const previous = this.image.src;
             this.image.src = url;
