@@ -217,3 +217,19 @@ type MessageQueue interface {
 	// render-path read over the persisted failure state, never a live probe.
 	Unreachable() bool
 }
+
+// LoggedProblem is one warning or error the session's process logged. Detail
+// is the error behind it, empty when the message says it all.
+type LoggedProblem struct {
+	Time           time.Time
+	Severity       string
+	Message        string
+	Detail         string
+	ConversationID string
+}
+
+// ProblemLog reads back the warnings and errors logged from a moment on, so a
+// next-step suggestion can take what went wrong into account.
+type ProblemLog interface {
+	ProblemsSince(moment time.Time) []LoggedProblem
+}

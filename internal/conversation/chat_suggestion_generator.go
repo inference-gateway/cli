@@ -34,6 +34,8 @@ type ChatSuggestionGenerator struct {
 	config       *config.Config
 	recorder     SuggestionTelemetryRecorder
 	currentModel func() string
+	problems     convdomain.ProblemLog
+	redact       func(string) string
 }
 
 // NewChatSuggestionGenerator creates the generator. currentModel reports the
@@ -44,6 +46,13 @@ func NewChatSuggestionGenerator(client sdk.Client, repo convdomain.ConversationR
 		currentModel = func() string { return "" }
 	}
 	return &ChatSuggestionGenerator{client: client, repo: repo, config: config, recorder: recorder, currentModel: currentModel}
+}
+
+// ReadingLogs lets the suggestion take the session's recent warnings and
+// errors into account. redact masks secrets in what is sent to the model.
+func (g *ChatSuggestionGenerator) ReadingLogs(problems convdomain.ProblemLog, redact func(string) string) *ChatSuggestionGenerator {
+	g.problems, g.redact = problems, redact
+	return g
 }
 
 // GenerateNextStepSuggestion asks the configured model for a one-line follow-up
@@ -75,7 +84,7 @@ func (g *ChatSuggestionGenerator) GenerateNextStepSuggestion(ctx context.Context
 	response, err := g.client.
 		WithOptions(&sdk.CreateChatCompletionRequest{MaxTokens: &cfg.MaxTokens}).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{SkipMCP: true}).
-		GenerateContent(ctx, sdk.Provider(provider), modelName, g.suggestionMessages(dialog))
+		GenerateContent(ctx, sdk.Provider(provider), modelName, g.suggestionMessages(dialog, g.recentProblems(cfg.Logs)))
 	if err != nil {
 		logger.Warn("suggestion: request failed", "error", err)
 		return ""
@@ -115,12 +124,39 @@ func (g *ChatSuggestionGenerator) recordUsage(model string, usage *sdk.Completio
 }
 
 // suggestionMessages builds the two-message payload: system contract plus the
-// recent conversation transcript.
-func (g *ChatSuggestionGenerator) suggestionMessages(dialog string) []sdk.Message {
+// recent conversation transcript, followed by the digest of logged problems
+// when there is one.
+func (g *ChatSuggestionGenerator) suggestionMessages(dialog, problems string) []sdk.Message {
+	prompt := "Recent conversation:\n\n" + dialog
+	if problems != "" {
+		prompt += "\n\n" + problemsPreamble + "\n" + problems
+	}
 	return []sdk.Message{
 		{Role: sdk.System, Content: sdk.NewMessageContent(g.config.Prompts.Chat.Suggestions.SystemPrompt)},
-		{Role: sdk.User, Content: sdk.NewMessageContent("Recent conversation:\n\n" + dialog)},
+		{Role: sdk.User, Content: sdk.NewMessageContent(prompt)},
 	}
+}
+
+// recentProblems digests what the session logged since the person last
+// wrote, or nothing when the logs are not read.
+func (g *ChatSuggestionGenerator) recentProblems(limits config.ChatSuggestionsLogsConfig) string {
+	if g.problems == nil || g.redact == nil || !limits.Enabled {
+		return ""
+	}
+	logged := g.problems.ProblemsSince(g.lastUserMessageTime())
+	return problemDigest(logged, g.repo.GetCurrentConversationID(), limits, g.redact)
+}
+
+// lastUserMessageTime is when the person last wrote, or a short while ago for
+// a conversation that records no time.
+func (g *ChatSuggestionGenerator) lastUserMessageTime() time.Time {
+	entries := g.repo.GetMessages()
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].Message.Role == sdk.User && !entries[i].Hidden && !entries[i].Time.IsZero() {
+			return entries[i].Time
+		}
+	}
+	return time.Now().Add(-problemLookback)
 }
 
 // suggestionDialog renders the most recent non-hidden conversation entries -

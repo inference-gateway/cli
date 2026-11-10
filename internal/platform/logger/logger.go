@@ -41,6 +41,7 @@ func Init(cfg Config) {
 	if err != nil {
 		globalLogger = zap.NewNop()
 	}
+	globalLogger = globalLogger.WithOptions(zap.WrapCore(recordingProblems))
 	sugar = globalLogger.Sugar()
 	zap.ReplaceGlobals(globalLogger)
 	zap.RedirectStdLog(globalLogger)
