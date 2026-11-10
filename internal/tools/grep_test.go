@@ -1187,6 +1187,7 @@ func TestGrepTool_RipgrepDropsFilesTheSandboxDenies(t *testing.T) {
 		{"count", "count", "ok.txt\x001\nserver.pem\x003\n", "ok.txt:1"},
 		{"files", "files_with_matches", "ok.txt\x00server.pem\x00", "ok.txt"},
 		{"only denied", "files_with_matches", "server.pem\x00", ""},
+		{"unnamed line", "content", "ok.txt\x001:key\n--\nsecret: body\n", "ok.txt:1:key"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

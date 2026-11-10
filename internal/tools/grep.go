@@ -417,7 +417,8 @@ func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMo
 
 // readableLines turns ripgrep's NUL-separated output back into file:rest
 // lines, dropping every line of a file the sandbox does not let the agent
-// read. Ripgrep walks the whole tree, so the search root's check is not enough.
+// read and every line that names no file. Ripgrep walks the whole tree, so
+// the search root's check is not enough.
 func (t *GrepTool) readableLines(output, outputMode string) string {
 	separator := "\n"
 	if outputMode == "files_with_matches" {
@@ -431,7 +432,6 @@ func (t *GrepTool) readableLines(output, outputMode string) string {
 			named = record != ""
 		}
 		if !named {
-			lines = append(lines, record)
 			continue
 		}
 		allowed, seen := readable[file]
