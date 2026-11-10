@@ -331,8 +331,7 @@ class ScreenView {
         this.heldBadge = this.element.querySelector('.screen-held');
         this.element.querySelector('.screen-close').addEventListener('click', () => this.toggle());
         this.takeoverBtn.addEventListener('click', () => this.toggleHeld());
-        this.image.addEventListener('mousedown', (e) => this.sendClick(e, 'click'));
-        this.image.addEventListener('dblclick', (e) => this.sendClick(e, 'double_click'));
+        this.image.addEventListener('mousedown', (e) => this.sendClick(e));
         this.image.addEventListener('wheel', (e) => this.sendWheel(e), { passive: false });
         this.image.addEventListener('contextmenu', (e) => e.preventDefault());
         this.image.addEventListener('keydown', (e) => this.sendKey(e));
@@ -569,7 +568,7 @@ class ScreenView {
         };
     }
 
-    sendClick(event, kind) {
+    sendClick(event) {
         if (!this.held) {
             return;
         }
@@ -579,7 +578,7 @@ class ScreenView {
             return;
         }
         const button = event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left';
-        this.postInput({ kind: kind, x: at.x, y: at.y, button: button });
+        this.postInput({ kind: 'click', x: at.x, y: at.y, button: button });
     }
 
     // sendWheel maps the wheel onto scroll inputs, a positive amount
