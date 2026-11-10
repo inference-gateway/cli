@@ -3,7 +3,9 @@ package tools
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"os"
@@ -357,30 +359,25 @@ func (t *ReadTool) readTextFile(filePath string, offset, limit int) (string, int
 
 	_, _ = file.Seek(0, 0)
 
-	scanner := bufio.NewScanner(file)
+	reader := bufio.NewReader(file)
 	var lines []string
 	lineNum := 1
 
-	for scanner.Scan() {
-		if lineNum >= offset && len(lines) < limit {
-			line := scanner.Text()
-
+	for len(lines) < limit {
+		line, err := readLineHead(reader)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", 0, fmt.Errorf("error reading file %s: %w", filePath, err)
+		}
+		if lineNum >= offset {
 			if len(line) > MaxLineLength {
 				line = line[:MaxLineLength]
 			}
-
-			formattedLine := fmt.Sprintf("%6d\t%s", lineNum, line)
-			lines = append(lines, formattedLine)
+			lines = append(lines, fmt.Sprintf("%6d\t%s", lineNum, line))
 		}
 		lineNum++
-
-		if len(lines) >= limit {
-			break
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", 0, fmt.Errorf("error reading file %s: %w", filePath, err)
 	}
 
 	actualEndLine := 0
@@ -388,6 +385,21 @@ func (t *ReadTool) readTextFile(filePath string, offset, limit int) (string, int
 		actualEndLine = offset + len(lines) - 1
 	}
 	return strings.Join(lines, "\n"), actualEndLine, nil
+}
+
+// readLineHead reads one line and keeps only the start of it, which is longer
+// than MaxLineLength. A line of any length is read, such as a minified bundle,
+// and costs no more memory than a short one.
+func readLineHead(reader *bufio.Reader) (string, error) {
+	head, more, err := reader.ReadLine()
+	line := string(head)
+	for more && err == nil {
+		_, more, err = reader.ReadLine()
+		if errors.Is(err, io.EOF) {
+			return line, nil
+		}
+	}
+	return line, err
 }
 
 // readPDF reads a PDF file and extracts text with page headers
