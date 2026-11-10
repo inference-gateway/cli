@@ -79,6 +79,7 @@ type panelFrame struct {
 	Name       string `json:"name"`
 	Content    string `json:"content"`
 	TaskID     string `json:"task_id"`
+	Have       string `json:"have"`
 }
 
 type modeFrame struct {
@@ -297,7 +298,7 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 	case inboundReadArtifact:
 		p.artifacts.read(msg.ID, msg.Name)
 	case inboundReadFrame:
-		p.frames.read(msg.ID)
+		p.frames.read(msg.ID, msg.Have)
 	case inboundListTasks:
 		p.tasks.list()
 	case inboundCancelTask:

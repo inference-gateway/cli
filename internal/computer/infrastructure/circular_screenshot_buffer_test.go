@@ -161,3 +161,26 @@ func TestCircularScreenshotBufferRecreatesDeletedDir(t *testing.T) {
 	require.NotEmpty(t, frame.Path, "frame must be written to disk after its directory was pruned")
 	assert.FileExists(t, frame.Path)
 }
+
+func TestCircularScreenshotBufferKeepsTheFrameOfAStillScreen(t *testing.T) {
+	buf := newTestBuffer(t, 3)
+	require.NoError(t, buf.Add(testFrame("a")))
+
+	sameImage := testFrame("a")
+	sameImage.ID = "a-again"
+	require.NoError(t, buf.Add(sameImage))
+
+	latest, err := buf.GetLatest()
+	require.NoError(t, err)
+	assert.Equal(t, "a", latest.ID, "a screen that stands still keeps its frame")
+	assert.Equal(t, 1, buf.Count())
+
+	require.NoError(t, buf.Add(testFrame("b")))
+	backToA := testFrame("a")
+	backToA.ID = "a-later"
+	require.NoError(t, buf.Add(backToA))
+	latest, err = buf.GetLatest()
+	require.NoError(t, err)
+	assert.Equal(t, "a-later", latest.ID, "a screen that changed and changed back is a new frame")
+	assert.Equal(t, 3, buf.Count())
+}

@@ -14,7 +14,7 @@ import (
 
 func TestScreenServesTheSessionsFrame(t *testing.T) {
 	var asked string
-	server := httptest.NewServer(&web.Screen{Token: "secret", Frame: func(_ context.Context, id string) (*agentdomain.Frame, error) {
+	server := httptest.NewServer(&web.Screen{Token: "secret", Frame: func(_ context.Context, id, _ string) (*agentdomain.Frame, error) {
 		asked = id
 		switch id {
 		case "gone":
@@ -53,5 +53,51 @@ func TestScreenServesTheSessionsFrame(t *testing.T) {
 	}
 	if resp := get("gone", "secret"); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404 when the session has no frame, got %d", resp.StatusCode)
+	}
+}
+
+func TestScreenAnswersNotModifiedForTheFrameTheViewerHas(t *testing.T) {
+	var haves []string
+	server := httptest.NewServer(&web.Screen{Token: "secret", Frame: func(_ context.Context, _, have string) (*agentdomain.Frame, error) {
+		haves = append(haves, have)
+		if have == "f1" {
+			return nil, web.ErrFrameUnchanged
+		}
+		return &agentdomain.Frame{ID: "f1", Data: "anBlZw==", Format: "jpeg"}, nil
+	}})
+	defer server.Close()
+
+	get := func(ifNoneMatch string) *http.Response {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodGet, server.URL+web.ScreenPath+"?id=s1", nil)
+		req.Header.Set("Authorization", "Bearer secret")
+		if ifNoneMatch != "" {
+			req.Header.Set("If-None-Match", ifNoneMatch)
+		}
+		resp, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = resp.Body.Close() })
+		return resp
+	}
+
+	first := get("")
+	tag := first.Header.Get("ETag")
+	if first.StatusCode != http.StatusOK || tag != `"f1"` {
+		t.Fatalf("want the frame with its id as the ETag, got %d and ETag %q", first.StatusCode, tag)
+	}
+
+	again := get(tag)
+	body, _ := io.ReadAll(again.Body)
+	if again.StatusCode != http.StatusNotModified || len(body) != 0 {
+		t.Fatalf("want 304 without a body for the frame the viewer has, got %d with %d bytes", again.StatusCode, len(body))
+	}
+
+	if other := get(`"f0"`); other.StatusCode != http.StatusOK {
+		t.Fatalf("want the frame for a viewer that has an older one, got %d", other.StatusCode)
+	}
+	if len(haves) != 3 || haves[0] != "" || haves[1] != "f1" || haves[2] != "f0" {
+		t.Fatalf("the frame ids asked with were %q, want none, f1 and f0", haves)
 	}
 }
