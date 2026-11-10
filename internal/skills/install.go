@@ -231,7 +231,14 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 	if err != nil {
 		return "", fmt.Errorf("failed to create staging dir: %w", err)
 	}
-	defer func() { _ = os.RemoveAll(stageDir) }()
+	replacedDir := stageDir + ".old"
+	defer func() {
+		_ = os.RemoveAll(stageDir)
+		_ = os.RemoveAll(replacedDir)
+	}()
+	if err := os.Chmod(stageDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to prepare staging dir: %w", err)
+	}
 
 	for _, f := range files {
 		rel := strings.TrimPrefix(f.Path, prefix)
@@ -252,10 +259,11 @@ func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase stri
 		return "", fmt.Errorf("downloaded folder has no SKILL.md at its root")
 	}
 
-	if err := os.RemoveAll(destDir); err != nil {
-		return "", fmt.Errorf("failed to remove existing skill: %w", err)
+	if err := os.Rename(destDir, replacedDir); err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to set the existing skill aside: %w", err)
 	}
 	if err := os.Rename(stageDir, destDir); err != nil {
+		_ = os.Rename(replacedDir, destDir)
 		return "", fmt.Errorf("failed to install skill into %s: %w", destDir, err)
 	}
 

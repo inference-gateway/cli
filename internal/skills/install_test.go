@@ -500,6 +500,12 @@ func TestInstallFromGitHub_OverwriteReplaces(t *testing.T) {
 
 	_, statErr := os.Stat(filepath.Join(dest, "pdf", "marker"))
 	require.True(t, os.IsNotExist(statErr))
+	info, err := os.Stat(filepath.Join(dest, "pdf"))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+	leftovers, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Len(t, leftovers, 1)
 	body, err := os.ReadFile(filepath.Join(dest, "pdf", "SKILL.md"))
 	require.NoError(t, err)
 	require.Contains(t, string(body), "fresh")
