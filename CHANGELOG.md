@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.253.0](https://github.com/inference-gateway/cli/compare/v0.252.0...v0.253.0) (2026-11-10)
+
+### 🚀 Features
+
+* **computer:** capture the screen promptly while a person holds it ([#1791](https://github.com/inference-gateway/cli/issues/1791)) ([37a3ba0](https://github.com/inference-gateway/cli/commit/37a3ba0057fd3412c2a0c704109db69c0ad168e2)), closes [#1787](https://github.com/inference-gateway/cli/issues/1787), references [#1792](https://github.com/inference-gateway/cli/issues/1792) [#1793](https://github.com/inference-gateway/cli/issues/1793) [#1794](https://github.com/inference-gateway/cli/issues/1794)
+* **computer:** let a client skip unchanged screen frames ([#1797](https://github.com/inference-gateway/cli/issues/1797)) ([316e0d5](https://github.com/inference-gateway/cli/commit/316e0d529c6deacabe91166f42c196c89f611d5e)), closes [#1794](https://github.com/inference-gateway/cli/issues/1794)
+* **computer:** pointer press and release during a take-over ([#1795](https://github.com/inference-gateway/cli/issues/1795)) ([981fbe2](https://github.com/inference-gateway/cli/commit/981fbe230c874552d4c0add3b1e5765e8868b809)), closes [#1792](https://github.com/inference-gateway/cli/issues/1792)
+
+### 🐛 Bug Fixes
+
+* **scheduler:** finish the run without a window app on the computer ([#1789](https://github.com/inference-gateway/cli/issues/1789)) ([34700bf](https://github.com/inference-gateway/cli/commit/34700bf6b400c2b63e098044673dc5eef3b4ee2c)), closes [#1785](https://github.com/inference-gateway/cli/issues/1785)
+* **web:** send one click per press on a held screen ([#1798](https://github.com/inference-gateway/cli/issues/1798)) ([4c10e2a](https://github.com/inference-gateway/cli/commit/4c10e2abdf35013ae5eb4411b401c38dde2718c1))
+* **computer:** ship a UTF-8 locale in the image env ([#1788](https://github.com/inference-gateway/cli/issues/1788)) ([c72ec71](https://github.com/inference-gateway/cli/commit/c72ec711bf420dadf301e313e24e7a08e186811b)), closes [#1786](https://github.com/inference-gateway/cli/issues/1786)
+
+### ⚡ Performance Improvements
+
+* **deps:** bump inference-gateway/adk to v0.34.2 for the opt-in redis and mcp subpackages ([#1790](https://github.com/inference-gateway/cli/issues/1790)) ([1e9bc19](https://github.com/inference-gateway/cli/commit/1e9bc19f904464f350f31020ff0a8f439ac5c5fc)), closes [#1781](https://github.com/inference-gateway/cli/issues/1781), references [inference-gateway/adk#432](https://github.com/inference-gateway/adk/issues/432) [adk#431](https://github.com/adk/issues/431) [cli#1649](https://github.com/cli/issues/1649) [adk#432](https://github.com/adk/issues/432)
+
+### ♻️ Code Refactoring
+
+* **computer:** keep the display open for the length of a hold ([#1796](https://github.com/inference-gateway/cli/issues/1796)) ([5589a74](https://github.com/inference-gateway/cli/commit/5589a74a662b73c7933bd0a1c3eb4b0c0a136c45)), closes [#1793](https://github.com/inference-gateway/cli/issues/1793)
+
 ## [0.252.0](https://github.com/inference-gateway/cli/compare/v0.251.1...v0.252.0) (2026-11-09)
 
 ### 🚀 Features
