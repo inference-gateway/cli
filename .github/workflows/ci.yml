@@ -141,8 +141,6 @@ jobs:
     - name: Run AT-SPI accessibility integration test
       run: |
         sudo apt-get update
-        # Runner VMs sometimes lose DNS for minutes. apt update shrugs it off
-        # with stale indexes but install hard-fails, so retry it before giving up.
         installed=false
         for attempt in 1 2 3; do
           if sudo apt-get install -y --no-install-recommends xvfb at-spi2-core dbus python3-gi gir1.2-gtk-3.0; then
