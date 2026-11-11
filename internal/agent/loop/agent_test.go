@@ -1551,3 +1551,24 @@ func TestExecuteToolInternal_EscalationGateFollowsApprover(t *testing.T) {
 		})
 	}
 }
+
+func TestRecordTodosStampsAgainstTheSessionsList(t *testing.T) {
+	store := statemanager.NewStore(false)
+	agentService := &Agent{stateManager: store}
+
+	started := agentService.recordTodos([]agentdomain.TodoItem{{ID: "1", Content: "stabilise", Status: "in_progress"}})
+	require.NotNil(t, started[0].StartedAt)
+	assert.Equal(t, started, store.GetTodos())
+
+	forged := time.Now().Add(-time.Hour)
+	done := agentService.recordTodos([]agentdomain.TodoItem{{ID: "1", Content: "stabilise", Status: "completed", StartedAt: &forged, ElapsedMs: 3_600_000}})
+	assert.Nil(t, done[0].StartedAt)
+	require.NotNil(t, done[0].CompletedAt)
+	assert.Less(t, done[0].ElapsedMs, int64(60_000), "the time comes from the session, not from the call")
+	assert.Equal(t, done, store.GetTodos())
+}
+
+func TestRecordTodosWithoutAStoreStillStamps(t *testing.T) {
+	stamped := (&Agent{}).recordTodos([]agentdomain.TodoItem{{ID: "1", Content: "grade", Status: "in_progress"}})
+	require.NotNil(t, stamped[0].StartedAt)
+}

@@ -231,7 +231,20 @@ func (tv *TodoBoxView) formatTodoItem(todo agentdomain.TodoItem) string {
 		content = todo.Content
 	}
 
+	if elapsed := todoElapsed(todo, time.Now()); elapsed != "" {
+		return fmt.Sprintf("%s %s %s", checkbox, content, colors.CreateColoredText(elapsed, colors.DimColor))
+	}
 	return fmt.Sprintf("%s %s", checkbox, content)
+}
+
+// todoElapsed is the time a todo has been worked on by now, to the second, or
+// nothing for one that was never in progress.
+func todoElapsed(todo agentdomain.TodoItem, now time.Time) string {
+	elapsed := todo.ElapsedAt(now).Round(time.Second)
+	if elapsed <= 0 {
+		return ""
+	}
+	return elapsed.String()
 }
 
 // formatProgressBar creates a visual progress bar

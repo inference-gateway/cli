@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	uuid "github.com/google/uuid"
 
@@ -117,6 +118,10 @@ type RunEncoder struct {
 
 	suggestNextStep func() string
 
+	// todoClock splits the run's wall time between its todos for the
+	// terminal event.
+	todoClock *todoClock
+
 	quiet bool
 }
 
@@ -151,6 +156,7 @@ type RunEncoderDeps struct {
 func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 	return &RunEncoder{
 		writer:          w,
+		todoClock:       newTodoClock(time.Now()),
 		run:             agui.NewRun(w),
 		model:           deps.Model,
 		repo:            deps.Repo,
@@ -173,6 +179,7 @@ func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 // progress recorded before the run opened.
 func (r *RunEncoder) Start(threadID, runID string) {
 	r.threadID = threadID
+	r.todoClock = newTodoClock(time.Now())
 	r.run.Start(threadID, runID)
 	if messages := snapshotMessages(r.history); len(messages) > 0 {
 		r.run.Snapshot(messages)
@@ -407,6 +414,7 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		r.snapshotJobs()
 	case agentdomain.TodoUpdateChatEvent:
 		r.run.PatchState(agui.StateTodos, ev.Todos)
+		r.todoClock.observe(time.Now(), ev.Todos)
 	case agentdomain.JudgeVerdictChatEvent:
 		r.emitJudgeVerdict(ev)
 		if !r.quiet {
@@ -456,7 +464,11 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 // the caller's exit code and telemetry.
 func (r *RunEncoder) Finish() error {
 	r.publishNextStepSuggestion()
-	if err := r.run.Finish(sessionExtras(r.model, r.repo), sessionUsage(r.model, r.repo)); err != nil {
+	extras := sessionExtras(r.model, r.repo)
+	if times := r.todoClock.summary(time.Now()); extras != nil && times != nil {
+		extras["todoTimes"] = times
+	}
+	if err := r.run.Finish(extras, sessionUsage(r.model, r.repo)); err != nil {
 		return fmt.Errorf("agent error: %w", err)
 	}
 	return nil

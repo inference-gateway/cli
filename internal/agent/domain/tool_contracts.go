@@ -227,6 +227,14 @@ type TodoItem struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Status  string `json:"status"`
+	// StartedAt is when the stretch the item is in progress for began, nil
+	// while it is not in progress.
+	StartedAt *time.Time `json:"started_at,omitempty"`
+	// CompletedAt is when the item was completed, nil until then.
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	// ElapsedMs is the time the item spent in progress over every stretch
+	// that has ended, in milliseconds.
+	ElapsedMs int64 `json:"elapsed_ms,omitempty"`
 }
 
 // TodoWriteToolResult represents the result of a TodoWrite operation
