@@ -166,3 +166,15 @@ func TestBrokenSidecars(t *testing.T) {
 	_, _, err := loadConfig(rootCmd)
 	require.ErrorContains(t, err, toolsFile)
 }
+
+func TestWorkspaceVolumesLoadFromDaemonYAML(t *testing.T) {
+	withHermeticEnv(t)
+	writeHomeFile(t, config.DaemonFileName, "workspaces:\n  - name: desktop\n    kind: kubernetes\n    namespace: agents\n    image: computer:1\n    volumes:\n      - name: resolve\n        claim: davinci-resolve\n        mount_path: /opt/resolve\n      - name: footage\n        claim: raw-footage\n        mount_path: /mnt/footage\n        read_only: true\n")
+
+	cfg := loadTestConfig(t)
+	require.Len(t, cfg.Daemon.Workspaces, 1)
+	assert.Equal(t, []config.WorkspaceVolume{
+		{Name: "resolve", Claim: "davinci-resolve", MountPath: "/opt/resolve"},
+		{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage", ReadOnly: true},
+	}, cfg.Daemon.Workspaces[0].Volumes)
+}

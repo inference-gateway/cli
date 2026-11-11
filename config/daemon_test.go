@@ -115,6 +115,17 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"user_data on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{{Name: "ws", Kind: WorkspaceKindDaemon, Address: "a:1", UserData: "#!/bin/sh\n"}}}, "only a kubernetes workspace"},
 		{"user_data script", DaemonConfig{Workspaces: []WorkspaceEntry{withUserData(kubernetes, "#!/bin/sh\napt-get install -y firefox-esr\n")}}, ""},
 		{"user_data cloud-config", DaemonConfig{Workspaces: []WorkspaceEntry{withUserData(kubernetes, "#cloud-config\npackages:\n  - firefox-esr\n")}}, "must start with \"#!\""},
+		{"volumes on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(daemon, WorkspaceVolume{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage"})}}, "only a kubernetes workspace"},
+		{"volumes, one of them read-only", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes,
+			WorkspaceVolume{Name: "resolve", Claim: "davinci-resolve", MountPath: "/opt/resolve"},
+			WorkspaceVolume{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage", ReadOnly: true})}}, ""},
+		{"volume without a name", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes, WorkspaceVolume{Claim: "raw-footage", MountPath: "/mnt/footage"})}}, "volumes[0] needs a name"},
+		{"volume without a claim", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes, WorkspaceVolume{Name: "footage", MountPath: "/mnt/footage"})}}, "volume \"footage\" needs a claim"},
+		{"volume with a relative mount_path", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes, WorkspaceVolume{Name: "footage", Claim: "raw-footage", MountPath: "mnt/footage"})}}, "needs an absolute mount_path"},
+		{"volume without a mount_path", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes, WorkspaceVolume{Name: "footage", Claim: "raw-footage"})}}, "needs an absolute mount_path"},
+		{"two volumes of one name", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes,
+			WorkspaceVolume{Name: "footage", Claim: "a", MountPath: "/mnt/a"},
+			WorkspaceVolume{Name: "footage", Claim: "b", MountPath: "/mnt/b"})}}, "two volumes named \"footage\""},
 		{"kubernetes address template", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Orchestrator}}.ts.net:52789")}}, ""},
 		{"kubernetes address template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Pod}}.ts.net:52789")}}, "address of workspace"},
 		{"kubernetes annotation template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAnnotation(kubernetes, "vpn/hostname", "{{.Orchestrator")}}, "binding_service.annotations"},
@@ -291,6 +302,11 @@ func TestExtensionLoopbackServesTheExtensionOnlyBehindMutualTLS(t *testing.T) {
 
 func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
 	entry.Mode = mode
+	return entry
+}
+
+func withVolumes(entry WorkspaceEntry, volumes ...WorkspaceVolume) WorkspaceEntry {
+	entry.Volumes = volumes
 	return entry
 }
 

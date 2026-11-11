@@ -225,8 +225,14 @@ const mcpServersOperatorVersion = "v0.34.0"
 // cloud-init user-data.
 const userDataOperatorVersion = "v0.35.0"
 
+// volumesOperatorVersion is the first operator release that mounts existing
+// claims into a session's pod.
+const volumesOperatorVersion = "v0.36.0"
+
 func (e *Workspace) requiredOperatorVersion() string {
 	switch {
+	case len(e.entry.Volumes) > 0:
+		return volumesOperatorVersion
 	case e.entry.UserData != "":
 		return userDataOperatorVersion
 	case len(e.entry.MCPServers) > 0:
@@ -479,6 +485,9 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 	if e.entry.Retention > 0 {
 		sandbox["retention"] = e.entry.Retention.String()
 	}
+	if len(e.entry.Volumes) > 0 {
+		sandbox["volumes"] = sandboxVolumes(e.entry.Volumes)
+	}
 	secret := name + tlsSecretSuffix
 	binding := map[string]any{
 		"port":           int64(bindingPort),
@@ -520,6 +529,20 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 		},
 		"spec": spec,
 	}}, nil
+}
+
+// sandboxVolumes are a workspace's volumes as the Orchestrator's sandbox
+// takes them: existing claims of the namespace, which it never owns.
+func sandboxVolumes(volumes []config.WorkspaceVolume) []any {
+	out := make([]any, 0, len(volumes))
+	for _, volume := range volumes {
+		entry := map[string]any{"name": volume.Name, "claimName": volume.Claim, "mountPath": volume.MountPath}
+		if volume.ReadOnly {
+			entry["readOnly"] = true
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 // orchestratorLabels mark a session's Orchestrator with its workspace and

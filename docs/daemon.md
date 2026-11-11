@@ -252,6 +252,36 @@ workspaces:
         - agentmail
   ```
 
+- `volumes` mounts PersistentVolumeClaims that already exist in the workspace's namespace into every session's
+  pod. A session's own `storage` starts empty and `user_data` runs again on every boot, so a volume is how an
+  app is installed once, or how sessions share content:
+
+  ```yaml
+  workspaces:
+    - name: ubuntu-desktop
+      kind: kubernetes
+      namespace: infer-workspaces
+      image: ghcr.io/inference-gateway/computer:latest
+      volumes:
+        - name: resolve
+          claim: davinci-resolve
+          mount_path: /opt/resolve
+        - name: footage
+          claim: raw-footage
+          mount_path: /mnt/footage
+          read_only: true
+  ```
+
+  Each entry needs a `name`, unique in the workspace, the `claim` to mount and an absolute `mount_path`.
+  `read_only: true` is for content an agent copies into `/workspace` before it changes it, so the original
+  stays as it is. The claim is created and filled outside the session, and a session never creates or deletes
+  it - stopping the session or its `retention` leaves the claim and its data in place. The operator refuses a
+  `mount_path` that is, or lies under, a path it mounts itself: `/workspace`, `/home/infer/.infer/projects` and
+  `/var/lib/cloud/seed/nocloud`. A claim that does not exist leaves the pod unscheduled, and the session's
+  Orchestrator then reports the scheduler's reason. A `ReadWriteOnce` claim is shared by pods on one node only,
+  so sessions on several nodes need a `ReadWriteMany` or `ReadOnlyMany` claim. Like `user_data`, the list is
+  fixed when the session's Orchestrator is created, so a change reaches the sessions teleported after it. It
+  needs operator v0.36.0 or later.
 - `user_data` is a [cloud-init](https://cloudinit.readthedocs.io/) user-data script the pod runs as root
   when it boots, before the daemon starts, the way a cloud VM runs it - for example to install a browser on
   the [computer image](computer-use.md). It must start with `#!`, as `#cloud-config` is not supported yet. It
@@ -389,7 +419,7 @@ workspaces:
   labelled `inference-gateway.com/compute`, and the last session to go takes them along.
 - A machine holds `address`, `token` and `tls`, the connection of a `kind: daemon` workspace.
 - A workspace on compute keeps what describes the computer itself, such as `image`, `storage`, `idle_ttl`,
-  `env`, `forward_env`, `secrets`, `mcp_servers`, `user_data` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
+  `env`, `forward_env`, `secrets`, `mcp_servers`, `user_data`, `volumes` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
   key its compute sets, fails at startup, and so does naming compute that `compute.yaml` does not define.
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
   because clusters and machines belong to the user, not to a project.

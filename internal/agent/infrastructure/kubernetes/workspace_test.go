@@ -190,6 +190,47 @@ func TestOrchestratorBootsWithTheUserDataOfTheSessionSecret(t *testing.T) {
 	}
 }
 
+func TestOrchestratorMountsTheWorkspaceVolumes(t *testing.T) {
+	e, _ := testWorkspace(t, true)
+	session := agentdomain.Session{ConversationID: "conv-1"}
+	orchestrator, err := e.orchestrator("infer-1", session, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found, _ := k8sunstructured.NestedSlice(orchestrator.Object, "spec", "sandbox", "volumes"); found {
+		t.Fatal("spec.sandbox.volumes is set without volumes")
+	}
+
+	e.entry.Volumes = []config.WorkspaceVolume{
+		{Name: "resolve", Claim: "davinci-resolve", MountPath: "/opt/resolve"},
+		{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage", ReadOnly: true},
+	}
+	if orchestrator, err = e.orchestrator("infer-1", session, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	volumes, _, _ := k8sunstructured.NestedSlice(orchestrator.Object, "spec", "sandbox", "volumes")
+	want := []any{
+		map[string]any{"name": "resolve", "claimName": "davinci-resolve", "mountPath": "/opt/resolve"},
+		map[string]any{"name": "footage", "claimName": "raw-footage", "mountPath": "/mnt/footage", "readOnly": true},
+	}
+	if !reflect.DeepEqual(volumes, want) {
+		t.Fatalf("spec.sandbox.volumes = %v, want %v", volumes, want)
+	}
+}
+
+func TestCreateNamesTheOperatorVersionVolumesNeed(t *testing.T) {
+	e, dynamic := testWorkspace(t, true)
+	e.entry.Volumes = []config.WorkspaceVolume{{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage"}}
+	dynamic.PrependReactor("create", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		invalid := k8sfield.Invalid(k8sfield.NewPath("spec", "sandbox", "volumes"), "array", "unknown field")
+		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
+	})
+	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
+	if err == nil || !strings.Contains(err.Error(), "may predate "+volumesOperatorVersion+", upgrade it") {
+		t.Fatalf("create on an older operator = %v", err)
+	}
+}
+
 func TestEnsureSecretHoldsTheUserDataThePodBootsWith(t *testing.T) {
 	e, _ := testWorkspace(t, true)
 	pki, err := agentinfra.LoadOrCreatePKI(t.TempDir())
