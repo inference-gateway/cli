@@ -1081,6 +1081,8 @@ Create and manage structured task lists for LLM-assisted development workflows.
 
 - **Structured Task Management**: Organized task tracking with status
 - **Real-time Updates**: Mark tasks as in_progress/completed during execution
+- **Time per task**: the CLI stamps each task when it starts and when it completes, so a run shows where its
+  time went. The model cannot set or change these times
 - **Progress Tracking**: Visual representation of task completion
 - **LLM Integration**: Designed for LLM-assisted development workflows
 
@@ -1108,6 +1110,23 @@ Create and manage structured task lists for LLM-assisted development workflows.
   ]
 }
 ```
+
+**Time per task:**
+
+The session keeps three times on every task, matched by its `id` from one call to the next. A task without an
+`id` gets a new one on every call, so its time starts over.
+
+- `started_at` - when the stretch the task is in progress for began. Absent while it is not in progress
+- `completed_at` - when it was completed. Absent until then, and again when it is reopened
+- `elapsed_ms` - the time it spent in progress over every stretch that has ended. A task put back to pending
+  and started again adds to it
+
+The chat shows the time beside a completed task and counts it up beside the one in progress. A headless run
+carries the three fields on each item of its `todos` state, so a client adds the time since `started_at` to
+`elapsed_ms` for the task in progress. When a run ends, the `result` of its `RUN_FINISHED` event reports
+`todoTimes`: `runMs`, the run's wall time, `todos` with the `ms` each task was in progress for during the
+run, and `outsideMs`, the time no task was in progress. The parts add up to `runMs`. Time waiting for an
+approval counts for the task in progress. A run that never called `TodoWrite` reports no `todoTimes`.
 
 **Configuration:**
 

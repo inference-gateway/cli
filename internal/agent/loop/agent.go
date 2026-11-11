@@ -44,6 +44,7 @@ type Agent struct {
 	skillsService      agentdomain.SkillsService
 	messageQueue       convdomain.MessageQueue
 	stateManager       stateStore
+	todosMu            sync.Mutex
 	optimizer          convdomain.ConversationOptimizer
 	tokenizer          usageEstimator
 	approvalPolicy     agentdomain.ApprovalPolicy
@@ -459,6 +460,20 @@ func NewAgent(
 		metrics:            make(map[string]*agentdomain.ChatMetrics),
 		toolCallsMap:       make(map[int]*sdk.ChatCompletionMessageToolCall),
 	}
+}
+
+// recordTodos keeps the session's todo list as a TodoWrite call left it,
+// stamped with when each item started and completed. The lock makes two
+// TodoWrite calls of one turn stamp against each other's list in order.
+func (s *Agent) recordTodos(todos []agentdomain.TodoItem) []agentdomain.TodoItem {
+	s.todosMu.Lock()
+	defer s.todosMu.Unlock()
+	if s.stateManager == nil {
+		return agentdomain.StampTodos(nil, todos, time.Now())
+	}
+	stamped := agentdomain.StampTodos(s.stateManager.GetTodos(), todos, time.Now())
+	s.stateManager.SetTodos(stamped)
+	return stamped
 }
 
 // SetReasoningEffort updates the reasoning effort applied to subsequent
@@ -1265,9 +1280,7 @@ func (s *Agent) executeToolOnce(
 
 	if result.ToolName == tools.ToolTodoWrite && result.Success {
 		if todoResult, ok := result.Data.(*agentdomain.TodoWriteToolResult); ok && todoResult != nil {
-			if s.stateManager != nil {
-				s.stateManager.SetTodos(todoResult.Todos)
-			}
+			todoResult.Todos = s.recordTodos(todoResult.Todos)
 			eventPublisher.publishTodoUpdate(todoResult.Todos)
 		}
 	}

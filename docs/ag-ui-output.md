@@ -42,7 +42,7 @@ belongs to a run. A frame with a lowercase `type` is an app frame, in either dir
 | Assistant tool call | `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END`, none carrying a `parentMessageId` |
 | Tool result | `TOOL_CALL_RESULT` whose `content` is the raw JSON execution result (no `"Result of tool call:"` prefix) |
 | LLM step completes | `STATE_DELTA` patching `usage` |
-| Todo-list change | `STATE_DELTA` patching `todos` |
+| Todo-list change | `STATE_DELTA` patching `todos`, each item with `started_at`, `completed_at` and `elapsed_ms` once it has them |
 | Background job submitted or finished | `STATE_DELTA` patching `backgroundTasks` (`running`, `jobs`) |
 | Background job finished | The landed note as a text message with its conversation role, first line `[<Kind> Completed\|Failed: <label>]` |
 | Screen recording starts or ends | `STATE_DELTA` patching `screenRecording` with `active`, and the frame while it runs |
@@ -135,6 +135,7 @@ context window is unknown:
 | `totalToolCalls` | Tool calls issued across the session |
 | `cost` | Total session cost, in the configured currency |
 | `contextWindow` | Model context window in tokens (omitted when unknown) |
+| `todoTimes` | The run's wall time split between its todos: `runMs`, `outsideMs` and the `ms` of each (omitted without a todo list) |
 
 ## Interrupts
 
