@@ -81,6 +81,7 @@ func TestToolApprovalSettings(t *testing.T) {
 		{name: "TextToSpeech needs no approval by default", global: true, tool: textToSpeech, want: false},
 		{name: "TextToSpeech opt in via config", global: false, setup: func(c *config.Config) { c.TextToSpeech.RequireApproval = &yes }, tool: textToSpeech, want: true},
 		{name: "ApproveSubagent always needs approval", global: false, tool: approveSubagent, want: true},
+		{name: "KillShell stops the session's own shell without approval even with global on", global: true, tool: killShell, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -97,6 +98,7 @@ func TestToolApprovalSettings(t *testing.T) {
 }
 
 func webSearch(cfg *config.Config) agentdomain.ManifestTool { return NewWebSearchTool(cfg) }
+func killShell(cfg *config.Config) agentdomain.ManifestTool { return NewKillShellTool(cfg, nil) }
 func todoWrite(cfg *config.Config) agentdomain.ManifestTool { return NewTodoWriteTool(cfg) }
 func createAvatar(cfg *config.Config) agentdomain.ManifestTool {
 	return NewCreateAvatarTool(cfg, nil)

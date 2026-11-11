@@ -69,7 +69,7 @@ See the [Plan Mode Guide](plan-mode.md) for the scratchpad's behavior.
 | ------ | --------- | ---------- |
 | **Bash** | Execute shell commands (per-mode allow-list) | Optional |
 | **BashOutput** | Read new output from a running background shell | No |
-| **KillShell** | Terminate a background shell | Yes |
+| **KillShell** | Terminate a background shell | No |
 | **ListShells** | List background shells and their state | No |
 | **Wait** | Block until a condition is met (shells exit, file event, or check command succeeds) - no LLM round-trips wasted | No |
 

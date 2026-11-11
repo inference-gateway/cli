@@ -9,3 +9,4 @@ parameters:
       description: The ID of the background shell to kill
   required:
     - shell_id
+require_approval: false
