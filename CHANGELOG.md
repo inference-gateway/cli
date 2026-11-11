@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.255.0](https://github.com/inference-gateway/cli/compare/v0.254.0...v0.255.0) (2026-11-11)
+
+### 🚀 Features
+
+* **daemon:** mount existing claims into a workspace's pods ([#1804](https://github.com/inference-gateway/cli/issues/1804)) ([b2b08f4](https://github.com/inference-gateway/cli/commit/b2b08f44d5c04754d11fe1ee48a623a521eab1c3)), closes [#1803](https://github.com/inference-gateway/cli/issues/1803), references [inference-gateway/operator#340](https://github.com/inference-gateway/operator/issues/340) [inference-gateway/operator#340](https://github.com/inference-gateway/operator/issues/340) [#1803](https://github.com/inference-gateway/cli/issues/1803) [inference-gateway/docs#1188](https://github.com/inference-gateway/docs/issues/1188)
+* **agent:** record how long each todo of a run took ([#1812](https://github.com/inference-gateway/cli/issues/1812)) ([c09f02a](https://github.com/inference-gateway/cli/commit/c09f02aeb76b89bbd495c22636e1d473a266af5d)), closes [#1807](https://github.com/inference-gateway/cli/issues/1807)
+* **daemon:** set CPU and memory requests and limits per Kubernetes workspace ([#1811](https://github.com/inference-gateway/cli/issues/1811)) ([34b5420](https://github.com/inference-gateway/cli/commit/34b5420aa458e0c2b48a131094cd07453d986922)), closes [#1809](https://github.com/inference-gateway/cli/issues/1809)
+* **computer:** ship ffmpeg in the computer image ([#1806](https://github.com/inference-gateway/cli/issues/1806)) ([a38d1c1](https://github.com/inference-gateway/cli/commit/a38d1c17ea3914c6a539c7057ec7b20c60b855fd)), references [inference-gateway/desktop#535](https://github.com/inference-gateway/desktop/issues/535)
+
+### 🐛 Bug Fixes
+
+* **tools:** let KillShell stop a background shell without approval ([#1810](https://github.com/inference-gateway/cli/issues/1810)) ([02bb52f](https://github.com/inference-gateway/cli/commit/02bb52f69003ec7fb918e9b95e194e3476e0a428)), closes [#1808](https://github.com/inference-gateway/cli/issues/1808)
+
+### 🔧 Build System
+
+* **deps:** bump the gomod group with 3 updates ([#1805](https://github.com/inference-gateway/cli/issues/1805)) ([3675819](https://github.com/inference-gateway/cli/commit/36758190bb368e188f87c94bba01d11bf917be04))
+
+### 🧹 Maintenance
+
+* **deps:** bump claude-code 2.1.317 -> 2.1.318 ([#1802](https://github.com/inference-gateway/cli/issues/1802)) ([8f53d24](https://github.com/inference-gateway/cli/commit/8f53d24912432284ea00ab48f015468965b3abed))
+
 ## [0.254.0](https://github.com/inference-gateway/cli/compare/v0.253.0...v0.254.0) (2026-11-10)
 
 ### 🚀 Features
