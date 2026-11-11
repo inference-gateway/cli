@@ -3,3 +3,4 @@ examples/** linguist-vendored=true
 
 tests/mocks/** linguist-generated=true
 CHANGELOG.md linguist-generated=true
+computer/venus-16k.patch -whitespace
