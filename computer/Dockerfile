@@ -1,3 +1,27 @@
+FROM ubuntu:26.04 AS venus
+
+ARG TARGETARCH
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY computer/venus-16k.patch /src/venus-16k.patch
+
+# Mesa's Venus driver fails on the 16 KiB memory pages of an Apple silicon host, the one place arm64 computers get a GPU
+RUN mkdir /out && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+      sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources && \
+      apt-get update && \
+      apt-get install -y --no-install-recommends \
+        ca-certificates dpkg-dev build-essential meson ninja-build pkg-config \
+        python3-mako python3-yaml python3-packaging libdrm-dev && \
+      cd /src && apt-get source mesa && cd mesa-*/ && \
+      patch -p1 < /src/venus-16k.patch && \
+      meson setup build -Dbuildtype=release -Dvulkan-drivers=virtio -Dgallium-drivers= -Dplatforms= \
+        -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dopengl=false -Dgles1=disabled -Dgles2=disabled \
+        -Dllvm=disabled -Dvideo-codecs= -Dtools= && \
+      ninja -C build src/virtio/vulkan/libvulkan_virtio.so && \
+      cp build/src/virtio/vulkan/libvulkan_virtio.so /out/; \
+    fi
+
 FROM ubuntu:26.04
 
 LABEL org.opencontainers.image.title="Inference Gateway Computer"
@@ -26,8 +50,12 @@ RUN apt-get update && \
       gnome-shell ubuntu-session ubuntu-settings gnome-shell-extension-ubuntu-dock \
       yaru-theme-gnome-shell yaru-theme-gtk yaru-theme-icon ubuntu-wallpapers fonts-ubuntu \
       nautilus gnome-terminal gnome-text-editor \
-      pipewire wireplumber at-spi2-core libgl1-mesa-dri libegl1 libgles2 && \
+      pipewire wireplumber at-spi2-core libgl1-mesa-dri libegl1 libgles2 \
+      libvulkan1 mesa-vulkan-drivers vulkan-tools && \
     rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=bind,from=venus,source=/out,target=/venus \
+    cp -a /venus/. "/usr/lib/$(uname -m)-linux-gnu/"
 
 COPY computer/shell-extension /usr/share/gnome-shell/extensions/computer@inference-gateway.com
 COPY computer/desktop.gschema.override /usr/share/glib-2.0/schemas/90_computer.gschema.override
