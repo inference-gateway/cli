@@ -37,7 +37,8 @@ pod, see the [desktop workspace](../examples/session-teleport/README.md#a-comput
 `ghcr.io/inference-gateway/computer`, released with the CLI under the same version tags, is an Ubuntu 26.04
 desktop for an agent of its own: `infer daemon` on a headless GNOME Shell session (Wayland, 1280x800) in Ubuntu
 mode, with the dock, the Yaru theme, Files, Terminal and Text Editor, plus `tmux` so an agent can run
-interactive programs such as `infer chat` from its Bash tool. GTK apps expose their accessibility tree
+interactive programs such as `infer chat` from its Bash tool. `ffmpeg` and `ffprobe` are on the image too, so an
+agent can inspect, cut and encode audio and video without installing anything. GTK apps expose their accessibility tree
 there, so the agent reads and presses controls by label before it falls back to screenshots. A small shell
 extension puts the shell in unsafe mode, which is what lets the daemon take screenshots and place windows, and a
 stand-in `org.freedesktop.login1` answers the shell, as a pod runs no systemd. The container starts as root for
