@@ -178,3 +178,15 @@ func TestWorkspaceVolumesLoadFromDaemonYAML(t *testing.T) {
 		{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage", ReadOnly: true},
 	}, cfg.Daemon.Workspaces[0].Volumes)
 }
+
+func TestWorkspaceResourcesLoadFromDaemonYAML(t *testing.T) {
+	withHermeticEnv(t)
+	writeHomeFile(t, config.DaemonFileName, "workspaces:\n  - name: desktop\n    kind: kubernetes\n    namespace: agents\n    image: computer:1\n    resources:\n      requests:\n        cpu: \"2\"\n        memory: 4Gi\n      limits:\n        cpu: \"8\"\n        memory: 12Gi\n        devic.es/dri: \"1\"\n")
+
+	cfg := loadTestConfig(t)
+	require.Len(t, cfg.Daemon.Workspaces, 1)
+	assert.Equal(t, config.WorkspaceResources{
+		Requests: map[string]string{"cpu": "2", "memory": "4Gi"},
+		Limits:   map[string]string{"cpu": "8", "memory": "12Gi", "devic.es/dri": "1"},
+	}, cfg.Daemon.Workspaces[0].Resources)
+}

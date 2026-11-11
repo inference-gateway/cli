@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -178,6 +179,9 @@ type WorkspaceEntry struct {
 	// Volumes mounts PersistentVolumeClaims that already exist in the
 	// namespace into the pod, for an app or content its sessions share.
 	Volumes []WorkspaceVolume `yaml:"volumes,omitempty" mapstructure:"volumes"`
+	// Resources are the CPU, memory and other resources a session's pod asks
+	// the cluster for and may use at most. Empty leaves both to the cluster.
+	Resources WorkspaceResources `yaml:"resources,omitempty" mapstructure:"resources"`
 	// BindingService is metadata for the session's binding Service, for
 	// controllers that act on Service metadata such as a VPN operator.
 	BindingService BindingServiceConfig `yaml:"binding_service,omitempty" mapstructure:"binding_service"`
@@ -190,6 +194,18 @@ type WorkspaceVolume struct {
 	Claim     string `yaml:"claim" mapstructure:"claim"`
 	MountPath string `yaml:"mount_path" mapstructure:"mount_path"`
 	ReadOnly  bool   `yaml:"read_only,omitempty" mapstructure:"read_only"`
+}
+
+// WorkspaceResources are a pod's resource requests and limits by resource
+// name, such as cpu and memory, each a Kubernetes quantity.
+type WorkspaceResources struct {
+	Requests map[string]string `yaml:"requests,omitempty" mapstructure:"requests"`
+	Limits   map[string]string `yaml:"limits,omitempty" mapstructure:"limits"`
+}
+
+// IsZero reports whether the workspace sets no request and no limit.
+func (r WorkspaceResources) IsZero() bool {
+	return len(r.Requests) == 0 && len(r.Limits) == 0
 }
 
 // BindingServiceConfig is copied verbatim onto each session's binding Service,
@@ -396,7 +412,7 @@ const userDataScriptPrefix = "#!"
 // kubernetes workspace uses.
 func (e WorkspaceEntry) setsKubernetesOnlyFields() bool {
 	return e.Mode != "" || len(e.GatewayEnv) > 0 || len(e.Secrets) > 0 || len(e.MCPServers) > 0 ||
-		!e.BindingService.IsZero() || e.UserData != "" || len(e.Volumes) > 0
+		!e.BindingService.IsZero() || e.UserData != "" || len(e.Volumes) > 0 || !e.Resources.IsZero()
 }
 
 // validateVolumes rejects a volume the pod could not mount: one without a
@@ -419,6 +435,28 @@ func (e WorkspaceEntry) validateVolumes() error {
 	return nil
 }
 
+// validateResources rejects a request or a limit that names no resource or no
+// quantity. Whether a value is a quantity the cluster takes is checked when a
+// session's pod is built.
+func (e WorkspaceEntry) validateResources() error {
+	if err := e.validateAmounts("requests", e.Resources.Requests); err != nil {
+		return err
+	}
+	return e.validateAmounts("limits", e.Resources.Limits)
+}
+
+func (e WorkspaceEntry) validateAmounts(kind string, amounts map[string]string) error {
+	for _, name := range slices.Sorted(maps.Keys(amounts)) {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("workspace %q: resources.%s has an entry without a resource name", e.Name, kind)
+		}
+		if strings.TrimSpace(amounts[name]) == "" {
+			return fmt.Errorf("workspace %q: resources.%s.%s needs a quantity", e.Name, kind, name)
+		}
+	}
+	return nil
+}
+
 func (e WorkspaceEntry) validate(identity string) error {
 	switch e.Protocol {
 	case "", WorkspaceProtocolAGUI, WorkspaceProtocolA2A:
@@ -429,12 +467,15 @@ func (e WorkspaceEntry) validate(identity string) error {
 		return fmt.Errorf("workspace %q: %w", e.Name, err)
 	}
 	if e.Kind != WorkspaceKindKubernetes && e.setsKubernetesOnlyFields() {
-		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers, binding_service, user_data or volumes, which only a kubernetes workspace uses", e.Name)
+		return fmt.Errorf("workspace %q sets mode, gateway_env, secrets, mcp_servers, binding_service, user_data, volumes or resources, which only a kubernetes workspace uses", e.Name)
 	}
 	if e.UserData != "" && !strings.HasPrefix(e.UserData, userDataScriptPrefix) {
 		return fmt.Errorf("workspace %q has user_data that is not a script: it must start with %q, as cloud-config is not supported yet", e.Name, userDataScriptPrefix)
 	}
 	if err := e.validateVolumes(); err != nil {
+		return err
+	}
+	if err := e.validateResources(); err != nil {
 		return err
 	}
 	switch e.Kind {

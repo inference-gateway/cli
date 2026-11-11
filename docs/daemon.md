@@ -282,6 +282,31 @@ workspaces:
   so sessions on several nodes need a `ReadWriteMany` or `ReadOnlyMany` claim. Like `user_data`, the list is
   fixed when the session's Orchestrator is created, so a change reaches the sessions teleported after it. It
   needs operator v0.36.0 or later.
+- `resources` says how much CPU and memory a session's pod asks the cluster for and may use at most. Without
+  it a pod runs on the cluster's defaults, which suits a chat and starves heavier work such as rendering video:
+
+  ```yaml
+  workspaces:
+    - name: ubuntu-desktop
+      kind: kubernetes
+      namespace: infer-workspaces
+      image: ghcr.io/inference-gateway/computer:latest
+      resources:
+        requests:
+          cpu: "2"
+          memory: 4Gi
+        limits:
+          cpu: "8"
+          memory: 12Gi
+  ```
+
+  `requests` and `limits` each map a resource name to a Kubernetes quantity, such as `500m`, `2` or `4Gi`. The
+  names are the cluster's own, so beside `cpu` and `memory` a limit can name a resource a device plugin offers,
+  such as a GPU. A value that is not a quantity, or a request above its limit, fails the teleport with the
+  workspace and the key in the message, before anything is created. A pod that exceeds its memory limit is
+  killed and restarted by the cluster, and one at its CPU limit is slowed down. The block is fixed when the
+  session's Orchestrator is created, so a change reaches the sessions teleported after it and a running pod
+  keeps what it started with.
 - `user_data` is a [cloud-init](https://cloudinit.readthedocs.io/) user-data script the pod runs as root
   when it boots, before the daemon starts, the way a cloud VM runs it - for example to install a browser on
   the [computer image](computer-use.md). It must start with `#!`, as `#cloud-config` is not supported yet. It
@@ -419,7 +444,8 @@ workspaces:
   labelled `inference-gateway.com/compute`, and the last session to go takes them along.
 - A machine holds `address`, `token` and `tls`, the connection of a `kind: daemon` workspace.
 - A workspace on compute keeps what describes the computer itself, such as `image`, `storage`, `idle_ttl`,
-  `env`, `forward_env`, `secrets`, `mcp_servers`, `user_data`, `volumes` and `protocol`. Its kind follows from its compute. Setting `kind`, or a
+  `env`, `forward_env`, `secrets`, `mcp_servers`, `user_data`, `volumes`, `resources` and `protocol`. Its kind
+  follows from its compute. Setting `kind`, or a
   key its compute sets, fails at startup, and so does naming compute that `compute.yaml` does not define.
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
   because clusters and machines belong to the user, not to a project.
