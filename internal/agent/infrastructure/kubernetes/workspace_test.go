@@ -218,6 +218,68 @@ func TestOrchestratorMountsTheWorkspaceVolumes(t *testing.T) {
 	}
 }
 
+func TestOrchestratorCarriesTheWorkspaceResources(t *testing.T) {
+	tests := []struct {
+		name      string
+		resources config.WorkspaceResources
+		want      map[string]any
+		wantErr   string
+	}{
+		{name: "none leaves the pod to the cluster's defaults"},
+		{
+			name: "requests and limits",
+			resources: config.WorkspaceResources{
+				Requests: map[string]string{"cpu": "2", "memory": "4Gi"},
+				Limits:   map[string]string{"cpu": "8", "memory": "12Gi", "devic.es/dri": "1"},
+			},
+			want: map[string]any{
+				"requests": map[string]any{"cpu": "2", "memory": "4Gi"},
+				"limits":   map[string]any{"cpu": "8", "memory": "12Gi", "devic.es/dri": "1"},
+			},
+		},
+		{
+			name:      "limits alone",
+			resources: config.WorkspaceResources{Limits: map[string]string{"memory": "12Gi"}},
+			want:      map[string]any{"limits": map[string]any{"memory": "12Gi"}},
+		},
+		{
+			name:      "a request equal to its limit in another unit",
+			resources: config.WorkspaceResources{Requests: map[string]string{"cpu": "2000m"}, Limits: map[string]string{"cpu": "2"}},
+			want:      map[string]any{"requests": map[string]any{"cpu": "2000m"}, "limits": map[string]any{"cpu": "2"}},
+		},
+		{
+			name:      "a value that is no quantity",
+			resources: config.WorkspaceResources{Limits: map[string]string{"memory": "lots"}},
+			wantErr:   `workspace k8s: resources.limits.memory "lots" is not a quantity`,
+		},
+		{
+			name:      "a request above its limit",
+			resources: config.WorkspaceResources{Requests: map[string]string{"memory": "16Gi"}, Limits: map[string]string{"memory": "12Gi"}},
+			wantErr:   `workspace k8s: resources.requests.memory "16Gi" is above resources.limits.memory "12Gi"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, _ := testWorkspace(t, true)
+			e.entry.Resources = tt.resources
+			orchestrator, err := e.orchestrator("infer-1", agentdomain.Session{ConversationID: "conv-1"}, nil, nil)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("orchestrator() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			resources, found, _ := k8sunstructured.NestedMap(orchestrator.Object, "spec", "resources")
+			if found != (tt.want != nil) || !reflect.DeepEqual(resources, tt.want) {
+				t.Fatalf("spec.resources = %v (found %v), want %v", resources, found, tt.want)
+			}
+		})
+	}
+}
+
 func TestCreateNamesTheOperatorVersionVolumesNeed(t *testing.T) {
 	e, dynamic := testWorkspace(t, true)
 	e.entry.Volumes = []config.WorkspaceVolume{{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage"}}

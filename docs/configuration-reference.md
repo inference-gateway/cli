@@ -1159,7 +1159,8 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   `address`, `token`, `tls.ca_file` (the system roots without it), `tls.cert_file`, `tls.key_file` for a daemon
   and `kubeconfig`, `context`, `namespace`, `image`, `storage`, `idle_ttl`, `retention`, `lease_ttl`, `env`,
   `forward_env`, `secrets`, `mcp_servers`, `user_data` (a cloud-init `#!` script run as root at boot), `volumes` (existing claims to mount, each a `name`,
-  `claim`, `mount_path` and optional `read_only`), `mode` (standard|all-in-one),
+  `claim`, `mount_path` and optional `read_only`), `resources` (`requests` and `limits`, each a map of a resource
+  name such as `cpu` or `memory` to a Kubernetes quantity), `mode` (standard|all-in-one),
   `gateway_env` and `binding_service` (`annotations`, `labels`, with `{{.Orchestrator}}` expanded per session, as in `address`)
   for a Kubernetes workspace. See
   [infer daemon](daemon.md#workspaces-and-teleports).

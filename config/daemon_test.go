@@ -126,6 +126,12 @@ func TestDaemonConfigValidate(t *testing.T) {
 		{"two volumes of one name", DaemonConfig{Workspaces: []WorkspaceEntry{withVolumes(kubernetes,
 			WorkspaceVolume{Name: "footage", Claim: "a", MountPath: "/mnt/a"},
 			WorkspaceVolume{Name: "footage", Claim: "b", MountPath: "/mnt/b"})}}, "two volumes named \"footage\""},
+		{"resources on a daemon kind", DaemonConfig{Workspaces: []WorkspaceEntry{withResources(daemon, WorkspaceResources{Limits: map[string]string{"cpu": "2"}})}}, "only a kubernetes workspace"},
+		{"resources with requests and limits", DaemonConfig{Workspaces: []WorkspaceEntry{withResources(kubernetes, WorkspaceResources{
+			Requests: map[string]string{"cpu": "2", "memory": "4Gi"},
+			Limits:   map[string]string{"cpu": "8", "memory": "12Gi", "devic.es/dri": "1"}})}}, ""},
+		{"resource limit without a quantity", DaemonConfig{Workspaces: []WorkspaceEntry{withResources(kubernetes, WorkspaceResources{Limits: map[string]string{"memory": " "}})}}, "resources.limits.memory needs a quantity"},
+		{"resource request without a name", DaemonConfig{Workspaces: []WorkspaceEntry{withResources(kubernetes, WorkspaceResources{Requests: map[string]string{"": "2"}})}}, "resources.requests has an entry without a resource name"},
 		{"kubernetes address template", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Orchestrator}}.ts.net:52789")}}, ""},
 		{"kubernetes address template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAddress(kubernetes, "{{.Pod}}.ts.net:52789")}}, "address of workspace"},
 		{"kubernetes annotation template typo", DaemonConfig{Workspaces: []WorkspaceEntry{withAnnotation(kubernetes, "vpn/hostname", "{{.Orchestrator")}}, "binding_service.annotations"},
@@ -302,6 +308,11 @@ func TestExtensionLoopbackServesTheExtensionOnlyBehindMutualTLS(t *testing.T) {
 
 func withMode(entry WorkspaceEntry, mode WorkspaceMode) WorkspaceEntry {
 	entry.Mode = mode
+	return entry
+}
+
+func withResources(entry WorkspaceEntry, resources WorkspaceResources) WorkspaceEntry {
+	entry.Resources = resources
 	return entry
 }
 

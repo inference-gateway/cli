@@ -519,6 +519,13 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 	if e.entry.UserData != "" {
 		spec["userData"] = map[string]any{"secretRef": map[string]any{"name": secret, "key": secretUserDataKey}}
 	}
+	if !e.entry.Resources.IsZero() {
+		resources, err := podResources(e.entry)
+		if err != nil {
+			return nil, err
+		}
+		spec["resources"] = resources
+	}
 	return &k8sunstructured.Unstructured{Object: map[string]any{
 		"apiVersion": orchestratorGroup + "/" + orchestratorVersion,
 		"kind":       orchestratorKind,
@@ -529,6 +536,57 @@ func (e *Workspace) orchestrator(name string, session agentdomain.Session, secre
 		},
 		"spec": spec,
 	}}, nil
+}
+
+// podResources are a workspace's requests and limits as the Orchestrator
+// takes them. A value that is no quantity, or a request above its limit, is
+// refused here, as the cluster would only refuse the pod later.
+func podResources(entry config.WorkspaceEntry) (map[string]any, error) {
+	requests, err := quantities(entry, "requests", entry.Resources.Requests)
+	if err != nil {
+		return nil, err
+	}
+	limits, err := quantities(entry, "limits", entry.Resources.Limits)
+	if err != nil {
+		return nil, err
+	}
+	resources := map[string]any{}
+	for _, name := range slices.Sorted(maps.Keys(requests)) {
+		request, limit := requests[name], limits[name]
+		if _, limited := limits[name]; limited && request.Cmp(limit) > 0 {
+			return nil, fmt.Errorf("workspace %s: resources.requests.%s %q is above resources.limits.%s %q",
+				entry.Name, name, entry.Resources.Requests[name], name, entry.Resources.Limits[name])
+		}
+	}
+	if len(requests) > 0 {
+		resources["requests"] = amounts(entry.Resources.Requests)
+	}
+	if len(limits) > 0 {
+		resources["limits"] = amounts(entry.Resources.Limits)
+	}
+	return resources, nil
+}
+
+// quantities parses the amounts of one kind, requests or limits, naming the
+// workspace and the key of a value Kubernetes would not take.
+func quantities(entry config.WorkspaceEntry, kind string, values map[string]string) (map[string]k8sresource.Quantity, error) {
+	parsed := make(map[string]k8sresource.Quantity, len(values))
+	for _, name := range slices.Sorted(maps.Keys(values)) {
+		quantity, err := k8sresource.ParseQuantity(values[name])
+		if err != nil {
+			return nil, fmt.Errorf("workspace %s: resources.%s.%s %q is not a quantity: %w", entry.Name, kind, name, values[name], err)
+		}
+		parsed[name] = quantity
+	}
+	return parsed, nil
+}
+
+func amounts(values map[string]string) map[string]any {
+	out := make(map[string]any, len(values))
+	for name, value := range values {
+		out[name] = value
+	}
+	return out
 }
 
 // sandboxVolumes are a workspace's volumes as the Orchestrator's sandbox
