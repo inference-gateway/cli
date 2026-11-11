@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.256.0](https://github.com/inference-gateway/cli/compare/v0.255.0...v0.256.0) (2026-11-11)
+
+### 🚀 Features
+
+* **computer:** put Vulkan on the image, with a Venus driver that works on an Apple silicon host ([#1813](https://github.com/inference-gateway/cli/issues/1813)) ([8155517](https://github.com/inference-gateway/cli/commit/81555174ccfefa2db3182cdecfcd7f9f82ff618f)), references [inference-gateway/desktop#537](https://github.com/inference-gateway/desktop/issues/537) [inference-gateway/desktop#536](https://github.com/inference-gateway/desktop/issues/536)
+
 ## [0.255.0](https://github.com/inference-gateway/cli/compare/v0.254.0...v0.255.0) (2026-11-11)
 
 ### 🚀 Features
