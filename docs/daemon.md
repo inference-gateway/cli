@@ -104,6 +104,7 @@ workspace: laptop
 projects_root: ~/.infer/projects
 idle_exit: 0s
 away_exit: 1m
+max_artifact_mb: 1024
 workspaces:
   - name: laptop
     kind: local
@@ -339,6 +340,10 @@ workspaces:
   and it had no thread and no client for that long. It only shortens `idle_exit`, never stops a daemon
   without one, and `0` turns it off. Pod daemons get `away_ttl` (default `1m`), so set `away_ttl` to
   `idle_ttl` to keep a pod up for the full `idle_ttl` after its session left.
+- `max_artifact_mb` (default `1024`) caps a session artifact a client reads - the desktop app's
+  **Artifacts** menu or the chat TUI. The file goes out whole in one frame, base64 encoded, so a client
+  must accept frames a third larger. A larger file answers an error naming its size. The daemon of the
+  workspace that owns the session decides, so for a pod set `INFER_DAEMON_MAX_ARTIFACT_MB` in its `env`.
 
 A teleport sends a session to another workspace between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the

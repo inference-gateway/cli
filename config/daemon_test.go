@@ -152,6 +152,29 @@ func TestDaemonConfigValidate(t *testing.T) {
 	}
 }
 
+func TestDaemonConfigMaxArtifactBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		mb   int
+		want int64
+	}{
+		{"unset takes the default", 0, 1 << 30},
+		{"negative takes the default", -1, 1 << 30},
+		{"configured", 64, 64 << 20},
+		{"above the default", 4096, 4 << 30},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (DaemonConfig{MaxArtifactMB: tt.mb}).MaxArtifactBytes(); got != tt.want {
+				t.Fatalf("MaxArtifactBytes() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+	if got := DefaultDaemonConfig().MaxArtifactMB; got != 1024 {
+		t.Fatalf("default max_artifact_mb = %d, want 1024", got)
+	}
+}
+
 func TestDaemonConfigIdentityAndTTLs(t *testing.T) {
 	if got := (DaemonConfig{Workspace: "laptop"}).Identity(); got != "laptop" {
 		t.Fatalf("Identity() = %q, want laptop", got)

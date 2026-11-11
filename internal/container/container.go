@@ -323,6 +323,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Completer:     llm.New(c.createRawSDKClient()),
 		DefaultModel:  c.config.Agent.Model,
 		ArtifactsDir:  c.config.SessionArtifactsDir,
+		MaxArtifact:   c.config.Daemon.MaxArtifactBytes(),
 		Frames:        c.toolRegistry.FrameSource,
 		Screen:        c.screenControl,
 		Queue:         c.messageQueue,

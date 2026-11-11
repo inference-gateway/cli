@@ -4,15 +4,19 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+const testMaxArtifact = 1 << 20
 
 func artifactsPanel(t *testing.T) (*Panel, lineSink, string) {
 	t.Helper()
 	root := t.TempDir()
 	deps := panelDeps()
 	deps.ArtifactsDir = func(sessionID string) string { return filepath.Join(root, sessionID) }
+	deps.MaxArtifact = testMaxArtifact
 	p, sink := startPanel(deps)
 	return p, sink, root
 }
@@ -82,7 +86,7 @@ func TestPanelRefusesAnArtifactOverTheFrameLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := big.Truncate(64<<20 + 1); err != nil {
+	if err := big.Truncate(testMaxArtifact + 1); err != nil {
 		t.Fatal(err)
 	}
 	_ = big.Close()
@@ -90,5 +94,8 @@ func TestPanelRefusesAnArtifactOverTheFrameLimit(t *testing.T) {
 	frame := readFrame(t, sink, "artifact")
 	if frame["error"] == nil || frame["data"] != nil {
 		t.Fatalf("an oversized artifact must be refused, got %v", frame)
+	}
+	if msg, _ := frame["error"].(string); !strings.Contains(msg, "daemon.max_artifact_mb") {
+		t.Fatalf("the refusal must name the setting that raises the cap, got %q", msg)
 	}
 }
