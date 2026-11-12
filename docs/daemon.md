@@ -189,6 +189,11 @@ workspaces:
   to the target's certificate for its workers, such as a token the agent pushes with. They never land in
   a Kubernetes object, but the agent can read them, so provider keys belong under `gateway_env`. The pod
   daemon keeps them in memory, so a pod that idled out gets them again with the next teleport.
+- `forward_voice_samples: true` carries this machine's voice samples library, the WAV files at the top of
+  `~/.infer/voice/samples`, with every teleport to the workspace. They land in the target's own library,
+  where `TextToSpeech` finds a `voice_sample` by its bare name. A sample of the same name is replaced and
+  the target's other samples stay. A library over 64 MiB fails the teleport. A teleport back carries none.
+  See [Text-to-Speech](text-to-speech.md).
 - `secrets` names Secrets in the workspace's `namespace`. The pod daemon gets every key of each as a
   variable through a `secretKeyRef`, so its workers and the `${VAR}`s of its
   [`mcp.yaml`](mcp-integration.md) see them. The values stay in the cluster and never pass
@@ -348,7 +353,8 @@ workspaces:
 A teleport sends a session to another workspace between turns: the source daemon interrupts an open run, stops the worker so
 storage is flushed, exports the conversation unless both daemons share a storage backend, bundles the
 project's `HEAD` with a patch of the uncommitted and untracked changes (minus what `sandbox.yaml`
-denies) and the files the request lists, and streams that checkpoint to the target. The target restores
+denies), the files the request lists and the voice samples a workspace with `forward_voice_samples` asks
+for, and streams that checkpoint to the target. The target restores
 it, imports the conversation through a worker in the new workspace dir, claims the session's lease and
 answers `resume_conversation` with a snapshot the source checks against the checkpoint before it
 reports `ready`. From then on the session lives on the target: clients that resume through the source
@@ -449,7 +455,8 @@ workspaces:
   labelled `inference-gateway.com/compute`, and the last session to go takes them along.
 - A machine holds `address`, `token` and `tls`, the connection of a `kind: daemon` workspace.
 - A workspace on compute keeps what describes the computer itself, such as `image`, `storage`, `idle_ttl`,
-  `env`, `forward_env`, `secrets`, `mcp_servers`, `user_data`, `volumes`, `resources` and `protocol`. Its kind
+  `env`, `forward_env`, `forward_voice_samples`, `secrets`, `mcp_servers`, `user_data`, `volumes`, `resources`
+  and `protocol`. Its kind
   follows from its compute. Setting `kind`, or a
   key its compute sets, fails at startup, and so does naming compute that `compute.yaml` does not define.
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,

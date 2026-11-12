@@ -165,10 +165,10 @@ func (s *Service) receiveImport(conn agentinfra.PeerConn, f importFrame) {
 	reply(workspaceDir, err)
 }
 
-// install restores the checkpoint into a fresh workspace dir, imports its
-// conversation through a worker there, opens its credentials, claims the
-// lease and tells the registry the session is hosted here. A failure undoes
-// what it did.
+// install restores the checkpoint into a fresh workspace dir and its voice
+// samples into this machine's library, imports its conversation through a
+// worker there, opens its credentials, claims the lease and tells the registry
+// the session is hosted here. A failure undoes the workspace dir.
 func (s *Service) install(ctx context.Context, teleportID string, checkpoint agentdomain.Checkpoint) (string, error) {
 	session := checkpoint.Session
 	workspaceDir := s.workspaceDirFor(session)
@@ -181,6 +181,10 @@ func (s *Service) install(ctx context.Context, teleportID string, checkpoint age
 	if err := agentinfra.UnpackRepository(ctx, checkpoint.Repository, workspaceDir, denied); err != nil {
 		_ = os.RemoveAll(workspaceDir)
 		return "", describe(err, "restoring the repository")
+	}
+	if err := agentinfra.UnpackVoiceSamples(checkpoint.VoiceSamples, s.cfg.VoiceSamplesDir); err != nil {
+		_ = os.RemoveAll(workspaceDir)
+		return "", describe(err, "restoring the voice samples")
 	}
 	if len(checkpoint.Conversation) > 0 {
 		if err := s.importConversation(ctx, workspaceDir, session.ConversationID, checkpoint); err != nil {

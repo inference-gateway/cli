@@ -163,6 +163,9 @@ type WorkspaceEntry struct {
 	// ForwardEnv names the environment variables sealed into a handoff for
 	// the target's workers, never written to the workspace's own objects.
 	ForwardEnv []string `yaml:"forward_env,omitempty" mapstructure:"forward_env"`
+	// ForwardVoiceSamples carries this machine's voice samples library with
+	// every teleport to the workspace, so its sessions can clone the voices.
+	ForwardVoiceSamples bool `yaml:"forward_voice_samples,omitempty" mapstructure:"forward_voice_samples"`
 
 	// Mode is where a Kubernetes workspace runs the gateway.
 	Mode WorkspaceMode `yaml:"mode,omitempty" mapstructure:"mode"`

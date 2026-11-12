@@ -94,7 +94,17 @@ func peers(t *testing.T) (a, b *daemonProc, projectsRoot string) {
 // carry the teleport and its relay over the A2A JSON-RPC peer endpoint.
 func peersOver(t *testing.T, protocol string) (a, b *daemonProc, projectsRoot string) {
 	t.Helper()
-	homeA, homeB := t.TempDir(), t.TempDir()
+	entry := ""
+	if protocol != "" {
+		entry = "    protocol: " + protocol + "\n"
+	}
+	return peersIn(t, t.TempDir(), t.TempDir(), entry)
+}
+
+// peersIn is peers with a home of the caller's choosing for each daemon, and
+// entry as further lines of A's workspace entry for B.
+func peersIn(t *testing.T, homeA, homeB, entry string) (a, b *daemonProc, projectsRoot string) {
+	t.Helper()
 	certFile, keyFile, caFile, clientTLS := peerCA(t, homeB)
 	projectsRoot = filepath.Join(homeB, "projects")
 	b = startDaemonWithTLS(t, homeB, clientTLS,
@@ -104,10 +114,6 @@ func peersOver(t *testing.T, protocol string) (a, b *daemonProc, projectsRoot st
 		"INFER_DAEMON_BINDING_TLS_CERT_FILE="+certFile,
 		"INFER_DAEMON_BINDING_TLS_KEY_FILE="+keyFile,
 	)
-	protocolYAML := ""
-	if protocol != "" {
-		protocolYAML = "    protocol: " + protocol + "\n"
-	}
 	daemonYAML := fmt.Sprintf(`workspace: a
 workspaces:
   - name: b
@@ -117,7 +123,7 @@ workspaces:
     lease_ttl: 1h
     tls:
       ca_file: %s
-`, protocolYAML, b.port, daemonToken, caFile)
+`, entry, b.port, daemonToken, caFile)
 	require.NoError(t, os.MkdirAll(filepath.Join(homeA, ".infer"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(homeA, ".infer", "daemon.yaml"), []byte(daemonYAML), 0644))
 	a = startDaemon(t, homeA)
@@ -200,6 +206,46 @@ func teleportRoundTrip(t *testing.T, protocol string) {
 	direct.say("say hello")
 	events = direct.run()
 	require.Equal(t, "RUN_FINISHED", events[len(events)-1]["type"], "daemon B must keep serving after daemon A is gone: %v", events)
+}
+
+// TestTeleportCarriesTheVoiceSamplesToAWorkspaceThatAsksForThem teleports a
+// session from a home with a voice samples library: the samples land in the
+// target's own library only when its workspace entry forwards them.
+func TestTeleportCarriesTheVoiceSamplesToAWorkspaceThatAsksForThem(t *testing.T) {
+	library := filepath.Join(".infer", "voice", "samples")
+	tests := []struct {
+		name    string
+		entry   string
+		arrives bool
+	}{
+		{"forwarded", "    forward_voice_samples: true\n", true},
+		{"not forwarded", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			homeA, homeB := t.TempDir(), t.TempDir()
+			require.NoError(t, os.MkdirAll(filepath.Join(homeA, library), 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(homeA, library, "mine.wav"), []byte("my voice"), 0644))
+			require.NoError(t, os.WriteFile(filepath.Join(homeA, library, "notes.txt"), []byte("not a sample"), 0644))
+			a, b, _ := peersIn(t, homeA, homeB, tt.entry)
+			project := gitProject(t)
+			desktop := dialDaemon(t, a, "desktop")
+			threadID := openThread(desktop, project, "auto")
+
+			stages := teleport(desktop, project, threadID, "b", uuid.NewString())
+			require.Equal(t, []string{"provisioning", "checkpointing", "restoring", "ready"}, stages, "daemon A output:\n%s\ndaemon B output:\n%s", a.output, b.output)
+
+			arrived := filepath.Join(homeB, library, "mine.wav")
+			if !tt.arrives {
+				require.NoFileExists(t, arrived, "the samples must stay at home unless the workspace asks for them")
+				return
+			}
+			sample, err := os.ReadFile(arrived)
+			require.NoError(t, err, "the sample must land in the target's library")
+			require.Equal(t, "my voice", string(sample))
+			require.NoFileExists(t, filepath.Join(homeB, library, "notes.txt"), "only WAV files travel")
+		})
+	}
 }
 
 func TestTeleportFailuresLeaveTheSessionAtHome(t *testing.T) {

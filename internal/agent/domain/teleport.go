@@ -33,8 +33,9 @@ type Repository struct {
 
 // Checkpoint is everything a session needs to continue elsewhere: its
 // conversation unless both workspaces share a store, the interrupts its last
-// run was suspended on, the repository, and the credentials sealed to the
-// target. SchemaVersion and Digest let the target validate before it claims.
+// run was suspended on, the repository, the credentials sealed to the target,
+// and the voice samples library when the target asks for it. SchemaVersion and
+// Digest let the target validate before it claims.
 type Checkpoint struct {
 	SchemaVersion int             `json:"schema_version"`
 	Session       Session         `json:"session"`
@@ -44,6 +45,7 @@ type Checkpoint struct {
 	Interrupts    json.RawMessage `json:"interrupts,omitempty"`
 	Repository    Repository      `json:"repository"`
 	SealedEnv     []byte          `json:"sealed_env,omitempty"`
+	VoiceSamples  []byte          `json:"voice_samples,omitempty"`
 }
 
 // TeleportRequest is what a client asks for: teleport the session to the named

@@ -29,7 +29,8 @@ on another workspace.
 - `teleport/` is the daemon's launch seam and its teleport saga. The sessions registry launches every thread through
   `Service.LaunchWorker`, which answers at once with a worker that connects in the background to a process here or to
   the owning workspace's daemon, by the lease. `teleport_session` quiesces the thread, packs the checkpoint (conversation
-  unless storage is shared, open interrupts, a git bundle plus patch, allowlisted files, credentials sealed with HPKE to
+  unless storage is shared, open interrupts, a git bundle plus patch, allowlisted files, the voice samples library for a
+  workspace that forwards it, credentials sealed with HPKE to
   the target's certificate), streams it to the peer, verifies the restored snapshot and hands the lease over. The
   receiving side restores into `projects_root`, imports the conversation through a worker there and claims the lease.
   `infrastructure/` also holds the daemon CA, the TLS provider for the `files` and `ca` modes, and the peer
