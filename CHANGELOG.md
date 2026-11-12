@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.257.0](https://github.com/inference-gateway/cli/compare/v0.256.0...v0.257.0) (2026-11-12)
+
+### 🚀 Features
+
+* **daemon:** make the largest artifact a client reads configurable, 1 GiB by default ([#1815](https://github.com/inference-gateway/cli/issues/1815)) ([471b3b6](https://github.com/inference-gateway/cli/commit/471b3b618f80a308faed58c0efb7cebb02ba55e4)), references [inference-gateway/desktop#545](https://github.com/inference-gateway/desktop/issues/545)
+
 ## [0.256.0](https://github.com/inference-gateway/cli/compare/v0.255.0...v0.256.0) (2026-11-11)
 
 ### 🚀 Features
