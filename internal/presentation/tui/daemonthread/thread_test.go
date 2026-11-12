@@ -86,6 +86,17 @@ func TestThreadReconnectsAndFollowsAgain(t *testing.T) {
 	again := startDaemon(t, d.port)
 	eventually(t, "the reconnect", func() bool { return !thread.Placement().Offline })
 	eventually(t, "the follow on the new daemon", func() bool { return len(again.frames("resume_conversation")) == 1 })
+	eventually(t, "the reconnect to tell the UI twice, the marker between the two placements", func() bool {
+		var online int
+		for _, change := range notified[tui.SessionPlacementChangedEvent](notifier) {
+			if change.Placement.Offline {
+				online = 0
+				continue
+			}
+			online++
+		}
+		return online >= 2
+	})
 
 	var markers []string
 	for thread.Pending() {
