@@ -68,11 +68,10 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 }
 
 // resolveSamplePath confines an optional voice sample to a readable file in
-// the working directory, falling back to the desktop voice samples library
-// (~/.infer/models/tts/samples), and returns an empty path for the stock voice.
+// the working directory, falling back to the voice samples library
+// (~/.infer/voice/samples), and returns an empty path for the stock voice.
 func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
-	dir, _ := voiceSamplesDir()
-	return resolveMediaInputPath(t.config, dir, raw, "voice_sample", "WAV file")
+	return resolveMediaInputPath(t.config, config.VoiceSamplesDir(), raw, "voice_sample", "WAV file")
 }
 
 // resolveMediaInputPath is the shared input-file rule for the media tools
@@ -116,16 +115,6 @@ func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (st
 		return path, nil
 	}
 	return "", fmt.Errorf("%s %q not found as a readable %s (tried: %s)", label, raw, kind, strings.Join(tried, ", "))
-}
-
-// voiceSamplesDir returns the desktop-managed voice samples library
-// (~/.infer/models/tts/samples) holding uploaded WAV voice references.
-func voiceSamplesDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, config.ConfigDirName, "models", "tts", "samples"), nil
 }
 
 // resolveOutputPath confines a supplied file name to the configured output
