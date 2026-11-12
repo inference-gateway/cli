@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.260.0](https://github.com/inference-gateway/cli/compare/v0.259.0...v0.260.0) (2026-11-12)
+
+### 🚀 Features
+
+* **conversation:** let a daemon client rewind a session to a prompt ([#1824](https://github.com/inference-gateway/cli/issues/1824)) ([26de9c1](https://github.com/inference-gateway/cli/commit/26de9c15027c36c6f56a88ac7c3a3fc58cbc3c89))
+
+### 🐛 Bug Fixes
+
+* **workspaces:** blame the operator version only for a shape it does not know ([#1822](https://github.com/inference-gateway/cli/issues/1822)) ([fd97816](https://github.com/inference-gateway/cli/commit/fd9781615d2bb1b825a324cc8bec1b45123e30a0))
+
+### ✅ Tests
+
+* **tui:** wait for the reconnect to land before reading the daemonthread markers ([#1823](https://github.com/inference-gateway/cli/issues/1823)) ([bda0b3e](https://github.com/inference-gateway/cli/commit/bda0b3e8364ee71312e19fb399aaf204e14c0d3f))
+
 ## [0.259.0](https://github.com/inference-gateway/cli/compare/v0.258.0...v0.259.0) (2026-11-12)
 
 ### 🚀 Features
