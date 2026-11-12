@@ -87,7 +87,7 @@ func (t *TextToVideoTool) resolveAvatar(raw string) (paths []string, library boo
 		return nil, false, nil
 	}
 	if slices.Contains(avatars.ImageExtensions, strings.ToLower(filepath.Ext(name))) {
-		path, err := resolveMediaInputPath(t.config, raw, "avatar", "image file")
+		path, err := resolveMediaInputPath(t.config, "", raw, "avatar", "image file")
 		if err != nil {
 			return nil, false, err
 		}
@@ -117,7 +117,7 @@ func (t *TextToVideoTool) resolveAudioPath(raw string) (string, error) {
 		return "", fmt.Errorf("audio %q must be a .wav or .mp3 file", raw)
 	}
 	dir, _ := t.config.TextToSpeech.ResolveOutputDir()
-	return resolveMediaInputPath(t.config, raw, "audio", ".wav or .mp3 file", dir)
+	return resolveMediaInputPath(t.config, dir, raw, "audio", ".wav or .mp3 file")
 }
 
 // resolveOutputPath confines a supplied file name to the configured output
