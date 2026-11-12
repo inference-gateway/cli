@@ -124,6 +124,7 @@ type ConversationRepository interface {
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
 	DeleteMessagesAfterIndex(index int) error
+	RewindToPrompt(prompt PromptRef) error
 
 	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens, cachedTokens, cacheWriteTokens int) error
 	AddCachedTokens(tokens int)

@@ -58,6 +58,10 @@ type headlessControl struct {
 	// stdin reader reads it while the serve loop sets it.
 	directCancel atomic.Pointer[context.CancelFunc]
 
+	// turnMu is held by the serve loop for each turn and by the stdin reader
+	// for each rewind, so neither writes the conversation under the other.
+	turnMu sync.Mutex
+
 	// wake signals the serve loop that a run input landed on the queue.
 	wake    chan struct{}
 	browser *stdioBrowser
@@ -69,7 +73,7 @@ type headlessControl struct {
 	drained chan struct{}
 	// deferred holds the messages after the serve loop's current turn, off the
 	// queue so a running agent turn does not drain a direct task as text. Only
-	// the serve loop touches it.
+	// the serve loop writes it, under turnMu.
 	deferred []convdomain.QueuedMessage
 }
 
@@ -173,6 +177,19 @@ func (c *headlessControl) dispatchLine(line []byte) {
 			c.browser.deliver(msg.ID, bytes.Clone(line))
 		}
 	}
+}
+
+// holdTurns keeps the serve loop from starting a turn until release runs. It
+// reports false, holding nothing, while a turn is running or queued.
+func (c *headlessControl) holdTurns() (release func(), idle bool) {
+	if !c.turnMu.TryLock() {
+		return nil, false
+	}
+	if c.hasTurn() {
+		c.turnMu.Unlock()
+		return nil, false
+	}
+	return c.turnMu.Unlock, true
 }
 
 // interruptible derives the context of a direct command an interrupt stops,

@@ -119,6 +119,47 @@ func TestNextTurnRunsEveryDirectTaskAlone(t *testing.T) {
 	}
 }
 
+func TestHoldTurnsRefusesWhileATurnRunsOrWaits(t *testing.T) {
+	tests := []struct {
+		name     string
+		running  bool
+		queued   bool
+		deferred int
+		idle     bool
+	}{
+		{name: "between turns", idle: true},
+		{name: "a turn is running", running: true},
+		{name: "a run input is queued", queued: true},
+		{name: "a prompt is deferred behind a command", deferred: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctl, _, queue := newTestControl()
+			queue.IsEmptyReturns(!tt.queued)
+			ctl.deferred = make([]convdomain.QueuedMessage, tt.deferred)
+			if tt.running {
+				ctl.turnMu.Lock()
+			}
+
+			release, idle := ctl.holdTurns()
+
+			if idle != tt.idle {
+				t.Fatalf("idle = %v, want %v", idle, tt.idle)
+			}
+			if !idle {
+				return
+			}
+			if ctl.turnMu.TryLock() {
+				t.Fatal("a turn could start while the rewind held turns")
+			}
+			release()
+			if !ctl.turnMu.TryLock() {
+				t.Fatal("release left the turns held")
+			}
+		})
+	}
+}
+
 func TestAwaitTurnWakesForANoteThatLandedOutsideARunInput(t *testing.T) {
 	ctl, _, queue := newTestControl()
 	queue.IsEmptyReturns(true)

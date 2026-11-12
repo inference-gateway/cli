@@ -728,6 +728,29 @@ func TestRegistryPanelRequestsPreferTheSessionsOwnThread(t *testing.T) {
 	}
 }
 
+func TestRegistryRewindsOnlyTheSessionItNames(t *testing.T) {
+	l := &launcher{}
+	r := NewRegistry(l.launch, time.Hour)
+	follower, requester := &sessionsmocks.FakeClient{}, &sessionsmocks.FakeClient{}
+	handle(r, follower, `{"type":"resume_conversation","project_dir":"/proj","id":"c-1"}`)
+
+	handle(r, requester, `{"type":"rewind_conversation","project_dir":"/proj","id":"c-2","content":"hi"}`)
+	receives(t, requester, `{"message":"session c-2 is not open in /proj","type":"RUN_ERROR"}`)
+	if l.count() != 1 {
+		t.Fatalf("a rewind of a session that is not open must not reach another one, launched %d", l.count())
+	}
+
+	_, lines := l.worker(0)
+	owner := &sessionsmocks.FakeClient{}
+	handle(r, owner, `{"type":"rewind_conversation","project_dir":"/proj","id":"c-1","content":"hi"}`)
+	rewound := `{"type":"conversation_rewound","id":"c-1","messages":[]}`
+	lines <- []byte(rewound)
+	receives(t, owner, rewound)
+	if follower.DeliverCallCount() != 0 {
+		t.Fatalf("the answer must reach the requester only, the follower got %q", delivered(follower))
+	}
+}
+
 func TestRegistryReadFrameRunsOnlyOnTheSessionItNames(t *testing.T) {
 	l := &launcher{}
 	r := NewRegistry(l.launch, time.Hour)

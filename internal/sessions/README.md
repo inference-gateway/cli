@@ -42,6 +42,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   only. A `tool_result` and a `completion_result` reach the request with the same `id`, so concurrent ones never cross.
   A request no worker takes, refused at rest or failing to send, waits for no reply, so the next reply still reaches its own
   requester.
+- **Rewinding a conversation** - `rewind_conversation` runs only on the thread its `project_dir` and `id` name,
+  because a conversation belongs to one session. A session that is not open is refused with `RUN_ERROR` and no
+  other worker of the project takes the frame. The `conversation_rewound` reply goes back to the requester only.
 - **Panel approvals** - a `tool_request`'s CUSTOM `approval_request` reaches its requester. The first
   `approval_response` for a `tool_call_id` goes to the worker, and any other client of the thread that saw it
   gets CUSTOM `approval_resolved`.

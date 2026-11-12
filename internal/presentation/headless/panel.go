@@ -80,6 +80,7 @@ type panelFrame struct {
 	Content    string `json:"content"`
 	TaskID     string `json:"task_id"`
 	Have       string `json:"have"`
+	Occurrence int    `json:"occurrence"`
 }
 
 type modeFrame struct {
@@ -217,6 +218,7 @@ type Panel struct {
 	tools         *toolRequests
 	completions   *completions
 	teleports     *teleports
+	rewinds       *rewinds
 	artifacts     *artifacts
 	frames        *frames
 	screen        *screenUnit
@@ -238,6 +240,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.tools = newToolRequests(p.write, p.out, deps)
 	p.completions = &completions{write: p.write, completer: deps.Completer, models: deps.Models}
 	p.teleports = &teleports{write: p.write, store: deps.Storage}
+	p.rewinds = &rewinds{write: p.write, repo: deps.Conversations}
 	p.artifacts = &artifacts{write: p.write, dir: deps.ArtifactsDir, maxBytes: deps.MaxArtifact}
 	p.frames = &frames{write: p.write, sources: deps.Frames}
 	p.screen = newScreenUnit(p.write, deps)
@@ -294,6 +297,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.teleports.export(msg.ID)
 	case inboundImportConversation:
 		p.teleports.importFrom(line)
+	case inboundRewindConversation:
+		p.rewinds.rewind(msg.ID, convdomain.PromptRef{Text: msg.Content, Occurrence: msg.Occurrence})
 	case inboundListArtifacts:
 		p.artifacts.list(msg.ID)
 	case inboundReadArtifact:

@@ -37,6 +37,7 @@ const (
 	frameScreenInput        = "screen_input"
 	frameScreenControl      = "screen_control"
 	frameScreenResult       = "screen_result"
+	frameRewindConversation = "rewind_conversation"
 
 	outboundBrowserCommand = "browser_command"
 )
@@ -51,29 +52,39 @@ var forwarded = map[string]bool{
 	"user_question_response": true,
 }
 
+// runsOnlyOnItsSession are the panel requests that act on one session's screen
+// or conversation, which no other thread of the project can answer.
+var runsOnlyOnItsSession = map[string]bool{
+	frameReadFrame:          true,
+	frameScreenInput:        true,
+	frameScreenControl:      true,
+	frameRewindConversation: true,
+}
+
 // replyTypes maps each panel request to the reply frames its worker answers
 // with, which go back to the requester instead of the whole thread.
 var replyTypes = map[string][]string{
-	"list_conversations":   {"conversations"},
-	"list_history":         {"history"},
-	"list_skills":          {"skills"},
-	"list_shortcuts":       {"shortcuts"},
-	"list_issues":          {"issues"},
-	"list_files":           {"files"},
-	"list_models":          {"models"},
-	"select_model":         {"models", "mode"},
-	"set_mode":             {"mode"},
-	"export_conversation":  {"conversation_export"},
-	"import_conversation":  {"conversation_imported"},
-	"list_artifacts":       {"artifacts"},
-	"read_artifact":        {"artifact"},
-	"list_tasks":           {"tasks"},
-	"cancel_task":          {"task_cancelled"},
-	frameReadFrame:         {"frame"},
-	frameScreenInput:       {frameScreenResult},
-	frameScreenControl:     {frameScreenResult},
-	frameToolRequest:       {frameToolResult},
-	frameCompletionRequest: {frameCompletionResult},
+	"list_conversations":    {"conversations"},
+	"list_history":          {"history"},
+	"list_skills":           {"skills"},
+	"list_shortcuts":        {"shortcuts"},
+	"list_issues":           {"issues"},
+	"list_files":            {"files"},
+	"list_models":           {"models"},
+	"select_model":          {"models", "mode"},
+	"set_mode":              {"mode"},
+	"export_conversation":   {"conversation_export"},
+	"import_conversation":   {"conversation_imported"},
+	frameRewindConversation: {"conversation_rewound"},
+	"list_artifacts":        {"artifacts"},
+	"read_artifact":         {"artifact"},
+	"list_tasks":            {"tasks"},
+	"cancel_task":           {"task_cancelled"},
+	frameReadFrame:          {"frame"},
+	frameScreenInput:        {frameScreenResult},
+	frameScreenControl:      {frameScreenResult},
+	frameToolRequest:        {frameToolResult},
+	frameCompletionRequest:  {frameCompletionResult},
 }
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
@@ -434,8 +445,8 @@ func (r *Registry) resolveAgent(dir string, opts sessionsdomain.ThreadOptions) (
 // pickLocked picks the thread a panel request runs on: the client's own when
 // it is in the requested project dir, else the live thread of the session the
 // request names, else any live one there, else a fresh thread in that dir that
-// nobody follows. A screen belongs to one session, so read_frame,
-// screen_input and screen_control run on the thread they name or fail.
+// nobody follows. A request in runsOnlyOnItsSession runs on the thread it
+// names or fails.
 func (r *Registry) pickLocked(c sessionsdomain.Client, f clientFrame) (*thread, error) {
 	own := r.subs[c]
 	if f.ProjectDir == "" {
@@ -449,7 +460,7 @@ func (r *Registry) pickLocked(c sessionsdomain.Client, f clientFrame) (*thread, 
 		return nil, err
 	}
 	named := r.threads[sessionsdomain.ThreadKey{ProjectDir: dir, ConversationID: f.ID}]
-	if f.Type == frameReadFrame || f.Type == frameScreenInput || f.Type == frameScreenControl {
+	if runsOnlyOnItsSession[f.Type] {
 		if named == nil {
 			return nil, fmt.Errorf("session %s is not open in %s", f.ID, dir)
 		}
