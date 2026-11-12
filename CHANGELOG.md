@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.258.0](https://github.com/inference-gateway/cli/compare/v0.257.0...v0.258.0) (2026-11-12)
+
+### 🚀 Features
+
+* **tools:** add infer tools list to print the enabled tools ([#1816](https://github.com/inference-gateway/cli/issues/1816)) ([9eaa8de](https://github.com/inference-gateway/cli/commit/9eaa8de706631d1012daa5b9c53dfa5227825ffe))
+
 ## [0.257.0](https://github.com/inference-gateway/cli/compare/v0.256.0...v0.257.0) (2026-11-12)
 
 ### 🚀 Features
