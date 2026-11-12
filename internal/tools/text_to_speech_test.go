@@ -356,13 +356,11 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 }
 
 // TestTextToSpeechTool_SamplePathLookupOrder pins where a bare voice sample
-// name is looked up: the working directory, then the voice samples library,
-// then the library's place before it moved.
+// name is looked up: the working directory, then the voice samples library.
 func TestTextToSpeechTool_SamplePathLookupOrder(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	library := filepath.Join(home, config.ConfigDirName, "voice", "samples")
-	legacy := filepath.Join(home, config.ConfigDirName, "models", "tts", "samples")
 	workDir := t.TempDir()
 	t.Chdir(workDir)
 
@@ -370,21 +368,18 @@ func TestTextToSpeechTool_SamplePathLookupOrder(t *testing.T) {
 		require.NoError(t, os.MkdirAll(dir, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("wav"), 0o644))
 	}
-	plant(workDir, "everywhere.wav")
-	plant(library, "everywhere.wav")
-	plant(legacy, "everywhere.wav")
-	plant(library, "moved.wav")
-	plant(legacy, "moved.wav")
-	plant(legacy, "old.wav")
+	plant(workDir, "both.wav")
+	plant(library, "both.wav")
+	plant(library, "mine.wav")
+	plant(filepath.Join(home, config.ConfigDirName, "models", "tts", "samples"), "old.wav")
 	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
 
 	tests := []struct {
 		name string
 		want string
 	}{
-		{"everywhere.wav", filepath.Join(workDir, "everywhere.wav")},
-		{"moved.wav", filepath.Join(library, "moved.wav")},
-		{"old.wav", filepath.Join(legacy, "old.wav")},
+		{"both.wav", filepath.Join(workDir, "both.wav")},
+		{"mine.wav", filepath.Join(library, "mine.wav")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -394,11 +389,12 @@ func TestTextToSpeechTool_SamplePathLookupOrder(t *testing.T) {
 		})
 	}
 
-	t.Run("resolves nowhere: the error names every place", func(t *testing.T) {
-		_, err := tool.resolveSamplePath("missing.wav")
-		require.Error(t, err)
-		for _, dir := range []string{workDir, library, legacy} {
-			assert.Contains(t, err.Error(), filepath.Join(dir, "missing.wav"))
-		}
-	})
+	for _, missing := range []string{"missing.wav", "old.wav"} {
+		t.Run(missing+" resolves nowhere: the error names both places", func(t *testing.T) {
+			_, err := tool.resolveSamplePath(missing)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), filepath.Join(workDir, missing))
+			assert.Contains(t, err.Error(), filepath.Join(library, missing))
+		})
+	}
 }
