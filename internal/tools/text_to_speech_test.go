@@ -71,18 +71,18 @@ func TestTextToSpeechTool_IsEnabled(t *testing.T) {
 		name     string
 		enabled  bool
 		engine   string
+		synth    voiceSynthesizer
 		expected bool
 	}{
-		{"enabled with default engine", true, "", true},
-		{"enabled with qwen3-tts engine", true, "qwen3-tts", true},
-		{"enabled with gateway engine", true, "gateway", true},
-		{"unsupported engine", true, "piper", false},
-		{"disabled in config", false, "qwen3-tts", false},
+		{"enabled", true, "", &fakeVoiceSynthesizer{}, true},
+		{"enabled with a removed engine still speaks through the gateway", true, "qwen3-tts", &fakeVoiceSynthesizer{}, true},
+		{"enabled without a synthesizer", true, "", nil, false},
+		{"disabled in config", false, "", &fakeVoiceSynthesizer{}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tool := newTestTTSTool(t, tt.enabled, &fakeVoiceSynthesizer{})
+			tool := newTestTTSTool(t, tt.enabled, tt.synth)
 			tool.config.TextToSpeech.Engine = tt.engine
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -333,10 +333,9 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 		assert.True(t, found, "TextToSpeech definition should be in the tools payload")
 	})
 
-	t.Run("gateway engine uses the injected speech service", func(t *testing.T) {
+	t.Run("uses the injected speech service", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = true
-		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
 		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
 		synth := &fakeVoiceSynthesizer{}
 		registry := NewRegistry(cfg, nil, synth, nil, nil, nil, nil, nil, nil, nil)
@@ -346,10 +345,9 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 		assert.Same(t, synth, tool.(*TextToSpeechTool).synth)
 	})
 
-	t.Run("gateway engine without a speech service: not registered", func(t *testing.T) {
+	t.Run("without a speech service: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.TextToSpeech.Enabled = true
-		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
 		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
 		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 

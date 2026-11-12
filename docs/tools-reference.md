@@ -137,7 +137,7 @@ exactly the same modes.
 | **ImageEdit** | Edit an existing image and save the result | No | `tools.image_edit.enabled` |
 | **ImageVariation** | Produce a variation of an existing image | No | `tools.image_variation.enabled` |
 | **ImageDecode** | Look at a local image or URL, annotated for text-only models | No | always available |
-| **TextToSpeech** | Synthesize speech to a WAV (local llama-tts or gateway Audio API), optionally cloning a voice | No | `text_to_speech.enabled` |
+| **TextToSpeech** | Synthesize speech to a WAV through the gateway's Audio API, optionally cloning a voice | No | `text_to_speech.enabled` |
 | **TextToMusic** | Generate music through the gateway | No | `text_to_music.enabled` |
 | **TextToSFX** | Generate a sound effect through the gateway | No | `text_to_sfx.enabled` |
 | **TextToVideo** | Generate a video, optionally from an avatar | No | `text_to_video.enabled` |
@@ -761,13 +761,12 @@ tools:
 ### TextToSpeech Tool
 
 Synthesize speech from text and save it as a WAV file. The chat model calls the
-tool when the user asks to say something aloud or to clone a voice. Two engines are available:
-`gateway` (default) sends the request through the gateway's Audio API (`/v1/audio/speech`) - the
-built-in `local/qwen3-tts` model works with the auto-started local gateway, and provider-hosted
-models work too; `qwen3-tts` shells out to llama.cpp's `llama-tts` binary running Qwen3-TTS GGUF
-models, fully local. Disabled by default: while
+tool when the user asks to say something aloud or to clone a voice. The request goes through the
+gateway's Audio API (`/v1/audio/speech`). The default model, `local/qwen3-tts`, is the gateway's
+built-in engine and works with the auto-started local gateway, and provider-hosted models work
+too. Disabled by default: while
 `text_to_speech.enabled` is false the tool definition is not sent to the LLM at all. See
-[text-to-speech](text-to-speech.md) for setup, engine choice and voice cloning.
+[text-to-speech](text-to-speech.md) for setup and voice cloning.
 
 **Parameters:**
 
@@ -781,9 +780,7 @@ models, fully local. Disabled by default: while
 ```yaml
 text_to_speech:
   enabled: true
-  engine: gateway # gateway (default) | qwen3-tts (local)
-  # gateway engine only ("" = local/qwen3-tts):
-  # model: openai/gpt-4o-mini-tts
+  model: local/qwen3-tts # provider/model, e.g. openai/gpt-4o-mini-tts
   # voice: alloy
   require_approval: true # optional; unset = no approval, like the image tools
 ```

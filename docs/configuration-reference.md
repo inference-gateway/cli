@@ -1097,9 +1097,8 @@ entry lists its keys and points at the guide that owns the behaviour.
 - **`speech_to_text`**: `enabled`, `engine`, `binary_path`, `model`, `models_dir`, `language`,
   `auto_download`, `timeout`, `max_recording_seconds`, `silence_timeout`, `ffmpeg_path`,
   `input_device`, `retain_recordings`, `recordings_dir`. See [Speech-to-Text](speech-to-text.md).
-- **`text_to_speech`**: `enabled`, `engine`, `binary_path`, `model`, `voice`, `models_dir`,
-  `output_dir`, `auto_download`, `timeout`, `ffmpeg_path`, `require_approval`. See
-  [Text-to-Speech](text-to-speech.md).
+- **`text_to_speech`**: `enabled`, `model`, `voice`, `output_dir`, `auto_download`,
+  `require_approval`. `engine` is deprecated and ignored. See [Text-to-Speech](text-to-speech.md).
 - **`text_to_music`**, **`text_to_sfx`**: `enabled`, `model`, `output_dir`, `require_approval`. See
   [Text-to-Music](text-to-music.md).
 - **`text_to_video`**: `enabled`, `model`, `avatar_model`, `size`, `output_dir`, `timeout`,

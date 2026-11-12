@@ -83,7 +83,7 @@ func startSleep(t *testing.T) *exec.Cmd {
 }
 
 // TestNeedsAudioRestart verifies an already-running gateway is only restarted
-// when gateway speech or music is configured and the Audio API answers 404.
+// when speech or music is configured and the Audio API answers 404.
 func TestNeedsAudioRestart(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -94,10 +94,10 @@ func TestNeedsAudioRestart(t *testing.T) {
 		want        bool
 	}{
 		{"tts disabled", false, "gateway", false, http.StatusNotFound, false},
-		{"local engine", true, "qwen3-tts", false, http.StatusNotFound, false},
+		{"removed engine still needs the gateway", true, "qwen3-tts", false, http.StatusNotFound, true},
 		{"audio missing", true, "gateway", false, http.StatusNotFound, true},
 		{"default engine, audio missing", true, "", false, http.StatusNotFound, true},
-		{"music only, audio missing", false, "qwen3-tts", true, http.StatusNotFound, true},
+		{"music only, audio missing", false, "", true, http.StatusNotFound, true},
 		{"audio enabled (bad request)", true, "gateway", false, http.StatusBadRequest, false},
 		{"audio warming up (503)", true, "gateway", false, http.StatusServiceUnavailable, false},
 	}

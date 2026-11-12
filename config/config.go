@@ -122,17 +122,12 @@ type SpeechToTextConfig struct {
 	RecordingsDir       string `yaml:"recordings_dir" mapstructure:"recordings_dir"`               // "" -> MediaDir("voice")
 }
 
-// TextToSpeechEngineQwen3 runs Qwen3-TTS GGUF models locally through a
-// llama.cpp llama-tts binary; the CLI auto-downloads the binary and models.
-const TextToSpeechEngineQwen3 = "qwen3-tts"
-
-// TextToSpeechEngineGateway is the default text-to-speech engine: it
-// synthesizes through the gateway's Audio API (POST /v1/audio/speech), and the
-// gateway auto-downloads whatever its engine needs.
+// TextToSpeechEngineGateway is the one way speech is synthesized: through the
+// gateway's Audio API (POST /v1/audio/speech).
 const TextToSpeechEngineGateway = "gateway"
 
-// TextToSpeechGatewayDefaultModel is the model used by the gateway engine
-// when text_to_speech.model is unset: the gateway's built-in local engine.
+// TextToSpeechGatewayDefaultModel is the speech model when
+// text_to_speech.model is unset: the gateway's built-in local engine.
 const TextToSpeechGatewayDefaultModel = "local/qwen3-tts"
 
 // TextToMusicGatewayDefaultModel is the model used by the gateway's Music
@@ -265,45 +260,41 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API
-// (AUDIO_ENABLED=true): gateway-engine speech synthesis, music composition
-// or sound-effect generation.
+// (AUDIO_ENABLED=true): speech synthesis, music composition or sound-effect
+// generation.
 func (c *Config) NeedsGatewayAudio() bool {
-	return (c.TextToSpeech.Enabled && c.TextToSpeech.IsGatewayEngine()) || c.TextToMusic.Enabled || c.TextToSFX.Enabled
+	return c.TextToSpeech.Enabled || c.TextToMusic.Enabled || c.TextToSFX.Enabled
 }
 
-// TextToSpeechConfig contains opt-in settings for speech synthesis. Engine
-// selects the backend: gateway (default) or qwen3-tts (local llama-tts).
-// BinaryPath, ModelsDir and FFmpegPath apply to qwen3-tts only and are
-// ignored under gateway. AutoDownload governs whichever side downloads: the
-// CLI under qwen3-tts, the gateway (via AUDIO_LOCAL_AUTO_DOWNLOAD) under
-// gateway. Model is engine-specific: a "provider/model" id for gateway
-// (default local/qwen3-tts), a Qwen3 preset (""/base, q8, bf16 or explicit
-// GGUF filenames) for qwen3-tts. Voice applies to the gateway engine only.
+// TextToSpeechConfig contains opt-in settings for speech synthesis, which
+// always goes through the gateway. Model is a "provider/model" id and
+// AutoDownload lets the gateway fetch what its local engine needs. Engine is
+// deprecated: it once chose a synthesizer the CLI ran itself.
 type TextToSpeechConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
-	Engine          string `yaml:"engine" mapstructure:"engine"`
-	BinaryPath      string `yaml:"binary_path" mapstructure:"binary_path"`
+	Engine          string `yaml:"engine,omitempty" mapstructure:"engine"`
 	Model           string `yaml:"model" mapstructure:"model"`
 	Voice           string `yaml:"voice" mapstructure:"voice"`
-	ModelsDir       string `yaml:"models_dir" mapstructure:"models_dir"`
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	AutoDownload    bool   `yaml:"auto_download" mapstructure:"auto_download"`
-	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
-	FFmpegPath      string `yaml:"ffmpeg_path" mapstructure:"ffmpeg_path"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// IsGatewayEngine reports whether synthesis routes through the gateway's
-// Audio API instead of the local llama-tts binary. An empty engine means
-// gateway, the default.
-func (c TextToSpeechConfig) IsGatewayEngine() bool {
+// NamesRemovedEngine reports whether the config still asks for a synthesizer
+// the CLI ran itself, such as qwen3-tts. Its model was a preset of that
+// engine, not a gateway model.
+func (c TextToSpeechConfig) NamesRemovedEngine() bool {
 	engine := strings.TrimSpace(c.Engine)
-	return engine == TextToSpeechEngineGateway || engine == ""
+	return engine != "" && engine != TextToSpeechEngineGateway
 }
 
-// ResolveGatewayModel returns the "provider/model" id used by the gateway
-// engine, defaulting to the gateway's built-in local/qwen3-tts.
+// ResolveGatewayModel returns the "provider/model" id speech is synthesized
+// with, defaulting to the gateway's built-in local/qwen3-tts. A config that
+// names a removed engine gets the default, because its model is a preset.
 func (c TextToSpeechConfig) ResolveGatewayModel() string {
+	if c.NamesRemovedEngine() {
+		return TextToSpeechGatewayDefaultModel
+	}
 	return cmp.Or(strings.TrimSpace(c.Model), TextToSpeechGatewayDefaultModel)
 }
 
@@ -1223,15 +1214,10 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		TextToSpeech: TextToSpeechConfig{
 			Enabled:      false,
-			Engine:       TextToSpeechEngineGateway,
-			BinaryPath:   "",
-			Model:        "",
+			Model:        TextToSpeechGatewayDefaultModel,
 			Voice:        "",
-			ModelsDir:    "",
 			OutputDir:    "",
 			AutoDownload: true,
-			Timeout:      300,
-			FFmpegPath:   "",
 		},
 		Vision: VisionConfig{
 			Annotator: VisionAnnotatorConfig{
@@ -1545,23 +1531,11 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	}
 
 	if c.TextToSpeech.Enabled {
-		switch engine := strings.TrimSpace(c.TextToSpeech.Engine); engine {
-		case TextToSpeechEngineQwen3:
-		case "", TextToSpeechEngineGateway:
-			model := c.TextToSpeech.ResolveGatewayModel()
-			if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
-				return fmt.Errorf(
-					"invalid text_to_speech.model %q for the %q engine: must be of the form 'provider/model', e.g. 'openai/gpt-4o-mini-tts'",
-					model,
-					TextToSpeechEngineGateway,
-				)
-			}
-		default:
+		model := c.TextToSpeech.ResolveGatewayModel()
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
 			return fmt.Errorf(
-				"invalid text_to_speech.engine %q: supported engines are %q and %q",
-				engine,
-				TextToSpeechEngineQwen3,
-				TextToSpeechEngineGateway,
+				"invalid text_to_speech.model %q: must be of the form 'provider/model', e.g. 'local/qwen3-tts' or 'openai/gpt-4o-mini-tts'",
+				model,
 			)
 		}
 	}
