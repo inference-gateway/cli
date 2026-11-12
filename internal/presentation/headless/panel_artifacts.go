@@ -39,8 +39,9 @@ type artifactFrame struct {
 // artifacts answers the artifact frames from the session's artifacts dir in
 // this worker's project.
 type artifacts struct {
-	write frameWriter
-	dir   func(sessionID string) string
+	write    frameWriter
+	dir      func(sessionID string) string
+	maxBytes int64
 }
 
 func (a *artifacts) list(id string) {
@@ -52,8 +53,9 @@ func (a *artifacts) list(id string) {
 	a.write(artifactsFrame{Type: outboundArtifacts, ID: id, Artifacts: listed})
 }
 
-// read answers with the artifact's bytes. ponytail: one base64 frame capped at
-// the binding's frame limit, chunk like teleport_chunk when recordings outgrow it.
+// read answers with the artifact's bytes. ponytail: one base64 frame of up to
+// daemon.max_artifact_mb, held in memory whole - chunk like teleport_chunk when
+// artifacts outgrow it.
 func (a *artifacts) read(id, name string) {
 	data, err := a.load(id, name)
 	if err != nil {
@@ -75,8 +77,8 @@ func (a *artifacts) load(id, name string) ([]byte, error) {
 	if info.IsDir() {
 		return nil, projects.ErrArtifactName
 	}
-	if info.Size() > projects.MaxArtifactFrameBytes {
-		return nil, fmt.Errorf("%s is %s, over the %s a frame carries", name, formatting.FormatBytes(info.Size()), formatting.FormatBytes(projects.MaxArtifactFrameBytes))
+	if info.Size() > a.maxBytes {
+		return nil, fmt.Errorf("%s is %s, over the %s a frame carries - raise daemon.max_artifact_mb to read it", name, formatting.FormatBytes(info.Size()), formatting.FormatBytes(a.maxBytes))
 	}
 	return os.ReadFile(path)
 }

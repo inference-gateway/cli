@@ -421,8 +421,9 @@ CLI → client:
 - Only the files directly under the session's artifacts dir are listed or read.
   `name` is one file name, so a path, `..` or an empty name is refused and a
   session that saved nothing yet lists as empty.
-- `data` carries the whole file in one frame, capped at 64 MiB, the binding's
-  frame limit. A larger file answers `error` naming its size.
+- `data` carries the whole file base64 encoded in one frame, capped at the
+  owning daemon's `max_artifact_mb` (default 1024 MB), so a client must accept
+  frames a third larger. A larger file answers `error` naming its size.
 - `error` replaces the payload when the dir cannot be read or the file is
   missing.
 

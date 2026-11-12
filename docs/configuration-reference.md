@@ -1151,7 +1151,8 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   (`provider`, `gpu_type`, `cloud_type`, `model`, `image`, `disk_gb`, `max_hourly`) for `infer compute gpus`.
   See [Compute](daemon.md#compute).
 - **`daemon.yaml`** - `workspace` (this daemon's name in session leases, default the hostname), `projects_root`,
-  `idle_exit`, `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
+  `idle_exit`, `max_artifact_mb` (the largest session artifact a client reads, default `1024`),
+  `binding.enabled`, `binding.host` (loopback unless TLS is on), `binding.port` (falling back to
   `browser_use.extension.port`), `binding.token` (falling back to `browser_use.extension.token`, optional
   with client certificates), `binding.tls` (`mode` off|files|ca, `cert_file`, `key_file`, `ca_file`,
   `client_auth`) and `workspaces`, a list of `name` entries that name their `compute` from `compute.yaml` or

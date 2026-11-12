@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-// MaxArtifactFrameBytes caps the artifact a single panel frame carries, the
-// binding's inbound frame limit.
-const MaxArtifactFrameBytes = 64 << 20
-
 // ErrArtifactName refuses a name that is not one file directly under the
 // session's artifacts dir.
 var ErrArtifactName = errors.New("an artifact name is one file name under the session's artifacts dir")

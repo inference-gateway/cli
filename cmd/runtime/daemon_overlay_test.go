@@ -125,6 +125,18 @@ func TestLoadConfigFromViper_DaemonAwayExitDefaultsAndEnv(t *testing.T) {
 	require.Equal(t, 5*time.Minute, Cfg.Daemon.AwayExit)
 }
 
+// TestLoadConfigFromViper_DaemonMaxArtifactDefaultsAndEnv pins the 1 GiB
+// artifact cap without a daemon.yaml and the INFER_DAEMON_MAX_ARTIFACT_MB override.
+func TestLoadConfigFromViper_DaemonMaxArtifactDefaultsAndEnv(t *testing.T) {
+	withHermeticEnv(t)
+	initConfig()
+	require.Equal(t, int64(1<<30), Cfg.Daemon.MaxArtifactBytes())
+
+	t.Setenv("INFER_DAEMON_MAX_ARTIFACT_MB", "2048")
+	initConfig()
+	require.Equal(t, int64(2<<30), Cfg.Daemon.MaxArtifactBytes())
+}
+
 // TestLoadConfigFromViper_ChatAGUILoopbackFromEnv pins the default and the name
 // that turns it off, which the e2e suite sets to run the direct path.
 func TestLoadConfigFromViper_ChatAGUILoopbackFromEnv(t *testing.T) {

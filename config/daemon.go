@@ -19,6 +19,7 @@ const (
 
 	defaultKubernetesIdleTTL = 2 * time.Hour
 	defaultAwayExit          = time.Minute
+	defaultMaxArtifactMB     = 1024
 	defaultDaemonLeaseTTL    = 24 * time.Hour
 	remoteLeaseGrace         = 5 * time.Minute
 )
@@ -78,9 +79,12 @@ type DaemonConfig struct {
 	// AwayExit stops the daemon sooner, after this long with no threads and no
 	// clients once every session that teleported here left again. It only
 	// shortens IdleExit, and zero leaves IdleExit alone.
-	AwayExit   time.Duration    `yaml:"away_exit,omitempty" mapstructure:"away_exit"`
-	Binding    BindingConfig    `yaml:"binding" mapstructure:"binding"`
-	Workspaces []WorkspaceEntry `yaml:"workspaces" mapstructure:"workspaces"`
+	AwayExit time.Duration `yaml:"away_exit,omitempty" mapstructure:"away_exit"`
+	// MaxArtifactMB caps a session artifact a client reads from this daemon's
+	// threads, sent whole in one frame. Zero or less takes the 1024 MB default.
+	MaxArtifactMB int              `yaml:"max_artifact_mb,omitempty" mapstructure:"max_artifact_mb"`
+	Binding       BindingConfig    `yaml:"binding" mapstructure:"binding"`
+	Workspaces    []WorkspaceEntry `yaml:"workspaces" mapstructure:"workspaces"`
 }
 
 // BindingConfig configures the AG-UI WebSocket binding the daemon hosts for
@@ -321,6 +325,14 @@ func (d DaemonConfig) Identity() string {
 		return host
 	}
 	return string(WorkspaceKindLocal)
+}
+
+// MaxArtifactBytes is MaxArtifactMB in bytes, the default when it is unset.
+func (d DaemonConfig) MaxArtifactBytes() int64 {
+	if d.MaxArtifactMB <= 0 {
+		return defaultMaxArtifactMB << 20
+	}
+	return int64(d.MaxArtifactMB) << 20
 }
 
 // ProjectsDir is where a receiving daemon restores teleported projects.
@@ -600,7 +612,8 @@ func (c *Config) ExtensionLoopback() (Binding, error) {
 // teleported session left.
 func DefaultDaemonConfig() *DaemonConfig {
 	return &DaemonConfig{
-		AwayExit: defaultAwayExit,
+		AwayExit:      defaultAwayExit,
+		MaxArtifactMB: defaultMaxArtifactMB,
 		Binding: BindingConfig{
 			TLS: BindingTLSConfig{Mode: TLSModeOff},
 		},
