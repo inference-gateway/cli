@@ -284,12 +284,24 @@ func TestCreateNamesTheOperatorVersionVolumesNeed(t *testing.T) {
 	e, dynamic := testWorkspace(t, true)
 	e.entry.Volumes = []config.WorkspaceVolume{{Name: "footage", Claim: "raw-footage", MountPath: "/mnt/footage"}}
 	dynamic.PrependReactor("create", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
-		invalid := k8sfield.Invalid(k8sfield.NewPath("spec", "sandbox", "volumes"), "array", "unknown field")
-		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
+		return true, nil, k8serrors.NewBadRequest(`strict decoding error: unknown field "spec.sandbox.volumes"`)
 	})
 	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
 	if err == nil || !strings.Contains(err.Error(), "may predate "+volumesOperatorVersion+", upgrade it") {
 		t.Fatalf("create on an older operator = %v", err)
+	}
+}
+
+func TestCreateDoesNotBlameTheOperatorForAValueItsSchemaRejects(t *testing.T) {
+	e, dynamic := testWorkspace(t, true)
+	e.entry.Volumes = []config.WorkspaceVolume{{Name: "Footage", Claim: "raw-footage", MountPath: "/mnt/footage"}}
+	dynamic.PrependReactor("create", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		invalid := k8sfield.Invalid(k8sfield.NewPath("spec", "sandbox", "volumes").Index(0).Child("name"), "Footage", "should match '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'")
+		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
+	})
+	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
+	if err == nil || strings.Contains(err.Error(), "predate") || !strings.Contains(err.Error(), "should match") {
+		t.Fatalf("create with an uppercase volume name = %v", err)
 	}
 }
 
@@ -638,7 +650,7 @@ func TestCreateNamesTheOperatorVersionMCPServersNeed(t *testing.T) {
 	e, dynamic := testWorkspace(t, true)
 	e.entry.MCPServers = []string{"mailbox"}
 	dynamic.PrependReactor("create", orchestratorResource, func(k8stesting.Action) (bool, k8sruntime.Object, error) {
-		invalid := k8sfield.Invalid(k8sfield.NewPath("spec", "mcp", "servers").Index(0), "object", "must be of type string")
+		invalid := k8sfield.TypeInvalid(k8sfield.NewPath("spec", "mcp", "servers").Index(0), "object", "must be of type string")
 		return true, nil, k8serrors.NewInvalid(orchestratorGVR.GroupVersion().WithKind(orchestratorKind).GroupKind(), "infer-1", k8sfield.ErrorList{invalid})
 	})
 	_, err := e.create(t.Context(), "infer-1", agentdomain.Session{ConversationID: "conv-1"})
