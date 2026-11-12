@@ -15,7 +15,7 @@ const (
 	outboundConversationRewound = "conversation_rewound"
 )
 
-var errRewindDuringTurn = errors.New("the session is running a turn, stop it before rewinding")
+var errRewindWhileBusy = errors.New("the session is running a turn or has one queued")
 
 // conversationRewoundFrame answers rewind_conversation with the messages the
 // conversation keeps, or with why it was left as it was.
@@ -26,26 +26,37 @@ type conversationRewoundFrame struct {
 	Error    string         `json:"error,omitempty"`
 }
 
-// rewinds answers rewind_conversation from the worker's conversation. busy
-// reports a turn that is running or about to, which writes to the entries a
-// rewind would drop.
+// rewinds answers rewind_conversation from the worker's conversation.
+// holdTurns keeps the next turn from starting until release runs and reports
+// false while one is running or queued, since a turn writes to the entries a
+// rewind drops.
 type rewinds struct {
-	write frameWriter
-	repo  convdomain.ConversationRepository
-	busy  func() bool
+	write     frameWriter
+	repo      convdomain.ConversationRepository
+	holdTurns func() (release func(), idle bool)
 }
 
 func (r *rewinds) rewind(id string, prompt convdomain.PromptRef) {
-	if err := r.rewindTo(prompt); err != nil {
+	messages, err := r.rewindTo(prompt)
+	if err != nil {
 		r.write(conversationRewoundFrame{Type: outboundConversationRewound, ID: id, Error: err.Error()})
 		return
 	}
-	r.write(conversationRewoundFrame{Type: outboundConversationRewound, ID: id, Messages: snapshotMessages(r.repo.GetMessages())})
+	r.write(conversationRewoundFrame{Type: outboundConversationRewound, ID: id, Messages: messages})
 }
 
-func (r *rewinds) rewindTo(prompt convdomain.PromptRef) error {
-	if r.busy != nil && r.busy() {
-		return errRewindDuringTurn
+// rewindTo drops the prompt and everything after it between two turns, and
+// returns the messages left before the next turn can add to them.
+func (r *rewinds) rewindTo(prompt convdomain.PromptRef) ([]agui.Message, error) {
+	if r.holdTurns != nil {
+		release, idle := r.holdTurns()
+		if !idle {
+			return nil, errRewindWhileBusy
+		}
+		defer release()
 	}
-	return r.repo.RewindToPrompt(prompt)
+	if err := r.repo.RewindToPrompt(prompt); err != nil {
+		return nil, err
+	}
+	return snapshotMessages(r.repo.GetMessages()), nil
 }

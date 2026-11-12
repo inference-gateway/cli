@@ -1034,6 +1034,8 @@ client takes messages out of it:
   no other session of the project takes it.
 - A worker that is running a turn, or has one queued, leaves the conversation as it was and answers with
   `error` set. So does one whose conversation has no such prompt.
+- A rewind does not close the interrupts the last run left open. They stay open until the next run starts,
+  so a client that starts following the thread before then still gets the suspended `RUN_FINISHED`.
 - The deletion is permanent, as it is in the TUI.
 
 ## Extension-side checklist

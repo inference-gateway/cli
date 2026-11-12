@@ -32,16 +32,14 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 	ctl.panel = svc.NewPanel(os.Stdout)
 	ctl.panel.screen.wake = ctl.wakeTurns
 	ctl.panel.screen.resolve = ctl.rejectComputerApprovals
-	ctl.panel.rewinds.busy = ctl.busy
+	ctl.panel.rewinds.holdTurns = ctl.holdTurns
 	svc.SetUINotifier(drainWaker{UINotifier: notifications, drained: ctl.drained})
 	svc.RouteBrowserRequests(ctl.browser.Request)
 	go ctl.readLines(os.Stdin)
 
 	svc.GetTelemetryRecorder().SetConversationID(turn.RequestID)
 	for ctl.awaitTurn() {
-		ctl.turning.Store(true)
 		runServeTurn(ctx, svc, ctl, notifications, turn, notes)
-		ctl.turning.Store(false)
 	}
 }
 
@@ -50,6 +48,8 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 // as RUN_STARTED then RUN_ERROR, so every turn keeps the one-run contract. A
 // plan the user accepted during the turn runs next, in a fresh session.
 func runServeTurn(ctx context.Context, svc Services, ctl *headlessControl, notifications uiBridge, req agentdomain.AgentRequest, notes *startupNotes) {
+	ctl.turnMu.Lock()
+	defer ctl.turnMu.Unlock()
 	for {
 		planID, execute, runErr := serveTurn(ctx, svc, ctl, notifications, req, notes)
 		reportSubagentTurn(os.Stdout, svc.GetConversationRepository(), svc.GetMessageQueue(), req.RequestID, runErr)

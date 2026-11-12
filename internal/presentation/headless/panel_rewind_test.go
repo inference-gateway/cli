@@ -55,13 +55,13 @@ func TestPanelRewindSaysWhyItLeftTheConversation(t *testing.T) {
 		busy    bool
 		reason  error
 	}{
-		{name: "a turn is running", content: "second", busy: true, reason: errRewindDuringTurn},
+		{name: "a turn is running or queued", content: "second", busy: true, reason: errRewindWhileBusy},
 		{name: "the conversation has no such prompt", content: "never sent", reason: convdomain.ErrPromptNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p, sink, repo := rewindPanel(t)
-			p.rewinds.busy = func() bool { return tt.busy }
+			p.rewinds.holdTurns = func() (func(), bool) { return func() {}, !tt.busy }
 
 			handle(t, p, map[string]any{"type": "rewind_conversation", "id": "conv-1", "content": tt.content})
 			frame := readFrame(t, sink, "conversation_rewound")
