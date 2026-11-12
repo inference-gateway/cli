@@ -60,6 +60,13 @@ When you select a message to restore:
 
 **Important**: Deletion is permanent and cannot be undone. Make sure you select the correct restore point.
 
+## Rewinding From a Daemon Client
+
+A chat that runs on the daemon keeps its conversation on the session's worker, so the message history selector is
+off there. A client of the daemon, such as the desktop app, rewinds with the `rewind_conversation` frame
+instead: it names a prompt, and the worker drops that prompt and everything after it before the client sends
+it again. See [Conversation rewind](browser-extension-protocol.md#conversation-rewind).
+
 ## Supported Modes
 
 The conversation versioning feature works in all agent modes:

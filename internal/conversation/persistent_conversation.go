@@ -370,25 +370,7 @@ func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) e
 	if err := r.InMemoryConversationRepository.DeleteMessagesAfterIndex(index); err != nil {
 		return err
 	}
-
-	r.metadataMutex.RLock()
-	shouldAutoSave := r.autoSave && r.conversationID != ""
-	r.metadataMutex.RUnlock()
-
-	if shouldAutoSave {
-		r.autoSaveMutex.Lock()
-		defer r.autoSaveMutex.Unlock()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		if err := r.SaveConversation(ctx); err != nil {
-			logger.Warn("failed to auto-save conversation after deleting messages", "error", err)
-			return err
-		}
-	}
-
-	return nil
+	return r.autoSaveShortened()
 }
 
 // AddTokenUsage wraps the in-memory implementation with persistence and auto-save

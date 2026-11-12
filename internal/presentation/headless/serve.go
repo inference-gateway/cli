@@ -32,13 +32,16 @@ func serve(ctx context.Context, svc Services, notifications uiBridge, turn agent
 	ctl.panel = svc.NewPanel(os.Stdout)
 	ctl.panel.screen.wake = ctl.wakeTurns
 	ctl.panel.screen.resolve = ctl.rejectComputerApprovals
+	ctl.panel.rewinds.busy = ctl.busy
 	svc.SetUINotifier(drainWaker{UINotifier: notifications, drained: ctl.drained})
 	svc.RouteBrowserRequests(ctl.browser.Request)
 	go ctl.readLines(os.Stdin)
 
 	svc.GetTelemetryRecorder().SetConversationID(turn.RequestID)
 	for ctl.awaitTurn() {
+		ctl.turning.Store(true)
 		runServeTurn(ctx, svc, ctl, notifications, turn, notes)
+		ctl.turning.Store(false)
 	}
 }
 

@@ -173,10 +173,19 @@ type FakeConversationRepository struct {
 	RemovePendingToolCallByIDStub        func(string)
 	removePendingToolCallByIDMutex       sync.RWMutex
 	removePendingToolCallByIDArgsForCall []FakeConversationRepositoryRemovePendingToolCallByIDArgs
-	StartNewConversationStub             func(string) error
-	startNewConversationMutex            sync.RWMutex
-	startNewConversationArgsForCall      []FakeConversationRepositoryStartNewConversationArgs
-	startNewConversationReturns          struct {
+	RewindToPromptStub                   func(domain.PromptRef) error
+	rewindToPromptMutex                  sync.RWMutex
+	rewindToPromptArgsForCall            []FakeConversationRepositoryRewindToPromptArgs
+	rewindToPromptReturns                struct {
+		result1 error
+	}
+	rewindToPromptReturnsOnCall map[int]struct {
+		result1 error
+	}
+	StartNewConversationStub        func(string) error
+	startNewConversationMutex       sync.RWMutex
+	startNewConversationArgsForCall []FakeConversationRepositoryStartNewConversationArgs
+	startNewConversationReturns     struct {
 		result1 error
 	}
 	startNewConversationReturnsOnCall map[int]struct {
@@ -267,6 +276,11 @@ type FakeConversationRepositoryLoadConversationArgs struct {
 // FakeConversationRepositoryRemovePendingToolCallByIDArgs holds the arguments of one call to RemovePendingToolCallByID.
 type FakeConversationRepositoryRemovePendingToolCallByIDArgs struct {
 	Arg1 string
+}
+
+// FakeConversationRepositoryRewindToPromptArgs holds the arguments of one call to RewindToPrompt.
+type FakeConversationRepositoryRewindToPromptArgs struct {
+	Arg1 domain.PromptRef
 }
 
 // FakeConversationRepositoryStartNewConversationArgs holds the arguments of one call to StartNewConversation.
@@ -1365,6 +1379,73 @@ func (fake *FakeConversationRepository) RemovePendingToolCallByIDArgs() []FakeCo
 	args := make([]FakeConversationRepositoryRemovePendingToolCallByIDArgs, len(fake.removePendingToolCallByIDArgsForCall))
 	copy(args, fake.removePendingToolCallByIDArgsForCall)
 	return args
+}
+
+func (fake *FakeConversationRepository) RewindToPrompt(arg1 domain.PromptRef) error {
+	fake.rewindToPromptMutex.Lock()
+	ret, specificReturn := fake.rewindToPromptReturnsOnCall[len(fake.rewindToPromptArgsForCall)]
+	fake.rewindToPromptArgsForCall = append(fake.rewindToPromptArgsForCall, FakeConversationRepositoryRewindToPromptArgs{arg1})
+	stub := fake.RewindToPromptStub
+	fakeReturns := fake.rewindToPromptReturns
+	fake.recordInvocation("RewindToPrompt", []interface{}{arg1})
+	fake.rewindToPromptMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) RewindToPromptCallCount() int {
+	fake.rewindToPromptMutex.RLock()
+	defer fake.rewindToPromptMutex.RUnlock()
+	return len(fake.rewindToPromptArgsForCall)
+}
+
+func (fake *FakeConversationRepository) RewindToPromptCalls(stub func(domain.PromptRef) error) {
+	fake.rewindToPromptMutex.Lock()
+	defer fake.rewindToPromptMutex.Unlock()
+	fake.RewindToPromptStub = stub
+}
+
+func (fake *FakeConversationRepository) RewindToPromptArgsForCall(i int) domain.PromptRef {
+	fake.rewindToPromptMutex.RLock()
+	defer fake.rewindToPromptMutex.RUnlock()
+	argsForCall := fake.rewindToPromptArgsForCall[i]
+	return argsForCall.Arg1
+}
+
+func (fake *FakeConversationRepository) RewindToPromptArgs() []FakeConversationRepositoryRewindToPromptArgs {
+	fake.rewindToPromptMutex.RLock()
+	defer fake.rewindToPromptMutex.RUnlock()
+	args := make([]FakeConversationRepositoryRewindToPromptArgs, len(fake.rewindToPromptArgsForCall))
+	copy(args, fake.rewindToPromptArgsForCall)
+	return args
+}
+
+func (fake *FakeConversationRepository) RewindToPromptReturns(result1 error) {
+	fake.rewindToPromptMutex.Lock()
+	defer fake.rewindToPromptMutex.Unlock()
+	fake.RewindToPromptStub = nil
+	fake.rewindToPromptReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) RewindToPromptReturnsOnCall(i int, result1 error) {
+	fake.rewindToPromptMutex.Lock()
+	defer fake.rewindToPromptMutex.Unlock()
+	fake.RewindToPromptStub = nil
+	if fake.rewindToPromptReturnsOnCall == nil {
+		fake.rewindToPromptReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.rewindToPromptReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeConversationRepository) StartNewConversation(arg1 string) error {

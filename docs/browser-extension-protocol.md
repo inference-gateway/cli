@@ -1013,6 +1013,29 @@ worker runs in the project dir whose storage layout the conversation lives in:
   agree a restored conversation matches.
 - A worker without conversation storage answers with `error` set.
 
+### Conversation rewind
+
+A client that resends a prompt first asks the session's worker to drop that prompt and everything after it,
+the way the chat TUI's message history does. The worker owns the conversation, so this is the only way a
+client takes messages out of it:
+
+```json
+{"type": "rewind_conversation", "project_dir": "/abs/path/to/project", "id": "<conversation id>", "content": "<the prompt's text>", "occurrence": 1}
+{"type": "conversation_rewound", "id": "<conversation id>", "messages": [...]}
+{"type": "conversation_rewound", "id": "<conversation id>", "messages": null, "error": "the conversation has no such prompt"}
+```
+
+- The prompt is named by its text as a `MESSAGES_SNAPSHOT` renders it, because the ids of a snapshot's
+  messages do not outlive the snapshot. `occurrence` picks among the times the user sent that text, counted
+  from the newest: `1`, or none, is the last time and `2` the time before.
+- `messages` is the conversation that is left, in the shape of a `MESSAGES_SNAPSHOT`. The client sends the
+  prompt again as an ordinary `run_agent_input`.
+- The frame runs only on the session it names. A session that is not open answers with a `RUN_ERROR`, and
+  no other session of the project takes it.
+- A worker that is running a turn, or has one queued, leaves the conversation as it was and answers with
+  `error` set. So does one whose conversation has no such prompt.
+- The deletion is permanent, as it is in the TUI.
+
 ## Extension-side checklist
 
 - WS client in the background service worker; port + token from the options

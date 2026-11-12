@@ -58,6 +58,10 @@ type headlessControl struct {
 	// stdin reader reads it while the serve loop sets it.
 	directCancel atomic.Pointer[context.CancelFunc]
 
+	// turning is set while the serve loop runs a turn. The stdin reader reads
+	// it to refuse a rewind of the conversation the turn is writing to.
+	turning atomic.Bool
+
 	// wake signals the serve loop that a run input landed on the queue.
 	wake    chan struct{}
 	browser *stdioBrowser
@@ -173,6 +177,11 @@ func (c *headlessControl) dispatchLine(line []byte) {
 			c.browser.deliver(msg.ID, bytes.Clone(line))
 		}
 	}
+}
+
+// busy reports a turn that is running or queued to run next.
+func (c *headlessControl) busy() bool {
+	return c.turning.Load() || !c.messageQueue.IsEmpty()
 }
 
 // interruptible derives the context of a direct command an interrupt stops,
