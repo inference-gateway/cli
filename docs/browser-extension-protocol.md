@@ -881,8 +881,9 @@ checkpoint and streams it to the target's daemon, the target restores it and cla
 and the source tells the thread's clients where the session lives now. The checkpoint carries the
 conversation unless both daemons share one storage backend, the interrupts the last run was suspended
 on, a git bundle of `HEAD` with the credential-free `origin` URL and a patch of the uncommitted and
-untracked changes (minus what `sandbox.yaml` denies), the listed extra files, and the workspace's
-`forward_env` values sealed to the target's certificate. A teleport happens between turns: an open run
+untracked changes (minus what `sandbox.yaml` denies), the listed extra files, the voice samples library
+when the workspace sets `forward_voice_samples`, and the workspace's `forward_env` values sealed to the
+target's certificate. A teleport happens between turns: an open run
 is interrupted first.
 
 Client → CLI:

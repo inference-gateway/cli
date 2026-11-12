@@ -573,16 +573,17 @@ func buildTeleports(cfg *config.Config) (*agentteleport.Service, *agentinfra.TLS
 		}
 	}
 	service := agentteleport.New(agentteleport.Config{
-		Identity:     identity,
-		ProjectsRoot: cfg.Daemon.ProjectsDir(),
-		IdleExit:     cfg.Daemon.IdleExit,
-		Version:      version.Value(),
-		StorageID:    storageIdentity(storageConfig),
-		LeaseBackend: storageConfig.Type,
-		Handshake:    browserinfra.BindingHandshake,
-		Entries:      cfg.Daemon.Workspaces,
-		StateDir:     filepath.Join(config.UserSpaceConfigDir(), "daemon"),
-		Denies:       func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
+		Identity:        identity,
+		ProjectsRoot:    cfg.Daemon.ProjectsDir(),
+		IdleExit:        cfg.Daemon.IdleExit,
+		Version:         version.Value(),
+		StorageID:       storageIdentity(storageConfig),
+		LeaseBackend:    storageConfig.Type,
+		Handshake:       browserinfra.BindingHandshake,
+		Entries:         cfg.Daemon.Workspaces,
+		StateDir:        filepath.Join(config.UserSpaceConfigDir(), "daemon"),
+		Denies:          func(projectDir, absPath string) bool { return sandbox.Denies(cfg, projectDir, absPath) },
+		VoiceSamplesDir: config.VoiceSamplesDir(),
 	}, agentteleport.Deps{
 		Leases:     stores.Leases,
 		Workspaces: workspaces,

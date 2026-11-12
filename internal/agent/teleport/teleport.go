@@ -261,7 +261,8 @@ func (s *Service) precondition(ctx context.Context, req agentdomain.TeleportRequ
 
 // checkpoint quiesces the source worker and captures the session: its
 // conversation unless the target shares this daemon's storage, its open
-// interrupts, its repository and its sealed credentials.
+// interrupts, its repository, its sealed credentials and the voice samples
+// library when the target asks for it.
 func (s *Service) checkpoint(ctx context.Context, req agentdomain.TeleportRequest, peer agentinfra.PeerInfo, conn agentinfra.PeerConn) (agentdomain.Checkpoint, error) {
 	key := sessionsdomain.ThreadKey{ProjectDir: req.Session.ProjectDir, ConversationID: req.Session.ConversationID}
 	quiesceCtx, cancel := context.WithTimeout(ctx, quiesceTimeout)
@@ -291,6 +292,12 @@ func (s *Service) checkpoint(ctx context.Context, req agentdomain.TeleportReques
 	checkpoint.SealedEnv, err = s.sealCredentials(req, conn)
 	if err != nil {
 		return agentdomain.Checkpoint{}, err
+	}
+	if s.entries[req.Target].ForwardVoiceSamples {
+		checkpoint.VoiceSamples, err = agentinfra.PackVoiceSamples(s.cfg.VoiceSamplesDir)
+		if err != nil {
+			return agentdomain.Checkpoint{}, describe(err, "packing the voice samples")
+		}
 	}
 	return checkpoint, nil
 }

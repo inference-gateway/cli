@@ -48,6 +48,9 @@ type Config struct {
 	// Denies reports whether the sandbox policy keeps a project file out of a
 	// checkpoint.
 	Denies func(projectDir, absPath string) bool
+	// VoiceSamplesDir is this machine's voice samples library: what a teleport
+	// carries to a workspace that asks for it, and where a received one lands.
+	VoiceSamplesDir string
 }
 
 // Deps are the collaborators the service orchestrates.

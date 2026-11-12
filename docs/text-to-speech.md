@@ -82,6 +82,14 @@ With `text_to_speech.enabled` set, the agent gains a `TextToSpeech` tool:
 Voice cloning quality depends entirely on the reference sample: one speaker,
 minimal background noise, no music.
 
+## Sessions on a workspace
+
+A session that teleports to a workspace runs its tools there, so a
+`voice_sample` has to exist on that machine. Set `forward_voice_samples: true`
+on the workspace entry in `daemon.yaml` and every teleport to it carries this
+machine's voice samples library along. The agent then names a sample the same
+way as at home. See [infer daemon](daemon.md#workspaces-and-teleports).
+
 ## The removed local engine
 
 Earlier versions had a second engine, `text_to_speech.engine: qwen3-tts`, where
