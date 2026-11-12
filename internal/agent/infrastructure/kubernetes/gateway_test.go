@@ -65,6 +65,30 @@ func TestOrchestratorPointsTheWorkersAtTheGateway(t *testing.T) {
 	}
 }
 
+func TestGatewayServesItsAudioAPIOnlyForWorkspacesThatNeedIt(t *testing.T) {
+	for _, audio := range []bool{false, true} {
+		t.Run(fmt.Sprintf("audio=%v", audio), func(t *testing.T) {
+			isolateAuthFile(t)
+			t.Setenv("OLLAMA_CLOUD_API_KEY", "key")
+			e, dynamic := testWorkspace(t, true)
+			e.entry.GatewayEnv = []string{"OLLAMA_CLOUD_API_KEY"}
+			e.entry.GatewayAudio = audio
+
+			_, gateway := ensureGatewayFor(t, e, dynamic, testOrchestrator("infer-1", map[string]any{}, nil))
+
+			enabled, _, _ := k8sunstructured.NestedBool(gateway.Object, "spec", "audio", "enabled")
+			memory, _, _ := k8sunstructured.NestedString(gateway.Object, "spec", "resources", "limits", "memory")
+			wantMemory := ""
+			if audio {
+				wantMemory = audioGatewayMemoryLimit
+			}
+			if enabled != audio || memory != wantMemory {
+				t.Fatalf("spec.audio.enabled = %v, spec.resources.limits.memory = %q, want %v and %q", enabled, memory, audio, wantMemory)
+			}
+		})
+	}
+}
+
 func TestEnsureGatewayKeepsCredentialsOnTheGateway(t *testing.T) {
 	authFile := isolateAuthFile(t)
 	e, dynamic := testWorkspace(t, true)

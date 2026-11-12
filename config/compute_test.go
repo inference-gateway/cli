@@ -116,6 +116,38 @@ func TestResolvedWorkspacesOwnTheirGatewayEnv(t *testing.T) {
 	}
 }
 
+func TestResolveComputeDerivesTheGatewaysAudioFromItsWorkspaces(t *testing.T) {
+	speaks := map[string]string{"INFER_TEXT_TO_SPEECH_ENABLED": "true"}
+	compute := ComputeConfig{Clusters: []ClusterEntry{{Name: "k3d", Namespace: "agents"}, {Name: "quiet", Namespace: "agents"}}}
+	tests := []struct {
+		name      string
+		workspace WorkspaceEntry
+		want      bool
+	}{
+		{"speaks itself", WorkspaceEntry{Name: "editor", Compute: "k3d", Image: "i", Env: speaks}, true},
+		{"shares a cluster's gateway with one that speaks", WorkspaceEntry{Name: "reviewer", Compute: "k3d", Image: "i"}, true},
+		{"on another cluster", WorkspaceEntry{Name: "builder", Compute: "quiet", Image: "i"}, false},
+		{"music on its own gateway", WorkspaceEntry{Name: "composer", Kind: WorkspaceKindKubernetes, Namespace: "ns", Image: "i", Env: map[string]string{"INFER_TEXT_TO_MUSIC_ENABLED": "1"}}, true},
+		{"sound effects on its own gateway", WorkspaceEntry{Name: "foley", Kind: WorkspaceKindKubernetes, Namespace: "ns", Image: "i", Env: map[string]string{"INFER_TEXT_TO_SFX_ENABLED": "true"}}, true},
+		{"switched off", WorkspaceEntry{Name: "muted", Kind: WorkspaceKindKubernetes, Namespace: "ns", Image: "i", Env: map[string]string{"INFER_TEXT_TO_SPEECH_ENABLED": "false"}}, false},
+		{"its own gateway and no audio tool", WorkspaceEntry{Name: "plain", Kind: WorkspaceKindKubernetes, Namespace: "ns", Image: "i"}, false},
+	}
+	daemon := DaemonConfig{}
+	for _, tt := range tests {
+		daemon.Workspaces = append(daemon.Workspaces, tt.workspace)
+	}
+	if err := daemon.ResolveCompute(compute); err != nil {
+		t.Fatal(err)
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := daemon.Workspaces[i].GatewayAudio; got != tt.want {
+				t.Errorf("GatewayAudio = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGPUSettingsPreferComputeYAMLOverTheLegacyBlock(t *testing.T) {
 	tests := []struct {
 		name       string
