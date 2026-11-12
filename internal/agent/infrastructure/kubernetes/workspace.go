@@ -341,7 +341,7 @@ func (e *Workspace) create(ctx context.Context, name string, session agentdomain
 		return nil, err
 	}
 	created, err := e.orchestrators().Create(ctx, orchestrator, metav1.CreateOptions{FieldValidation: metav1.FieldValidationStrict})
-	if k8serrors.IsBadRequest(err) || k8serrors.IsInvalid(err) {
+	if refusedByAnOlderOperator(err) {
 		return nil, fmt.Errorf("creating Orchestrator %s: the operator in the cluster of workspace %s may predate %s, upgrade it: %w", name, e.entry.Name, e.requiredOperatorVersion(), err)
 	}
 	if err != nil {
@@ -349,6 +349,15 @@ func (e *Workspace) create(ctx context.Context, name string, session agentdomain
 	}
 	logger.Info("created an Orchestrator for the session", "workspace", e.entry.Name, "orchestrator", name, "conversation_id", session.ConversationID)
 	return created, nil
+}
+
+// refusedByAnOlderOperator reports whether the cluster refused the shape of the
+// Orchestrator: a field, a type or an enum value its operator does not know.
+// A value the schema rejects, such as an uppercase volume name, is not that.
+func refusedByAnOlderOperator(err error) bool {
+	return k8serrors.IsBadRequest(err) ||
+		k8serrors.HasStatusCause(err, metav1.CauseTypeTypeInvalid) ||
+		k8serrors.HasStatusCause(err, metav1.CauseTypeFieldValueNotSupported)
 }
 
 // setMode runs or suspends the Orchestrator's Sandbox. The operator keeps the
