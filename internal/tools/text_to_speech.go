@@ -17,13 +17,13 @@ import (
 )
 
 // voiceSynthesizer turns text into a spoken WAV file. It is defined here
-// (consumer side) so tests can inject a fake; *audio.Synthesizer implements it.
+// (consumer side) so tests can inject a fake; the gateway speech service implements it.
 type voiceSynthesizer interface {
 	Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error
 }
 
-// TextToSpeechTool synthesizes speech with the configured local engine and
-// saves it to a WAV file, optionally cloning a supplied voice sample.
+// TextToSpeechTool synthesizes speech through the gateway and saves it to a
+// WAV file, optionally cloning a supplied voice sample.
 type TextToSpeechTool struct {
 	config *config.Config
 	synth  voiceSynthesizer
@@ -224,13 +224,9 @@ func (t *TextToSpeechTool) failure(start time.Time, args map[string]any, err err
 	}
 }
 
-// IsEnabled reports whether the feature is enabled with a supported engine.
+// IsEnabled reports whether the feature is enabled and a synthesizer is wired.
 func (t *TextToSpeechTool) IsEnabled() bool {
-	if !t.config.TextToSpeech.Enabled || t.synth == nil {
-		return false
-	}
-	engine := strings.TrimSpace(t.config.TextToSpeech.Engine)
-	return engine == "" || engine == config.TextToSpeechEngineQwen3 || engine == config.TextToSpeechEngineGateway
+	return t.config.TextToSpeech.Enabled && t.synth != nil
 }
 
 // FormatPreview formats the result for display preview

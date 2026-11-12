@@ -32,83 +32,51 @@ func TestResolveTextToSpeechOutputDir(t *testing.T) {
 	})
 }
 
-func TestValidateTextToSpeechEngine(t *testing.T) {
-	t.Run("empty engine is the default", func(t *testing.T) {
-		cfg := &config.Config{}
-		cfg.TextToSpeech.Engine = ""
-		if err := cfg.Validate(); err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("qwen3-tts is supported", func(t *testing.T) {
-		cfg := &config.Config{}
-		cfg.TextToSpeech.Engine = config.TextToSpeechEngineQwen3
-		if err := cfg.Validate(); err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("gateway is supported with a provider/model", func(t *testing.T) {
-		cfg := &config.Config{}
-		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
-		cfg.TextToSpeech.Model = "openai/gpt-4o-mini-tts"
-		if err := cfg.Validate(); err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("gateway defaults an empty model to local/qwen3-tts", func(t *testing.T) {
-		cfg := &config.Config{}
-		cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
-		if err := cfg.Validate(); err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-		if got := cfg.TextToSpeech.ResolveGatewayModel(); got != config.TextToSpeechGatewayDefaultModel {
-			t.Errorf("ResolveGatewayModel() = %q, want %q", got, config.TextToSpeechGatewayDefaultModel)
-		}
-	})
-
-	t.Run("gateway rejects a model without a provider", func(t *testing.T) {
-		for _, model := range []string{"q8", "openai/", "/tts-1"} {
+func TestValidateTextToSpeechModel(t *testing.T) {
+	tests := []struct {
+		name      string
+		enabled   bool
+		engine    string
+		model     string
+		wantModel string
+		wantErr   bool
+	}{
+		{"default model", true, "", "", config.TextToSpeechGatewayDefaultModel, false},
+		{"provider/model", true, "", "openai/gpt-4o-mini-tts", "openai/gpt-4o-mini-tts", false},
+		{"gateway engine still accepted", true, "gateway", "elevenlabs/eleven_v3", "elevenlabs/eleven_v3", false},
+		{"model without a provider", true, "", "q8", "q8", true},
+		{"provider without a model", true, "", "openai/", "openai/", true},
+		{"model without a provider name", true, "", "/tts-1", "/tts-1", true},
+		{"removed engine falls back to the default", true, "qwen3-tts", "q8", config.TextToSpeechGatewayDefaultModel, false},
+		{"unknown engine falls back to the default", true, "piper", "", config.TextToSpeechGatewayDefaultModel, false},
+		{"bad model is ignored when disabled", false, "", "q8", "q8", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			cfg.TextToSpeech.Enabled = true
-			cfg.TextToSpeech.Engine = config.TextToSpeechEngineGateway
-			cfg.TextToSpeech.Model = model
-			if err := cfg.Validate(); err == nil {
-				t.Errorf("expected error for gateway engine with model %q", model)
+			cfg.TextToSpeech.Enabled = tt.enabled
+			cfg.TextToSpeech.Engine = tt.engine
+			cfg.TextToSpeech.Model = tt.model
+			if err := cfg.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
-		}
-	})
+			if got := cfg.TextToSpeech.ResolveGatewayModel(); got != tt.wantModel {
+				t.Errorf("ResolveGatewayModel() = %q, want %q", got, tt.wantModel)
+			}
+		})
+	}
+}
 
-	t.Run("unknown engine is rejected", func(t *testing.T) {
-		cfg := &config.Config{}
-		cfg.TextToSpeech.Enabled = true
-		cfg.TextToSpeech.Engine = "piper"
-		if err := cfg.Validate(); err == nil {
-			t.Error("expected error for unknown text_to_speech.engine")
+func TestTextToSpeechNamesRemovedEngine(t *testing.T) {
+	for engine, want := range map[string]bool{"": false, "gateway": false, " gateway ": false, "qwen3-tts": true, "piper": true} {
+		if got := (config.TextToSpeechConfig{Engine: engine}).NamesRemovedEngine(); got != want {
+			t.Errorf("NamesRemovedEngine(%q) = %v, want %v", engine, got, want)
 		}
-	})
+	}
+}
 
-	t.Run("unknown engine or bad model is ignored when disabled", func(t *testing.T) {
-		for _, tt := range []struct {
-			name   string
-			engine string
-			model  string
-		}{
-			{"engine from a newer binary", config.TextToSpeechEngineGateway, ""},
-			{"unknown engine", "piper", ""},
-			{"bad gateway model", config.TextToSpeechEngineGateway, "q8"},
-		} {
-			t.Run(tt.name, func(t *testing.T) {
-				cfg := &config.Config{}
-				cfg.TextToSpeech.Enabled = false
-				cfg.TextToSpeech.Engine = tt.engine
-				cfg.TextToSpeech.Model = tt.model
-				if err := cfg.Validate(); err != nil {
-					t.Errorf("unexpected error for disabled text_to_speech: %v", err)
-				}
-			})
-		}
-	})
+func TestDefaultTextToSpeechModelIsFullyQualified(t *testing.T) {
+	if got := config.DefaultConfig().TextToSpeech.Model; got != "local/qwen3-tts" {
+		t.Errorf("default text_to_speech.model = %q, want local/qwen3-tts", got)
+	}
 }

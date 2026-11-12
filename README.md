@@ -114,7 +114,7 @@ One line per feature, each linking to its full guide:
 - **Frame sources and vision annotation** - let text-only models "see" - [Vision](docs/vision.md)
 - **Image generation, edit and variation** - written to the session artifacts dir - [Tools Reference](docs/tools-reference.md#media-tools)
 - **Speech-to-text** - dictate with Whisper, locally and offline - [Speech-to-Text](docs/speech-to-text.md)
-- **Text-to-speech** - local WAV synthesis with zero-shot voice cloning - [Text-to-Speech](docs/text-to-speech.md)
+- **Text-to-speech** - WAV synthesis through the gateway with zero-shot voice cloning - [Text-to-Speech](docs/text-to-speech.md)
 - **Text-to-music and text-to-video** - generate audio and video through the gateway - [Text-to-Music](docs/text-to-music.md) · [Text-to-Video](docs/text-to-video.md)
 
 ## Examples

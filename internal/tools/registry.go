@@ -15,7 +15,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	audio "github.com/inference-gateway/cli/internal/audio"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -242,17 +241,12 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	}
 }
 
-// registerTextToSpeech selects the synthesis backend from the configured
-// engine: the injected gateway speech service, or the local llama-tts
-// synthesizer (the default).
+// registerTextToSpeech registers the tool on the gateway speech service, the
+// one way speech is synthesized.
 func (r *Registry) registerTextToSpeech(cfg *config.Config) {
-	if cfg.TextToSpeech.IsGatewayEngine() {
-		if r.speechService != nil {
-			r.register(NewTextToSpeechTool(cfg, r.speechService))
-		}
-		return
+	if r.speechService != nil {
+		r.register(NewTextToSpeechTool(cfg, r.speechService))
 	}
-	r.register(NewTextToSpeechTool(cfg, audio.NewSynthesizer(cfg.TextToSpeech)))
 }
 
 // RegisterTools installs capability tools constructed outside this package

@@ -51,6 +51,10 @@ func (s *State) Initialize(root *cobra.Command) error {
 		ArchiveMaxSizeMB: v.GetInt("logging.archive.max_size_mb"),
 	}
 	logger.Init(s.loggerCfg)
+	if cfg.TextToSpeech.NamesRemovedEngine() {
+		logger.Warn("text_to_speech.engine is deprecated, speech always goes through the gateway",
+			"engine", cfg.TextToSpeech.Engine, "model", cfg.TextToSpeech.ResolveGatewayModel())
+	}
 	return nil
 }
 

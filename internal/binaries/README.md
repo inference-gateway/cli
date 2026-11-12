@@ -12,7 +12,8 @@ by running the release's `install.sh` and checking each binary's sha256 against 
 - `Ensure` installs a missing or stale binary on first use. It checks the release at most once per process,
   and an unreachable release keeps the existing binary.
 - `audio` and `computer` construct the store themselves and call `Ensure`. `audio` gates the download on
-  `speech_to_text.auto_download` and `text_to_speech.auto_download`.
+  `speech_to_text.auto_download`. Nothing in the CLI runs `llama-tts`: it is kept for the gateway's
+  local speech engine, which shares the directory.
 - `infer binaries install` and `infer binaries status` call `Install` and `Status` directly.
 
 ## Related
