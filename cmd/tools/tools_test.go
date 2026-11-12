@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+
 	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
@@ -33,6 +35,32 @@ func TestCanonicalToolName(t *testing.T) {
 		if got := canonicalToolName(available, in); got != want {
 			t.Errorf("canonicalToolName(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestPrintToolNames(t *testing.T) {
+	cases := []struct {
+		name      string
+		available []string
+		format    string
+		want      string
+	}{
+		{"json sorted", []string{"Read", "Agent", "Bash"}, "json", "{\n  \"tools\": [\n    \"Agent\",\n    \"Bash\",\n    \"Read\"\n  ],\n  \"total\": 3\n}\n"},
+		{"json empty", nil, "json", "{\n  \"tools\": [],\n  \"total\": 0\n}\n"},
+		{"text sorted", []string{"Read", "Agent"}, "text", "Agent\nRead\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			toolService := &agentdomainmocks.FakeToolService{}
+			toolService.ListAvailableToolsReturns(tc.available)
+			var out bytes.Buffer
+			if err := printToolNames(&out, toolService, tc.format); err != nil {
+				t.Fatalf("printToolNames: %v", err)
+			}
+			if out.String() != tc.want {
+				t.Fatalf("got %q, want %q", out.String(), tc.want)
+			}
+		})
 	}
 }
 

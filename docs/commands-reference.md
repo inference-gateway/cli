@@ -172,16 +172,18 @@ infer config set agent.model "openai/gpt-4o" --project
 
 Tool *configuration* (enable/disable, allow-lists, sandbox, backends, domains, approval) lives in
 `~/.infer/tools.yaml`. `infer config get tools.*` reads it, but `infer config set tools.*` is rejected -
-edit `tools.yaml` directly. To run a tool directly or check a command against the allowed list, use the
-top-level `infer tools` command below.
+edit `tools.yaml` directly. To list the enabled tools, run one directly or check a command against the
+allowed list, use the top-level `infer tools` command below.
 
 ### `infer tools`
 
-Run agent tools directly or check whether a bash command is allowed, using the same execution and
-validation path as the agent.
+List the agent's tools, run them directly, or check whether a bash command is allowed, using the
+same execution and validation path as the agent.
 
 **Subcommands:**
 
+- `list [--format text|json]`: List the tools the agent can call with the effective configuration,
+  sorted by name. MCP server tools are not included - `infer mcp status` counts those
 - `execute <tool> [json-args] [--format text|json]`: Execute any enabled tool directly
 - `validate <command>`: Check whether a bash command would be allowed, without running it. A
   disallowed command, or disabled tools, exits non-zero with the reason on stderr
@@ -196,6 +198,10 @@ validation path as the agent.
 **Examples:**
 
 ```bash
+# List the enabled tools, as names or as {"tools": [...], "total": n}
+infer tools list
+infer tools list --format json
+
 # Execute a tool (JSON args, exactly as the agent invokes it)
 infer tools execute Bash '{"command":"ls -la"}'
 infer tools execute Read '{"file_path":"README.md"}'

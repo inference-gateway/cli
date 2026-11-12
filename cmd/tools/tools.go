@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +33,7 @@ func NewCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "tools",
 		Short: "Run and inspect agent tools directly",
-		Long: `Run agent tools directly or check whether a bash command is allowed.
+		Long: `List the agent's tools, run them directly, or check whether a bash command is allowed.
 
 These use the exact same execution and validation path as the agent, which makes
 them useful for debugging tool behavior and configuration.`,
@@ -84,11 +85,48 @@ Examples:
 		},
 	}
 
+	listCommand := &cobra.Command{
+		Use:   "list",
+		Short: "List the tools the agent can call",
+		Long: `List the tools the agent can call with the effective configuration, sorted by name.
+
+MCP server tools register once their servers connect, so infer mcp status counts those.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			format, _ := cmd.Flags().GetString("format")
+			return ListTools(cmd.Context(), cmd.OutOrStdout(), state.Config(), format)
+		},
+	}
+
+	output.AddFormatFlag(listCommand, "text", "json")
 	output.AddFormatFlag(executeCommand, "text", "json")
 	executeCommand.Flags().Bool("approved", false, "Treat the call as user-approved: skip the approval check and the Bash allow-list")
 	executeCommand.Flags().String("session-id", "", "Record the call and its result in this conversation so later turns (e.g. infer headless --session-id) see it")
-	command.AddCommand(executeCommand, validateCommand)
+	command.AddCommand(listCommand, executeCommand, validateCommand)
 	return command
+}
+
+// ListTools prints the tools the agent can call with cfg, the registry being
+// the source of truth that clients like the desktop status bar count from.
+func ListTools(ctx context.Context, w io.Writer, cfg *config.Config, format string) error {
+	services := container.NewServiceContainer(cfg)
+	defer func() { _ = services.Shutdown(ctx) }()
+	return printToolNames(w, services.GetToolService(), format)
+}
+
+// printToolNames writes the enabled tool names sorted, as JSON or one per line.
+func printToolNames(w io.Writer, toolService agentdomain.ToolService, format string) error {
+	names := append([]string{}, toolService.ListAvailableTools()...)
+	slices.Sort(names)
+	if format == "json" {
+		return output.PrintJSON(w, map[string]any{"tools": names, "total": len(names)})
+	}
+	for _, name := range names {
+		if _, err := fmt.Fprintln(w, name); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ValidateTool validates if a command is allowed for execution. A disallowed
