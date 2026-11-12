@@ -70,7 +70,7 @@ With `text_to_speech.enabled` set, the agent gains a `TextToSpeech` tool:
   say.wav". The model calls `TextToSpeech` with just `text`.
 - **Cloned voice** - give it a reference recording of the target speaker
   (`voice_sample`, resolved against the working directory first and then the desktop voice samples
-  library at `~/.infer/models/tts/samples`), around 10-30
+  library at `~/.infer/voice/samples`), around 10-30
   seconds of clean single-speaker speech. The sample is sent as it is, so keep
   it short: the gateway refuses a request over its body size limit, 10 MiB by
   default.

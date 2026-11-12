@@ -110,7 +110,7 @@ func (t *CreateAvatarTool) Execute(ctx context.Context, args map[string]any) (*a
 	}
 
 	start := time.Now()
-	photo, err := resolveMediaInputPath(t.config, t.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx)), rawPhoto, "photo", "image file")
+	photo, err := resolveMediaInputPath(t.config, rawPhoto, "photo", "image file", t.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx)))
 	if err != nil {
 		return t.failure(start, args, err), nil
 	}

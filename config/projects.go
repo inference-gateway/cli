@@ -21,6 +21,18 @@ func UserSpaceConfigDir() string {
 	return filepath.Join(home, ConfigDirName)
 }
 
+// VoiceSamplesDir is the user's voice samples library: the WAV recordings
+// TextToSpeech clones a voice from, by bare file name.
+func VoiceSamplesDir() string {
+	return filepath.Join(UserSpaceConfigDir(), "voice", "samples")
+}
+
+// LegacyVoiceSamplesDir is where the voice samples library lived before it
+// moved out of the model cache.
+func LegacyVoiceSamplesDir() string {
+	return filepath.Join(UserSpaceConfigDir(), "models", "tts", "samples")
+}
+
 // ConfigLookupDirs returns the config directories that directory-shaped assets
 // (shortcuts/) must be read from, in apply order: the userspace baseline first,
 // then the project override when one exists, so later entries overlay earlier

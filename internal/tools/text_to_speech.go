@@ -68,19 +68,19 @@ func (t *TextToSpeechTool) Validate(args map[string]any) error {
 }
 
 // resolveSamplePath confines an optional voice sample to a readable file in
-// the working directory, falling back to the desktop voice samples library
-// (~/.infer/models/tts/samples), and returns an empty path for the stock voice.
+// the working directory, falling back to the voice samples library
+// (~/.infer/voice/samples), and returns an empty path for the stock voice.
+// shortcut: the legacy library is still read, drop it once the desktop has moved every library.
 func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
-	dir, _ := voiceSamplesDir()
-	return resolveMediaInputPath(t.config, dir, raw, "voice_sample", "WAV file")
+	return resolveMediaInputPath(t.config, raw, "voice_sample", "WAV file", config.VoiceSamplesDir(), config.LegacyVoiceSamplesDir())
 }
 
 // resolveMediaInputPath is the shared input-file rule for the media tools
 // (TextToSpeech voice samples, TextToVideo avatars and driving audio): a
 // bare file name (no directories, absolute paths or ..) looked up in the
-// working directory first, then in dir; an empty name resolves to an empty
-// path (input omitted).
-func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (string, error) {
+// working directory first, then in each of dirs in order; an empty name
+// resolves to an empty path (input omitted).
+func resolveMediaInputPath(cfg *config.Config, raw, label, kind string, dirs ...string) (string, error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {
 		return "", nil
@@ -100,8 +100,10 @@ func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (st
 	}
 
 	tried := []string{workPath}
-	if dir != "" {
-		tried = append(tried, filepath.Join(dir, base))
+	for _, dir := range dirs {
+		if dir != "" {
+			tried = append(tried, filepath.Join(dir, base))
+		}
 	}
 	for _, path := range tried {
 		info, statErr := os.Stat(path)
@@ -116,16 +118,6 @@ func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (st
 		return path, nil
 	}
 	return "", fmt.Errorf("%s %q not found as a readable %s (tried: %s)", label, raw, kind, strings.Join(tried, ", "))
-}
-
-// voiceSamplesDir returns the desktop-managed voice samples library
-// (~/.infer/models/tts/samples) holding uploaded WAV voice references.
-func voiceSamplesDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolving home directory: %w", err)
-	}
-	return filepath.Join(home, config.ConfigDirName, "models", "tts", "samples"), nil
 }
 
 // resolveOutputPath confines a supplied file name to the configured output

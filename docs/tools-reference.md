@@ -772,7 +772,7 @@ too. Disabled by default: while
 
 - `text` (required): The text to speak
 - `voice_sample` (optional): Bare file name of a WAV of the target speaker (~10-30s of clean speech) to clone; looked up
-  in the working directory, then in the voice samples library (`~/.infer/models/tts/samples`)
+  in the working directory, then in the voice samples library (`~/.infer/voice/samples`)
 - `output_path` (optional): Bare file name for the generated WAV, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
 
 **Configuration:**

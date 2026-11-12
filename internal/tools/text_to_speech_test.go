@@ -355,37 +355,50 @@ func TestTextToSpeechTool_RegistryGating(t *testing.T) {
 	})
 }
 
-// TestTextToSpeechTool_SamplePathFallback pins the voice samples library
-// fallback: a bare name missing from the working directory is looked up in
-// ~/.infer/models/tts/samples (the desktop samples library) before failing.
-func TestTextToSpeechTool_SamplePathFallback(t *testing.T) {
+// TestTextToSpeechTool_SamplePathLookupOrder pins where a bare voice sample
+// name is looked up: the working directory, then the voice samples library,
+// then the library's place before it moved.
+func TestTextToSpeechTool_SamplePathLookupOrder(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	samplesDir := filepath.Join(home, config.ConfigDirName, "models", "tts", "samples")
-	require.NoError(t, os.MkdirAll(samplesDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(samplesDir, "my-voice.wav"), []byte("wav"), 0o644))
-
+	library := filepath.Join(home, config.ConfigDirName, "voice", "samples")
+	legacy := filepath.Join(home, config.ConfigDirName, "models", "tts", "samples")
 	workDir := t.TempDir()
 	t.Chdir(workDir)
+
+	plant := func(dir, name string) {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("wav"), 0o644))
+	}
+	plant(workDir, "everywhere.wav")
+	plant(library, "everywhere.wav")
+	plant(legacy, "everywhere.wav")
+	plant(library, "moved.wav")
+	plant(legacy, "moved.wav")
+	plant(legacy, "old.wav")
 	tool := newTestTTSTool(t, true, &fakeVoiceSynthesizer{})
-	require.NoError(t, os.WriteFile("speaker.wav", []byte("wav"), 0o644))
 
-	t.Run("cwd sample takes precedence", func(t *testing.T) {
-		path, err := tool.resolveSamplePath("speaker.wav")
-		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(workDir, "speaker.wav"), path)
-	})
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"everywhere.wav", filepath.Join(workDir, "everywhere.wav")},
+		{"moved.wav", filepath.Join(library, "moved.wav")},
+		{"old.wav", filepath.Join(legacy, "old.wav")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := tool.resolveSamplePath(tt.name)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, path)
+		})
+	}
 
-	t.Run("bare name falls back to the samples library", func(t *testing.T) {
-		path, err := tool.resolveSamplePath("my-voice.wav")
-		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(samplesDir, "my-voice.wav"), path)
-	})
-
-	t.Run("resolves nowhere: error names both paths", func(t *testing.T) {
+	t.Run("resolves nowhere: the error names every place", func(t *testing.T) {
 		_, err := tool.resolveSamplePath("missing.wav")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), filepath.Join(workDir, "missing.wav"))
-		assert.Contains(t, err.Error(), filepath.Join(samplesDir, "missing.wav"))
+		for _, dir := range []string{workDir, library, legacy} {
+			assert.Contains(t, err.Error(), filepath.Join(dir, "missing.wav"))
+		}
 	})
 }
