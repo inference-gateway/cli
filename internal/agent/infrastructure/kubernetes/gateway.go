@@ -35,6 +35,11 @@ const (
 	inPodGatewayURL   = "http://127.0.0.1:8080"
 )
 
+// audioGatewayMemoryLimit is the memory a Gateway may use once its Audio API
+// is on. The gateway's local speech engine runs two syntheses at a time and
+// held 11.5 GiB doing so when measured, far above the operator's 1Gi default.
+const audioGatewayMemoryLimit = "16Gi"
+
 var gatewayGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: gatewayResource}
 
 // gatewayName is the Gateway one owner's sessions share, so two owners in a
@@ -253,6 +258,7 @@ func availableReplicas(deployment *k8sunstructured.Unstructured) int64 {
 // gatewaySpec reads every gateway_env variable from the credentials Secret,
 // grouped by provider, and serves on the operator's default port. The Secret's
 // revision rides along, so a rotated key changes the spec and rolls the pods.
+// A gateway whose workspaces use an audio tool serves its Audio API too.
 func (e *Workspace) gatewaySpec(revision string) map[string]any {
 	secret := e.gateway() + credentialsSuffix
 	byProvider := map[string][]any{}
@@ -268,7 +274,12 @@ func (e *Workspace) gatewaySpec(revision string) map[string]any {
 		providers = append(providers, map[string]any{"name": provider, "enabled": true, "env": byProvider[provider]})
 	}
 	providers = append(providers, map[string]any{"name": "credentials", "enabled": true, "env": []any{envVar(revisionEnv, revision)}})
-	return map[string]any{"providers": providers}
+	spec := map[string]any{"providers": providers}
+	if e.entry.GatewayAudio {
+		spec["audio"] = map[string]any{"enabled": true}
+		spec["resources"] = map[string]any{"limits": map[string]any{"memory": audioGatewayMemoryLimit}}
+	}
+	return spec
 }
 
 // providerOf names the provider a gateway variable configures, the part

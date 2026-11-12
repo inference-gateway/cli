@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 
 	yaml "gopkg.in/yaml.v3"
 
@@ -174,7 +175,31 @@ func (d *DaemonConfig) ResolveCompute(compute ComputeConfig) error {
 			return err
 		}
 	}
+	for i := range d.Workspaces {
+		d.Workspaces[i].GatewayAudio = d.gatewayNeedsAudio(d.Workspaces[i])
+	}
 	return nil
+}
+
+// audioToolSwitches are the variables that give a workspace's sessions a tool
+// served by the gateway's Audio API: speech, music and sound effects.
+var audioToolSwitches = []string{"INFER_TEXT_TO_SPEECH_ENABLED", "INFER_TEXT_TO_MUSIC_ENABLED", "INFER_TEXT_TO_SFX_ENABLED"}
+
+// gatewayNeedsAudio reports whether the gateway a workspace calls must serve
+// its Audio API: the workspace enables an audio tool, or one on the same
+// cluster does, since they share one gateway.
+func (d DaemonConfig) gatewayNeedsAudio(entry WorkspaceEntry) bool {
+	return slices.ContainsFunc(d.Workspaces, func(other WorkspaceEntry) bool {
+		sharesGateway := other.Name == entry.Name || (entry.Compute != "" && other.Compute == entry.Compute)
+		return sharesGateway && other.enablesAudioTool()
+	})
+}
+
+func (e WorkspaceEntry) enablesAudioTool() bool {
+	return slices.ContainsFunc(audioToolSwitches, func(name string) bool {
+		enabled, _ := strconv.ParseBool(e.Env[name])
+		return enabled
+	})
 }
 
 func (e *WorkspaceEntry) resolveCompute(compute ComputeConfig) error {

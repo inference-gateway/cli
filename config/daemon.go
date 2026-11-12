@@ -169,6 +169,10 @@ type WorkspaceEntry struct {
 	// GatewayEnv names the environment variables a teleport hands the gateway,
 	// such as provider keys: its Secret in standard, the pod in all-in-one.
 	GatewayEnv []string `yaml:"gateway_env,omitempty" mapstructure:"gateway_env"`
+	// GatewayAudio is whether the gateway the workspace's sessions call must
+	// serve its Audio API. ResolveCompute derives it from the environment of
+	// every workspace that shares that gateway, so it is never written down.
+	GatewayAudio bool `yaml:"-" mapstructure:"-"`
 	// Secrets names Secrets in the namespace whose every key the pod daemon
 	// gets as an environment variable, so each workspace holds its own
 	// credentials and they never pass through this machine.

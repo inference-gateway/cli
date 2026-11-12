@@ -163,6 +163,13 @@ workspaces:
     links the Gateway by `spec.gateway.ref`, so the operator runs it with no pod while every session is suspended.
     The next teleport or turn resumes the session and waits for the gateway to serve again. Without
     `gateway_env` no gateway is deployed, and the pod calls whatever `INFER_GATEWAY_URL` names.
+    The Gateway serves its Audio API when the workspace's `env` turns on a tool that needs it:
+    `INFER_TEXT_TO_SPEECH_ENABLED`, `INFER_TEXT_TO_MUSIC_ENABLED` or `INFER_TEXT_TO_SFX_ENABLED`. Workspaces on
+    one cluster share its Gateway, so one of them is enough. The Gateway then gets `spec.audio.enabled` and a
+    memory limit of 16Gi, because its local speech engine held 11.5 GiB with two sentences at once when
+    measured. This needs an operator newer than v0.36.0, which has no `spec.audio` - it ignores the setting
+    and speech answers 404. The engine's 1.4 GB of models is downloaded again each time the Gateway comes back
+    from having no pod.
   - `all-in-one` deploys nothing beside the pod. A teleport seals the `gateway_env` values with
     `forward_env`, and the pod's workers run the gateway binary on `127.0.0.1:8080` themselves. It costs one
     pod less, but the keys sit in the agent's environment.
