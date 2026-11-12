@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.259.0](https://github.com/inference-gateway/cli/compare/v0.258.0...v0.259.0) (2026-11-12)
+
+### 🚀 Features
+
+* **teleport:** carry the voice samples to workspaces that opt in ([#1820](https://github.com/inference-gateway/cli/issues/1820)) ([12bf77c](https://github.com/inference-gateway/cli/commit/12bf77c6f7ac303d2e3fa25487a406817c0653af))
+* **tts:** keep voice samples in ~/.infer/voice/samples ([#1819](https://github.com/inference-gateway/cli/issues/1819)) ([645d52b](https://github.com/inference-gateway/cli/commit/645d52b02cd0a933df385c16f3dce0d474cc36ac))
+* **tts:** route all speech through the gateway ([#1818](https://github.com/inference-gateway/cli/issues/1818)) ([0e2e1ef](https://github.com/inference-gateway/cli/commit/0e2e1ef5df02e0e6a5692dc52ae4caebf24916f8))
+* **workspaces:** turn the workspace gateway's Audio API on ([#1821](https://github.com/inference-gateway/cli/issues/1821)) ([06fad96](https://github.com/inference-gateway/cli/commit/06fad96be2ce559a82f0c4ca0ce2662aacac10d2))
+
+### 🐛 Bug Fixes
+
+* **tools:** describe TextToSpeech's output as the WAV it writes ([#1817](https://github.com/inference-gateway/cli/issues/1817)) ([1af2352](https://github.com/inference-gateway/cli/commit/1af2352712e506101051c51c1133f738fe7c1615))
+
 ## [0.258.0](https://github.com/inference-gateway/cli/compare/v0.257.0...v0.258.0) (2026-11-12)
 
 ### 🚀 Features
