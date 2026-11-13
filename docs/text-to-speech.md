@@ -46,11 +46,8 @@ is sent as a reference sample (`reference_audio`) for zero-shot cloning.
 `local/qwen3-tts` clones from it. Providers without cloning support, such as
 OpenAI, ignore or reject it.
 
-An ElevenLabs model clones from it too. The gateway uploads the sample to
-ElevenLabs the first time it is used, keeps it there as an instant voice clone,
-and speaks in that voice from then on. The ElevenLabs key needs the Voices read
-and write permissions for that, and each distinct sample takes one voice slot
-of the plan. Without a `voice_sample` the model speaks in `voice`.
+An ElevenLabs model does not clone from a `voice_sample`. It speaks in `voice`,
+which may be the id of a voice you cloned in your ElevenLabs account.
 
 ## The gateway's Audio API
 
