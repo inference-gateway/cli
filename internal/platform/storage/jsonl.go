@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1280,10 +1281,6 @@ func (s *JsonlStorage) DeletePlan(_ context.Context, id string) error {
 // ShellHistoryStorage (JsonlStorage) - file-based, keeps historical path
 // ---------------------------------------------------------------------------
 
-// maxHistoryLineBytes bounds one history entry, well above any prompt a
-// composer sends and far below bufio's default that would truncate pasted text.
-const maxHistoryLineBytes = 4 << 20
-
 // historyFilePath returns the path to the shell history file.
 func (s *JsonlStorage) historyFilePath() string {
 	return filepath.Join(filepath.Dir(s.basePath), "history", "history")
@@ -1333,16 +1330,19 @@ func (s *JsonlStorage) LoadHistory(_ context.Context, project string, limit int)
 	defer func() { _ = file.Close() }()
 
 	var commands []string
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(nil, maxHistoryLineBytes)
-	for scanner.Scan() {
+	reader := bufio.NewReader(file)
+	for {
+		line, err := reader.ReadBytes('\n')
 		var entry historyEntry
-		if json.Unmarshal(scanner.Bytes(), &entry) == nil && entry.Project == project {
+		if json.Unmarshal(line, &entry) == nil && entry.Project == project {
 			commands = append(commands, entry.Text)
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading history file: %w", err)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error reading history file: %w", err)
+		}
 	}
 	if limit > 0 && len(commands) > limit {
 		commands = commands[len(commands)-limit:]
