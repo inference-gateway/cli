@@ -55,9 +55,18 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 	}
 	logger.Warn("teleport reclaims a session whose workspace is unreachable and whose lease lapsed",
 		"conversation_id", key.ConversationID, "workspace", lease.Workspace, "error", err)
-	w.afterSnapshot = runError(fmt.Sprintf("The earlier messages of this conversation stayed on workspace %s, which cannot be reached: %v. It continues here without them.",
-		lease.Workspace, err))
+	w.prepend(reclaimNote(lease.Workspace, err))
 	s.launchLocal(ctx, w, key, opts, "")
+}
+
+// reclaimNote is the note a reclaimed conversation opens with, since its
+// earlier messages stayed on the workspace that is gone. The worker keeps it
+// in the conversation, so every client and the model see it from then on.
+func reclaimNote(workspace string, err error) []byte {
+	return encode(map[string]string{
+		"type":    frameAddNote,
+		"content": fmt.Sprintf("The earlier messages of this conversation stayed on workspace %s, which cannot be reached: %v. It continues here without them.", workspace, err),
+	})
 }
 
 // relayNamed relays a thread no lease places to the workspace its client
@@ -137,17 +146,14 @@ func (w *heartbeatWorker) Stop() {
 
 // lazyWorker is a worker whose connection is still being decided. It buffers
 // what is sent to it, then replays into the real worker, or ends with one
-// RUN_ERROR when no worker could be reached. A frame set in afterSnapshot
-// follows the worker's first MESSAGES_SNAPSHOT, so a client opening a
-// reclaimed conversation sees why it is empty.
+// RUN_ERROR when no worker could be reached.
 type lazyWorker struct {
-	mu            sync.Mutex
-	inner         sessionsdomain.Worker
-	pending       [][]byte
-	failed        error
-	stopped       bool
-	lines         chan []byte
-	afterSnapshot []byte
+	mu      sync.Mutex
+	inner   sessionsdomain.Worker
+	pending [][]byte
+	failed  error
+	stopped bool
+	lines   chan []byte
 }
 
 func newLazyWorker() *lazyWorker {
@@ -166,6 +172,17 @@ func (w *lazyWorker) Send(frame []byte) error {
 	default:
 		return w.inner.Send(frame)
 	}
+}
+
+// prepend puts a frame ahead of everything buffered so far, so the worker
+// takes it before the open that the client is waiting on.
+func (w *lazyWorker) prepend(frame []byte) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.inner != nil || w.failed != nil {
+		return
+	}
+	w.pending = append([][]byte{frame}, w.pending...)
 }
 
 func (w *lazyWorker) Lines() <-chan []byte {
@@ -214,10 +231,6 @@ func (w *lazyWorker) attach(inner sessionsdomain.Worker) {
 	go func() {
 		for line := range inner.Lines() {
 			w.lines <- line
-			if w.afterSnapshot != nil && frameType(line) == frameMessagesSnapshot {
-				w.lines <- w.afterSnapshot
-				w.afterSnapshot = nil
-			}
 		}
 		close(w.lines)
 		w.Stop()

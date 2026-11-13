@@ -21,10 +21,11 @@ var testKey = sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "con
 
 // launcher records the process workers the seam asked for.
 type launcher struct {
-	mu    sync.Mutex
-	keys  []sessionsdomain.ThreadKey
-	opts  []sessionsdomain.ThreadOptions
-	lines []chan []byte
+	mu      sync.Mutex
+	keys    []sessionsdomain.ThreadKey
+	opts    []sessionsdomain.ThreadOptions
+	lines   []chan []byte
+	workers []*sessionsmocks.FakeWorker
 }
 
 func (l *launcher) launch(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
@@ -37,6 +38,7 @@ func (l *launcher) launch(key sessionsdomain.ThreadKey, opts sessionsdomain.Thre
 	l.keys = append(l.keys, key)
 	l.opts = append(l.opts, opts)
 	l.lines = append(l.lines, lines)
+	l.workers = append(l.workers, w)
 	return w, nil
 }
 
@@ -233,18 +235,18 @@ func TestLaunchReclaimsALapsedLeaseOfAnUnreachableWorkspace(t *testing.T) {
 	_, _, _ = store.ClaimLease(context.Background(), agentdomain.Lease{ConversationID: "conv-1", Workspace: "k8s", Until: time.Now().Add(-time.Minute)})
 
 	w, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
+	_ = w.Send([]byte(`{"type":"resume_conversation","id":"conv-1"}`))
 	eventually(t, "the session to be reclaimed", func() bool { return l.count() == 1 })
 	lease, _, _ := store.GetLease(context.Background(), "conv-1")
 	if lease.Workspace != "laptop" {
 		t.Fatalf("lease = %+v", lease)
 	}
-	l.lines[0] <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
-	if got := firstLine(t, w); !strings.Contains(got, "MESSAGES_SNAPSHOT") {
-		t.Fatalf("relayed %q", got)
+	sent := func(i int) string { return string(l.workers[0].SendArgsForCall(i)) }
+	if l.workers[0].SendCallCount() != 2 || !strings.Contains(sent(0), `"add_note"`) || !strings.Contains(sent(0), "stayed on workspace k8s") || !strings.Contains(sent(0), "cluster down") {
+		t.Fatalf("the worker should take the reclaim note first, got %d frames, first %q", l.workers[0].SendCallCount(), sent(0))
 	}
-	got := firstLine(t, w)
-	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "stayed on workspace k8s") || !strings.Contains(got, "cluster down") {
-		t.Fatalf("after the snapshot: %q", got)
+	if !strings.Contains(sent(1), `"resume_conversation"`) {
+		t.Fatalf("the open should follow the note, got %q", sent(1))
 	}
 	w.Stop()
 }
