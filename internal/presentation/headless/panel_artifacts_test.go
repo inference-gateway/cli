@@ -16,6 +16,7 @@ func artifactsPanel(t *testing.T) (*Panel, lineSink, string) {
 	root := t.TempDir()
 	deps := panelDeps()
 	deps.ArtifactsDir = func(sessionID string) string { return filepath.Join(root, sessionID) }
+	deps.MediaDir = func() string { return filepath.Join(root, "media") }
 	deps.MaxArtifact = testMaxArtifact
 	p, sink := startPanel(deps)
 	return p, sink, root
@@ -67,10 +68,23 @@ func TestPanelReadsAnArtifact(t *testing.T) {
 	}
 }
 
+func TestPanelReadsAMediaFileByItsAbsolutePath(t *testing.T) {
+	p, sink, root := artifactsPanel(t)
+	wav := filepath.Join(root, "media", "tts", "line-01.wav")
+	_ = os.MkdirAll(filepath.Dir(wav), 0o750)
+	_ = os.WriteFile(wav, []byte("wav-bytes"), 0o600)
+
+	handle(t, p, map[string]any{"type": "read_artifact", "id": "s1", "name": wav})
+	frame := readFrame(t, sink, "artifact")
+	if frame["name"] != wav || frame["data"] != base64.StdEncoding.EncodeToString([]byte("wav-bytes")) {
+		t.Fatalf("unexpected reply %v", frame)
+	}
+}
+
 func TestPanelRefusesAnArtifactOutsideTheSessionDir(t *testing.T) {
 	p, sink, root := artifactsPanel(t)
 	_ = os.WriteFile(filepath.Join(root, "secret"), []byte("x"), 0o600)
-	for _, name := range []string{"../secret", "", "a/b"} {
+	for _, name := range []string{"../secret", "", "a/b", filepath.Join(root, "secret"), filepath.Join(root, "media", "..", "secret")} {
 		handle(t, p, map[string]any{"type": "read_artifact", "id": "s1", "name": name})
 		frame := readFrame(t, sink, "artifact")
 		if frame["error"] == nil || frame["data"] != nil {

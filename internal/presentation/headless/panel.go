@@ -193,6 +193,7 @@ type PanelDeps struct {
 	Completer     llm.Completer
 	DefaultModel  string
 	ArtifactsDir  func(sessionID string) string
+	MediaDir      func() string
 	MaxArtifact   int64
 	Frames        func(name string) (agentdomain.FrameSource, bool)
 	Screen        computerdomain.ScreenControl
@@ -241,7 +242,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.completions = &completions{write: p.write, completer: deps.Completer, models: deps.Models}
 	p.teleports = &teleports{write: p.write, store: deps.Storage}
 	p.rewinds = &rewinds{write: p.write, repo: deps.Conversations}
-	p.artifacts = &artifacts{write: p.write, dir: deps.ArtifactsDir, maxBytes: deps.MaxArtifact}
+	p.artifacts = &artifacts{write: p.write, dir: deps.ArtifactsDir, mediaDir: deps.MediaDir, maxBytes: deps.MaxArtifact}
 	p.frames = &frames{write: p.write, sources: deps.Frames}
 	p.screen = newScreenUnit(p.write, deps)
 	p.tasks = &tasks{write: p.write, jobs: deps.Jobs, a2a: deps.A2ATasks}

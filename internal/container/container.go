@@ -323,6 +323,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Completer:     llm.New(c.createRawSDKClient()),
 		DefaultModel:  c.config.Agent.Model,
 		ArtifactsDir:  c.config.SessionArtifactsDir,
+		MediaDir:      mediaRoot,
 		MaxArtifact:   c.config.Daemon.MaxArtifactBytes(),
 		Frames:        c.toolRegistry.FrameSource,
 		Screen:        c.screenControl,
@@ -1371,4 +1372,13 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// mediaRoot is the open project's tmp media dir, blank without a home directory.
+func mediaRoot() string {
+	dir, err := config.MediaDir("")
+	if err != nil {
+		return ""
+	}
+	return dir
 }

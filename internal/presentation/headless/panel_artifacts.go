@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	projects "github.com/inference-gateway/cli/internal/projects"
@@ -37,10 +38,11 @@ type artifactFrame struct {
 }
 
 // artifacts answers the artifact frames from the session's artifacts dir in
-// this worker's project.
+// this worker's project, and from its tmp media dir by absolute path.
 type artifacts struct {
 	write    frameWriter
 	dir      func(sessionID string) string
+	mediaDir func() string
 	maxBytes int64
 }
 
@@ -66,7 +68,7 @@ func (a *artifacts) read(id, name string) {
 }
 
 func (a *artifacts) load(id, name string) ([]byte, error) {
-	path, err := projects.ArtifactPath(a.dir(id), name)
+	path, err := a.resolve(id, name)
 	if err != nil {
 		return nil, err
 	}
@@ -81,4 +83,19 @@ func (a *artifacts) load(id, name string) ([]byte, error) {
 		return nil, fmt.Errorf("%s is %s, over the %s a frame carries - raise daemon.max_artifact_mb to read it", name, formatting.FormatBytes(info.Size()), formatting.FormatBytes(a.maxBytes))
 	}
 	return os.ReadFile(path)
+}
+
+// resolve confines a bare name to the session's artifacts dir and an absolute
+// path to the tmp media dir, where the media tools write.
+func (a *artifacts) resolve(id, name string) (string, error) {
+	if !filepath.IsAbs(name) {
+		return projects.ArtifactPath(a.dir(id), name)
+	}
+	root := a.mediaDir()
+	clean := filepath.Clean(name)
+	rel, err := filepath.Rel(root, clean)
+	if root == "" || err != nil || !filepath.IsLocal(rel) {
+		return "", projects.ErrArtifactName
+	}
+	return clean, nil
 }
