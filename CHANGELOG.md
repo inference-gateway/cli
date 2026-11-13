@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.260.6](https://github.com/inference-gateway/cli/compare/v0.260.5...v0.260.6) (2026-11-13)
+
+### 🐛 Bug Fixes
+
+* **gateway:** install a gateway update as a new file so macOS keeps starting it ([#1833](https://github.com/inference-gateway/cli/issues/1833)) ([5b91636](https://github.com/inference-gateway/cli/commit/5b91636f2905732e4d7308bf96f74ad2f2d08ede))
+
+### 📚 Documentation
+
+* **tts:** describe ElevenLabs speech models ([#1832](https://github.com/inference-gateway/cli/issues/1832)) ([879e1bc](https://github.com/inference-gateway/cli/commit/879e1bc7457231cfd298f1a3f47aa2bb6b3bad08)), references [inference-gateway/inference-gateway#851](https://github.com/inference-gateway/inference-gateway/issues/851)
+
 ## [0.260.5](https://github.com/inference-gateway/cli/compare/v0.260.4...v0.260.5) (2026-11-13)
 
 ### 🧹 Maintenance
