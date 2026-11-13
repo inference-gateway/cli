@@ -23,6 +23,7 @@ import (
 	debug "github.com/inference-gateway/cli/cmd/debug"
 	envcmd "github.com/inference-gateway/cli/cmd/env"
 	export "github.com/inference-gateway/cli/cmd/export"
+	gatewaycmd "github.com/inference-gateway/cli/cmd/gateway"
 	headless "github.com/inference-gateway/cli/cmd/headless"
 	initcmd "github.com/inference-gateway/cli/cmd/init"
 	insightscmd "github.com/inference-gateway/cli/cmd/insights"
@@ -100,6 +101,7 @@ deployment, monitoring, and management of inference services.`,
 		debug.NewCommand(state),
 		envcmd.NewCommand(),
 		export.NewCommand(state),
+		gatewaycmd.NewCommand(state),
 		computecmd.NewCommand(state),
 		computecmd.NewGPUAlias(state),
 		headless.NewCommand(state),

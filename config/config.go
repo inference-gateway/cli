@@ -92,6 +92,7 @@ type GatewayConfig struct {
 	Run              bool          `yaml:"run" mapstructure:"run"`
 	Mock             bool          `yaml:"mock,omitempty" mapstructure:"mock,omitempty"`
 	StandaloneBinary bool          `yaml:"standalone_binary" mapstructure:"standalone_binary"`
+	Version          string        `yaml:"version" mapstructure:"version"`
 	Debug            bool          `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
 	IncludeModels    []string      `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels    []string      `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
@@ -1192,6 +1193,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			OCI:              "ghcr.io/inference-gateway/inference-gateway:latest",
 			Run:              true,
 			StandaloneBinary: true,
+			Version:          GatewayVersionLatest,
 			IncludeModels:    []string{},
 			ExcludeModels:    []string{},
 			VisionEnabled:    true,
@@ -1466,6 +1468,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 			c.Tools.Safety.ApprovalBehaviour,
 			ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock, ApprovalBehaviourJudge,
 		)
+	}
+
+	if err := c.Gateway.ValidateVersion(); err != nil {
+		return err
 	}
 
 	if err := c.Judge.Validate(); err != nil {

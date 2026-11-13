@@ -1,16 +1,12 @@
 package gateway
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -241,113 +237,5 @@ func TestVersionFallbacks(t *testing.T) {
 				t.Errorf("Version() = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-const (
-	testGatewayBinaryName = "inference-gateway"
-	testOldGatewayBinary  = "old gateway"
-	testNewGatewayBinary  = "new gateway"
-	testOtherArchiveFile  = "README.md"
-	testSelfKillingBinary = "#!/bin/sh\nkill -KILL $$\n"
-	testExecutableBits    = 0o111
-	testFilesAfterUpdate  = 1
-)
-
-func gatewayReleaseArchive(t *testing.T, files map[string]string) *bytes.Buffer {
-	t.Helper()
-	var archive bytes.Buffer
-	gz := gzip.NewWriter(&archive)
-	tw := tar.NewWriter(gz)
-	for name, content := range files {
-		header := &tar.Header{Name: name, Typeflag: tar.TypeReg, Mode: gatewayBinaryMode, Size: int64(len(content))}
-		if err := tw.WriteHeader(header); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tw.Write([]byte(content)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return &archive
-}
-
-// An update must land in a new file: macOS ends a signed binary whose file was
-// rewritten in place every time it starts.
-func TestExtractGatewayTarGzReplacesTheBinaryWithANewFile(t *testing.T) {
-	dir := t.TempDir()
-	dest := filepath.Join(dir, testGatewayBinaryName)
-	if err := os.WriteFile(dest, []byte(testOldGatewayBinary), gatewayBinaryMode); err != nil {
-		t.Fatal(err)
-	}
-	before, err := os.Stat(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	archive := gatewayReleaseArchive(t, map[string]string{
-		testOtherArchiveFile:  testOldGatewayBinary,
-		testGatewayBinaryName: testNewGatewayBinary,
-	})
-	if err := extractGatewayTarGz(archive, dest); err != nil {
-		t.Fatalf("extractGatewayTarGz() error = %v", err)
-	}
-
-	after, err := os.Stat(dest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if os.SameFile(before, after) {
-		t.Error("the old binary was rewritten in place, want a new file renamed over it")
-	}
-	if got, _ := os.ReadFile(dest); string(got) != testNewGatewayBinary {
-		t.Errorf("binary content = %q, want %q", got, testNewGatewayBinary)
-	}
-	if after.Mode().Perm()&testExecutableBits == 0 {
-		t.Errorf("binary mode = %v, want it executable", after.Mode())
-	}
-	left, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) != testFilesAfterUpdate {
-		t.Errorf("directory holds %d files after the update, want only the binary", len(left))
-	}
-}
-
-func TestExtractGatewayTarGzKeepsTheOldBinaryWhenTheArchiveHasNone(t *testing.T) {
-	dest := filepath.Join(t.TempDir(), testGatewayBinaryName)
-	if err := os.WriteFile(dest, []byte(testOldGatewayBinary), gatewayBinaryMode); err != nil {
-		t.Fatal(err)
-	}
-
-	archive := gatewayReleaseArchive(t, map[string]string{testOtherArchiveFile: testNewGatewayBinary})
-	if err := extractGatewayTarGz(archive, dest); err == nil {
-		t.Fatal("extractGatewayTarGz() error = nil, want an error for an archive without the binary")
-	}
-
-	if got, _ := os.ReadFile(dest); string(got) != testOldGatewayBinary {
-		t.Errorf("binary content = %q, want the old binary left alone", got)
-	}
-}
-
-// A binary the system kills at start can never report its version, so it is
-// replaced instead of kept forever.
-func TestGatewayBinaryIsStaleWhenTheBinaryIsKilledAtStart(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("a shell script stands in for the binary")
-	}
-	binary := filepath.Join(t.TempDir(), testGatewayBinaryName)
-	if err := os.WriteFile(binary, []byte(testSelfKillingBinary), gatewayBinaryMode); err != nil {
-		t.Fatal(err)
-	}
-
-	if !gatewayBinaryIsStale(context.Background(), binary) {
-		t.Error("gatewayBinaryIsStale() = false, want true for a binary killed at start")
 	}
 }

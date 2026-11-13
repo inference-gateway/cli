@@ -1,19 +1,14 @@
 package gateway
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +17,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
-	github "github.com/inference-gateway/cli/internal/github"
+	gatewaydomain "github.com/inference-gateway/cli/internal/gateway/domain"
+	gatewayinfra "github.com/inference-gateway/cli/internal/gateway/infrastructure"
 	containerruntime "github.com/inference-gateway/cli/internal/platform/container"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
@@ -39,6 +35,7 @@ type Supervisor struct {
 	binaryCmd        *exec.Cmd
 	assignedPort     int
 	transport        http.RoundTripper
+	installer        *gatewayinfra.BinaryInstaller
 }
 
 // NewSupervisor creates a new gateway manager
@@ -48,6 +45,7 @@ func NewSupervisor(sessionID convdomain.SessionID, cfg *config.Config, runtime c
 		config:           cfg,
 		containerRuntime: runtime,
 		transport:        Transport(cfg.Gateway.TLS),
+		installer:        gatewayinfra.NewBinaryInstaller(os.Stdout),
 	}
 }
 
@@ -109,7 +107,8 @@ func (gm *Supervisor) startBinary(ctx context.Context) error {
 		gm.waitForStopped(ctx)
 	}
 
-	binaryPath, err := gm.downloadBinary(ctx)
+	pinnedTag, _ := gm.config.Gateway.PinnedRelease()
+	binaryPath, err := gm.installer.Ensure(ctx, gatewaydomain.WantedRelease{PinnedTag: pinnedTag})
 	if err != nil {
 		return fmt.Errorf("failed to download gateway binary: %w", err)
 	}
@@ -664,7 +663,7 @@ func (gm *Supervisor) Version(ctx context.Context) string {
 		return imageVersion(gm.config.Gateway.OCI)
 	}
 
-	return binaryVersion(ctx, gatewayBinaryPath())
+	return gm.installer.Probe(ctx).Version
 }
 
 // probeVersionEndpoint asks the gateway's /version endpoint, accepting a JSON
@@ -699,29 +698,10 @@ func probeVersionEndpoint(ctx context.Context, transport http.RoundTripper, gate
 		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(body, &payload); err == nil && payload.Version != "" {
-		return cleanVersion(payload.Version)
+		return gatewaydomain.CleanVersion(payload.Version)
 	}
 
-	return cleanVersion(string(body))
-}
-
-// binaryVersion runs the managed gateway binary's --version, mirroring the
-// parsing (and failure tolerance) of gatewayBinaryIsStale.
-func binaryVersion(ctx context.Context, binaryPath string) string {
-	if _, err := os.Stat(binaryPath); err != nil {
-		return ""
-	}
-
-	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
-	fields := strings.Fields(string(out))
-	if err != nil || len(fields) == 0 {
-		return ""
-	}
-
-	return cleanVersion(fields[len(fields)-1])
+	return gatewaydomain.CleanVersion(string(body))
 }
 
 // imageVersion extracts the version from the configured container image tag,
@@ -732,33 +712,7 @@ func imageVersion(image string) string {
 	if idx := strings.Index(tag, ":"); idx >= 0 {
 		tag = tag[idx+1:]
 	}
-	return cleanVersion(tag)
-}
-
-// cleanVersion normalizes a version ("v0.50.0" -> "0.50.0") and rejects values
-// that do not look like one (HTML bodies, "latest", "sha256:...").
-func cleanVersion(v string) string {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	if v == "" || len(v) > 32 || v[0] < '0' || v[0] > '9' {
-		return ""
-	}
-	for _, r := range v {
-		switch {
-		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '.', r == '-', r == '+':
-		default:
-			return ""
-		}
-	}
-	return v
-}
-
-// gatewayBinaryPath returns where the managed gateway binary lives.
-func gatewayBinaryPath() string {
-	name := "inference-gateway"
-	if runtime.GOOS == "windows" {
-		name = "inference-gateway.exe"
-	}
-	return filepath.Join(inferHomeDir("bin"), name)
+	return gatewaydomain.CleanVersion(tag)
 }
 
 // isBinaryRunning checks if the gateway is already running on the port
@@ -771,286 +725,6 @@ func (gm *Supervisor) isBinaryRunning() bool {
 		return resp.StatusCode == http.StatusOK
 	}
 	return false
-}
-
-// downloadBinary downloads the latest gateway binary release directly from
-// GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
-// available to avoid the 60 req/hour unauthenticated rate limit
-func (gm *Supervisor) downloadBinary(ctx context.Context) (string, error) {
-	binaryPath := gatewayBinaryPath()
-	if err := os.MkdirAll(filepath.Dir(binaryPath), 0755); err != nil {
-		return "", fmt.Errorf("failed to create binary directory: %w", err)
-	}
-
-	if _, err := os.Stat(binaryPath); err == nil {
-		if !gatewayBinaryIsStale(ctx, binaryPath) {
-			return binaryPath, nil
-		}
-		fmt.Println("• Updating stale gateway binary...")
-	} else {
-		fmt.Println("• Downloading gateway binary...")
-	}
-
-	logger.Info("downloading latest gateway binary")
-
-	tag, err := latestGatewayTag(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	assetOS, assetArch, err := gatewayAssetPlatform()
-	if err != nil {
-		return "", err
-	}
-
-	assetExt := "tar.gz"
-	if runtime.GOOS == "windows" {
-		assetExt = "zip"
-	}
-	assetURL := fmt.Sprintf(
-		"https://github.com/inference-gateway/inference-gateway/releases/download/%s/inference-gateway_%s_%s.%s",
-		tag, assetOS, assetArch, assetExt,
-	)
-
-	if err := downloadAndExtractGatewayBinary(ctx, assetURL, binaryPath); err != nil {
-		return "", err
-	}
-
-	fmt.Println("• Gateway binary downloaded successfully")
-	logger.Info("gateway binary installed successfully", "path", binaryPath, "version", tag)
-	return binaryPath, nil
-}
-
-// gatewayBinaryIsStale reports whether the cached gateway binary is older than the
-// latest release. Any failure (offline, rate limit, unparsable version output)
-// reports false so startup never breaks on a GitHub hiccup — the cached binary
-// keeps working as before.
-func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
-	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
-	if checkCtx.Err() == nil && killedBySignal(err) {
-		logger.Info("cached gateway binary is killed when it starts, replacing it", "path", binaryPath)
-		return true
-	}
-	fields := strings.Fields(string(out))
-	if err != nil || len(fields) == 0 {
-		return false
-	}
-	current := strings.TrimPrefix(fields[len(fields)-1], "v")
-
-	tag, err := latestGatewayTag(checkCtx)
-	if err != nil {
-		return false
-	}
-	latest := strings.TrimPrefix(tag, "v")
-
-	if current == "" || latest == "" || current == latest {
-		return false
-	}
-	logger.Info("cached gateway binary is stale", "current", current, "latest", latest)
-	return true
-}
-
-// killedBySignal reports whether a command was ended by a signal instead of
-// exiting on its own. macOS ends a signed binary that way when its file was
-// rewritten in place, and such a binary never starts again.
-func killedBySignal(err error) bool {
-	var exit *exec.ExitError
-	return errors.As(err, &exit) && !exit.Exited()
-}
-
-// latestGatewayTag resolves the latest gateway release tag via the GitHub
-// API, sending an Authorization header when a token is available
-func latestGatewayTag(ctx context.Context) (string, error) {
-	apiURL := "https://api.github.com/repos/inference-gateway/inference-gateway/releases/latest"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create release request: %w", err)
-	}
-	if t := github.Token(); t != "" {
-		req.Header.Set("Authorization", "Bearer "+t)
-	}
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to query latest gateway release: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-		return "", github.ErrRateLimited
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to query latest gateway release: HTTP %d", resp.StatusCode)
-	}
-
-	var release struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", fmt.Errorf("failed to decode release response: %w", err)
-	}
-	if release.TagName == "" {
-		return "", fmt.Errorf("latest gateway release has no tag name")
-	}
-	return release.TagName, nil
-}
-
-// gatewayAssetPlatform maps the current OS/arch to the gateway release asset
-// naming scheme (inference-gateway_<Os>_<arch>.tar.gz)
-func gatewayAssetPlatform() (string, string, error) {
-	var assetOS string
-	switch runtime.GOOS {
-	case "darwin":
-		assetOS = "Darwin"
-	case "linux":
-		assetOS = "Linux"
-	case "windows":
-		assetOS = "Windows"
-	default:
-		return "", "", fmt.Errorf("no gateway binary release for OS %q", runtime.GOOS)
-	}
-
-	var assetArch string
-	switch runtime.GOARCH {
-	case "amd64":
-		assetArch = "x86_64"
-	case "arm64":
-		assetArch = "arm64"
-	case "arm":
-		assetArch = "armv7"
-	default:
-		return "", "", fmt.Errorf("no gateway binary release for architecture %q", runtime.GOARCH)
-	}
-
-	return assetOS, assetArch, nil
-}
-
-// downloadAndExtractGatewayBinary downloads a release archive and extracts
-// the inference-gateway binary from it to destPath. Supports .tar.gz and .zip.
-func downloadAndExtractGatewayBinary(ctx context.Context, url string, destPath string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create download request: %w", err)
-	}
-
-	client := &http.Client{Timeout: 5 * time.Minute}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to download gateway release: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download gateway release from %s: HTTP %d", url, resp.StatusCode)
-	}
-
-	if strings.HasSuffix(url, ".zip") {
-		return extractGatewayZip(resp.Body, destPath)
-	}
-
-	return extractGatewayTarGz(resp.Body, destPath)
-}
-
-// extractGatewayTarGz extracts the inference-gateway binary from a gzipped tarball
-func extractGatewayTarGz(r io.Reader, destPath string) error {
-	gzReader, err := gzip.NewReader(r)
-	if err != nil {
-		return fmt.Errorf("failed to read gateway release archive: %w", err)
-	}
-	defer func() { _ = gzReader.Close() }()
-
-	tarReader := tar.NewReader(gzReader)
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read gateway release archive: %w", err)
-		}
-		if header.Typeflag != tar.TypeReg || filepath.Base(header.Name) != "inference-gateway" {
-			continue
-		}
-
-		return installGatewayBinary(destPath, tarReader)
-	}
-
-	return fmt.Errorf("inference-gateway binary not found in release archive")
-}
-
-// gatewayBinaryMode makes the installed gateway binary executable.
-const gatewayBinaryMode = 0o755
-
-// installGatewayBinary writes binary to a new file beside destPath and renames
-// it into place. An update must never rewrite the old file: macOS ends a
-// signed binary whose file was rewritten in place every time it starts.
-func installGatewayBinary(destPath string, binary io.Reader) error {
-	staged, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".*")
-	if err != nil {
-		return fmt.Errorf("failed to create gateway binary: %w", err)
-	}
-	stagedPath := staged.Name()
-	defer func() { _ = os.Remove(stagedPath) }()
-
-	if _, err := io.Copy(staged, binary); err != nil {
-		_ = staged.Close()
-		return fmt.Errorf("failed to write gateway binary: %w", err)
-	}
-	if err := staged.Close(); err != nil {
-		return fmt.Errorf("failed to write gateway binary: %w", err)
-	}
-	if err := os.Chmod(stagedPath, gatewayBinaryMode); err != nil {
-		return fmt.Errorf("failed to make gateway binary executable: %w", err)
-	}
-	if err := os.Rename(stagedPath, destPath); err != nil {
-		return fmt.Errorf("failed to install gateway binary: %w", err)
-	}
-	return nil
-}
-
-// extractGatewayZip extracts the inference-gateway.exe binary from a zip archive
-func extractGatewayZip(r io.Reader, destPath string) error {
-	tmpFile, err := os.CreateTemp("", "infer-gateway-*.zip")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
-
-	if _, err := io.Copy(tmpFile, r); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("failed to write temp archive: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temp archive: %w", err)
-	}
-
-	zipReader, err := zip.OpenReader(tmpPath)
-	if err != nil {
-		return fmt.Errorf("failed to read gateway release zip: %w", err)
-	}
-	defer func() { _ = zipReader.Close() }()
-
-	for _, f := range zipReader.File {
-		if filepath.Base(f.Name) != "inference-gateway.exe" {
-			continue
-		}
-
-		rc, err := f.Open()
-		if err != nil {
-			return fmt.Errorf("failed to open entry in zip: %w", err)
-		}
-
-		err = installGatewayBinary(destPath, rc)
-		_ = rc.Close()
-		return err
-	}
-
-	return fmt.Errorf("inference-gateway.exe binary not found in release archive")
 }
 
 // runBinary starts the gateway binary

@@ -712,6 +712,26 @@ infer binaries status ffmpeg
 infer binaries install --version v0.5.0
 ```
 
+### `infer gateway`
+
+Manage the Inference Gateway binary the CLI runs from `~/.infer/bin` when
+`gateway.run` is set. The CLI is the single owner of this binary on a local
+machine: it installs the release `gateway.version` asks for and replaces the
+cached binary only when it is another release.
+
+**Subcommands:**
+
+- `install`: Install the release `gateway.version` asks for, the latest by
+  default. `--version <release>` installs another release for this run without
+  changing the config. It prints the installed version and the binary's path.
+
+**Examples:**
+
+```bash
+infer gateway install
+infer gateway install --version 0.65.0
+```
+
 ### `infer status`
 
 Check the status of the inference gateway including health checks and resource usage.
