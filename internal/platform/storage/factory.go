@@ -120,7 +120,7 @@ func NewStorage(config StorageConfig) (*Stores, error) {
 		ScheduledJobs: backend,
 		ScheduledRuns: backend,
 		Plans:         backend,
-		ShellHistory:  backend,
+		ShellHistory:  distinctHistory{backend},
 		Leases:        backend,
 	}, nil
 }

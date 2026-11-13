@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -433,18 +432,10 @@ func (h *history) list() {
 	h.write(historyFrame{Type: outboundHistory, History: loaded})
 }
 
-// append records a panel-sent message in the shared shell history, mirroring
-// the TUI submit path (trimmed, consecutive duplicates skipped).
+// append records a panel-sent message in the project's input history. The
+// store drops a blank or repeated entry.
 func (h *history) append(content string) {
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return
-	}
-	project := projects.Path()
-	if last, err := h.store.LoadHistory(context.Background(), project, 1); err == nil && len(last) > 0 && last[len(last)-1] == content {
-		return
-	}
-	if err := h.store.AppendHistory(context.Background(), project, content); err != nil {
+	if err := h.store.AppendHistory(context.Background(), projects.Path(), content); err != nil {
 		logger.Warn("panel failed to append history", "error", err)
 	}
 }

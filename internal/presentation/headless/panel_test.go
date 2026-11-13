@@ -510,7 +510,7 @@ func TestPanelHistoryRoundTrip(t *testing.T) {
 	deps.History = historyStore("from the tui")
 	p, sink := startPanel(deps)
 
-	for _, msg := range []string{"first", "first", "  ", "second"} {
+	for _, msg := range []string{"first", "second"} {
 		if handle(t, p, runInput(msg)) {
 			t.Fatal("run_agent_input must be left for the turn loop")
 		}

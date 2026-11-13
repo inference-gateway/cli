@@ -1295,9 +1295,6 @@ type historyEntry struct {
 
 // AppendHistory appends a command to the shell history file.
 func (s *JsonlStorage) AppendHistory(_ context.Context, project, command string) error {
-	if strings.TrimSpace(command) == "" {
-		return nil
-	}
 	line, err := json.Marshal(historyEntry{Project: project, Text: command})
 	if err != nil {
 		return fmt.Errorf("encode history entry: %w", err)
