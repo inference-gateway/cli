@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1285,10 +1286,18 @@ func (s *JsonlStorage) historyFilePath() string {
 	return filepath.Join(filepath.Dir(s.basePath), "history", "history")
 }
 
+// historyEntry is one line of the history file. JSON escapes line breaks, so
+// a multi-line command never spans two lines.
+type historyEntry struct {
+	Project string `json:"project"`
+	Text    string `json:"text"`
+}
+
 // AppendHistory appends a command to the shell history file.
-func (s *JsonlStorage) AppendHistory(_ context.Context, command string) error {
-	if strings.TrimSpace(command) == "" {
-		return nil
+func (s *JsonlStorage) AppendHistory(_ context.Context, project, command string) error {
+	line, err := json.Marshal(historyEntry{Project: project, Text: command})
+	if err != nil {
+		return fmt.Errorf("encode history entry: %w", err)
 	}
 	path := s.historyFilePath()
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -1299,17 +1308,16 @@ func (s *JsonlStorage) AppendHistory(_ context.Context, command string) error {
 		return fmt.Errorf("failed to open history file: %w", err)
 	}
 	defer func() { _ = file.Close() }()
-	escaped := strings.ReplaceAll(command, "\n", "\\n")
-	if _, err := file.WriteString(escaped + "\n"); err != nil {
+	if _, err := file.Write(append(line, '\n')); err != nil {
 		return fmt.Errorf("failed to write to history file: %w", err)
 	}
 	return nil
 }
 
-// LoadHistory returns the most recent commands up to limit.
-func (s *JsonlStorage) LoadHistory(_ context.Context, limit int) ([]string, error) {
-	path := s.historyFilePath()
-	file, err := os.Open(path)
+// LoadHistory returns the project's most recent commands up to limit. A line
+// that is not an entry is skipped, so one damaged line cannot empty the history.
+func (s *JsonlStorage) LoadHistory(_ context.Context, project string, limit int) ([]string, error) {
+	file, err := os.Open(s.historyFilePath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -1318,20 +1326,23 @@ func (s *JsonlStorage) LoadHistory(_ context.Context, limit int) ([]string, erro
 	}
 	defer func() { _ = file.Close() }()
 
-	var allLines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	var commands []string
+	reader := bufio.NewReader(file)
+	for {
+		line, err := reader.ReadBytes('\n')
+		var entry historyEntry
+		if json.Unmarshal(line, &entry) == nil && entry.Project == project {
+			commands = append(commands, entry.Text)
 		}
-		allLines = append(allLines, strings.ReplaceAll(line, "\\n", "\n"))
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error reading history file: %w", err)
+		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading history file: %w", err)
+	if limit > 0 && len(commands) > limit {
+		commands = commands[len(commands)-limit:]
 	}
-	if limit > 0 && len(allLines) > limit {
-		allLines = allLines[len(allLines)-limit:]
-	}
-	return allLines, nil
+	return commands, nil
 }

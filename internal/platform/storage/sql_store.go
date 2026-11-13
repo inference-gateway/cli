@@ -764,20 +764,20 @@ func (s *sqlStore) DeletePlan(ctx context.Context, id string) error {
 // ShellHistoryStorage (sqlStore)
 // ---------------------------------------------------------------------------
 
-// AppendHistory appends a command to the shell history log.
-func (s *sqlStore) AppendHistory(ctx context.Context, command string) error {
-	_, err := s.db.ExecContext(ctx, s.rebind("INSERT INTO shell_history(command) VALUES (?)"), command)
+// AppendHistory appends a command to the project's shell history log.
+func (s *sqlStore) AppendHistory(ctx context.Context, project, command string) error {
+	_, err := s.db.ExecContext(ctx, s.rebind("INSERT INTO shell_history(project, command) VALUES (?, ?)"), project, command)
 	if err != nil {
 		return fmt.Errorf("append shell history: %w", err)
 	}
 	return nil
 }
 
-// LoadHistory returns the most recent commands up to limit in chronological
-// order; limit <= 0 returns everything.
-func (s *sqlStore) LoadHistory(ctx context.Context, limit int) ([]string, error) {
-	query := "SELECT command FROM shell_history ORDER BY id DESC"
-	args := []any{}
+// LoadHistory returns the project's most recent commands up to limit in
+// chronological order; limit <= 0 returns everything.
+func (s *sqlStore) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
+	query := "SELECT command FROM shell_history WHERE project = ? ORDER BY id DESC"
+	args := []any{project}
 	if limit > 0 {
 		query += " LIMIT ?"
 		args = append(args, limit)

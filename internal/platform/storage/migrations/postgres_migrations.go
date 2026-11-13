@@ -216,5 +216,18 @@ func GetPostgresMigrations() []Migration {
 				ALTER TABLE session_leases RENAME COLUMN workspace_dir TO workspace;
 			`,
 		},
+		{
+			Version:     "014",
+			Description: "Shell history project column, one input history per project",
+			UpSQL: `
+				ALTER TABLE shell_history ADD COLUMN project TEXT NOT NULL DEFAULT '';
+
+				CREATE INDEX IF NOT EXISTS idx_shell_history_project ON shell_history(project);
+			`,
+			DownSQL: `
+				DROP INDEX IF EXISTS idx_shell_history_project;
+				ALTER TABLE shell_history DROP COLUMN project;
+			`,
+		},
 	}
 }

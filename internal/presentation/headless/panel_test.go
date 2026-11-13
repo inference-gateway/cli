@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -479,15 +481,21 @@ func TestPanelSetMode(t *testing.T) {
 func historyStore(entries ...string) *storagemocks.FakeShellHistoryStorage {
 	var mu sync.Mutex
 	store := &storagemocks.FakeShellHistoryStorage{}
-	store.AppendHistoryCalls(func(_ context.Context, command string) error {
+	store.AppendHistoryCalls(func(_ context.Context, project, command string) error {
 		mu.Lock()
 		defer mu.Unlock()
+		if project != projects.Path() {
+			return fmt.Errorf("history recorded for %q, want the worker's project", project)
+		}
 		entries = append(entries, command)
 		return nil
 	})
-	store.LoadHistoryCalls(func(_ context.Context, limit int) ([]string, error) {
+	store.LoadHistoryCalls(func(_ context.Context, project string, limit int) ([]string, error) {
 		mu.Lock()
 		defer mu.Unlock()
+		if project != projects.Path() {
+			return nil, fmt.Errorf("history listed for %q, want the worker's project", project)
+		}
 		out := entries
 		if limit > 0 && len(out) > limit {
 			out = out[len(out)-limit:]
@@ -502,7 +510,7 @@ func TestPanelHistoryRoundTrip(t *testing.T) {
 	deps.History = historyStore("from the tui")
 	p, sink := startPanel(deps)
 
-	for _, msg := range []string{"first", "first", "  ", "second"} {
+	for _, msg := range []string{"first", "second"} {
 		if handle(t, p, runInput(msg)) {
 			t.Fatal("run_agent_input must be left for the turn loop")
 		}

@@ -96,7 +96,7 @@ func newInputRoutingTestApp(t *testing.T, view tui.ViewState, draft string) (*Ch
 	}
 
 	modelService := &convmocks.FakeModelService{}
-	inputView := components.NewInputViewWithName(modelService, t.TempDir(), scheddomain.SubagentHistoryMemoryOnly, nil)
+	inputView := components.NewInputViewWithName(modelService, scheddomain.SubagentHistoryMemoryOnly, nil)
 	inputView.SetText(draft)
 	messageQueue := &convmocks.FakeMessageQueue{}
 	messageQueue.IsEmptyReturns(true)

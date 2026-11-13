@@ -698,17 +698,22 @@ func (s *RedisStorage) DeletePlan(ctx context.Context, id string) error {
 // ShellHistoryStorage (RedisStorage)
 // ---------------------------------------------------------------------------
 
-// AppendHistory appends a command to the shell history list.
-func (s *RedisStorage) AppendHistory(ctx context.Context, command string) error {
-	if err := s.client.LPush(ctx, redisShellHistoryKey, command).Err(); err != nil {
+// shellHistoryKey returns the Redis key of a project's shell history list.
+func (s *RedisStorage) shellHistoryKey(project string) string {
+	return fmt.Sprintf("%s:%s", redisShellHistoryKey, project)
+}
+
+// AppendHistory appends a command to the project's shell history list.
+func (s *RedisStorage) AppendHistory(ctx context.Context, project, command string) error {
+	if err := s.client.LPush(ctx, s.shellHistoryKey(project), command).Err(); err != nil {
 		return fmt.Errorf("append shell history: %w", err)
 	}
 	return nil
 }
 
-// LoadHistory returns the most recent commands up to limit.
-func (s *RedisStorage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
-	commands, err := s.client.LRange(ctx, redisShellHistoryKey, 0, int64(limit-1)).Result()
+// LoadHistory returns the project's most recent commands up to limit.
+func (s *RedisStorage) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
+	commands, err := s.client.LRange(ctx, s.shellHistoryKey(project), 0, int64(limit-1)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("load shell history: %w", err)
 	}

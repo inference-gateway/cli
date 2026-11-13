@@ -253,7 +253,7 @@ func NewChatApplication(
 	}
 
 	historyName := os.Getenv(scheddomain.EnvSubagentHistoryName)
-	app.inputView = factory.CreateInputViewWithName(app.modelService, config.ProjectRuntimeDir(), historyName, shellHistoryStore)
+	app.inputView = factory.CreateInputViewWithName(app.modelService, historyName, shellHistoryStore)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)

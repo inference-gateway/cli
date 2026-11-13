@@ -28,7 +28,6 @@ import (
 	keys "github.com/inference-gateway/cli/internal/presentation/tui/keys"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // InputView handles user input with history, delegating text editing to
@@ -86,36 +85,17 @@ func gitCurrentBranch() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// maxInMemoryHistory is how many not-yet-persisted input lines the history
-// manager keeps in memory for up-arrow recall.
-const maxInMemoryHistory = 5
-
 func NewInputView(modelService convdomain.ModelService) *InputView {
-	return NewInputViewWithName(modelService, "", "", nil)
+	return NewInputViewWithName(modelService, "", nil)
 }
 
 // NewInputViewWithName creates the input view. The main agent's history
-// (name == "") goes through the storage backend when a store is provided;
-// named subagent histories and the no-store fallback stay file-based under
-// the given dir's history/ (the TUI passes the per-project runtime dir,
-// ~/.infer/projects/<project-slug>/).
-func NewInputViewWithName(modelService convdomain.ModelService, baseDir, name string, store storage.ShellHistoryStorage) *InputView {
-	if baseDir == "" {
-		baseDir = config.ProjectRuntimeDir()
-	}
-
-	var historyManager *history.Store
-	switch {
-	case name == scheddomain.SubagentHistoryMemoryOnly:
-		historyManager = history.NewMemoryOnlyStore(maxInMemoryHistory)
-	case store != nil && name == "":
-		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))
-	default:
-		if hm, err := history.NewHistoryManagerWithName(maxInMemoryHistory, baseDir, name); err != nil {
-			historyManager = history.NewMemoryOnlyStore(maxInMemoryHistory)
-		} else {
-			historyManager = hm
-		}
+// (name == "") lives in the storage backend every client shares. A named
+// subagent, or a run without a store, keeps its history in memory only.
+func NewInputViewWithName(modelService convdomain.ModelService, name string, store storage.ShellHistoryStorage) *InputView {
+	historyManager := history.NewMemoryOnlyStore()
+	if store != nil && name == "" {
+		historyManager = history.NewStore(store)
 	}
 
 	placeholder := "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"
