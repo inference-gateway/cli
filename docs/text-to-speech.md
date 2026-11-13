@@ -28,8 +28,8 @@ Add a `text_to_speech` section to `.infer/config.yaml` (or
 ```yaml
 text_to_speech:
   enabled: true                 # feature flag (default: false) - tool absent from the LLM payload when false
-  model: local/qwen3-tts        # provider/model, e.g. openai/gpt-4o-mini-tts
-  voice: ""                     # provider voice id (OpenAI: alloy, echo, nova, ...); unused by local/qwen3-tts
+  model: local/qwen3-tts        # provider/model, e.g. elevenlabs/eleven_v4_turbo or openai/gpt-4o-mini-tts
+  voice: ""                     # provider voice id (an ElevenLabs voice id, or OpenAI: alloy, echo, nova, ...); unused by local/qwen3-tts
   auto_download: true           # let the gateway download what local/qwen3-tts needs
   output_dir: ""                # where generated wavs go; empty = <media root>/tts
   require_approval: true        # optional; unset = no approval
@@ -45,6 +45,9 @@ Voice cloning works where the model supports it: the `voice_sample` recording
 is sent as a reference sample (`reference_audio`) for zero-shot cloning.
 `local/qwen3-tts` clones from it. Providers without cloning support, such as
 OpenAI, ignore or reject it.
+
+An ElevenLabs model does not clone from a `voice_sample`. It speaks in `voice`,
+which may be the id of a voice you cloned in your ElevenLabs account.
 
 ## The gateway's Audio API
 
