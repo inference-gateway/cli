@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.260.5](https://github.com/inference-gateway/cli/compare/v0.260.4...v0.260.5) (2026-11-13)
+
+### 🧹 Maintenance
+
+* **deps:** bump tokenless to 0.13.0 so mock mode answers speech requests ([#1830](https://github.com/inference-gateway/cli/issues/1830)) ([4cf3078](https://github.com/inference-gateway/cli/commit/4cf3078a09af13aa81b4b59d4e9b7007bc60318e)), references [inference-gateway/tokenless#98](https://github.com/inference-gateway/tokenless/issues/98)
+
 ## [0.260.4](https://github.com/inference-gateway/cli/compare/v0.260.3...v0.260.4) (2026-11-13)
 
 ### 🐛 Bug Fixes
