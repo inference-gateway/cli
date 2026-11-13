@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -829,6 +830,10 @@ func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
 	defer cancel()
 
 	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
+	if checkCtx.Err() == nil && killedBySignal(err) {
+		logger.Info("cached gateway binary is killed when it starts, replacing it", "path", binaryPath)
+		return true
+	}
 	fields := strings.Fields(string(out))
 	if err != nil || len(fields) == 0 {
 		return false
@@ -846,6 +851,14 @@ func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
 	}
 	logger.Info("cached gateway binary is stale", "current", current, "latest", latest)
 	return true
+}
+
+// killedBySignal reports whether a command was ended by a signal instead of
+// exiting on its own. macOS ends a signed binary that way when its file was
+// rewritten in place, and such a binary never starts again.
+func killedBySignal(err error) bool {
+	var exit *exec.ExitError
+	return errors.As(err, &exit) && !exit.Exited()
 }
 
 // latestGatewayTag resolves the latest gateway release tag via the GitHub
@@ -963,19 +976,40 @@ func extractGatewayTarGz(r io.Reader, destPath string) error {
 			continue
 		}
 
-		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create gateway binary: %w", err)
-		}
-		if _, err := io.Copy(out, tarReader); err != nil {
-			_ = out.Close()
-			_ = os.Remove(destPath)
-			return fmt.Errorf("failed to write gateway binary: %w", err)
-		}
-		return out.Close()
+		return installGatewayBinary(destPath, tarReader)
 	}
 
 	return fmt.Errorf("inference-gateway binary not found in release archive")
+}
+
+// gatewayBinaryMode makes the installed gateway binary executable.
+const gatewayBinaryMode = 0o755
+
+// installGatewayBinary writes binary to a new file beside destPath and renames
+// it into place. An update must never rewrite the old file: macOS ends a
+// signed binary whose file was rewritten in place every time it starts.
+func installGatewayBinary(destPath string, binary io.Reader) error {
+	staged, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".*")
+	if err != nil {
+		return fmt.Errorf("failed to create gateway binary: %w", err)
+	}
+	stagedPath := staged.Name()
+	defer func() { _ = os.Remove(stagedPath) }()
+
+	if _, err := io.Copy(staged, binary); err != nil {
+		_ = staged.Close()
+		return fmt.Errorf("failed to write gateway binary: %w", err)
+	}
+	if err := staged.Close(); err != nil {
+		return fmt.Errorf("failed to write gateway binary: %w", err)
+	}
+	if err := os.Chmod(stagedPath, gatewayBinaryMode); err != nil {
+		return fmt.Errorf("failed to make gateway binary executable: %w", err)
+	}
+	if err := os.Rename(stagedPath, destPath); err != nil {
+		return fmt.Errorf("failed to install gateway binary: %w", err)
+	}
+	return nil
 }
 
 // extractGatewayZip extracts the inference-gateway.exe binary from a zip archive
@@ -1011,23 +1045,9 @@ func extractGatewayZip(r io.Reader, destPath string) error {
 			return fmt.Errorf("failed to open entry in zip: %w", err)
 		}
 
-		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
-		if err != nil {
-			_ = rc.Close()
-			return fmt.Errorf("failed to create gateway binary: %w", err)
-		}
-		if _, err := io.Copy(out, rc); err != nil {
-			_ = out.Close()
-			_ = os.Remove(destPath)
-			_ = rc.Close()
-			return fmt.Errorf("failed to write gateway binary: %w", err)
-		}
-		if err := out.Close(); err != nil {
-			_ = rc.Close()
-			return err
-		}
+		err = installGatewayBinary(destPath, rc)
 		_ = rc.Close()
-		return nil
+		return err
 	}
 
 	return fmt.Errorf("inference-gateway.exe binary not found in release archive")
