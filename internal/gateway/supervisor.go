@@ -705,23 +705,10 @@ func probeVersionEndpoint(ctx context.Context, transport http.RoundTripper, gate
 	return cleanVersion(string(body))
 }
 
-// binaryVersion runs the managed gateway binary's --version, mirroring the
-// parsing (and failure tolerance) of gatewayBinaryIsStale.
+// binaryVersion returns the version the managed gateway binary reports, or ""
+// when it is missing or cannot say.
 func binaryVersion(ctx context.Context, binaryPath string) string {
-	if _, err := os.Stat(binaryPath); err != nil {
-		return ""
-	}
-
-	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
-	fields := strings.Fields(string(out))
-	if err != nil || len(fields) == 0 {
-		return ""
-	}
-
-	return cleanVersion(fields[len(fields)-1])
+	return probeCachedBinary(ctx, binaryPath).version
 }
 
 // imageVersion extracts the version from the configured container image tag,
@@ -755,7 +742,7 @@ func cleanVersion(v string) string {
 // gatewayBinaryPath returns where the managed gateway binary lives.
 func gatewayBinaryPath() string {
 	name := "inference-gateway"
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOperatingSystem {
 		name = "inference-gateway.exe"
 	}
 	return filepath.Join(inferHomeDir("bin"), name)
@@ -773,84 +760,102 @@ func (gm *Supervisor) isBinaryRunning() bool {
 	return false
 }
 
-// downloadBinary downloads the latest gateway binary release directly from
-// GitHub, authenticating the API call with GITHUB_TOKEN/GH_TOKEN when
-// available to avoid the 60 req/hour unauthenticated rate limit
+const (
+	gatewayVersionFlag       = "--version"
+	gatewayProbeTimeout      = 5 * time.Second
+	gatewayReleaseAssetURL   = "https://github.com/inference-gateway/inference-gateway/releases/download/%s/inference-gateway_%s_%s.%s"
+	gatewayArchiveExt        = "tar.gz"
+	gatewayWindowsArchiveExt = "zip"
+	gatewayBinaryDirMode     = 0o755
+	windowsOperatingSystem   = "windows"
+)
+
+// downloadBinary makes the cached gateway binary the release gateway.version
+// asks for, the latest one by default, and returns its path. It downloads
+// from GitHub only when the cached binary is not that release.
 func (gm *Supervisor) downloadBinary(ctx context.Context) (string, error) {
 	binaryPath := gatewayBinaryPath()
-	if err := os.MkdirAll(filepath.Dir(binaryPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(binaryPath), gatewayBinaryDirMode); err != nil {
 		return "", fmt.Errorf("failed to create binary directory: %w", err)
 	}
 
-	if _, err := os.Stat(binaryPath); err == nil {
-		if !gatewayBinaryIsStale(ctx, binaryPath) {
-			return binaryPath, nil
-		}
-		fmt.Println("• Updating stale gateway binary...")
+	cached := probeCachedBinary(ctx, binaryPath)
+	pinnedTag, _ := gm.config.Gateway.PinnedRelease()
+	tag, err := wantedRelease{pinnedTag: pinnedTag}.toInstall(ctx, cached, latestReleaseFor(cached))
+	if err != nil {
+		return "", err
+	}
+	if tag == keepCachedBinary {
+		return binaryPath, nil
+	}
+
+	if cached.present {
+		fmt.Printf("• Replacing gateway binary with %s...\n", tag)
 	} else {
-		fmt.Println("• Downloading gateway binary...")
+		fmt.Printf("• Downloading gateway binary %s...\n", tag)
 	}
 
-	logger.Info("downloading latest gateway binary")
-
-	tag, err := latestGatewayTag(ctx)
+	assetURL, err := gatewayAssetURL(tag)
 	if err != nil {
 		return "", err
 	}
-
-	assetOS, assetArch, err := gatewayAssetPlatform()
-	if err != nil {
-		return "", err
-	}
-
-	assetExt := "tar.gz"
-	if runtime.GOOS == "windows" {
-		assetExt = "zip"
-	}
-	assetURL := fmt.Sprintf(
-		"https://github.com/inference-gateway/inference-gateway/releases/download/%s/inference-gateway_%s_%s.%s",
-		tag, assetOS, assetArch, assetExt,
-	)
-
 	if err := downloadAndExtractGatewayBinary(ctx, assetURL, binaryPath); err != nil {
 		return "", err
 	}
 
 	fmt.Println("• Gateway binary downloaded successfully")
-	logger.Info("gateway binary installed successfully", "path", binaryPath, "version", tag)
+	logger.Info("gateway binary installed successfully", "path", binaryPath, "version", tag, "replaced", cached.version)
 	return binaryPath, nil
 }
 
-// gatewayBinaryIsStale reports whether the cached gateway binary is older than the
-// latest release. Any failure (offline, rate limit, unparsable version output)
-// reports false so startup never breaks on a GitHub hiccup — the cached binary
-// keeps working as before.
-func gatewayBinaryIsStale(ctx context.Context, binaryPath string) bool {
-	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+// gatewayAssetURL returns where the release tagged tag publishes the gateway
+// binary for this platform.
+func gatewayAssetURL(tag string) (string, error) {
+	assetOS, assetArch, err := gatewayAssetPlatform()
+	if err != nil {
+		return "", err
+	}
+	assetExt := gatewayArchiveExt
+	if runtime.GOOS == windowsOperatingSystem {
+		assetExt = gatewayWindowsArchiveExt
+	}
+	return fmt.Sprintf(gatewayReleaseAssetURL, tag, assetOS, assetArch, assetExt), nil
+}
+
+// latestReleaseFor returns the GitHub lookup of the latest release. With a
+// usable cached binary the lookup gets the probe's short budget, so a slow
+// GitHub never delays a start that already has a gateway to run.
+func latestReleaseFor(cached cachedBinary) latestRelease {
+	if !cached.usable() {
+		return latestGatewayTag
+	}
+	return func(ctx context.Context) (string, error) {
+		lookupCtx, cancel := context.WithTimeout(ctx, gatewayProbeTimeout)
+		defer cancel()
+		return latestGatewayTag(lookupCtx)
+	}
+}
+
+// probeCachedBinary asks the gateway binary at binaryPath for its version. A
+// binary the system ends with a signal is reported as killed at start, and
+// one that fails or prints nothing as present without a version.
+func probeCachedBinary(ctx context.Context, binaryPath string) cachedBinary {
+	if _, err := os.Stat(binaryPath); err != nil {
+		return cachedBinary{}
+	}
+
+	probeCtx, cancel := context.WithTimeout(ctx, gatewayProbeTimeout)
 	defer cancel()
 
-	out, err := process.CommandContext(checkCtx, binaryPath, "--version").Output()
-	if checkCtx.Err() == nil && killedBySignal(err) {
-		logger.Info("cached gateway binary is killed when it starts, replacing it", "path", binaryPath)
-		return true
+	out, err := process.CommandContext(probeCtx, binaryPath, gatewayVersionFlag).Output()
+	if probeCtx.Err() == nil && killedBySignal(err) {
+		return cachedBinary{present: true, killedAtStart: true}
 	}
 	fields := strings.Fields(string(out))
 	if err != nil || len(fields) == 0 {
-		return false
+		return cachedBinary{present: true}
 	}
-	current := strings.TrimPrefix(fields[len(fields)-1], "v")
-
-	tag, err := latestGatewayTag(checkCtx)
-	if err != nil {
-		return false
-	}
-	latest := strings.TrimPrefix(tag, "v")
-
-	if current == "" || latest == "" || current == latest {
-		return false
-	}
-	logger.Info("cached gateway binary is stale", "current", current, "latest", latest)
-	return true
+	return cachedBinary{present: true, version: cleanVersion(fields[len(fields)-1])}
 }
 
 // killedBySignal reports whether a command was ended by a signal instead of
@@ -908,7 +913,7 @@ func gatewayAssetPlatform() (string, string, error) {
 		assetOS = "Darwin"
 	case "linux":
 		assetOS = "Linux"
-	case "windows":
+	case windowsOperatingSystem:
 		assetOS = "Windows"
 	default:
 		return "", "", fmt.Errorf("no gateway binary release for OS %q", runtime.GOOS)

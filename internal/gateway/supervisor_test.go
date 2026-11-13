@@ -250,6 +250,9 @@ const (
 	testNewGatewayBinary  = "new gateway"
 	testOtherArchiveFile  = "README.md"
 	testSelfKillingBinary = "#!/bin/sh\nkill -KILL $$\n"
+	testVersionedBinary   = "#!/bin/sh\necho inference-gateway version " + testLatestTag + "\n"
+	testFailingBinary     = "#!/bin/sh\nexit 1\n"
+	testSilentBinary      = "#!/bin/sh\n"
 	testExecutableBits    = 0o111
 	testFilesAfterUpdate  = 1
 )
@@ -336,18 +339,33 @@ func TestExtractGatewayTarGzKeepsTheOldBinaryWhenTheArchiveHasNone(t *testing.T)
 	}
 }
 
-// A binary the system kills at start can never report its version, so it is
-// replaced instead of kept forever.
-func TestGatewayBinaryIsStaleWhenTheBinaryIsKilledAtStart(t *testing.T) {
-	if runtime.GOOS == "windows" {
+func TestProbeCachedBinary(t *testing.T) {
+	if runtime.GOOS == windowsOperatingSystem {
 		t.Skip("a shell script stands in for the binary")
 	}
-	binary := filepath.Join(t.TempDir(), testGatewayBinaryName)
-	if err := os.WriteFile(binary, []byte(testSelfKillingBinary), gatewayBinaryMode); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name   string
+		script string
+		want   cachedBinary
+	}{
+		{"nothing is cached", "", cachedBinary{}},
+		{"a binary that says its version", testVersionedBinary, cachedBinary{present: true, version: testLatestVersion}},
+		{"a binary the system kills at start", testSelfKillingBinary, cachedBinary{present: true, killedAtStart: true}},
+		{"a binary that fails on its own", testFailingBinary, cachedBinary{present: true}},
+		{"a binary that prints nothing", testSilentBinary, cachedBinary{present: true}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			binary := filepath.Join(t.TempDir(), testGatewayBinaryName)
+			if tt.script != "" {
+				if err := os.WriteFile(binary, []byte(tt.script), gatewayBinaryMode); err != nil {
+					t.Fatal(err)
+				}
+			}
 
-	if !gatewayBinaryIsStale(context.Background(), binary) {
-		t.Error("gatewayBinaryIsStale() = false, want true for a binary killed at start")
+			if got := probeCachedBinary(t.Context(), binary); got != tt.want {
+				t.Errorf("probeCachedBinary() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }

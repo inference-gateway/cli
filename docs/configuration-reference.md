@@ -104,6 +104,7 @@ gateway:
   oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
   run: true    # Automatically run the gateway (enabled by default)
   standalone_binary: true  # Run the gateway as a standalone binary (default; set false for Docker mode)
+  version: latest  # Gateway release the binary runs: latest (default) or a release such as 0.65.0
   include_models: []  # Optional: only allow specific models (allowlist)
   exclude_models: []  # Optional: blocklist of specific models (opt-in; the picker already hides non-chat models by modalities)
   tls:                # Optional: a private gateway CA and a client certificate for mTLS
@@ -197,6 +198,13 @@ telemetry:
 - **gateway.standalone_binary**: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
   - `true` (default): Downloads and runs the gateway as a binary (no Docker required)
   - `false`: Uses Docker to run the gateway container (requires Docker installed; the image comes from `gateway.oci`)
+- **gateway.version**: Gateway release the standalone binary runs (default: `latest`). Set via `INFER_GATEWAY_VERSION`.
+  - `latest` (default): every start checks for a newer gateway release and replaces the cached binary with it.
+    A start with a working binary never fails on that check - offline, it keeps the binary it has
+  - A release such as `0.65.0` or `v0.65.0`: the CLI installs exactly that release and never updates past it.
+    It needs no release lookup, so it also works when the GitHub API is unreachable or rate limited. A cached
+    binary of another release is replaced, which is how a downgrade works too
+  - Docker mode ignores it: there the image tag in `gateway.oci` chooses the release
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - **gateway.mock**: Run against the bundled mock gateway instead of a real one (default: `false`). Set via `INFER_GATEWAY_MOCK`.
 - **gateway.debug**: Start the supervised gateway in development mode with detailed logging (default: `false`).
@@ -1202,6 +1210,7 @@ ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.y
 - `INFER_GATEWAY_API_KEY`: Gateway API key for authentication
 - `INFER_GATEWAY_TIMEOUT`: Seconds the agent waits for the model's first token (default: `200`)
 - `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
+- `INFER_GATEWAY_VERSION`: Gateway release the standalone binary runs (default: `latest`)
 - `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
 - `INFER_GATEWAY_STANDALONE_BINARY`: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
 - `INFER_GATEWAY_TLS_CA_FILE`: CA bundle trusted for gateway calls on top of the system roots
