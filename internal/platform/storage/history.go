@@ -12,6 +12,12 @@ type distinctHistory struct {
 	ShellHistoryStorage
 }
 
+// NewMemoryHistory is an input history that lives for the process only, with
+// the same rules as a persisted one.
+func NewMemoryHistory() ShellHistoryStorage {
+	return distinctHistory{NewMemoryStorage()}
+}
+
 // AppendHistory records a command unless it is blank or repeats the project's
 // newest entry.
 func (h distinctHistory) AppendHistory(ctx context.Context, project, command string) error {

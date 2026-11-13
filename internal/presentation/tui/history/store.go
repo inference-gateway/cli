@@ -3,88 +3,55 @@ package history
 import (
 	"context"
 	"slices"
-	"strings"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
-// Store walks the input history for arrow-up recall: the project's persisted
-// entries from the storage backend every client shares, plus this session's.
+// Store walks the project's input history for arrow-up recall. The storage
+// backend owns the entries and their rules, the store only navigates them.
 type Store struct {
-	persisted       storage.ShellHistoryStorage
-	inMemoryHistory []string
-	maxInMemory     int
-	historyIndex    int
-	currentInput    string
-	allHistory      []string
+	history      storage.ShellHistoryStorage
+	historyIndex int
+	currentInput string
+	allHistory   []string
 }
 
-// NewMemoryOnlyStore creates a history store that persists nothing.
-func NewMemoryOnlyStore(maxInMemory int) *Store {
-	return NewStore(maxInMemory, nil)
+// NewMemoryOnlyStore creates a history store that forgets at exit.
+func NewMemoryOnlyStore() *Store {
+	return NewStore(storage.NewMemoryHistory())
 }
 
 // NewStore creates a history store on top of the storage backend, loaded with
-// the current project's entries. A nil backend keeps the history in memory.
-func NewStore(maxInMemory int, persisted storage.ShellHistoryStorage) *Store {
-	hm := &Store{
-		persisted:       persisted,
-		inMemoryHistory: make([]string, 0, maxInMemory),
-		maxInMemory:     maxInMemory,
-		historyIndex:    -1,
-		allHistory:      []string{},
-	}
-	if persisted == nil {
-		return hm
-	}
-	loaded, err := persisted.LoadHistory(context.Background(), projects.Path(), 0)
-	if err != nil {
-		logger.Warn("could not load input history", "error", err)
-		return hm
-	}
-	hm.allHistory = append(hm.allHistory, loaded...)
+// the current project's entries.
+func NewStore(history storage.ShellHistoryStorage) *Store {
+	hm := &Store{history: history, historyIndex: -1}
+	hm.reload()
 	return hm
 }
 
-// AddToHistory adds a command to both in-memory and shell history
-func (hm *Store) AddToHistory(command string) error {
-	command = strings.TrimSpace(command)
-	if command == "" {
-		return nil
-	}
-
-	shouldSave := len(hm.allHistory) == 0 || hm.allHistory[len(hm.allHistory)-1] != command
-
-	if shouldSave {
-		hm.addToInMemoryHistory(command)
-		hm.allHistory = append(hm.allHistory, command)
-
-		if hm.persisted != nil {
-			if err := hm.persisted.AppendHistory(context.Background(), projects.Path(), command); err != nil {
-				logger.Warn("could not save input history", "error", err)
-			}
-		}
-	}
-
-	hm.historyIndex = -1
-	hm.currentInput = ""
-
-	return nil
-}
-
-// addToInMemoryHistory adds a command to in-memory history with size limit
-func (hm *Store) addToInMemoryHistory(command string) {
-	if len(hm.inMemoryHistory) > 0 && hm.inMemoryHistory[len(hm.inMemoryHistory)-1] == command {
+// reload takes the project's entries from the backend, which is what every
+// other client sees too. A backend that cannot answer leaves the last list.
+func (hm *Store) reload() {
+	loaded, err := hm.history.LoadHistory(context.Background(), projects.Path(), 0)
+	if err != nil {
+		logger.Warn("could not load input history", "error", err)
 		return
 	}
+	hm.allHistory = append([]string{}, loaded...)
+}
 
-	hm.inMemoryHistory = append(hm.inMemoryHistory, command)
-
-	if len(hm.inMemoryHistory) > hm.maxInMemory {
-		hm.inMemoryHistory = hm.inMemoryHistory[1:]
+// AddToHistory records a submitted input and leaves navigation at the newest
+// entry.
+func (hm *Store) AddToHistory(command string) error {
+	if err := hm.history.AppendHistory(context.Background(), projects.Path(), command); err != nil {
+		logger.Warn("could not save input history", "error", err)
 	}
+	hm.reload()
+	hm.historyIndex = -1
+	hm.currentInput = ""
+	return nil
 }
 
 // NavigateUp moves up in history (to older commands)

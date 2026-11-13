@@ -48,7 +48,7 @@ func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 		width:            80,
 		height:           5,
 		modelService:     modelService,
-		historyManager:   history.NewMemoryOnlyStore(5),
+		historyManager:   history.NewMemoryOnlyStore(),
 		themeService:     nil,
 		imageAttachments: []agentdomain.ImageAttachment{},
 	}
@@ -750,7 +750,7 @@ func TestInputView_BashCommandCompletedInvalidatesBranchCache(t *testing.T) {
 
 func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 	ta := newInputTextarea("")
-	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyStore(10)}
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyStore()}
 
 	require.False(t, iv.IsNavigatingHistory(), "fresh input must not be navigating history")
 
@@ -762,7 +762,7 @@ func TestInputView_ArrowDownHandsOffToStatusBarWhenIdle(t *testing.T) {
 
 func TestInputView_ArrowDownNavigatesWhileInHistory(t *testing.T) {
 	ta := newInputTextarea("")
-	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyStore(10)}
+	iv := &InputView{ta: ta, historyManager: history.NewMemoryOnlyStore()}
 	require.NoError(t, iv.AddToHistory("previous message"))
 
 	_, _ = iv.HandleKey(tea.KeyPressMsg{Code: tea.KeyUp})

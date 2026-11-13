@@ -85,10 +85,6 @@ func gitCurrentBranch() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// maxInMemoryHistory is how many not-yet-persisted input lines the history
-// manager keeps in memory for up-arrow recall.
-const maxInMemoryHistory = 5
-
 func NewInputView(modelService convdomain.ModelService) *InputView {
 	return NewInputViewWithName(modelService, "", nil)
 }
@@ -97,9 +93,9 @@ func NewInputView(modelService convdomain.ModelService) *InputView {
 // (name == "") lives in the storage backend every client shares. A named
 // subagent, or a run without a store, keeps its history in memory only.
 func NewInputViewWithName(modelService convdomain.ModelService, name string, store storage.ShellHistoryStorage) *InputView {
-	historyManager := history.NewMemoryOnlyStore(maxInMemoryHistory)
+	historyManager := history.NewMemoryOnlyStore()
 	if store != nil && name == "" {
-		historyManager = history.NewStore(maxInMemoryHistory, store)
+		historyManager = history.NewStore(store)
 	}
 
 	placeholder := "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"

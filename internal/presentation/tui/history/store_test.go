@@ -11,7 +11,7 @@ import (
 )
 
 func TestGetAllHistoryReturnsOrderedDefensiveCopy(t *testing.T) {
-	hm := history.NewMemoryOnlyStore(5)
+	hm := history.NewMemoryOnlyStore()
 
 	for _, entry := range []string{"first prompt", "second prompt"} {
 		if err := hm.AddToHistory(entry); err != nil {
@@ -33,7 +33,7 @@ func TestGetAllHistoryReturnsOrderedDefensiveCopy(t *testing.T) {
 
 func TestStoreBackedHistoryLoadsAndPersistsTheProject(t *testing.T) {
 	ctx := context.Background()
-	store := storage.NewMemoryStorage()
+	store := storage.NewMemoryHistory()
 	if err := store.AppendHistory(ctx, projects.Path(), "existing command"); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestStoreBackedHistoryLoadsAndPersistsTheProject(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	hm := history.NewStore(5, store)
+	hm := history.NewStore(store)
 	if got := hm.GetAllHistory(); !reflect.DeepEqual(got, []string{"existing command"}) {
 		t.Fatalf("loaded history = %v, want the project's entry only", got)
 	}
