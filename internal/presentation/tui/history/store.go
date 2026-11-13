@@ -1,15 +1,19 @@
 package history
 
 import (
+	"context"
 	"slices"
 	"strings"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
-// Store manages both in-memory and shell history
+// Store walks the input history for arrow-up recall: the project's persisted
+// entries from the storage backend every client shares, plus this session's.
 type Store struct {
-	shellHistory    ShellHistoryProvider
+	persisted       storage.ShellHistoryStorage
 	inMemoryHistory []string
 	maxInMemory     int
 	historyIndex    int
@@ -17,39 +21,31 @@ type Store struct {
 	allHistory      []string
 }
 
-// NewMemoryOnlyStore creates a history manager that only uses in-memory storage
+// NewMemoryOnlyStore creates a history store that persists nothing.
 func NewMemoryOnlyStore(maxInMemory int) *Store {
-	return NewHistoryManagerWithProvider(maxInMemory, &MemoryOnlyShellHistory{})
+	return NewStore(maxInMemory, nil)
 }
 
-// NewHistoryManagerWithProvider creates a history manager on top of any
-// ShellHistoryProvider (e.g. a storage-backend-backed one).
-func NewHistoryManagerWithProvider(maxInMemory int, provider ShellHistoryProvider) *Store {
+// NewStore creates a history store on top of the storage backend, loaded with
+// the current project's entries. A nil backend keeps the history in memory.
+func NewStore(maxInMemory int, persisted storage.ShellHistoryStorage) *Store {
 	hm := &Store{
-		shellHistory:    provider,
+		persisted:       persisted,
 		inMemoryHistory: make([]string, 0, maxInMemory),
 		maxInMemory:     maxInMemory,
 		historyIndex:    -1,
-		currentInput:    "",
+		allHistory:      []string{},
 	}
-	if err := hm.loadCombinedHistory(); err != nil {
-		hm.allHistory = make([]string, 0)
+	if persisted == nil {
+		return hm
 	}
-	return hm
-}
-
-// loadCombinedHistory loads history from shell and combines with in-memory history
-func (hm *Store) loadCombinedHistory() error {
-	shellCommands, err := hm.shellHistory.LoadHistory()
+	loaded, err := persisted.LoadHistory(context.Background(), projects.Path(), 0)
 	if err != nil {
-		return err
+		logger.Warn("could not load input history", "error", err)
+		return hm
 	}
-
-	hm.allHistory = make([]string, 0, len(shellCommands)+len(hm.inMemoryHistory))
-	hm.allHistory = append(hm.allHistory, shellCommands...)
-	hm.allHistory = append(hm.allHistory, hm.inMemoryHistory...)
-
-	return nil
+	hm.allHistory = append(hm.allHistory, loaded...)
+	return hm
 }
 
 // AddToHistory adds a command to both in-memory and shell history
@@ -65,8 +61,10 @@ func (hm *Store) AddToHistory(command string) error {
 		hm.addToInMemoryHistory(command)
 		hm.allHistory = append(hm.allHistory, command)
 
-		if err := hm.shellHistory.SaveToHistory(command); err != nil {
-			logger.Warn("could not save to shell history", "error", err)
+		if hm.persisted != nil {
+			if err := hm.persisted.AppendHistory(context.Background(), projects.Path(), command); err != nil {
+				logger.Warn("could not save input history", "error", err)
+			}
 		}
 	}
 
@@ -142,15 +140,4 @@ func (hm *Store) GetAllHistory() []string {
 // IsNavigating returns true if currently navigating through history
 func (hm *Store) IsNavigating() bool {
 	return hm.historyIndex != -1
-}
-
-// MemoryOnlyShellHistory persists nothing, for subagents and tests.
-type MemoryOnlyShellHistory struct{}
-
-func (m *MemoryOnlyShellHistory) LoadHistory() ([]string, error) {
-	return []string{}, nil
-}
-
-func (m *MemoryOnlyShellHistory) SaveToHistory(command string) error {
-	return nil
 }

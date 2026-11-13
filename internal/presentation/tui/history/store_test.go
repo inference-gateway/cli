@@ -41,7 +41,7 @@ func TestStoreBackedHistoryLoadsAndPersistsTheProject(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 
-	hm := history.NewHistoryManagerWithProvider(5, history.NewStoreShellHistory(store))
+	hm := history.NewStore(5, store)
 	if got := hm.GetAllHistory(); !reflect.DeepEqual(got, []string{"existing command"}) {
 		t.Fatalf("loaded history = %v, want the project's entry only", got)
 	}

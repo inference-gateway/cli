@@ -99,7 +99,7 @@ func NewInputView(modelService convdomain.ModelService) *InputView {
 func NewInputViewWithName(modelService convdomain.ModelService, name string, store storage.ShellHistoryStorage) *InputView {
 	historyManager := history.NewMemoryOnlyStore(maxInMemoryHistory)
 	if store != nil && name == "" {
-		historyManager = history.NewHistoryManagerWithProvider(maxInMemoryHistory, history.NewStoreShellHistory(store))
+		historyManager = history.NewStore(maxInMemoryHistory, store)
 	}
 
 	placeholder := "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"

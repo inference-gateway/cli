@@ -22,10 +22,9 @@ func CreateInputView(modelService convdomain.ModelService) tui.InputComponent {
 	return components.NewInputView(modelService)
 }
 
-// CreateInputViewWithName creates a new input view component with a history base
-// directory and name. When store is non-nil and name is empty (the main agent),
-// input history goes through the storage backend. Named subagent histories are
-// file-based at <baseDir>/history/history-<name>.
+// CreateInputViewWithName creates a new input view component. The main agent
+// (name empty, store given) keeps its input history in the storage backend,
+// a named subagent keeps it in memory only.
 func CreateInputViewWithName(modelService convdomain.ModelService, name string, store storage.ShellHistoryStorage) tui.InputComponent {
 	return components.NewInputViewWithName(modelService, name, store)
 }
