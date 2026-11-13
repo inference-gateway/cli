@@ -308,6 +308,7 @@ func (s *Service) excludes(projectDir string) func(abs string) bool {
 const (
 	originsState  = "origins"
 	runtimesState = "runtimes"
+	reclaimsState = "reclaims"
 )
 
 // rememberOrigin keeps the checkout a session left and its fingerprint, which
@@ -327,6 +328,21 @@ func (s *Service) origin(conversationID string) (string, string) {
 
 func (s *Service) forgetOrigin(conversationID string) {
 	s.removeState(originsState, conversationID)
+}
+
+// rememberReclaim keeps the workspace a reclaimed session's messages stayed
+// on and why it could not be reached, so later opens can still say so.
+func (s *Service) rememberReclaim(conversationID, workspace, reason string) {
+	if !s.writeState(reclaimsState, conversationID, workspace+"\n"+reason) {
+		logger.Warn("teleport could not remember the workspace a session was reclaimed from", "conversation_id", conversationID, "workspace", workspace)
+	}
+}
+
+// reclaimedFrom is the workspace a session was reclaimed from and why, or
+// empty strings when it never was.
+func (s *Service) reclaimedFrom(conversationID string) (string, string) {
+	workspace, reason, _ := strings.Cut(s.readState(reclaimsState, conversationID), "\n")
+	return workspace, reason
 }
 
 // rememberRuntime keeps the remote workspace a session came home from, whose

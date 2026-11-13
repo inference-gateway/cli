@@ -62,7 +62,7 @@ func newService(t *testing.T, l *launcher, workspaces ...agentdomain.Workspace) 
 			entries = append(entries, config.WorkspaceEntry{Name: e.Name(), Kind: config.WorkspaceKind(e.Kind()), Address: "peer:1", TLS: config.PeerTLSConfig{CAFile: "ca"}})
 		}
 	}
-	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir(), Entries: entries}, Deps{Leases: store, Workspaces: workspaces, Launch: l.launch})
+	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir(), StateDir: t.TempDir(), Entries: entries}, Deps{Leases: store, Workspaces: workspaces, Launch: l.launch})
 	return s, store
 }
 
@@ -247,6 +247,25 @@ func TestLaunchReclaimsALapsedLeaseOfAnUnreachableWorkspace(t *testing.T) {
 		t.Fatalf("after the snapshot: %q", got)
 	}
 	w.Stop()
+
+	again, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
+	eventually(t, "the reclaimed session to open here again", func() bool { return l.count() == 2 })
+	l.lines[1] <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
+	firstLine(t, again)
+	if got := firstLine(t, again); !strings.Contains(got, "stayed on workspace k8s") {
+		t.Fatalf("a later open of the still empty conversation: %q", got)
+	}
+	again.Stop()
+
+	filled, _ := s.LaunchWorker(testKey, sessionsdomain.ThreadOptions{})
+	eventually(t, "the session to open a third time", func() bool { return l.count() == 3 })
+	l.lines[2] <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[{"role":"user","content":"hi"}]}`)
+	l.lines[2] <- []byte(`{"type":"RUN_STARTED"}`)
+	firstLine(t, filled)
+	if got := firstLine(t, filled); got != `{"type":"RUN_STARTED"}` {
+		t.Fatalf("a conversation with messages gets no notice, got %q", got)
+	}
+	filled.Stop()
 }
 
 func TestLaunchRefusesAnUnknownOwner(t *testing.T) {

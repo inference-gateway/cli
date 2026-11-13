@@ -40,7 +40,7 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 		return
 	}
 	if !found || lease.Workspace == s.me {
-		s.launchLocal(ctx, w, key, opts, lease.TeleportID)
+		s.launchHere(ctx, w, key, opts, lease.TeleportID)
 		return
 	}
 	remote, err := s.connectRemote(ctx, key, opts, lease)
@@ -55,9 +55,18 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 	}
 	logger.Warn("teleport reclaims a session whose workspace is unreachable and whose lease lapsed",
 		"conversation_id", key.ConversationID, "workspace", lease.Workspace, "error", err)
-	w.afterSnapshot = runError(fmt.Sprintf("The earlier messages of this conversation stayed on workspace %s, which cannot be reached: %v. It continues here without them.",
-		lease.Workspace, err))
-	s.launchLocal(ctx, w, key, opts, "")
+	s.rememberReclaim(key.ConversationID, lease.Workspace, err.Error())
+	s.launchHere(ctx, w, key, opts, "")
+}
+
+// launchHere runs the thread on this daemon. A conversation reclaimed from a
+// workspace that is gone opens without its earlier messages, so every open
+// says why until it has messages of its own again.
+func (s *Service) launchHere(ctx context.Context, w *lazyWorker, key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions, teleportID string) {
+	if workspace, reason := s.reclaimedFrom(key.ConversationID); workspace != "" {
+		w.whileEmpty = runError(fmt.Sprintf("The earlier messages of this conversation stayed on workspace %s, which cannot be reached: %s. It continues here without them.", workspace, reason))
+	}
+	s.launchLocal(ctx, w, key, opts, teleportID)
 }
 
 // relayNamed relays a thread no lease places to the workspace its client
@@ -137,17 +146,17 @@ func (w *heartbeatWorker) Stop() {
 
 // lazyWorker is a worker whose connection is still being decided. It buffers
 // what is sent to it, then replays into the real worker, or ends with one
-// RUN_ERROR when no worker could be reached. A frame set in afterSnapshot
-// follows the worker's first MESSAGES_SNAPSHOT, so a client opening a
-// reclaimed conversation sees why it is empty.
+// RUN_ERROR when no worker could be reached. A frame set in whileEmpty
+// follows the worker's first MESSAGES_SNAPSHOT when that holds no messages,
+// so a client opening an empty reclaimed conversation sees why.
 type lazyWorker struct {
-	mu            sync.Mutex
-	inner         sessionsdomain.Worker
-	pending       [][]byte
-	failed        error
-	stopped       bool
-	lines         chan []byte
-	afterSnapshot []byte
+	mu         sync.Mutex
+	inner      sessionsdomain.Worker
+	pending    [][]byte
+	failed     error
+	stopped    bool
+	lines      chan []byte
+	whileEmpty []byte
 }
 
 func newLazyWorker() *lazyWorker {
@@ -214,9 +223,11 @@ func (w *lazyWorker) attach(inner sessionsdomain.Worker) {
 	go func() {
 		for line := range inner.Lines() {
 			w.lines <- line
-			if w.afterSnapshot != nil && frameType(line) == frameMessagesSnapshot {
-				w.lines <- w.afterSnapshot
-				w.afterSnapshot = nil
+			if w.whileEmpty != nil && frameType(line) == frameMessagesSnapshot {
+				if snapshotEmpty(line) {
+					w.lines <- w.whileEmpty
+				}
+				w.whileEmpty = nil
 			}
 		}
 		close(w.lines)

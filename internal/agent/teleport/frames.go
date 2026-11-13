@@ -155,3 +155,12 @@ func frameType(frame []byte) string {
 	_ = json.Unmarshal(frame, &head)
 	return head.Type
 }
+
+// snapshotEmpty reports whether a MESSAGES_SNAPSHOT carries no messages.
+func snapshotEmpty(frame []byte) bool {
+	var body struct {
+		Messages []json.RawMessage `json:"messages"`
+	}
+	_ = json.Unmarshal(frame, &body)
+	return len(body.Messages) == 0
+}
