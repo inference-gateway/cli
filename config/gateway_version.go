@@ -30,7 +30,9 @@ func (c GatewayConfig) PinnedRelease() (tag string, pinned bool) {
 	return gatewayTagPrefix + strings.TrimPrefix(version, gatewayTagPrefix), true
 }
 
-func (c GatewayConfig) validateVersion() error {
+// ValidateVersion rejects a gateway.version that is neither latest nor a
+// gateway release.
+func (c GatewayConfig) ValidateVersion() error {
 	tag, pinned := c.PinnedRelease()
 	if !pinned || gatewayVersionShape.MatchString(strings.TrimPrefix(tag, gatewayTagPrefix)) {
 		return nil

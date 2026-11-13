@@ -205,6 +205,7 @@ telemetry:
     It needs no release lookup, so it also works when the GitHub API is unreachable or rate limited. A cached
     binary of another release is replaced, which is how a downgrade works too
   - Docker mode ignores it: there the image tag in `gateway.oci` chooses the release
+  - `infer gateway install` installs that release without starting the gateway
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 - **gateway.mock**: Run against the bundled mock gateway instead of a real one (default: `false`). Set via `INFER_GATEWAY_MOCK`.
 - **gateway.debug**: Start the supervised gateway in development mode with detailed logging (default: `false`).

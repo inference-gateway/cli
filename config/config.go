@@ -1470,7 +1470,7 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		)
 	}
 
-	if err := c.Gateway.validateVersion(); err != nil {
+	if err := c.Gateway.ValidateVersion(); err != nil {
 		return err
 	}
 
