@@ -238,6 +238,14 @@ func TestLaunchReclaimsALapsedLeaseOfAnUnreachableWorkspace(t *testing.T) {
 	if lease.Workspace != "laptop" {
 		t.Fatalf("lease = %+v", lease)
 	}
+	l.lines[0] <- []byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`)
+	if got := firstLine(t, w); !strings.Contains(got, "MESSAGES_SNAPSHOT") {
+		t.Fatalf("relayed %q", got)
+	}
+	got := firstLine(t, w)
+	if !strings.Contains(got, "RUN_ERROR") || !strings.Contains(got, "stayed on workspace k8s") || !strings.Contains(got, "cluster down") {
+		t.Fatalf("after the snapshot: %q", got)
+	}
 	w.Stop()
 }
 
