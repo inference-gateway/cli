@@ -55,6 +55,8 @@ func (s *Service) resolve(w *lazyWorker, key sessionsdomain.ThreadKey, opts sess
 	}
 	logger.Warn("teleport reclaims a session whose workspace is unreachable and whose lease lapsed",
 		"conversation_id", key.ConversationID, "workspace", lease.Workspace, "error", err)
+	w.afterSnapshot = runError(fmt.Sprintf("The earlier messages of this conversation stayed on workspace %s, which cannot be reached: %v. It continues here without them.",
+		lease.Workspace, err))
 	s.launchLocal(ctx, w, key, opts, "")
 }
 
@@ -135,14 +137,17 @@ func (w *heartbeatWorker) Stop() {
 
 // lazyWorker is a worker whose connection is still being decided. It buffers
 // what is sent to it, then replays into the real worker, or ends with one
-// RUN_ERROR when no worker could be reached.
+// RUN_ERROR when no worker could be reached. A frame set in afterSnapshot
+// follows the worker's first MESSAGES_SNAPSHOT, so a client opening a
+// reclaimed conversation sees why it is empty.
 type lazyWorker struct {
-	mu      sync.Mutex
-	inner   sessionsdomain.Worker
-	pending [][]byte
-	failed  error
-	stopped bool
-	lines   chan []byte
+	mu            sync.Mutex
+	inner         sessionsdomain.Worker
+	pending       [][]byte
+	failed        error
+	stopped       bool
+	lines         chan []byte
+	afterSnapshot []byte
 }
 
 func newLazyWorker() *lazyWorker {
@@ -209,6 +214,10 @@ func (w *lazyWorker) attach(inner sessionsdomain.Worker) {
 	go func() {
 		for line := range inner.Lines() {
 			w.lines <- line
+			if w.afterSnapshot != nil && frameType(line) == frameMessagesSnapshot {
+				w.lines <- w.afterSnapshot
+				w.afterSnapshot = nil
+			}
 		}
 		close(w.lines)
 		w.Stop()
