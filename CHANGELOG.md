@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.261.0](https://github.com/inference-gateway/cli/compare/v0.260.6...v0.261.0) (2026-11-13)
+
+### 🚀 Features
+
+* **gateway:** choose the gateway release and install it from one place ([#1834](https://github.com/inference-gateway/cli/issues/1834)) ([01c38b0](https://github.com/inference-gateway/cli/commit/01c38b073658810fbfef9e631749ec26ae0a27e3))
+
 ## [0.260.6](https://github.com/inference-gateway/cli/compare/v0.260.5...v0.260.6) (2026-11-13)
 
 ### 🐛 Bug Fixes
