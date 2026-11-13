@@ -683,7 +683,9 @@ reminders:
 The `on_failure` trigger lets a consumer nudge the model only when a change did not
 happen (a failed tool call), instead of paying the per-turn cost of an `always` reminder.
 The `on_repeated_failure`, `on_stalled_todos` and `on_empty_response` triggers default
-`threshold` to 3 when it is omitted.
+`threshold` to 3 when it is omitted. The built-in `todo-continuation` reminder sets it to 2, so it
+nudges once per stall and an agent that is waiting for the user can stop.
+A turn whose only tool call is `TodoWrite` neither counts as a stall nor clears the count.
 
 #### Supplying reminders without a file
 

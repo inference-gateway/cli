@@ -1234,16 +1234,30 @@ func (s *Agent) maybeRolloverSession(agentCtx *states.AgentContext, req *agentdo
 // trackStreamOutcome records the just-finished stream's finish reason and
 // updates the consecutive no-tool-call strike counter that gates the
 // post_stream continuation nudges (on_stalled_todos / on_truncation).
-func (s *Agent) trackStreamOutcome(finishReason string, hadToolCalls, hadContent bool) {
+// A turn that only rewrites the todo list leaves the counter alone, so
+// answering a nudge with TodoWrite cannot reset its strike cap.
+func (s *Agent) trackStreamOutcome(finishReason string, toolCalls []*sdk.ChatCompletionMessageToolCall, hadContent bool) {
 	s.reminderMux.Lock()
 	defer s.reminderMux.Unlock()
 	s.lastFinishReason = finishReason
-	s.lastStreamEmpty = !hadToolCalls && !hadContent
-	if hadToolCalls {
-		s.stalledStrikes = 0
-	} else {
+	s.lastStreamEmpty = len(toolCalls) == 0 && !hadContent
+	switch {
+	case len(toolCalls) == 0:
 		s.stalledStrikes++
+	case !onlyTodoUpkeep(toolCalls):
+		s.stalledStrikes = 0
 	}
+}
+
+// onlyTodoUpkeep reports whether every tool call of a turn is a TodoWrite,
+// which keeps the list current without moving the task forward.
+func onlyTodoUpkeep(toolCalls []*sdk.ChatCompletionMessageToolCall) bool {
+	for _, call := range toolCalls {
+		if call.Function.Name != tools.ToolTodoWrite {
+			return false
+		}
+	}
+	return true
 }
 
 // incompleteTodoItems filters the session todo list down to items not yet

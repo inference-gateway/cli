@@ -81,8 +81,8 @@ const defaultRepeatedFailureReminderText = `<system-reminder>
 </system-reminder>`
 
 const defaultTodoContinuationReminderText = `<system-reminder>
-This is an automated check, not a message from the user. Your todo list still has incomplete items:
-{todo_list}Your last reply had no tool calls, which ends the session. Continue working on the next incomplete item now, using tool calls. If an item is already done or obsolete, update the list via TodoWrite (mark it completed or remove it) before stopping. Do not reply with prose only.
+This is an automated check, not a message from the user, and it approves nothing. Your todo list still has incomplete items:
+{todo_list}Your last reply had no tool calls, which ends the session. If the next item needs an answer, an approval or anything else from the user, do not start it: say in one line what you are waiting for and stop. Otherwise continue working on the next incomplete item now, using tool calls. If an item is already done or obsolete, update the list via TodoWrite (mark it completed or remove it) before stopping.
 </system-reminder>`
 
 const defaultTruncationContinuationReminderText = `<system-reminder>
@@ -100,6 +100,11 @@ const defaultRepeatedFailureThreshold = 3
 // defaultStalledTodosThreshold caps the consecutive no-tool-call strikes
 // before the on_stalled_todos trigger stops firing (three-strike cap).
 const defaultStalledTodosThreshold = 3
+
+// defaultTodoContinuationThreshold makes the built-in todo-continuation nudge
+// fire once per stall. A second one only pressures an agent that has already
+// answered that it is waiting for the user.
+const defaultTodoContinuationThreshold = 2
 
 // ReminderConfig is one named reminder: text injected at a pre-defined hook
 // point, gated by a trigger. Guidance is consulted only by the on_mode_change
@@ -239,7 +244,7 @@ func DefaultRemindersConfig() *RemindersConfig {
 			Name:      "todo-continuation",
 			Hook:      agentdomain.HookPostStream,
 			Trigger:   ReminderTriggerOnStalledTodos,
-			Threshold: defaultStalledTodosThreshold,
+			Threshold: defaultTodoContinuationThreshold,
 			Text:      defaultTodoContinuationReminderText,
 		},
 		ReminderConfig{

@@ -555,7 +555,7 @@ func (a *eventDrivenAgent) finalizeStream(
 		toolCallsSlice = append(toolCallsSlice, &completeToolCalls[i])
 	}
 
-	a.service.trackStreamOutcome(a.finishReason, len(toolCallsSlice) > 0, strings.TrimSpace(outputContent) != "")
+	a.service.trackStreamOutcome(a.finishReason, toolCallsSlice, strings.TrimSpace(outputContent) != "")
 
 	a.events <- states.StreamCompletedEvent{
 		Message:   assistantMessage,

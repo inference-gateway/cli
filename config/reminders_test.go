@@ -641,6 +641,37 @@ func TestValidateNewTriggerRequirements(t *testing.T) {
 	}
 }
 
+// The built-in todo-continuation nudge fires once per stall and names waiting
+// for the user as a valid stop, so an approval gate is not pushed past.
+func TestDefaultTodoContinuationNudgesOnceAndAllowsWaiting(t *testing.T) {
+	cfg := config.DefaultRemindersConfig()
+	firedAt := func(strikes int) []agentdomain.SystemReminder {
+		q := query(agentdomain.HookPostStream, 1, 10, nil)
+		q.IncompleteTodos = []agentdomain.TodoItem{{ID: "1", Content: "export final once approved", Status: "pending"}}
+		q.StalledStrikes = strikes
+		var due []agentdomain.SystemReminder
+		for _, r := range cfg.RemindersDue(q) {
+			if r.Name == "todo-continuation" {
+				due = append(due, r)
+			}
+		}
+		return due
+	}
+
+	first := firedAt(1)
+	if len(first) != 1 {
+		t.Fatalf("first stall fired %d todo-continuation nudges, want 1", len(first))
+	}
+	for _, want := range []string{"it approves nothing", "say in one line what you are waiting for and stop"} {
+		if !strings.Contains(first[0].Text, want) {
+			t.Errorf("nudge text missing %q:\n%s", want, first[0].Text)
+		}
+	}
+	if again := firedAt(2); len(again) != 0 {
+		t.Errorf("second consecutive stall fired %d nudges, want 0", len(again))
+	}
+}
+
 func TestDefaultRemindersSeedContinuationBuiltins(t *testing.T) {
 	names := map[string]bool{}
 	for _, r := range config.DefaultRemindersConfig().Reminders {

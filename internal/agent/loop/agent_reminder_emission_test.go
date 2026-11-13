@@ -271,7 +271,7 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	})
 	svc := &Agent{config: cfg, stateManager: sm}
 
-	svc.trackStreamOutcome("stop", false, true)
+	svc.trackStreamOutcome("stop", nil, true)
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 2, 50)
@@ -282,11 +282,45 @@ func TestInjectDueReminders_StalledTodosContinuation(t *testing.T) {
 	assert.Contains(t, content, "open thing")
 	assert.NotContains(t, content, "done thing", "completed items must not appear in the nudge")
 
-	svc.trackStreamOutcome("stop", true, true)
+	svc.trackStreamOutcome("stop", toolCallsNamed("Bash"), true)
 	conv = nil
 	agentCtx = newReminderAgentCtx(&conv, 3, 50)
 	svc.injectDueReminders(agentCtx, agentdomain.HookPostStream)
 	assert.Empty(t, conv, "tool-calling turn must not trigger the continuation nudge")
+}
+
+// An agent that answers the nudge by tidying its list and then stops again is
+// waiting for the user: TodoWrite must not reset the strike cap, so the nudge
+// fires once and the second stop ends the turn.
+func TestInjectDueReminders_TodoWriteDoesNotRearmContinuation(t *testing.T) {
+	cfg := remindersConfig(true, config.ReminderConfig{
+		Name: "todo-continuation", Text: "continue your todos: {todo_list}",
+		Hook: agentdomain.HookPostStream, Trigger: config.ReminderTriggerOnStalledTodos, Threshold: 2,
+	})
+	sm := statemanager.NewStore(false)
+	sm.SetTodos([]agentdomain.TodoItem{{ID: "1", Content: "export final once approved", Status: "pending"}})
+	svc := &Agent{config: cfg, stateManager: sm}
+	nudgesAfter := func(toolCalls []*sdk.ChatCompletionMessageToolCall) int {
+		svc.trackStreamOutcome("stop", toolCalls, true)
+		conv := []sdk.Message{}
+		svc.injectDueReminders(newReminderAgentCtx(&conv, 2, 50), agentdomain.HookPostStream)
+		return len(conv)
+	}
+
+	assert.Equal(t, 1, nudgesAfter(nil), "the first stop with open todos is nudged")
+	svc.trackStreamOutcome("stop", toolCallsNamed("TodoWrite"), false)
+	assert.Equal(t, 0, nudgesAfter(nil), "stopping again after only TodoWrite must end the turn")
+
+	svc.trackStreamOutcome("stop", toolCallsNamed("TodoWrite", "Bash"), false)
+	assert.Equal(t, 1, nudgesAfter(nil), "real work re-arms the nudge")
+}
+
+func toolCallsNamed(names ...string) []*sdk.ChatCompletionMessageToolCall {
+	calls := make([]*sdk.ChatCompletionMessageToolCall, 0, len(names))
+	for _, name := range names {
+		calls = append(calls, &sdk.ChatCompletionMessageToolCall{Function: sdk.ChatCompletionMessageToolCallFunction{Name: name}})
+	}
+	return calls
 }
 
 // A length-truncated stream fires the truncation nudge instead of the
@@ -306,7 +340,7 @@ func TestInjectDueReminders_TruncationTakesPriority(t *testing.T) {
 	sm.SetTodos([]agentdomain.TodoItem{{ID: "1", Content: "open", Status: "pending"}})
 	svc := &Agent{config: cfg, stateManager: sm}
 
-	svc.trackStreamOutcome("length", false, true)
+	svc.trackStreamOutcome("length", nil, true)
 
 	conv := []sdk.Message{}
 	agentCtx := newReminderAgentCtx(&conv, 2, 50)
@@ -333,7 +367,7 @@ func TestInjectDueReminders_EmptyResponse(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &Agent{config: cfg}
-			svc.trackStreamOutcome("stop", false, tt.hadContent)
+			svc.trackStreamOutcome("stop", nil, tt.hadContent)
 
 			conv := []sdk.Message{}
 			agentCtx := newReminderAgentCtx(&conv, 2, 50)
