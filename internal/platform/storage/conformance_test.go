@@ -470,23 +470,28 @@ func runShellHistoryStorageConformance(t *testing.T, newStorage func(t *testing.
 
 func conformanceShellHistoryCRUD(t *testing.T, store ShellHistoryStorage) {
 	ctx := context.Background()
+	const multiLine = "Use \"zoom\" here.\n\nKeep the literal \\n in this path.\nLast line."
 
-	require.NoError(t, store.AppendHistory(ctx, "echo hello"))
-	require.NoError(t, store.AppendHistory(ctx, "ls -la"))
-	require.NoError(t, store.AppendHistory(ctx, "git status"))
+	require.NoError(t, store.AppendHistory(ctx, "/work/app", "echo hello"))
+	require.NoError(t, store.AppendHistory(ctx, "/work/other", "make test"))
+	require.NoError(t, store.AppendHistory(ctx, "/work/app", "ls -la"))
+	require.NoError(t, store.AppendHistory(ctx, "/work/app", multiLine))
 
-	history, err := store.LoadHistory(ctx, 0)
+	history, err := store.LoadHistory(ctx, "/work/app", 0)
 	require.NoError(t, err)
-	assert.Len(t, history, 3)
-	assert.Equal(t, "echo hello", history[0])
-	assert.Equal(t, "ls -la", history[1])
-	assert.Equal(t, "git status", history[2])
+	assert.Equal(t, []string{"echo hello", "ls -la", multiLine}, history)
 
-	history, err = store.LoadHistory(ctx, 2)
+	history, err = store.LoadHistory(ctx, "/work/app", 2)
 	require.NoError(t, err)
-	require.Len(t, history, 2)
-	assert.Equal(t, "ls -la", history[0])
-	assert.Equal(t, "git status", history[1])
+	assert.Equal(t, []string{"ls -la", multiLine}, history)
+
+	history, err = store.LoadHistory(ctx, "/work/other", 0)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"make test"}, history)
+
+	history, err = store.LoadHistory(ctx, "/work/unknown", 0)
+	require.NoError(t, err)
+	assert.Empty(t, history)
 }
 
 // runLeaseStoreConformance runs the lease compare-and-swap suite against any

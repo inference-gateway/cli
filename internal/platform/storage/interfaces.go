@@ -126,13 +126,15 @@ type PlanStorage interface {
 	DeletePlan(ctx context.Context, id string) error
 }
 
-// ShellHistoryStorage defines the interface for persisting shell command history.
+// ShellHistoryStorage persists the input history every client's arrow-up
+// recall walks, one list per project (the absolute project dir).
 type ShellHistoryStorage interface {
-	// AppendHistory appends a command to the history log.
-	AppendHistory(ctx context.Context, command string) error
+	// AppendHistory appends a command to the project's history.
+	AppendHistory(ctx context.Context, project, command string) error
 
-	// LoadHistory returns the most recent commands up to limit.
-	LoadHistory(ctx context.Context, limit int) ([]string, error)
+	// LoadHistory returns the project's most recent commands, oldest first,
+	// all of them when limit <= 0.
+	LoadHistory(ctx context.Context, project string, limit int) ([]string, error)
 }
 
 // Stores is the aggregate returned by NewStorage, holding all storage backends.

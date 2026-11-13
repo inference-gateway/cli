@@ -968,20 +968,20 @@ func (s *D1Storage) DeletePlan(ctx context.Context, id string) error {
 // ShellHistoryStorage (D1Storage)
 // ---------------------------------------------------------------------------
 
-// AppendHistory appends a command to the shell history.
-func (s *D1Storage) AppendHistory(ctx context.Context, command string) error {
-	_, err := s.exec(ctx, "INSERT INTO shell_history(command) VALUES (?)", command)
+// AppendHistory appends a command to the project's shell history.
+func (s *D1Storage) AppendHistory(ctx context.Context, project, command string) error {
+	_, err := s.exec(ctx, "INSERT INTO shell_history(project, command) VALUES (?, ?)", project, command)
 	if err != nil {
 		return fmt.Errorf("append shell history: %w", err)
 	}
 	return nil
 }
 
-// LoadHistory returns the most recent commands up to limit in chronological
-// order; limit <= 0 returns everything.
-func (s *D1Storage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
-	query := "SELECT command FROM shell_history ORDER BY id DESC"
-	args := []any{}
+// LoadHistory returns the project's most recent commands up to limit in
+// chronological order; limit <= 0 returns everything.
+func (s *D1Storage) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
+	query := "SELECT command FROM shell_history WHERE project = ? ORDER BY id DESC"
+	args := []any{project}
 	if limit > 0 {
 		query += " LIMIT ?"
 		args = append(args, limit)

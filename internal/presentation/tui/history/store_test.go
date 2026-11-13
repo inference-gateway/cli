@@ -1,13 +1,13 @@
-package history_test //nolint:cyclop // Integration tests with temp dir setup
+package history_test
 
 import (
-	"os"
-	"path/filepath"
+	"context"
 	"reflect"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
+	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
 func TestGetAllHistoryReturnsOrderedDefensiveCopy(t *testing.T) {
@@ -31,144 +31,38 @@ func TestGetAllHistoryReturnsOrderedDefensiveCopy(t *testing.T) {
 	}
 }
 
-func TestHistoryManager_PublicAPI(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "history_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
+func TestStoreBackedHistoryLoadsAndPersistsTheProject(t *testing.T) {
+	ctx := context.Background()
+	store := storage.NewMemoryStorage()
+	if err := store.AppendHistory(ctx, projects.Path(), "existing command"); err != nil {
+		t.Fatalf("seed: %v", err)
 	}
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Errorf("Failed to remove temp dir: %v", err)
+	if err := store.AppendHistory(ctx, "/elsewhere", "other project"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	hm := history.NewHistoryManagerWithProvider(5, history.NewStoreShellHistory(store))
+	if got := hm.GetAllHistory(); !reflect.DeepEqual(got, []string{"existing command"}) {
+		t.Fatalf("loaded history = %v, want the project's entry only", got)
+	}
+
+	for _, entry := range []string{"new command", "new command", "  "} {
+		if err := hm.AddToHistory(entry); err != nil {
+			t.Fatalf("AddToHistory(%q): %v", entry, err)
 		}
-	}()
+	}
+	if hm.NavigateUp("draft") != "new command" {
+		t.Error("NavigateUp should return the newest command")
+	}
+	if hm.NavigateDown("") != "draft" {
+		t.Error("NavigateDown past the newest entry should restore the draft")
+	}
 
-	originalWd, err := os.Getwd()
+	persisted, err := store.LoadHistory(ctx, projects.Path(), 0)
 	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
+		t.Fatalf("LoadHistory: %v", err)
 	}
-	defer func() {
-		if err := os.Chdir(originalWd); err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
-		}
-	}()
-
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
-	t.Setenv("HOME", tempDir)
-
-	runtimeDir := config.ProjectRuntimeDir()
-	historyDir := filepath.Join(runtimeDir, "history")
-	if err := os.MkdirAll(historyDir, 0755); err != nil {
-		t.Fatalf("Failed to create history directory: %v", err)
-	}
-
-	historyFile := filepath.Join(historyDir, "history")
-	content := "existing command\n"
-	if err := os.WriteFile(historyFile, []byte(content), 0644); err != nil {
-		t.Fatalf("Failed to write test history file: %v", err)
-	}
-
-	hm, err := history.NewStore(5)
-	if err != nil {
-		t.Fatalf("NewHistoryManager failed: %v", err)
-	}
-
-	if hm == nil {
-		t.Fatal("History manager should not be nil")
-	}
-
-	initialCount := hm.GetHistoryCount()
-	if initialCount == 0 {
-		t.Errorf("Expected history to be loaded, got count: %d", initialCount)
-	}
-
-	err = hm.AddToHistory("new command")
-	if err != nil {
-		t.Fatalf("AddToHistory failed: %v", err)
-	}
-
-	newCount := hm.GetHistoryCount()
-	if newCount != initialCount+1 {
-		t.Errorf("Expected count %d, got %d", initialCount+1, newCount)
-	}
-
-	currentText := "current input"
-	result := hm.NavigateUp(currentText)
-	if result == currentText {
-		t.Error("NavigateUp should return a history command")
-	}
-
-	downResult := hm.NavigateDown("")
-	if downResult == "" {
-		t.Error("NavigateDown should return a value")
-	}
-
-	hm.ResetNavigation()
-
-	histFile := hm.GetShellHistoryFile()
-	if histFile == "" {
-		t.Error("Expected non-empty history file path")
-	}
-}
-
-func TestNewHistoryManager_Integration(t *testing.T) {
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-
-	tempDir, err := os.MkdirTemp("", "history_manager_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(originalWd); err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
-		}
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Errorf("Failed to clean up temp directory: %v", err)
-		}
-	}()
-
-	if err := os.Chdir(tempDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
-	t.Setenv("HOME", tempDir)
-
-	runtimeDir := config.ProjectRuntimeDir()
-	historyDir := filepath.Join(runtimeDir, "history")
-	if err := os.MkdirAll(historyDir, 0755); err != nil {
-		t.Fatalf("Failed to create history directory: %v", err)
-	}
-
-	historyFile := filepath.Join(historyDir, "history")
-	content := "git status\nls -la\npwd\n"
-	if err := os.WriteFile(historyFile, []byte(content), 0644); err != nil {
-		t.Fatalf("Failed to write test history file: %v", err)
-	}
-
-	hm, err := history.NewStore(5)
-	if err != nil {
-		t.Fatalf("NewHistoryManager failed: %v", err)
-	}
-
-	if hm == nil {
-		t.Fatal("History manager should not be nil")
-	}
-
-	historyCount := hm.GetHistoryCount()
-	if historyCount == 0 {
-		t.Errorf("Expected history to be loaded, got count: %d, history file: %s", historyCount, hm.GetShellHistoryFile())
-	}
-
-	err = hm.AddToHistory("echo test")
-	if err != nil {
-		t.Fatalf("AddToHistory failed: %v", err)
-	}
-
-	result := hm.NavigateUp("current")
-	if result == "current" {
-		t.Error("NavigateUp should return a history command, not current input")
+	if want := []string{"existing command", "new command"}; !reflect.DeepEqual(persisted, want) {
+		t.Fatalf("persisted = %v, want %v", persisted, want)
 	}
 }

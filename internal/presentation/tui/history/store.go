@@ -1,11 +1,9 @@
 package history
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
-	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
@@ -17,37 +15,6 @@ type Store struct {
 	historyIndex    int
 	currentInput    string
 	allHistory      []string
-}
-
-// NewStore creates a new history manager rooted at the per-project
-// runtime dir (~/.infer/projects/<project-slug>/history).
-func NewStore(maxInMemory int) (*Store, error) {
-	return NewHistoryManagerWithName(maxInMemory, config.ProjectRuntimeDir(), "")
-}
-
-// NewHistoryManagerWithName creates a new history manager rooted at baseDir
-// with an optional name. When name is empty, the history file is stored at
-// <baseDir>/history/history (the main agent). When name is non-empty, the history
-// file is stored at <baseDir>/history/history-<name> (e.g. for subagents).
-func NewHistoryManagerWithName(maxInMemory int, baseDir, name string) (*Store, error) {
-	shellHistory, err := NewShellHistoryWithName(baseDir, name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize shell history: %w", err)
-	}
-
-	hm := &Store{
-		shellHistory:    shellHistory,
-		inMemoryHistory: make([]string, 0, maxInMemory),
-		maxInMemory:     maxInMemory,
-		historyIndex:    -1,
-		currentInput:    "",
-	}
-
-	if err := hm.loadCombinedHistory(); err != nil {
-		hm.allHistory = make([]string, 0)
-	}
-
-	return hm, nil
 }
 
 // NewMemoryOnlyStore creates a history manager that only uses in-memory storage
@@ -177,12 +144,7 @@ func (hm *Store) IsNavigating() bool {
 	return hm.historyIndex != -1
 }
 
-// GetShellHistoryFile returns the shell history file path
-func (hm *Store) GetShellHistoryFile() string {
-	return hm.shellHistory.GetHistoryFile()
-}
-
-// MemoryOnlyShellHistory provides a no-op shell history provider for testing
+// MemoryOnlyShellHistory persists nothing, for subagents and tests.
 type MemoryOnlyShellHistory struct{}
 
 func (m *MemoryOnlyShellHistory) LoadHistory() ([]string, error) {
@@ -191,8 +153,4 @@ func (m *MemoryOnlyShellHistory) LoadHistory() ([]string, error) {
 
 func (m *MemoryOnlyShellHistory) SaveToHistory(command string) error {
 	return nil
-}
-
-func (m *MemoryOnlyShellHistory) GetHistoryFile() string {
-	return ""
 }

@@ -96,7 +96,7 @@ for the full precedence rules.
 └── projects/             # per-project runtime state, grouped by project
     └── <project-slug>/
         ├── conversations/  # JSONL conversation stores (type: jsonl)
-        ├── history/        # chat input history (one entry per line)
+        ├── history/        # chat input history (JSON Lines, one entry per line)
         ├── backups/        # file-write tool backups
         ├── tmp/            # scratch space (streamed writes, dynamic skills, ...)
         │   └── media/      # media root while this project is open (see Media Directories)
@@ -234,8 +234,9 @@ the project-local `.infer/`.
   (Write streaming chunks, dynamic skills, clipboard images, the project's
   media root, ...). Safe to delete when the CLI is idle.
 - **`~/.infer/projects/<project-slug>/history/history`** - chat input
-  history, one command per line (per-agent files: `history-<name>`).
-  Powers inline auto-completion.
+  history, one JSON object per line (`{"project": ..., "text": ...}`), shared
+  by the TUI, the desktop app and the browser extension. Powers arrow-up recall
+  and inline auto-completion. Subagents keep their history in memory only.
 - **`~/.infer/projects/<project-slug>/backups/`** - file backups created by
   the Write/Edit tools before overwriting an existing file.
 - **`~/.infer/projects/<project-slug>/artifacts/`** - agent deliverables

@@ -1,7 +1,7 @@
 package components
 
 import (
-	"path/filepath"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -19,10 +19,12 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	history "github.com/inference-gateway/cli/internal/presentation/tui/history"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -66,20 +68,29 @@ func createInputViewWithTheme(modelService convdomain.ModelService) *InputView {
 	return iv
 }
 
-// NewInputViewWithName must map the memory-only sentinel to a manager with no backing
-// file (unlabeled subagents), and a real name to <configDir>/history/history-<name>.
+// NewInputViewWithName persists only the main agent's history: a named
+// subagent and the memory-only sentinel never reach the store.
 func TestNewInputViewWithName_HistorySelection(t *testing.T) {
 	ms := createMockModelService()
+	store := storage.NewMemoryStorage()
 
-	iv := NewInputViewWithName(ms, "cfgdir", scheddomain.SubagentHistoryMemoryOnly, nil)
-	if got := iv.historyManager.GetShellHistoryFile(); got != "" {
-		t.Errorf("memory-only sentinel must have no history file, got %q", got)
+	for _, name := range []string{scheddomain.SubagentHistoryMemoryOnly, "refactor"} {
+		iv := NewInputViewWithName(ms, name, store)
+		if err := iv.AddToHistory("subagent input"); err != nil {
+			t.Fatalf("AddToHistory(%q): %v", name, err)
+		}
+	}
+	if persisted, _ := store.LoadHistory(context.Background(), projects.Path(), 0); len(persisted) != 0 {
+		t.Fatalf("subagent history must stay in memory, store holds %v", persisted)
 	}
 
-	iv = NewInputViewWithName(ms, "cfgdir", "refactor", nil)
-	want := filepath.Join("cfgdir", "history", "history-refactor")
-	if got := iv.historyManager.GetShellHistoryFile(); got != want {
-		t.Errorf("named subagent history: want %q, got %q", want, got)
+	iv := NewInputViewWithName(ms, "", store)
+	if err := iv.AddToHistory("main input"); err != nil {
+		t.Fatalf("AddToHistory(main): %v", err)
+	}
+	persisted, _ := store.LoadHistory(context.Background(), projects.Path(), 0)
+	if len(persisted) != 1 || persisted[0] != "main input" {
+		t.Fatalf("main history = %v, want [main input]", persisted)
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -412,14 +413,16 @@ func newHistory(write frameWriter, store storage.ShellHistoryStorage) *history {
 // noHistory is the empty shell-history store.
 type noHistory struct{}
 
-func (noHistory) AppendHistory(context.Context, string) error { return nil }
+func (noHistory) AppendHistory(context.Context, string, string) error { return nil }
 
-func (noHistory) LoadHistory(context.Context, int) ([]string, error) { return []string{}, nil }
+func (noHistory) LoadHistory(context.Context, string, int) ([]string, error) {
+	return []string{}, nil
+}
 
-// list answers list_history with the shared shell input history. An empty store
-// still replies with an empty list.
+// list answers list_history with the project's shell input history. An empty
+// store still replies with an empty list.
 func (h *history) list() {
-	loaded, err := h.store.LoadHistory(context.Background(), historyListLimit)
+	loaded, err := h.store.LoadHistory(context.Background(), projects.Path(), historyListLimit)
 	if err != nil {
 		logger.Debug("panel failed to load history", "error", err)
 		loaded = nil
@@ -437,10 +440,11 @@ func (h *history) append(content string) {
 	if content == "" {
 		return
 	}
-	if last, err := h.store.LoadHistory(context.Background(), 1); err == nil && len(last) > 0 && last[len(last)-1] == content {
+	project := projects.Path()
+	if last, err := h.store.LoadHistory(context.Background(), project, 1); err == nil && len(last) > 0 && last[len(last)-1] == content {
 		return
 	}
-	if err := h.store.AppendHistory(context.Background(), content); err != nil {
+	if err := h.store.AppendHistory(context.Background(), project, content); err != nil {
 		logger.Warn("panel failed to append history", "error", err)
 	}
 }

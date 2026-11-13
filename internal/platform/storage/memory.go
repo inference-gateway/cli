@@ -20,7 +20,7 @@ type MemoryStorage struct {
 	scheduledJobs map[string]*scheddomain.ScheduledJob
 	scheduledRuns map[string]*scheddomain.RunRecord
 	plans         map[string]*PlanRecord
-	shellHistory  []string
+	shellHistory  map[string][]string
 	leases        map[string]agentdomain.Lease
 	mutex         sync.RWMutex
 }
@@ -35,6 +35,7 @@ func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		conversations: make(map[string]conversationData),
 		sessionGroups: make(map[string]SessionGroupEntry),
+		shellHistory:  make(map[string][]string),
 		leases:        make(map[string]agentdomain.Lease),
 	}
 }
@@ -381,27 +382,24 @@ func (m *MemoryStorage) DeletePlan(ctx context.Context, id string) error {
 // ShellHistoryStorage (MemoryStorage)
 // ---------------------------------------------------------------------------
 
-// AppendHistory appends a command to the shell history.
-func (m *MemoryStorage) AppendHistory(ctx context.Context, command string) error {
+// AppendHistory appends a command to the project's shell history.
+func (m *MemoryStorage) AppendHistory(ctx context.Context, project, command string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.shellHistory = append(m.shellHistory, command)
+	m.shellHistory[project] = append(m.shellHistory[project], command)
 	return nil
 }
 
-// LoadHistory returns the most recent commands up to limit.
-func (m *MemoryStorage) LoadHistory(ctx context.Context, limit int) ([]string, error) {
+// LoadHistory returns the project's most recent commands up to limit.
+func (m *MemoryStorage) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	if len(m.shellHistory) == 0 {
+	commands := m.shellHistory[project]
+	if len(commands) == 0 {
 		return nil, nil
 	}
-	if limit <= 0 || limit >= len(m.shellHistory) {
-		result := make([]string, len(m.shellHistory))
-		copy(result, m.shellHistory)
-		return result, nil
+	if limit > 0 && limit < len(commands) {
+		commands = commands[len(commands)-limit:]
 	}
-	result := make([]string, limit)
-	copy(result, m.shellHistory[len(m.shellHistory)-limit:])
-	return result, nil
+	return slices.Clone(commands), nil
 }

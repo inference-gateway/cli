@@ -521,10 +521,11 @@ on the next turn and the conversation keeps it. A thread with no running worker 
 
 ## Input history
 
-The panel's arrow-up recall shares the CLI's shell-style input history: the CLI
-appends the text of panel-sent `run_agent_input` messages to the same store the
-TUI's arrow-up navigation uses (trimmed, consecutive duplicates skipped), and
-serves the combined history back on request.
+The panel's arrow-up recall shares the CLI's input history, kept per project:
+the CLI appends the text of panel-sent `run_agent_input` messages to the same
+store the TUI's arrow-up navigation uses (trimmed, consecutive duplicates
+skipped), and serves the project's history back on request. Every client, the
+TUI, the desktop app and the browser extension, reads and feeds this one store.
 
 Client → CLI, list recent input history:
 
