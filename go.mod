@@ -32,7 +32,7 @@ require (
 	github.com/inference-gateway/adk v0.34.2
 	github.com/inference-gateway/operator v0.34.0
 	github.com/inference-gateway/sdk v1.45.0
-	github.com/inference-gateway/tokenless v0.12.0
+	github.com/inference-gateway/tokenless v0.13.0
 	github.com/jezek/xgb v1.3.1
 	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
