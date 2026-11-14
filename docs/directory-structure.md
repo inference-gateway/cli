@@ -92,7 +92,7 @@ for the full precedence rules.
 ├── bin/                  # downloaded gateway binary, one shared copy per machine
 ├── conversations.db      # shared SQLite conversation store (type: sqlite)
 ├── artifacts/            # GitHub artifact poller downloads (see infer daemon)
-├── models/               # whisper/ and tts/ speech models
+├── models/               # whisper/ and tts/ speech models, huggingface/ downloads
 └── projects/             # per-project runtime state, grouped by project
     └── <project-slug>/
         ├── conversations/  # JSONL conversation stores (type: jsonl)
@@ -261,6 +261,8 @@ the project-local `.infer/`.
 - **`~/.infer/models/`** *(userspace)* - speech models downloaded on first use:
   `whisper/` for speech-to-text and `tts/` for text-to-speech. See
   [Speech to Text](speech-to-text.md) and [Text to Speech](text-to-speech.md).
+  `huggingface/<owner>/<name>/` holds the models fetched with
+  [`infer models download`](commands-reference.md#infer-models).
 - **`~/.infer/telemetry/`** *(userspace)* - usage stats backing
   [`infer stats`](commands-reference.md); wiped by `/reset`. See
   [Telemetry](telemetry.md).
