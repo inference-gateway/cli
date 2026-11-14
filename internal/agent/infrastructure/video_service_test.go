@@ -72,6 +72,35 @@ func TestVideoService_Render(t *testing.T) { // nolint:funlen
 		assert.Equal(t, []byte("fake-mp4-bytes"), written)
 	})
 
+	t.Run("a local avatar model is sent whole and names no provider", func(t *testing.T) {
+		client := &sdkmocks.FakeClient{}
+		client.CreateVideoReturns(&sdk.VideoJob{ID: "local:job-1", Status: sdk.VideoJobStatusQueued}, nil)
+		client.RetrieveVideoReturns(&sdk.VideoJob{ID: "local:job-1", Status: sdk.VideoJobStatusCompleted}, nil)
+		client.DownloadVideoContentReturns([]byte("mp4"), nil)
+
+		cfg := config.DefaultConfig()
+		cfg.TextToVideo.AvatarModel = "local/musetalk"
+		svc := NewVideoService(cfg, client)
+
+		dir := t.TempDir()
+		avatar := filepath.Join(dir, "portrait.png")
+		audio := filepath.Join(dir, "line.wav")
+		require.NoError(t, os.WriteFile(avatar, []byte("png-bytes"), 0o600))
+		require.NoError(t, os.WriteFile(audio, []byte("wav-bytes"), 0o600))
+
+		err := svc.Render(context.Background(), agentdomain.VideoRequest{AvatarPath: avatar, AudioPath: audio}, filepath.Join(t.TempDir(), "out.mp4"))
+		require.NoError(t, err)
+
+		_, provider, req := client.CreateVideoArgsForCall(0)
+		assert.Empty(t, provider, "the gateway routes a local model by its id, not by a provider")
+		assert.Equal(t, "local/musetalk", req.Model)
+		_, polledProvider, polledID := client.RetrieveVideoArgsForCall(0)
+		assert.Empty(t, polledProvider)
+		assert.Equal(t, "local:job-1", polledID)
+		_, downloadProvider, _ := client.DownloadVideoContentArgsForCall(0)
+		assert.Empty(t, downloadProvider)
+	})
+
 	t.Run("avatar plus audio upload builds the multipart files", func(t *testing.T) {
 		client := &sdkmocks.FakeClient{}
 		client.CreateVideoReturns(&sdk.VideoJob{ID: "job-1", Status: sdk.VideoJobStatusQueued}, nil)

@@ -22,6 +22,10 @@ import (
 // in one multipart body, so their combined size is checked before sending.
 const maxVideoUploadBytes = 10 << 20
 
+// localProvider prefixes the models the gateway serves with a built-in engine.
+// The gateway takes such a model whole and names no provider for it.
+const localProvider = "local"
+
 // Defaults for the video job loop (seconds).
 const (
 	defaultVideoTimeoutSeconds      = 900
@@ -56,6 +60,10 @@ func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequ
 	provider, modelName, ok := strings.Cut(model, "/")
 	if !ok || provider == "" || modelName == "" {
 		return fmt.Errorf("invalid text_to_video model %q (expected 'provider/model')", model)
+	}
+
+	if provider == localProvider {
+		provider, modelName = "", model
 	}
 
 	videoReq, err := s.buildCreateRequest(request, modelName)

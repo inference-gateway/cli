@@ -38,7 +38,7 @@ func (s *SpeechService) Synthesize(ctx context.Context, text, voiceSamplePath, o
 		return fmt.Errorf("invalid text_to_speech.model %q (expected 'provider/model')", model)
 	}
 
-	if provider == "local" {
+	if provider == localProvider {
 		provider, modelName = "", model
 	}
 
