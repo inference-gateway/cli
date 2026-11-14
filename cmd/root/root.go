@@ -30,6 +30,7 @@ import (
 	keybindings "github.com/inference-gateway/cli/cmd/keybindings"
 	mcp "github.com/inference-gateway/cli/cmd/mcp"
 	migrate "github.com/inference-gateway/cli/cmd/migrate"
+	modelscmd "github.com/inference-gateway/cli/cmd/models"
 	output "github.com/inference-gateway/cli/cmd/output"
 	plans "github.com/inference-gateway/cli/cmd/plans"
 	plugins "github.com/inference-gateway/cli/cmd/plugins"
@@ -110,6 +111,7 @@ deployment, monitoring, and management of inference services.`,
 		keybindings.NewCommand(state),
 		mcp.NewCommand(state, renderer),
 		migrate.NewCommand(state),
+		modelscmd.NewCommand(renderer),
 		plans.NewCommand(state, renderer),
 		plugins.NewCommand(state, renderer),
 		resetcmd.NewCommand(state),

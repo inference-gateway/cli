@@ -19,7 +19,7 @@ func TestCommandTopology(t *testing.T) {
 	command := NewCommand()
 	want := []string{
 		"agents", "avatars", "binaries", "chat", "compute", "config", "conversation-title", "conversations", "daemon", "debug", "env",
-		"export", "gateway", "gpu", "headless", "init", "insights", "keybindings", "mcp", "migrate", "plans",
+		"export", "gateway", "gpu", "headless", "init", "insights", "keybindings", "mcp", "migrate", "models", "plans",
 		"plugins", "reset", "shortcuts", "skills", "stats", "status", "tools", "traces", "version",
 	}
 	got := make([]string, 0, len(command.Commands()))
@@ -37,7 +37,7 @@ func TestCommandTopology(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, headlessCommand.Annotations[output.TUICommandAnnotation])
 
-	for _, path := range [][]string{{"agents", "add"}, {"compute", "gpus", "provision"}, {"config", "set"}, {"gateway", "install"}, {"gpu", "provision"}, {"mcp", "list"}, {"reset", "confirm"}} {
+	for _, path := range [][]string{{"agents", "add"}, {"compute", "gpus", "provision"}, {"config", "set"}, {"gateway", "install"}, {"gpu", "provision"}, {"mcp", "list"}, {"models", "download"}, {"reset", "confirm"}} {
 		found, _, err := command.Find(path)
 		require.NoError(t, err)
 		require.Equal(t, path[len(path)-1], found.Name())

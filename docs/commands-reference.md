@@ -888,6 +888,26 @@ the security model.
 Create and manage the TextToVideo avatar library (`~/.infer/avatars/<name>/` portrait folders): `create`, `list`,
 `delete`. See [Text-to-Video](text-to-video.md#avatar-library) for the commands and the layout.
 
+### `infer models`
+
+Search the Hugging Face Hub and keep model files on this machine: `search`, `files`, `download`, `list`, `delete`. A
+downloaded model is a folder under `~/.infer/models/huggingface/<owner>/<name>/` that keeps the layout the Hub gives it.
+Only public models can be downloaded.
+
+**Examples:**
+
+```bash
+infer models search musetalk --limit 5                           # Most downloaded first
+infer models files mlx-community/MuseTalk-1.5-fp16               # Every file with its size
+infer models download mlx-community/MuseTalk-1.5-fp16            # The whole model
+infer models download mlx-community/MuseTalk-1.5-fp16 config.json # Only the files named
+infer models list                                                # What is on disk
+infer models delete mlx-community/MuseTalk-1.5-fp16
+```
+
+A file that is already on disk is kept, so a download that was stopped picks up where it left off, file by file.
+`search`, `files` and `list` take `--format json`.
+
 ### `infer export`
 
 Export a conversation to a Markdown file.
