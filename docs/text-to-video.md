@@ -48,6 +48,10 @@ separate settings.
 Both must be of the form `provider/model`; config validation rejects a bare model name, and a negative `timeout` or `poll_interval`,
 as soon as the feature is enabled.
 
+A `local/` model, such as `avatar_model: local/musetalk`, is rendered by an engine built into the gateway and not by a provider. The
+CLI sends the model id whole and names no provider, the way `local/qwen3-tts` works for speech. Nothing leaves the machine, and the
+gateway says what is missing when the engine or its weights are not installed.
+
 ## Size rules
 
 `size` is a passthrough of the gateway's `widthxheight` form - the CLI neither maps nor validates resolutions. For ElevenLabs models
