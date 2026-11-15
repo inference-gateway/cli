@@ -27,31 +27,22 @@ import (
 // RegisterTools; construction never blocks on MCP I/O.
 
 type Registry struct {
-	config          *config.Config
-	toolsMu         sync.RWMutex
-	tools           map[string]agentdomain.Tool
-	readToolUsed    atomic.Bool
-	readFiles       map[string]fileReadSnapshot
-	readFilesMu     sync.Mutex
-	jobs            scheddomain.BackgroundTaskRegistry
-	imageService    agentdomain.ImageService
-	speechService   agentdomain.SpeechService
-	musicService    agentdomain.MusicService
-	sfxService      agentdomain.SoundEffectService
-	videoService    agentdomain.VideoService
-	videoSfxService agentdomain.VideoSoundEffectService
-	shellService    scheddomain.BackgroundShellService
-	annotator       agentdomain.ImageAnnotator
-	frameSources    map[string]agentdomain.FrameSource
-	frameSourcesMu  sync.RWMutex
-	memoryBackend   memory.MemoryBackend
-	stores          *storage.Stores
-	mdAgents        []markdownAgent
+	config         *config.Config
+	toolsMu        sync.RWMutex
+	tools          map[string]agentdomain.Tool
+	readToolUsed   atomic.Bool
+	readFiles      map[string]fileReadSnapshot
+	readFilesMu    sync.Mutex
+	deps           RegistryDeps
+	frameSources   map[string]agentdomain.FrameSource
+	frameSourcesMu sync.RWMutex
+	memoryBackend  memory.MemoryBackend
+	mdAgents       []markdownAgent
 }
 
 // RegistryDeps carries the optional collaborators NewRegistry wires into the
 // tools it registers. The zero value is valid: a nil collaborator leaves out
-// the tools that need it instead of failing construction.
+// or degrades the tools that need it, and construction never fails.
 type RegistryDeps struct {
 	Image             agentdomain.ImageService
 	Speech            agentdomain.SpeechService
@@ -72,20 +63,11 @@ type RegistryDeps struct {
 // NewRegistry creates a new tool registry with self-contained tools.
 func NewRegistry(cfg *config.Config, deps RegistryDeps) *Registry {
 	registry := &Registry{
-		config:          cfg,
-		tools:           make(map[string]agentdomain.Tool),
-		shellService:    deps.BackgroundShells,
-		readFiles:       make(map[string]fileReadSnapshot),
-		jobs:            deps.BackgroundTasks,
-		imageService:    deps.Image,
-		speechService:   deps.Speech,
-		musicService:    deps.Music,
-		sfxService:      deps.SoundEffects,
-		videoService:    deps.Video,
-		videoSfxService: deps.VideoSoundEffects,
-		annotator:       deps.ImageAnnotator,
-		frameSources:    make(map[string]agentdomain.FrameSource),
-		stores:          deps.Stores,
+		config:       cfg,
+		tools:        make(map[string]agentdomain.Tool),
+		readFiles:    make(map[string]fileReadSnapshot),
+		deps:         deps,
+		frameSources: make(map[string]agentdomain.FrameSource),
 	}
 
 	registry.registerTools()
@@ -159,15 +141,15 @@ func (r *Registry) FrameSourceNames() []string {
 func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	cfg := r.config
 
-	r.register(NewBashTool(cfg, r.shellService))
+	r.register(NewBashTool(cfg, r.deps.BackgroundShells))
 
-	if cfg.Tools.Bash.BackgroundShells.Enabled && r.shellService != nil {
-		r.register(NewBashOutputTool(cfg, r.shellService))
-		r.register(NewKillShellTool(cfg, r.shellService))
-		r.register(NewListShellsTool(cfg, r.shellService))
+	if cfg.Tools.Bash.BackgroundShells.Enabled && r.deps.BackgroundShells != nil {
+		r.register(NewBashOutputTool(cfg, r.deps.BackgroundShells))
+		r.register(NewKillShellTool(cfg, r.deps.BackgroundShells))
+		r.register(NewListShellsTool(cfg, r.deps.BackgroundShells))
 	}
 
-	r.register(NewReadTool(cfg, r.imageService))
+	r.register(NewReadTool(cfg, r.deps.Image))
 	r.register(NewWriteTool(cfg))
 	r.register(NewEditTool(cfg, r))
 	r.register(NewMultiEditTool(cfg, r))
@@ -178,9 +160,9 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 
 	var planStore storage.PlanStorage
 	var jobStore storage.ScheduledJobStorage
-	if r.stores != nil {
-		planStore = r.stores.Plans
-		jobStore = r.stores.ScheduledJobs
+	if r.deps.Stores != nil {
+		planStore = r.deps.Stores.Plans
+		jobStore = r.deps.Stores.ScheduledJobs
 	}
 	r.register(NewRequestPlanApprovalTool(cfg, planStore))
 
@@ -195,17 +177,17 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	}
 
 	if cfg.Tools.Wait.Enabled {
-		r.register(NewWaitTool(cfg, r.shellService))
+		r.register(NewWaitTool(cfg, r.deps.BackgroundShells))
 	}
 
-	if cfg.IsAgentToolEnabled() && r.jobs != nil {
-		r.register(NewAgentTool(cfg, r.jobs, r.jobs))
-		r.register(NewListSubagentsTool(cfg, r.jobs))
-		r.register(NewGetSubagentResultTool(cfg, r.jobs))
-		r.register(NewCloseSubagentTool(cfg, r.jobs, r.jobs))
-		r.register(NewReadSubagentScreenTool(cfg, r.jobs))
-		r.register(NewSendSubagentInputTool(cfg, r.jobs))
-		r.register(NewApproveSubagentTool(cfg, r.jobs))
+	if cfg.IsAgentToolEnabled() && r.deps.BackgroundTasks != nil {
+		r.register(NewAgentTool(cfg, r.deps.BackgroundTasks, r.deps.BackgroundTasks))
+		r.register(NewListSubagentsTool(cfg, r.deps.BackgroundTasks))
+		r.register(NewGetSubagentResultTool(cfg, r.deps.BackgroundTasks))
+		r.register(NewCloseSubagentTool(cfg, r.deps.BackgroundTasks, r.deps.BackgroundTasks))
+		r.register(NewReadSubagentScreenTool(cfg, r.deps.BackgroundTasks))
+		r.register(NewSendSubagentInputTool(cfg, r.deps.BackgroundTasks))
+		r.register(NewApproveSubagentTool(cfg, r.deps.BackgroundTasks))
 	}
 
 	if cfg.Tools.WebFetch.Enabled {
@@ -216,48 +198,48 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewWebSearchTool(cfg))
 	}
 
-	if cfg.Tools.ImageGeneration.Enabled && r.imageService != nil {
-		r.register(NewImageGenerationTool(cfg, r.imageService))
+	if cfg.Tools.ImageGeneration.Enabled && r.deps.Image != nil {
+		r.register(NewImageGenerationTool(cfg, r.deps.Image))
 	}
 
-	if cfg.Tools.ImageEdit.Enabled && r.imageService != nil {
-		r.register(NewImageEditTool(cfg, r.imageService))
+	if cfg.Tools.ImageEdit.Enabled && r.deps.Image != nil {
+		r.register(NewImageEditTool(cfg, r.deps.Image))
 	}
 
-	if cfg.Tools.ImageVariation.Enabled && r.imageService != nil {
-		r.register(NewImageVariationTool(cfg, r.imageService))
+	if cfg.Tools.ImageVariation.Enabled && r.deps.Image != nil {
+		r.register(NewImageVariationTool(cfg, r.deps.Image))
 	}
 
 	if cfg.TextToSpeech.Enabled {
 		r.registerTextToSpeech(cfg)
 	}
 
-	if cfg.TextToMusic.Enabled && r.musicService != nil {
-		r.register(NewTextToMusicTool(cfg, r.musicService))
+	if cfg.TextToMusic.Enabled && r.deps.Music != nil {
+		r.register(NewTextToMusicTool(cfg, r.deps.Music))
 	}
 
-	if cfg.TextToSFX.Enabled && r.sfxService != nil {
-		r.register(NewTextToSFXTool(cfg, r.sfxService))
+	if cfg.TextToSFX.Enabled && r.deps.SoundEffects != nil {
+		r.register(NewTextToSFXTool(cfg, r.deps.SoundEffects))
 	}
 
-	if cfg.TextToVideo.Enabled && r.videoService != nil {
-		r.register(NewTextToVideoTool(cfg, r.videoService))
+	if cfg.TextToVideo.Enabled && r.deps.Video != nil {
+		r.register(NewTextToVideoTool(cfg, r.deps.Video))
 	}
 
-	if cfg.TextToVideo.Enabled && cfg.TextToVideo.CreateAvatar && r.imageService != nil {
-		r.register(NewCreateAvatarTool(cfg, r.imageService))
+	if cfg.TextToVideo.Enabled && cfg.TextToVideo.CreateAvatar && r.deps.Image != nil {
+		r.register(NewCreateAvatarTool(cfg, r.deps.Image))
 	}
 
-	if cfg.VideoToSFX.Enabled && r.videoSfxService != nil {
-		r.register(NewVideoToSFXTool(cfg, r.videoSfxService))
+	if cfg.VideoToSFX.Enabled && r.deps.VideoSoundEffects != nil {
+		r.register(NewVideoToSFXTool(cfg, r.deps.VideoSoundEffects))
 	}
 
-	if cfg.VideoToSFX.DubEnabled() && r.videoService != nil {
-		r.register(NewDubVideoTool(cfg, r.videoService))
+	if cfg.VideoToSFX.DubEnabled() && r.deps.Video != nil {
+		r.register(NewDubVideoTool(cfg, r.deps.Video))
 	}
 
-	if r.imageService != nil {
-		r.register(NewImageDecodeTool(cfg, r.imageService, r.annotator))
+	if r.deps.Image != nil {
+		r.register(NewImageDecodeTool(cfg, r.deps.Image, r.deps.ImageAnnotator))
 	}
 
 	if cfg.Memory.Enabled {
@@ -268,8 +250,8 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 // registerTextToSpeech registers the tool on the gateway speech service, the
 // one way speech is synthesized.
 func (r *Registry) registerTextToSpeech(cfg *config.Config) {
-	if r.speechService != nil {
-		r.register(NewTextToSpeechTool(cfg, r.speechService))
+	if r.deps.Speech != nil {
+		r.register(NewTextToSpeechTool(cfg, r.deps.Speech))
 	}
 }
 
@@ -460,5 +442,5 @@ func normalizeReadPath(path string) string {
 
 // GetBackgroundShellService returns the background shell service instance
 func (r *Registry) GetBackgroundShellService() scheddomain.BackgroundShellService {
-	return r.shellService
+	return r.deps.BackgroundShells
 }
