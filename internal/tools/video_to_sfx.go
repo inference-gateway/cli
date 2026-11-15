@@ -100,8 +100,9 @@ func (t *VideoToSFXTool) Validate(args map[string]any) error {
 		if !ok {
 			return fmt.Errorf("%s must be a string", videoToSFXArgTrack)
 		}
-		if track != "" && !agentdomain.SoundEffectTrack(track).Valid() {
-			return fmt.Errorf("%s must be one of %v", videoToSFXArgTrack, agentdomain.SoundEffectTracks)
+		if track != "" && !sdk.CreateSFXRequestOutput(track).Valid() {
+			return fmt.Errorf("%s must be one of %s, %s or %s", videoToSFXArgTrack,
+				sdk.CreateSFXRequestOutputMix, sdk.CreateSFXRequestOutputSFX, sdk.CreateSFXRequestOutputSpeech)
 		}
 	}
 
@@ -145,7 +146,7 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 	video, _ := args[videoToSFXArgVideo].(string)
 	prompt, _ := args[videoToSFXArgPrompt].(string)
 	rawTrack, _ := args[videoToSFXArgTrack].(string)
-	track := agentdomain.SoundEffectTrack(rawTrack)
+	track := sdk.CreateSFXRequestOutput(rawTrack)
 	rawOut, _ := args[videoToSFXArgOutputPath].(string)
 
 	var seconds *float32
@@ -206,7 +207,7 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 			"path":              saved,
 			videoToSFXArgVideo:  filepath.Base(videoPath),
 			videoToSFXArgPrompt: prompt,
-			videoToSFXArgTrack:  string(cmp.Or(track, agentdomain.SoundEffectTrackMix)),
+			videoToSFXArgTrack:  string(cmp.Or(track, sdk.CreateSFXRequestOutputMix)),
 		},
 	}, nil
 }

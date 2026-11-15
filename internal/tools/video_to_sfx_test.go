@@ -13,6 +13,8 @@ import (
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
@@ -79,11 +81,12 @@ func TestVideoToSFXTool_Definition(t *testing.T) {
 	assert.Contains(t, properties, "preserve_speech")
 	assert.Contains(t, properties, "output_path")
 
-	var tracks []string
-	for _, track := range agentdomain.SoundEffectTracks {
-		tracks = append(tracks, string(track))
+	tracks := []string{
+		string(sdk.CreateSFXRequestOutputMix),
+		string(sdk.CreateSFXRequestOutputSFX),
+		string(sdk.CreateSFXRequestOutputSpeech),
 	}
-	assert.Equal(t, tracks, properties["track"].(map[string]any)["enum"], "the manifest offers exactly the domain's tracks")
+	assert.Equal(t, tracks, properties["track"].(map[string]any)["enum"], "the manifest offers exactly the gateway's tracks")
 }
 
 func TestVideoToSFXTool_Validate(t *testing.T) {
@@ -107,7 +110,7 @@ func TestVideoToSFXTool_Validate(t *testing.T) {
 		{"seconds below one", map[string]any{"video": "clip.mp4", "seconds": 0.5}, "seconds must be at least 1"},
 		{"non-number start", map[string]any{"video": "clip.mp4", "start_seconds": "2"}, "start_seconds must be a number"},
 		{"negative start", map[string]any{"video": "clip.mp4", "start_seconds": -1.0}, "start_seconds must not be negative"},
-		{"unknown track", map[string]any{"video": "clip.mp4", "track": "vox"}, "track must be one of [mix sfx speech]"},
+		{"unknown track", map[string]any{"video": "clip.mp4", "track": "vox"}, "track must be one of mix, sfx or speech"},
 		{"non-string track", map[string]any{"video": "clip.mp4", "track": 1}, "track must be a string"},
 		{"non-bool preserve_speech", map[string]any{"video": "clip.mp4", "preserve_speech": "yes"}, "preserve_speech must be a boolean"},
 		{"absolute output path", map[string]any{"video": "clip.mp4", "output_path": "/tmp/claps.mp3"}, "invalid output_path"},
@@ -162,7 +165,7 @@ func TestVideoToSFXTool_Execute(t *testing.T) {
 		_, request, _ := svc.ScoreArgsForCall(0)
 		assert.True(t, strings.HasSuffix(request.VideoPath, "clip.mp4"), "the clip resolves from the working directory")
 		assert.Equal(t, "soft keyboard taps", request.Prompt)
-		assert.Equal(t, agentdomain.SoundEffectTrackSFX, request.Track)
+		assert.Equal(t, sdk.CreateSFXRequestOutputSFX, request.Track)
 		require.NotNil(t, request.Seconds)
 		assert.InDelta(t, 4, *request.Seconds, 0.01)
 		require.NotNil(t, request.StartSeconds)

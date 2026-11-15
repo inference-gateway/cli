@@ -13,6 +13,8 @@ import (
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
@@ -80,7 +82,7 @@ func TestVideoSFXServiceScore(t *testing.T) {
 		Prompt:         "soft keyboard taps",
 		Seconds:        &seconds,
 		StartSeconds:   &start,
-		Track:          agentdomain.SoundEffectTrackSpeech,
+		Track:          sdk.CreateSFXRequestOutputSpeech,
 		PreserveSpeech: &preserve,
 	}
 

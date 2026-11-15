@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
+
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // FileService handles file operations
@@ -65,25 +66,6 @@ type SoundEffectService interface {
 	Generate(ctx context.Context, prompt, outPath string, seconds *float32, loop *bool) error
 }
 
-// SoundEffectTrack names which track of a scored video comes back.
-type SoundEffectTrack string
-
-const (
-	SoundEffectTrackMix    SoundEffectTrack = "mix"    // the generated sound with any kept speech
-	SoundEffectTrackSFX    SoundEffectTrack = "sfx"    // the generated sound alone
-	SoundEffectTrackSpeech SoundEffectTrack = "speech" // the clip's own dialogue
-)
-
-// SoundEffectTracks is the canonical catalog, used to validate a requested track.
-var SoundEffectTracks = []SoundEffectTrack{
-	SoundEffectTrackMix,
-	SoundEffectTrackSFX,
-	SoundEffectTrackSpeech,
-}
-
-// Valid reports whether t is one of the tracks a scored video carries.
-func (t SoundEffectTrack) Valid() bool { return slices.Contains(SoundEffectTracks, t) }
-
 // VideoSoundEffectRequest is one video scoring call: the clip from disk, the
 // optional guidance prompt, the optional scored window counted from its
 // start, which track to return and whether the clip's speech stays under the
@@ -94,7 +76,7 @@ type VideoSoundEffectRequest struct {
 	Prompt         string
 	Seconds        *float32
 	StartSeconds   *float32
-	Track          SoundEffectTrack
+	Track          sdk.CreateSFXRequestOutput
 	PreserveSpeech *bool
 }
 
