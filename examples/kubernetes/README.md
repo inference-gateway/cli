@@ -30,7 +30,7 @@ task cluster:create
 task operator:install
 
 # 3. Deploy everything (Gateway, Orchestrator, Agent, otel-collector, Jaeger,
-#    mock gateway). The mock gateway downloads the tokenless mock binary on start.
+#    and the tokenless mock gateway).
 task deploy
 
 # 4. Wait for the operator to reconcile everything
