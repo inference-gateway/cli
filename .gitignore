@@ -21,3 +21,6 @@ result-*
 .vscode
 .idea
 .infer
+
+# Example agents.yaml configs are tracked despite the rule above
+!examples/*/.infer/
