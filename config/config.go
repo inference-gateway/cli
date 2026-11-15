@@ -256,6 +256,12 @@ type VideoToSFXConfig struct {
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
+// DubEnabled reports whether the DubVideo tool is opted in: the dub switch
+// counts only while the video_to_sfx section itself is enabled.
+func (c VideoToSFXConfig) DubEnabled() bool {
+	return c.Enabled && c.Dub
+}
+
 // ResolveGatewayModel returns the "provider/model" id used to score and dub
 // uploaded clips, defaulting to the gateway's mirelo/sfx-2.0.
 func (c VideoToSFXConfig) ResolveGatewayModel() string {
@@ -294,6 +300,12 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 		return c.OutputDir, nil
 	}
 	return MediaDir("music")
+}
+
+// NeedsGatewayVideos reports whether the gateway must serve its Videos API
+// (VIDEOS_ENABLED=true): video rendering or dubbing.
+func (c *Config) NeedsGatewayVideos() bool {
+	return c.TextToVideo.Enabled || c.VideoToSFX.DubEnabled()
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API

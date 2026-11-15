@@ -67,3 +67,31 @@ func TestVideoToSFXValidation(t *testing.T) {
 		assert.NoError(t, cfg.Validate())
 	})
 }
+
+func TestVideoToSFXDubGates(t *testing.T) {
+	tests := []struct {
+		name            string
+		textToVideo     bool
+		enabled         bool
+		dub             bool
+		wantDub         bool
+		wantVideosRoute bool
+	}{
+		{name: "everything off"},
+		{name: "dub without the section stays off", dub: true},
+		{name: "the section alone does not dub", enabled: true},
+		{name: "section and dub opt DubVideo in", enabled: true, dub: true, wantDub: true, wantVideosRoute: true},
+		{name: "rendering alone needs the Videos API", textToVideo: true, wantVideosRoute: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.TextToVideo.Enabled = tt.textToVideo
+			cfg.VideoToSFX.Enabled = tt.enabled
+			cfg.VideoToSFX.Dub = tt.dub
+
+			assert.Equal(t, tt.wantDub, cfg.VideoToSFX.DubEnabled())
+			assert.Equal(t, tt.wantVideosRoute, cfg.NeedsGatewayVideos())
+		})
+	}
+}

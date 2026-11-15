@@ -166,7 +166,7 @@ func (t *DubVideoTool) failure(start time.Time, args map[string]any, err error) 
 // IsEnabled reports whether the feature is enabled: the video_to_sfx section
 // and its separate dub opt-in, the way CreateAvatar sits under text_to_video.
 func (t *DubVideoTool) IsEnabled() bool {
-	return t.config.VideoToSFX.Enabled && t.config.VideoToSFX.Dub && t.video != nil
+	return t.config.VideoToSFX.DubEnabled() && t.video != nil
 }
 
 // FormatPreview formats the result for display preview

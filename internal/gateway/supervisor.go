@@ -510,7 +510,7 @@ func (gm *Supervisor) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "IMAGES_ENABLED=true")
 	}
 
-	if gm.config.TextToVideo.Enabled || gm.config.VideoToSFX.Enabled && gm.config.VideoToSFX.Dub {
+	if gm.config.NeedsGatewayVideos() {
 		args = append(args, "-e", "VIDEOS_ENABLED=true")
 	}
 
@@ -763,7 +763,7 @@ func (gm *Supervisor) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "IMAGES_ENABLED=true")
 	}
 
-	if gm.config.TextToVideo.Enabled || gm.config.VideoToSFX.Enabled && gm.config.VideoToSFX.Dub {
+	if gm.config.NeedsGatewayVideos() {
 		cmd.Env = append(cmd.Env, "VIDEOS_ENABLED=true")
 	}
 
