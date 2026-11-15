@@ -310,7 +310,7 @@ func TestVideoToSFXTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.VideoToSFX.Enabled = false
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, RegistryDeps{})
 
 		assert.NotContains(t, registry.ListAvailableTools(), ToolVideoToSFX)
 		for _, def := range registry.GetToolDefinitions() {
@@ -324,7 +324,7 @@ func TestVideoToSFXTool_RegistryGating(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.VideoToSFX.Enabled = true
 		cfg.VideoToSFX.OutputDir = t.TempDir()
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, &agentdomainmocks.FakeVideoSoundEffectService{}, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, RegistryDeps{VideoSoundEffects: &agentdomainmocks.FakeVideoSoundEffectService{}})
 
 		assert.Contains(t, registry.ListAvailableTools(), ToolVideoToSFX)
 

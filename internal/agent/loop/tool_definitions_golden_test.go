@@ -152,19 +152,17 @@ func toolNamesForMode(svc *tools.Service, mode agentdomain.AgentMode) []string {
 func goldenRegistry(cfg *config.Config) *tools.Registry {
 	annotator := &agentdomainmocks.FakeImageAnnotator{}
 	jobs := &schedmocks.FakeBackgroundTaskRegistry{}
-	registry := tools.NewRegistry(
-		cfg,
-		&agentdomainmocks.FakeImageService{},
-		&agentdomainmocks.FakeSpeechService{},
-		&agentdomainmocks.FakeMusicService{},
-		&agentdomainmocks.FakeSoundEffectService{},
-		&agentdomainmocks.FakeVideoService{},
-		&agentdomainmocks.FakeVideoSoundEffectService{},
-		&schedmocks.FakeBackgroundShellService{},
-		annotator,
-		jobs,
-		nil,
-	)
+	registry := tools.NewRegistry(cfg, tools.RegistryDeps{
+		Image:             &agentdomainmocks.FakeImageService{},
+		Speech:            &agentdomainmocks.FakeSpeechService{},
+		Music:             &agentdomainmocks.FakeMusicService{},
+		SoundEffects:      &agentdomainmocks.FakeSoundEffectService{},
+		Video:             &agentdomainmocks.FakeVideoService{},
+		VideoSoundEffects: &agentdomainmocks.FakeVideoSoundEffectService{},
+		BackgroundShells:  &schedmocks.FakeBackgroundShellService{},
+		ImageAnnotator:    annotator,
+		BackgroundTasks:   jobs,
+	})
 	registry.SetSkillsService(&agentdomainmocks.FakeSkillsService{})
 	registry.RegisterTools(a2a.NewTools(cfg, a2a.NewTaskTracker(nil), jobs, nil))
 	registry.RegisterTools(browser.NewTools(cfg, nil))

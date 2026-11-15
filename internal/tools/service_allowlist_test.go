@@ -17,7 +17,7 @@ import (
 func newAllowlistTestService(t *testing.T) *Service {
 	t.Helper()
 	cfg := config.DefaultConfig()
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, RegistryDeps{})
 	return NewService(cfg, registry)
 }
 
