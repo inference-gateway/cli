@@ -21,8 +21,7 @@ which uses a mock LLM. The example needs no API key. You need Docker, [Task](htt
 ## Requirements
 
 - Inference Gateway v0.58.0 or later, the first release that serves A2A.
-- An `infer` release that authenticates A2A calls to the gateway. Until it is released, run `task build` in the
-  repository root and pass the build in, for example `task all INFER=../../infer`.
+- `infer` v0.226.0 or later, the first release that authenticates A2A calls to the gateway.
 
 ## Layout
 

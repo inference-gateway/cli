@@ -15,7 +15,9 @@ your browser ── https://localhost:52789/terminal/ ── laptop daemon ─�
 
 The model is a [tokenless](https://github.com/inference-gateway/tokenless) mock scripted in
 [`desktop/scenarios.yaml`](desktop/scenarios.yaml), so everything runs offline with no API key. You need Docker
-Compose. Until a release carries the live view, build the image from this checkout first and point the example at it:
+Compose. The live Screen view shipped in v0.244.0 and take over in v0.245.0, and `docker-compose.yml` defaults
+`INFER_IMAGE` to `ghcr.io/inference-gateway/cli:latest`, so the published image works. To run a local build
+instead, build it from this checkout and point the example at it:
 
 ```bash
 task container:build

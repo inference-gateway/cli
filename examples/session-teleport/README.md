@@ -59,8 +59,8 @@ task demo
 ```
 
 The workspaces run `ghcr.io/inference-gateway/cli:local`, the image `task image:import` builds from this
-checkout, until a release candidate speaks the teleport protocol. Run `task image:import` again after every
-change you want on the pod.
+checkout. Teleport shipped in v0.239.0, so the local build exists to put your own changes on the pod. Run
+`task image:import` again after every change you want there.
 
 `task demo` prints the workspaces first, then the teleport's stages, the Orchestrator and its pod, and the
 reply of a turn that ran on the pod:
