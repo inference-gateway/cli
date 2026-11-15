@@ -11,7 +11,7 @@ services:
       COHERE_API_KEY: ${COHERE_API_KEY}
       GROQ_API_KEY: ${GROQ_API_KEY}
       OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY}
-      GOOGLE_API_KEY: ${OLLAMA_CLOUD_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY}
     restart: unless-stopped
     networks:
