@@ -45,7 +45,7 @@ func runExport(w io.Writer, state *runtime.State, sessionID string) error {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	toolRegistry.RegisterTools(a2a.NewTools(cfg, a2a.NewTaskTracker(nil), nil, nil))
 	themeService := styles.NewThemeProvider()
 	styleProvider := styles.NewProvider(themeService)

@@ -282,7 +282,7 @@ directory is `$HOME` or the desktop's `~/.infer/workspace`.
 | --- | --- | --- |
 | `tts/` | generated speech WAVs ([Text to Speech](text-to-speech.md)) | `text_to_speech.output_dir` |
 | `music/` | generated music MP3s ([Text to Music](text-to-music.md)) | `text_to_music.output_dir` |
-| `sfx/` | generated sound effects ([TextToSFX](tools-reference.md#texttosfx-tool)) | `text_to_sfx.output_dir` |
+| `sfx/` | generated sound effects ([TextToSFX](tools-reference.md#texttosfx-tool), [VideoToSFX](tools-reference.md#videotosfx-tool)) | `text_to_sfx.output_dir`, `video_to_sfx.output_dir` |
 | `video/` | generated video MP4s ([Text to Video](text-to-video.md)) | `text_to_video.output_dir` |
 | `recordings/` | `RecordStart` screen recordings ([RecordStart and RecordStop](tools-reference.md#recordstart-and-recordstop-tools)) | `computer_use.recording.output_dir` |
 | `screenshots/` | browser and computer-use screenshots | `computer_use.screenshot.temp_dir` |

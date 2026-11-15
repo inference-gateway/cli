@@ -149,9 +149,11 @@ const TextToVideoGatewayDefaultModel = "elevenlabs/veo-3.1-fast-generate-001"
 // unset.
 const TextToVideoGatewayDefaultAvatarModel = "elevenlabs/creatify-aurora"
 
-// VideoToSFXGatewayDefaultModel is the model used by the gateway's Videos API
-// when video_to_sfx.model is unset: a Mirelo model generates the sound for the
-// uploaded clip and lays it onto the clip as its new soundtrack.
+// sfxMediaDir is the media shelf TextToSFX and VideoToSFX both save to.
+const sfxMediaDir = "sfx"
+
+// VideoToSFXGatewayDefaultModel is the model the gateway scores a video with
+// (SFX API) and dubs it with (Videos API) when video_to_sfx.model is unset.
 const VideoToSFXGatewayDefaultModel = "mirelo/sfx-2.0"
 
 // TextToSFXConfig contains opt-in settings for sound-effect generation. The
@@ -176,7 +178,7 @@ func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	return MediaDir("sfx")
+	return MediaDir(sfxMediaDir)
 }
 
 // TextToVideoConfig contains opt-in settings for video generation. The clip
@@ -221,23 +223,6 @@ func (c TextToVideoConfig) ResolveOutputDir() (string, error) {
 	return MediaDir("video")
 }
 
-// VideoToSFXConfig contains opt-in settings for scoring and dubbing an
-// uploaded video through Mirelo's video-to-sfx models. Dub additionally opts
-// the agent's DubVideo tool in on top of Enabled, the way
-// text_to_video.create_avatar gates CreateAvatar. The clip goes to a
-// third-party provider, so everything here stays off by default.
-type VideoToSFXConfig struct {
-	Enabled bool   `yaml:"enabled" mapstructure:"enabled"`
-	Dub     bool   `yaml:"dub" mapstructure:"dub"`
-	Model   string `yaml:"model" mapstructure:"model"`
-}
-
-// ResolveGatewayModel returns the "provider/model" id used to score and dub
-// uploaded clips, defaulting to Mirelo's mirelo/sfx-2.0.
-func (c VideoToSFXConfig) ResolveGatewayModel() string {
-	return cmp.Or(strings.TrimSpace(c.Model), VideoToSFXGatewayDefaultModel)
-}
-
 // validate checks both models are "provider/model" ids and that the job
 // loop knobs are not negative (a negative poll_interval would poll the
 // gateway in a tight loop).
@@ -256,6 +241,34 @@ func (c TextToVideoConfig) validate() error {
 		return fmt.Errorf("text_to_video.timeout and text_to_video.poll_interval must not be negative")
 	}
 	return nil
+}
+
+// VideoToSFXConfig contains opt-in settings for scoring a video for its own
+// sound (the gateway's SFX API) and dubbing it (the Videos API) through a
+// video-to-sfx provider. Dub opts the DubVideo tool in on top of Enabled, the
+// way text_to_video.create_avatar gates CreateAvatar. The CLI holds no provider
+// key, and the footage leaves the machine, so everything stays off by default.
+type VideoToSFXConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Dub             bool   `yaml:"dub" mapstructure:"dub"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ResolveGatewayModel returns the "provider/model" id used to score and dub
+// uploaded clips, defaulting to the gateway's mirelo/sfx-2.0.
+func (c VideoToSFXConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), VideoToSFXGatewayDefaultModel)
+}
+
+// ResolveOutputDir returns the directory where scored sound effects are
+// stored, defaulting to MediaDir("sfx") when OutputDir is unset.
+func (c VideoToSFXConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	return MediaDir(sfxMediaDir)
 }
 
 // TextToMusicConfig contains opt-in settings for music composition. The clip
@@ -284,10 +297,10 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API
-// (AUDIO_ENABLED=true): speech synthesis, music composition or sound-effect
-// generation.
+// (AUDIO_ENABLED=true): speech synthesis, music composition, sound-effect
+// generation or video scoring.
 func (c *Config) NeedsGatewayAudio() bool {
-	return c.TextToSpeech.Enabled || c.TextToMusic.Enabled || c.TextToSFX.Enabled
+	return c.TextToSpeech.Enabled || c.TextToMusic.Enabled || c.TextToSFX.Enabled || c.VideoToSFX.Enabled
 }
 
 // TextToSpeechConfig contains opt-in settings for speech synthesis, which
@@ -1597,10 +1610,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 
 	if c.VideoToSFX.Enabled {
 		model := c.VideoToSFX.ResolveGatewayModel()
-		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+		if provider, name := ParseModel(model); provider == "" || name == "" {
 			return fmt.Errorf(
-				"invalid video_to_sfx.model %q: must be of the form 'provider/model', e.g. 'mirelo/sfx-2.0'",
-				model,
+				"invalid video_to_sfx.model %q: must be of the form 'provider/model', e.g. '%s'",
+				model, VideoToSFXGatewayDefaultModel,
 			)
 		}
 	}

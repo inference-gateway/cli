@@ -15,9 +15,6 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// videoExtensions are the clip formats the media tools accept as video inputs.
-var videoExtensions = []string{".mov", ".mp4", ".m4v", ".webm"}
-
 // DubVideoTool dubs a video clip through the gateway's Videos API: the
 // provider generates the sound that fits the clip and re-renders it with that
 // sound as its new soundtrack, saved as an MP4 file.

@@ -112,7 +112,7 @@ finished MP4 from `/content` - the clip re-rendered with the generated sound in 
 
 ```yaml
 video_to_sfx:
-  enabled: true   # section flag; dubbing uploads the clip to a third-party provider
+  enabled: true   # also registers the VideoToSFX tool - both upload the clip to a third-party provider
   dub: true       # also register the DubVideo tool, the way text_to_video.create_avatar gates CreateAvatar
   # model: mirelo/sfx-2.0  # gateway provider/model id
 ```

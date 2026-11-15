@@ -39,7 +39,7 @@ func newToolService(t *testing.T, requireApproval bool) (*config.Config, *tools.
 		CustomDir: dir,
 		Safety:    config.SafetyConfig{RequireApproval: requireApproval},
 	}}
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
 	return cfg, tools.NewService(cfg, registry)
 }
@@ -102,7 +102,7 @@ func TestCustomTools_ProjectToolsAlwaysNeedApproval(t *testing.T) {
 		CustomDir: t.TempDir(),
 		Safety:    config.SafetyConfig{RequireApproval: false},
 	}}
-	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	registry.RegisterTools(NewTools(cfg, tools.ToolNames()))
 	service := tools.NewService(cfg, registry)
 

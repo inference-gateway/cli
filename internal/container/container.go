@@ -112,6 +112,7 @@ type ServiceContainer struct {
 	musicService           agentdomain.MusicService
 	sfxService             agentdomain.SoundEffectService
 	videoService           agentdomain.VideoService
+	videoSfxService        agentdomain.VideoSoundEffectService
 	imageAnnotator         agentdomain.ImageAnnotator
 	pricingService         convdomain.PricingService
 	telemetryRecorder      *telemetry.Recorder
@@ -476,13 +477,14 @@ func (c *ServiceContainer) openDaemonThread(stores *storage.Stores) {
 }
 
 // initializeDomainServices creates and wires domain service implementations
-func (c *ServiceContainer) initializeDomainServices() {
+func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 	c.fileService = agentinfra.NewFileService()
 	c.imageService = agentinfra.NewImageService(c.config, c.createRawSDKClient())
 	c.speechService = agentinfra.NewSpeechService(c.config, c.createRawSDKClient())
 	c.musicService = agentinfra.NewMusicService(c.config, c.createRawSDKClient())
 	c.sfxService = agentinfra.NewSFXService(c.config, c.createRawSDKClient())
 	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient(), c.createVideoDubGateway())
+	c.videoSfxService = agentinfra.NewVideoSFXService(c.config, c.gatewayEndpoint())
 
 	c.initializeMCPSupervisor()
 
@@ -500,7 +502,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.openDaemonThread(stores)
 
 	c.imageAnnotator = c.createImageAnnotator()
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.videoSfxService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
 	c.initializeA2A()
 	c.registerCustomTools()
 	c.toolRegistry.LoadMarkdownAgents()
@@ -1147,6 +1149,36 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 	return c.newSDKClient(c.createRetryConfig(), c.clientTimeout())
 }
 
+// gatewayBaseURL resolves the absolute URL every gateway HTTP client uses:
+// the configured gateway URL, the running gateway's actual URL when the CLI
+// started it, or localhost - always with a "/v1" suffix.
+func (c *ServiceContainer) gatewayBaseURL() string {
+	baseURL := c.config.Gateway.URL
+	if c.gatewayManager != nil && c.config.Gateway.Run {
+		actualURL := c.gatewayManager.GetGatewayURL()
+		if actualURL != "" {
+			baseURL = actualURL
+		}
+	}
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+	if !strings.HasSuffix(baseURL, "/v1") {
+		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+	}
+	return baseURL
+}
+
+// gatewayEndpoint returns where raw gateway HTTP requests go and how they are
+// authenticated, for the endpoints the SDK client cannot express.
+func (c *ServiceContainer) gatewayEndpoint() agentinfra.GatewayEndpoint {
+	return agentinfra.GatewayEndpoint{
+		Client: &http.Client{Transport: telemetry.PropagationTransport(c.gatewayTransport)},
+		URL:    c.gatewayBaseURL(),
+		APIKey: c.config.Gateway.APIKey,
+	}
+}
+
 // createAgentSDKClient leaves out the HTTP timeout. The agent bounds every
 // request itself, and an http.Client timeout would cut a healthy stream off
 // mid-response.
@@ -1170,7 +1202,7 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Dur
 	}
 
 	return sdk.NewClient(&sdk.ClientOptions{
-		BaseURL:     c.sdkBaseURL(),
+		BaseURL:     c.gatewayBaseURL(),
 		APIKey:      c.config.Gateway.APIKey,
 		Timeout:     timeout,
 		RetryConfig: retry,
@@ -1178,33 +1210,13 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Dur
 	})
 }
 
-// sdkBaseURL resolves the gateway base URL the SDK clients use: the managed
-// gateway's actual URL when the CLI runs it, else the configured one, with
-// the /v1 suffix the SDK paths assume.
-func (c *ServiceContainer) sdkBaseURL() string {
-	baseURL := c.config.Gateway.URL
-	if c.gatewayManager != nil && c.config.Gateway.Run {
-		actualURL := c.gatewayManager.GetGatewayURL()
-		if actualURL != "" {
-			baseURL = actualURL
-		}
-	}
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
-
-	if !strings.HasSuffix(baseURL, "/v1") {
-		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
-	}
-	return baseURL
-}
-
 // createVideoDubGateway builds the dubbing create's gateway: the SDK client
 // covers every other Videos API call, but its CreateVideo does not forward
 // the dubbing fields yet, so the dub create posts its own multipart form with
 // the base URL and auth the SDK clients resolve.
 func (c *ServiceContainer) createVideoDubGateway() agentinfra.VideoDubGateway {
-	return agentinfra.NewDubGateway(c.sdkBaseURL(), c.config.Gateway.APIKey, &http.Client{Transport: telemetry.PropagationTransport(c.gatewayTransport)})
+	endpoint := c.gatewayEndpoint()
+	return agentinfra.NewDubGateway(endpoint.URL, endpoint.APIKey, endpoint.Client)
 }
 
 // GetTitleBackfill returns the background job manager

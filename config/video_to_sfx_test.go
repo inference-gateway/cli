@@ -1,16 +1,40 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
-func TestVideoToSFXResolveGatewayModel(t *testing.T) {
-	assert.Equal(t, VideoToSFXGatewayDefaultModel, VideoToSFXConfig{}.ResolveGatewayModel())
+func TestVideoToSFXConfigResolveGatewayModel(t *testing.T) {
+	t.Run("default is the gateway's mirelo video model", func(t *testing.T) {
+		assert.Equal(t, VideoToSFXGatewayDefaultModel, VideoToSFXConfig{}.ResolveGatewayModel())
+	})
 
-	cfg := VideoToSFXConfig{Model: " mirelo/sfx-1.6 "}
-	assert.Equal(t, "mirelo/sfx-1.6", cfg.ResolveGatewayModel())
+	t.Run("a configured model passes through", func(t *testing.T) {
+		assert.Equal(t, "mirelo/sfx-1.5", VideoToSFXConfig{Model: "mirelo/sfx-1.5"}.ResolveGatewayModel())
+	})
+
+	t.Run("surrounding whitespace is trimmed", func(t *testing.T) {
+		assert.Equal(t, "mirelo/sfx-1.6", VideoToSFXConfig{Model: " mirelo/sfx-1.6 "}.ResolveGatewayModel())
+	})
+}
+
+func TestVideoToSFXConfigResolveOutputDir(t *testing.T) {
+	t.Run("custom output dir is honored", func(t *testing.T) {
+		got, err := VideoToSFXConfig{OutputDir: "/tmp/custom-sfx"}.ResolveOutputDir()
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/custom-sfx", got)
+	})
+
+	t.Run("default is the project's media/sfx shelf", func(t *testing.T) {
+		t.Setenv("HOME", "/home/fake")
+		got, err := VideoToSFXConfig{}.ResolveOutputDir()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(ProjectTmpDir(), "media", "sfx"), got)
+	})
 }
 
 func TestVideoToSFXValidation(t *testing.T) {

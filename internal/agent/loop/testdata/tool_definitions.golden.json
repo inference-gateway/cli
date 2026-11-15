@@ -1646,6 +1646,55 @@
     },
     {
       "function": {
+        "description": "Score a video clip through the gateway so the sound that fits the picture is generated, and save the wanted track as an audio file. Returns the saved file path.\n\nThe clip drives the result: pass video with the bare file name of a .mov, .mp4, .m4v or .webm clip, looked up in the working directory, then in the TextToVideo output directory. Optionally pass prompt as guidance on the sound, seconds and start_seconds to score a window (seconds is the scored length counted from start_seconds; both omitted score the whole clip), track to pick what comes back (mix - the generated sound with any kept speech, the default; sfx - the generated sound alone; speech - the clip's own dialogue), preserve_speech (true keeps the clip's dialogue under the generated sound) and output_path (a bare file name only - no directories, no absolute paths: the file is ALWAYS written into the configured output directory, never the working directory or any path you choose, and always carries the returned audio's extension). A clip without dialogue has no speech track, and a request a provider cannot serve answers with its error message. The clip is uploaded to a third party for scoring.\n\nDo not claim the audio was played aloud - it is written to disk for the user to open, at the returned path.",
+        "name": "VideoToSFX",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "output_path": {
+              "description": "Optional bare file name (no directories or absolute paths) for the saved audio; it is always placed in the configured output directory and carries the returned audio's extension. Defaults to a timestamped file",
+              "type": "string"
+            },
+            "preserve_speech": {
+              "description": "Optional: true to keep the dialogue already in the clip under the generated sound",
+              "type": "boolean"
+            },
+            "prompt": {
+              "description": "Optional guidance on the sound to generate - the video itself drives the result",
+              "type": "string"
+            },
+            "seconds": {
+              "description": "Optional length of the scored window in seconds, counted from start_seconds (at least 1); omitted scores the rest of the clip",
+              "type": "number"
+            },
+            "start_seconds": {
+              "description": "Optional offset in seconds where the scored window starts; omitted scores from the beginning",
+              "type": "number"
+            },
+            "track": {
+              "description": "Optional track to return - mix (default, the generated sound with any kept speech), sfx (the generated sound alone) or speech (the clip's own dialogue)",
+              "enum": [
+                "mix",
+                "sfx",
+                "speech"
+              ],
+              "type": "string"
+            },
+            "video": {
+              "description": "Bare file name of the .mov, .mp4, .m4v or .webm clip to score, looked up in the working directory, then in the TextToVideo output directory",
+              "type": "string"
+            }
+          },
+          "required": [
+            "video"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
         "description": "Block until a condition is met, then return once with the outcome. Use this instead of sleep-and-poll loops (Bash(\"sleep N\") + BashOutput) to avoid wasting LLM round-trips.\n\nConditions:\n- shells: block until the given background shell ID(s) exit (or all pending background tasks when omitted). Returns exit codes and tail output for each shell.\n- file: block until a file path is created, modified, or removed (uses fsnotify).\n- command: re-run a check command server-side at a fixed interval until it exits 0 (e.g. \"curl -sf localhost:8080/health\"). The check command goes through the same bash allow-list as the Bash tool. Optional pending_exit_codes lists exit codes that mean \"still pending, keep polling\"; include 0 for commands like 'gh run view --exit-status' that exit 0 for both 'still running' and 'completed successfully'. Any exit code not in this list ends the wait immediately with reason check_failed and the command's output, so checks that distinguish pending from failed return the moment the outcome is known.\n\nWaiting for CI after a push: Wait(condition=command, command=\"gh pr checks\", pending_exit_codes=[8], timeout_seconds=600). gh pr checks exits 0 when all checks pass, 8 while checks are pending, and non-zero otherwise, so the wait returns as soon as CI concludes either way. On check_failed the last output lists the failing checks (dig deeper with \"gh run view --log-failed\"). If the wait times out while checks are still pending, call Wait again - waiting costs zero completions.\n\nEvery mode requires timeout_seconds (bounded by the config ceiling). Returns a structured result: the outcome (condition_met, check_failed, or timeout), elapsed time, and the condition details (exit codes, last output) - included on failure too.\n\nCancellation: Esc in chat or session cancel interrupts the wait immediately.",
         "name": "Wait",
         "parameters": {
@@ -1889,6 +1938,7 @@
       "TextToVideo",
       "TodoWrite",
       "Tree",
+      "VideoToSFX",
       "Wait",
       "WebFetch",
       "WebSearch",
@@ -1944,6 +1994,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": false,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": false,
@@ -1997,6 +2048,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": false,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": false,
@@ -2050,6 +2102,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": false,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": false,
@@ -2103,6 +2156,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": false,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": true,
@@ -2156,6 +2210,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": false,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": false,
@@ -2209,6 +2264,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": true,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": false,
@@ -2262,6 +2318,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": false,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
       "WebSearch": false,
@@ -2315,6 +2372,7 @@
       "TextToVideo": false,
       "TodoWrite": false,
       "Tree": true,
+      "VideoToSFX": false,
       "Wait": false,
       "WebFetch": true,
       "WebSearch": true,

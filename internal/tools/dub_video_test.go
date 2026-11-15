@@ -252,7 +252,7 @@ func TestDubVideoTool_Formatting(t *testing.T) {
 func TestDubVideoTool_RegistryGating(t *testing.T) {
 	t.Run("disabled by default: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
-		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "DubVideo")
 		for _, def := range registry.GetToolDefinitions() {
@@ -265,7 +265,7 @@ func TestDubVideoTool_RegistryGating(t *testing.T) {
 	t.Run("enabled with dub: present in the tools payload", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.VideoToSFX = config.VideoToSFXConfig{Enabled: true, Dub: true}
-		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil, nil)
 
 		assert.Contains(t, registry.ListAvailableTools(), "DubVideo")
 
@@ -281,7 +281,7 @@ func TestDubVideoTool_RegistryGating(t *testing.T) {
 	t.Run("enabled without dub: not registered", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.VideoToSFX = config.VideoToSFXConfig{Enabled: true}
-		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil)
+		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil, nil)
 
 		assert.NotContains(t, registry.ListAvailableTools(), "DubVideo")
 	})
