@@ -80,7 +80,7 @@ func TestVideoSFXServiceScore(t *testing.T) {
 		Prompt:         "soft keyboard taps",
 		Seconds:        &seconds,
 		StartSeconds:   &start,
-		Track:          "speech",
+		Track:          agentdomain.SoundEffectTrackSpeech,
 		PreserveSpeech: &preserve,
 	}
 

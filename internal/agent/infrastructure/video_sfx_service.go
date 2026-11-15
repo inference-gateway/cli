@@ -37,6 +37,43 @@ const (
 	sfxVideoUploadSlack = 90 * time.Second
 )
 
+// The gateway's SFX route under the endpoint URL and the query parameter
+// that names the provider.
+const (
+	sfxRoute           = "/audio/sfx"
+	providerQueryParam = "provider"
+)
+
+// Fields of the multipart SFX video form the gateway reads.
+const (
+	sfxFormModel          = "model"
+	sfxFormPrompt         = "prompt"
+	sfxFormDuration       = "duration_seconds"
+	sfxFormStartOffset    = "start_offset_seconds"
+	sfxFormPreserveSpeech = "preserve_speech"
+	sfxFormOutput         = "output"
+	sfxFormVideo          = "video"
+)
+
+// scoredAudioFileMode lets the user's other programs open the saved track.
+const scoredAudioFileMode os.FileMode = 0o644
+
+// audioExtensions maps the audio media types the gateway answers with to the
+// file extension the saved track carries.
+var audioExtensions = map[string]string{
+	"audio/mpeg":  ".mp3",
+	"audio/mp3":   ".mp3",
+	"audio/wav":   ".wav",
+	"audio/x-wav": ".wav",
+	"audio/wave":  ".wav",
+	"audio/ogg":   ".ogg",
+	"audio/flac":  ".flac",
+	"audio/aac":   ".aac",
+	"audio/mp4":   ".m4a",
+	"audio/x-m4a": ".m4a",
+	"audio/m4a":   ".m4a",
+}
+
 // VideoSFXService scores a video clip through the gateway's SFX API
 // (POST /v1/audio/sfx, multipart/form-data), so requests show up in gateway
 // logs and traces. It implements agentdomain.VideoSoundEffectService.
@@ -60,8 +97,8 @@ func NewVideoSFXService(cfg *config.Config, endpoint GatewayEndpoint) *VideoSFXS
 // is diagnosable.
 func (s *VideoSFXService) Score(ctx context.Context, request agentdomain.VideoSoundEffectRequest, outPath string) (string, error) {
 	model := s.config.VideoToSFX.ResolveGatewayModel()
-	provider, modelName, ok := strings.Cut(model, "/")
-	if !ok || provider == "" || modelName == "" {
+	provider, modelName := config.ParseModel(model)
+	if provider == "" || modelName == "" {
 		return outPath, fmt.Errorf("invalid video_to_sfx.model %q (expected 'provider/model')", model)
 	}
 
@@ -104,7 +141,7 @@ func (s *VideoSFXService) Score(ctx context.Context, request agentdomain.VideoSo
 // scoreURL is the endpoint the multipart form posts to: /audio/sfx plus the
 // provider query parameter every gateway request carries.
 func (s *VideoSFXService) scoreURL(provider string) string {
-	return fmt.Sprintf("%s/audio/sfx?provider=%s", s.endpoint.URL, url.QueryEscape(provider))
+	return s.endpoint.URL + sfxRoute + "?" + url.Values{providerQueryParam: {provider}}.Encode()
 }
 
 // buildForm encodes the SFX video form: the unprefixed model, the optional
@@ -119,23 +156,23 @@ func (s *VideoSFXService) buildForm(model string, request agentdomain.VideoSound
 			formErr = writer.WriteField(name, value)
 		}
 	}
-	setField("model", model)
-	setField("prompt", strings.TrimSpace(request.Prompt))
+	setField(sfxFormModel, model)
+	setField(sfxFormPrompt, strings.TrimSpace(request.Prompt))
 	if request.Seconds != nil {
-		setField("duration_seconds", strconv.FormatFloat(float64(*request.Seconds), 'f', -1, 32))
+		setField(sfxFormDuration, formatSeconds(*request.Seconds))
 	}
 	if request.StartSeconds != nil {
-		setField("start_offset_seconds", strconv.FormatFloat(float64(*request.StartSeconds), 'f', -1, 32))
+		setField(sfxFormStartOffset, formatSeconds(*request.StartSeconds))
 	}
 	if request.PreserveSpeech != nil {
-		setField("preserve_speech", strconv.FormatBool(*request.PreserveSpeech))
+		setField(sfxFormPreserveSpeech, strconv.FormatBool(*request.PreserveSpeech))
 	}
-	setField("output", request.Track)
+	setField(sfxFormOutput, string(request.Track))
 	if formErr != nil {
 		return nil, "", formErr
 	}
 
-	part, err := writer.CreateFormFile("video", filepath.Base(request.VideoPath))
+	part, err := writer.CreateFormFile(sfxFormVideo, filepath.Base(request.VideoPath))
 	if err != nil {
 		return nil, "", err
 	}
@@ -146,6 +183,13 @@ func (s *VideoSFXService) buildForm(model string, request agentdomain.VideoSound
 		return nil, "", err
 	}
 	return form, writer.FormDataContentType(), nil
+}
+
+// formatSeconds renders a duration field in the shortest decimal form that
+// reads back as the same float32, so 1.5 goes out as "1.5".
+func formatSeconds(seconds float32) string {
+	const shortestPrecision, float32Bits = -1, 32
+	return strconv.FormatFloat(float64(seconds), 'f', shortestPrecision, float32Bits)
 }
 
 // readScoredAudio returns the raw audio the gateway answered with, or an
@@ -206,22 +250,10 @@ func scoredFileExtension(contentType, fallback string) string {
 	if err != nil {
 		mediaType = strings.TrimSpace(contentType)
 	}
-	switch mediaType {
-	case "audio/mpeg", "audio/mp3":
-		return ".mp3"
-	case "audio/wav", "audio/x-wav", "audio/wave":
-		return ".wav"
-	case "audio/ogg":
-		return ".ogg"
-	case "audio/flac":
-		return ".flac"
-	case "audio/aac":
-		return ".aac"
-	case "audio/mp4", "audio/x-m4a", "audio/m4a":
-		return ".m4a"
-	default:
-		return filepath.Ext(fallback)
+	if extension, known := audioExtensions[mediaType]; known {
+		return extension
 	}
+	return filepath.Ext(fallback)
 }
 
 // writeScoredAudio writes the answered audio under outPath's name and returns
@@ -229,7 +261,7 @@ func scoredFileExtension(contentType, fallback string) string {
 // already at outPath is the caller's to keep or remove.
 func writeScoredAudio(outPath, contentType string, audio []byte) (string, error) {
 	saved := strings.TrimSuffix(outPath, filepath.Ext(outPath)) + scoredFileExtension(contentType, outPath)
-	if err := os.WriteFile(saved, audio, 0o644); err != nil { // nolint:gosec
+	if err := os.WriteFile(saved, audio, scoredAudioFileMode); err != nil { // nolint:gosec
 		return outPath, fmt.Errorf("writing audio to %q: %w", saved, err)
 	}
 	return saved, nil

@@ -1641,6 +1641,11 @@
             },
             "track": {
               "description": "Optional track to return - mix (default, the generated sound with any kept speech), sfx (the generated sound alone) or speech (the clip's own dialogue)",
+              "enum": [
+                "mix",
+                "sfx",
+                "speech"
+              ],
               "type": "string"
             },
             "video": {

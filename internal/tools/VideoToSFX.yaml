@@ -27,6 +27,10 @@ parameters:
     track:
       type: string
       description: Optional track to return - mix (default, the generated sound with any kept speech), sfx (the generated sound alone) or speech (the clip's own dialogue)
+      enum:
+        - mix
+        - sfx
+        - speech
     video:
       type: string
       description: Bare file name of the .mov, .mp4, .m4v or .webm clip to score, looked up in the working directory, then in the TextToVideo output directory

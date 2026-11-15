@@ -149,6 +149,9 @@ const TextToVideoGatewayDefaultModel = "elevenlabs/veo-3.1-fast-generate-001"
 // unset.
 const TextToVideoGatewayDefaultAvatarModel = "elevenlabs/creatify-aurora"
 
+// sfxMediaDir is the media shelf TextToSFX and VideoToSFX both save to.
+const sfxMediaDir = "sfx"
+
 // VideoToSFXGatewayDefaultModel is the model used by the gateway's SFX API
 // for video scoring when video_to_sfx.model is unset.
 const VideoToSFXGatewayDefaultModel = "mirelo/sfx-2.0"
@@ -175,7 +178,7 @@ func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	return MediaDir("sfx")
+	return MediaDir(sfxMediaDir)
 }
 
 // TextToVideoConfig contains opt-in settings for video generation. The clip
@@ -264,7 +267,7 @@ func (c VideoToSFXConfig) ResolveOutputDir() (string, error) {
 	if strings.TrimSpace(c.OutputDir) != "" {
 		return c.OutputDir, nil
 	}
-	return MediaDir("sfx")
+	return MediaDir(sfxMediaDir)
 }
 
 // TextToMusicConfig contains opt-in settings for music composition. The clip
@@ -1606,10 +1609,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 
 	if c.VideoToSFX.Enabled {
 		model := c.VideoToSFX.ResolveGatewayModel()
-		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+		if provider, name := ParseModel(model); provider == "" || name == "" {
 			return fmt.Errorf(
-				"invalid video_to_sfx.model %q: must be of the form 'provider/model', e.g. 'mirelo/sfx-2.0'",
-				model,
+				"invalid video_to_sfx.model %q: must be of the form 'provider/model', e.g. '%s'",
+				model, VideoToSFXGatewayDefaultModel,
 			)
 		}
 	}

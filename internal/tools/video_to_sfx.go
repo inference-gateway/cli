@@ -19,6 +19,27 @@ import (
 // videoExtensions are the clip formats the gateway's SFX video branch scores.
 var videoExtensions = []string{".mov", ".mp4", ".m4v", ".webm"}
 
+// Argument names of the VideoToSFX manifest.
+const (
+	videoToSFXArgVideo          = "video"
+	videoToSFXArgPrompt         = "prompt"
+	videoToSFXArgSeconds        = "seconds"
+	videoToSFXArgStartSeconds   = "start_seconds"
+	videoToSFXArgTrack          = "track"
+	videoToSFXArgPreserveSpeech = "preserve_speech"
+	videoToSFXArgOutputPath     = "output_path"
+)
+
+// minScoredSeconds is the shortest window the gateway scores.
+const minScoredSeconds = 1
+
+// A track without a named output is saved as sfx-<timestamp>, as MP3 until
+// the gateway's answer names another format.
+const (
+	scoredFilePrefix           = "sfx-"
+	scoredFileDefaultExtension = ".mp3"
+)
+
 // VideoToSFXTool scores a video clip through the gateway's SFX video branch
 // and saves the answered track as an audio file.
 type VideoToSFXTool struct {
@@ -46,53 +67,51 @@ func (t *VideoToSFXTool) Definition() sdk.ChatCompletionTool {
 
 // Validate validates VideoToSFX arguments
 func (t *VideoToSFXTool) Validate(args map[string]any) error {
-	video, ok := args["video"].(string)
+	video, ok := args[videoToSFXArgVideo].(string)
 	if !ok || strings.TrimSpace(video) == "" {
-		return fmt.Errorf("video is required and must be a bare file name")
+		return fmt.Errorf("%s is required and must be a bare file name", videoToSFXArgVideo)
 	}
 	if ext := strings.ToLower(filepath.Ext(strings.TrimSpace(video))); !slices.Contains(videoExtensions, ext) {
-		return fmt.Errorf("video %q must be a .mov, .mp4, .m4v or .webm clip", video)
+		return fmt.Errorf("%s %q must be one of %s", videoToSFXArgVideo, video, strings.Join(videoExtensions, ", "))
 	}
 
-	if raw, present := args["seconds"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgSeconds]; present && raw != nil {
 		seconds, ok := raw.(float64)
 		if !ok {
-			return fmt.Errorf("seconds must be a number")
+			return fmt.Errorf("%s must be a number", videoToSFXArgSeconds)
 		}
-		if seconds < 1 {
-			return fmt.Errorf("seconds must be at least 1")
+		if seconds < minScoredSeconds {
+			return fmt.Errorf("%s must be at least %d", videoToSFXArgSeconds, minScoredSeconds)
 		}
 	}
 
-	if raw, present := args["start_seconds"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgStartSeconds]; present && raw != nil {
 		start, ok := raw.(float64)
 		if !ok {
-			return fmt.Errorf("start_seconds must be a number")
+			return fmt.Errorf("%s must be a number", videoToSFXArgStartSeconds)
 		}
 		if start < 0 {
-			return fmt.Errorf("start_seconds must not be negative")
+			return fmt.Errorf("%s must not be negative", videoToSFXArgStartSeconds)
 		}
 	}
 
-	if raw, present := args["track"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgTrack]; present && raw != nil {
 		track, ok := raw.(string)
 		if !ok {
-			return fmt.Errorf("track must be a string")
+			return fmt.Errorf("%s must be a string", videoToSFXArgTrack)
 		}
-		switch track {
-		case "", "mix", "sfx", "speech":
-		default:
-			return fmt.Errorf("track must be one of mix, sfx or speech")
+		if track != "" && !agentdomain.SoundEffectTrack(track).Valid() {
+			return fmt.Errorf("%s must be one of %v", videoToSFXArgTrack, agentdomain.SoundEffectTracks)
 		}
 	}
 
-	if raw, present := args["preserve_speech"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgPreserveSpeech]; present && raw != nil {
 		if _, ok := raw.(bool); !ok {
-			return fmt.Errorf("preserve_speech must be a boolean")
+			return fmt.Errorf("%s must be a boolean", videoToSFXArgPreserveSpeech)
 		}
 	}
 
-	rawOut, _ := args["output_path"].(string)
+	rawOut, _ := args[videoToSFXArgOutputPath].(string)
 	if strings.TrimSpace(rawOut) == "" {
 		return nil
 	}
@@ -104,7 +123,7 @@ func (t *VideoToSFXTool) Validate(args map[string]any) error {
 // working directory, falling back to the TextToVideo output directory.
 func (t *VideoToSFXTool) resolveVideoPath(raw string) (string, error) {
 	dir, _ := t.config.TextToVideo.ResolveOutputDir()
-	return resolveMediaInputPath(t.config, dir, raw, "video", ".mov/.mp4/.m4v/.webm clip")
+	return resolveMediaInputPath(t.config, dir, raw, videoToSFXArgVideo, strings.Join(videoExtensions, "/")+" clip")
 }
 
 // resolveOutputPath confines a supplied file name to the configured output
@@ -114,7 +133,7 @@ func (t *VideoToSFXTool) resolveOutputPath(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resolveMediaOutputPath(dir, "sfx-", ".mp3", raw)
+	return resolveMediaOutputPath(dir, scoredFilePrefix, scoredFileDefaultExtension, raw)
 }
 
 // Execute executes the VideoToSFX tool
@@ -123,27 +142,28 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 		return nil, err
 	}
 
-	video, _ := args["video"].(string)
-	prompt, _ := args["prompt"].(string)
-	track, _ := args["track"].(string)
-	rawOut, _ := args["output_path"].(string)
+	video, _ := args[videoToSFXArgVideo].(string)
+	prompt, _ := args[videoToSFXArgPrompt].(string)
+	rawTrack, _ := args[videoToSFXArgTrack].(string)
+	track := agentdomain.SoundEffectTrack(rawTrack)
+	rawOut, _ := args[videoToSFXArgOutputPath].(string)
 
 	var seconds *float32
-	if raw, present := args["seconds"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgSeconds]; present && raw != nil {
 		if f, ok := raw.(float64); ok {
 			s := float32(f)
 			seconds = &s
 		}
 	}
 	var startSeconds *float32
-	if raw, present := args["start_seconds"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgStartSeconds]; present && raw != nil {
 		if f, ok := raw.(float64); ok {
 			s := float32(f)
 			startSeconds = &s
 		}
 	}
 	var preserveSpeech *bool
-	if raw, present := args["preserve_speech"]; present && raw != nil {
+	if raw, present := args[videoToSFXArgPreserveSpeech]; present && raw != nil {
 		if b, ok := raw.(bool); ok {
 			preserveSpeech = &b
 		}
@@ -183,10 +203,10 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: map[string]any{
-			"path":   saved,
-			"video":  filepath.Base(videoPath),
-			"prompt": prompt,
-			"track":  cmp.Or(track, "mix"),
+			"path":              saved,
+			videoToSFXArgVideo:  filepath.Base(videoPath),
+			videoToSFXArgPrompt: prompt,
+			videoToSFXArgTrack:  string(cmp.Or(track, agentdomain.SoundEffectTrackMix)),
 		},
 	}, nil
 }

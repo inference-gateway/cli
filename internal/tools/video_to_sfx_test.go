@@ -78,6 +78,12 @@ func TestVideoToSFXTool_Definition(t *testing.T) {
 	assert.Contains(t, properties, "track")
 	assert.Contains(t, properties, "preserve_speech")
 	assert.Contains(t, properties, "output_path")
+
+	var tracks []string
+	for _, track := range agentdomain.SoundEffectTracks {
+		tracks = append(tracks, string(track))
+	}
+	assert.Equal(t, tracks, properties["track"].(map[string]any)["enum"], "the manifest offers exactly the domain's tracks")
 }
 
 func TestVideoToSFXTool_Validate(t *testing.T) {
@@ -95,13 +101,13 @@ func TestVideoToSFXTool_Validate(t *testing.T) {
 		{"missing video", map[string]any{}, "video is required"},
 		{"empty video", map[string]any{"video": "  "}, "video is required"},
 		{"non-string video", map[string]any{"video": 42}, "video is required"},
-		{"unsupported extension", map[string]any{"video": "clip.avi"}, "must be a .mov, .mp4, .m4v or .webm clip"},
-		{"no extension", map[string]any{"video": "clip"}, "must be a .mov, .mp4, .m4v or .webm clip"},
+		{"unsupported extension", map[string]any{"video": "clip.avi"}, "must be one of .mov, .mp4, .m4v, .webm"},
+		{"no extension", map[string]any{"video": "clip"}, "must be one of .mov, .mp4, .m4v, .webm"},
 		{"non-number seconds", map[string]any{"video": "clip.mp4", "seconds": "4"}, "seconds must be a number"},
 		{"seconds below one", map[string]any{"video": "clip.mp4", "seconds": 0.5}, "seconds must be at least 1"},
 		{"non-number start", map[string]any{"video": "clip.mp4", "start_seconds": "2"}, "start_seconds must be a number"},
 		{"negative start", map[string]any{"video": "clip.mp4", "start_seconds": -1.0}, "start_seconds must not be negative"},
-		{"unknown track", map[string]any{"video": "clip.mp4", "track": "vox"}, "track must be one of mix, sfx or speech"},
+		{"unknown track", map[string]any{"video": "clip.mp4", "track": "vox"}, "track must be one of [mix sfx speech]"},
 		{"non-string track", map[string]any{"video": "clip.mp4", "track": 1}, "track must be a string"},
 		{"non-bool preserve_speech", map[string]any{"video": "clip.mp4", "preserve_speech": "yes"}, "preserve_speech must be a boolean"},
 		{"absolute output path", map[string]any{"video": "clip.mp4", "output_path": "/tmp/claps.mp3"}, "invalid output_path"},
@@ -156,7 +162,7 @@ func TestVideoToSFXTool_Execute(t *testing.T) {
 		_, request, _ := svc.ScoreArgsForCall(0)
 		assert.True(t, strings.HasSuffix(request.VideoPath, "clip.mp4"), "the clip resolves from the working directory")
 		assert.Equal(t, "soft keyboard taps", request.Prompt)
-		assert.Equal(t, "sfx", request.Track)
+		assert.Equal(t, agentdomain.SoundEffectTrackSFX, request.Track)
 		require.NotNil(t, request.Seconds)
 		assert.InDelta(t, 4, *request.Seconds, 0.01)
 		require.NotNil(t, request.StartSeconds)
@@ -193,7 +199,7 @@ func TestVideoToSFXTool_Execute(t *testing.T) {
 		assert.Nil(t, request.Seconds)
 		assert.Nil(t, request.StartSeconds)
 		assert.Nil(t, request.PreserveSpeech)
-		assert.Equal(t, "", request.Track)
+		assert.Empty(t, request.Track)
 	})
 
 	t.Run("service failure reports the error and leaves no partial file", func(t *testing.T) {
