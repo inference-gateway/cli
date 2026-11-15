@@ -28,8 +28,9 @@ docker compose up -d
 ```
 
 Prefer native llama.cpp instead? `brew install llama.cpp`, run
-`llama-server -hf ggml-org/gemma-4-E4B-it-GGUF:Q4_0 --alias gemma-4-e4b --jinja -c 16384`,
-and set `LLAMACPP_API_URL=http://host.docker.internal:8080/v1` in `.env`.
+`llama-server -hf ggml-org/gemma-4-E4B-it-GGUF:Q4_0 --alias gemma-4-e4b --port 8081 --jinja -c 16384`,
+and set `LLAMACPP_API_URL=http://host.docker.internal:8081/v1` in `.env` - the compose gateway
+already publishes host port 8080.
 
 **Option B - containerized Ollama (CPU-only):** set
 `OLLAMA_API_URL=http://ollama:11434/v1` in `.env`, then:
