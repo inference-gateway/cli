@@ -24,8 +24,8 @@ import (
 // TestVideoToSFXToolAgainstMockGateway drives the full loop: the chat model
 // requests VideoToSFX, the tool posts the clip as the multipart video form and
 // the answered track lands in video_to_sfx.output_dir. The multipart route
-// runs on an in-test handler layered over the tokenless chat gateway, because
-// the pinned tokenless serves /v1/audio/sfx for a JSON body only.
+// runs on an in-test handler layered over the tokenless chat gateway, pinning
+// the answer to a canned WAV; the pinned tokenless serves the same endpoint.
 func TestVideoToSFXToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
