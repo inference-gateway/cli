@@ -53,15 +53,12 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "ln -s ../.agents/skills .claude/skills", allowed: true},
 		{command: "echo /etc/hosts", allowed: true},
 		{command: "gh api repos/{owner}/{repo}/contents/README.md", allowed: true},
-
-		// Values that are text, not files, stay out of the path check.
 		{command: "gh pr view 1 --json files -q '.files[].path'", allowed: true},
 		{command: "gh api 'user/repos?per_page=100' --jq '.[].full_name'", allowed: true},
 		{command: "gh api 'user/repos' --paginate --jq '.'", allowed: true},
 		{command: "git commit -m 'feat(a/b): update [changelog]'", allowed: true},
 		{command: "git commit -m msg main.go", allowed: true},
 		{command: "gh pr create --title 'Fix [a] bug' --body 'see docs/b/c'", allowed: true},
-		// The null device carries no data, so a command may open it for reading.
 		{command: "wc -c main.go /dev/null", allowed: true},
 		{command: "uniq -c main.go", allowed: true},
 		{command: "sort -n main.go", allowed: true},
@@ -92,7 +89,6 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "mkdir ../escape"},
 		{command: "ln -s main.go ../escape"},
 		{command: "find / -name id_rsa"},
-		// The skip ends at the flagged value: later operands stay checked.
 		{command: "wc -c /dev/null /etc/hosts"},
 		{command: "git commit -m msg .env"},
 		{command: "gh pr create --body-file /etc/hosts"},
