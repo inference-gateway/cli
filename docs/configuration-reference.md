@@ -1112,6 +1112,8 @@ entry lists its keys and points at the guide that owns the behaviour.
   [Text-to-Music](text-to-music.md).
 - **`text_to_video`**: `enabled`, `model`, `avatar_model`, `size`, `output_dir`, `timeout`,
   `poll_interval`, `create_avatar`, `require_approval`. See [Text-to-Video](text-to-video.md).
+- **`video_to_sfx`**: `enabled`, `dub`, `model` - `dub` additionally registers the DubVideo agent
+  tool, the way `text_to_video.create_avatar` gates CreateAvatar. See [Text-to-Video](text-to-video.md#dubbing).
 
 ### Blocks in Their Own File
 
@@ -1376,6 +1378,20 @@ These mirror the top-level `text_to_video:` YAML block: `enabled`, `model`,
 tool is enabled. The tool itself is
 documented in the [Tools Reference](tools-reference.md#texttovideo-tool) and its output
 directory in the [Directory Structure](directory-structure.md).
+
+**DubVideo Tool Configuration:**
+
+- `INFER_VIDEO_TO_SFX_ENABLED`: Enable/disable the `video_to_sfx` section (default: `false`)
+- `INFER_VIDEO_TO_SFX_DUB`: Also register the DubVideo tool, which dubs a clip through the
+      Videos API (default: `false`; needs `INFER_VIDEO_TO_SFX_ENABLED`)
+- `INFER_VIDEO_TO_SFX_MODEL`: Gateway `provider/model` id used for dubbing (default:
+      `mirelo/sfx-2.0`)
+
+These mirror the top-level `video_to_sfx:` YAML block: `enabled`, `dub` and `model`. A
+gateway the CLI starts gets `VIDEOS_ENABLED=true` while `text_to_video` is enabled or the
+dub switch is. The tool itself is documented in the
+[Tools Reference](tools-reference.md#dubvideo-tool) and the work in its own
+[Text-to-Video](text-to-video.md#dubbing) section.
 
 **Bash Tool Allow-List Configuration:**
 
