@@ -20,6 +20,7 @@ const (
 	dubVideoArgVideo          = "video"
 	dubVideoArgPrompt         = "prompt"
 	dubVideoArgPreserveSpeech = "preserve_speech"
+	dubVideoArgStartSeconds   = "start_seconds"
 	dubVideoArgOutputPath     = "output_path"
 )
 
@@ -73,6 +74,16 @@ func (t *DubVideoTool) Validate(args map[string]any) error {
 	if raw, present := args[dubVideoArgPreserveSpeech]; present && raw != nil {
 		if _, ok := raw.(bool); !ok {
 			return fmt.Errorf("%s must be a boolean", dubVideoArgPreserveSpeech)
+		}
+	}
+
+	if raw, present := args[dubVideoArgStartSeconds]; present && raw != nil {
+		start, ok := raw.(float64)
+		if !ok {
+			return fmt.Errorf("%s must be a number", dubVideoArgStartSeconds)
+		}
+		if start < 0 {
+			return fmt.Errorf("%s must not be negative", dubVideoArgStartSeconds)
 		}
 	}
 
@@ -132,6 +143,10 @@ func (t *DubVideoTool) Execute(ctx context.Context, args map[string]any) (*agent
 	request := agentdomain.VideoDubRequest{Prompt: prompt, VideoPath: videoPath}
 	if preserve, ok := args[dubVideoArgPreserveSpeech].(bool); ok {
 		request.PreserveSpeech = &preserve
+	}
+	if start, ok := args[dubVideoArgStartSeconds].(float64); ok {
+		offset := float32(start)
+		request.StartSeconds = &offset
 	}
 	if err := t.video.Dub(ctx, request, outPath); err != nil {
 		if strings.TrimSpace(rawOut) == "" {

@@ -640,7 +640,7 @@
     },
     {
       "function": {
-        "description": "Dub a video clip: the provider generates the sound that fits the clip and re-renders the clip with that sound as its new soundtrack, and the finished MP4 is saved. Returns the saved file path.\n\nvideo is a bare .mov, .mp4, .m4v or .webm file name, looked up in the working directory, then in the TextToVideo output directory, so a clip TextToVideo previously rendered can be passed directly by its file name - no directories, no absolute paths. Optionally describe the sound in prompt: the clip itself drives the result, prompt is only guidance on the sound to generate. Pass preserve_speech true to keep the clip's own dialogue under the generated sound. Mirelo lays only the generated mix onto the clip - the separated speech and sfx tracks are not available on a dubbed clip, so DubVideo offers no track parameter. Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. The clip is uploaded to a third-party provider and must stay under 10 MiB. Dubbing can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.",
+        "description": "Dub a video clip: the provider generates the sound that fits the clip and re-renders the clip with that sound as its new soundtrack, and the finished MP4 is saved. Returns the saved file path.\n\nvideo is a bare .mov, .mp4, .m4v or .webm file name, looked up in the working directory, then in the TextToVideo output directory, so a clip TextToVideo previously rendered can be passed directly by its file name - no directories, no absolute paths. Optionally describe the sound in prompt: the clip itself drives the result, prompt is only guidance on the sound to generate. Pass preserve_speech true to keep the clip's own dialogue under the generated sound. Pass start_seconds to start the dubbed window that many seconds into the clip - omitted dubs from the beginning. Mirelo lays only the generated mix onto the clip - the separated speech and sfx tracks are not available on a dubbed clip, so DubVideo offers no track parameter. Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. The clip is uploaded to a third-party provider and must stay under 10 MiB. Dubbing can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.",
         "name": "DubVideo",
         "parameters": {
           "additionalProperties": false,
@@ -656,6 +656,10 @@
             "prompt": {
               "description": "Description of the sound to generate (e.g. a busy cafe hubbub, a tense orchestral underscore) - the clip itself drives the result, the prompt is only guidance",
               "type": "string"
+            },
+            "start_seconds": {
+              "description": "Optional offset in seconds where the dubbed window starts - omitted dubs from the beginning",
+              "type": "number"
             },
             "video": {
               "description": "Bare file name (no directories or absolute paths) of the .mov, .mp4, .m4v or .webm clip to dub, looked up in the working directory, then in the TextToVideo output directory",

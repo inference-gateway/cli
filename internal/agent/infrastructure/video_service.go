@@ -107,27 +107,22 @@ func (s *VideoService) buildDubRequest(request agentdomain.VideoDubRequest, mode
 		req.Prompt = &prompt
 	}
 
-	info, err := os.Stat(request.VideoPath)
-	if err != nil {
-		return sdk.CreateVideoRequest{}, fmt.Errorf("reading video %q: %w", request.VideoPath, err)
-	}
-	if info.Size() > maxVideoUploadBytes {
-		return sdk.CreateVideoRequest{}, fmt.Errorf(
-			"video upload (%.1f MiB) exceeds the gateway's default %d MiB request limit; use a shorter clip",
-			float64(info.Size())/(1<<20), maxVideoUploadBytes/(1<<20),
-		)
-	}
-
 	data, err := os.ReadFile(request.VideoPath) // nolint:gosec
 	if err != nil {
 		return sdk.CreateVideoRequest{}, fmt.Errorf("reading video %q: %w", request.VideoPath, err)
+	}
+	if len(data) > maxVideoUploadBytes {
+		return sdk.CreateVideoRequest{}, fmt.Errorf(
+			"video upload (%.1f MiB) exceeds the gateway's default %d MiB request limit; use a shorter clip",
+			float64(len(data))/(1<<20), maxVideoUploadBytes/(1<<20),
+		)
 	}
 	var video openapi_types.File
 	video.InitFromBytes(data, filepath.Base(request.VideoPath))
 	req.Video = &video
 
 	req.PreserveSpeech = request.PreserveSpeech
-	req.StartOffsetSeconds = request.StartOffsetSeconds
+	req.StartOffsetSeconds = request.StartSeconds
 	return req, nil
 }
 

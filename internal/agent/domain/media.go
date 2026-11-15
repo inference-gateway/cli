@@ -112,12 +112,12 @@ func (r VideoRequest) IsAvatar() bool {
 // re-renders with that sound as its new soundtrack. The prompt is optional
 // guidance - the clip itself drives the result - a non-nil PreserveSpeech
 // keeps the clip's own dialogue under the generated sound, and a non-nil
-// StartOffsetSeconds starts the dubbed window that many seconds into the clip.
+// StartSeconds starts the dubbed window that many seconds into the clip.
 type VideoDubRequest struct {
-	Prompt             string
-	VideoPath          string
-	PreserveSpeech     *bool
-	StartOffsetSeconds *float32
+	Prompt         string
+	VideoPath      string
+	PreserveSpeech *bool
+	StartSeconds   *float32
 }
 
 // VideoService renders a video clip through the gateway's Videos API,

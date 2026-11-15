@@ -397,7 +397,7 @@ func TestVideoService_Dub(t *testing.T) { // nolint:funlen
 
 		offset := float32(3.5)
 		svc := NewVideoService(config.DefaultConfig(), client)
-		require.NoError(t, svc.Dub(context.Background(), agentdomain.VideoDubRequest{VideoPath: clip, StartOffsetSeconds: &offset}, filepath.Join(t.TempDir(), "out.mp4")))
+		require.NoError(t, svc.Dub(context.Background(), agentdomain.VideoDubRequest{VideoPath: clip, StartSeconds: &offset}, filepath.Join(t.TempDir(), "out.mp4")))
 
 		_, _, req := client.CreateVideoArgsForCall(0)
 		require.NotNil(t, req.StartOffsetSeconds)

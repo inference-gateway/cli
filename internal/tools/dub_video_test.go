@@ -77,10 +77,10 @@ func TestDubVideoTool_Definition(t *testing.T) {
 	assert.NotContains(t, *def.Function.Description, "track:")
 
 	properties := (*def.Function.Parameters)["properties"].(map[string]any)
-	for _, name := range []string{"video", "prompt", "preserve_speech", "output_path"} {
+	for _, name := range []string{"video", "prompt", "preserve_speech", "start_seconds", "output_path"} {
 		assert.Contains(t, properties, name)
 	}
-	assert.Len(t, properties, 4)
+	assert.Len(t, properties, 5)
 	assert.Equal(t, []string{"video"}, (*def.Function.Parameters)["required"].([]string))
 }
 
@@ -108,6 +108,9 @@ func TestDubVideoTool_Validate(t *testing.T) {
 		{"clip with directory", map[string]any{"video": "sub/clip.mp4"}, "invalid video path"},
 		{"clip with ..", map[string]any{"video": "../clip.mp4"}, "invalid video path"},
 		{"non-boolean preserve_speech", map[string]any{"video": "clip.mp4", "preserve_speech": "yes"}, "preserve_speech must be a boolean"},
+		{"start_seconds offset", map[string]any{"video": "clip.mp4", "start_seconds": 2.5}, ""},
+		{"non-number start_seconds", map[string]any{"video": "clip.mp4", "start_seconds": "2"}, "start_seconds must be a number"},
+		{"negative start_seconds", map[string]any{"video": "clip.mp4", "start_seconds": -1.0}, "start_seconds must not be negative"},
 		{"bare output path", map[string]any{"video": "clip.mp4", "output_path": "dubbed.mp4"}, ""},
 		{"absolute output path", map[string]any{"video": "clip.mp4", "output_path": "/tmp/dubbed.mp4"}, "invalid output_path"},
 		{"output path with directory", map[string]any{"video": "clip.mp4", "output_path": "sub/dubbed.mp4"}, "invalid output_path"},
@@ -142,6 +145,7 @@ func TestDubVideoTool_Execute(t *testing.T) {
 			"video":           "clip.mp4",
 			"prompt":          "a busy cafe hubbub",
 			"preserve_speech": true,
+			"start_seconds":   2.5,
 			"output_path":     "dubbed.mp4",
 		})
 		require.NoError(t, err)
@@ -160,11 +164,13 @@ func TestDubVideoTool_Execute(t *testing.T) {
 		assert.Equal(t, "a busy cafe hubbub", req.Prompt)
 		require.NotNil(t, req.PreserveSpeech)
 		assert.True(t, *req.PreserveSpeech)
+		require.NotNil(t, req.StartSeconds)
+		assert.Equal(t, float32(2.5), *req.StartSeconds)
 		assert.True(t, strings.HasSuffix(req.VideoPath, "clip.mp4"))
 		assert.Equal(t, data["path"], gotOut)
 	})
 
-	t.Run("preserve_speech omitted keeps the pointer nil", func(t *testing.T) {
+	t.Run("preserve_speech and start_seconds omitted keep the pointers nil", func(t *testing.T) {
 		video := &agentdomainmocks.FakeVideoService{}
 		video.DubStub = func(ctx context.Context, request agentdomain.VideoDubRequest, outPath string) error {
 			return os.WriteFile(outPath, []byte("mp4"), 0o644) // nolint:gosec
@@ -182,6 +188,7 @@ func TestDubVideoTool_Execute(t *testing.T) {
 
 		_, req, _ := video.DubArgsForCall(0)
 		assert.Nil(t, req.PreserveSpeech)
+		assert.Nil(t, req.StartSeconds)
 		assert.Equal(t, "", req.Prompt)
 		assert.True(t, strings.HasSuffix(res.Data.(map[string]any)["path"].(string), ".mp4"))
 	})
