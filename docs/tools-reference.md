@@ -818,14 +818,17 @@ text_to_music:
 Generate a short sound effect or ambience clip from a text prompt and save it as an MP3 file. The chat model calls the tool when the user asks for a
 whoosh, a click, a riser or room tone - non-speech audio that `TextToSpeech` (it would read the word aloud) and `TextToMusic` (composes songs)
 cannot cover. The clip is generated behind the gateway's SFX API (`/v1/audio/sfx`) with the configured `provider/model` (default
-`elevenlabs/eleven_text_to_sound_v2`); the CLI holds no provider key, the gateway does. Disabled by default: while `text_to_sfx.enabled` is false
-the tool definition is not sent to the LLM at all.
+`elevenlabs/eleven_text_to_sound_v2`; alternatives `mirelo/sfx-2.0` and `mirelo/sfx-1.6`). Mirelo generates the sound effect as an
+asynchronous job, so the request can take longer than an ElevenLabs one; the CLI holds no provider key, the gateway does. Disabled by default:
+while `text_to_sfx.enabled` is false the tool definition is not sent to the LLM at all.
 
 **Parameters:**
 
 - `prompt` (required): Description of the sound - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)
-- `seconds` (optional): Clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt
-- `loop` (optional): `true` to generate a clip that loops seamlessly
+- `seconds` (optional): Clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt - Mirelo requires a length, so its
+  models default to 5 seconds when `seconds` is omitted
+- `loop` (optional): `true` to generate a clip that loops seamlessly; needs an ElevenLabs model or `mirelo/sfx-1.6` -
+  `mirelo/sfx-2.0` answers `capability_unsupported`
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP3, placed inside
   `text_to_sfx.output_dir`; defaults to a timestamped file
 
@@ -834,7 +837,7 @@ the tool definition is not sent to the LLM at all.
 ```yaml
 text_to_sfx:
   enabled: true
-  # model: elevenlabs/eleven_text_to_sound_v2 # gateway provider/model id
+  # model: elevenlabs/eleven_text_to_sound_v2 # gateway provider/model id, alternatives mirelo/sfx-2.0 and mirelo/sfx-1.6
   # output_dir: <media root>/sfx
   require_approval: false # optional; unset = no approval, like the image tools
 ```
