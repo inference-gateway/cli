@@ -1,0 +1,7 @@
+---
+agents:
+  - name: gcp-agent
+    url: http://localhost:8093
+    run: false
+    auth:
+      token_file: .token

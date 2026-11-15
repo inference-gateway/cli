@@ -1,0 +1,12 @@
+---
+agents:
+  - name: entra-agent
+    url: http://localhost:8093
+    run: false
+    auth:
+      oidc:
+        client_id: YOUR_CLIENT_APP_ID
+        client_secret_env: AZURE_CLIENT_SECRET
+        issuer_url: https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0
+        scopes:
+          - api://YOUR_API_APP_ID/.default
