@@ -76,8 +76,8 @@ VPN.
 | `Taskfile.yml` | Every step below |
 | `.state/` | Created by the tasks: the NetBird API token, the owner's password, `infer-local`'s client certificate, the last session and capture |
 
-The example builds infer from this checkout (`task image:import`), because `gateway.tls`, the client certificate
-`infer-k8s` presents to the gateway, is newer than the last infer release.
+The example builds infer from this checkout (`task image:import`) so your own changes run on the pod. Teleport
+shipped in v0.239.0 and `gateway.tls`, the client certificate `infer-k8s` presents to the gateway, in v0.240.0.
 
 ## Quick start
 
