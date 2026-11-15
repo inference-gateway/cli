@@ -27,7 +27,7 @@ import (
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files in testdata/")
 
-const builtinToolCount = 50
+const builtinToolCount = 51
 
 // toolDefinitionsSnapshot is what the built-in tools expose: the definitions
 // sent to the model, the tools offered per agent mode, and whether a call
@@ -99,6 +99,7 @@ func goldenConfig() *config.Config {
 	cfg.TextToSFX.Enabled = true
 	cfg.TextToVideo.Enabled = true
 	cfg.TextToVideo.CreateAvatar = true
+	cfg.VideoToSFX.Enabled = true
 
 	cfg.Memory = *config.DefaultMemoryConfig()
 	cfg.Memory.Enabled = true
@@ -131,7 +132,7 @@ func withoutToolApprovalOverrides(cfg *config.Config) *config.Config {
 		&clone.Tools.ImageVariation.RequireApproval, &clone.A2A.Tools.QueryAgent.RequireApproval,
 		&clone.A2A.Tools.QueryTask.RequireApproval, &clone.A2A.Tools.SubmitTask.RequireApproval,
 		&clone.TextToSpeech.RequireApproval, &clone.TextToMusic.RequireApproval, &clone.TextToSFX.RequireApproval,
-		&clone.TextToVideo.RequireApproval,
+		&clone.TextToVideo.RequireApproval, &clone.VideoToSFX.RequireApproval,
 	} {
 		*override = nil
 	}
@@ -157,6 +158,7 @@ func goldenRegistry(cfg *config.Config) *tools.Registry {
 		&agentdomainmocks.FakeMusicService{},
 		&agentdomainmocks.FakeSoundEffectService{},
 		&agentdomainmocks.FakeVideoService{},
+		&agentdomainmocks.FakeVideoSoundEffectService{},
 		&schedmocks.FakeBackgroundShellService{},
 		annotator,
 		jobs,

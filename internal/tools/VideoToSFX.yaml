@@ -1,0 +1,39 @@
+name: VideoToSFX
+description: |-
+  Score a video clip through the gateway so the sound that fits the picture is generated, and save the wanted track as an audio file. Returns the saved file path.
+
+  The clip drives the result: pass video with the bare file name of a .mov, .mp4, .m4v or .webm clip, looked up in the working directory, then in the TextToVideo output directory. Optionally pass prompt as guidance on the sound, seconds and start_seconds to score a window (seconds is the scored length counted from start_seconds; both omitted score the whole clip), track to pick what comes back (mix - the generated sound with any kept speech, the default; sfx - the generated sound alone; speech - the clip's own dialogue), preserve_speech (true keeps the clip's dialogue under the generated sound) and output_path (a bare file name only - no directories, no absolute paths: the file is ALWAYS written into the configured output directory, never the working directory or any path you choose, and always carries the returned audio's extension). A clip without dialogue has no speech track, and a request a provider cannot serve answers with its error message. The clip is uploaded to a third party for scoring.
+
+  Do not claim the audio was played aloud - it is written to disk for the user to open, at the returned path.
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    output_path:
+      type: string
+      description: Optional bare file name (no directories or absolute paths) for the saved audio; it is always placed in the configured output directory and carries the returned audio's extension. Defaults to a timestamped file
+    preserve_speech:
+      type: boolean
+      description: 'Optional: true to keep the dialogue already in the clip under the generated sound'
+    prompt:
+      type: string
+      description: Optional guidance on the sound to generate - the video itself drives the result
+    seconds:
+      type: number
+      description: Optional length of the scored window in seconds, counted from start_seconds (at least 1); omitted scores the rest of the clip
+    start_seconds:
+      type: number
+      description: Optional offset in seconds where the scored window starts; omitted scores from the beginning
+    track:
+      type: string
+      description: Optional track to return - mix (default, the generated sound with any kept speech), sfx (the generated sound alone) or speech (the clip's own dialogue)
+      enum:
+        - mix
+        - sfx
+        - speech
+    video:
+      type: string
+      description: Bare file name of the .mov, .mp4, .m4v or .webm clip to score, looked up in the working directory, then in the TextToVideo output directory
+  required:
+    - video
+require_approval: false

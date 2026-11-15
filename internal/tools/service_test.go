@@ -27,7 +27,7 @@ func toolNamesForMode(svc *Service, mode agentdomain.AgentMode) []string {
 
 func TestListToolsForMode_ReadOnly(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewService(cfg, registry)
 	names := toolNamesForMode(svc, agentdomain.AgentModeReadOnly)
 
@@ -45,7 +45,7 @@ func TestListToolsForMode_ReadOnly(t *testing.T) {
 
 func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewService(cfg, registry)
 
 	for _, mode := range []agentdomain.AgentMode{
@@ -68,7 +68,7 @@ func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 // advertised there - and only there, not in read-only subagent mode.
 func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, &schedmocks.FakeBackgroundTaskRegistry{}, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, &schedmocks.FakeBackgroundTaskRegistry{}, nil)
 	svc := NewService(cfg, registry)
 
 	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), ToolAgent) {
@@ -84,7 +84,7 @@ func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 // mode - plan and read-only subagents included - must advertise it.
 func TestListToolsForMode_MemoryAvailableEverywhere(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewService(cfg, registry)
 
 	for _, mode := range []agentdomain.AgentMode{
@@ -106,7 +106,7 @@ func TestListToolsForMode_MemoryAvailableEverywhere(t *testing.T) {
 // scratchpad gate, not the mode guard, constrains what they may touch.
 func TestExecuteTool_ModeGuard(t *testing.T) {
 	cfg := config.DefaultConfig()
-	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	svc := NewService(cfg, registry)
 
 	tests := []struct {
@@ -169,7 +169,7 @@ func TestListToolsOffersImageDecodeToEveryModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Vision.Annotator.Enabled = true
 	cfg.Vision.Annotator.Model = "openai/qwen3-vl-2b"
-	registry := NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
+	registry := NewRegistry(cfg, &agentdomainmocks.FakeImageService{}, nil, nil, nil, nil, nil, nil, &agentdomainmocks.FakeImageAnnotator{}, nil, nil)
 	svc := NewService(cfg, registry)
 
 	names := func() []string {

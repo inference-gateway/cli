@@ -41,6 +41,7 @@ const (
 	ToolTextToVideo         = "TextToVideo"
 	ToolTodoWrite           = "TodoWrite"
 	ToolTree                = "Tree"
+	ToolVideoToSFX          = "VideoToSFX"
 	ToolWait                = "Wait"
 	ToolWebFetch            = "WebFetch"
 	ToolWebSearch           = "WebSearch"
