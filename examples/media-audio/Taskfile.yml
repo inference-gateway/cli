@@ -1,0 +1,52 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TEXT_TO_SPEECH_ENABLED: 'true'
+  INFER_TEXT_TO_MUSIC_ENABLED: 'true'
+  INFER_TEXT_TO_SFX_ENABLED: 'true'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  speech:
+    desc: The model calls TextToSpeech, the mock's speech endpoint answers a WAV
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: say good morning as speech, saved as greeting.wav
+
+  music:
+    desc: The model calls TextToMusic, the mock's music endpoint answers an MP3 loop
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: compose a calm piano loop, saved as loop.mp3
+
+  sfx:
+    desc: The model calls TextToSFX, the mock's SFX endpoint answers an MP3 one-shot
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: generate a door knock sound effect, saved as knock.mp3
+
+  all:
+    desc: Run the speech, music and sfx scenarios
+    cmds:
+      - task: speech
+      - task: music
+      - task: sfx
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.INFER}} headless --no-save \"{{.PROMPT}}\" | grep '\"role\":\"tool\"'"

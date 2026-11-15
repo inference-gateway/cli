@@ -1,0 +1,60 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TEXT_TO_VIDEO_ENABLED: 'true'
+  INFER_TEXT_TO_SPEECH_ENABLED: 'true'
+  INFER_VIDEO_TO_SFX_ENABLED: 'true'
+  INFER_VIDEO_TO_SFX_DUB: 'true'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  produce:
+    desc: Render a clip, then score it, then dub it, in one headless run
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: render a drone shot, score it and dub it
+
+  avatar:
+    desc: Create an avatar from photo.png, list it, then lip-sync it over a spoken line
+    cmds:
+      - cmd: "{{.INFER}} avatars create presenter --from photo.png --angles ''"
+        ignore_error: true
+      - '{{.INFER}} avatars list'
+      - task: headless
+        vars:
+          PROMPT: make the presenter say good morning
+
+  local-models:
+    desc: Search the Hugging Face Hub for MuseTalk and list downloaded models (needs internet)
+    cmds:
+      - '{{.INFER}} models search musetalk --limit 5'
+      - '{{.INFER}} models list'
+
+  all:
+    desc: Run produce and avatar
+    cmds:
+      - task: produce
+      - task: avatar
+
+  clean:
+    desc: Delete the presenter avatar this example creates
+    cmds:
+      - cmd: '{{.INFER}} avatars delete presenter'
+        ignore_error: true
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.INFER}} headless --no-save \"{{.PROMPT}}\" | grep '\"role\":\"tool\"'"

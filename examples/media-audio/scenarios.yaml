@@ -1,0 +1,30 @@
+fallback:
+  content: 'Try "say good morning as speech, saved as greeting.wav", "compose a calm piano loop, saved as loop.mp3" or "generate a door knock sound effect, saved as knock.mp3".'
+scenarios:
+  - name: greeting
+    match: '(?i)say good morning'
+    turns:
+      - tool_calls:
+          - name: TextToSpeech
+            args:
+              text: Good morning, and welcome aboard.
+              output_path: greeting.wav
+      - content: The greeting is saved as greeting.wav in the tts media folder.
+  - name: piano-loop
+    match: '(?i)compose a calm piano loop'
+    turns:
+      - tool_calls:
+          - name: TextToMusic
+            args:
+              prompt: A calm piano loop, slow tempo, no vocals
+              output_path: loop.mp3
+      - content: The loop is saved as loop.mp3 in the music media folder.
+  - name: door-knock
+    match: '(?i)door knock'
+    turns:
+      - tool_calls:
+          - name: TextToSFX
+            args:
+              prompt: Three knocks on a wooden door, close up
+              output_path: knock.mp3
+      - content: The knock is saved as knock.mp3 in the sfx media folder.
