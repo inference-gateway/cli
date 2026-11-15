@@ -50,7 +50,7 @@ func TestDubVideoTool_Definition(t *testing.T) {
 	tool := newTestDubTool(t, true, true, &agentdomainmocks.FakeVideoService{})
 	def := tool.Definition()
 
-	assert.Equal(t, "DubVideo", def.Function.Name)
+	assert.Equal(t, ToolDubVideo, def.Function.Name)
 	require.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "only the generated mix", "the description must state Mirelo's mix-only limit")
 	assert.Contains(t, *def.Function.Description, "no track parameter")
@@ -82,7 +82,7 @@ func TestDubVideoTool_Validate(t *testing.T) {
 		{"mov clip", map[string]any{"video": "clip.mov", "prompt": "p"}, "not found"},
 		{"missing video", map[string]any{}, "video is required"},
 		{"blank video", map[string]any{"video": " "}, "video is required"},
-		{"wrong extension", map[string]any{"video": "line.wav"}, "must be a .mov, .mp4, .m4v or .webm clip"},
+		{"wrong extension", map[string]any{"video": "line.wav"}, "must be one of .mov, .mp4, .m4v, .webm"},
 		{"absolute clip", map[string]any{"video": "/tmp/clip.mp4"}, "invalid video path"},
 		{"clip with directory", map[string]any{"video": "sub/clip.mp4"}, "invalid video path"},
 		{"clip with ..", map[string]any{"video": "../clip.mp4"}, "invalid video path"},
@@ -254,11 +254,11 @@ func TestDubVideoTool_RegistryGating(t *testing.T) {
 		cfg := config.DefaultConfig()
 		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-		assert.NotContains(t, registry.ListAvailableTools(), "DubVideo")
+		assert.NotContains(t, registry.ListAvailableTools(), ToolDubVideo)
 		for _, def := range registry.GetToolDefinitions() {
-			assert.NotEqual(t, "DubVideo", def.Function.Name)
+			assert.NotEqual(t, ToolDubVideo, def.Function.Name)
 		}
-		_, err := registry.GetTool("DubVideo")
+		_, err := registry.GetTool(ToolDubVideo)
 		assert.Error(t, err)
 	})
 
@@ -267,11 +267,11 @@ func TestDubVideoTool_RegistryGating(t *testing.T) {
 		cfg.VideoToSFX = config.VideoToSFXConfig{Enabled: true, Dub: true}
 		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil, nil)
 
-		assert.Contains(t, registry.ListAvailableTools(), "DubVideo")
+		assert.Contains(t, registry.ListAvailableTools(), ToolDubVideo)
 
 		var found bool
 		for _, def := range registry.GetToolDefinitions() {
-			if def.Function.Name == "DubVideo" {
+			if def.Function.Name == ToolDubVideo {
 				found = true
 			}
 		}
@@ -283,7 +283,7 @@ func TestDubVideoTool_RegistryGating(t *testing.T) {
 		cfg.VideoToSFX = config.VideoToSFXConfig{Enabled: true}
 		registry := NewRegistry(cfg, nil, nil, nil, nil, &agentdomainmocks.FakeVideoService{}, nil, nil, nil, nil, nil)
 
-		assert.NotContains(t, registry.ListAvailableTools(), "DubVideo")
+		assert.NotContains(t, registry.ListAvailableTools(), ToolDubVideo)
 	})
 }
 

@@ -15,6 +15,23 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
+// Argument names of the DubVideo manifest.
+const (
+	dubVideoArgVideo          = "video"
+	dubVideoArgPrompt         = "prompt"
+	dubVideoArgPreserveSpeech = "preserve_speech"
+	dubVideoArgOutputPath     = "output_path"
+)
+
+// dubVideoResultModel is the result-data key naming the model that dubbed the clip.
+const dubVideoResultModel = "model"
+
+// A dubbed clip without a named output is saved as dub-<timestamp>.mp4.
+const (
+	dubbedFilePrefix    = "dub-"
+	dubbedFileExtension = ".mp4"
+)
+
 // DubVideoTool dubs a video clip through the gateway's Videos API: the
 // provider generates the sound that fits the clip and re-renders it with that
 // sound as its new soundtrack, saved as an MP4 file.
@@ -43,17 +60,17 @@ func (t *DubVideoTool) Definition() sdk.ChatCompletionTool {
 
 // Validate validates DubVideo arguments
 func (t *DubVideoTool) Validate(args map[string]any) error {
-	rawVideo, _ := args["video"].(string)
+	rawVideo, _ := args[dubVideoArgVideo].(string)
 	if strings.TrimSpace(rawVideo) == "" {
-		return fmt.Errorf("video is required")
+		return fmt.Errorf("%s is required", dubVideoArgVideo)
 	}
 	if ext := strings.ToLower(filepath.Ext(rawVideo)); !slices.Contains(videoExtensions, ext) {
-		return fmt.Errorf("video %q must be a .mov, .mp4, .m4v or .webm clip", rawVideo)
+		return fmt.Errorf("%s %q must be one of %s", dubVideoArgVideo, rawVideo, strings.Join(videoExtensions, ", "))
 	}
 
-	if raw, present := args["preserve_speech"]; present && raw != nil {
+	if raw, present := args[dubVideoArgPreserveSpeech]; present && raw != nil {
 		if _, ok := raw.(bool); !ok {
-			return fmt.Errorf("preserve_speech must be a boolean")
+			return fmt.Errorf("%s must be a boolean", dubVideoArgPreserveSpeech)
 		}
 	}
 
@@ -61,7 +78,7 @@ func (t *DubVideoTool) Validate(args map[string]any) error {
 		return err
 	}
 
-	rawOut, _ := args["output_path"].(string)
+	rawOut, _ := args[dubVideoArgOutputPath].(string)
 	if strings.TrimSpace(rawOut) == "" {
 		return nil
 	}
@@ -76,7 +93,7 @@ func (t *DubVideoTool) resolveVideoPath(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resolveMediaInputPath(t.config, dir, raw, "video", "video file")
+	return resolveMediaInputPath(t.config, dir, raw, dubVideoArgVideo, strings.Join(videoExtensions, "/")+" clip")
 }
 
 // resolveOutputPath confines a supplied file name to the configured output
@@ -86,7 +103,7 @@ func (t *DubVideoTool) resolveOutputPath(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resolveMediaOutputPath(dir, "dub-", ".mp4", raw)
+	return resolveMediaOutputPath(dir, dubbedFilePrefix, dubbedFileExtension, raw)
 }
 
 // Execute executes the DubVideo tool
@@ -95,9 +112,9 @@ func (t *DubVideoTool) Execute(ctx context.Context, args map[string]any) (*agent
 		return nil, err
 	}
 
-	rawVideo, _ := args["video"].(string)
-	prompt, _ := args["prompt"].(string)
-	rawOut, _ := args["output_path"].(string)
+	rawVideo, _ := args[dubVideoArgVideo].(string)
+	prompt, _ := args[dubVideoArgPrompt].(string)
+	rawOut, _ := args[dubVideoArgOutputPath].(string)
 
 	start := time.Now()
 
@@ -111,7 +128,7 @@ func (t *DubVideoTool) Execute(ctx context.Context, args map[string]any) (*agent
 	}
 
 	request := agentdomain.VideoDubRequest{Prompt: prompt, VideoPath: videoPath}
-	if preserve, ok := args["preserve_speech"].(bool); ok {
+	if preserve, ok := args[dubVideoArgPreserveSpeech].(bool); ok {
 		request.PreserveSpeech = &preserve
 	}
 	if err := t.video.Dub(ctx, request, outPath); err != nil {
@@ -127,10 +144,10 @@ func (t *DubVideoTool) Execute(ctx context.Context, args map[string]any) (*agent
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: map[string]any{
-			"path":            outPath,
-			"model":           t.config.VideoToSFX.ResolveGatewayModel(),
-			"video":           strings.TrimSpace(rawVideo),
-			"preserve_speech": request.PreserveSpeech != nil && *request.PreserveSpeech,
+			savedPathKey:              outPath,
+			dubVideoResultModel:       t.config.VideoToSFX.ResolveGatewayModel(),
+			dubVideoArgVideo:          strings.TrimSpace(rawVideo),
+			dubVideoArgPreserveSpeech: request.PreserveSpeech != nil && *request.PreserveSpeech,
 		},
 	}, nil
 }

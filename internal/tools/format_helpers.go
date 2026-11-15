@@ -71,6 +71,9 @@ func formatResult(result *agentdomain.ToolExecutionResult, formatType agentdomai
 	}
 }
 
+// savedPathKey is the result-data key a media tool reports its saved file under.
+const savedPathKey = "path"
+
 // savedFile describes a media tool whose result is the path of the one file it
 // saved. details renders the extra fields of the LLM summary, or is nil.
 type savedFile struct {
@@ -98,7 +101,7 @@ func (f savedFile) preview(result *agentdomain.ToolExecutionResult) string {
 	if !ok {
 		return f.done
 	}
-	path, _ := data["path"].(string)
+	path, _ := data[savedPathKey].(string)
 	return fmt.Sprintf("%s saved to %s", f.noun, path)
 }
 
@@ -113,7 +116,7 @@ func (f savedFile) forLLM(result *agentdomain.ToolExecutionResult) string {
 	if !ok {
 		return f.done
 	}
-	path, _ := data["path"].(string)
+	path, _ := data[savedPathKey].(string)
 	summary := fmt.Sprintf("%s saved to %s", f.noun, path)
 	if f.details != nil {
 		summary += f.details(data)

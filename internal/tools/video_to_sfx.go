@@ -205,7 +205,7 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: map[string]any{
-			"path":              saved,
+			savedPathKey:        saved,
 			videoToSFXArgVideo:  filepath.Base(videoPath),
 			videoToSFXArgPrompt: prompt,
 			videoToSFXArgTrack:  string(cmp.Or(track, sdk.CreateSFXRequestOutputMix)),

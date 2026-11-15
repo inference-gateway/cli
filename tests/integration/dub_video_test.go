@@ -18,6 +18,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // TestDubVideoToolAgainstMockGateway drives the full loop: the chat model
@@ -134,7 +135,7 @@ loop:
 				errs = append(errs, ev.Error)
 			case agentdomain.ToolExecutionCompletedEvent:
 				for _, res := range ev.Results {
-					if res.ToolName == "DubVideo" && !dubbedOnce {
+					if res.ToolName == tools.ToolDubVideo && !dubbedOnce {
 						dubbedOnce = true
 						dubResult = res
 					}
