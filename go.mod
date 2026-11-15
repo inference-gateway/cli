@@ -31,7 +31,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/inference-gateway/adk v0.34.2
 	github.com/inference-gateway/operator v0.34.0
-	github.com/inference-gateway/sdk v1.46.0
+	github.com/inference-gateway/sdk v1.47.0
 	github.com/inference-gateway/tokenless v0.13.0
 	github.com/jezek/xgb v1.3.1
 	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a

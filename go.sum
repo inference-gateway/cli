@@ -222,8 +222,8 @@ github.com/inference-gateway/adk v0.34.2 h1:UUtGti0OZPaSqcz+TQQ2+Q8CNmjNwt0PXxqs
 github.com/inference-gateway/adk v0.34.2/go.mod h1:FRZ0DeJQ4TD/oKkKHVhSNztgKSs6B05cgqIZVcKweYk=
 github.com/inference-gateway/operator v0.34.0 h1:IjNEapvIvEY852OQNQunkfblOzVR60oFCwLoKzjjH/c=
 github.com/inference-gateway/operator v0.34.0/go.mod h1:xg7qksIOcIb0Mnmt2mGnEnoEs7jjqr7sPKQXubfnxh0=
-github.com/inference-gateway/sdk v1.46.0 h1:0Q/WMqToTgGyoelZDk1mIVYfJ5Erg3p3SIUks1ADjIQ=
-github.com/inference-gateway/sdk v1.46.0/go.mod h1:Drq/SRdLRQsY/szVFh1M7nzTNvBubaVJjWF8i1Rww3c=
+github.com/inference-gateway/sdk v1.47.0 h1:WgB9mBIBUalGu+o/oAvoMhsyTuqoXBGqmnm9U/qiikk=
+github.com/inference-gateway/sdk v1.47.0/go.mod h1:Drq/SRdLRQsY/szVFh1M7nzTNvBubaVJjWF8i1Rww3c=
 github.com/inference-gateway/tokenless v0.13.0 h1:rsJGgoNX+oRsEZobOcp/otCtgC9dTef0XWwjJWCl6uA=
 github.com/inference-gateway/tokenless v0.13.0/go.mod h1:3/SaKdnJuXCXOEX+Jm4PSFzi4VoEiNDONIqNtMjLGXM=
 github.com/jezek/xgb v1.3.0/go.mod h1:nrhwO0FX/enq75I7Y7G8iN1ubpSGZEiA3v9e9GyRFlk=

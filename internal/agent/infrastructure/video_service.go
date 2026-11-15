@@ -39,17 +39,13 @@ const (
 type VideoService struct {
 	config *config.Config
 	client sdk.Client
-	dub    VideoDubGateway
 }
 
-// NewVideoService creates a new gateway-backed video service. Dub may be nil
-// when dubbing is not wired: the dub create needs its own gateway because
-// the SDK's CreateVideo drops the dubbing fields.
-func NewVideoService(cfg *config.Config, client sdk.Client, dub VideoDubGateway) *VideoService {
+// NewVideoService creates a new gateway-backed video service.
+func NewVideoService(cfg *config.Config, client sdk.Client) *VideoService {
 	return &VideoService{
 		config: cfg,
 		client: client,
-		dub:    dub,
 	}
 }
 
@@ -84,10 +80,6 @@ func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequ
 // to outPath. The model is video_to_sfx.model; the job loop reuses the
 // TextToVideo polling code and its timeout and poll_interval knobs.
 func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequest, outPath string) error {
-	if s.dub == nil {
-		return fmt.Errorf("dubbing is not wired: the video service has no dubbing gateway")
-	}
-
 	model := s.config.VideoToSFX.ResolveGatewayModel()
 	provider, modelName := config.ParseModel(model)
 	if provider == "" || modelName == "" {
@@ -98,17 +90,40 @@ func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequ
 		provider, modelName = "", model
 	}
 
-	ctx, cancel := s.withJobDeadline(ctx)
-	defer cancel()
-
-	job, err := s.dub.CreateDubbing(ctx, provider, modelName, request)
+	dubReq, err := s.buildDubRequest(request, modelName)
 	if err != nil {
-		return fmt.Errorf("video dubbing with %s failed: %w", model, err)
+		return err
 	}
-	if job == nil {
-		return fmt.Errorf("video dubbing with %s returned no job", model)
+	return s.runVideoJob(ctx, model, provider, dubReq, outPath)
+}
+
+// buildDubRequest converts the domain request into the SDK's create body: the
+// source clip as its video file part, plus the prompt, preserve_speech and
+// start-offset passthroughs. The clip must stay within the gateway's default
+// body limit, checked before the upload.
+func (s *VideoService) buildDubRequest(request agentdomain.VideoDubRequest, modelName string) (sdk.CreateVideoRequest, error) {
+	req := sdk.CreateVideoRequest{Model: modelName}
+	if prompt := strings.TrimSpace(request.Prompt); prompt != "" {
+		req.Prompt = &prompt
 	}
-	return s.finishVideoJob(ctx, model, provider, job.ID, outPath)
+
+	data, err := os.ReadFile(request.VideoPath) // nolint:gosec
+	if err != nil {
+		return sdk.CreateVideoRequest{}, fmt.Errorf("reading video %q: %w", request.VideoPath, err)
+	}
+	if len(data) > maxVideoUploadBytes {
+		return sdk.CreateVideoRequest{}, fmt.Errorf(
+			"video upload (%.1f MiB) exceeds the gateway's default %d MiB request limit; use a shorter clip",
+			float64(len(data))/(1<<20), maxVideoUploadBytes/(1<<20),
+		)
+	}
+	var video openapi_types.File
+	video.InitFromBytes(data, filepath.Base(request.VideoPath))
+	req.Video = &video
+
+	req.PreserveSpeech = request.PreserveSpeech
+	req.StartOffsetSeconds = request.StartSeconds
+	return req, nil
 }
 
 // withJobDeadline bounds a Videos API job, create through download, by

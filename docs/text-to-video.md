@@ -120,7 +120,7 @@ video_to_sfx:
 - **`video` (required)** - a bare `.mov`, `.mp4`, `.m4v` or `.webm` file name, looked up in the working directory, then in the TextToVideo
   output directory, so a clip `TextToVideo` just rendered can be dubbed by its file name in the next tool call.
 - **`prompt` (optional)** - guidance on the sound; the clip itself drives the result. `preserve_speech: true` keeps the clip's own dialogue
-  under the generated sound.
+  under the generated sound, and `start_seconds` starts the dubbed window that many seconds into the clip.
 - **`output_path` (optional)** - a bare file name inside `text_to_video.output_dir` (`<media root>/video` by default); otherwise a
   timestamped `dub-*.mp4` is written there. Dubbed clips share the rendered clips' folder.
 - **Mirelo's limit** - only the generated mix is laid onto the clip. The separated speech and sfx tracks come back only as audio from the

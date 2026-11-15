@@ -979,6 +979,7 @@ dubbed clip, so the tool offers no `track` parameter. See
 - `prompt` (optional): Description of the sound (e.g. a busy cafe hubbub, a tense orchestral
   underscore) - the clip itself drives the result, the prompt is only guidance
 - `preserve_speech` (optional): `true` to keep the clip's own dialogue under the generated sound
+- `start_seconds` (optional): Offset in seconds where the dubbed window starts - omitted dubs from the beginning
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the dubbed MP4,
   placed inside `text_to_video.output_dir`; defaults to a timestamped file
 
