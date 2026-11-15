@@ -49,29 +49,43 @@ type Registry struct {
 	mdAgents        []markdownAgent
 }
 
+// RegistryDeps carries the optional collaborators NewRegistry wires into the
+// tools it registers. The zero value is valid: a nil collaborator leaves out
+// the tools that need it instead of failing construction.
+type RegistryDeps struct {
+	Image             agentdomain.ImageService
+	Speech            agentdomain.SpeechService
+	Music             agentdomain.MusicService
+	SoundEffects      agentdomain.SoundEffectService
+	Video             agentdomain.VideoService
+	VideoSoundEffects agentdomain.VideoSoundEffectService
+	BackgroundShells  scheddomain.BackgroundShellService
+	ImageAnnotator    agentdomain.ImageAnnotator
+	// BackgroundTasks is the unified registry the container owns, so the
+	// subagent tools observe the same tracker the agent's wait loop does.
+	BackgroundTasks scheddomain.BackgroundTaskRegistry
+	// Stores backs the Schedule and RequestPlanApproval tools; nil leaves
+	// those tools failing at execution with a clear error.
+	Stores *storage.Stores
+}
+
 // NewRegistry creates a new tool registry with self-contained tools.
-// jobs is the unified BackgroundTaskRegistry the container owns, so all tools
-// observe the same tracker the agent's wait loop does. A nil jobs leaves out
-// the subagent tools.
-// stores provides the storage backends for the Schedule and RequestPlanApproval
-// tools; it may be nil when storage failed to initialize, in which case those
-// tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, videoSfxService agentdomain.VideoSoundEffectService, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, jobs scheddomain.BackgroundTaskRegistry, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, deps RegistryDeps) *Registry {
 	registry := &Registry{
 		config:          cfg,
 		tools:           make(map[string]agentdomain.Tool),
-		shellService:    shellService,
+		shellService:    deps.BackgroundShells,
 		readFiles:       make(map[string]fileReadSnapshot),
-		jobs:            jobs,
-		imageService:    imageService,
-		speechService:   speechService,
-		musicService:    musicService,
-		sfxService:      sfxService,
-		videoService:    videoService,
-		videoSfxService: videoSfxService,
-		annotator:       annotator,
+		jobs:            deps.BackgroundTasks,
+		imageService:    deps.Image,
+		speechService:   deps.Speech,
+		musicService:    deps.Music,
+		sfxService:      deps.SoundEffects,
+		videoService:    deps.Video,
+		videoSfxService: deps.VideoSoundEffects,
+		annotator:       deps.ImageAnnotator,
 		frameSources:    make(map[string]agentdomain.FrameSource),
-		stores:          stores,
+		stores:          deps.Stores,
 	}
 
 	registry.registerTools()

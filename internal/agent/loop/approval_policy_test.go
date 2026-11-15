@@ -33,7 +33,7 @@ func createTestConfig() *config.Config {
 // builtinTools resolves the built-in tools' manifests, which carry each
 // tool's plan-mode policy and its default or configured approval.
 func builtinTools(cfg *config.Config) *tools.Registry {
-	return tools.NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	return tools.NewRegistry(cfg, tools.RegistryDeps{})
 }
 
 func newTestPolicy(cfg *config.Config, stateManager agentdomain.AgentModeState) *StandardApprovalPolicy {

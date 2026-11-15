@@ -502,7 +502,18 @@ func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 	c.openDaemonThread(stores)
 
 	c.imageAnnotator = c.createImageAnnotator()
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.speechService, c.musicService, c.sfxService, c.videoService, c.videoSfxService, c.BackgroundShellService(), c.imageAnnotator, c.backgroundTaskRegistry, stores)
+	c.toolRegistry = tools.NewRegistry(c.config, tools.RegistryDeps{
+		Image:             c.imageService,
+		Speech:            c.speechService,
+		Music:             c.musicService,
+		SoundEffects:      c.sfxService,
+		Video:             c.videoService,
+		VideoSoundEffects: c.videoSfxService,
+		BackgroundShells:  c.BackgroundShellService(),
+		ImageAnnotator:    c.imageAnnotator,
+		BackgroundTasks:   c.backgroundTaskRegistry,
+		Stores:            stores,
+	})
 	c.initializeA2A()
 	c.registerCustomTools()
 	c.toolRegistry.LoadMarkdownAgents()
