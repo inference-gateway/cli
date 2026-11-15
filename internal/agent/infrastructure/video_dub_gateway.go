@@ -19,6 +19,23 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
+// videosRoute is the gateway's Videos API route under the base URL.
+const videosRoute = "/videos"
+
+// Fields of the multipart dubbing form the gateway reads.
+const (
+	dubFormModel          = "model"
+	dubFormPrompt         = "prompt"
+	dubFormPreserveSpeech = "preserve_speech"
+	dubFormVideo          = "video"
+)
+
+// bytesPerMiB converts an upload size to the unit the gateway's limit is quoted in.
+const bytesPerMiB = 1 << 20
+
+// maxDubErrorBodyBytes caps how much of a failed response is read into the error.
+const maxDubErrorBodyBytes = 4096
+
 // VideoDubGateway is the dubbing create's gateway: the SDK client covers
 // every other Videos API call, but its CreateVideo does not forward the
 // dubbing fields (the video part and preserve_speech) yet, so the dub create
@@ -52,26 +69,26 @@ func (g *DubGateway) CreateDubbing(ctx context.Context, provider, model string, 
 	}
 	if len(data) > maxVideoUploadBytes {
 		return nil, fmt.Errorf(
-			"video upload (%.1f MiB) exceeds the gateway's 10 MiB request limit; use a shorter clip",
-			float64(len(data))/(1<<20),
+			"video upload (%.1f MiB) exceeds the gateway's %d MiB request limit; use a shorter clip",
+			float64(len(data))/bytesPerMiB, maxVideoUploadBytes/bytesPerMiB,
 		)
 	}
 
 	body := &bytes.Buffer{}
 	mw := multipart.NewWriter(body)
-	fields := map[string]string{"model": model}
+	fields := map[string]string{dubFormModel: model}
 	if prompt := strings.TrimSpace(request.Prompt); prompt != "" {
-		fields["prompt"] = prompt
+		fields[dubFormPrompt] = prompt
 	}
 	if request.PreserveSpeech != nil {
-		fields["preserve_speech"] = strconv.FormatBool(*request.PreserveSpeech)
+		fields[dubFormPreserveSpeech] = strconv.FormatBool(*request.PreserveSpeech)
 	}
 	for name, value := range fields {
 		if err := mw.WriteField(name, value); err != nil {
 			return nil, fmt.Errorf("writing the %s field: %w", name, err)
 		}
 	}
-	part, err := mw.CreateFormFile("video", filepath.Base(request.VideoPath))
+	part, err := mw.CreateFormFile(dubFormVideo, filepath.Base(request.VideoPath))
 	if err != nil {
 		return nil, fmt.Errorf("creating the video part: %w", err)
 	}
@@ -82,17 +99,17 @@ func (g *DubGateway) CreateDubbing(ctx context.Context, provider, model string, 
 		return nil, fmt.Errorf("closing the multipart body: %w", err)
 	}
 
-	path := g.baseURL + "/videos"
+	path := g.baseURL + videosRoute
 	if provider != "" {
-		path += "?provider=" + url.QueryEscape(provider)
+		path += "?" + url.Values{providerQueryParam: {provider}}.Encode()
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, path, body)
 	if err != nil {
 		return nil, fmt.Errorf("building the dub request: %w", err)
 	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set(headerContentType, mw.FormDataContentType())
 	if g.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+g.apiKey)
+		req.Header.Set(headerAuthorization, bearerScheme+g.apiKey)
 	}
 
 	resp, err := g.client.Do(req)
@@ -101,7 +118,7 @@ func (g *DubGateway) CreateDubbing(ctx context.Context, provider, model string, 
 	}
 	defer resp.Body.Close() // nolint:errcheck
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, dubAPIError(resp)
 	}
 
@@ -115,7 +132,7 @@ func (g *DubGateway) CreateDubbing(ctx context.Context, provider, model string, 
 // dubAPIError mirrors the SDK's apiError: prefer the gateway's
 // {"error": "..."} body, fall back to the raw body.
 func dubAPIError(resp *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096)) // nolint:gosec
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxDubErrorBodyBytes)) // nolint:gosec
 	var errorResp struct {
 		Error *string `json:"error"`
 	}
