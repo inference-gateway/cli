@@ -18,16 +18,14 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // TestVideoToSFXToolAgainstMockGateway drives the full loop: the chat model
-// requests the VideoToSFX tool, the tool posts the clip as the multipart
-// video form on /v1/audio/sfx, and the answered track lands in
-// video_to_sfx.output_dir with the extension the response content type names.
-// The pinned tokenless serves /v1/audio/sfx for a JSON body only
-// (inference-gateway/tokenless#99), so the multipart route runs on a tiny
-// in-test mock layered over the tokenless chat gateway until the mock accepts
-// the form.
+// requests VideoToSFX, the tool posts the clip as the multipart video form and
+// the answered track lands in video_to_sfx.output_dir. The multipart route
+// runs on an in-test handler layered over the tokenless chat gateway, because
+// the pinned tokenless serves /v1/audio/sfx for a JSON body only.
 func TestVideoToSFXToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
@@ -110,7 +108,7 @@ loop:
 				errs = append(errs, ev.Error)
 			case agentdomain.ToolExecutionCompletedEvent:
 				for _, res := range ev.Results {
-					if res.ToolName == "VideoToSFX" {
+					if res.ToolName == tools.ToolVideoToSFX {
 						scored = res
 					}
 				}

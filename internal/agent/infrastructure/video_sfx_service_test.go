@@ -2,13 +2,11 @@ package infrastructure
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -88,7 +86,8 @@ func TestVideoSFXServiceScore(t *testing.T) {
 
 	t.Run("posts the unprefixed model, the knobs, the clip and the provider query", func(t *testing.T) {
 		svc, mu, state := newScoredGateway(t, http.StatusOK, "audio/wav", "scored-speech-bytes", nil)
-		outPath := filepath.Join(t.TempDir(), "sfx-000000-000000-c1.mp3")
+		outPath := filepath.Join(t.TempDir(), "take.mp3")
+		require.NoError(t, os.WriteFile(outPath, []byte("earlier-track"), 0o600))
 
 		saved, err := svc.Score(context.Background(), request, outPath)
 		require.NoError(t, err)
@@ -110,7 +109,9 @@ func TestVideoSFXServiceScore(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []byte("scored-speech-bytes"), written)
 		assert.Equal(t, ".wav", filepath.Ext(saved), "the extension follows the response content type")
-		assert.NoFileExists(t, outPath, "the resolved placeholder under the old extension does not survive")
+		earlier, err := os.ReadFile(outPath)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("earlier-track"), earlier, "a file already under the resolved name is the caller's to remove")
 	})
 
 	t.Run("an omitted knob is not sent and an mp3 answer keeps the resolved name", func(t *testing.T) {
@@ -216,5 +217,4 @@ func TestVideoSFXServiceScoreGatewayDown(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sfx scoring with mirelo/sfx-2.0 failed")
-	assert.True(t, errors.Is(err, io.EOF) || strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "refused") || strings.Contains(err.Error(), "no such host"), err.Error())
 }

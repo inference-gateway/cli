@@ -34,6 +34,17 @@ func writeVideoFixture(t *testing.T, name string) {
 	require.NoError(t, os.WriteFile(name, []byte("fake-video-bytes"), 0o600))
 }
 
+// scoreAsWAV stubs a scoring call whose answer is WAV: the track lands under
+// the resolved name with a .wav extension, as the gateway service saves it.
+func scoreAsWAV(t *testing.T) func(context.Context, agentdomain.VideoSoundEffectRequest, string) (string, error) {
+	t.Helper()
+	return func(_ context.Context, _ agentdomain.VideoSoundEffectRequest, outPath string) (string, error) {
+		saved := strings.TrimSuffix(outPath, filepath.Ext(outPath)) + ".wav"
+		require.NoError(t, os.WriteFile(saved, []byte("scored"), 0o600))
+		return saved, nil
+	}
+}
+
 func TestVideoToSFXTool_IsEnabled(t *testing.T) {
 	t.Run("enabled with a video-SFX service", func(t *testing.T) {
 		tool := newTestVideoSFXTool(t, true, &agentdomainmocks.FakeVideoSoundEffectService{})
@@ -53,7 +64,7 @@ func TestVideoToSFXTool_Definition(t *testing.T) {
 	tool := newTestVideoSFXTool(t, true, &agentdomainmocks.FakeVideoSoundEffectService{})
 	def := tool.Definition()
 
-	assert.Equal(t, "VideoToSFX", def.Function.Name)
+	assert.Equal(t, ToolVideoToSFX, def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "video")
 
@@ -232,6 +243,43 @@ func TestVideoToSFXTool_Execute(t *testing.T) {
 	})
 }
 
+func TestVideoToSFXTool_ExecuteSavedUnderAnotherExtension(t *testing.T) {
+	t.Run("a track saved under another extension replaces the allocated placeholder", func(t *testing.T) {
+		svc := &agentdomainmocks.FakeVideoSoundEffectService{}
+		svc.ScoreStub = scoreAsWAV(t)
+		tool := newTestVideoSFXTool(t, true, svc)
+		writeVideoFixture(t, "clip.mp4")
+
+		res, err := tool.Execute(context.Background(), map[string]any{"video": "clip.mp4"})
+		require.NoError(t, err)
+		require.True(t, res.Success, res.Error)
+
+		entries, readErr := os.ReadDir(tool.config.VideoToSFX.OutputDir)
+		require.NoError(t, readErr)
+		require.Len(t, entries, 1, "the empty placeholder must not survive next to the track")
+		assert.Equal(t, ".wav", filepath.Ext(entries[0].Name()))
+	})
+
+	t.Run("a track saved under another extension keeps the file already at the named output", func(t *testing.T) {
+		svc := &agentdomainmocks.FakeVideoSoundEffectService{}
+		svc.ScoreStub = scoreAsWAV(t)
+		tool := newTestVideoSFXTool(t, true, svc)
+		writeVideoFixture(t, "clip.mp4")
+		earlier := filepath.Join(tool.config.VideoToSFX.OutputDir, "take.mp3")
+		require.NoError(t, os.WriteFile(earlier, []byte("earlier-track"), 0o600))
+
+		res, err := tool.Execute(context.Background(), map[string]any{
+			"video":       "clip.mp4",
+			"output_path": "take.mp3",
+		})
+		require.NoError(t, err)
+		require.True(t, res.Success, res.Error)
+
+		assert.FileExists(t, earlier, "a file the call did not create must not be deleted")
+		assert.FileExists(t, filepath.Join(tool.config.VideoToSFX.OutputDir, "take.wav"))
+	})
+}
+
 func TestVideoToSFXTool_Formatting(t *testing.T) {
 	svc := &agentdomainmocks.FakeVideoSoundEffectService{}
 	svc.ScoreStub = func(ctx context.Context, request agentdomain.VideoSoundEffectRequest, outPath string) (string, error) {
@@ -255,11 +303,11 @@ func TestVideoToSFXTool_RegistryGating(t *testing.T) {
 		cfg.VideoToSFX.Enabled = false
 		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-		assert.NotContains(t, registry.ListAvailableTools(), "VideoToSFX")
+		assert.NotContains(t, registry.ListAvailableTools(), ToolVideoToSFX)
 		for _, def := range registry.GetToolDefinitions() {
-			assert.NotEqual(t, "VideoToSFX", def.Function.Name)
+			assert.NotEqual(t, ToolVideoToSFX, def.Function.Name)
 		}
-		_, err := registry.GetTool("VideoToSFX")
+		_, err := registry.GetTool(ToolVideoToSFX)
 		assert.Error(t, err)
 	})
 
@@ -269,11 +317,11 @@ func TestVideoToSFXTool_RegistryGating(t *testing.T) {
 		cfg.VideoToSFX.OutputDir = t.TempDir()
 		registry := NewRegistry(cfg, nil, nil, nil, nil, nil, &agentdomainmocks.FakeVideoSoundEffectService{}, nil, nil, nil, nil)
 
-		assert.Contains(t, registry.ListAvailableTools(), "VideoToSFX")
+		assert.Contains(t, registry.ListAvailableTools(), ToolVideoToSFX)
 
 		var found bool
 		for _, def := range registry.GetToolDefinitions() {
-			if def.Function.Name == "VideoToSFX" {
+			if def.Function.Name == ToolVideoToSFX {
 				found = true
 			}
 		}

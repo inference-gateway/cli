@@ -169,10 +169,11 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 		PreserveSpeech: preserveSpeech,
 	}
 	saved, err := t.videoSfx.Score(ctx, request, outPath)
+	placeholderAllocated := strings.TrimSpace(rawOut) == ""
+	if placeholderAllocated && (err != nil || saved != outPath) {
+		_ = os.Remove(outPath)
+	}
 	if err != nil {
-		if strings.TrimSpace(rawOut) == "" {
-			_ = os.Remove(outPath)
-		}
 		return t.failure(start, args, err), nil
 	}
 

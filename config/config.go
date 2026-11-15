@@ -243,7 +243,7 @@ func (c TextToVideoConfig) validate() error {
 // VideoToSFXConfig contains opt-in settings for scoring a video for its own
 // sound. The clip is uploaded to the gateway's SFX API (POST /v1/audio/sfx,
 // multipart/form-data) so a video-to-sfx provider can watch it and generate
-// the sound that fits; the CLI holds no provider key, the gateway does. The
+// the sound that fits. The CLI holds no provider key, the gateway does. The
 // footage leaves the machine, so the tool stays off by default.
 type VideoToSFXConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`

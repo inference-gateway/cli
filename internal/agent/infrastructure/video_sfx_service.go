@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -21,7 +22,7 @@ import (
 )
 
 // GatewayEndpoint is where raw gateway HTTP requests go and how they are
-// authenticated. The SDK client covers the generated JSON API; this carries
+// authenticated. The SDK client covers the generated JSON API. This carries
 // the endpoint it cannot express, the multipart SFX video form.
 type GatewayEndpoint struct {
 	Client *http.Client
@@ -64,10 +65,11 @@ func (s *VideoSFXService) Score(ctx context.Context, request agentdomain.VideoSo
 		return outPath, fmt.Errorf("invalid video_to_sfx.model %q (expected 'provider/model')", model)
 	}
 
-	clip, err := os.ReadFile(request.VideoPath) // nolint:gosec
+	clip, err := os.Open(request.VideoPath) // nolint:gosec
 	if err != nil {
 		return outPath, fmt.Errorf("reading video %q: %w", request.VideoPath, err)
 	}
+	defer func() { _ = clip.Close() }()
 
 	body, formType, err := s.buildForm(modelName, request, clip)
 	if err != nil {
@@ -107,7 +109,7 @@ func (s *VideoSFXService) scoreURL(provider string) string {
 
 // buildForm encodes the SFX video form: the unprefixed model, the optional
 // knobs as fields and the clip as the video file part.
-func (s *VideoSFXService) buildForm(model string, request agentdomain.VideoSoundEffectRequest, clip []byte) (*bytes.Buffer, string, error) {
+func (s *VideoSFXService) buildForm(model string, request agentdomain.VideoSoundEffectRequest, clip io.Reader) (*bytes.Buffer, string, error) {
 	form := &bytes.Buffer{}
 	writer := multipart.NewWriter(form)
 
@@ -137,7 +139,7 @@ func (s *VideoSFXService) buildForm(model string, request agentdomain.VideoSound
 	if err != nil {
 		return nil, "", err
 	}
-	if _, err := part.Write(clip); err != nil {
+	if _, err := io.Copy(part, clip); err != nil {
 		return nil, "", err
 	}
 	if err := writer.Close(); err != nil {
@@ -147,7 +149,7 @@ func (s *VideoSFXService) buildForm(model string, request agentdomain.VideoSound
 }
 
 // readScoredAudio returns the raw audio the gateway answered with, or an
-// error carrying the gateway's own message; a 413 names the request-body
+// error carrying the gateway's own message. A 413 names the request-body
 // limit so the operator knows which gateway knob to raise.
 func readScoredAudio(resp *http.Response, model string) ([]byte, error) {
 	if resp.StatusCode >= http.StatusMultipleChoices {
@@ -181,19 +183,19 @@ func gatewayErrorMessage(body io.Reader) error {
 	if json.Unmarshal(raw, &envelope) == nil && envelope.Error != nil {
 		var message string
 		if json.Unmarshal(*envelope.Error, &message) == nil && strings.TrimSpace(message) != "" {
-			return fmt.Errorf("%s", message)
+			return errors.New(message)
 		}
 		var nested struct {
 			Message string `json:"message"`
 		}
 		if json.Unmarshal(*envelope.Error, &nested) == nil && strings.TrimSpace(nested.Message) != "" {
-			return fmt.Errorf("%s", nested.Message)
+			return errors.New(nested.Message)
 		}
 	}
 	if len(raw) > 0 {
-		return fmt.Errorf("%s", strings.TrimSpace(string(raw)))
+		return errors.New(strings.TrimSpace(string(raw)))
 	}
-	return fmt.Errorf("no error message")
+	return errors.New("no error message")
 }
 
 // scoredFileExtension maps the audio Content-Type the gateway answered with
@@ -222,16 +224,13 @@ func scoredFileExtension(contentType, fallback string) string {
 	}
 }
 
-// writeScoredAudio writes the answered audio to outPath and returns the saved
-// path, fixing the extension to the response's content type; a resolved
-// timestamped placeholder under another extension does not survive.
+// writeScoredAudio writes the answered audio under outPath's name and returns
+// the saved path, whose extension follows the response's content type. A file
+// already at outPath is the caller's to keep or remove.
 func writeScoredAudio(outPath, contentType string, audio []byte) (string, error) {
 	saved := strings.TrimSuffix(outPath, filepath.Ext(outPath)) + scoredFileExtension(contentType, outPath)
 	if err := os.WriteFile(saved, audio, 0o644); err != nil { // nolint:gosec
 		return outPath, fmt.Errorf("writing audio to %q: %w", saved, err)
-	}
-	if saved != outPath {
-		_ = os.Remove(outPath)
 	}
 	return saved, nil
 }

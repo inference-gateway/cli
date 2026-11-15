@@ -897,13 +897,13 @@ deadline covers the upload plus the gateway's 150 s scoring budget, and a clip o
 - `video` (required): Bare file name of a `.mov`, `.mp4`, `.m4v` or `.webm` clip, looked up in the working directory, then in the
   `TextToVideo` output directory
 - `prompt` (optional): Guidance on the sound - the video itself drives the result
-- `seconds` (optional): Length of the scored window in seconds (at least 1), counted from `start_seconds`; both omitted score the whole clip
-- `start_seconds` (optional): Offset in seconds where the scored window starts; omitted scores from the beginning
+- `seconds` (optional): Length of the scored window in seconds (at least 1), counted from `start_seconds` - both omitted score the whole clip
+- `start_seconds` (optional): Offset in seconds where the scored window starts - omitted scores from the beginning
 - `track` (optional): What comes back - `mix` (default, the generated sound with any kept speech), `sfx` (the generated sound alone) or
-  `speech` (the clip's own dialogue); a clip without dialogue has no `speech` track
+  `speech` (the clip's own dialogue). A clip without dialogue has no `speech` track
 - `preserve_speech` (optional): `true` to keep the clip's dialogue under the generated sound
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the saved audio, placed inside `video_to_sfx.output_dir` and
-  carrying the returned audio's extension; defaults to a timestamped file
+  carrying the returned audio's extension. Defaults to a timestamped file
 
 **Configuration:**
 
@@ -912,7 +912,7 @@ video_to_sfx:
   enabled: true
   # model: mirelo/sfx-2.0
   # output_dir: <media root>/sfx
-  require_approval: false # optional; unset = no approval, like the other media tools
+  require_approval: false # optional - unset = no approval, like the other media tools
 ```
 
 ---
