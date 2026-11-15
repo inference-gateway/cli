@@ -21,5 +21,4 @@ result-*
 .vscode
 .idea
 .infer
-
 !examples/*/.infer/
