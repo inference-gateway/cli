@@ -48,7 +48,6 @@ logging:
 compact:
 agent:
   model: ""
-  system_prompt: ""
 chat:
   theme: tokyo-night
 ```
@@ -106,7 +105,7 @@ tools:
   read:
     enabled: true
     require_approval: false
-  file_search:
+  grep:
     enabled: true
     require_approval: false
   tree:
@@ -159,8 +158,11 @@ infer chat
 ### Configuration Management
 
 ```bash
-# Initialize project configuration
+# Initialize the userspace baseline in ~/.infer/
 infer init
+
+# Override a key for this project only (writes ./.infer/config.yaml)
+infer config set --project agent.model anthropic/claude-4.5-sonnet
 
 # Set default model for chat sessions
 infer config set agent.model anthropic/claude-4.5-sonnet
@@ -211,7 +213,6 @@ infer version
 
 All commands support these global flags:
 
-- `--config, -c`: Specify custom config file path
 - `--verbose, -v`: Enable verbose logging
 - `--format`: Output format (text, json) - available on specific commands
 
@@ -220,11 +221,15 @@ All commands support these global flags:
 - `infer status` - Check gateway status and health
 - `infer chat` - Start interactive chat with model selection
 - `infer config` - Manage CLI configuration
-  - `init [--overwrite]` - Initialize project configuration
-  - `set-model <MODEL>` - Set default model (format: provider/model)
-  - `set-system <PROMPT>` - Set system prompt
-  - `tools` - Manage tool execution settings
+  - `get [key]` - Read a configuration value (or dump everything without a key)
+  - `init [--overwrite]` - Initialize the userspace baseline ~/.infer/config.yaml
+  - `set <key> <value>` - Set a configuration value (add --project for a project override)
+- `infer init` - Seed the full baseline configuration in ~/.infer/
+- `infer headless [task]` - Execute a task non-interactively
+- `infer tools` - Run and inspect agent tools directly
 - `infer version` - Show version information
+
+See [docs/commands-reference.md](../../docs/commands-reference.md) for the full command set.
 
 ## Security Features
 
