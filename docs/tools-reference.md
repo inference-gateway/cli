@@ -141,6 +141,7 @@ exactly the same modes.
 | **TextToMusic** | Generate music through the gateway | No | `text_to_music.enabled` |
 | **TextToSFX** | Generate a sound effect through the gateway | No | `text_to_sfx.enabled` |
 | **TextToVideo** | Generate a video, optionally from an avatar | No | `text_to_video.enabled` |
+| **VideoToSFX** | Score a video for its own sound through the gateway | No | `video_to_sfx.enabled` |
 | **CreateAvatar** | Build an avatar portrait folder for TextToVideo | Yes | `text_to_video.enabled` and `text_to_video.create_avatar` |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
@@ -878,6 +879,40 @@ text_to_video:
   # timeout: 900                      # whole-render timeout (seconds)
   # poll_interval: 5                  # job status poll cadence (seconds)
   require_approval: false # optional; unset = no approval, like the image tools
+```
+
+---
+
+### VideoToSFX Tool
+
+Score a video clip through the gateway's SFX API (`POST /v1/audio/sfx`, a `multipart/form-data` form with the clip as its `video` part) and save the
+wanted track as an audio file - the sound that fits the picture, from the video-to-sfx provider (default `mirelo/sfx-2.0`) behind the same endpoint
+`TextToSFX` uses for text prompts. The clip itself drives the result, so `prompt` only guides the sound. The user's footage is uploaded to a third
+party, so the tool is disabled by default: while `video_to_sfx.enabled` is false the tool definition is not sent to the LLM at all. The request
+deadline covers the upload plus the gateway's 150 s scoring budget, and a clip over the gateway's `SERVER_MAX_REQUEST_BODY_SIZE` comes back as a
+`413` whose message names that limit.
+
+**Parameters:**
+
+- `video` (required): Bare file name of a `.mov`, `.mp4`, `.m4v` or `.webm` clip, looked up in the working directory, then in the
+  `TextToVideo` output directory
+- `prompt` (optional): Guidance on the sound - the video itself drives the result
+- `seconds` (optional): Length of the scored window in seconds (at least 1), counted from `start_seconds`; both omitted score the whole clip
+- `start_seconds` (optional): Offset in seconds where the scored window starts; omitted scores from the beginning
+- `track` (optional): What comes back - `mix` (default, the generated sound with any kept speech), `sfx` (the generated sound alone) or
+  `speech` (the clip's own dialogue); a clip without dialogue has no `speech` track
+- `preserve_speech` (optional): `true` to keep the clip's dialogue under the generated sound
+- `output_path` (optional): Bare file name (no directories or absolute paths) for the saved audio, placed inside `video_to_sfx.output_dir` and
+  carrying the returned audio's extension; defaults to a timestamped file
+
+**Configuration:**
+
+```yaml
+video_to_sfx:
+  enabled: true
+  # model: mirelo/sfx-2.0
+  # output_dir: <media root>/sfx
+  require_approval: false # optional; unset = no approval, like the other media tools
 ```
 
 ---

@@ -27,25 +27,26 @@ import (
 // RegisterTools; construction never blocks on MCP I/O.
 
 type Registry struct {
-	config         *config.Config
-	toolsMu        sync.RWMutex
-	tools          map[string]agentdomain.Tool
-	readToolUsed   atomic.Bool
-	readFiles      map[string]fileReadSnapshot
-	readFilesMu    sync.Mutex
-	jobs           scheddomain.BackgroundTaskRegistry
-	imageService   agentdomain.ImageService
-	speechService  agentdomain.SpeechService
-	musicService   agentdomain.MusicService
-	sfxService     agentdomain.SoundEffectService
-	videoService   agentdomain.VideoService
-	shellService   scheddomain.BackgroundShellService
-	annotator      agentdomain.ImageAnnotator
-	frameSources   map[string]agentdomain.FrameSource
-	frameSourcesMu sync.RWMutex
-	memoryBackend  memory.MemoryBackend
-	stores         *storage.Stores
-	mdAgents       []markdownAgent
+	config          *config.Config
+	toolsMu         sync.RWMutex
+	tools           map[string]agentdomain.Tool
+	readToolUsed    atomic.Bool
+	readFiles       map[string]fileReadSnapshot
+	readFilesMu     sync.Mutex
+	jobs            scheddomain.BackgroundTaskRegistry
+	imageService    agentdomain.ImageService
+	speechService   agentdomain.SpeechService
+	musicService    agentdomain.MusicService
+	sfxService      agentdomain.SoundEffectService
+	videoService    agentdomain.VideoService
+	videoSfxService agentdomain.VideoSoundEffectService
+	shellService    scheddomain.BackgroundShellService
+	annotator       agentdomain.ImageAnnotator
+	frameSources    map[string]agentdomain.FrameSource
+	frameSourcesMu  sync.RWMutex
+	memoryBackend   memory.MemoryBackend
+	stores          *storage.Stores
+	mdAgents        []markdownAgent
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -55,21 +56,22 @@ type Registry struct {
 // stores provides the storage backends for the Schedule and RequestPlanApproval
 // tools; it may be nil when storage failed to initialize, in which case those
 // tools fail at execution with a clear error.
-func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, jobs scheddomain.BackgroundTaskRegistry, stores *storage.Stores) *Registry {
+func NewRegistry(cfg *config.Config, imageService agentdomain.ImageService, speechService agentdomain.SpeechService, musicService agentdomain.MusicService, sfxService agentdomain.SoundEffectService, videoService agentdomain.VideoService, videoSfxService agentdomain.VideoSoundEffectService, shellService scheddomain.BackgroundShellService, annotator agentdomain.ImageAnnotator, jobs scheddomain.BackgroundTaskRegistry, stores *storage.Stores) *Registry {
 	registry := &Registry{
-		config:        cfg,
-		tools:         make(map[string]agentdomain.Tool),
-		shellService:  shellService,
-		readFiles:     make(map[string]fileReadSnapshot),
-		jobs:          jobs,
-		imageService:  imageService,
-		speechService: speechService,
-		musicService:  musicService,
-		sfxService:    sfxService,
-		videoService:  videoService,
-		annotator:     annotator,
-		frameSources:  make(map[string]agentdomain.FrameSource),
-		stores:        stores,
+		config:          cfg,
+		tools:           make(map[string]agentdomain.Tool),
+		shellService:    shellService,
+		readFiles:       make(map[string]fileReadSnapshot),
+		jobs:            jobs,
+		imageService:    imageService,
+		speechService:   speechService,
+		musicService:    musicService,
+		sfxService:      sfxService,
+		videoService:    videoService,
+		videoSfxService: videoSfxService,
+		annotator:       annotator,
+		frameSources:    make(map[string]agentdomain.FrameSource),
+		stores:          stores,
 	}
 
 	registry.registerTools()
@@ -230,6 +232,10 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 
 	if cfg.TextToVideo.Enabled && cfg.TextToVideo.CreateAvatar && r.imageService != nil {
 		r.register(NewCreateAvatarTool(cfg, r.imageService))
+	}
+
+	if cfg.VideoToSFX.Enabled && r.videoSfxService != nil {
+		r.register(NewVideoToSFXTool(cfg, r.videoSfxService))
 	}
 
 	if r.imageService != nil {

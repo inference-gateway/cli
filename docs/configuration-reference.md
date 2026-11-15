@@ -1108,7 +1108,7 @@ entry lists its keys and points at the guide that owns the behaviour.
   `input_device`, `retain_recordings`, `recordings_dir`. See [Speech-to-Text](speech-to-text.md).
 - **`text_to_speech`**: `enabled`, `model`, `voice`, `output_dir`, `auto_download`,
   `require_approval`. `engine` is deprecated and ignored. See [Text-to-Speech](text-to-speech.md).
-- **`text_to_music`**, **`text_to_sfx`**: `enabled`, `model`, `output_dir`, `require_approval`. See
+- **`text_to_music`**, **`text_to_sfx`**, **`video_to_sfx`**: `enabled`, `model`, `output_dir`, `require_approval`. See
   [Text-to-Music](text-to-music.md).
 - **`text_to_video`**: `enabled`, `model`, `avatar_model`, `size`, `output_dir`, `timeout`,
   `poll_interval`, `create_avatar`, `require_approval`. See [Text-to-Video](text-to-video.md).
@@ -1324,6 +1324,8 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TEXT_TO_VIDEO_REQUIRE_APPROVAL`: Require approval for the TextToVideo tool
   (default: unset, meaning no approval) and the CreateAvatar tool (default: unset,
   meaning approval required)
+- `INFER_VIDEO_TO_SFX_REQUIRE_APPROVAL`: Require approval for the VideoToSFX tool
+  (default: unset, meaning no approval)
 
 Approval variables are tri-state: leaving one unset is not the same as setting it to
 `false`. An unset tool falls back to the policy baked into the tool, while an explicit
@@ -1352,6 +1354,18 @@ and `require_approval`. The tool itself is documented in the
 These mirror the top-level `text_to_sfx:` YAML block: `enabled`, `model`, `output_dir`
 and `require_approval`. The tool itself is documented in the
 [Tools Reference](tools-reference.md#texttosfx-tool) and its output directory in the
+[Directory Structure](directory-structure.md).
+
+**VideoToSFX Tool Configuration:**
+
+- `INFER_VIDEO_TO_SFX_ENABLED`: Enable/disable the VideoToSFX tool (default: `false`)
+- `INFER_VIDEO_TO_SFX_MODEL`: Gateway `provider/model` id used for video scoring (default: `mirelo/sfx-2.0`)
+- `INFER_VIDEO_TO_SFX_OUTPUT_DIR`: Directory the saved track is written to (default: `sfx` under the
+  [media root](directory-structure.md#media-directories))
+
+These mirror the top-level `video_to_sfx:` YAML block: `enabled`, `model`, `output_dir` and
+`require_approval`. The tool itself is documented in the
+[Tools Reference](tools-reference.md#videotosfx-tool) and its output directory in the
 [Directory Structure](directory-structure.md).
 
 **TextToVideo Tool Configuration:**

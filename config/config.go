@@ -44,6 +44,7 @@ type Config struct {
 	TextToMusic      TextToMusicConfig      `yaml:"text_to_music" mapstructure:"text_to_music"`
 	TextToSFX        TextToSFXConfig        `yaml:"text_to_sfx" mapstructure:"text_to_sfx"`
 	TextToVideo      TextToVideoConfig      `yaml:"text_to_video" mapstructure:"text_to_video"`
+	VideoToSFX       VideoToSFXConfig       `yaml:"video_to_sfx" mapstructure:"video_to_sfx"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"-" mapstructure:"tools"`
@@ -148,6 +149,10 @@ const TextToVideoGatewayDefaultModel = "elevenlabs/veo-3.1-fast-generate-001"
 // unset.
 const TextToVideoGatewayDefaultAvatarModel = "elevenlabs/creatify-aurora"
 
+// VideoToSFXGatewayDefaultModel is the model used by the gateway's SFX API
+// for video scoring when video_to_sfx.model is unset.
+const VideoToSFXGatewayDefaultModel = "mirelo/sfx-2.0"
+
 // TextToSFXConfig contains opt-in settings for sound-effect generation. The
 // clip is generated behind the gateway's SFX API (POST /v1/audio/sfx), always
 // as WAV; the CLI holds no provider key, the gateway does.
@@ -235,6 +240,33 @@ func (c TextToVideoConfig) validate() error {
 	return nil
 }
 
+// VideoToSFXConfig contains opt-in settings for scoring a video for its own
+// sound. The clip is uploaded to the gateway's SFX API (POST /v1/audio/sfx,
+// multipart/form-data) so a video-to-sfx provider can watch it and generate
+// the sound that fits; the CLI holds no provider key, the gateway does. The
+// footage leaves the machine, so the tool stays off by default.
+type VideoToSFXConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model           string `yaml:"model" mapstructure:"model"`
+	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// ResolveGatewayModel returns the "provider/model" id used for video scoring,
+// defaulting to the gateway's mirelo/sfx-2.0.
+func (c VideoToSFXConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), VideoToSFXGatewayDefaultModel)
+}
+
+// ResolveOutputDir returns the directory where scored sound effects are
+// stored, defaulting to MediaDir("sfx") when OutputDir is unset.
+func (c VideoToSFXConfig) ResolveOutputDir() (string, error) {
+	if strings.TrimSpace(c.OutputDir) != "" {
+		return c.OutputDir, nil
+	}
+	return MediaDir("sfx")
+}
+
 // TextToMusicConfig contains opt-in settings for music composition. The clip
 // is generated behind the gateway's Music API (POST /v1/audio/music), always
 // as MP3; the CLI holds no provider key, the gateway does.
@@ -261,10 +293,10 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API
-// (AUDIO_ENABLED=true): speech synthesis, music composition or sound-effect
-// generation.
+// (AUDIO_ENABLED=true): speech synthesis, music composition, sound-effect
+// generation or video scoring.
 func (c *Config) NeedsGatewayAudio() bool {
-	return c.TextToSpeech.Enabled || c.TextToMusic.Enabled || c.TextToSFX.Enabled
+	return c.TextToSpeech.Enabled || c.TextToMusic.Enabled || c.TextToSFX.Enabled || c.VideoToSFX.Enabled
 }
 
 // TextToSpeechConfig contains opt-in settings for speech synthesis, which
@@ -1569,6 +1601,16 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	if c.TextToVideo.Enabled {
 		if err := c.TextToVideo.validate(); err != nil {
 			return err
+		}
+	}
+
+	if c.VideoToSFX.Enabled {
+		model := c.VideoToSFX.ResolveGatewayModel()
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			return fmt.Errorf(
+				"invalid video_to_sfx.model %q: must be of the form 'provider/model', e.g. 'mirelo/sfx-2.0'",
+				model,
+			)
 		}
 	}
 

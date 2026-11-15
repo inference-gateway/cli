@@ -64,6 +64,27 @@ type SoundEffectService interface {
 	Generate(ctx context.Context, prompt, outPath string, seconds *float32, loop *bool) error
 }
 
+// VideoSoundEffectRequest is one video scoring call: the clip from disk, the
+// optional guidance prompt, the optional scored window counted from its
+// start, which track to return and whether the clip's speech stays under the
+// generated sound. An omitted knob or a blank track leaves the choice to the
+// gateway.
+type VideoSoundEffectRequest struct {
+	VideoPath      string
+	Prompt         string
+	Seconds        *float32
+	StartSeconds   *float32
+	Track          string // "mix" (default), "sfx" or "speech"
+	PreserveSpeech *bool
+}
+
+// VideoSoundEffectService scores a video clip from disk through the gateway's
+// SFX API, writing the answered track to outPath and returning the saved
+// path, whose extension matches the response content type.
+type VideoSoundEffectService interface {
+	Score(ctx context.Context, request VideoSoundEffectRequest, outPath string) (string, error)
+}
+
 // VideoRequest is one video render: a text prompt (required unless the audio
 // drives the render), the optional seconds and size passthroughs, the
 // optional avatar portrait and driving audio for lip-synced talking clips,
