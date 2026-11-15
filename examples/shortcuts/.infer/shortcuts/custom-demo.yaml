@@ -4,7 +4,7 @@
 # Usage:
 # - /hello - Simple echo command
 # - /sysinfo - Display system information
-# - /code-quality - AI-powered code quality analysis
+# - /review-comments - Generate suggested replies to code review comments
 
 shortcuts:
   # Simple command shortcut

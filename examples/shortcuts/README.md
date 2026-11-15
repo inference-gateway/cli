@@ -168,9 +168,9 @@ shortcuts:
 The CLI includes several built-in shortcuts (available by default):
 
 - `/help` - Show help information
-- `/clear` - Clear conversation history
+- `/clear` - Save the current conversation and start a new one
 - `/exit` - Exit the CLI
-- `/switch <conversation-id>` - Switch conversations
+- `/conversations` - Open the conversation selection dropdown
 - `/theme <theme-name>` - Change UI theme
 
 ## Adding Your Own Shortcuts

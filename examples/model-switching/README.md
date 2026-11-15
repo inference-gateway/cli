@@ -76,7 +76,7 @@ credits before starting.
 4. **Set DeepSeek as your default model**:
 
    ```text
-   /switch
+   /model
    ```
 
    Then select `deepseek/deepseek-v4-pro` from the interactive menu.
