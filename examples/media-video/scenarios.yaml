@@ -1,0 +1,38 @@
+fallback:
+  content: 'Try "render a drone shot, score it and dub it" or "make the presenter say good morning".'
+scenarios:
+  - name: drone-shot
+    match: '(?i)render a drone shot'
+    turns:
+      - tool_calls:
+          - name: TextToVideo
+            args:
+              prompt: A slow drone shot over rooftops at dusk
+              output_path: clip.mp4
+      - tool_calls:
+          - name: VideoToSFX
+            args:
+              video: clip.mp4
+              prompt: Rooftop breeze and distant city hum
+      - tool_calls:
+          - name: DubVideo
+            args:
+              video: clip.mp4
+              prompt: Rooftop breeze and distant city hum
+      - content: clip.mp4 is rendered, scored and dubbed. The clips sit in the video media folder and the score in the sfx one.
+  - name: presenter-line
+    match: '(?i)presenter say good morning'
+    turns:
+      - tool_calls:
+          - name: TextToSpeech
+            args:
+              text: Good morning, and welcome aboard.
+              output_path: line.wav
+      - tool_calls:
+          - name: TextToVideo
+            args:
+              avatar: presenter
+              audio: line.wav
+              prompt: The presenter faces the camera and speaks
+              output_path: presenter.mp4
+      - content: The presenter is lip-synced over line.wav. The clip sits in the video media folder.

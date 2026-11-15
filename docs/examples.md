@@ -18,6 +18,8 @@ Most examples ship a Docker Compose file:
 | [tools](../examples/tools/) | Custom tools in Python and shell, run offline against a scripted mock model |
 | [session-artifacts](../examples/session-artifacts/) | Browsing and saving a session's artifacts from the chat TUI, offline against a scripted mock model |
 | [daemon-session-artifacts](../examples/daemon-session-artifacts/) | Two daemons: a session teleported to the second one generates an artifact there, and the chat pulls it home |
+| [media-audio](../examples/media-audio/) | Spoken WAV, a composed music loop and a sound effect from the mock gateway's Audio API, offline with no API key |
+| [media-video](../examples/media-video/) | Rendering, scoring and dubbing a video clip, plus an avatar from a photo lip-synced over a spoken line, from the mock gateway's Videos API |
 | [computer-use](../examples/computer-use/) | Computer Use on a sandboxed desktop container, driven from the web terminal its daemon serves |
 | [model-switching](../examples/model-switching/) | Switching models mid-session, with a small frontend |
 | [shortcuts](../examples/shortcuts/) | Custom `/`-shortcuts wired through config |

@@ -25,10 +25,9 @@ import (
 // requests the DubVideo tool, the tool creates the dubbing job on /v1/videos
 // with the clip as its video part and polls it, and the dubbed MP4 - the clip
 // re-rendered with the generated sound as its soundtrack - is written into
-// text_to_video.output_dir. The pinned tokenless does not serve dubbing, so
-// the three video routes run on a tiny in-test mock layered over the
-// tokenless chat gateway, following the same job lifecycle (queued to
-// completed after two polls).
+// text_to_video.output_dir. The three video routes run on a tiny in-test
+// mock layered over the tokenless chat gateway, pinning the job lifecycle
+// (queued to completed after two polls).
 func TestDubVideoToolAgainstMockGateway(t *testing.T) { // nolint:funlen
 	defs, err := mockgateway.Load([]byte(`
 fallback:

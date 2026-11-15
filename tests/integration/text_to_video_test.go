@@ -21,9 +21,9 @@ import (
 // TestTextToVideoToolAgainstMockGateway drives the full loop: the chat model
 // requests the TextToVideo tool, the tool creates the job on /v1/videos and
 // polls it, and the rendered MP4 is written into text_to_video.output_dir.
-// The pinned tokenless does not serve the Videos API yet, so the three video
-// routes run on a tiny in-test mock layered over the tokenless chat gateway,
-// following the same job lifecycle (queued to completed after two polls).
+// The three video routes run on a tiny in-test mock layered over the
+// tokenless chat gateway, pinning the job lifecycle (queued to completed
+// after two polls).
 func TestTextToVideoToolAgainstMockGateway(t *testing.T) {
 	defs, err := mockgateway.Load([]byte(`
 fallback:
