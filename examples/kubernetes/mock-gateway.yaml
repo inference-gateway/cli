@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
         - name: mock-gateway
-          image: ghcr.io/inference-gateway/tokenless:v0.15.0
+          image: ghcr.io/inference-gateway/tokenless:0.15.0
           args:
             - --host
             - 0.0.0.0
