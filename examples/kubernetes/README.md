@@ -16,7 +16,7 @@ Jump to [Chat and traces without any API keys](#chat-and-traces-without-any-api-
 - [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5.x (ctlptl drives k3d; the k3s image is pinned in `Cluster.yaml`)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [task](https://taskfile.dev/) (or `go-task`)
-- [docker](https://docs.docker.com/get-docker/) (k3d needs it; `task mockgateway:image` builds with it)
+- [docker](https://docs.docker.com/get-docker/) (k3d needs it)
 - [infer](https://github.com/inference-gateway/cli) binary in PATH (only for step 6 -
   the chat demo uses the in-cluster binary)
 
@@ -30,7 +30,7 @@ task cluster:create
 task operator:install
 
 # 3. Deploy everything (Gateway, Orchestrator, Agent, otel-collector, Jaeger,
-#    mock gateway). Builds and imports the mock-gateway:local image first.
+#    mock gateway). The mock gateway downloads the tokenless mock binary on start.
 task deploy
 
 # 4. Wait for the operator to reconcile everything
@@ -84,8 +84,7 @@ scripted scenario makes the chat call the `mock-agent` over A2A, producing one
 distributed trace covering `infer -> gateway -> mock` and `infer -> a2a`.
 
 This assumes the cluster from [Quick start](#quick-start) steps 1-2 is already
-up - `task mockgateway:image` imports into the `infer-demo` cluster and fails if
-it does not exist:
+up:
 
 ```bash
 task cluster:create
@@ -93,14 +92,11 @@ task operator:install
 ```
 
 ```bash
-# 1. Build the mock-gateway image and import it into the cluster
-task mockgateway:image
-
-# 2. Deploy everything (mock gateway and Jaeger included)
+# 1. Deploy everything (mock gateway and Jaeger included)
 task deploy
 kubectl wait --for=condition=Ready pods --all -n infer --timeout=300s
 
-# 3. Chat inside the Orchestrator pod
+# 2. Chat inside the Orchestrator pod
 task chat
 ```
 
@@ -175,11 +171,11 @@ gateway via `OPENAI_API_URL` - so the gateway does real work (and emits real
 spans) without any provider credentials. The trace joins up because infer sends
 W3C `traceparent` on both hops: gateway calls and A2A calls.
 
-The mock gateway normally impersonates a *gateway*, so it advertises
+Tokenless normally impersonates a *gateway*, so it advertises
 provider-prefixed model ids (`openai/gpt-4o`). Here it sits *behind* the real
 Gateway as the OpenAI provider upstream, and the Gateway adds the provider
 prefix itself - which would give `openai/openai/gpt-4o`. It is started with
-`-model gpt-4o` so it advertises the bare id a real OpenAI endpoint would, and
+`--model gpt-4o` so it advertises the bare id a real OpenAI endpoint would, and
 the model is plain `openai/gpt-4o`.
 
 The mock gateway itself emits no spans; the last hop
