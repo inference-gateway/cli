@@ -155,7 +155,7 @@ loop:
 	require.True(t, res.Success, res.Error)
 	data, ok := res.Data.(map[string]any)
 	require.True(t, ok, "tool result data must be a map, got %T", res.Data)
-	require.Equal(t, "mirelo/sfx-2.0", data["model"])
+	require.Equal(t, config.VideoToSFXGatewayDefaultModel, data["model"])
 	require.Equal(t, true, data["preserve_speech"])
 
 	mu.Lock()

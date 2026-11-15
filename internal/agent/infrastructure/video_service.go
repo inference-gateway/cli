@@ -89,8 +89,8 @@ func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequ
 	}
 
 	model := s.config.VideoToSFX.ResolveGatewayModel()
-	provider, modelName, ok := strings.Cut(model, "/")
-	if !ok || provider == "" || modelName == "" {
+	provider, modelName := config.ParseModel(model)
+	if provider == "" || modelName == "" {
 		return fmt.Errorf("invalid video_to_sfx model %q (expected 'provider/model')", model)
 	}
 

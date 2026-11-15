@@ -383,7 +383,7 @@ func TestVideoService_Dub(t *testing.T) { // nolint:funlen
 	t.Run("a clip over the gateway body limit is rejected before sending", func(t *testing.T) {
 		stub, dub := newDubStub(t, "{}")
 		clip := filepath.Join(t.TempDir(), "clip.mp4")
-		require.NoError(t, os.WriteFile(clip, make([]byte, 11<<20), 0o600))
+		require.NoError(t, os.WriteFile(clip, make([]byte, maxVideoUploadBytes+1), 0o600))
 
 		svc := NewVideoService(config.DefaultConfig(), &sdkmocks.FakeClient{}, dub)
 		err := svc.Dub(context.Background(), agentdomain.VideoDubRequest{VideoPath: clip}, filepath.Join(t.TempDir(), "out.mp4"))
