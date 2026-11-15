@@ -27,7 +27,7 @@ import (
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files in testdata/")
 
-const builtinToolCount = 51
+const builtinToolCount = 52
 
 // toolDefinitionsSnapshot is what the built-in tools expose: the definitions
 // sent to the model, the tools offered per agent mode, and whether a call
@@ -100,6 +100,7 @@ func goldenConfig() *config.Config {
 	cfg.TextToVideo.Enabled = true
 	cfg.TextToVideo.CreateAvatar = true
 	cfg.VideoToSFX.Enabled = true
+	cfg.VideoToSFX.Dub = true
 
 	cfg.Memory = *config.DefaultMemoryConfig()
 	cfg.Memory.Enabled = true

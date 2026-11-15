@@ -39,13 +39,17 @@ const (
 type VideoService struct {
 	config *config.Config
 	client sdk.Client
+	dub    VideoDubGateway
 }
 
-// NewVideoService creates a new gateway-backed video service.
-func NewVideoService(cfg *config.Config, client sdk.Client) *VideoService {
+// NewVideoService creates a new gateway-backed video service. Dub may be nil
+// when dubbing is not wired: the dub create needs its own gateway because
+// the SDK's CreateVideo drops the dubbing fields.
+func NewVideoService(cfg *config.Config, client sdk.Client, dub VideoDubGateway) *VideoService {
 	return &VideoService{
 		config: cfg,
 		client: client,
+		dub:    dub,
 	}
 }
 
@@ -57,8 +61,8 @@ func NewVideoService(cfg *config.Config, client sdk.Client) *VideoService {
 // provider that rejects it) is diagnosable.
 func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
 	model := s.config.TextToVideo.ResolveGatewayModel(request.IsAvatar())
-	provider, modelName, ok := strings.Cut(model, "/")
-	if !ok || provider == "" || modelName == "" {
+	provider, modelName := config.ParseModel(model)
+	if provider == "" || modelName == "" {
 		return fmt.Errorf("invalid text_to_video model %q (expected 'provider/model')", model)
 	}
 
@@ -71,25 +75,78 @@ func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequ
 		return err
 	}
 
-	timeout := time.Duration(cmp.Or(s.config.TextToVideo.Timeout, defaultVideoTimeoutSeconds)) * time.Second
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	return s.runVideoJob(ctx, model, provider, videoReq, outPath)
+}
+
+// Dub creates the dubbing job for the clip at request.VideoPath through the
+// gateway's Videos API, polls it until it completes and writes the downloaded
+// MP4 - the clip re-rendered with the generated sound as its new soundtrack -
+// to outPath. The model is video_to_sfx.model; the job loop reuses the
+// TextToVideo polling code and its timeout and poll_interval knobs.
+func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequest, outPath string) error {
+	if s.dub == nil {
+		return fmt.Errorf("dubbing is not wired: the video service has no dubbing gateway")
+	}
+
+	model := s.config.VideoToSFX.ResolveGatewayModel()
+	provider, modelName := config.ParseModel(model)
+	if provider == "" || modelName == "" {
+		return fmt.Errorf("invalid video_to_sfx model %q (expected 'provider/model')", model)
+	}
+
+	if provider == localProvider {
+		provider, modelName = "", model
+	}
+
+	ctx, cancel := s.withJobDeadline(ctx)
 	defer cancel()
 
-	job, err := s.client.CreateVideo(ctx, sdk.Provider(provider), videoReq)
+	job, err := s.dub.CreateDubbing(ctx, provider, modelName, request)
+	if err != nil {
+		return fmt.Errorf("video dubbing with %s failed: %w", model, err)
+	}
+	if job == nil {
+		return fmt.Errorf("video dubbing with %s returned no job", model)
+	}
+	return s.finishVideoJob(ctx, model, provider, job.ID, outPath)
+}
+
+// withJobDeadline bounds a Videos API job, create through download, by
+// text_to_video.timeout - the one deadline rendering and dubbing share.
+func (s *VideoService) withJobDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeout := time.Duration(cmp.Or(s.config.TextToVideo.Timeout, defaultVideoTimeoutSeconds)) * time.Second
+	return context.WithTimeout(ctx, timeout)
+}
+
+// runVideoJob creates the job, polls it until it completes, fails or the
+// context ends, and writes the downloaded MP4 content to outPath. Errors name
+// the configured model so a gateway without the endpoint (or a provider that
+// rejects it) is diagnosable.
+func (s *VideoService) runVideoJob(ctx context.Context, model, provider string, req sdk.CreateVideoRequest, outPath string) error {
+	ctx, cancel := s.withJobDeadline(ctx)
+	defer cancel()
+
+	job, err := s.client.CreateVideo(ctx, sdk.Provider(provider), req)
 	if err != nil {
 		return fmt.Errorf("video creation with %s failed: %w", model, err)
 	}
 	if job == nil {
 		return fmt.Errorf("video creation with %s returned no job", model)
 	}
+	return s.finishVideoJob(ctx, model, provider, job.ID, outPath)
+}
 
-	if err := s.pollVideo(ctx, model, sdk.Provider(provider), job.ID); err != nil {
+// finishVideoJob polls the job, downloads its content and writes it to
+// outPath - the loop every Videos API job shares. Its timeout comes from
+// text_to_video.timeout and its poll interval from text_to_video.poll_interval.
+func (s *VideoService) finishVideoJob(ctx context.Context, model, provider, jobID, outPath string) error {
+	if err := s.pollVideo(ctx, model, sdk.Provider(provider), jobID); err != nil {
 		return err
 	}
 
-	content, err := s.client.DownloadVideoContent(ctx, sdk.Provider(provider), job.ID)
+	content, err := s.client.DownloadVideoContent(ctx, sdk.Provider(provider), jobID)
 	if err != nil {
-		return fmt.Errorf("downloading video %s with %s failed: %w", job.ID, model, err)
+		return fmt.Errorf("downloading video %s with %s failed: %w", jobID, model, err)
 	}
 	if len(content) == 0 {
 		return fmt.Errorf("video generation with %s returned no content", model)

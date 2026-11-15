@@ -152,8 +152,8 @@ const TextToVideoGatewayDefaultAvatarModel = "elevenlabs/creatify-aurora"
 // sfxMediaDir is the media shelf TextToSFX and VideoToSFX both save to.
 const sfxMediaDir = "sfx"
 
-// VideoToSFXGatewayDefaultModel is the model used by the gateway's SFX API
-// for video scoring when video_to_sfx.model is unset.
+// VideoToSFXGatewayDefaultModel is the model the gateway scores a video with
+// (SFX API) and dubs it with (Videos API) when video_to_sfx.model is unset.
 const VideoToSFXGatewayDefaultModel = "mirelo/sfx-2.0"
 
 // TextToSFXConfig contains opt-in settings for sound-effect generation. The
@@ -244,19 +244,26 @@ func (c TextToVideoConfig) validate() error {
 }
 
 // VideoToSFXConfig contains opt-in settings for scoring a video for its own
-// sound. The clip is uploaded to the gateway's SFX API (POST /v1/audio/sfx,
-// multipart/form-data) so a video-to-sfx provider can watch it and generate
-// the sound that fits. The CLI holds no provider key, the gateway does. The
-// footage leaves the machine, so the tool stays off by default.
+// sound (the gateway's SFX API) and dubbing it (the Videos API) through a
+// video-to-sfx provider. Dub opts the DubVideo tool in on top of Enabled, the
+// way text_to_video.create_avatar gates CreateAvatar. The CLI holds no provider
+// key, and the footage leaves the machine, so everything stays off by default.
 type VideoToSFXConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Dub             bool   `yaml:"dub" mapstructure:"dub"`
 	Model           string `yaml:"model" mapstructure:"model"`
 	OutputDir       string `yaml:"output_dir" mapstructure:"output_dir"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// ResolveGatewayModel returns the "provider/model" id used for video scoring,
-// defaulting to the gateway's mirelo/sfx-2.0.
+// DubEnabled reports whether the DubVideo tool is opted in: the dub switch
+// counts only while the video_to_sfx section itself is enabled.
+func (c VideoToSFXConfig) DubEnabled() bool {
+	return c.Enabled && c.Dub
+}
+
+// ResolveGatewayModel returns the "provider/model" id used to score and dub
+// uploaded clips, defaulting to the gateway's mirelo/sfx-2.0.
 func (c VideoToSFXConfig) ResolveGatewayModel() string {
 	return cmp.Or(strings.TrimSpace(c.Model), VideoToSFXGatewayDefaultModel)
 }
@@ -293,6 +300,12 @@ func (c TextToMusicConfig) ResolveOutputDir() (string, error) {
 		return c.OutputDir, nil
 	}
 	return MediaDir("music")
+}
+
+// NeedsGatewayVideos reports whether the gateway must serve its Videos API
+// (VIDEOS_ENABLED=true): video rendering or dubbing.
+func (c *Config) NeedsGatewayVideos() bool {
+	return c.TextToVideo.Enabled || c.VideoToSFX.DubEnabled()
 }
 
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API

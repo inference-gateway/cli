@@ -30,6 +30,13 @@ type GatewayEndpoint struct {
 	APIKey string
 }
 
+// Header names and the bearer scheme the raw gateway requests carry.
+const (
+	headerContentType   = "Content-Type"
+	headerAuthorization = "Authorization"
+	bearerScheme        = "Bearer "
+)
+
 // The gateway polls a video-to-sfx job inside a fixed 150 s budget and the
 // clip upload precedes it, so the client deadline adds upload slack on top.
 const (
@@ -120,9 +127,9 @@ func (s *VideoSFXService) Score(ctx context.Context, request agentdomain.VideoSo
 	if err != nil {
 		return outPath, fmt.Errorf("sfx scoring with %s: %w", model, err)
 	}
-	req.Header.Set("Content-Type", formType)
+	req.Header.Set(headerContentType, formType)
 	if s.endpoint.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+s.endpoint.APIKey)
+		req.Header.Set(headerAuthorization, bearerScheme+s.endpoint.APIKey)
 	}
 
 	resp, err := s.endpoint.Client.Do(req)
@@ -135,7 +142,7 @@ func (s *VideoSFXService) Score(ctx context.Context, request agentdomain.VideoSo
 	if err != nil {
 		return outPath, err
 	}
-	return writeScoredAudio(outPath, resp.Header.Get("Content-Type"), audio)
+	return writeScoredAudio(outPath, resp.Header.Get(headerContentType), audio)
 }
 
 // scoreURL is the endpoint the multipart form posts to: /audio/sfx plus the

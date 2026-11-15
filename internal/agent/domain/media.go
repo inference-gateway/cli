@@ -108,12 +108,24 @@ func (r VideoRequest) IsAvatar() bool {
 	return r.AudioPath != ""
 }
 
+// VideoDubRequest is one dub: a clip the provider generates the sound for and
+// re-renders with that sound as its new soundtrack. The prompt is optional
+// guidance - the clip itself drives the result - and a non-nil PreserveSpeech
+// keeps the clip's own dialogue under the generated sound.
+type VideoDubRequest struct {
+	Prompt         string
+	VideoPath      string
+	PreserveSpeech *bool
+}
+
 // VideoService renders a video clip through the gateway's Videos API,
-// writing MP4 content to outPath. With an avatar and audio it renders a
-// lip-synced talking clip; the render blocks until the gateway job
-// completes, fails or the context ends.
+// writing MP4 content to outPath, and dubs an uploaded clip through the same
+// API: it generates the sound that fits the clip and lays it onto the clip as
+// its new soundtrack. Either render blocks until the gateway job completes,
+// fails or the context ends.
 type VideoService interface {
 	Render(ctx context.Context, request VideoRequest, outPath string) error
+	Dub(ctx context.Context, request VideoDubRequest, outPath string) error
 }
 
 // fileRefRe matches an `@<path>` token, the path running to the next whitespace.

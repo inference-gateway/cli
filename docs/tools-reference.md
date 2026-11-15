@@ -143,6 +143,7 @@ exactly the same modes.
 | **TextToVideo** | Generate a video, optionally from an avatar | No | `text_to_video.enabled` |
 | **VideoToSFX** | Score a video for its own sound through the gateway | No | `video_to_sfx.enabled` |
 | **CreateAvatar** | Build an avatar portrait folder for TextToVideo | Yes | `text_to_video.enabled` and `text_to_video.create_avatar` |
+| **DubVideo** | Dub a video clip with its generated soundtrack | No | `video_to_sfx.enabled` and `video_to_sfx.dub` |
 
 **Memory, scheduling & A2A** (each gated by its own flag):
 
@@ -953,6 +954,42 @@ tools:
   image_edit:
     enabled: true              # needed to generate angles
     model: openai/gpt-image-2
+```
+
+---
+
+### DubVideo Tool
+
+Dub a video clip: the provider generates the sound that fits the clip and re-renders the clip with
+that sound as its new soundtrack, and the finished MP4 is saved - the sound half of the desktop's
+Content workflow, with `TextToVideo` as the face half and `TextToSpeech` as the voice half. The dub
+runs behind the gateway's Videos API (`/v1/videos`) with `video_to_sfx.model` (default
+`mirelo/sfx-2.0`); the CLI holds no provider key, the gateway does. The clip is uploaded to a
+third-party provider, so the tool is disabled by default: while `video_to_sfx.enabled` and
+`video_to_sfx.dub` are not both true the tool definition is not sent to the LLM at all. Mirelo lays
+only the generated mix onto the clip - the separated speech and sfx tracks are not available on a
+dubbed clip, so the tool offers no `track` parameter. See
+[text-to-video](text-to-video.md#dubbing) for setup.
+
+**Parameters:**
+
+- `video` (required): Bare file name (no directories or absolute paths) of a `.mov`, `.mp4`, `.m4v`
+  or `.webm` clip, looked up in the working directory, then in the TextToVideo output directory, so
+  a clip TextToVideo previously rendered can be passed directly by its file name
+- `prompt` (optional): Description of the sound (e.g. a busy cafe hubbub, a tense orchestral
+  underscore) - the clip itself drives the result, the prompt is only guidance
+- `preserve_speech` (optional): `true` to keep the clip's own dialogue under the generated sound
+- `output_path` (optional): Bare file name (no directories or absolute paths) for the dubbed MP4,
+  placed inside `text_to_video.output_dir`; defaults to a timestamped file
+
+**Configuration:**
+
+```yaml
+video_to_sfx:
+  enabled: true
+  dub: true
+  # model: mirelo/sfx-2.0 # gateway provider/model id
+  # require_approval: true # optional - unset = no approval, shared with VideoToSFX
 ```
 
 ---

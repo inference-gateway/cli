@@ -238,6 +238,10 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewVideoToSFXTool(cfg, r.videoSfxService))
 	}
 
+	if cfg.VideoToSFX.DubEnabled() && r.videoService != nil {
+		r.register(NewDubVideoTool(cfg, r.videoService))
+	}
+
 	if r.imageService != nil {
 		r.register(NewImageDecodeTool(cfg, r.imageService, r.annotator))
 	}

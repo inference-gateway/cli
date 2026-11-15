@@ -1108,10 +1108,13 @@ entry lists its keys and points at the guide that owns the behaviour.
   `input_device`, `retain_recordings`, `recordings_dir`. See [Speech-to-Text](speech-to-text.md).
 - **`text_to_speech`**: `enabled`, `model`, `voice`, `output_dir`, `auto_download`,
   `require_approval`. `engine` is deprecated and ignored. See [Text-to-Speech](text-to-speech.md).
-- **`text_to_music`**, **`text_to_sfx`**, **`video_to_sfx`**: `enabled`, `model`, `output_dir`, `require_approval`. See
+- **`text_to_music`**, **`text_to_sfx`**: `enabled`, `model`, `output_dir`, `require_approval`. See
   [Text-to-Music](text-to-music.md).
 - **`text_to_video`**: `enabled`, `model`, `avatar_model`, `size`, `output_dir`, `timeout`,
   `poll_interval`, `create_avatar`, `require_approval`. See [Text-to-Video](text-to-video.md).
+- **`video_to_sfx`**: `enabled`, `dub`, `model`, `output_dir`, `require_approval` - `enabled` registers the
+  VideoToSFX agent tool and `dub` additionally registers DubVideo, the way `text_to_video.create_avatar`
+  gates CreateAvatar. See [Text-to-Video](text-to-video.md#dubbing).
 
 ### Blocks in Their Own File
 
@@ -1324,7 +1327,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TEXT_TO_VIDEO_REQUIRE_APPROVAL`: Require approval for the TextToVideo tool
   (default: unset, meaning no approval) and the CreateAvatar tool (default: unset,
   meaning approval required)
-- `INFER_VIDEO_TO_SFX_REQUIRE_APPROVAL`: Require approval for the VideoToSFX tool
+- `INFER_VIDEO_TO_SFX_REQUIRE_APPROVAL`: Require approval for the VideoToSFX and DubVideo tools
   (default: unset, meaning no approval)
 
 Approval variables are tri-state: leaving one unset is not the same as setting it to
@@ -1356,17 +1359,21 @@ and `require_approval`. The tool itself is documented in the
 [Tools Reference](tools-reference.md#texttosfx-tool) and its output directory in the
 [Directory Structure](directory-structure.md).
 
-**VideoToSFX Tool Configuration:**
+**VideoToSFX and DubVideo Tool Configuration:**
 
-- `INFER_VIDEO_TO_SFX_ENABLED`: Enable/disable the VideoToSFX tool (default: `false`)
-- `INFER_VIDEO_TO_SFX_MODEL`: Gateway `provider/model` id used for video scoring (default: `mirelo/sfx-2.0`)
-- `INFER_VIDEO_TO_SFX_OUTPUT_DIR`: Directory the saved track is written to (default: `sfx` under the
+- `INFER_VIDEO_TO_SFX_ENABLED`: Enable/disable the VideoToSFX tool and the `video_to_sfx` section (default: `false`)
+- `INFER_VIDEO_TO_SFX_DUB`: Also register the DubVideo tool, which dubs a clip through the
+  Videos API (default: `false`, needs `INFER_VIDEO_TO_SFX_ENABLED`)
+- `INFER_VIDEO_TO_SFX_MODEL`: Gateway `provider/model` id used for video scoring and dubbing (default: `mirelo/sfx-2.0`)
+- `INFER_VIDEO_TO_SFX_OUTPUT_DIR`: Directory the scored track is written to (default: `sfx` under the
   [media root](directory-structure.md#media-directories))
 
-These mirror the top-level `video_to_sfx:` YAML block: `enabled`, `model`, `output_dir` and
-`require_approval`. The tool itself is documented in the
-[Tools Reference](tools-reference.md#videotosfx-tool) and its output directory in the
-[Directory Structure](directory-structure.md).
+These mirror the top-level `video_to_sfx:` YAML block: `enabled`, `dub`, `model`, `output_dir` and
+`require_approval`. A gateway the CLI starts gets `VIDEOS_ENABLED=true` while `text_to_video` is
+enabled or the dub switch is. The tools are documented in the Tools Reference
+([VideoToSFX](tools-reference.md#videotosfx-tool), [DubVideo](tools-reference.md#dubvideo-tool)), the
+scored track's directory in the [Directory Structure](directory-structure.md) and dubbing in its own
+[Text-to-Video](text-to-video.md#dubbing) section.
 
 **TextToVideo Tool Configuration:**
 

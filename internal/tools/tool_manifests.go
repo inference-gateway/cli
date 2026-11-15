@@ -16,6 +16,7 @@ const (
 	ToolCloseSubagent       = "CloseSubagent"
 	ToolCreateAvatar        = "CreateAvatar"
 	ToolDelete              = "Delete"
+	ToolDubVideo            = "DubVideo"
 	ToolEdit                = "Edit"
 	ToolGetSubagentResult   = "GetSubagentResult"
 	ToolGrep                = "Grep"

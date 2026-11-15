@@ -16,7 +16,8 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// videoExtensions are the clip formats the gateway's SFX video branch scores.
+// videoExtensions are the clip formats the gateway scores and dubs, shared by
+// the VideoToSFX and DubVideo tools.
 var videoExtensions = []string{".mov", ".mp4", ".m4v", ".webm"}
 
 // Argument names of the VideoToSFX manifest.
@@ -204,7 +205,7 @@ func (t *VideoToSFXTool) Execute(ctx context.Context, args map[string]any) (*age
 		Success:   true,
 		Duration:  time.Since(start),
 		Data: map[string]any{
-			"path":              saved,
+			savedPathKey:        saved,
 			videoToSFXArgVideo:  filepath.Base(videoPath),
 			videoToSFXArgPrompt: prompt,
 			videoToSFXArgTrack:  string(cmp.Or(track, sdk.CreateSFXRequestOutputMix)),

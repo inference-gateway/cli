@@ -640,6 +640,38 @@
     },
     {
       "function": {
+        "description": "Dub a video clip: the provider generates the sound that fits the clip and re-renders the clip with that sound as its new soundtrack, and the finished MP4 is saved. Returns the saved file path.\n\nvideo is a bare .mov, .mp4, .m4v or .webm file name, looked up in the working directory, then in the TextToVideo output directory, so a clip TextToVideo previously rendered can be passed directly by its file name - no directories, no absolute paths. Optionally describe the sound in prompt: the clip itself drives the result, prompt is only guidance on the sound to generate. Pass preserve_speech true to keep the clip's own dialogue under the generated sound. Mirelo lays only the generated mix onto the clip - the separated speech and sfx tracks are not available on a dubbed clip, so DubVideo offers no track parameter. Pass output_path to name the file: a bare file name only (no directories, no absolute paths) - the MP4 is ALWAYS written into the configured output directory, never the working directory or any path you choose; omit it for a timestamped name. The clip is uploaded to a third-party provider and must stay under 10 MiB. Dubbing can take minutes - do not poll between retries. Do not claim the clip was played - it is written to disk for the user to open, at the returned path.",
+        "name": "DubVideo",
+        "parameters": {
+          "additionalProperties": false,
+          "properties": {
+            "output_path": {
+              "description": "Optional bare file name (no directories or absolute paths) for the dubbed MP4; it is always placed in the configured output directory. Defaults to a timestamped file",
+              "type": "string"
+            },
+            "preserve_speech": {
+              "description": "Optional: true to keep the clip's own dialogue under the generated sound",
+              "type": "boolean"
+            },
+            "prompt": {
+              "description": "Description of the sound to generate (e.g. a busy cafe hubbub, a tense orchestral underscore) - the clip itself drives the result, the prompt is only guidance",
+              "type": "string"
+            },
+            "video": {
+              "description": "Bare file name (no directories or absolute paths) of the .mov, .mp4, .m4v or .webm clip to dub, looked up in the working directory, then in the TextToVideo output directory",
+              "type": "string"
+            }
+          },
+          "required": [
+            "video"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
         "description": "Performs exact string replacements in files.\n\nUsage:\n- You must use your Read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.\n- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.\n- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.",
         "name": "Edit",
         "parameters": {
@@ -1878,6 +1910,7 @@
       "Computer",
       "CreateAvatar",
       "Delete",
+      "DubVideo",
       "Edit",
       "GetLatestFrame",
       "GetSubagentResult",
@@ -1932,6 +1965,7 @@
       "Computer": false,
       "CreateAvatar": false,
       "Delete": true,
+      "DubVideo": false,
       "Edit": true,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -1985,6 +2019,7 @@
       "Computer": false,
       "CreateAvatar": false,
       "Delete": true,
+      "DubVideo": false,
       "Edit": true,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -2038,6 +2073,7 @@
       "Computer": false,
       "CreateAvatar": true,
       "Delete": true,
+      "DubVideo": false,
       "Edit": true,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -2091,6 +2127,7 @@
       "Computer": false,
       "CreateAvatar": true,
       "Delete": true,
+      "DubVideo": false,
       "Edit": true,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -2144,6 +2181,7 @@
       "Computer": false,
       "CreateAvatar": false,
       "Delete": false,
+      "DubVideo": false,
       "Edit": false,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -2197,6 +2235,7 @@
       "Computer": false,
       "CreateAvatar": false,
       "Delete": true,
+      "DubVideo": false,
       "Edit": true,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -2250,6 +2289,7 @@
       "Computer": false,
       "CreateAvatar": true,
       "Delete": false,
+      "DubVideo": false,
       "Edit": false,
       "GetLatestFrame": false,
       "GetSubagentResult": false,
@@ -2303,6 +2343,7 @@
       "Computer": false,
       "CreateAvatar": true,
       "Delete": true,
+      "DubVideo": false,
       "Edit": true,
       "GetLatestFrame": false,
       "GetSubagentResult": false,

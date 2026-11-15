@@ -483,7 +483,7 @@ func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 	c.speechService = agentinfra.NewSpeechService(c.config, c.createRawSDKClient())
 	c.musicService = agentinfra.NewMusicService(c.config, c.createRawSDKClient())
 	c.sfxService = agentinfra.NewSFXService(c.config, c.createRawSDKClient())
-	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient())
+	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient(), c.createVideoDubGateway())
 	c.videoSfxService = agentinfra.NewVideoSFXService(c.config, c.gatewayEndpoint())
 
 	c.initializeMCPSupervisor()
@@ -1201,15 +1201,22 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Dur
 		panic("ServiceContainer: config is nil when creating SDK client")
 	}
 
-	baseURL := c.gatewayBaseURL()
-
 	return sdk.NewClient(&sdk.ClientOptions{
-		BaseURL:     baseURL,
+		BaseURL:     c.gatewayBaseURL(),
 		APIKey:      c.config.Gateway.APIKey,
 		Timeout:     timeout,
 		RetryConfig: retry,
 		Transport:   telemetry.PropagationTransport(c.gatewayTransport),
 	})
+}
+
+// createVideoDubGateway builds the dubbing create's gateway: the SDK client
+// covers every other Videos API call, but its CreateVideo does not forward
+// the dubbing fields yet, so the dub create posts its own multipart form with
+// the base URL and auth the SDK clients resolve.
+func (c *ServiceContainer) createVideoDubGateway() agentinfra.VideoDubGateway {
+	endpoint := c.gatewayEndpoint()
+	return agentinfra.NewDubGateway(endpoint.URL, endpoint.APIKey, endpoint.Client)
 }
 
 // GetTitleBackfill returns the background job manager

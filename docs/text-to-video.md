@@ -5,6 +5,8 @@ The CLI can render a short video clip in two modes:
 - **Text to video** - a text prompt in, an `.mp4` out: b-roll, establishing shots, simple animated scenes.
 - **Lip-synced avatar** - a portrait plus an audio clip in, a talking clip out: the portrait is animated to match the voice. This is the face
   half of the desktop's Content project workflow; `TextToSpeech` is the voice half.
+- **Dubbing** - a `.mov`/`.mp4`/`.m4v`/`.webm` clip in, the same clip re-rendered with a generated soundtrack out: the sound half of the
+  Content workflow. It runs on the same Videos API behind the `DubVideo` tool; see [Dubbing](#dubbing).
 
 Generation goes through the gateway's unified Videos API (`POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content`, gateway v0.54.0+).
 The CLI holds no provider key; the gateway does, and it routes the job to the configured `provider/model`: `model` for prompt renders
@@ -100,6 +102,33 @@ With `text_to_video.enabled` set, the agent gains a `TextToVideo` tool:
   written there. The result reports the path, model, size and which avatar/audio were used.
 
 The clip is always written as MP4 (`video/mp4` for creatify-aurora). To place it elsewhere, compose first and copy the returned file.
+
+## Dubbing
+
+`video_to_sfx` adds the sound half of the Content workflow: with `video_to_sfx.enabled` and `video_to_sfx.dub` both true the agent gains a
+`DubVideo` tool. It posts the clip to the gateway's Videos API (`POST /v1/videos`, gateway v0.66.0+) with `video_to_sfx.model`
+(default `mirelo/sfx-2.0`), polls the job with the same `text_to_video.timeout` and `text_to_video.poll_interval` knobs, and downloads the
+finished MP4 from `/content` - the clip re-rendered with the generated sound in place of its soundtrack.
+
+```yaml
+video_to_sfx:
+  enabled: true   # also registers the VideoToSFX tool - both upload the clip to a third-party provider
+  dub: true       # also register the DubVideo tool, the way text_to_video.create_avatar gates CreateAvatar
+  # model: mirelo/sfx-2.0  # gateway provider/model id
+```
+
+- **`video` (required)** - a bare `.mov`, `.mp4`, `.m4v` or `.webm` file name, looked up in the working directory, then in the TextToVideo
+  output directory, so a clip `TextToVideo` just rendered can be dubbed by its file name in the next tool call.
+- **`prompt` (optional)** - guidance on the sound; the clip itself drives the result. `preserve_speech: true` keeps the clip's own dialogue
+  under the generated sound.
+- **`output_path` (optional)** - a bare file name inside `text_to_video.output_dir` (`<media root>/video` by default); otherwise a
+  timestamped `dub-*.mp4` is written there. Dubbed clips share the rendered clips' folder.
+- **Mirelo's limit** - only the generated mix is laid onto the clip. The separated speech and sfx tracks come back only as audio from the
+  SFX scoring flow (`/v1/audio/sfx`), so `DubVideo` offers no `track` parameter. The clip is uploaded to a third-party provider and must
+  stay under 10 MiB.
+
+Dubbing needs the gateway's Videos API (`VIDEOS_ENABLED=true`, set for the auto-started gateway while text_to_video or the dub switch is
+enabled) and a Mirelo API key configured on the gateway. A failed dub surfaces the gateway's error and leaves no partial file.
 
 ## Avatar library
 
