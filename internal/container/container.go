@@ -482,7 +482,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.speechService = agentinfra.NewSpeechService(c.config, c.createRawSDKClient())
 	c.musicService = agentinfra.NewMusicService(c.config, c.createRawSDKClient())
 	c.sfxService = agentinfra.NewSFXService(c.config, c.createRawSDKClient())
-	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient())
+	c.videoService = agentinfra.NewVideoService(c.config, c.createRawSDKClient(), c.createVideoDubGateway())
 
 	c.initializeMCPSupervisor()
 
@@ -1169,6 +1169,19 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Dur
 		panic("ServiceContainer: config is nil when creating SDK client")
 	}
 
+	return sdk.NewClient(&sdk.ClientOptions{
+		BaseURL:     c.sdkBaseURL(),
+		APIKey:      c.config.Gateway.APIKey,
+		Timeout:     timeout,
+		RetryConfig: retry,
+		Transport:   telemetry.PropagationTransport(c.gatewayTransport),
+	})
+}
+
+// sdkBaseURL resolves the gateway base URL the SDK clients use: the managed
+// gateway's actual URL when the CLI runs it, else the configured one, with
+// the /v1 suffix the SDK paths assume.
+func (c *ServiceContainer) sdkBaseURL() string {
 	baseURL := c.config.Gateway.URL
 	if c.gatewayManager != nil && c.config.Gateway.Run {
 		actualURL := c.gatewayManager.GetGatewayURL()
@@ -1183,14 +1196,15 @@ func (c *ServiceContainer) newSDKClient(retry *sdk.RetryConfig, timeout time.Dur
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}
+	return baseURL
+}
 
-	return sdk.NewClient(&sdk.ClientOptions{
-		BaseURL:     baseURL,
-		APIKey:      c.config.Gateway.APIKey,
-		Timeout:     timeout,
-		RetryConfig: retry,
-		Transport:   telemetry.PropagationTransport(c.gatewayTransport),
-	})
+// createVideoDubGateway builds the dubbing create's gateway: the SDK client
+// covers every other Videos API call, but its CreateVideo does not forward
+// the dubbing fields yet, so the dub create posts its own multipart form with
+// the base URL and auth the SDK clients resolve.
+func (c *ServiceContainer) createVideoDubGateway() agentinfra.VideoDubGateway {
+	return agentinfra.NewDubGateway(c.sdkBaseURL(), c.config.Gateway.APIKey, &http.Client{Transport: telemetry.PropagationTransport(c.gatewayTransport)})
 }
 
 // GetTitleBackfill returns the background job manager

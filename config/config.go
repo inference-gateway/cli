@@ -44,6 +44,7 @@ type Config struct {
 	TextToMusic      TextToMusicConfig      `yaml:"text_to_music" mapstructure:"text_to_music"`
 	TextToSFX        TextToSFXConfig        `yaml:"text_to_sfx" mapstructure:"text_to_sfx"`
 	TextToVideo      TextToVideoConfig      `yaml:"text_to_video" mapstructure:"text_to_video"`
+	VideoToSFX       VideoToSFXConfig       `yaml:"video_to_sfx" mapstructure:"video_to_sfx"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"-" mapstructure:"tools"`
@@ -148,6 +149,11 @@ const TextToVideoGatewayDefaultModel = "elevenlabs/veo-3.1-fast-generate-001"
 // unset.
 const TextToVideoGatewayDefaultAvatarModel = "elevenlabs/creatify-aurora"
 
+// VideoToSFXGatewayDefaultModel is the model used by the gateway's Videos API
+// when video_to_sfx.model is unset: a Mirelo model generates the sound for the
+// uploaded clip and lays it onto the clip as its new soundtrack.
+const VideoToSFXGatewayDefaultModel = "mirelo/sfx-2.0"
+
 // TextToSFXConfig contains opt-in settings for sound-effect generation. The
 // clip is generated behind the gateway's SFX API (POST /v1/audio/sfx), always
 // as WAV; the CLI holds no provider key, the gateway does.
@@ -213,6 +219,23 @@ func (c TextToVideoConfig) ResolveOutputDir() (string, error) {
 		return c.OutputDir, nil
 	}
 	return MediaDir("video")
+}
+
+// VideoToSFXConfig contains opt-in settings for scoring and dubbing an
+// uploaded video through Mirelo's video-to-sfx models. Dub additionally opts
+// the agent's DubVideo tool in on top of Enabled, the way
+// text_to_video.create_avatar gates CreateAvatar. The clip goes to a
+// third-party provider, so everything here stays off by default.
+type VideoToSFXConfig struct {
+	Enabled bool   `yaml:"enabled" mapstructure:"enabled"`
+	Dub     bool   `yaml:"dub" mapstructure:"dub"`
+	Model   string `yaml:"model" mapstructure:"model"`
+}
+
+// ResolveGatewayModel returns the "provider/model" id used to score and dub
+// uploaded clips, defaulting to Mirelo's mirelo/sfx-2.0.
+func (c VideoToSFXConfig) ResolveGatewayModel() string {
+	return cmp.Or(strings.TrimSpace(c.Model), VideoToSFXGatewayDefaultModel)
 }
 
 // validate checks both models are "provider/model" ids and that the job
@@ -1569,6 +1592,16 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	if c.TextToVideo.Enabled {
 		if err := c.TextToVideo.validate(); err != nil {
 			return err
+		}
+	}
+
+	if c.VideoToSFX.Enabled {
+		model := c.VideoToSFX.ResolveGatewayModel()
+		if provider, name, ok := strings.Cut(model, "/"); !ok || provider == "" || name == "" {
+			return fmt.Errorf(
+				"invalid video_to_sfx.model %q: must be of the form 'provider/model', e.g. 'mirelo/sfx-2.0'",
+				model,
+			)
 		}
 	}
 

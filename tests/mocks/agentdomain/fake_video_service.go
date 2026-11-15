@@ -9,6 +9,15 @@ import (
 )
 
 type FakeVideoService struct {
+	DubStub        func(context.Context, domain.VideoDubRequest, string) error
+	dubMutex       sync.RWMutex
+	dubArgsForCall []FakeVideoServiceDubArgs
+	dubReturns     struct {
+		result1 error
+	}
+	dubReturnsOnCall map[int]struct {
+		result1 error
+	}
 	RenderStub        func(context.Context, domain.VideoRequest, string) error
 	renderMutex       sync.RWMutex
 	renderArgsForCall []FakeVideoServiceRenderArgs
@@ -23,11 +32,85 @@ type FakeVideoService struct {
 	invocationsMutex sync.RWMutex
 }
 
+// FakeVideoServiceDubArgs holds the arguments of one call to Dub.
+type FakeVideoServiceDubArgs struct {
+	Arg1 context.Context
+	Arg2 domain.VideoDubRequest
+	Arg3 string
+}
+
 // FakeVideoServiceRenderArgs holds the arguments of one call to Render.
 type FakeVideoServiceRenderArgs struct {
 	Arg1 context.Context
 	Arg2 domain.VideoRequest
 	Arg3 string
+}
+
+func (fake *FakeVideoService) Dub(arg1 context.Context, arg2 domain.VideoDubRequest, arg3 string) error {
+	fake.dubMutex.Lock()
+	ret, specificReturn := fake.dubReturnsOnCall[len(fake.dubArgsForCall)]
+	fake.dubArgsForCall = append(fake.dubArgsForCall, FakeVideoServiceDubArgs{arg1, arg2, arg3})
+	stub := fake.DubStub
+	fakeReturns := fake.dubReturns
+	fake.recordInvocation("Dub", []interface{}{arg1, arg2, arg3})
+	fake.dubMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeVideoService) DubCallCount() int {
+	fake.dubMutex.RLock()
+	defer fake.dubMutex.RUnlock()
+	return len(fake.dubArgsForCall)
+}
+
+func (fake *FakeVideoService) DubCalls(stub func(context.Context, domain.VideoDubRequest, string) error) {
+	fake.dubMutex.Lock()
+	defer fake.dubMutex.Unlock()
+	fake.DubStub = stub
+}
+
+func (fake *FakeVideoService) DubArgsForCall(i int) (context.Context, domain.VideoDubRequest, string) {
+	fake.dubMutex.RLock()
+	defer fake.dubMutex.RUnlock()
+	argsForCall := fake.dubArgsForCall[i]
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeVideoService) DubArgs() []FakeVideoServiceDubArgs {
+	fake.dubMutex.RLock()
+	defer fake.dubMutex.RUnlock()
+	args := make([]FakeVideoServiceDubArgs, len(fake.dubArgsForCall))
+	copy(args, fake.dubArgsForCall)
+	return args
+}
+
+func (fake *FakeVideoService) DubReturns(result1 error) {
+	fake.dubMutex.Lock()
+	defer fake.dubMutex.Unlock()
+	fake.DubStub = nil
+	fake.dubReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeVideoService) DubReturnsOnCall(i int, result1 error) {
+	fake.dubMutex.Lock()
+	defer fake.dubMutex.Unlock()
+	fake.DubStub = nil
+	if fake.dubReturnsOnCall == nil {
+		fake.dubReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.dubReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeVideoService) Render(arg1 context.Context, arg2 domain.VideoRequest, arg3 string) error {

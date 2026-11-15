@@ -232,6 +232,10 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewCreateAvatarTool(cfg, r.imageService))
 	}
 
+	if cfg.VideoToSFX.Enabled && cfg.VideoToSFX.Dub && r.videoService != nil {
+		r.register(NewDubVideoTool(cfg, r.videoService))
+	}
+
 	if r.imageService != nil {
 		r.register(NewImageDecodeTool(cfg, r.imageService, r.annotator))
 	}
