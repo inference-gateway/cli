@@ -15,17 +15,8 @@ tasks:
       - kubectl apply -f https://github.com/inference-gateway/operator/releases/download/{{.OPERATOR_VERSION}}/install.yaml
       - kubectl wait --for=condition=Available deployment --all -n inference-gateway-system --timeout=120s
 
-  mockgateway:image:
-    desc: Build the mock-gateway image and import it into the k3d cluster
-    dir: ../..
-    cmds:
-      - docker build -f tests/mockgateway/Dockerfile -t mock-gateway:local .
-      - k3d image import mock-gateway:local -c infer-demo
-
   deploy:
     desc: Deploy the Gateway, Orchestrator, Agent, otel-collector, Jaeger, and mock gateway
-    deps:
-      - mockgateway:image
     cmds:
       - kubectl apply -f namespace.yaml
       - kubectl apply -f otel-collector.yaml
