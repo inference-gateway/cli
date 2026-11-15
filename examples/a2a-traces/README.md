@@ -31,10 +31,10 @@ the **full distributed trace**, including the mock-agent's spans.
    # set the key matching INFER_AGENT_MODEL in docker-compose.yaml
    ```
 
-2. Start everything (the CLI image is built from source):
+2. Start everything:
 
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 
 3. Attach to the CLI's chat session:
@@ -61,10 +61,10 @@ the **full distributed trace**, including the mock-agent's spans.
 
    ```text
    session (standard, success)                 152ms
-   ├── chat deepseek/deepseek-v4-pro             5ms
+   ├── chat deepseek/deepseek-v4-flash           5ms
    ├── execute_tool A2A_SubmitTask              89ms
    │   ╰── a2a.request                          52ms
-   ╰── chat deepseek/deepseek-v4-pro            12ms
+   ╰── chat deepseek/deepseek-v4-flash          12ms
    ```
 
    Ingested spans are labeled `name [service]` when the producing agent

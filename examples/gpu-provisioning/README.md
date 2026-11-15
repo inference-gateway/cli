@@ -34,8 +34,7 @@ docker compose run --rm cli compute gpus provision
 (Host-installed `infer` instead? `infer compute gpus provision` - the form asks
 for the API key on first run and saves it as `RUNPOD_API_KEY` in
 `~/.infer/auth.yaml`. With `RUNPOD_API_KEY` in the environment the key question
-is skipped. The compose service's `.env` still sets the older
-`INFER_PROVISIONER_RUNPOD_API_KEY`, which works with a deprecation warning.)
+is skipped.)
 
 An interactive form asks what to provision: GPU type (live $/hr pricing,
 cheapest first), model as `<hf-repo>:<quant>` (default

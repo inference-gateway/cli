@@ -157,21 +157,22 @@ The bot can transcribe inbound Telegram **voice notes** to text locally with
 [Whisper](../../docs/speech-to-text.md), so you can talk to the agent from your phone instead of
 typing. Transcription runs fully offline once the model is downloaded - no cloud STT, no API keys.
 
-**Prerequisite:** speech-to-text shells out to `ffmpeg` (to decode OGG/Opus) and a
-`whisper-cli`/`whisper-cpp` binary. The published `ghcr.io/inference-gateway/cli:latest` image does
-**not** bundle these, so enable voice in one of two ways:
+Voice is already enabled in this example: the compose file sets
+`INFER_SPEECH_TO_TEXT_ENABLED: true` with model `small` on the `infer-daemon` service. There is
+nothing to install - with `speech_to_text.auto_download` on (the default) the CLI downloads
+prebuilt `whisper-cli` and `ffmpeg` binaries into `~/.infer/bin/tools` on first use (see
+"Prebuilt binaries" in [docs/speech-to-text.md](../../docs/speech-to-text.md)); inside this
+container that resolves to `/home/infer/.infer/bin/tools`, persisted to your host through the
+existing `./tmp:/home/infer` volume mount.
 
-- **Run on a host** that has them installed (`brew install ffmpeg whisper-cpp`, or `apt install
-  ffmpeg` plus a whisper.cpp build) - see [Running Without Docker](#running-without-docker).
-- **Build a custom image** that adds `ffmpeg` and a whisper binary on top of the base image.
+To tune voice, edit the `environment:` block of the `infer-daemon` service in
+`docker-compose.yml` (compose `environment:` values win over `.env` for the same variable):
 
-Then enable it via environment variables (in `.env` or the compose `environment:` block):
-
-```bash
-INFER_SPEECH_TO_TEXT_ENABLED=true
-INFER_SPEECH_TO_TEXT_MODEL=tiny            # tiny | base | small | medium | large-v3-turbo
-INFER_SPEECH_TO_TEXT_AUTO_DOWNLOAD=true    # fetch the GGML model on first use
-INFER_SPEECH_TO_TEXT_RETAIN_RECORDINGS=10  # keep the last 10 voice files (0 = keep none, the default)
+```yaml
+INFER_SPEECH_TO_TEXT_ENABLED: true
+INFER_SPEECH_TO_TEXT_MODEL: small           # tiny | base | small | medium | large-v3-turbo
+INFER_SPEECH_TO_TEXT_AUTO_DOWNLOAD: true    # fetch the GGML model on first use (the default)
+INFER_SPEECH_TO_TEXT_RETAIN_RECORDINGS: 10  # keep the last 10 voice files (0 = keep none, the default)
 ```
 
 Send a voice note to your bot; it is downloaded, transcribed, and answered as if you had typed it.

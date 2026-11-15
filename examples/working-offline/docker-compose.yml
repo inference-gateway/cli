@@ -45,7 +45,7 @@ services:
     profiles:
       - cli
 
-  # Backend option A: Ollama. Pull a model once, inside the container:
+  # Backend option B: Ollama. Pull a model once, inside the container:
   #   docker compose exec ollama ollama pull qwen3:8b
   ollama:
     image: ollama/ollama:latest
@@ -55,7 +55,7 @@ services:
     profiles:
       - ollama
 
-  # Backend option B: llama.cpp. The container downloads the official
+  # Backend option C: llama.cpp. The container downloads the official
   # Gemma 4 E4B GGUF (~4 GB) from Hugging Face on first start and caches it
   # in the llamacpp_cache volume; later starts are fully offline.
   # --jinja enables tool-call templating, required for agentic use.
