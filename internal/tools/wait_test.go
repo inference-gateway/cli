@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -806,5 +807,215 @@ func TestWaitTool_Execute_KilledCheckKeepsPolling(t *testing.T) {
 	}
 	if reason, _ := data["reason"].(string); reason != "timeout" {
 		t.Errorf("Execute() reason = %q, want %q: a killed check is not a failed check", reason, "timeout")
+	}
+}
+
+func TestIsPrChecksCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		cmd  string
+		want bool
+	}{
+		{"plain", "gh pr checks", true},
+		{"with pr number", "gh pr checks 1871", true},
+		{"with flags", "gh pr checks 1871 --required", true},
+		{"not gh", "curl -sf localhost:8080/health", false},
+		{"gh pr view", "gh pr view 1871", false},
+		{"gh run view", "gh run view --exit-status", false},
+		{"partial prefix", "gh pr", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isPrChecksCommand(tt.cmd); got != tt.want {
+				t.Errorf("isPrChecksCommand(%q) = %v, want %v", tt.cmd, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWaitTool_Validate_InfersCondition(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	tests := []struct {
+		name          string
+		args          map[string]any
+		wantErr       string
+		wantCondition string
+	}{
+		{
+			name: "command only infers command",
+			args: map[string]any{
+				"command":         "gh pr checks 1871",
+				"timeout_seconds": float64(30),
+			},
+			wantCondition: "command",
+		},
+		{
+			name: "path only infers file",
+			args: map[string]any{
+				"path":            "/tmp/test.txt",
+				"timeout_seconds": float64(30),
+			},
+			wantCondition: "file",
+		},
+		{
+			name: "shell_ids only infers shells",
+			args: map[string]any{
+				"shell_ids":       []any{"shell-1"},
+				"timeout_seconds": float64(30),
+			},
+			wantCondition: "shells",
+		},
+		{
+			name: "explicit condition is kept",
+			args: map[string]any{
+				"condition":       "file",
+				"path":            "/tmp/test.txt",
+				"timeout_seconds": float64(30),
+			},
+			wantCondition: "file",
+		},
+		{
+			name: "nothing to infer from",
+			args: map[string]any{
+				"timeout_seconds": float64(30),
+			},
+			wantErr: "condition is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(tt.args)
+			assertValidateError(t, err, tt.wantErr)
+			if tt.wantErr == "" && tt.wantCondition != "" {
+				if got, _ := tt.args["condition"].(string); got != tt.wantCondition {
+					t.Errorf("Validate() condition = %q, want %q", got, tt.wantCondition)
+				}
+			}
+		})
+	}
+}
+
+func TestWaitTool_Execute_ConditionInferred(t *testing.T) {
+	cfg := testWaitConfig()
+	tool := NewWaitTool(cfg, nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command":         "echo hello",
+		"timeout_seconds": float64(5),
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Errorf("Execute() should succeed with inferred condition, got error: %s", result.Error)
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if condition, _ := data["condition"].(string); condition != "command" {
+		t.Errorf("Execute() condition = %q, want %q", condition, "command")
+	}
+}
+
+// fakeGh writes a stub gh executable exiting with the given code and puts it
+// on PATH via t.Setenv.
+func fakeGh(t *testing.T, exitCode int) {
+	t.Helper()
+	dir := t.TempDir()
+	script := "#!/bin/sh\nexit " + strconv.Itoa(exitCode) + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
+		t.Fatalf("failed to write fake gh: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestWaitTool_Execute_PrChecksPendingKeepsPolling(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+	fakeGh(t, 8)
+
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
+	result, err := tool.Execute(ctx, map[string]any{
+		"command":         "gh pr checks 1871",
+		"timeout_seconds": float64(1),
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if reason, _ := data["reason"].(string); reason != "timeout" {
+		t.Errorf("Execute() reason = %q, want %q: exit 8 is pending, not a check failure", reason, "timeout")
+	}
+	if attempts, _ := data["attempts"].(int); attempts < 2 {
+		t.Errorf("Execute() attempts = %d, want multiple polls while exit 8 is pending", attempts)
+	}
+}
+
+func TestWaitTool_Execute_PrChecksFailureEndsWait(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+	fakeGh(t, 1)
+
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
+	start := time.Now()
+	result, err := tool.Execute(ctx, map[string]any{
+		"command":         "gh pr checks",
+		"timeout_seconds": float64(30),
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Error("Execute() should return as soon as the check fails, not run to the timeout")
+	}
+	if result.Success {
+		t.Error("Execute() should fail on check_failed")
+	}
+	if !strings.Contains(result.Error, "check command failed with exit code 1") {
+		t.Errorf("Execute() error = %q, want containing %q", result.Error, "check command failed with exit code 1")
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if reason, _ := data["reason"].(string); reason != "check_failed" {
+		t.Errorf("Execute() reason = %q, want %q", reason, "check_failed")
+	}
+}
+
+func TestWaitTool_Execute_PrChecksExplicitCodesOverrideDefault(t *testing.T) {
+	cfg := testWaitConfig()
+	cfg.Tools.Wait.CommandPollIntervalMs = 50
+	tool := NewWaitTool(cfg, nil)
+	fakeGh(t, 8)
+
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModeAutoAccept)
+	result, err := tool.Execute(ctx, map[string]any{
+		"command":            "gh pr checks",
+		"timeout_seconds":    float64(10),
+		"pending_exit_codes": []any{float64(0)},
+	})
+	if err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if result.Success {
+		t.Error("Execute() should fail on check_failed when exit 8 is not in pending_exit_codes")
+	}
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("Execute() Data is not a map")
+	}
+	if reason, _ := data["reason"].(string); reason != "check_failed" {
+		t.Errorf("Execute() reason = %q, want %q (explicit pending_exit_codes must override the gh pr checks default)", reason, "check_failed")
 	}
 }
