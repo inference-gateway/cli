@@ -1327,7 +1327,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TEXT_TO_VIDEO_REQUIRE_APPROVAL`: Require approval for the TextToVideo tool
   (default: unset, meaning no approval) and the CreateAvatar tool (default: unset,
   meaning approval required)
-- `INFER_VIDEO_TO_SFX_REQUIRE_APPROVAL`: Require approval for the VideoToSFX tool
+- `INFER_VIDEO_TO_SFX_REQUIRE_APPROVAL`: Require approval for the VideoToSFX and DubVideo tools
   (default: unset, meaning no approval)
 
 Approval variables are tri-state: leaving one unset is not the same as setting it to

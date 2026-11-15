@@ -61,8 +61,8 @@ func NewVideoService(cfg *config.Config, client sdk.Client, dub VideoDubGateway)
 // provider that rejects it) is diagnosable.
 func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
 	model := s.config.TextToVideo.ResolveGatewayModel(request.IsAvatar())
-	provider, modelName, ok := strings.Cut(model, "/")
-	if !ok || provider == "" || modelName == "" {
+	provider, modelName := config.ParseModel(model)
+	if provider == "" || modelName == "" {
 		return fmt.Errorf("invalid text_to_video model %q (expected 'provider/model')", model)
 	}
 
@@ -98,8 +98,7 @@ func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequ
 		provider, modelName = "", model
 	}
 
-	timeout := time.Duration(cmp.Or(s.config.TextToVideo.Timeout, defaultVideoTimeoutSeconds)) * time.Second
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := s.withJobDeadline(ctx)
 	defer cancel()
 
 	job, err := s.dub.CreateDubbing(ctx, provider, modelName, request)
@@ -112,13 +111,19 @@ func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequ
 	return s.finishVideoJob(ctx, model, provider, job.ID, outPath)
 }
 
+// withJobDeadline bounds a Videos API job, create through download, by
+// text_to_video.timeout - the one deadline rendering and dubbing share.
+func (s *VideoService) withJobDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeout := time.Duration(cmp.Or(s.config.TextToVideo.Timeout, defaultVideoTimeoutSeconds)) * time.Second
+	return context.WithTimeout(ctx, timeout)
+}
+
 // runVideoJob creates the job, polls it until it completes, fails or the
 // context ends, and writes the downloaded MP4 content to outPath. Errors name
 // the configured model so a gateway without the endpoint (or a provider that
 // rejects it) is diagnosable.
 func (s *VideoService) runVideoJob(ctx context.Context, model, provider string, req sdk.CreateVideoRequest, outPath string) error {
-	timeout := time.Duration(cmp.Or(s.config.TextToVideo.Timeout, defaultVideoTimeoutSeconds)) * time.Second
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := s.withJobDeadline(ctx)
 	defer cancel()
 
 	job, err := s.client.CreateVideo(ctx, sdk.Provider(provider), req)

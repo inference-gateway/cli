@@ -48,9 +48,10 @@ func NewDubVideoTool(cfg *config.Config, video agentdomain.VideoService) *DubVid
 	}
 }
 
-// Manifest returns the tool's manifest.
+// Manifest returns the tool's manifest with the video_to_sfx require_approval,
+// the setting VideoToSFX uses for the same footage leaving the machine.
 func (t *DubVideoTool) Manifest() agentdomain.ToolManifest {
-	return toolManifests.MustGet(ToolDubVideo)
+	return toolManifests.MustGet(ToolDubVideo).WithRequireApproval(t.config.VideoToSFX.RequireApproval)
 }
 
 // Definition returns the tool definition for DubVideo
@@ -61,11 +62,12 @@ func (t *DubVideoTool) Definition() sdk.ChatCompletionTool {
 // Validate validates DubVideo arguments
 func (t *DubVideoTool) Validate(args map[string]any) error {
 	rawVideo, _ := args[dubVideoArgVideo].(string)
-	if strings.TrimSpace(rawVideo) == "" {
+	video := strings.TrimSpace(rawVideo)
+	if video == "" {
 		return fmt.Errorf("%s is required", dubVideoArgVideo)
 	}
-	if ext := strings.ToLower(filepath.Ext(rawVideo)); !slices.Contains(videoExtensions, ext) {
-		return fmt.Errorf("%s %q must be one of %s", dubVideoArgVideo, rawVideo, strings.Join(videoExtensions, ", "))
+	if ext := strings.ToLower(filepath.Ext(video)); !slices.Contains(videoExtensions, ext) {
+		return fmt.Errorf("%s %q must be one of %s", dubVideoArgVideo, video, strings.Join(videoExtensions, ", "))
 	}
 
 	if raw, present := args[dubVideoArgPreserveSpeech]; present && raw != nil {
@@ -74,7 +76,7 @@ func (t *DubVideoTool) Validate(args map[string]any) error {
 		}
 	}
 
-	if _, err := t.resolveVideoPath(rawVideo); err != nil {
+	if _, err := t.resolveVideoPath(video); err != nil {
 		return err
 	}
 

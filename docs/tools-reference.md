@@ -989,6 +989,7 @@ video_to_sfx:
   enabled: true
   dub: true
   # model: mirelo/sfx-2.0 # gateway provider/model id
+  # require_approval: true # optional - unset = no approval, shared with VideoToSFX
 ```
 
 ---

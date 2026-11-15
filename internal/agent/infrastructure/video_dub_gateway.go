@@ -63,14 +63,20 @@ func NewDubGateway(baseURL, apiKey string, client *http.Client) *DubGateway {
 // shortcut: the SDK's CreateVideo drops the dubbing fields; encode them here
 // until the SDK forwards them, then switch back to sdk.Client.CreateVideo
 func (g *DubGateway) CreateDubbing(ctx context.Context, provider, model string, request agentdomain.VideoDubRequest) (*sdk.VideoJob, error) {
-	data, err := os.ReadFile(request.VideoPath) // nolint:gosec
+	clip, err := os.Open(request.VideoPath) // nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("reading video %q: %w", request.VideoPath, err)
 	}
-	if len(data) > maxVideoUploadBytes {
+	defer func() { _ = clip.Close() }()
+
+	info, err := clip.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("reading video %q: %w", request.VideoPath, err)
+	}
+	if info.Size() > maxVideoUploadBytes {
 		return nil, fmt.Errorf(
-			"video upload (%.1f MiB) exceeds the gateway's %d MiB request limit; use a shorter clip",
-			float64(len(data))/bytesPerMiB, maxVideoUploadBytes/bytesPerMiB,
+			"video upload (%.1f MiB) exceeds the gateway's default %d MiB request limit; use a shorter clip",
+			float64(info.Size())/bytesPerMiB, maxVideoUploadBytes/bytesPerMiB,
 		)
 	}
 
@@ -92,7 +98,7 @@ func (g *DubGateway) CreateDubbing(ctx context.Context, provider, model string, 
 	if err != nil {
 		return nil, fmt.Errorf("creating the video part: %w", err)
 	}
-	if _, err := part.Write(data); err != nil {
+	if _, err := io.Copy(part, clip); err != nil {
 		return nil, fmt.Errorf("writing the video part: %w", err)
 	}
 	if err := mw.Close(); err != nil {

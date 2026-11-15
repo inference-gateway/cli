@@ -46,6 +46,26 @@ func TestDubVideoTool_IsEnabled(t *testing.T) {
 	})
 }
 
+func TestDubVideoTool_ManifestRequireApproval(t *testing.T) {
+	yes := true
+	tests := []struct {
+		name       string
+		configured *bool
+		want       bool
+	}{
+		{"unset keeps the manifest default of no approval", nil, false},
+		{"video_to_sfx.require_approval covers the dub too", &yes, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := newTestDubTool(t, true, true, &agentdomainmocks.FakeVideoService{})
+			tool.config.VideoToSFX.RequireApproval = tt.configured
+
+			assert.Equal(t, tt.want, tool.Manifest().RequiresApproval(false))
+		})
+	}
+}
+
 func TestDubVideoTool_Definition(t *testing.T) {
 	tool := newTestDubTool(t, true, true, &agentdomainmocks.FakeVideoService{})
 	def := tool.Definition()
@@ -78,6 +98,7 @@ func TestDubVideoTool_Validate(t *testing.T) {
 		wantErr string
 	}{
 		{"clip in the working directory", map[string]any{"video": "clip.mp4"}, ""},
+		{"clip name with surrounding spaces", map[string]any{"video": " clip.mp4 "}, ""},
 		{"clip in the TextToVideo output directory", map[string]any{"video": "render.m4v"}, ""},
 		{"mov clip", map[string]any{"video": "clip.mov", "prompt": "p"}, "not found"},
 		{"missing video", map[string]any{}, "video is required"},
