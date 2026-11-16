@@ -34,3 +34,17 @@ func TestBashTool_DeniedPathIsRefusedInEveryMode(t *testing.T) {
 	require.False(t, r.Success)
 	require.Contains(t, r.Error, "excluded for security")
 }
+
+// TestBashTool_Validate_RefusesDeniedPath: validate gives the same answer as a
+// run, a blocking denial rather than a request for approval.
+func TestBashTool_Validate_RefusesDeniedPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	authPath := filepath.Join(home, ".infer", "auth.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(authPath), 0o755))
+	require.NoError(t, os.WriteFile(authPath, []byte("mocked"), 0o600))
+
+	err := NewBashTool(config.DefaultConfig(), nil).Validate(map[string]any{"command": "cat ~/.infer/auth.yaml"})
+	require.ErrorContains(t, err, "excluded for security")
+	require.NotContains(t, err.Error(), "approval")
+}

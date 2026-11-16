@@ -15,7 +15,10 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-const kernelSupported = true
+const (
+	kernelSupported = true
+	kernelName      = "Seatbelt"
+)
 
 // seatbeltPath is the system binary and never resolved through PATH, so a
 // binary planted in the project cannot stand in for it.
@@ -62,6 +65,17 @@ func writeSpellings(writePaths []string) []string {
 		}
 	}
 	return spellings
+}
+
+// kernelDenied keeps the entries denyRules turns into a profile rule.
+func kernelDenied(denied []sandboxdomain.Denied) []sandboxdomain.Denied {
+	var out []sandboxdomain.Denied
+	for _, entry := range denied {
+		if _, ok := denyRule(entry); ok {
+			out = append(out, entry)
+		}
+	}
+	return out
 }
 
 // denyRules refuses to read, rename or delete the file every blocking deny

@@ -9,6 +9,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	process "github.com/inference-gateway/cli/internal/platform/process"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // Child is the bash child for one command, with the confinement its platform
@@ -47,6 +48,17 @@ func Command(ctx context.Context, cfg *config.Config, mode agentdomain.AgentMode
 // Enforced reports whether Command confines its child on this platform.
 func Enforced(cfg *config.Config) bool {
 	return cfg.Tools.Sandbox.Filesystem.Enforce && kernelSupported
+}
+
+// KernelName names the confinement this platform applies, empty where there is none.
+func KernelName() string {
+	return kernelName
+}
+
+// KernelDenied lists the blocking deny entries the kernel itself refuses to
+// read, rename or delete under Command, empty where the platform cannot.
+func KernelDenied(cfg *config.Config) []sandboxdomain.Denied {
+	return kernelDenied(sandbox.BlockingDenials(cfg))
 }
 
 // DeniedHint names the sandbox when a confined command failed on a write or

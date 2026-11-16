@@ -34,6 +34,8 @@ bash elsewhere.
   file unattended, `ssh` with a denied `id_*` or a dev server loading `.env`, fails and the agent asks for
   approval. A refused write or read surfaces `DeniedHint` in the tool result. A command somebody approved
   runs as approved, unconfined, so the approval flow for a path outside the sandbox keeps its meaning.
+- `infer debug sandbox` prints the effective policy, the carve-outs and the kernel write paths from the
+  current directory, and `infer tools validate <command>` answers for one bash command.
 - Decision order: denied entries first (a blocking one fails whatever its position, otherwise the first
   approval entry asks), then the built-in carve-outs, then the first matching allowed entry, then the user is
   asked. Denied entries match case-insensitively, since a case-insensitive filesystem opens `.ENV` as `.env`.

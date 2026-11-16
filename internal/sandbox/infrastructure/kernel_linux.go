@@ -14,7 +14,10 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-const kernelSupported = true
+const (
+	kernelSupported = true
+	kernelName      = "Landlock"
+)
 
 // accessRead lets a path be read and run, accessFile is every right a file can
 // carry, and accessV1 is the whole first Landlock ABI, which each later one
@@ -30,6 +33,11 @@ const (
 )
 
 var errLandlockUnavailable = errors.New("the kernel has no Landlock")
+
+// kernelDenied is empty: Landlock only grants, so reads stay with the path check.
+func kernelDenied(_ []sandboxdomain.Denied) []sandboxdomain.Denied {
+	return nil
+}
 
 func confinedChild(ctx context.Context, writePaths []string, _ []sandboxdomain.Denied, command string) *Child {
 	child := Unconfined(ctx, command)

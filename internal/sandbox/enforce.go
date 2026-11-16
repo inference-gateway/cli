@@ -20,7 +20,7 @@ func WritePaths(cfg *config.Config, mode agentdomain.AgentMode) []string {
 		paths = append(paths, config.ProjectScratchpadDir())
 	} else {
 		paths = append(paths, writableAllowed(cfg)...)
-		paths = append(paths, writableCarveOuts(cfg)...)
+		paths = append(paths, WritableCarveOuts(cfg)...)
 	}
 	paths = append(paths, buildCacheDirs()...)
 	paths = append(paths, os.TempDir(), "/dev")
@@ -42,7 +42,10 @@ func writableAllowed(cfg *config.Config) []string {
 	return dirs
 }
 
-func writableCarveOuts(cfg *config.Config) []string {
+// WritableCarveOuts lists the built-in directories the file tools may write
+// although the config dirs ask: skills, plugins, runtime output, plans,
+// insights and memory.
+func WritableCarveOuts(cfg *config.Config) []string {
 	var dirs []string
 	if cfg.Agent.Skills.Enabled {
 		dirs = append(dirs, skillsDirs()...)

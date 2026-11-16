@@ -133,6 +133,9 @@ func (t *BashTool) Validate(args map[string]any) error {
 		return fmt.Errorf("command parameter is required and must be a string")
 	}
 
+	if path, denied := sandbox.BashCommandDeniedPath(t.config, command); denied {
+		return deniedPathError(path)
+	}
 	if !sandbox.IsBashCommandAllowed(t.config, command, agentdomain.AgentModeStandard) {
 		return t.notAllowedError(command, agentdomain.AgentModeStandard)
 	}
@@ -164,16 +167,16 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	wasApproved := agentdomain.IsToolApproved(ctx)
 	mode, _ := agentdomain.AgentModeFromContext(ctx)
 
-	if !wasApproved && !sandbox.IsBashCommandAllowed(t.config, command, mode) {
-		err := t.notAllowedError(command, mode)
+	if path, denied := sandbox.BashCommandDeniedPath(t.config, command); denied {
+		err := deniedPathError(path)
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = err.Error()
 		return result, err
 	}
 
-	if path, denied := sandbox.BashCommandDeniedPath(t.config, command); denied {
-		err := fmt.Errorf("access to path '%s' is excluded for security", path)
+	if !wasApproved && !sandbox.IsBashCommandAllowed(t.config, command, mode) {
+		err := t.notAllowedError(command, mode)
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = err.Error()
@@ -465,6 +468,12 @@ func (t *BashTool) readPipeWithBatching(
 // avoid leaking a $VAR, ...) so the model can correct course rather than retrying
 // blindly. The Bash tool, the approval policy, and agent auto-approval all share
 // sandbox.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
+// deniedPathError refuses a command naming a path a blocking deny entry
+// matches: the same answer in every mode, approved or not, and from validate.
+func deniedPathError(path string) error {
+	return fmt.Errorf("access to path '%s' is excluded for security", path)
+}
+
 func (t *BashTool) notAllowedError(command string, mode agentdomain.AgentMode) error {
 	if hint := sandbox.BashCommandRejectionHint(t.config, command); hint != "" {
 		return fmt.Errorf("command not allowed: %s - %s", command, hint)

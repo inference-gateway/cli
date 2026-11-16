@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -154,5 +155,17 @@ func TestStart_DeniesReadingBlockedFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(secret); err != nil {
 		t.Fatalf("the secret must stay in place: %v", err)
+	}
+}
+
+// TestKernelDenied_SkipsDirectoryEntries: the kernel guards the files the deny
+// list names and leaves .git/ to the path check, so git keeps working.
+func TestKernelDenied_SkipsDirectoryEntries(t *testing.T) {
+	var paths []string
+	for _, entry := range KernelDenied(config.DefaultConfig()) {
+		paths = append(paths, entry.Path)
+	}
+	if slices.Contains(paths, ".git/") || !slices.Contains(paths, "auth.yaml") {
+		t.Fatalf("KernelDenied = %v, want auth.yaml without .git/", paths)
 	}
 }

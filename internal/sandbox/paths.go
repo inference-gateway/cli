@@ -451,15 +451,40 @@ func isWithinRustLibDirs(absPath string) bool {
 		return true
 	}
 
-	rustupHome := os.Getenv("RUSTUP_HOME")
-	if rustupHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		rustupHome = filepath.Join(home, ".rustup")
+	rustupHome := rustupHome()
+	return rustupHome != "" && isWithinRustupToolchainSrc(absPath, rustupHome)
+}
+
+// rustupHome is $RUSTUP_HOME, else ~/.rustup. Empty when the home directory is unknown.
+func rustupHome() string {
+	if rustupHome := os.Getenv("RUSTUP_HOME"); rustupHome != "" {
+		return rustupHome
 	}
-	return isWithinRustupToolchainSrc(absPath, rustupHome)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".rustup")
+}
+
+// ReadOnlyCarveOuts lists the language library directories the file tools may
+// read but never write: the Go module cache and standard library source, the
+// Cargo registry and git sources, and the rustup toolchain sources.
+func ReadOnlyCarveOuts() []string {
+	var dirs []string
+	if dir := goModCache(); dir != "" {
+		dirs = append(dirs, dir)
+	}
+	if goroot := os.Getenv("GOROOT"); goroot != "" {
+		dirs = append(dirs, filepath.Join(goroot, "src"))
+	}
+	if home := cargoHome(); home != "" {
+		dirs = append(dirs, filepath.Join(home, "registry", "src"), filepath.Join(home, "git", "checkouts"))
+	}
+	if rustup := rustupHome(); rustup != "" {
+		dirs = append(dirs, filepath.Join(rustup, "toolchains", "*", "lib", "rustlib", "src"))
+	}
+	return dirs
 }
 
 // cargoHome is $CARGO_HOME, else ~/.cargo. Empty when the home directory is unknown.
