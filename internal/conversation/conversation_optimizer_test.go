@@ -42,9 +42,9 @@ func getBasicToolCallTestCases() []testCase {
 						{ID: "call_B", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "write"}},
 					},
 				},
-				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: stringPtr("call_A")},
+				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: new("call_A")},
 				{Role: "assistant", Content: sdk.NewMessageContent("Intermediate response")},
-				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: stringPtr("call_B")},
+				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: new("call_B")},
 				{Role: "assistant", Content: sdk.NewMessageContent("All done")},
 				{Role: "user", Content: sdk.NewMessageContent("Thank you")},
 			},
@@ -66,8 +66,8 @@ func getBasicToolCallTestCases() []testCase {
 						{ID: "call_B", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "write"}},
 					},
 				},
-				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: stringPtr("call_A")},
-				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: stringPtr("call_B")},
+				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: new("call_A")},
+				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: new("call_B")},
 				{Role: "assistant", Content: sdk.NewMessageContent("All done")},
 				{Role: "user", Content: sdk.NewMessageContent("Thank you")},
 			},
@@ -86,7 +86,7 @@ func getBasicToolCallTestCases() []testCase {
 						{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "read"}},
 					},
 				},
-				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: stringPtr("call_1")},
+				{Role: "tool", Content: sdk.NewMessageContent("file content"), ToolCallID: new("call_1")},
 				{Role: "user", Content: sdk.NewMessageContent("Request 2")},
 				{
 					Role:    "assistant",
@@ -96,8 +96,8 @@ func getBasicToolCallTestCases() []testCase {
 						{ID: "call_3", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "bash"}},
 					},
 				},
-				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: stringPtr("call_2")},
-				{Role: "tool", Content: sdk.NewMessageContent("bash output"), ToolCallID: stringPtr("call_3")},
+				{Role: "tool", Content: sdk.NewMessageContent("write success"), ToolCallID: new("call_2")},
+				{Role: "tool", Content: sdk.NewMessageContent("bash output"), ToolCallID: new("call_3")},
 				{Role: "assistant", Content: sdk.NewMessageContent("All done")},
 			},
 			keepFirstMessages: 3,
@@ -131,7 +131,7 @@ func getBasicToolCallTestCases() []testCase {
 						{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "grep"}},
 					},
 				},
-				{Role: "tool", Content: sdk.NewMessageContent("search results"), ToolCallID: stringPtr("call_1")},
+				{Role: "tool", Content: sdk.NewMessageContent("search results"), ToolCallID: new("call_1")},
 			},
 			keepFirstMessages: 2,
 			expectedValid:     true,
@@ -149,9 +149,9 @@ func getBasicToolCallTestCases() []testCase {
 						{ID: "call_2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool2"}},
 					},
 				},
-				{Role: "tool", Content: sdk.NewMessageContent("result 1"), ToolCallID: stringPtr("call_1")},
+				{Role: "tool", Content: sdk.NewMessageContent("result 1"), ToolCallID: new("call_1")},
 				{Role: "user", Content: sdk.NewMessageContent("Next request")},
-				{Role: "tool", Content: sdk.NewMessageContent("result 2"), ToolCallID: stringPtr("call_2")},
+				{Role: "tool", Content: sdk.NewMessageContent("result 2"), ToolCallID: new("call_2")},
 			},
 			keepFirstMessages: 1,
 			expectedValid:     true,
@@ -169,48 +169,48 @@ func getRealConversationTestCase() testCase {
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 1"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool1"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_1")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_1")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 2"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool2"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_2")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_2")},
 			{Role: "user", Content: sdk.NewMessageContent("Request 2")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 3"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_3", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool3"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_3")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_3")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 4"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_4", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool4"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_4")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_4")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 5"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_5", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool5"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_5")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_5")},
 			{Role: "user", Content: sdk.NewMessageContent("Request 3")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 6"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_6", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool6"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_6")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_6")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 7"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_7", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool7"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_7")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_7")},
 			{Role: "user", Content: sdk.NewMessageContent("Request 4")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 8"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_8", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool8"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_8")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_8")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Let me use two tools"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_mw22yDQOyJlZQaFT2mmXnyBZ", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "read"}},
 				{ID: "call_01_C9gJA1FoL22xfCrTHUWR2KYG", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "write"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("read result"), ToolCallID: stringPtr("call_00_mw22yDQOyJlZQaFT2mmXnyBZ")},
-			{Role: "tool", Content: sdk.NewMessageContent("write result"), ToolCallID: stringPtr("call_01_C9gJA1FoL22xfCrTHUWR2KYG")},
+			{Role: "tool", Content: sdk.NewMessageContent("read result"), ToolCallID: new("call_00_mw22yDQOyJlZQaFT2mmXnyBZ")},
+			{Role: "tool", Content: sdk.NewMessageContent("write result"), ToolCallID: new("call_01_C9gJA1FoL22xfCrTHUWR2KYG")},
 			{Role: "assistant", Content: sdk.NewMessageContent("Response 9"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 				{ID: "call_00_9", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "tool9"}},
 			}},
-			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: stringPtr("call_00_9")},
+			{Role: "tool", Content: sdk.NewMessageContent("result"), ToolCallID: new("call_00_9")},
 			{Role: "user", Content: sdk.NewMessageContent("Final request")},
 		},
 		keepFirstMessages: 2,
@@ -536,12 +536,6 @@ func TestOptimizeMessages_ForcedCompactWorksForUnknownModel(t *testing.T) {
 		"forced compaction should reduce the message count")
 }
 
-// Helper functions
-
-func stringPtr(s string) *string {
-	return &s
-}
-
 // createMockSDKClient creates a mock SDK client using counterfeiter that returns a canned summary response
 func createMockSDKClient(t *testing.T, summaryText string) *sdkmocks.FakeClient {
 	t.Helper()
@@ -763,7 +757,7 @@ func TestOptimizeMessages_HeadWithoutUserTurnIsNotKept(t *testing.T) {
 		{Role: "assistant", Content: sdk.NewMessageContent("reading"), ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
 			{ID: "call_1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
 		}},
-		{Role: "tool", Content: sdk.NewMessageContent("content"), ToolCallID: stringPtr("call_1")},
+		{Role: "tool", Content: sdk.NewMessageContent("content"), ToolCallID: new("call_1")},
 		{Role: "assistant", Content: sdk.NewMessageContent("done")},
 		{Role: "user", Content: sdk.NewMessageContent("next")},
 	}

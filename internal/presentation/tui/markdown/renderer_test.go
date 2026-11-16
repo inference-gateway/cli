@@ -68,29 +68,6 @@ func TestContainsMarkdown(t *testing.T) {
 	}
 }
 
-func TestHelperFunctions(t *testing.T) {
-	t.Run("stringPtr", func(t *testing.T) {
-		s := "test"
-		ptr := stringPtr(s)
-		assert.NotNil(t, ptr)
-		assert.Equal(t, s, *ptr)
-	})
-
-	t.Run("boolPtr", func(t *testing.T) {
-		b := true
-		ptr := boolPtr(b)
-		assert.NotNil(t, ptr)
-		assert.Equal(t, b, *ptr)
-	})
-
-	t.Run("uintPtr", func(t *testing.T) {
-		u := uint(42)
-		ptr := uintPtr(u)
-		assert.NotNil(t, ptr)
-		assert.Equal(t, u, *ptr)
-	})
-}
-
 func TestContainsMarkdownSkipsToolOutput(t *testing.T) {
 	tests := []struct {
 		name     string

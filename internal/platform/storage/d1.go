@@ -297,13 +297,13 @@ func asTime(v any) time.Time {
 	return t
 }
 
-// asTimePtr returns nil for a NULL/zero DATETIME, otherwise a pointer to the parsed time.
-func asTimePtr(v any) *time.Time {
+// asNullableTime returns nil for a NULL/zero DATETIME, otherwise a pointer to the parsed time.
+func asNullableTime(v any) *time.Time {
 	t := asTime(v)
 	if t.IsZero() {
 		return nil
 	}
-	return &t
+	return new(t)
 }
 
 // SaveConversation saves a conversation with its entries using the simplified schema.
@@ -410,7 +410,7 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	metadata.MessageCount = asInt(r["count"])
 	metadata.TitleGenerated = asBool(r["title_generated"])
 	metadata.TitleInvalidated = asBool(r["title_invalidated"])
-	metadata.TitleGenerationTime = asTimePtr(r["title_generation_time"])
+	metadata.TitleGenerationTime = asNullableTime(r["title_generation_time"])
 	metadata.CreatedAt = asTime(r["created_at"])
 	metadata.UpdatedAt = asTime(r["updated_at"])
 	metadata.ActiveDuration = time.Duration(asInt(r["active_duration_ms"])) * time.Millisecond
@@ -529,7 +529,7 @@ func mapTitleSummaryRow(r map[string]any) convdomain.ConversationSummary {
 	summary.MessageCount = asInt(r["count"])
 	summary.TitleGenerated = asBool(r["title_generated"])
 	summary.TitleInvalidated = asBool(r["title_invalidated"])
-	summary.TitleGenerationTime = asTimePtr(r["title_generation_time"])
+	summary.TitleGenerationTime = asNullableTime(r["title_generation_time"])
 
 	totalInputTokens := asInt(r["total_input_tokens"])
 	totalOutputTokens := asInt(r["total_output_tokens"])
@@ -648,7 +648,7 @@ func (s *D1Storage) GetSessionGroup(ctx context.Context, groupKey string) (Sessi
 		History:          history,
 		UpdatedAt:        asTime(r["updated_at"]),
 	}
-	if lr := asTimePtr(r["last_rollover"]); lr != nil {
+	if lr := asNullableTime(r["last_rollover"]); lr != nil {
 		entry.LastRollover = *lr
 	}
 	return entry, true, nil
@@ -702,7 +702,7 @@ func (s *D1Storage) ListSessionGroups(ctx context.Context) (map[string]SessionGr
 			History:          history,
 			UpdatedAt:        asTime(r["updated_at"]),
 		}
-		if lr := asTimePtr(r["last_rollover"]); lr != nil {
+		if lr := asNullableTime(r["last_rollover"]); lr != nil {
 			entry.LastRollover = *lr
 		}
 		out[groupKey] = entry
@@ -779,7 +779,7 @@ func (s *D1Storage) LoadJob(ctx context.Context, id string) (*scheddomain.Schedu
 		UpdatedAt:      asTime(r["updated_at"]),
 		LastError:      asString(r["last_error"]),
 	}
-	if lr := asTimePtr(r["last_run"]); lr != nil {
+	if lr := asNullableTime(r["last_run"]); lr != nil {
 		job.LastRun = lr
 	}
 	return job, nil
@@ -810,7 +810,7 @@ func (s *D1Storage) ListJobs(ctx context.Context) ([]*scheddomain.ScheduledJob, 
 			UpdatedAt:      asTime(r["updated_at"]),
 			LastError:      asString(r["last_error"]),
 		}
-		if lr := asTimePtr(r["last_run"]); lr != nil {
+		if lr := asNullableTime(r["last_run"]); lr != nil {
 			job.LastRun = lr
 		}
 		jobs = append(jobs, job)
@@ -875,7 +875,7 @@ func (s *D1Storage) ListRuns(ctx context.Context, jobID string) ([]*scheddomain.
 			Error:     asString(r["error"]),
 			StartedAt: asTime(r["started_at"]),
 		}
-		if ft := asTimePtr(r["finished_at"]); ft != nil {
+		if ft := asNullableTime(r["finished_at"]); ft != nil {
 			run.FinishedAt = ft
 		}
 		runs = append(runs, run)
