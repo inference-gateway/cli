@@ -84,7 +84,7 @@ func TestChatDaemonRunsATurnAndReattaches(t *testing.T) {
 // TestChatDaemonReportsUsageAsEachStepEnds reads the provider's usage off the
 // status bar while the run is still on its next step, as a local chat shows it.
 func TestChatDaemonReportsUsageAsEachStepEnds(t *testing.T) {
-	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a")
+	d := startDaemon(t, t.TempDir(), "INFER_DAEMON_WORKSPACE=a", "INFER_CHAT_SUGGESTIONS_ENABLED=false")
 	project := gitProject(t)
 
 	const session = "infer-e2e-daemon-usage"

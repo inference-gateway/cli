@@ -19,7 +19,7 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 		"INFER_A2A_SERVER_ENABLED":                              "true",
 		"INFER_A2A_SERVER_HOST":                                 "0.0.0.0",
 		"INFER_A2A_SERVER_PORT":                                 "9443",
-		"INFER_CHAT_SUGGESTIONS_ENABLED":                        "true",
+		"INFER_CHAT_SUGGESTIONS_ENABLED":                        "false",
 		"INFER_CHAT_SUGGESTIONS_CONTEXT_MESSAGES":               "6",
 		"INFER_CHAT_INPUT_MAX_LINES":                            "7",
 		"INFER_TEXT_TO_SPEECH_ENABLED":                          "true",
@@ -46,7 +46,7 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 	cfg := loadTestConfig(t)
 
 	assert.Equal(t, config.A2AServerConfig{Enabled: true, Host: "0.0.0.0", Port: 9443, Mode: "standard"}, cfg.A2A.Server)
-	assert.True(t, cfg.Chat.Suggestions.Enabled)
+	assert.False(t, cfg.Chat.Suggestions.Enabled)
 	assert.Equal(t, 6, cfg.Chat.Suggestions.ContextMessages)
 	assert.Equal(t, 512, cfg.Chat.Suggestions.MaxTokens, "untouched keys keep their default")
 	assert.Equal(t, 7, cfg.Chat.InputMaxLines)

@@ -9,7 +9,7 @@ import (
 func TestEffectiveSuggestionsAppliesDefaults(t *testing.T) {
 	cfg := DefaultConfig()
 
-	assert.False(t, cfg.Chat.Suggestions.Enabled)
+	assert.True(t, cfg.Chat.Suggestions.Enabled)
 
 	cfg.Chat.Suggestions = ChatSuggestionsConfig{Enabled: true}
 	cfg.Agent.Model = "provider/model"
