@@ -1121,7 +1121,7 @@ entry lists its keys and points at the guide that owns the behaviour.
 The blocks below live in a file of their own rather than in `config.yaml`. Naming each key here would
 duplicate the guide that owns it, so the keys are listed once and the guide carries the detail.
 
-- **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `.` and `/tmp`)
+- **`sandbox.yaml`** - one section per resource, today `filesystem` with `allowed` (default `.`, `/tmp` and a read-only `/dev/null`)
   and `denied` (default `.infer/` with `on_violation: approval`, `.git/`, `*.env`, `*.env.*` (except `.env.example`), `.environment`,
   `auth.yaml`, `*.key`, `*.pem`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`). Each entry is a
   path string or a map: an allowed entry takes `access: read|write` (default write), a denied entry takes

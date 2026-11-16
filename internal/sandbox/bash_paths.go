@@ -38,7 +38,7 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 		return "", false
 	}
 
-	validate := func(path string) error { return validateBashRead(cfg, path) }
+	validate := func(path string) error { return ValidateRead(cfg, path) }
 	if slices.Contains(creatingCommands, words[0].text) {
 		ctx := agentdomain.WithAgentMode(context.Background(), mode)
 		validate = func(path string) error { return ValidateWrite(ctx, cfg, path) }
@@ -48,11 +48,7 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 		args = args[len(args)-1:]
 	}
 
-	skip := nonPathWords(words[0].text, args)
-	for i, arg := range args {
-		if skip[i] {
-			continue
-		}
+	for _, arg := range args {
 		for _, candidate := range pathCandidates(arg) {
 			if path, outside := wordOutsideSandbox(cfg, candidate, validate); outside {
 				return path, true
@@ -60,38 +56,6 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 		}
 	}
 	return "", false
-}
-
-// nonPathWords marks the words an allow-listed command does not open as a file:
-// gh api's HTTP endpoint, git's -m message, and gh's jq filter (-q, --jq) and
-// free-text fields (--body, --title). Values gh does open as files
-// (--body-file, --input, a glued --flag=path) and every other operand stay
-// checked.
-func nonPathWords(cmd string, args []shellWord) []bool {
-	skip := make([]bool, len(args))
-	for i, arg := range args {
-		if i+1 >= len(args) {
-			continue
-		}
-		next := args[i+1].text
-		switch {
-		case cmd == "gh" && arg.text == "api" && !strings.HasPrefix(next, "-"),
-			cmd == "git" && arg.text == "-m",
-			cmd == "gh" && (arg.text == "-q" || arg.text == "--jq" || arg.text == "--body" || arg.text == "--title"):
-			skip[i+1] = true
-		}
-	}
-	return skip
-}
-
-// validateBashRead checks a path a read-only bash command opens and lets the
-// null device through: /dev/null never carries data, while a write to it keeps
-// the stricter check the creating commands run.
-func validateBashRead(cfg *config.Config, path string) error {
-	if path == "/dev/null" {
-		return nil
-	}
-	return ValidateRead(cfg, path)
 }
 
 // pathCandidates returns the parts of an argument that may name a file: the

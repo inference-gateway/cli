@@ -32,8 +32,6 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 	mustSymlink(t, filepath.Join(outside, "secret.txt"), filepath.Join(project, "links", "out-file"))
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Bash.Mode.All.Allow = append(cfg.Tools.Bash.Mode.All.Allow,
-		`git commit( .*)?`, `gh pr create( .*)?`)
 	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
 
 	tests := []struct {
@@ -53,13 +51,6 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "ln -s ../.agents/skills .claude/skills", allowed: true},
 		{command: "echo /etc/hosts", allowed: true},
 		{command: "gh api repos/{owner}/{repo}/contents/README.md", allowed: true},
-		{command: "gh pr view 1 --json files -q '.files[].path'", allowed: true},
-		{command: "gh api 'user/repos?per_page=100' --jq '.[].full_name'", allowed: true},
-		{command: "gh api 'user/repos' --paginate --jq '.'", allowed: true},
-		{command: "git commit -m 'feat(a/b): update [changelog]'", allowed: true},
-		{command: "git commit -m msg main.go", allowed: true},
-		{command: "gh pr create --title 'Fix [a] bug' --body 'see docs/b/c'", allowed: true},
-		{command: "wc -c main.go /dev/null", allowed: true},
 		{command: "uniq -c main.go", allowed: true},
 		{command: "sort -n main.go", allowed: true},
 		{command: "tree -L 2", allowed: true},
@@ -89,10 +80,6 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "mkdir ../escape"},
 		{command: "ln -s main.go ../escape"},
 		{command: "find / -name id_rsa"},
-		{command: "wc -c /dev/null /etc/hosts"},
-		{command: "git commit -m msg .env"},
-		{command: "gh pr create --body-file /etc/hosts"},
-		{command: "mkdir /dev/null"},
 
 		{command: "sort -o main.go main.go"},
 		{command: "sort -uo main.go main.go"},
@@ -110,6 +97,28 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		t.Run(tt.command, func(t *testing.T) {
 			if got := IsBashCommandAllowed(cfg, tt.command, agentdomain.AgentModeStandard); got != tt.allowed {
 				t.Errorf("IsBashCommandAllowed(%q) = %v, want %v (hint: %q)", tt.command, got, tt.allowed, BashCommandRejectionHint(cfg, tt.command))
+			}
+		})
+	}
+}
+
+func TestIsBashCommandAllowed_DefaultPolicyReadsNullDevice(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	cfg := config.DefaultConfig()
+
+	tests := []struct {
+		command string
+		allowed bool
+	}{
+		{command: "wc -c main.go /dev/null", allowed: true},
+		{command: "wc -c /dev/null /etc/hosts"},
+		{command: "mkdir /dev/null"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			if got := IsBashCommandAllowed(cfg, tt.command, agentdomain.AgentModeStandard); got != tt.allowed {
+				t.Errorf("IsBashCommandAllowed(%q) = %v, want %v", tt.command, got, tt.allowed)
 			}
 		})
 	}
