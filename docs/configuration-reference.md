@@ -1698,9 +1698,10 @@ startup with an error, and `Config.Validate` rejects specific invalid values
 (e.g. `tools.safety.approval_behaviour`, `agent.reasoning_effort`), but unknown
 configuration keys are silently ignored: `loadConfigFromViper` decodes with
 non-strict `v.Unmarshal` and `Config.Validate` only checks specific settings, so
-a misspelled or removed key in `config.yaml` produces no warning (this is also
-what lets `infer init` migrate legacy `channels:` / `computer_use:` blocks out
-of `config.yaml`). Only `infer config set` rejects unknown keys - use
+a misspelled or removed key in `config.yaml` produces no warning. Sidecar keys
+like `channels:` and `computer_use:` are removed from `config.yaml` before
+decoding (`mergeConfigLayers`) and are not migrated: their settings are read
+from the sidecar files only. Only `infer config set` rejects unknown keys - use
 `infer config get <key>` below to confirm a key actually resolves.
 
 ### Common Issues
