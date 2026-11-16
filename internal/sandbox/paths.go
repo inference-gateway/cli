@@ -313,17 +313,19 @@ func isWithinCustomToolsDir(cfg *config.Config, absPath string) bool {
 // ./.infer/skills, ./.agents/skills or ~/.infer/skills. The carve-out lets
 // skills load although the config dirs ask, and *.env stays denied.
 func isWithinSkillsDir(absPath string) bool {
+	return isWithinAny(absPath, skillsDirs())
+}
+
+func skillsDirs() []string {
 	dirs := []string{filepath.Join(config.ConfigDirName, "skills"), filepath.Join(config.AgentsDirName, "skills")}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, filepath.Join(homeDir, config.ConfigDirName, "skills"))
 	}
+	return dirs
+}
 
-	for _, dir := range dirs {
-		if isWithinDir(absPath, dir) {
-			return true
-		}
-	}
-	return false
+func isWithinAny(absPath string, dirs []string) bool {
+	return slices.ContainsFunc(dirs, func(dir string) bool { return isWithinDir(absPath, dir) })
 }
 
 // isWithinDir reports whether absPath is dir itself or lives beneath it. dir may
@@ -347,20 +349,20 @@ func isBeneath(absPath, absDir string) bool {
 // machine-scoped ones under ~/.infer. The agent reads and writes those
 // although the rest of the config dirs ask.
 func isWithinRuntimeDirs(absPath string) bool {
+	return isWithinAny(absPath, runtimeDirs())
+}
+
+func runtimeDirs() []string {
+	var dirs []string
 	runtimeRoot := config.ProjectRuntimeDir()
 	for _, name := range config.RuntimeArtifactDirNames {
-		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
-			return true
-		}
+		dirs = append(dirs, filepath.Join(runtimeRoot, name))
 	}
-
 	userSpace := config.UserSpaceConfigDir()
 	for _, name := range config.UserspaceRuntimeDirNames {
-		if isWithinDir(absPath, filepath.Join(userSpace, name)) {
-			return true
-		}
+		dirs = append(dirs, filepath.Join(userSpace, name))
 	}
-	return false
+	return dirs
 }
 
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
@@ -368,19 +370,21 @@ func isWithinRuntimeDirs(absPath string) bool {
 // as persisted plans and the desktop's projects.yaml stay reachable wherever
 // the config was loaded from.
 func isWithinConfigSubdir(cfg *config.Config, absPath string, names ...string) bool {
+	return isWithinAny(absPath, configSubdirs(cfg, names...))
+}
+
+func configSubdirs(cfg *config.Config, names ...string) []string {
 	configDirs := []string{config.ConfigDirName}
 	if resolved := cfg.GetConfigDir(); resolved != "" && resolved != config.ConfigDirName {
 		configDirs = append(configDirs, resolved)
 	}
-
+	var dirs []string
 	for _, name := range names {
 		for _, base := range configDirs {
-			if isWithinDir(absPath, filepath.Join(base, name)) {
-				return true
-			}
+			dirs = append(dirs, filepath.Join(base, name))
 		}
 	}
-	return false
+	return dirs
 }
 
 // isWithinPluginsDir reports whether absPath lives inside the plugins
@@ -397,19 +401,7 @@ func isWithinPluginsDir(cfg *config.Config, absPath string) bool {
 // ($GOMODCACHE or $GOPATH/pkg/mod) or the standard library source
 // ($GOROOT/src), resolved from the environment. The carve-out is read-only.
 func isWithinGoLibDirs(absPath string) bool {
-	gomodcache := os.Getenv("GOMODCACHE")
-	if gomodcache == "" {
-		gopath := os.Getenv("GOPATH")
-		if gopath == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return false
-			}
-			gopath = filepath.Join(home, "go")
-		}
-		gomodcache = filepath.Join(gopath, "pkg", "mod")
-	}
-	if isWithinDir(absPath, gomodcache) {
+	if gomodcache := goModCache(); gomodcache != "" && isWithinDir(absPath, gomodcache) {
 		return true
 	}
 
@@ -417,18 +409,31 @@ func isWithinGoLibDirs(absPath string) bool {
 	return goroot != "" && isWithinDir(absPath, filepath.Join(goroot, "src"))
 }
 
+// goModCache is $GOMODCACHE, else $GOPATH/pkg/mod, else ~/go/pkg/mod. Empty
+// when the home directory is unknown.
+func goModCache() string {
+	if gomodcache := os.Getenv("GOMODCACHE"); gomodcache != "" {
+		return gomodcache
+	}
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		gopath = filepath.Join(home, "go")
+	}
+	return filepath.Join(gopath, "pkg", "mod")
+}
+
 // isWithinRustLibDirs reports whether absPath lives inside the Cargo registry
 // sources ($CARGO_HOME/registry/src, $CARGO_HOME/git/checkouts, default ~/.cargo)
 // or the rustup toolchain sources ($RUSTUP_HOME/toolchains/*/lib/rustlib/src,
 // default ~/.rustup), resolved from the environment. The carve-out is read-only.
 func isWithinRustLibDirs(absPath string) bool {
-	cargoHome := os.Getenv("CARGO_HOME")
+	cargoHome := cargoHome()
 	if cargoHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		cargoHome = filepath.Join(home, ".cargo")
+		return false
 	}
 	if isWithinDir(absPath, filepath.Join(cargoHome, "registry", "src")) ||
 		isWithinDir(absPath, filepath.Join(cargoHome, "git", "checkouts")) {
@@ -444,6 +449,18 @@ func isWithinRustLibDirs(absPath string) bool {
 		rustupHome = filepath.Join(home, ".rustup")
 	}
 	return isWithinRustupToolchainSrc(absPath, rustupHome)
+}
+
+// cargoHome is $CARGO_HOME, else ~/.cargo. Empty when the home directory is unknown.
+func cargoHome() string {
+	if cargoHome := os.Getenv("CARGO_HOME"); cargoHome != "" {
+		return cargoHome
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".cargo")
 }
 
 // isWithinRustupToolchainSrc reports whether absPath is
@@ -472,18 +489,24 @@ func isWithinRustupToolchainSrc(absPath, rustupHome string) bool {
 // Memory.Enabled. The Memory tool itself writes via its own atomic writer rather
 // than the sandboxed file writer, so this carve-out mainly governs manual reads.
 func isWithinMemoryDir(absPath string, m config.MemoryConfig) bool {
+	dir, ok := memoryDir(m)
+	return ok && isWithinDir(absPath, dir)
+}
+
+// memoryDir is the configured Memory.Dir, else ~/.infer/memory. ok is false
+// when memory is disabled or the home directory is unknown.
+func memoryDir(m config.MemoryConfig) (string, bool) {
 	if !m.Enabled {
-		return false
+		return "", false
 	}
-	dir := m.Dir
-	if strings.TrimSpace(dir) == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		dir = filepath.Join(home, config.ConfigDirName, config.MemoryDirName)
+	if dir := strings.TrimSpace(m.Dir); dir != "" {
+		return dir, true
 	}
-	return isWithinDir(absPath, dir)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	return filepath.Join(home, config.ConfigDirName, config.MemoryDirName), true
 }
 
 // matchesPattern matches a relative pattern: dir/ at any depth, *glob on

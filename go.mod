@@ -35,6 +35,7 @@ require (
 	github.com/inference-gateway/tokenless v0.14.0
 	github.com/jezek/xgb v1.3.1
 	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a
+	github.com/landlock-lsm/go-landlock v0.11.2
 	github.com/ledongthuc/pdf v0.0.0-20261020125853-5e46805f718e
 	github.com/lib/pq v1.12.3
 	github.com/mxschmitt/playwright-go v0.6401.0
@@ -218,6 +219,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/streaming v0.37.2 // indirect
 	k8s.io/utils v0.0.0-20261023123148-ca04ba58ecab // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.78 // indirect
 	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect

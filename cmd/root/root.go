@@ -36,6 +36,7 @@ import (
 	plugins "github.com/inference-gateway/cli/cmd/plugins"
 	resetcmd "github.com/inference-gateway/cli/cmd/reset"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	sandboxexec "github.com/inference-gateway/cli/cmd/sandboxexec"
 	shortcutscmd "github.com/inference-gateway/cli/cmd/shortcuts"
 	skills "github.com/inference-gateway/cli/cmd/skills"
 	stats "github.com/inference-gateway/cli/cmd/stats"
@@ -115,6 +116,7 @@ deployment, monitoring, and management of inference services.`,
 		plans.NewCommand(state, renderer),
 		plugins.NewCommand(state, renderer),
 		resetcmd.NewCommand(state),
+		sandboxexec.NewCommand(),
 		shortcutscmd.NewCommand(state),
 		skills.NewCommand(state, renderer),
 		stats.NewCommand(state, renderer),

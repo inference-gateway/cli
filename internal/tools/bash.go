@@ -20,6 +20,7 @@ import (
 	process "github.com/inference-gateway/cli/internal/platform/process"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxinfra "github.com/inference-gateway/cli/internal/sandbox/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -190,6 +191,9 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	}
 
 	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
+	if t.confines(command, mode) {
+		cmd = sandboxinfra.Command(cmdCtx, t.config, mode, command)
+	}
 	cmd.WaitDelay = bashPipeGrace
 	process.KillTreeOnCancel(cmd)
 
@@ -209,8 +213,29 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	result.Duration = time.Since(start).String()
 	result.Output = utils.StripANSI(string(output))
 	result.ExitCode, result.Error = waitOutcome(cmdCtx, err)
+	t.withSandboxHint(ctx, result)
 
 	return result, nil
+}
+
+// confines reports whether the kernel sandbox wraps command: a command the
+// allow-list runs unattended is confined, while one somebody approved runs as
+// approved, so approving a path outside the sandbox keeps its meaning.
+func (t *BashTool) confines(command string, mode agentdomain.AgentMode) bool {
+	return sandboxinfra.Enforced(t.config) && sandbox.IsBashCommandAllowed(t.config, command, mode)
+}
+
+// withSandboxHint tells the model why a confined command failed when the
+// kernel refused a write, since the raw error names the path, not the policy.
+// It goes on the output, which is what the model reads back.
+func (t *BashTool) withSandboxHint(ctx context.Context, result *BashResult) {
+	mode, _ := agentdomain.AgentModeFromContext(ctx)
+	if result.ExitCode == 0 || !t.confines(result.Command, mode) {
+		return
+	}
+	if hint := sandboxinfra.DeniedHint(result.Output); hint != "" {
+		result.Output = strings.TrimSpace(result.Output) + "\n" + hint
+	}
 }
 
 // waitOutcome turns cmd.Wait's error into the exit code and message the model
@@ -352,6 +377,7 @@ func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *e
 		result.Output = outputBuilder.String()
 	}
 	result.ExitCode, result.Error = waitOutcome(ctx, err)
+	t.withSandboxHint(request, result)
 
 	return result, nil
 }

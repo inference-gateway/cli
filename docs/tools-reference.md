@@ -586,6 +586,15 @@ symlinks resolved). Arguments, `--flag=value` and `-Xvalue` values, input redire
 `make` or `task`, since they run whatever the repository's Makefile or Taskfile says. Add them to a
 mode's list, or append them with `INFER_TOOLS_BASH_ALLOW_APPEND`, where the repository is trusted.
 
+**Writes are confined by the kernel:** with `sandbox.yaml` `filesystem.enforce` (default `true`) every
+Bash command the allow-list runs unattended - in `auto` mode that is every command - runs under an OS
+sandbox, Landlock on Linux and Seatbelt on macOS, that lets it read and execute anything but write
+only under the writable allowed paths, the grants, the carve-outs, the temp dir, and the Go, cargo and
+npm caches a build needs. A write elsewhere fails with `Operation not permitted` or `Permission denied`
+and the result carries a hint naming the policy. A command the user approved runs as approved,
+unconfined, so approving a path outside the sandbox keeps its meaning. Windows has no equivalent, so
+there the path check above is the only guard.
+
 **Read-only library carve-outs:** dependency sources are readable without configuration, same as the file
 tools - Go (`$GOMODCACHE` or `$GOPATH/pkg/mod`, and `$GOROOT/src`) and Rust (`$CARGO_HOME/registry/src`
 and `$CARGO_HOME/git/checkouts`, default `~/.cargo`, plus `$RUSTUP_HOME/toolchains/*/lib/rustlib/src`,
@@ -600,8 +609,8 @@ like every other mode, so `git`, `gh` and the read-only baseline inspect the rep
 and writes go to the scratchpad (`~/.infer/projects/<project-slug>/tmp/scratchpad`) through absolute
 paths or a `cd` in the same command - the sandbox rejects a write anywhere else. The `plan` allow-list stays empty by default, so only the
 baseline approves commands there - add entries like `go build.*` or `go test.*` to opt into
-unattended verification. The file tools are the hard boundary: an allow-listed command can still
-reach paths outside the scratchpad through absolute arguments.
+unattended verification. An allow-listed command can still read paths outside the scratchpad through
+absolute arguments, while a write outside it fails in the kernel where `filesystem.enforce` applies.
 
 ---
 

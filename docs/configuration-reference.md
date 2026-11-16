@@ -1135,9 +1135,12 @@ duplicate the guide that owns it, so the keys are listed once and the guide carr
   cannot widen your sandbox, and the agent's file tools can never write the file. `infer config set` does not reach these keys: edit the file. Env:
   `INFER_TOOLS_SANDBOX_DIRECTORIES` adds allowed directories.
   `.env.local` and `.env.production` are denied by default, while `.env.example` remains readable.
-  These are file-tool rules
-  and shell approval checks, not OS isolation. Unrestricted auto mode and approved shell commands
-  can still access files with the permissions of the CLI process.
+  `enforce` (default `true`) has the kernel confine every Bash command the allow-list runs unattended
+  (in `auto` mode, every command) to writing only the writable allowed paths, plus the temp dir and
+  the Go, cargo and npm caches a build needs - Landlock on Linux, Seatbelt on macOS, nothing on
+  Windows. A command the user approved runs as approved, unconfined. Reads stay with the allow-list's
+  path check, so an unattended command can still read files with the permissions of the CLI process,
+  while its write outside the policy fails in the kernel.
 - **`channels.yaml`** - `enabled`, `max_workers`, `image_retention`, `require_approval`,
   `max_tool_result_len`, `telegram`, `whatsapp`. See [Channels](channels.md).
 - **`heartbeat.yaml`** - `enabled`, `interval`, `initial_delay`, `model`, `prompt`. See
