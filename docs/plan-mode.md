@@ -100,9 +100,9 @@ How it behaves:
 - `tools.bash.mode.plan.allow` stays empty by default, so plan-mode Bash
   runs only the shared baseline allow-list; opt into unattended verification
   with entries like `go build.*` or `go test.*`. Known limit, same as every
-  other mode: an allow-listed command can still reach paths outside the
-  scratchpad through absolute arguments - the file tools are the hard
-  boundary, the shell is policy plus approval.
+  other mode: an allow-listed command can still read paths outside the
+  scratchpad through absolute arguments, while a write outside it fails in
+  the kernel and, on macOS, so does reading a file the deny list names.
 - `../` traversal out of the scratchpad and a symlink inside it that points
   outside are both rejected, resolved the same way the rest of the sandbox
   resolves paths.
