@@ -28,7 +28,7 @@ type SandboxConfig struct {
 type FilesystemPolicy struct {
 	Allowed []sandboxdomain.Allowed `yaml:"allowed" mapstructure:"allowed"`
 	Denied  []sandboxdomain.Denied  `yaml:"denied" mapstructure:"denied"`
-	Enforce bool `yaml:"enforce" mapstructure:"enforce"`
+	Enforce bool `yaml:"enforce"       mapstructure:"enforce"`
 }
 
 // DefaultSandboxConfig allows the working directory and /tmp, lets the null
