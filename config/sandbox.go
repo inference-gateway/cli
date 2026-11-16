@@ -28,9 +28,6 @@ type SandboxConfig struct {
 type FilesystemPolicy struct {
 	Allowed []sandboxdomain.Allowed `yaml:"allowed" mapstructure:"allowed"`
 	Denied  []sandboxdomain.Denied  `yaml:"denied" mapstructure:"denied"`
-	// Enforce confines every bash child in the kernel to the writable paths, so
-	// a command cannot write past the policy whatever its arguments say. Reads
-	// stay with the allow-list's path check. Ignored where the OS has no sandbox.
 	Enforce bool `yaml:"enforce" mapstructure:"enforce"`
 }
 
