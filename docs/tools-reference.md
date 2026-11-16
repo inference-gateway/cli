@@ -581,8 +581,11 @@ names passes the same sandbox check as the file tools (`sandbox.yaml` `filesyste
 symlinks resolved). Arguments, `--flag=value` and `-Xvalue` values, input redirections (`< file`),
 `~`, `$VAR` (from the CLI's environment) and globs are all checked, so `head ~/.aws/credentials` or
 `ls links/*` through a link that leaves the project asks first. A path that cannot be known in advance
-(`${VAR:-x}`, `$1`, `{a,b}`, a glob component starting with a dot, `~user`) asks too. `echo` and
-`printf` never open their arguments, so they are not checked. The default baseline does not include
+(`${VAR:-x}`, `$1`, `{a,b}`, `~user`) asks too, and so does a glob that can reach the parent directory
+(`.*`, `.?`) or that bash reads differently from the check (`[!a]`, `[[:alpha:]]`). A word that names no
+existing file is text to the command, not a path, so a jq filter such as `.files[].path`, a commit
+message or a title passes without quoting. `echo` and `printf` never open their arguments, so they are
+not checked. The default baseline does not include
 `make` or `task`, since they run whatever the repository's Makefile or Taskfile says. Add them to a
 mode's list, or append them with `INFER_TOOLS_BASH_ALLOW_APPEND`, where the repository is trusted.
 

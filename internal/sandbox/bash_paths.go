@@ -2,6 +2,8 @@ package sandbox
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -38,7 +40,7 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 		return "", false
 	}
 
-	validate := func(path string) error { return ValidateRead(cfg, path) }
+	validate := func(path string) error { return validateBashRead(cfg, path) }
 	if slices.Contains(creatingCommands, words[0].text) {
 		ctx := agentdomain.WithAgentMode(context.Background(), mode)
 		validate = func(path string) error { return ValidateWrite(ctx, cfg, path) }
@@ -56,6 +58,16 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 		}
 	}
 	return "", false
+}
+
+// validateBashRead checks a path a read-only command opens. A path that names
+// nothing cannot be read, so it passes: the text arguments a command takes, a
+// jq filter or a commit message, look like paths without being files.
+func validateBashRead(cfg *config.Config, path string) error {
+	if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return ValidateRead(cfg, path)
 }
 
 // pathCandidates returns the parts of an argument that may name a file: the
@@ -115,22 +127,29 @@ func expandTilde(path string) (string, bool) {
 	return "", false
 }
 
-// globOutsideSandbox checks the pattern and every file it expands to. A glob
-// component starting with a dot can expand to ".." on older bash, so it is
-// never auto-approved.
+// bashOnlyBracketSyntax is what bash reads inside a bracket expression and Go's
+// glob does not: negation with !, and the character, equivalence and collating
+// classes. Such a pattern expands to files the check cannot enumerate.
+var bashOnlyBracketSyntax = []string{"[!", "[:", "[=", "[."}
+
+// globOutsideSandbox checks the pattern and every file it expands to. A pattern
+// bash reads differently from Go, or that can expand to the parent directory as
+// .* does on older bash, is never auto-approved. A malformed pattern is literal
+// text to bash and reaches the command as written, checked above as a word.
 func globOutsideSandbox(pattern string, validate func(string) error) (string, bool) {
+	if slices.ContainsFunc(bashOnlyBracketSyntax, func(syntax string) bool { return strings.Contains(pattern, syntax) }) {
+		return pattern, true
+	}
 	patternParts := pathComponents(pattern)
-	for _, part := range patternParts {
-		if strings.HasPrefix(part, ".") && hasGlobChar(part) {
-			return pattern, true
-		}
+	if slices.ContainsFunc(patternParts, hiddenGlobReachesParent) {
+		return pattern, true
 	}
 	if validate(pattern) != nil {
 		return pattern, true
 	}
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
-		return pattern, true
+		return "", false
 	}
 	for _, match := range matches {
 		if bashSkipsHiddenMatch(patternParts, pathComponents(match)) {
@@ -143,6 +162,21 @@ func globOutsideSandbox(pattern string, validate func(string) error) (string, bo
 	return "", false
 }
 
+// hiddenGlobReachesParent reports whether a pattern component starting with a
+// dot can expand to . or .., as .* and .? do on older bash. A malformed
+// component is literal text to bash and expands to nothing.
+func hiddenGlobReachesParent(part string) bool {
+	if !strings.HasPrefix(part, ".") {
+		return false
+	}
+	dot, err := filepath.Match(part, ".")
+	if err != nil {
+		return false
+	}
+	dotdot, _ := filepath.Match(part, "..")
+	return dot || dotdot
+}
+
 // bashSkipsHiddenMatch reports whether bash would leave out a match that Go's
 // glob includes: a hidden entry matched by a wildcard that does not start with a dot.
 func bashSkipsHiddenMatch(patternParts, matchParts []string) bool {
@@ -150,7 +184,7 @@ func bashSkipsHiddenMatch(patternParts, matchParts []string) bool {
 		return false
 	}
 	for i, part := range patternParts {
-		if hasGlobChar(part) && strings.HasPrefix(matchParts[i], ".") {
+		if hasGlobChar(part) && !strings.HasPrefix(part, ".") && strings.HasPrefix(matchParts[i], ".") {
 			return true
 		}
 	}
