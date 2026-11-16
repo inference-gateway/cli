@@ -1,6 +1,8 @@
 package sandboxinfra
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,7 +37,7 @@ func TestStart_ConfinesWritesToTheListedPaths(t *testing.T) {
 			}
 			err := child.Cmd.Wait()
 			_, statErr := os.Stat(tt.probe)
-			if refused := err != nil && os.IsNotExist(statErr); refused != tt.refused {
+			if refused := err != nil && errors.Is(statErr, fs.ErrNotExist); refused != tt.refused {
 				t.Fatalf("touch %s: wait err = %v, stat err = %v, want refused %v", tt.probe, err, statErr, tt.refused)
 			}
 		})

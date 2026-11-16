@@ -49,7 +49,7 @@ func (c *Child) start() error {
 	if err != nil {
 		return err
 	}
-	defer devNull.Close()
+	defer func() { _ = devNull.Close() }()
 	if c.Cmd.Stdin == nil {
 		c.Cmd.Stdin = devNull
 	}
@@ -97,7 +97,7 @@ func restrictThread(writePaths []string) error {
 	if err != nil {
 		return fmt.Errorf("creating the ruleset: %w", err)
 	}
-	defer unix.Close(rulesetFD)
+	defer func() { _ = unix.Close(rulesetFD) }()
 	if err := addPathRule(rulesetFD, "/", accessRead&handled); err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func addPathRule(rulesetFD int, path string, access uint64) error {
 	if err != nil {
 		return fmt.Errorf("opening %s for its rule: %w", path, err)
 	}
-	defer unix.Close(fd)
+	defer func() { _ = unix.Close(fd) }()
 	attr := llsys.PathBeneathAttr{AllowedAccess: access, ParentFd: fd}
 	if err := llsys.LandlockAddPathBeneathRule(rulesetFD, &attr, 0); err != nil {
 		return fmt.Errorf("adding the rule for %s: %w", path, err)
