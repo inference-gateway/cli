@@ -1,11 +1,14 @@
 package sandbox
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // pushCfg builds a config whose only allow entry (in the every-mode baseline) is
@@ -790,6 +793,17 @@ func TestContainsFileRedirect(t *testing.T) {
 }
 
 func TestBashCommandRejectionHint(t *testing.T) {
+	project := t.TempDir()
+	home := t.TempDir()
+	t.Chdir(project)
+	t.Setenv("HOME", home)
+	if err := os.Mkdir(filepath.Join(home, ".aws"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(home, ".aws", "credentials"))
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
+
 	if h := BashCommandRejectionHint(config.DefaultConfig(), "echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
 		t.Errorf("expected a redirection hint, got %q", h)
 	}
@@ -808,10 +822,10 @@ func TestBashCommandRejectionHint(t *testing.T) {
 	if h := BashCommandRejectionHint(config.DefaultConfig(), "ls -la"); h != "" {
 		t.Errorf("expected no hint for a plain command, got %q", h)
 	}
-	if h := BashCommandRejectionHint(config.DefaultConfig(), "ls $HOME"); !strings.Contains(h, "sandbox") {
+	if h := BashCommandRejectionHint(cfg, "ls $HOME"); !strings.Contains(h, "sandbox") {
 		t.Errorf("expected a sandbox hint for a path that depends on the environment, got %q", h)
 	}
-	if h := BashCommandRejectionHint(config.DefaultConfig(), "head ~/.aws/credentials"); !strings.Contains(h, "sandbox") {
+	if h := BashCommandRejectionHint(cfg, "head ~/.aws/credentials"); !strings.Contains(h, "sandbox") {
 		t.Errorf("expected a sandbox hint for a path outside the sandbox, got %q", h)
 	}
 	if h := BashCommandRejectionHint(config.DefaultConfig(), "sort -o notes.txt notes.txt"); !strings.Contains(h, "writing a file") {
