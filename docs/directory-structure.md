@@ -148,11 +148,10 @@ project wants to override a config file it commits its own sparse
   Userspace only, a project copy is ignored, and the agent's file tools cannot
   write this file. A `tools:` block in `config.yaml` has no effect.
 - **`channels.yaml`** - remote messaging transports (Telegram, ...) and
-  per-channel allowlists. See [Channels](channels.md). On first init, a
-  legacy `channels:` block in `config.yaml` is auto-migrated here.
+  per-channel allowlists. See [Channels](channels.md). Seeded from the
+  built-in defaults on first init.
 - **`computer_use.yaml`** - computer-use / vision tool settings.
-  Auto-migrated from `config.yaml` on first init if the legacy block
-  exists.
+  Seeded from the built-in defaults on first init.
 - **`browser_use.yaml`** - browser automation tool settings (Playwright
   browser channel / CDP endpoint, per-tool enable flags, rate limiting).
 - **`agents.yaml`** - A2A agent registry (URLs, models, env vars). Manage
