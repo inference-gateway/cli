@@ -591,12 +591,15 @@ mode's list, or append them with `INFER_TOOLS_BASH_ALLOW_APPEND`, where the repo
 
 **Writes are confined by the kernel:** with `sandbox.yaml` `filesystem.enforce` (default `true`) every
 Bash command the allow-list runs unattended - in `auto` mode that is every command - runs under an OS
-sandbox, Landlock on Linux and Seatbelt on macOS, that lets it read and execute anything but write
-only under the writable allowed paths, the grants, the carve-outs, the temp dir, and the Go, cargo and
-npm caches a build needs. A write elsewhere fails with `Operation not permitted` or `Permission denied`
-and the result carries a hint naming the policy. A command the user approved runs as approved,
-unconfined, so approving a path outside the sandbox keeps its meaning. Windows has no equivalent, so
-there the path check above is the only guard.
+sandbox, Landlock on Linux and Seatbelt on macOS, that lets it execute anything but write only under
+the writable allowed paths, the grants, the carve-outs, the temp dir, and the Go, cargo and npm caches
+a build needs. On macOS it also refuses to read, rename or delete the files the blocking `denied`
+entries name (`auth.yaml`, `*.key`, ...), under any spelling, symlink or copy, so a tool that needs one
+of them unattended fails and the agent asks for approval. Directory entries such as `.git/` stay with
+the path check, since git must keep reading its own tree. A refused write or read fails with
+`Operation not permitted` or `Permission denied` and the result carries a hint naming the policy. A
+command the user approved runs as approved, unconfined, so approving a path outside the sandbox keeps
+its meaning. Windows has no equivalent, so there the path check above is the only guard.
 
 **Read-only library carve-outs:** dependency sources are readable without configuration, same as the file
 tools - Go (`$GOMODCACHE` or `$GOPATH/pkg/mod`, and `$GOROOT/src`) and Rust (`$CARGO_HOME/registry/src`

@@ -99,8 +99,8 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 		if inCarveOut && isConfigDirRule(entry.Path) {
 			continue
 		}
-		if !matches(entry.Path, path, absPath) || slices.ContainsFunc(entry.Except, func(except string) bool {
-			return matches(except, path, absPath)
+		if !matchesDenied(entry.Path, path, absPath) || slices.ContainsFunc(entry.Except, func(except string) bool {
+			return matchesDenied(except, path, absPath)
 		}) {
 			continue
 		}
@@ -250,6 +250,17 @@ func matches(rulePath, path, absPath string) bool {
 		return isWithinDir(absPath, anchoredPath(rulePath))
 	}
 	return matchesPattern(rulePath, path)
+}
+
+// matchesDenied is matches with the case folded on both sides: a
+// case-insensitive filesystem opens .ENV as .env, so a denied entry holds under
+// any spelling. Allowed entries keep the exact match, so this only tightens.
+func matchesDenied(rulePath, path, absPath string) bool {
+	if IsAnchored(rulePath) {
+		dir, err := filepath.Abs(anchoredPath(rulePath))
+		return err == nil && isWithinDir(strings.ToLower(absPath), strings.ToLower(dir))
+	}
+	return matchesPattern(strings.ToLower(rulePath), strings.ToLower(path))
 }
 
 func anchoredPath(rulePath string) string {
@@ -538,13 +549,26 @@ func Denies(cfg *config.Config, projectDir, absPath string) bool {
 		rel = absPath
 	}
 	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
-		if !matches(entry.Path, rel, absPath) {
+		if !matchesDenied(entry.Path, rel, absPath) {
 			continue
 		}
-		if slices.ContainsFunc(entry.Except, func(except string) bool { return matches(except, rel, absPath) }) {
+		if slices.ContainsFunc(entry.Except, func(except string) bool { return matchesDenied(except, rel, absPath) }) {
 			continue
 		}
 		return true
 	}
 	return false
+}
+
+// BlockingDenials lists the deny entries that refuse rather than ask, so every
+// layer honors them the same way: the file tools' exclusion, the Bash tool's
+// walker, and the kernel's read denial where the OS can express one.
+func BlockingDenials(cfg *config.Config) []sandboxdomain.Denied {
+	var denied []sandboxdomain.Denied
+	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
+		if entry.OnViolation != sandboxdomain.ViolationApproval {
+			denied = append(denied, entry)
+		}
+	}
+	return denied
 }

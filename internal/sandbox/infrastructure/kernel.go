@@ -34,14 +34,14 @@ func Unconfined(ctx context.Context, command string) *Child {
 
 // Command returns the bash child that runs command. Where the policy enforces
 // and the platform can, the kernel confines the child's writes to
-// sandbox.WritePaths, so the command cannot write past the policy whatever its
-// arguments say. The Bash tool uses it for a command the allow-list runs
-// unattended: one somebody approved runs as approved. Reads stay with the path check.
+// sandbox.WritePaths and its reads of the blocking deny entries, so the command
+// cannot reach past the policy whatever its arguments say. The Bash tool uses
+// it unattended for allow-listed commands: approved ones run as approved.
 func Command(ctx context.Context, cfg *config.Config, mode agentdomain.AgentMode, command string) *Child {
 	if !Enforced(cfg) {
 		return Unconfined(ctx, command)
 	}
-	return confinedChild(ctx, sandbox.WritePaths(cfg, mode), command)
+	return confinedChild(ctx, sandbox.WritePaths(cfg, mode), sandbox.BlockingDenials(cfg), command)
 }
 
 // Enforced reports whether Command confines its child on this platform.
@@ -49,12 +49,13 @@ func Enforced(cfg *config.Config) bool {
 	return cfg.Tools.Sandbox.Filesystem.Enforce && kernelSupported
 }
 
-// DeniedHint names the sandbox when a confined command failed on a write the
-// kernel refused, so the model asks for the path instead of retrying.
+// DeniedHint names the sandbox when a confined command failed on a write or
+// a read the kernel refused, so the model asks for the path instead of retrying.
 func DeniedHint(output string) string {
 	if !strings.Contains(output, "Operation not permitted") && !strings.Contains(output, "Permission denied") {
 		return ""
 	}
 	return "the sandbox confines writes to the writable paths of ~/.infer/" + config.SandboxFileName +
-		" (filesystem.allowed): write inside them, or ask the user to approve the command or add the path"
+		" (filesystem.allowed) and refuses to read, rename or delete its denied files (filesystem.denied):" +
+		" work inside them, or ask the user to approve the command or add the path"
 }

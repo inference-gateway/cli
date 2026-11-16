@@ -2,11 +2,15 @@
 
 package sandboxinfra
 
-import "context"
+import (
+	"context"
+
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
+)
 
 const kernelSupported = false
 
-func confinedChild(ctx context.Context, _ []string, command string) *Child {
+func confinedChild(ctx context.Context, _ []string, _ []sandboxdomain.Denied, command string) *Child {
 	return Unconfined(ctx, command)
 }
 

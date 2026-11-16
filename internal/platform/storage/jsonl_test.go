@@ -61,6 +61,27 @@ func TestNewJsonlStorage(t *testing.T) {
 		defer func() { _ = storage.Close() }()
 	})
 
+	t.Run("works with a read-only conversations directory", func(t *testing.T) {
+		tempDir, err := os.MkdirTemp("", "jsonl_test_readonly_*")
+		require.NoError(t, err)
+		defer func() { _ = os.RemoveAll(tempDir) }()
+		require.NoError(t, os.Chmod(tempDir, 0o555))
+		defer func() { _ = os.Chmod(tempDir, 0o755) }()
+
+		storage, err := NewJsonlStorage(JsonlStorageConfig{Path: tempDir})
+		require.NoError(t, err)
+		require.NotNil(t, storage)
+		defer func() { _ = storage.Close() }()
+
+		err = storage.SaveConversation(context.Background(), "conv", nil, convdomain.ConversationMetadata{
+			ID:        "conv",
+			Title:     "Read Only",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		})
+		require.Error(t, err, "writes must still fail on a read-only directory")
+	})
+
 	t.Run("expands tilde in path", func(t *testing.T) {
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)

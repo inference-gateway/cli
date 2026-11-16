@@ -24,15 +24,20 @@ bash elsewhere.
 - Bash, Wait, the approval policy and command hooks call `IsBashCommandAllowed` and surface
   `BashCommandRejectionHint` when a command is denied. The system prompt lists `BashAllowedCommands`.
 - Bash spawns a command the allow-list runs unattended through `sandboxinfra.Command`. With
-  `filesystem.enforce` (default on) the kernel lets the child read and execute anything and write only under
+  `filesystem.enforce` (default on) the kernel lets the child execute anything and write only under
   `WritePaths`: the writable allowed entries and grants, the writable carve-outs, the temp dir, the Go, cargo
-  and npm caches, and `/dev`. In plan mode the project gives way to the scratchpad. A refused write surfaces
-  `DeniedHint` in the tool result. A command somebody approved runs as approved, unconfined, so the approval
-  flow for a path outside the sandbox keeps its meaning. Reads stay with the path check, since the kernel
-  cannot tell `gh` reading its own token from `head` reading it.
+  and npm caches, and `/dev`. In plan mode the project gives way to the scratchpad. On macOS the kernel also
+  refuses to read, rename or delete the files the blocking deny entries name (`auth.yaml`, `*.key`, ...), so a
+  spelling the argv walker cannot predict still fails, through a symlink, a copy or a clone alike. Directory
+  entries (`.git/`) and globs the profile cannot say exactly stay with the path check, since git must keep
+  reading its own tree, and Linux has no read denial, since Landlock only grants. A tool that needs a denied
+  file unattended, `ssh` with a denied `id_*` or a dev server loading `.env`, fails and the agent asks for
+  approval. A refused write or read surfaces `DeniedHint` in the tool result. A command somebody approved
+  runs as approved, unconfined, so the approval flow for a path outside the sandbox keeps its meaning.
 - Decision order: denied entries first (a blocking one fails whatever its position, otherwise the first
   approval entry asks), then the built-in carve-outs, then the first matching allowed entry, then the user is
-  asked. An empty allowed list is no boundary. A grant only unlocks what approval could have, so a granted
+  asked. Denied entries match case-insensitively, since a case-insensitive filesystem opens `.ENV` as `.env`.
+  An empty allowed list is no boundary. A grant only unlocks what approval could have, so a granted
   directory still respects denied.
 - The default policy denies `.infer/` with `on_violation: approval`, so the config dirs, whose files can hold
   tokens, ask before every read and write. The carve-outs skip that entry, so skills, plans, plugins, memory

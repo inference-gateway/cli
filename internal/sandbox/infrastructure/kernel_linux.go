@@ -11,6 +11,7 @@ import (
 	unix "golang.org/x/sys/unix"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 const kernelSupported = true
@@ -30,7 +31,7 @@ const (
 
 var errLandlockUnavailable = errors.New("the kernel has no Landlock")
 
-func confinedChild(ctx context.Context, writePaths []string, command string) *Child {
+func confinedChild(ctx context.Context, writePaths []string, _ []sandboxdomain.Denied, command string) *Child {
 	child := Unconfined(ctx, command)
 	child.WritePaths = writePaths
 	return child
