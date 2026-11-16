@@ -118,14 +118,14 @@ func (r *Renderer) buildBaseStyleConfig(dimColor, statusColor string) ansi.Style
 	return ansi.StyleConfig{
 		Document: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{},
-			Margin:         uintPtr(0),
+			Margin:         new(uint(0)),
 		},
 		BlockQuote: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Color: stringPtr(dimColor),
+				Color: new(dimColor),
 			},
-			Indent:      uintPtr(1),
-			IndentToken: stringPtr("│ "),
+			Indent:      new(uint(1)),
+			IndentToken: new("│ "),
 		},
 		Paragraph: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{},
@@ -136,14 +136,14 @@ func (r *Renderer) buildBaseStyleConfig(dimColor, statusColor string) ansi.Style
 		},
 		Code: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Color:           stringPtr(statusColor),
-				BackgroundColor: stringPtr("#1a1a2e"),
+				Color:           new(statusColor),
+				BackgroundColor: new("#1a1a2e"),
 			},
 		},
 		CodeBlock: ansi.StyleCodeBlock{
 			StyleBlock: ansi.StyleBlock{
 				StylePrimitive: ansi.StylePrimitive{},
-				Margin:         uintPtr(1),
+				Margin:         new(uint(1)),
 			},
 			Chroma: r.buildChromaConfig(),
 		},
@@ -151,13 +151,13 @@ func (r *Renderer) buildBaseStyleConfig(dimColor, statusColor string) ansi.Style
 			StyleBlock: ansi.StyleBlock{
 				StylePrimitive: ansi.StylePrimitive{},
 			},
-			CenterSeparator: stringPtr("┼"),
-			ColumnSeparator: stringPtr("│"),
-			RowSeparator:    stringPtr("─"),
+			CenterSeparator: new("┼"),
+			ColumnSeparator: new("│"),
+			RowSeparator:    new("─"),
 		},
 		DefinitionList: ansi.StyleBlock{},
 		DefinitionTerm: ansi.StylePrimitive{
-			Bold: boolPtr(true),
+			Bold: new(true),
 		},
 		DefinitionDescription: ansi.StylePrimitive{
 			BlockPrefix: "  ",
@@ -180,94 +180,94 @@ func (r *Renderer) buildChromaConfig() *ansi.Chroma {
 
 	return &ansi.Chroma{
 		Text: ansi.StylePrimitive{
-			Color: stringPtr(assistantColor),
+			Color: new(assistantColor),
 		},
 		Error: ansi.StylePrimitive{
-			Color: stringPtr(errorColor),
+			Color: new(errorColor),
 		},
 		Comment: ansi.StylePrimitive{
-			Color: stringPtr(dimColor),
+			Color: new(dimColor),
 		},
 		CommentPreproc: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		Keyword: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		KeywordReserved: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		KeywordNamespace: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		KeywordType: ansi.StylePrimitive{
-			Color: stringPtr(userColor),
+			Color: new(userColor),
 		},
 		Operator: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		Punctuation: ansi.StylePrimitive{
-			Color: stringPtr(assistantColor),
+			Color: new(assistantColor),
 		},
 		Name: ansi.StylePrimitive{
-			Color: stringPtr(assistantColor),
+			Color: new(assistantColor),
 		},
 		NameBuiltin: ansi.StylePrimitive{
-			Color: stringPtr(userColor),
+			Color: new(userColor),
 		},
 		NameTag: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		NameAttribute: ansi.StylePrimitive{
-			Color: stringPtr(successColor),
+			Color: new(successColor),
 		},
 		NameClass: ansi.StylePrimitive{
-			Color: stringPtr(userColor),
+			Color: new(userColor),
 		},
 		NameConstant: ansi.StylePrimitive{
-			Color: stringPtr(statusColor),
+			Color: new(statusColor),
 		},
 		NameDecorator: ansi.StylePrimitive{
-			Color: stringPtr(successColor),
+			Color: new(successColor),
 		},
 		NameException: ansi.StylePrimitive{
-			Color: stringPtr(errorColor),
+			Color: new(errorColor),
 		},
 		NameFunction: ansi.StylePrimitive{
-			Color: stringPtr(successColor),
+			Color: new(successColor),
 		},
 		NameOther: ansi.StylePrimitive{
-			Color: stringPtr(assistantColor),
+			Color: new(assistantColor),
 		},
 		Literal: ansi.StylePrimitive{
-			Color: stringPtr(statusColor),
+			Color: new(statusColor),
 		},
 		LiteralNumber: ansi.StylePrimitive{
-			Color: stringPtr(statusColor),
+			Color: new(statusColor),
 		},
 		LiteralDate: ansi.StylePrimitive{
-			Color: stringPtr(statusColor),
+			Color: new(statusColor),
 		},
 		LiteralString: ansi.StylePrimitive{
-			Color: stringPtr(statusColor),
+			Color: new(statusColor),
 		},
 		LiteralStringEscape: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
+			Color: new(accentColor),
 		},
 		GenericDeleted: ansi.StylePrimitive{
-			Color: stringPtr(errorColor),
+			Color: new(errorColor),
 		},
 		GenericEmph: ansi.StylePrimitive{
-			Italic: boolPtr(true),
+			Italic: new(true),
 		},
 		GenericInserted: ansi.StylePrimitive{
-			Color: stringPtr(successColor),
+			Color: new(successColor),
 		},
 		GenericStrong: ansi.StylePrimitive{
-			Bold: boolPtr(true),
+			Bold: new(true),
 		},
 		GenericSubheading: ansi.StylePrimitive{
-			Color: stringPtr(userColor),
+			Color: new(userColor),
 		},
 		Background: ansi.StylePrimitive{},
 	}
@@ -317,19 +317,6 @@ func containsMarkdown(content string) bool {
 	return false
 }
 
-// Helper functions for creating pointers
-func stringPtr(s string) *string {
-	return &s
-}
-
-func boolPtr(b bool) *bool {
-	return &b
-}
-
-func uintPtr(u uint) *uint {
-	return &u
-}
-
 // getThemeColors retrieves all theme colors used in styling
 func (r *Renderer) getThemeColors() (accentColor, dimColor, successColor, statusColor, borderColor string) {
 	theme := r.themeService.GetCurrentTheme()
@@ -346,44 +333,44 @@ func (r *Renderer) buildHeadingStyles(accentColor, dimColor, successColor, statu
 	return ansi.StyleConfig{
 		Heading: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(accentColor),
+				Bold:  new(true),
+				Color: new(accentColor),
 			},
 		},
 		H1: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(accentColor),
+				Bold:  new(true),
+				Color: new(accentColor),
 			},
 		},
 		H2: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(statusColor),
+				Bold:  new(true),
+				Color: new(statusColor),
 			},
 		},
 		H3: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(successColor),
+				Bold:  new(true),
+				Color: new(successColor),
 			},
 		},
 		H4: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(statusColor),
+				Bold:  new(true),
+				Color: new(statusColor),
 			},
 		},
 		H5: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(dimColor),
+				Bold:  new(true),
+				Color: new(dimColor),
 			},
 		},
 		H6: ansi.StyleBlock{
 			StylePrimitive: ansi.StylePrimitive{
-				Bold:  boolPtr(true),
-				Color: stringPtr(dimColor),
+				Bold:  new(true),
+				Color: new(dimColor),
 			},
 		},
 	}
@@ -393,16 +380,16 @@ func (r *Renderer) buildHeadingStyles(accentColor, dimColor, successColor, statu
 func (r *Renderer) buildTextFormattingStyles(accentColor, dimColor, borderColor string) ansi.StyleConfig {
 	return ansi.StyleConfig{
 		Strikethrough: ansi.StylePrimitive{
-			CrossedOut: boolPtr(true),
+			CrossedOut: new(true),
 		},
 		Emph: ansi.StylePrimitive{
-			Italic: boolPtr(true),
+			Italic: new(true),
 		},
 		Strong: ansi.StylePrimitive{
-			Bold: boolPtr(true),
+			Bold: new(true),
 		},
 		HorizontalRule: ansi.StylePrimitive{
-			Color:  stringPtr(borderColor),
+			Color:  new(borderColor),
 			Format: "─────────────────────────────────────────",
 		},
 		Item: ansi.StylePrimitive{
@@ -416,18 +403,18 @@ func (r *Renderer) buildTextFormattingStyles(accentColor, dimColor, borderColor 
 			Unticked: "[ ] ",
 		},
 		Link: ansi.StylePrimitive{
-			Color:     stringPtr(accentColor),
-			Underline: boolPtr(true),
+			Color:     new(accentColor),
+			Underline: new(true),
 		},
 		LinkText: ansi.StylePrimitive{
-			Color: stringPtr(accentColor),
-			Bold:  boolPtr(true),
+			Color: new(accentColor),
+			Bold:  new(true),
 		},
 		Image: ansi.StylePrimitive{
-			Color: stringPtr(dimColor),
+			Color: new(dimColor),
 		},
 		ImageText: ansi.StylePrimitive{
-			Color:  stringPtr(dimColor),
+			Color:  new(dimColor),
 			Format: "[Image: {{.text}}]",
 		},
 	}

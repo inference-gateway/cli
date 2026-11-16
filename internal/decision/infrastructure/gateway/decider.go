@@ -70,7 +70,7 @@ func buildQuestion(question decisiondomain.Question) sdk.DecisionQuestion {
 			Value       *string `json:"value,omitempty"`
 		}, len(question.Choices))
 		for i, choice := range question.Choices {
-			choices[i].Value, choices[i].Description = ptr(choice.Value), ptr(choice.Description)
+			choices[i].Value, choices[i].Description = new(choice.Value), new(choice.Description)
 		}
 		out.Choices = &choices
 	}
@@ -112,8 +112,4 @@ func text(v any) string {
 func number(v any) float64 {
 	f, _ := v.(float64)
 	return f
-}
-
-func ptr(s string) *string {
-	return &s
 }

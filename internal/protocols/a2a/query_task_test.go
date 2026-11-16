@@ -390,7 +390,7 @@ func TestQueryTaskTool_FormatForLLM_FailedTaskSurfacesReason(t *testing.T) {
 				ID:     "t3",
 				Status: adk.TaskStatus{State: adk.TaskStateFailed},
 				History: []adk.Message{
-					{Role: adk.RoleUser, Parts: []adk.Part{{Text: stringPtr("research")}}},
+					{Role: adk.RoleUser, Parts: []adk.Part{{Text: new("research")}}},
 					{Role: adk.RoleAgent, Parts: []adk.Part{{Text: &errorTextPtr}}},
 				},
 			},
@@ -425,8 +425,6 @@ func TestQueryTaskTool_FormatForLLM_FailedTaskSurfacesReason(t *testing.T) {
 		})
 	}
 }
-
-func stringPtr(s string) *string { return &s }
 
 func TestQueryTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{
