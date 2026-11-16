@@ -64,19 +64,15 @@ type EntryLine struct {
 	Entry convdomain.ConversationEntry `json:"entry"`
 }
 
-// NewJsonlStorage creates a new JSONL storage instance
+// NewJsonlStorage creates a new JSONL storage instance. It creates the
+// conversations directory but never probes it for writability, so read-only
+// consumers work where writes are confined; Health reports writability.
 func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 	path := utils.ExpandHome(config.Path)
 
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create conversations directory: %w", err)
 	}
-
-	testFile := filepath.Join(path, ".write_test")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-		return nil, fmt.Errorf("conversations directory not writable: %w", err)
-	}
-	_ = os.Remove(testFile)
 
 	return &JsonlStorage{
 		basePath:        path,

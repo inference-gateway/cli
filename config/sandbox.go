@@ -28,11 +28,13 @@ type SandboxConfig struct {
 type FilesystemPolicy struct {
 	Allowed []sandboxdomain.Allowed `yaml:"allowed" mapstructure:"allowed"`
 	Denied  []sandboxdomain.Denied  `yaml:"denied" mapstructure:"denied"`
+	Enforce bool                    `yaml:"enforce" mapstructure:"enforce"`
 }
 
 // DefaultSandboxConfig allows the working directory and /tmp, lets the null
 // device be read, asks before any use of the config dirs, whose files can
-// hold tokens, and denies git metadata and the usual credential files.
+// hold tokens, denies git metadata and the usual credential files, and has
+// the kernel confine bash writes to the writable paths.
 func DefaultSandboxConfig() *SandboxConfig {
 	denied := []sandboxdomain.Denied{{Path: ConfigDirName + "/", OnViolation: sandboxdomain.ViolationApproval}}
 	denied = append(denied, sandboxdomain.Deny(
@@ -49,7 +51,7 @@ func DefaultSandboxConfig() *SandboxConfig {
 	)...)
 	denied = append(denied, sandboxdomain.Denied{Path: "*.env.*", Except: []string{".env.example"}})
 	allowed := append(sandboxdomain.Allow(".", "/tmp"), sandboxdomain.Allowed{Path: "/dev/null", Access: sandboxdomain.AccessRead})
-	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: allowed, Denied: denied}}
+	return &SandboxConfig{Filesystem: FilesystemPolicy{Allowed: allowed, Denied: denied, Enforce: true}}
 }
 
 // Validate rejects an entry with no path or an unknown access or behaviour.

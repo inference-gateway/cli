@@ -12,6 +12,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
 // shellWord is one word of a command after quote and variable expansion, with
@@ -53,6 +54,75 @@ func bashPathOutsideSandbox(cfg *config.Config, seg string, mode agentdomain.Age
 	for _, arg := range args {
 		for _, candidate := range pathCandidates(arg) {
 			if path, outside := wordOutsideSandbox(cfg, candidate, validate); outside {
+				return path, true
+			}
+		}
+	}
+	return "", false
+}
+
+// BashCommandDeniedPath reports the first path in command's statically
+// nameable arguments that a blocking deny entry matches, for the Bash tool to
+// refuse in every mode: auto mode's unrestricted allow-list skips the path
+// check, and no approval reopens what the policy blocks.
+func BashCommandDeniedPath(cfg *config.Config, command string) (string, bool) {
+	segments, ok := splitBashSegments(command)
+	if !ok {
+		return "", false
+	}
+	for _, seg := range segments {
+		if path, denied := segmentDeniedPath(cfg, seg); denied {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+// segmentDeniedPath walks one segment's words, flagging only a path a blocking
+// deny entry matches - the same exclusion the file tools give. Approval-class
+// denials and out-of-sandbox reads stay with the mode's own gate.
+// ponytail: argv ceiling - $(...), $VAR and interpreter payloads slip past the
+// walker; the kernel deny-read rules are the hard boundary on darwin.
+func segmentDeniedPath(cfg *config.Config, seg string) (string, bool) {
+	words := splitShellWords(seg)
+	if len(words) < 2 || slices.Contains(printOnlyCommands, words[0].text) {
+		return "", false
+	}
+	deniedByPolicy := func(path string) error {
+		if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		err := ValidateRead(cfg, path)
+		var denied *sandboxdomain.DeniedError
+		if err != nil && !errors.As(err, &denied) {
+			return err
+		}
+		return nil
+	}
+	for _, arg := range words[1:] {
+		for _, candidate := range pathCandidates(arg) {
+			if candidate.dynamic {
+				continue
+			}
+			path := candidate.text
+			if candidate.tilde {
+				expanded, ok := expandTilde(path)
+				if !ok {
+					continue
+				}
+				path = expanded
+			}
+			if candidate.glob {
+				if matches, err := filepath.Glob(path); err == nil {
+					for _, match := range matches {
+						if deniedByPolicy(match) != nil {
+							return match, true
+						}
+					}
+				}
+				continue
+			}
+			if deniedByPolicy(path) != nil {
 				return path, true
 			}
 		}

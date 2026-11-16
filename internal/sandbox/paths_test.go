@@ -552,3 +552,19 @@ func TestDotenvVariantsDenied(t *testing.T) {
 	cfg.Tools.Sandbox = *loaded
 	require.NoError(t, ValidateRead(cfg, ".env.local"))
 }
+
+// TestValidateRead_DeniedEntriesMatchAnySpelling: a case-insensitive
+// filesystem opens .ENV as .env, so a denied entry holds whatever the case.
+func TestValidateRead_DeniedEntriesMatchAnySpelling(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Filesystem.Denied = append(cfg.Tools.Sandbox.Filesystem.Denied, sandboxdomain.Denied{Path: "~/secrets.yaml"})
+
+	for _, path := range []string{"/proj/.ENV", "/proj/AUTH.YAML", "/proj/Deploy.PEM", filepath.Join(home, "SECRETS.yaml")} {
+		t.Run(path, func(t *testing.T) {
+			require.ErrorContains(t, ValidateRead(cfg, path), "excluded for security")
+		})
+	}
+	require.True(t, Denies(cfg, "/proj", "/proj/.ENV"), "a checkpoint must keep .ENV out like .env")
+}

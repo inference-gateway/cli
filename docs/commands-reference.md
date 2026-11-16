@@ -211,7 +211,7 @@ infer tools execute Tree '{"path":".", "max_depth":2}'
 infer tools execute Bash '{"command":"gh api user"}' --format json
 infer tools execute Bash '{"command":"gh api user"}' --format json --approved
 
-# Validate a bash command against the allowed list
+# Validate a bash command against the allow-list and the deny list
 infer tools validate "git status"
 
 # Run a command only when the allow-list permits it
@@ -987,12 +987,18 @@ Diagnostic commands that surface internal agent state.
 - `agent system_prompt`: Print the prompt context a chat session would send to the LLM. Pass
   `--tokens` to print per-section size stats (characters, lines, estimated tokens) instead of the
   prompt.
+- `sandbox`: Print the effective sandbox for the current directory: the allowed and denied entries of
+  `~/.infer/sandbox.yaml` with what each covers, the built-in carve-outs, the paths the kernel lets an
+  unattended Bash command write in each agent mode, and the files it refuses to read.
 
 **Examples:**
 
 ```bash
 # Print the assembled system prompt and context for the current project
 infer debug agent system_prompt
+
+# Show what the tools may read and write from this directory
+infer debug sandbox
 ```
 
 ### `infer stats`

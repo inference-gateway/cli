@@ -10,6 +10,7 @@ import (
 
 	require "github.com/stretchr/testify/require"
 
+	output "github.com/inference-gateway/cli/cmd/output"
 	config "github.com/inference-gateway/cli/config"
 )
 
@@ -65,4 +66,24 @@ func TestRenderAgentSystemPrompt_SyncsGitMemoryIn(t *testing.T) {
 	require.Contains(t, got, volatileTailDivider)
 	require.Less(t, strings.Index(got, volatileTailDivider), strings.Index(got, "PERSISTENT MEMORY INDEX"),
 		"memory index renders in the volatile tail, below the divider")
+}
+
+// TestRenderSandbox: the effective policy, carve-outs and kernel write paths
+// of the current directory, as the tools would apply them.
+func TestRenderSandbox(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := t.TempDir()
+	t.Chdir(project)
+	renderer := output.NewRenderer()
+	renderer.DisableColors()
+
+	var out strings.Builder
+	require.NoError(t, renderSandbox(&out, config.DefaultConfig(), renderer))
+	got := out.String()
+
+	for _, want := range []string{project, "read and write", "auth.yaml", "blocked, no approval", ".infer/", "asks before read and write",
+		filepath.Join(home, ".infer", "skills"), "Bash allow-list", "every command in auto"} {
+		require.Contains(t, got, want)
+	}
 }

@@ -99,8 +99,8 @@ func check(cfg *config.Config, path, absPath string, access sandboxdomain.Access
 		if inCarveOut && isConfigDirRule(entry.Path) {
 			continue
 		}
-		if !matches(entry.Path, path, absPath) || slices.ContainsFunc(entry.Except, func(except string) bool {
-			return matches(except, path, absPath)
+		if !matchesDenied(entry.Path, path, absPath) || slices.ContainsFunc(entry.Except, func(except string) bool {
+			return matchesDenied(except, path, absPath)
 		}) {
 			continue
 		}
@@ -252,6 +252,17 @@ func matches(rulePath, path, absPath string) bool {
 	return matchesPattern(rulePath, path)
 }
 
+// matchesDenied is matches with the case folded on both sides: a
+// case-insensitive filesystem opens .ENV as .env, so a denied entry holds under
+// any spelling. Allowed entries keep the exact match, so this only tightens.
+func matchesDenied(rulePath, path, absPath string) bool {
+	if IsAnchored(rulePath) {
+		dir, err := filepath.Abs(anchoredPath(rulePath))
+		return err == nil && isWithinDir(strings.ToLower(absPath), strings.ToLower(dir))
+	}
+	return matchesPattern(strings.ToLower(rulePath), strings.ToLower(path))
+}
+
 func anchoredPath(rulePath string) string {
 	if expanded, ok := expandTilde(rulePath); ok {
 		return expanded
@@ -313,17 +324,19 @@ func isWithinCustomToolsDir(cfg *config.Config, absPath string) bool {
 // ./.infer/skills, ./.agents/skills or ~/.infer/skills. The carve-out lets
 // skills load although the config dirs ask, and *.env stays denied.
 func isWithinSkillsDir(absPath string) bool {
+	return isWithinAny(absPath, skillsDirs())
+}
+
+func skillsDirs() []string {
 	dirs := []string{filepath.Join(config.ConfigDirName, "skills"), filepath.Join(config.AgentsDirName, "skills")}
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		dirs = append(dirs, filepath.Join(homeDir, config.ConfigDirName, "skills"))
 	}
+	return dirs
+}
 
-	for _, dir := range dirs {
-		if isWithinDir(absPath, dir) {
-			return true
-		}
-	}
-	return false
+func isWithinAny(absPath string, dirs []string) bool {
+	return slices.ContainsFunc(dirs, func(dir string) bool { return isWithinDir(absPath, dir) })
 }
 
 // isWithinDir reports whether absPath is dir itself or lives beneath it. dir may
@@ -347,20 +360,20 @@ func isBeneath(absPath, absDir string) bool {
 // machine-scoped ones under ~/.infer. The agent reads and writes those
 // although the rest of the config dirs ask.
 func isWithinRuntimeDirs(absPath string) bool {
+	return isWithinAny(absPath, runtimeDirs())
+}
+
+func runtimeDirs() []string {
+	var dirs []string
 	runtimeRoot := config.ProjectRuntimeDir()
 	for _, name := range config.RuntimeArtifactDirNames {
-		if isWithinDir(absPath, filepath.Join(runtimeRoot, name)) {
-			return true
-		}
+		dirs = append(dirs, filepath.Join(runtimeRoot, name))
 	}
-
 	userSpace := config.UserSpaceConfigDir()
 	for _, name := range config.UserspaceRuntimeDirNames {
-		if isWithinDir(absPath, filepath.Join(userSpace, name)) {
-			return true
-		}
+		dirs = append(dirs, filepath.Join(userSpace, name))
 	}
-	return false
+	return dirs
 }
 
 // isWithinConfigSubdir reports whether absPath lives inside one of the named
@@ -368,19 +381,21 @@ func isWithinRuntimeDirs(absPath string) bool {
 // as persisted plans and the desktop's projects.yaml stay reachable wherever
 // the config was loaded from.
 func isWithinConfigSubdir(cfg *config.Config, absPath string, names ...string) bool {
+	return isWithinAny(absPath, configSubdirs(cfg, names...))
+}
+
+func configSubdirs(cfg *config.Config, names ...string) []string {
 	configDirs := []string{config.ConfigDirName}
 	if resolved := cfg.GetConfigDir(); resolved != "" && resolved != config.ConfigDirName {
 		configDirs = append(configDirs, resolved)
 	}
-
+	var dirs []string
 	for _, name := range names {
 		for _, base := range configDirs {
-			if isWithinDir(absPath, filepath.Join(base, name)) {
-				return true
-			}
+			dirs = append(dirs, filepath.Join(base, name))
 		}
 	}
-	return false
+	return dirs
 }
 
 // isWithinPluginsDir reports whether absPath lives inside the plugins
@@ -397,19 +412,7 @@ func isWithinPluginsDir(cfg *config.Config, absPath string) bool {
 // ($GOMODCACHE or $GOPATH/pkg/mod) or the standard library source
 // ($GOROOT/src), resolved from the environment. The carve-out is read-only.
 func isWithinGoLibDirs(absPath string) bool {
-	gomodcache := os.Getenv("GOMODCACHE")
-	if gomodcache == "" {
-		gopath := os.Getenv("GOPATH")
-		if gopath == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return false
-			}
-			gopath = filepath.Join(home, "go")
-		}
-		gomodcache = filepath.Join(gopath, "pkg", "mod")
-	}
-	if isWithinDir(absPath, gomodcache) {
+	if gomodcache := goModCache(); gomodcache != "" && isWithinDir(absPath, gomodcache) {
 		return true
 	}
 
@@ -417,33 +420,83 @@ func isWithinGoLibDirs(absPath string) bool {
 	return goroot != "" && isWithinDir(absPath, filepath.Join(goroot, "src"))
 }
 
+// goModCache is $GOMODCACHE, else $GOPATH/pkg/mod, else ~/go/pkg/mod. Empty
+// when the home directory is unknown.
+func goModCache() string {
+	if gomodcache := os.Getenv("GOMODCACHE"); gomodcache != "" {
+		return gomodcache
+	}
+	gopath := os.Getenv("GOPATH")
+	if gopath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		gopath = filepath.Join(home, "go")
+	}
+	return filepath.Join(gopath, "pkg", "mod")
+}
+
 // isWithinRustLibDirs reports whether absPath lives inside the Cargo registry
 // sources ($CARGO_HOME/registry/src, $CARGO_HOME/git/checkouts, default ~/.cargo)
 // or the rustup toolchain sources ($RUSTUP_HOME/toolchains/*/lib/rustlib/src,
 // default ~/.rustup), resolved from the environment. The carve-out is read-only.
 func isWithinRustLibDirs(absPath string) bool {
-	cargoHome := os.Getenv("CARGO_HOME")
+	cargoHome := cargoHome()
 	if cargoHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		cargoHome = filepath.Join(home, ".cargo")
+		return false
 	}
 	if isWithinDir(absPath, filepath.Join(cargoHome, "registry", "src")) ||
 		isWithinDir(absPath, filepath.Join(cargoHome, "git", "checkouts")) {
 		return true
 	}
 
-	rustupHome := os.Getenv("RUSTUP_HOME")
-	if rustupHome == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		rustupHome = filepath.Join(home, ".rustup")
+	rustupHome := rustupHome()
+	return rustupHome != "" && isWithinRustupToolchainSrc(absPath, rustupHome)
+}
+
+// rustupHome is $RUSTUP_HOME, else ~/.rustup. Empty when the home directory is unknown.
+func rustupHome() string {
+	if rustupHome := os.Getenv("RUSTUP_HOME"); rustupHome != "" {
+		return rustupHome
 	}
-	return isWithinRustupToolchainSrc(absPath, rustupHome)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".rustup")
+}
+
+// ReadOnlyCarveOuts lists the language library directories the file tools may
+// read but never write: the Go module cache and standard library source, the
+// Cargo registry and git sources, and the rustup toolchain sources.
+func ReadOnlyCarveOuts() []string {
+	var dirs []string
+	if dir := goModCache(); dir != "" {
+		dirs = append(dirs, dir)
+	}
+	if goroot := os.Getenv("GOROOT"); goroot != "" {
+		dirs = append(dirs, filepath.Join(goroot, "src"))
+	}
+	if home := cargoHome(); home != "" {
+		dirs = append(dirs, filepath.Join(home, "registry", "src"), filepath.Join(home, "git", "checkouts"))
+	}
+	if rustup := rustupHome(); rustup != "" {
+		dirs = append(dirs, filepath.Join(rustup, "toolchains", "*", "lib", "rustlib", "src"))
+	}
+	return dirs
+}
+
+// cargoHome is $CARGO_HOME, else ~/.cargo. Empty when the home directory is unknown.
+func cargoHome() string {
+	if cargoHome := os.Getenv("CARGO_HOME"); cargoHome != "" {
+		return cargoHome
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".cargo")
 }
 
 // isWithinRustupToolchainSrc reports whether absPath is
@@ -472,18 +525,24 @@ func isWithinRustupToolchainSrc(absPath, rustupHome string) bool {
 // Memory.Enabled. The Memory tool itself writes via its own atomic writer rather
 // than the sandboxed file writer, so this carve-out mainly governs manual reads.
 func isWithinMemoryDir(absPath string, m config.MemoryConfig) bool {
+	dir, ok := memoryDir(m)
+	return ok && isWithinDir(absPath, dir)
+}
+
+// memoryDir is the configured Memory.Dir, else ~/.infer/memory. ok is false
+// when memory is disabled or the home directory is unknown.
+func memoryDir(m config.MemoryConfig) (string, bool) {
 	if !m.Enabled {
-		return false
+		return "", false
 	}
-	dir := m.Dir
-	if strings.TrimSpace(dir) == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return false
-		}
-		dir = filepath.Join(home, config.ConfigDirName, config.MemoryDirName)
+	if dir := strings.TrimSpace(m.Dir); dir != "" {
+		return dir, true
 	}
-	return isWithinDir(absPath, dir)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	return filepath.Join(home, config.ConfigDirName, config.MemoryDirName), true
 }
 
 // matchesPattern matches a relative pattern: dir/ at any depth, *glob on
@@ -515,13 +574,26 @@ func Denies(cfg *config.Config, projectDir, absPath string) bool {
 		rel = absPath
 	}
 	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
-		if !matches(entry.Path, rel, absPath) {
+		if !matchesDenied(entry.Path, rel, absPath) {
 			continue
 		}
-		if slices.ContainsFunc(entry.Except, func(except string) bool { return matches(except, rel, absPath) }) {
+		if slices.ContainsFunc(entry.Except, func(except string) bool { return matchesDenied(except, rel, absPath) }) {
 			continue
 		}
 		return true
 	}
 	return false
+}
+
+// BlockingDenials lists the deny entries that refuse rather than ask, so every
+// layer honors them the same way: the file tools' exclusion, the Bash tool's
+// walker, and the kernel's read denial where the OS can express one.
+func BlockingDenials(cfg *config.Config) []sandboxdomain.Denied {
+	var denied []sandboxdomain.Denied
+	for _, entry := range cfg.Tools.Sandbox.Filesystem.Denied {
+		if entry.OnViolation != sandboxdomain.ViolationApproval {
+			denied = append(denied, entry)
+		}
+	}
+	return denied
 }

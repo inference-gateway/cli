@@ -144,6 +144,32 @@ scenarios:
               - { name: Bash, args: { command: "echo hello-from-bash" } }
       - content: "The echo command ran."
 
+  - name: bash-sandbox-write
+    match: '(?i)probe the sandbox'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: mkdir -p "$E2E_SANDBOX_PROBE_DIR/outside"
+      - tool_calls:
+          - name: Bash
+            args:
+              command: mkdir -p inside-probe
+      - content: "The sandbox probe ran."
+
+  - name: bash-sandbox-deny-read
+    match: '(?i)probe the deny list'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: cat auth.yaml
+      - tool_calls:
+          - name: Bash
+            args:
+              command: cat allowed.txt
+      - content: "The deny list probe ran."
+
   - name: judge-reject-curl
     match: '(?s)<tool_call id="[^"]*">\s*Bash: .*curl'
     turns:

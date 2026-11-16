@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	process "github.com/inference-gateway/cli/internal/platform/process"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
+	sandboxinfra "github.com/inference-gateway/cli/internal/sandbox/infrastructure"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -131,6 +133,9 @@ func (t *BashTool) Validate(args map[string]any) error {
 		return fmt.Errorf("command parameter is required and must be a string")
 	}
 
+	if path, denied := sandbox.BashCommandDeniedPath(t.config, command); denied {
+		return deniedPathError(path)
+	}
 	if !sandbox.IsBashCommandAllowed(t.config, command, agentdomain.AgentModeStandard) {
 		return t.notAllowedError(command, agentdomain.AgentModeStandard)
 	}
@@ -162,6 +167,14 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	wasApproved := agentdomain.IsToolApproved(ctx)
 	mode, _ := agentdomain.AgentModeFromContext(ctx)
 
+	if path, denied := sandbox.BashCommandDeniedPath(t.config, command); denied {
+		err := deniedPathError(path)
+		result.ExitCode = -1
+		result.Duration = time.Since(start).String()
+		result.Error = err.Error()
+		return result, err
+	}
+
 	if !wasApproved && !sandbox.IsBashCommandAllowed(t.config, command, mode) {
 		err := t.notAllowedError(command, mode)
 		result.ExitCode = -1
@@ -189,7 +202,11 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		cmdCtx, cancel = context.WithCancelCause(timeoutCtx)
 	}
 
-	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
+	child := sandboxinfra.Unconfined(cmdCtx, command)
+	if t.confines(command, mode) {
+		child = sandboxinfra.Command(cmdCtx, t.config, mode, command)
+	}
+	cmd := child.Cmd
 	cmd.WaitDelay = bashPipeGrace
 	process.KillTreeOnCancel(cmd)
 
@@ -200,17 +217,43 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	cmd.Env = append(cmd.Env, "NO_COLOR=1")
 
 	if hasCallback && outputCallback != nil {
-		return t.executeBashWithStreaming(cmdCtx, ctx, cmd, outputCallback, cancel, timeout, start)
+		return t.executeBashWithStreaming(cmdCtx, ctx, child, outputCallback, cancel, timeout, start)
 	}
 
 	defer cancel(nil)
 
-	output, err := cmd.CombinedOutput()
+	var output bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	err := child.Start()
+	if err == nil {
+		err = cmd.Wait()
+	}
 	result.Duration = time.Since(start).String()
-	result.Output = utils.StripANSI(string(output))
+	result.Output = utils.StripANSI(output.String())
 	result.ExitCode, result.Error = waitOutcome(cmdCtx, err)
+	t.withSandboxHint(ctx, result)
 
 	return result, nil
+}
+
+// confines reports whether the kernel sandbox wraps command: a command the
+// allow-list runs unattended is confined, while one somebody approved runs as
+// approved, so approving a path outside the sandbox keeps its meaning.
+func (t *BashTool) confines(command string, mode agentdomain.AgentMode) bool {
+	return sandboxinfra.Enforced(t.config) && sandbox.IsBashCommandAllowed(t.config, command, mode)
+}
+
+// withSandboxHint tells the model why a confined command failed when the
+// kernel refused a write, since the raw error names the path, not the policy.
+// It goes on the output, which is what the model reads back.
+func (t *BashTool) withSandboxHint(ctx context.Context, result *BashResult) {
+	mode, _ := agentdomain.AgentModeFromContext(ctx)
+	if result.ExitCode == 0 || !t.confines(result.Command, mode) {
+		return
+	}
+	if hint := sandboxinfra.DeniedHint(result.Output); hint != "" {
+		result.Output = strings.TrimSpace(result.Output) + "\n" + hint
+	}
 }
 
 // waitOutcome turns cmd.Wait's error into the exit code and message the model
@@ -249,7 +292,8 @@ func (t *BashTool) commandTimeout() time.Duration {
 // executeBashWithStreaming executes a bash command and streams output through
 // the callback. A detachable command's context follows neither the timeout nor
 // the request, so both end it here while it is still in the foreground.
-func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
+func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, child *sandboxinfra.Child, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
+	cmd := child.Cmd
 	result := &BashResult{
 		Command: cmd.Args[len(cmd.Args)-1],
 	}
@@ -277,7 +321,7 @@ func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *e
 		return result, err
 	}
 
-	if err := cmd.Start(); err != nil {
+	if err := child.Start(); err != nil {
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = fmt.Sprintf("failed to start command: %v", err)
@@ -352,6 +396,7 @@ func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *e
 		result.Output = outputBuilder.String()
 	}
 	result.ExitCode, result.Error = waitOutcome(ctx, err)
+	t.withSandboxHint(request, result)
 
 	return result, nil
 }
@@ -423,6 +468,12 @@ func (t *BashTool) readPipeWithBatching(
 // avoid leaking a $VAR, ...) so the model can correct course rather than retrying
 // blindly. The Bash tool, the approval policy, and agent auto-approval all share
 // sandbox.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
+// deniedPathError refuses a command naming a path a blocking deny entry
+// matches: the same answer in every mode, approved or not, and from validate.
+func deniedPathError(path string) error {
+	return fmt.Errorf("access to path '%s' is excluded for security", path)
+}
+
 func (t *BashTool) notAllowedError(command string, mode agentdomain.AgentMode) error {
 	if hint := sandbox.BashCommandRejectionHint(t.config, command); hint != "" {
 		return fmt.Errorf("command not allowed: %s - %s", command, hint)
