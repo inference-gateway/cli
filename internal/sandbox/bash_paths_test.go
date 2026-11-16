@@ -81,6 +81,7 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "ls .*"},
 		{command: "ls .?"},
 		{command: "ls .??*"},
+		{command: "cat .e*"},
 		{command: "ls .[!e]*"},
 		{command: "ls .[[:alpha:]]*"},
 		{command: "git commit -m msg .env"},

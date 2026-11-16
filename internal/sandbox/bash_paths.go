@@ -184,7 +184,7 @@ func bashSkipsHiddenMatch(patternParts, matchParts []string) bool {
 		return false
 	}
 	for i, part := range patternParts {
-		if hasGlobChar(part) && strings.HasPrefix(matchParts[i], ".") {
+		if hasGlobChar(part) && !strings.HasPrefix(part, ".") && strings.HasPrefix(matchParts[i], ".") {
 			return true
 		}
 	}
