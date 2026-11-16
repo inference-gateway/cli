@@ -434,9 +434,13 @@ func (t *WebFetchTool) formatSize(size int64) string {
 }
 
 // saveToFile saves the fetched content to disk in the session's artifacts
-// directory
+// directory. In plan mode the artifacts dir is off-limits, so the file lands
+// in the scratchpad instead, the only place that mode may write.
 func (t *WebFetchTool) saveToFile(ctx context.Context, fetchResult *agentdomain.FetchResult, filename string) (string, error) {
 	baseDir := t.config.SessionArtifactsDir(agentdomain.GetSessionID(ctx))
+	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok && mode == agentdomain.AgentModePlan {
+		baseDir = config.ProjectScratchpadDir()
+	}
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create directory %s: %w", baseDir, err)

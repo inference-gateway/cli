@@ -102,8 +102,8 @@ func TestListToolsForMode_MemoryAvailableEverywhere(t *testing.T) {
 
 // TestExecuteTool_ModeGuard verifies execution-time mode enforcement: a mode
 // rejects the tools it does not make available, and a context without a mode
-// fails open. Plan mode now admits the file tools and Bash; the sandbox
-// scratchpad gate, not the mode guard, constrains what they may touch.
+// fails open. Plan mode admits the web tools alongside the file tools and Bash;
+// the sandbox scratchpad gate, not the mode guard, constrains what they touch.
 func TestExecuteTool_ModeGuard(t *testing.T) {
 	cfg := config.DefaultConfig()
 	registry := NewRegistry(cfg, RegistryDeps{})
@@ -118,7 +118,8 @@ func TestExecuteTool_ModeGuard(t *testing.T) {
 	}{
 		{"plan allows Write", agentdomain.AgentModePlan, true, ToolWrite, ""},
 		{"plan allows Bash", agentdomain.AgentModePlan, true, ToolBash, ""},
-		{"plan rejects the web tools", agentdomain.AgentModePlan, true, ToolWebFetch, "disabled in plan mode"},
+		{"plan allows WebFetch", agentdomain.AgentModePlan, true, ToolWebFetch, ""},
+		{"plan allows WebSearch", agentdomain.AgentModePlan, true, ToolWebSearch, ""},
 		{"plan allows ListSubagents", agentdomain.AgentModePlan, true, ToolListSubagents, ""},
 		{"plan allows CloseSubagent", agentdomain.AgentModePlan, true, ToolCloseSubagent, ""},
 		{"readonly rejects ListSubagents", agentdomain.AgentModeReadOnly, true, ToolListSubagents, "not available in readonly mode"},

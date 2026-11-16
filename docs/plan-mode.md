@@ -3,7 +3,9 @@
 [← Back to README](../README.md)
 
 Plan Mode is a read-only operating mode for the agent. The model can use
-`Read`, `Grep`, `Tree`, `A2A_QueryAgent`, `Agent` (read-only exploration
+`Read`, `Grep`, `Tree`, `A2A_QueryAgent`, `WebFetch` and `WebSearch` (online
+research is allowed; fetches saved to disk land in the scratchpad), `Agent`
+(read-only exploration
 subagents only) with its companion subagent tools (`ListSubagents`,
 `GetSubagentResult`, `ReadSubagentScreen`, `SendSubagentInput`,
 `CloseSubagent`, `ApproveSubagent`), `TodoWrite`, `Memory` (its facts and
@@ -57,8 +59,9 @@ is injected when the agent switches into Plan Mode - the system prompt itself
 stays byte-stable across mode switches so the prompt/KV cache keeps its prefix
 hits. They instruct the model to:
 
-1. Use `Read`, `Grep`, `Tree` to investigate - `Agent` subagents (always
-   read-only here) fan out when the investigation spans several areas.
+1. Use `Read`, `Grep`, `Tree`, and the web tools `WebFetch`/`WebSearch` to
+   investigate - `Agent` subagents (always read-only here) fan out when the
+   investigation spans several areas.
 2. Verify risky claims inside the scratchpad when reading is not enough,
    and report what was verified in the plan's `## Verification` section.
 3. Ask clarifying questions in regular assistant turns first - **not**

@@ -1883,6 +1883,8 @@
       "TodoWrite",
       "Tree",
       "Wait",
+      "WebFetch",
+      "WebSearch",
       "Write"
     ],
     "readonly": [
@@ -2054,7 +2056,7 @@
       "VideoToSFX": false,
       "Wait": false,
       "WebFetch": false,
-      "WebSearch": false,
+      "WebSearch": true,
       "Write": true
     },
     "configured/standard/global_false": {
@@ -2269,8 +2271,8 @@
       "Tree": true,
       "VideoToSFX": false,
       "Wait": false,
-      "WebFetch": false,
-      "WebSearch": false,
+      "WebFetch": true,
+      "WebSearch": true,
       "Write": true
     },
     "no_tool_overrides/standard/global_false": {

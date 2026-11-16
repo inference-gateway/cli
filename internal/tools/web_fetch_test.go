@@ -323,6 +323,45 @@ func TestFetchTool_Execute_BinarySavedNotInlined(t *testing.T) {
 	}
 }
 
+// TestFetchTool_Execute_PlanModeSavesIntoScratchpad proves a plan-mode fetch
+// with download=true (or a binary response) lands in the scratchpad, the only
+// directory plan mode may write, not in the session artifacts dir.
+func TestFetchTool_Execute_PlanModeSavesIntoScratchpad(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	const page = "planning notes"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(page))
+	}))
+	defer srv.Close()
+
+	tool := newHTTPTestFetchTool(t)
+	ctx := agentdomain.WithAgentMode(context.Background(), agentdomain.AgentModePlan)
+	result, err := tool.Execute(ctx, map[string]any{"url": srv.URL, "download": true})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	fr, ok := result.Data.(*agentdomain.FetchResult)
+	if !ok {
+		t.Fatalf("expected *agentdomain.FetchResult, got %T", result.Data)
+	}
+	scratchpad := config.ProjectScratchpadDir()
+	if !strings.HasPrefix(fr.SavedPath, scratchpad) {
+		t.Errorf("plan-mode download saved to %q, want inside the scratchpad %q", fr.SavedPath, scratchpad)
+	}
+	onDisk, readErr := os.ReadFile(fr.SavedPath)
+	if readErr != nil {
+		t.Fatalf("reading saved file: %v", readErr)
+	}
+	if string(onDisk) != page {
+		t.Errorf("saved content = %q, want %q", onDisk, page)
+	}
+}
+
 // TestFetchTool_Execute_TextStillInlined is the regression guard: textual
 // content is inlined as before and not auto-saved.
 func TestFetchTool_Execute_TextStillInlined(t *testing.T) {
