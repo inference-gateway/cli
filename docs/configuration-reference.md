@@ -1101,8 +1101,11 @@ entry lists its keys and points at the guide that owns the behaviour.
   the matching `storage.<type>` connection settings; plus `name` (the scope, default the process
   session id) and `poll_interval` (the cross-process look cadence, default `2s`). See
   [Message Queue](message-queue.md).
-- **`provisioner`**: `provider`, `gpu_type`, `model`, `image`, `cloud_type`, `disk_gb`, `max_hourly`,
-  and `runpod` for the management-plane credential. See the [GPU command](commands-reference.md#infer-gpu).
+- **`provisioner`** (deprecated): still read as a legacy source of GPU defaults - `provider`,
+  `gpu_type`, `model`, `image`, `cloud_type`, `disk_gb`, `max_hourly`, and `runpod` for the
+  management-plane credential. Move it to `gpus` in `compute.yaml` (see Blocks in Their Own File
+  below) and the credential to `RUNPOD_API_KEY` in `~/.infer/auth.yaml`. See the
+  [GPU commands](commands-reference.md#infer-compute-gpus).
 - **`speech_to_text`**: `enabled`, `engine`, `binary_path`, `model`, `models_dir`, `language`,
   `auto_download`, `timeout`, `max_recording_seconds`, `silence_timeout`, `ffmpeg_path`,
   `input_device`, `retain_recordings`, `recordings_dir`. See [Speech-to-Text](speech-to-text.md).
