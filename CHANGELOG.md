@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.262.0](https://github.com/inference-gateway/cli/compare/v0.261.0...v0.262.0) (2026-11-16)
+
+### 🚀 Features
+
+* **video:** add the DubVideo tool that dubs a clip through the Videos API ([#1844](https://github.com/inference-gateway/cli/issues/1844)) ([9c88889](https://github.com/inference-gateway/cli/commit/9c888893be2f7ecfa071eaf2305104ae13c8b122)), closes [#1840](https://github.com/inference-gateway/cli/issues/1840), references [#1843](https://github.com/inference-gateway/cli/issues/1843) [inference-gateway/sdk#253](https://github.com/inference-gateway/sdk/issues/253) [inference-gateway/docs#1219](https://github.com/inference-gateway/docs/issues/1219)
+* **sfx:** add the VideoToSFX tool that scores a video through the gateway ([#1843](https://github.com/inference-gateway/cli/issues/1843)) ([321e7de](https://github.com/inference-gateway/cli/commit/321e7de593ad4172eec12a4709449a5dcb3b0d60)), closes [#1839](https://github.com/inference-gateway/cli/issues/1839), references [inference-gateway/tokenless#99](https://github.com/inference-gateway/tokenless/issues/99) [inference-gateway/tokenless#99](https://github.com/inference-gateway/tokenless/issues/99)
+* **sandbox:** confine bash writes in the kernel ([#1875](https://github.com/inference-gateway/cli/issues/1875)) ([5a7c45b](https://github.com/inference-gateway/cli/commit/5a7c45b66c8cf9d687209e55e2ae4f8fd3d8367b)), closes [#1874](https://github.com/inference-gateway/cli/issues/1874)
+* **video:** render with a local video model ([#1838](https://github.com/inference-gateway/cli/issues/1838)) ([57b7cf6](https://github.com/inference-gateway/cli/commit/57b7cf67b9b59b07d49f2b736368c396214fbcce)), closes [#1836](https://github.com/inference-gateway/cli/issues/1836)
+* **models:** search and download hugging face models ([#1837](https://github.com/inference-gateway/cli/issues/1837)) ([5041a42](https://github.com/inference-gateway/cli/commit/5041a42962d7f614eda2c218f9d0d16e93dd5856)), closes [#1835](https://github.com/inference-gateway/cli/issues/1835), references [inference-gateway/desktop#586](https://github.com/inference-gateway/desktop/issues/586)
+
+### 🐛 Bug Fixes
+
+* **examples:** add missing agents.yaml to the cloud auth examples ([#1862](https://github.com/inference-gateway/cli/issues/1862)) ([5e87f26](https://github.com/inference-gateway/cli/commit/5e87f26f69865db11bde69b0e6af0479a2198f9c)), closes [#1855](https://github.com/inference-gateway/cli/issues/1855)
+* **tools:** infer Wait condition and default gh pr checks pending exit codes ([#1873](https://github.com/inference-gateway/cli/issues/1873)) ([9a74a62](https://github.com/inference-gateway/cli/commit/9a74a6252fa7af0f99a09e049205ce49992d932a)), closes [#1871](https://github.com/inference-gateway/cli/issues/1871)
+* **examples:** serve the kubernetes example mock gateway from the tokenless OCI image ([#1860](https://github.com/inference-gateway/cli/issues/1860)) ([a632cc0](https://github.com/inference-gateway/cli/commit/a632cc05b5bb1748c9abb3779c543229508eb07f)), closes [#1856](https://github.com/inference-gateway/cli/issues/1856) [#102](https://github.com/inference-gateway/cli/issues/102), references [#101](https://github.com/inference-gateway/cli/issues/101)
+* **sandbox:** stop treating text arguments as paths in the bash check ([#1872](https://github.com/inference-gateway/cli/issues/1872)) ([6007af5](https://github.com/inference-gateway/cli/commit/6007af556493720321239bb0efaa05ff98c1e199)), closes [#1870](https://github.com/inference-gateway/cli/issues/1870)
+* **examples:** wire GOOGLE_API_KEY to its own variable in shortcuts and mcp compose files ([#1852](https://github.com/inference-gateway/cli/issues/1852)) ([af8bb10](https://github.com/inference-gateway/cli/commit/af8bb10cae83c271de6ef446d6af0b93783b6ef3)), closes [#1851](https://github.com/inference-gateway/cli/issues/1851)
+
+### ♻️ Code Refactoring
+
+* **tools:** replace NewRegistry positional collaborators with a RegistryDeps struct ([#1846](https://github.com/inference-gateway/cli/issues/1846)) ([1a935cd](https://github.com/inference-gateway/cli/commit/1a935cd7c30f0a465b12524929ecfe2fe5350df0)), closes [#1845](https://github.com/inference-gateway/cli/issues/1845)
+* **video:** route the dub create through sdk.Client.CreateVideo ([#1848](https://github.com/inference-gateway/cli/issues/1848)) ([0a8d2b4](https://github.com/inference-gateway/cli/commit/0a8d2b4f52583ee868b76d9656e7bbbd2a3cd77f)), closes [#1847](https://github.com/inference-gateway/cli/issues/1847), references [inference-gateway/sdk#255](https://github.com/inference-gateway/sdk/issues/255)
+
+### 📚 Documentation
+
+* **examples:** add runnable media examples for speech, music, sfx and video ([#1864](https://github.com/inference-gateway/cli/issues/1864)) ([23e53f3](https://github.com/inference-gateway/cli/commit/23e53f30d646bfffb6d360d3e12274ba9e5125ec)), closes [#1859](https://github.com/inference-gateway/cli/issues/1859), references [inference-gateway/docs#1227](https://github.com/inference-gateway/docs/issues/1227)
+* **examples:** align five older examples with their compose files and the CLI ([#1863](https://github.com/inference-gateway/cli/issues/1863)) ([c6dde99](https://github.com/inference-gateway/cli/commit/c6dde99d01210a5045a7d78f2bf40d9aa2828959)), closes [#1857](https://github.com/inference-gateway/cli/issues/1857)
+* **sandbox:** describe the kernel read denial in the agent guide and plan mode ([#1877](https://github.com/inference-gateway/cli/issues/1877)) ([857a30c](https://github.com/inference-gateway/cli/commit/857a30c0819e14ee5b1fbcc04042fbe54585229d)), references [#1875](https://github.com/inference-gateway/cli/issues/1875) [inference-gateway/docs#1233](https://github.com/inference-gateway/docs/issues/1233)
+* **examples:** fix nonexistent /switch references and stale shortcut docs ([#1854](https://github.com/inference-gateway/cli/issues/1854)) ([c910e45](https://github.com/inference-gateway/cli/commit/c910e45d659c0e45c53256045101742750d05b59)), closes [#1850](https://github.com/inference-gateway/cli/issues/1850)
+* **tools:** name mirelo models as text_to_sfx alternatives ([#1842](https://github.com/inference-gateway/cli/issues/1842)) ([c9fd79a](https://github.com/inference-gateway/cli/commit/c9fd79a554897867b6408c8c81a0a46632f6bb3a)), closes [#1841](https://github.com/inference-gateway/cli/issues/1841)
+* **examples:** name shipped versions instead of the until-it-is-released notes ([#1861](https://github.com/inference-gateway/cli/issues/1861)) ([741e5ed](https://github.com/inference-gateway/cli/commit/741e5eda8b0b681ea1d6e07bbb0505e22a3ea019)), closes [#1858](https://github.com/inference-gateway/cli/issues/1858)
+* **examples:** sync examples/basic README with the current CLI surface ([#1853](https://github.com/inference-gateway/cli/issues/1853)) ([dd5d895](https://github.com/inference-gateway/cli/commit/dd5d8957c79a289b61f06b3203b67c4e81f769f2)), closes [#1849](https://github.com/inference-gateway/cli/issues/1849)
+
+### 🔧 Build System
+
+* **deps:** bump alpine from 3.24.3 to 3.24.4 in the docker group ([#1868](https://github.com/inference-gateway/cli/issues/1868)) ([9dbf8c6](https://github.com/inference-gateway/cli/commit/9dbf8c648d7265c7a95dbe8063c45aec3bce9028))
+* **deps:** bump the gomod group with 5 updates ([#1869](https://github.com/inference-gateway/cli/issues/1869)) ([da260f6](https://github.com/inference-gateway/cli/commit/da260f61e03e3ec1f85d90edf17c0246c07c77c5))
+
+### 👷 CI/CD
+
+* align Dependabot schedule and grouping ([#1867](https://github.com/inference-gateway/cli/issues/1867)) ([41513ba](https://github.com/inference-gateway/cli/commit/41513ba35a4047f92fb9aaeafb353adcee3a55f1))
+
+### 🧹 Maintenance
+
+* **deps:** bump flox dependencies to latest ([#1865](https://github.com/inference-gateway/cli/issues/1865)) ([dbac2ff](https://github.com/inference-gateway/cli/commit/dbac2ffa79af3f5d5076e011772a5eb34a7929c6))
+* **deps:** bump flox dependencies to latest ([#1866](https://github.com/inference-gateway/cli/issues/1866)) ([4a92a8d](https://github.com/inference-gateway/cli/commit/4a92a8d212dc3b459961cd312c8ef78506a00b74))
+
 ## [0.261.0](https://github.com/inference-gateway/cli/compare/v0.260.6...v0.261.0) (2026-11-13)
 
 ### 🚀 Features
