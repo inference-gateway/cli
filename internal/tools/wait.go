@@ -136,7 +136,12 @@ func (t *WaitTool) Execute(ctx context.Context, args map[string]any) (*agentdoma
 func (t *WaitTool) Validate(args map[string]any) error {
 	condition, ok := args["condition"].(string)
 	if !ok || condition == "" {
-		return fmt.Errorf("condition is required and must be one of: shells, file, command")
+		inferred, found := inferCondition(args)
+		if !found {
+			return fmt.Errorf("condition is required and must be one of: shells, file, command")
+		}
+		condition = inferred
+		args["condition"] = inferred
 	}
 
 	switch condition {
@@ -187,6 +192,21 @@ func validatePendingExitCodes(args map[string]any) error {
 		}
 	}
 	return nil
+}
+
+// inferCondition derives the condition from the other arguments when the
+// model omits it, so Wait(command=...) behaves as condition=command.
+func inferCondition(args map[string]any) (string, bool) {
+	if cmd, _ := args["command"].(string); cmd != "" {
+		return "command", true
+	}
+	if path, _ := args["path"].(string); path != "" {
+		return "file", true
+	}
+	if ids, _ := args["shell_ids"].([]any); len(ids) > 0 {
+		return "shells", true
+	}
+	return "", false
 }
 
 // IsEnabled returns whether the tool is enabled.
@@ -549,11 +569,17 @@ func eventMatches(op fsnotify.Op, eventStr string) bool {
 	}
 }
 
+// isPrChecksCommand reports whether the check command is a gh pr checks call.
+func isPrChecksCommand(cmdStr string) bool {
+	fields := strings.Fields(cmdStr)
+	return len(fields) >= 3 && fields[0] == "gh" && fields[1] == "pr" && fields[2] == "checks"
+}
+
 // waitCommand re-runs a check command at a fixed interval until it exits 0.
-// Exit codes listed in pending_exit_codes mean "still pending, keep polling";
-// any other non-zero exit ends the wait immediately with reason check_failed
-// so a check that distinguishes pending from failed (e.g. gh pr checks:
-// 0=passed, 8=pending, else failed) returns the moment the outcome is known.
+// Exit codes in pending_exit_codes mean "still pending, keep polling" and any
+// other non-zero exit ends the wait immediately with reason check_failed, so a
+// check that distinguishes pending from failed returns the moment the outcome
+// is known. A gh pr checks call (0 pass, 8 pending, else failed) defaults to [8].
 func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[string]any {
 	cmdStr, _ := args["command"].(string)
 
@@ -589,12 +615,15 @@ func (t *WaitTool) waitCommand(ctx context.Context, args map[string]any) map[str
 	}
 
 	pendingCodes := map[int]bool{}
-	if raw, ok := args["pending_exit_codes"].([]any); ok {
-		for _, c := range raw {
+	if raw, present := args["pending_exit_codes"]; present {
+		codes, _ := raw.([]any)
+		for _, c := range codes {
 			if f, ok := c.(float64); ok {
 				pendingCodes[int(f)] = true
 			}
 		}
+	} else if isPrChecksCommand(cmdStr) {
+		pendingCodes[8] = true
 	}
 
 	buildResult := func(reason, lastOutput string, exitCode, attempts int) map[string]any {
