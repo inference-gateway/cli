@@ -12,8 +12,9 @@ holds the process-wide `Granted` set and `GrantFor`, and applies the `filesystem
 plugins, runtime dirs, memory, Go and Rust library dirs) through `ValidateRead` and `ValidateWrite`, and resolves the
 per-mode bash allow-list through `IsBashCommandAllowed`, and lists the paths a bash child may write through
 `WritePaths`. `infrastructure/` persists an "always" grant into `~/.infer/sandbox.yaml`, the only policy file,
-and builds the confined bash child (`Command`): Landlock on Linux through the hidden `infer __sandbox` re-exec
-step in `cmd/sandboxexec`, Seatbelt on macOS through `/usr/bin/sandbox-exec`, plain bash elsewhere.
+and builds the confined bash child (`Command`, started through `Child.Start`): Landlock on Linux, applied on the
+thread that forks bash so only the child inherits it, Seatbelt on macOS through `/usr/bin/sandbox-exec`, plain
+bash elsewhere.
 
 ## How it plugs in
 

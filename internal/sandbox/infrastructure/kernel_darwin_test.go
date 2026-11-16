@@ -45,9 +45,9 @@ func TestSeatbeltProfile_ListsResolvedSpelling(t *testing.T) {
 }
 
 func TestCommand_RunsUnderSeatbelt(t *testing.T) {
-	cmd := Command(t.Context(), config.DefaultConfig(), agentdomain.AgentModeStandard, "echo hi")
+	args := Command(t.Context(), config.DefaultConfig(), agentdomain.AgentModeStandard, "echo hi").Cmd.Args
 
-	if cmd.Args[0] != seatbeltPath || cmd.Args[1] != "-p" || cmd.Args[len(cmd.Args)-1] != "echo hi" {
-		t.Fatalf("Command args = %q, want %s -p <profile> bash -c 'echo hi'", cmd.Args, seatbeltPath)
+	if args[0] != seatbeltPath || args[1] != "-p" || args[len(args)-1] != "echo hi" {
+		t.Fatalf("Command args = %q, want %s -p <profile> bash -c 'echo hi'", args, seatbeltPath)
 	}
 }

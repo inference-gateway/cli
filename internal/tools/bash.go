@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -190,10 +191,11 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		cmdCtx, cancel = context.WithCancelCause(timeoutCtx)
 	}
 
-	cmd := process.CommandContext(cmdCtx, "bash", "-c", command)
+	child := sandboxinfra.Unconfined(cmdCtx, command)
 	if t.confines(command, mode) {
-		cmd = sandboxinfra.Command(cmdCtx, t.config, mode, command)
+		child = sandboxinfra.Command(cmdCtx, t.config, mode, command)
 	}
+	cmd := child.Cmd
 	cmd.WaitDelay = bashPipeGrace
 	process.KillTreeOnCancel(cmd)
 
@@ -204,14 +206,19 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	cmd.Env = append(cmd.Env, "NO_COLOR=1")
 
 	if hasCallback && outputCallback != nil {
-		return t.executeBashWithStreaming(cmdCtx, ctx, cmd, outputCallback, cancel, timeout, start)
+		return t.executeBashWithStreaming(cmdCtx, ctx, child, outputCallback, cancel, timeout, start)
 	}
 
 	defer cancel(nil)
 
-	output, err := cmd.CombinedOutput()
+	var output bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	err := child.Start()
+	if err == nil {
+		err = cmd.Wait()
+	}
 	result.Duration = time.Since(start).String()
-	result.Output = utils.StripANSI(string(output))
+	result.Output = utils.StripANSI(output.String())
 	result.ExitCode, result.Error = waitOutcome(cmdCtx, err)
 	t.withSandboxHint(ctx, result)
 
@@ -274,7 +281,8 @@ func (t *BashTool) commandTimeout() time.Duration {
 // executeBashWithStreaming executes a bash command and streams output through
 // the callback. A detachable command's context follows neither the timeout nor
 // the request, so both end it here while it is still in the foreground.
-func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *exec.Cmd, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
+func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, child *sandboxinfra.Child, callback agentdomain.BashOutputCallback, cancel context.CancelCauseFunc, timeout time.Duration, start time.Time) (*BashResult, error) {
+	cmd := child.Cmd
 	result := &BashResult{
 		Command: cmd.Args[len(cmd.Args)-1],
 	}
@@ -302,7 +310,7 @@ func (t *BashTool) executeBashWithStreaming(ctx, request context.Context, cmd *e
 		return result, err
 	}
 
-	if err := cmd.Start(); err != nil {
+	if err := child.Start(); err != nil {
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = fmt.Sprintf("failed to start command: %v", err)

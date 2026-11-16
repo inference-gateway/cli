@@ -2,24 +2,46 @@ package sandboxinfra
 
 import (
 	"os"
-	"slices"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
-	config "github.com/inference-gateway/cli/config"
-	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	llsys "github.com/landlock-lsm/go-landlock/landlock/syscall"
 )
 
-func TestCommand_ReexecsWithWritePaths(t *testing.T) {
-	cmd := Command(t.Context(), config.DefaultConfig(), agentdomain.AgentModeStandard, "echo hi")
+// TestStart_ConfinesWritesToTheListedPaths: a confined child writes under a
+// listed directory and nowhere else, while the process that started it keeps
+// writing anywhere. Skipped on a kernel without Landlock.
+func TestStart_ConfinesWritesToTheListedPaths(t *testing.T) {
+	if abi, err := llsys.LandlockGetABIVersion(); err != nil || abi < 1 {
+		t.Skip("kernel without Landlock")
+	}
+	allowed := t.TempDir()
+	outside := t.TempDir()
 
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		probe   string
+		refused bool
+	}{
+		{name: "under the listed directory", probe: filepath.Join(allowed, "probe")},
+		{name: "outside it", probe: filepath.Join(outside, "probe"), refused: true},
 	}
-	if cmd.Args[0] != exe || cmd.Args[1] != ReexecCommand || !slices.Contains(cmd.Args, "--write") {
-		t.Fatalf("Command args = %q, want %s %s --write <dir>... -- bash -c 'echo hi'", cmd.Args, exe, ReexecCommand)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			child := &Child{Cmd: exec.CommandContext(t.Context(), "sh", "-c", "touch "+tt.probe), WritePaths: []string{allowed}}
+			if err := child.Start(); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			err := child.Cmd.Wait()
+			_, statErr := os.Stat(tt.probe)
+			if refused := err != nil && os.IsNotExist(statErr); refused != tt.refused {
+				t.Fatalf("touch %s: wait err = %v, stat err = %v, want refused %v", tt.probe, err, statErr, tt.refused)
+			}
+		})
 	}
-	if tail, want := cmd.Args[len(cmd.Args)-4:], []string{"--", "bash", "-c", "echo hi"}; !slices.Equal(tail, want) {
-		t.Fatalf("Command args end with %q, want %q", tail, want)
+
+	if err := os.WriteFile(filepath.Join(outside, "parent-probe"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("the parent must stay unconfined: %v", err)
 	}
 }

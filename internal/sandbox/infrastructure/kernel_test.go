@@ -12,10 +12,10 @@ func TestCommand_UnconfinedWhenEnforceIsOff(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Tools.Sandbox.Filesystem.Enforce = false
 
-	cmd := Command(t.Context(), cfg, agentdomain.AgentModeStandard, "echo hi")
+	child := Command(t.Context(), cfg, agentdomain.AgentModeStandard, "echo hi")
 
-	if want := []string{"bash", "-c", "echo hi"}; !slices.Equal(cmd.Args, want) {
-		t.Fatalf("Command args = %q, want %q", cmd.Args, want)
+	if want := []string{"bash", "-c", "echo hi"}; !slices.Equal(child.Cmd.Args, want) {
+		t.Fatalf("Command args = %q, want %q", child.Cmd.Args, want)
 	}
 }
 

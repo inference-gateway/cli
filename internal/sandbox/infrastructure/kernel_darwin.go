@@ -2,9 +2,7 @@ package sandboxinfra
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os/exec"
 	"slices"
 	"strings"
 
@@ -18,11 +16,16 @@ const kernelSupported = true
 // binary planted in the project cannot stand in for it.
 const seatbeltPath = "/usr/bin/sandbox-exec"
 
-// confinedCommand runs bash under a Seatbelt profile that allows everything
+// confinedChild runs bash under a Seatbelt profile that allows everything
 // except writes outside writePaths. Seatbelt matches the resolved path, so
 // each path is listed as written and with its symlinks resolved.
-func confinedCommand(ctx context.Context, writePaths []string, command string) *exec.Cmd {
-	return process.CommandContext(ctx, seatbeltPath, "-p", seatbeltProfile(writePaths), "bash", "-c", command)
+func confinedChild(ctx context.Context, writePaths []string, command string) *Child {
+	return &Child{Cmd: process.CommandContext(ctx, seatbeltPath, "-p", seatbeltProfile(writePaths), "bash", "-c", command)}
+}
+
+// start is a plain start: the profile travels in the command line.
+func (c *Child) start() error {
+	return c.Cmd.Start()
 }
 
 func seatbeltProfile(writePaths []string) string {
@@ -44,9 +47,4 @@ func seatbeltProfile(writePaths []string) string {
 	}
 	profile.WriteString(")))")
 	return profile.String()
-}
-
-// Restrict is the Linux re-exec step. macOS confines the child from the parent.
-func Restrict([]string) error {
-	return errors.New("the kernel sandbox re-exec step is Linux only")
 }
