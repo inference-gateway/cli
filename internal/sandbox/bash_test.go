@@ -1,6 +1,8 @@
 package sandbox
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -790,6 +792,13 @@ func TestContainsFileRedirect(t *testing.T) {
 }
 
 func TestBashCommandRejectionHint(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := os.Mkdir(filepath.Join(home, ".aws"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(home, ".aws", "credentials"))
+
 	if h := BashCommandRejectionHint(config.DefaultConfig(), "echo hi > /tmp/out"); !strings.Contains(h, "redirection") {
 		t.Errorf("expected a redirection hint, got %q", h)
 	}
