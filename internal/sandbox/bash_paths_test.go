@@ -13,25 +13,28 @@ import (
 func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 	project := t.TempDir()
 	outside := t.TempDir()
+	home := t.TempDir()
 	t.Chdir(project)
-	t.Setenv("HOME", t.TempDir())
+	t.Setenv("HOME", home)
 	t.Setenv("OUTSIDE", outside)
 	t.Setenv("INSIDE", filepath.Join(project, "src"))
 	t.Setenv("REF", "")
 
-	for _, dir := range []string{"src", "links"} {
-		if err := os.Mkdir(filepath.Join(project, dir), 0o755); err != nil {
+	for _, dir := range []string{filepath.Join(project, "src"), filepath.Join(project, "links"), filepath.Join(project, "nested"), filepath.Join(home, ".aws")} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, file := range []string{"main.go", ".env", "src/a.go", "src/b.go"} {
+	for _, file := range []string{"main.go", ".env", ".env.local", "nested/.env.production", "src/a.go", "src/b.go"} {
 		mustWrite(t, filepath.Join(project, file))
 	}
 	mustWrite(t, filepath.Join(outside, "secret.txt"))
+	mustWrite(t, filepath.Join(home, ".aws", "credentials"))
 	mustSymlink(t, outside, filepath.Join(project, "links", "out-dir"))
 	mustSymlink(t, filepath.Join(outside, "secret.txt"), filepath.Join(project, "links", "out-file"))
 
 	cfg := config.DefaultConfig()
+	cfg.Tools.Bash.Mode.All.Allow = append(cfg.Tools.Bash.Mode.All.Allow, `git commit( .*)?`, `gh pr create( .*)?`)
 	cfg.Tools.Sandbox.Filesystem.Allowed = sandboxdomain.Allow(project)
 
 	tests := []struct {
@@ -51,6 +54,12 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "ln -s ../.agents/skills .claude/skills", allowed: true},
 		{command: "echo /etc/hosts", allowed: true},
 		{command: "gh api repos/{owner}/{repo}/contents/README.md", allowed: true},
+		{command: "gh pr view 1 --json files -q .files[].path", allowed: true},
+		{command: "gh pr view 1 --json files -q .[0].path", allowed: true},
+		{command: "gh api user/repos --jq .[].full_name", allowed: true},
+		{command: "git commit -m '/fix: typo' main.go", allowed: true},
+		{command: "gh pr create --title 'Fix [a] bug' --body 'see /docs/b/c'", allowed: true},
+		{command: "ls /no/such/dir", allowed: true},
 		{command: "uniq -c main.go", allowed: true},
 		{command: "sort -n main.go", allowed: true},
 		{command: "tree -L 2", allowed: true},
@@ -70,6 +79,12 @@ func TestIsBashCommandAllowed_SandboxPaths(t *testing.T) {
 		{command: "cat nested/.env.production"},
 		{command: "cat < .env.local"},
 		{command: "ls .*"},
+		{command: "ls .?"},
+		{command: "ls .??*"},
+		{command: "ls .[!e]*"},
+		{command: "ls .[[:alpha:]]*"},
+		{command: "git commit -m msg .env"},
+		{command: "gh pr create --body-file /etc/hosts"},
 		{command: "ls ../*"},
 		{command: "head {main.go,/etc/hosts}"},
 		{command: "ls ~root"},
