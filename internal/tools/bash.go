@@ -172,6 +172,14 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		return result, err
 	}
 
+	if path, denied := sandbox.BashCommandDeniedPath(t.config, command); denied {
+		err := fmt.Errorf("access to path '%s' is excluded for security", path)
+		result.ExitCode = -1
+		result.Duration = time.Since(start).String()
+		result.Error = err.Error()
+		return result, err
+	}
+
 	outputCallback := agentdomain.GetBashOutputCallback(ctx)
 	hasCallback := agentdomain.HasBashOutputCallback(ctx)
 	detachChan := agentdomain.GetBashDetachChannel(ctx)

@@ -157,6 +157,19 @@ scenarios:
               command: mkdir -p inside-probe
       - content: "The sandbox probe ran."
 
+  - name: bash-sandbox-deny-read
+    match: '(?i)probe the deny list'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: cat auth.yaml
+      - tool_calls:
+          - name: Bash
+            args:
+              command: cat allowed.txt
+      - content: "The deny list probe ran."
+
   - name: judge-reject-curl
     match: '(?s)<tool_call id="[^"]*">\s*Bash: .*curl'
     turns:

@@ -36,3 +36,25 @@ func TestAgentBashWritesAreConfinedToTheSandbox(t *testing.T) {
 	require.NoDirExists(t, filepath.Join(probe, "outside"))
 	require.DirExists(t, filepath.Join(project, "inside-probe"), "a write inside the project must still land")
 }
+
+// TestAgentBashDeniedPathIsRefusedInAutoMode: the deny list must hold in auto
+// mode, whose unrestricted allow-list skips the argv path check, so a denied
+// file in the project is refused with the same exclusion the file tools give
+// while a plain project file stays readable.
+func TestAgentBashDeniedPathIsRefusedInAutoMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no bash tool on windows")
+	}
+	project := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(project, "auth.yaml"), []byte("mocked-credential"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(project, "allowed.txt"), []byte("visible"), 0o644))
+	m := startMock(t)
+
+	stdout, _, code := runCLI(t, m.URL, project, "", "headless", "--mode", "auto", "probe the deny list")
+	require.Zero(t, code)
+
+	toolResults := contentsByRole(jsonLines(t, stdout), "tool")
+	require.Len(t, toolResults, 2)
+	require.Contains(t, toolResults[0], "excluded for security", "a denied path must be refused even in auto mode")
+	require.Contains(t, toolResults[1], "visible", "a project file stays readable in auto mode")
+}
