@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.262.1](https://github.com/inference-gateway/cli/compare/v0.262.0...v0.262.1) (2026-11-16)
+
+### 🐛 Bug Fixes
+
+* **agent:** name the session's artifacts directory in the agent's context ([#1879](https://github.com/inference-gateway/cli/issues/1879)) ([26a7537](https://github.com/inference-gateway/cli/commit/26a75379e5fe0b2c1ba3d3cc8951255bd50629ab)), references [inference-gateway/infer-action#453](https://github.com/inference-gateway/infer-action/issues/453)
+
+### ♻️ Code Refactoring
+
+* replace hand-rolled pointer helpers with Go 1.26 new(expr) ([#1878](https://github.com/inference-gateway/cli/issues/1878)) ([7d61dd8](https://github.com/inference-gateway/cli/commit/7d61dd8b43319112220110caf60766e097d8fc12)), closes [#1876](https://github.com/inference-gateway/cli/issues/1876)
+
 ## [0.262.0](https://github.com/inference-gateway/cli/compare/v0.261.0...v0.262.0) (2026-11-16)
 
 ### 🚀 Features
