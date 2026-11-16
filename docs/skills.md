@@ -158,8 +158,8 @@ skill you authored there yourself. Current built-ins:
 - **`demo`** - turn `/demo` (e.g. `@infer /demo` on a pull request) into a
   short demo GIF of any project - a CLI, TUI or GUI app: it works out what
   the change does, rehearses it unrecorded, records one take and converts it
-  to a single GIF in `~/.infer/artifacts`. Recordings never enter the
-  repository.
+  to a single GIF in the session's artifacts directory. Recordings never
+  enter the repository.
 - **`config`** - turn `/config <request>` (e.g. `/config set the gateway
   timeout to 300`) into a confirmed `infer config set`: it finds the dotted
   key, shows `key: old -> new`, writes only after your approval, and leaves

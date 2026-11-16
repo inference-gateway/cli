@@ -946,6 +946,13 @@ func TestVolatileTailMessage(t *testing.T) {
 		require.Contains(t, content, "Current date:")
 	})
 
+	t.Run("names the session's artifacts dir", func(t *testing.T) {
+		s := newSvc(false, true)
+		msg, ok := s.volatileTailMessage(agentdomain.WithSessionID(context.Background(), "s1"), nil, true)
+		require.True(t, ok)
+		require.Contains(t, tailContent(t, msg), "ARTIFACTS DIRECTORY: "+s.config.SessionArtifactsDir("s1")+" - ")
+	})
+
 	t.Run("disabled section is absent", func(t *testing.T) {
 		msg, ok := newSvc(false, true).volatileTailMessage(context.Background(), nil, true)
 		require.True(t, ok)

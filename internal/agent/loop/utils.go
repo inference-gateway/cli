@@ -255,6 +255,7 @@ func (s *Agent) volatileContextSections(ctx context.Context, currentTurn int, me
 	return []PromptSection{
 		{Name: "git_context", Text: s.buildGitContextInfo(currentTurn), Volatile: true},
 		{Name: "project_structure", Text: s.buildProjectTreeInfo(currentTurn), Volatile: true},
+		{Name: "artifacts_directory", Text: s.buildArtifactsDirInfo(ctx), Volatile: true},
 		{Name: "active_skill", Text: s.buildActiveSkillInfo(ctx, messages, isChat), Volatile: true},
 		{Name: "loaded_skills", Text: s.buildLoadedSkillsInfo(messages), Volatile: true},
 		{Name: "memory", Text: s.buildMemoryInfo(currentTurn), Volatile: true},
@@ -907,6 +908,14 @@ func (s *Agent) buildWorkingDirectoryInfo() string {
 	}
 
 	return fmt.Sprintf("\n\nWORKING DIRECTORY: %s", workingDir)
+}
+
+// buildArtifactsDirInfo names the session's artifacts dir, the one place the
+// desktop app and the chat TUI list a session's files from, so a deliverable
+// the agent writes by hand reaches the user.
+func (s *Agent) buildArtifactsDirInfo(ctx context.Context) string {
+	dir := s.config.SessionArtifactsDir(s.sessionID(ctx))
+	return fmt.Sprintf("\n\nARTIFACTS DIRECTORY: %s - save files the user should get (images, GIFs, recordings, reports) here, the user's apps list them from it", dir)
 }
 
 // buildGitContextInfo creates dynamic git repository information for the system

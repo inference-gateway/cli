@@ -159,7 +159,7 @@ func tailAgent(conv *[]sdk.Message, systemPrompt string) *eventDrivenAgent {
 	cfg.Prompts.Agent.SystemPrompt = systemPrompt
 	return &eventDrivenAgent{
 		service:  &Agent{config: cfg},
-		agentCtx: &states.AgentContext{Conversation: conv},
+		agentCtx: &states.AgentContext{Conversation: conv, Ctx: context.Background()},
 		req:      &agentdomain.AgentRequest{RequestID: "r1", IsChatMode: true},
 	}
 }
@@ -218,7 +218,7 @@ func TestOutboundConversation_TailRefreshesPerRequest(t *testing.T) {
 	conv := []sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("hi")}}
 	a := &eventDrivenAgent{
 		service:  &Agent{config: cfg},
-		agentCtx: &states.AgentContext{Conversation: &conv},
+		agentCtx: &states.AgentContext{Conversation: &conv, Ctx: context.Background()},
 		req:      &agentdomain.AgentRequest{RequestID: "r1"},
 	}
 

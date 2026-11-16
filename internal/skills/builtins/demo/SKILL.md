@@ -7,18 +7,19 @@ description: >
   recording of it working (also for a social media post) - even as the tail
   of a bigger task ("implement X and demo it"). It plans the demo up front,
   rehearses it unrecorded, records one take and converts it to exactly one
-  GIF in ~/.infer/artifacts. Recordings never enter the repository. Not for
-  reproducing bugs (use bug).
+  GIF in the session's artifacts directory. Recordings never enter the
+  repository. Not for reproducing bugs (use bug).
 license: Apache-2.0
 ---
 
 # Recording a demo
 
 The user wants to SEE the change working. The deliverable is exactly one GIF,
-`~/.infer/artifacts/demo.gif`, from a single take recorded at the end of the
-run. In CI, infer-action embeds everything in `~/.infer/artifacts` in the
-result comment: that directory IS the delivery channel, so a recording never
-needs to go into the repository to survive the runner.
+`demo.gif` in the ARTIFACTS DIRECTORY your context names (`<artifacts dir>`
+below), from a single take recorded at the end of the run. The desktop app
+lists that directory as the chat's artifacts, and in CI infer-action embeds it
+in the result comment: that directory IS the delivery channel, so a recording
+never needs to go into the repository to survive the runner.
 
 Run every shell command as its OWN Bash call - no `|`, `&&`, `;`, `$(...)` or
 redirects; the Bash gate rejects those.
@@ -126,17 +127,19 @@ broken step again, then record a new take; unconverted takes stay in
 
 ## 5. Convert the good take
 
-    ffmpeg -loglevel error -y -i <mp4> -vf "fps=10,split[a][b];[a]palettegen[p];[b][p]paletteuse" ~/.infer/artifacts/demo.gif
+    mkdir -p <artifacts dir>
+    ffmpeg -loglevel error -y -i <mp4> -vf "fps=10,split[a][b];[a]palettegen[p];[b][p]paletteuse" <artifacts dir>/demo.gif
 
+- Write the literal path from your context, not a variable or `~/.infer/artifacts`:
+  nothing lists another directory.
 - Always the same name: converting again replaces the GIF instead of adding
   a second one.
 - `-ss <seconds>` before `-i` trims dead time at the start.
 - `ls -l` it: GitHub shows images up to 10 MB. Bigger? Put `scale=800:-1,`
   in front of `split` and drop to `fps=8`.
-- `ffmpeg` not on PATH? It is in `~/.infer/bin/tools/`. Locally,
-  `mkdir -p ~/.infer/artifacts` first.
+- `ffmpeg` not on PATH? It is in `~/.infer/bin/tools/`.
 - For a social media post (LinkedIn, X), also copy the take to
-  `~/.infer/artifacts/demo.mp4`. Those sites play video natively, and the
+  `<artifacts dir>/demo.mp4`. Those sites play video natively, and the
   MP4 is a fraction of the GIF's size.
 
 ## Rules

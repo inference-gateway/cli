@@ -240,7 +240,9 @@ the project-local `.infer/`.
 - **`~/.infer/projects/<project-slug>/backups/`** - file backups created by
   the Write/Edit tools before overwriting an existing file.
 - **`~/.infer/projects/<project-slug>/artifacts/`** - agent deliverables
-  (generated images, downloads, A2A artifacts), grouped per session.
+  (generated images, downloads, A2A artifacts, demo GIFs), grouped per session.
+  The agent's context names its session's subdirectory as the ARTIFACTS
+  DIRECTORY, and the desktop app and the chat TUI list a session's files from it.
 - **`~/.infer/projects/<project-slug>/exports/`** - `chat_export_*.md`
   files written by `infer export` (default when `export.output_dir` is
   unset).
