@@ -1,9 +1,9 @@
 # AG-UI
 
 `infer headless --format ag-ui` prints a run as [AG-UI](https://github.com/ag-ui-protocol/ag-ui) protocol events - the
-format an embedding host reads. This example consumes it with one small script, [`consume.py`](consume.py), against the
+format an embedding host reads. This example consumes it with one small Go program, [`main.go`](main.go), against the
 [tokenless](https://github.com/inference-gateway/tokenless) mock scripted in [`scenarios.yaml`](scenarios.yaml), so it
-runs offline with no API key. You need [Task](https://taskfile.dev) and `python3`.
+runs offline with no API key. You need [Task](https://taskfile.dev) and a Go toolchain.
 
 See [AG-UI Output Format](../../docs/ag-ui-output.md) for the full event reference this README maps into.
 
@@ -24,7 +24,7 @@ it in, for example `task stream INFER=../../infer`.
 
 ### What to expect
 
-`task stream` (the script filters the events it does not name; text arrives as one `TEXT_MESSAGE_CONTENT` per chunk):
+`task stream` (the program filters the events it does not name; text arrives as one `TEXT_MESSAGE_CONTENT` per chunk):
 
 ```text
 RUN_STARTED threadId=<session id> runId=<per-run id>
@@ -69,7 +69,7 @@ Every row maps into [AG-UI Output Format](../../docs/ag-ui-output.md):
 | --- | --- |
 | `RUN_STARTED` | The run opens; `threadId` is the session id and `runId` is fresh per run |
 | `TEXT_MESSAGE_CONTENT` | One streamed chunk of an assistant message; the role rode the skipped `TEXT_MESSAGE_START` |
-| `TOOL_CALL_START` | A tool call opens; the script shows the call id and name |
+| `TOOL_CALL_START` | A tool call opens; the program shows the call id and name |
 | `TOOL_CALL_RESULT` | The raw JSON execution result, with the legacy `"Result of tool call:"` prefix gone |
 | `RUN_FINISHED success` | The run's terminal event, carrying `usage` and `result` |
 | `RUN_FINISHED interrupt` | The run suspends on a tool approval; `resolved` answers it, `cancelled` declines |
@@ -83,7 +83,7 @@ Every row maps into [AG-UI Output Format](../../docs/ag-ui-output.md):
 | `-- next frame --` and the frames around it | [Serve worker](../../docs/ag-ui-output.md#serve-worker) |
 | The `usage` fields on `RUN_FINISHED` | [Usage and result](../../docs/ag-ui-output.md#usage-and-result) |
 
-The script deliberately skips the events it does not print: `STATE_SNAPSHOT`/`STATE_DELTA` (the run's state, see
+The program deliberately skips the events it does not print: `STATE_SNAPSHOT`/`STATE_DELTA` (the run's state, see
 [State](../../docs/ag-ui-output.md#state)), `ACTIVITY_SNAPSHOT` (progress such as tool status, see
 [Activity](../../docs/ag-ui-output.md#activity)), `MESSAGES_SNAPSHOT`, and the `_START`/`_END`/`_ARGS` brackets. Drop
 the filter in `describe()` to see every line.
@@ -98,9 +98,9 @@ export INFER_GATEWAY_MOCK_SCENARIOS="$PWD/scenarios.yaml"
 export INFER_AGENT_MODEL=mock/openai/gpt-4o
 export INFER_STORAGE_ENABLED=false
 
-infer headless --format ag-ui --no-save "stream a run with a tool call" | python3 consume.py stream
-python3 consume.py serve
-python3 consume.py serve --approval
+infer headless --format ag-ui --no-save "stream a run with a tool call" | go run . stream
+go run . serve
+go run . serve --approval
 ```
 
 `serve` spawns the `infer` on your `PATH`; set `INFER=../../infer` to point it at a local build.

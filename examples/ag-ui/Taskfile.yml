@@ -20,7 +20,7 @@ tasks:
     desc: Run one headless task with AG-UI events on stdout and print them by type
     dir: '{{.TASKFILE_DIR}}'
     cmds:
-      - '{{.INFER}} headless --format ag-ui --no-save "stream a run with a tool call" | python3 consume.py stream'
+      - '{{.INFER}} headless --format ag-ui --no-save "stream a run with a tool call" | go run . stream'
 
   serve:
     desc: Drive an infer headless --serve worker, one AG-UI run per run_agent_input frame on stdin
@@ -28,7 +28,7 @@ tasks:
     env:
       INFER: '{{.INFER}}'
     cmds:
-      - python3 consume.py serve
+      - go run . serve
 
   serve:approval:
     desc: The same worker with --require-approval, resumed by answering one approval over stdin
@@ -36,7 +36,7 @@ tasks:
     env:
       INFER: '{{.INFER}}'
     cmds:
-      - python3 consume.py serve --approval
+      - go run . serve --approval
 
   chat:
     desc: Chat with the mock model and watch the run unfold in the TUI
