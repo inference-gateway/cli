@@ -1,0 +1,35 @@
+fallback:
+  content: 'Try "stream a run with a tool call" or "write the marker file ag-ui-demo.txt".'
+scenarios:
+  - name: stream-tool-call
+    match: '(?i)^stream a run with a tool call'
+    turns:
+      - tool_calls:
+          - name: Grep
+            args:
+              pattern: AG-UI
+              path: README.md
+              output_mode: content
+              head_limit: 3
+      - content: The matches above are the AG-UI references in this README, found with one Grep call.
+      - content: The matches above are the AG-UI references in this README, found with one Grep call.
+  - name: serve-hello
+    match: '(?i)^say something'
+    turns:
+      - content: Hello from run one.
+      - content: Hello from run one.
+  - name: serve-second
+    match: '(?i)^another greeting please'
+    turns:
+      - content: Hello from run two.
+      - content: Hello from run two.
+  - name: approval-write
+    match: '(?i)^write the marker file ag-ui-demo\.txt'
+    turns:
+      - tool_calls:
+          - name: Write
+            args:
+              file_path: ag-ui-demo.txt
+              content: "written through the AG-UI serve loop\n"
+      - content: The marker file is written.
+      - content: The marker file is written.
