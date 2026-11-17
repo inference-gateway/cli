@@ -52,7 +52,8 @@ The browser-agent can run in headed mode with VNC support for real-time viewing 
 
 1. Browser-agent v0.4.0+ with Xvfb support
 2. `BROWSER_HEADLESS: false` environment variable set
-3. Shared X11 socket volume between browser-agent and browser-vnc
+3. TCP access to the Xvfb display: `BROWSER_XVFB_ALLOW_TCP: "true"` on browser-agent, and
+   browser-vnc connecting with `X_HOST: browser-agent` and `X_DISPLAY: 99`
 
 **Usage:**
 
