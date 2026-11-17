@@ -100,10 +100,11 @@ func Archive(dir string, cutoff time.Time) {
 	}
 }
 
+// toolAgg aggregates one tool's calls, failures and durations in seconds.
 type toolAgg struct {
 	calls    int
 	failures int
-	durSum   float64 // seconds
+	durSum   float64
 	durCount uint64
 }
 
@@ -120,12 +121,14 @@ type resourceMetrics struct {
 	} `json:"ScopeMetrics"`
 }
 
+// dataPoint is one exported metric datapoint. Counters fill Value and
+// histograms fill Sum and Count.
 type dataPoint struct {
 	Attributes []otlpAttr `json:"Attributes"`
 	Time       time.Time  `json:"Time"`
-	Value      float64    `json:"Value"` // counters
-	Sum        float64    `json:"Sum"`   // histograms
-	Count      uint64     `json:"Count"` // histograms
+	Value      float64    `json:"Value"`
+	Sum        float64    `json:"Sum"`
+	Count      uint64     `json:"Count"`
 }
 
 type otlpAttr struct {

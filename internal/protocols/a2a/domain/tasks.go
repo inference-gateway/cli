@@ -7,13 +7,11 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 )
 
-// TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
-// Used for A2A task retention and display
+// TaskInfo wraps an ADK Task, with its status, history and artifacts, in the
+// agent URL and timing the UI shows for retained terminal tasks.
 type TaskInfo struct {
-	// ADK Task contains: ID, ContextID, Status (with State), History, Artifacts, Metadata
 	Task adk.Task
 
-	// UI-specific fields
 	AgentURL    string
 	StartedAt   time.Time
 	CompletedAt time.Time

@@ -33,14 +33,16 @@ type ContainerRuntime interface {
 	PublishedPort(ctx context.Context, containerIDOrName string) (int, error)
 }
 
-// RunContainerOptions contains all options for running a container
+// RunContainerOptions contains all options for running a container. Ports are
+// "host:container[/protocol]", Volumes "host:container[:mode]", and EnvFile is
+// an optional .env path.
 type RunContainerOptions struct {
 	Name         string
 	Image        string
 	Network      string
-	Ports        []string // Format: "host:container" or "host:container/protocol"
+	Ports        []string
 	Environment  map[string]string
-	Volumes      []string // Format: "host:container" or "host:container:mode"
+	Volumes      []string
 	Entrypoint   []string
 	Command      []string
 	Args         []string
@@ -48,15 +50,16 @@ type RunContainerOptions struct {
 	HealthConfig *HealthCheckConfig
 	RemoveOnExit bool
 	Detached     bool
-	EnvFile      string // Optional .env file path
+	EnvFile      string
 }
 
-// HealthCheckConfig defines container health check configuration
+// HealthCheckConfig defines a container health check. Interval, Timeout and
+// StartPeriod are durations such as "10s".
 type HealthCheckConfig struct {
-	Interval    string // e.g., "10s"
-	Timeout     string // e.g., "5s"
+	Interval    string
+	Timeout     string
 	Retries     int
-	StartPeriod string // e.g., "10s"
+	StartPeriod string
 }
 
 // ContainerInfo represents basic container information

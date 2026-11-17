@@ -11,12 +11,13 @@ import (
 	telemetry "github.com/inference-gateway/cli/internal/platform/telemetry"
 )
 
-// TreeStyle colorizes the rendered tree segments. The zero value renders
-// plain text, which suits markdown/code-fence output.
+// TreeStyle colorizes the rendered tree's connectors, durations and
+// [error: ...] markers. The zero value renders plain text, which suits markdown
+// and code-fence output.
 type TreeStyle struct {
-	Enumerator lipgloss.Style // tree connector glyphs
+	Enumerator lipgloss.Style
 	Duration   lipgloss.Style
-	Error      lipgloss.Style // the [error: ...] marker
+	Error      lipgloss.Style
 }
 
 // enumeratorWidth is the rendered width of one tree indent level ("├── ").

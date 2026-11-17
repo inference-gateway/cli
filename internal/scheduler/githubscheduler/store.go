@@ -26,18 +26,17 @@ const (
 	ghNetworkTimeout = 2 * time.Minute
 )
 
-// Store decorates a local ScheduledJobStorage: reads delegate to the local
-// store (source of truth for the CLI), writes additionally render the job's
-// Actions workflow and deploy it to the configured GitHub repository - pushed
-// straight to the default branch, or via a PR when pull_requests is enabled.
-// A failed GitHub sync aborts the local write, so no phantom jobs.
+// Store decorates a local ScheduledJobStorage. Reads delegate to it, and writes
+// also deploy the job's Actions workflow to GitHub, directly or through a PR,
+// one sequence at a time. A failed GitHub sync aborts the local write, so no
+// phantom jobs.
 type Store struct {
 	inner        storage.ScheduledJobStorage
 	runner       githubsetup.CommandRunner
 	cfg          config.SchedulerGitHubConfig
 	defaultModel string
 
-	mu        sync.Mutex // one clone/branch/PR sequence at a time
+	mu        sync.Mutex
 	lastPRURL string
 }
 

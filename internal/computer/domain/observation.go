@@ -1,19 +1,22 @@
 package domain
 
-// Observation is what the computer reports back after an action.
+// Observation is what the computer reports back after an action: an LLM-facing
+// Message, the cursor, the frame-space size, and the Image of a screenshot or
+// the Elements of an accessibility observation.
 type Observation struct {
-	Message  string // LLM-facing outcome description
+	Message  string
 	CursorX  int
 	CursorY  int
-	Width    int // frame-space dimensions
+	Width    int
 	Height   int
-	Image    *Image      // set by screenshot actions
-	Elements []UIElement // set by accessibility observations
+	Image    *Image
+	Elements []UIElement
 }
 
-// Image is a captured frame.
+// Image is a captured frame. Data is base64 and kept in memory only, while Path
+// is the on-disk copy ImageDecode reads for non-vision models.
 type Image struct {
-	Data     string `json:"-"` // base64-encoded, in memory only - a record keeps Path
+	Data     string `json:"-"`
 	MimeType string
-	Path     string // on-disk copy, reachable by ImageDecode for non-vision models
+	Path     string
 }

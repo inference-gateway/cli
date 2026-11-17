@@ -19,23 +19,27 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// ArtifactPollerOptions bundles dependencies for NewArtifactPoller.
+// ArtifactPollerOptions bundles dependencies for NewArtifactPoller. Repo is the
+// resolved "<owner>/<name>". Jsonl files go to ConversationsDir and others to
+// ArtifactsDir, skipped when empty. StatePath persists the cursor, and an
+// artifact is skipped after MaxAttempts.
 type ArtifactPollerOptions struct {
 	Runner           githubsetup.CommandRunner
-	Repo             string // "<owner>/<name>", already resolved
-	ConversationsDir string // local dir jsonl files are extracted into
-	ArtifactsDir     string // local dir non-jsonl files (images, reports) are extracted into; empty skips them
-	StatePath        string // cursor/attempts persistence file
+	Repo             string
+	ConversationsDir string
+	ArtifactsDir     string
+	StatePath        string
 	Interval         time.Duration
 	InitialDelay     time.Duration
-	MaxAttempts      int           // per artifact; then skipped permanently
-	RateLimitBackoff time.Duration // pause after a rate-limited API call
+	MaxAttempts      int
+	RateLimitBackoff time.Duration
 }
 
 // ArtifactPoller periodically downloads conversation artifacts uploaded by
-// GitHub-backed job runs and drops their jsonl files into local conversation
-// storage. Lifecycle mirrors the heartbeat service.
-// ponytail: raw jsonl drop only works for storage.type jsonl. Parse-and-save via ConversationStorage if sqlite/postgres users ask.
+// GitHub-backed job runs into local storage, pausing until pausedUntil after a
+// rate limit. Its lifecycle mirrors the heartbeat service.
+// ponytail: raw jsonl drop only works for storage.type jsonl. Parse and save
+// via ConversationStorage if sqlite or postgres users ask.
 type ArtifactPoller struct {
 	opts ArtifactPollerOptions
 
@@ -44,7 +48,7 @@ type ArtifactPoller struct {
 	wg     sync.WaitGroup
 
 	running     atomic.Int32
-	pausedUntil time.Time // rate-limit backoff deadline
+	pausedUntil time.Time
 	state       pollerState
 
 	started bool

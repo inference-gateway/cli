@@ -31,12 +31,12 @@ func modelFileName(model string) string {
 	return "ggml-" + m + ".bin"
 }
 
-// ModelStore resolves and (optionally) downloads the GGML model file.
+// ModelStore resolves and optionally downloads the GGML model file. hub is
+// overridable in tests.
 type ModelStore struct {
 	cfg config.SpeechToTextConfig
 	mu  sync.Mutex
 
-	// hub is overridable in tests.
 	hub *huggingface.Client
 }
 

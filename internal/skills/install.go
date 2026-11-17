@@ -128,17 +128,15 @@ type treeResponse struct {
 	Truncated bool        `json:"truncated"`
 }
 
-// Installer downloads a skill folder from a GitHub repo into a local
-// destination directory. When Token is non-empty its requests are
-// authenticated, which raises the GitHub API rate limit from 60 to 5,000
-// requests/hour and allows access to private repositories the token can see.
+// Installer downloads a skill folder from a GitHub repo into a local directory.
+// A Token raises the rate limit and reaches private repos. Repository is the
+// "<owner>/<repo>" shorthand targets resolve against, or
+// config.DefaultSkillsRepository when empty.
 type Installer struct {
-	Client  *http.Client
-	APIBase string
-	RawBase string
-	Token   string
-	// Repository is the "<owner>/<repo>" skills repository shorthand install
-	// targets resolve against. Empty means config.DefaultSkillsRepository.
+	Client     *http.Client
+	APIBase    string
+	RawBase    string
+	Token      string
 	Repository string
 }
 

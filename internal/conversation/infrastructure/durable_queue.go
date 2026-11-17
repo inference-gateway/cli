@@ -18,7 +18,8 @@ import (
 
 // queuedRecord is the wire format every durable backend stores: role, content,
 // source, request_id and queued_at. External producers enqueue by writing this
-// JSON, e.g. RPUSH infer:queue:<name> '<json>' on Redis.
+// JSON, e.g. RPUSH infer:queue:<name> '<json>' on Redis. Seq is a
+// backend-internal ordering hint kept out of the JSON.
 type queuedRecord struct {
 	Role      string          `json:"role"`
 	Content   json.RawMessage `json:"content"`
@@ -26,8 +27,6 @@ type queuedRecord struct {
 	RequestID string          `json:"request_id"`
 	QueuedAt  time.Time       `json:"queued_at"`
 
-	// Seq is the backend-internal ordering hint (row id on SQL backends) and
-	// stays out of the wire JSON.
 	Seq int64 `json:"-"`
 }
 

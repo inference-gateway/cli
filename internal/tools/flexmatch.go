@@ -2,17 +2,14 @@ package tools
 
 import "strings"
 
-// flexMatchResult is the outcome of a leading-whitespace-tolerant match. It is produced by
-// findFlexibleMatch and consumed by the Edit and MultiEdit tools as a fallback after an exact
-// strings.Contains match has failed.
+// flexMatchResult is the outcome of findFlexibleMatch, the Edit and MultiEdit
+// fallback after an exact match failed. found is set only for exactly one
+// consistent window. Callers replace matchedBlock, the file's own bytes, with
+// reindentedNew so the file's indentation is preserved.
 type flexMatchResult struct {
-	// matchedBlock is the exact file bytes of the single matched window. Callers replace
-	// this (not the model's old_string) so the file's real indentation is preserved.
-	matchedBlock string
-	// reindentedNew is new_string re-indented to the file's indentation.
+	matchedBlock  string
 	reindentedNew string
-	// found is true only when exactly one window matched under a consistent indent mapping.
-	found bool
+	found         bool
 }
 
 // findFlexibleMatch is a whitespace-tolerant fallback once an exact match of

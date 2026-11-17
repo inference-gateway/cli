@@ -33,26 +33,20 @@ import (
 // subagent (read in initConfig), so each subagent can run with its own role.
 const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 
-// AgentTaskSpec is one delegated unit of work within an Agent tool call.
+// AgentTaskSpec is one delegated unit of work within an Agent tool call. Agent
+// names a Markdown agent whose settings replace the per-task overrides. Tools
+// and MCPServers are passed to the subagent, nil to inherit. Mode is ReadOnly
+// without approval or Standard with it, from the `type` argument.
 type AgentTaskSpec struct {
 	Label        string
 	Description  string
 	Model        string
 	Files        []string
 	SystemPrompt string
-	// Agent, when set, names a Markdown-defined agent (see mdagent.go) whose
-	// system prompt, model and tool allowlist replace the per-task overrides.
-	Agent string
-	// Tools is the resolved allowlist passed to the subagent via
-	// EnvSubagentTools. Nil means inherit the parent's tools.
-	Tools []string
-	// MCPServers names the servers the subagent brings up, passed via
-	// EnvMCPServers. Nil means inherit the parent's servers.
-	MCPServers []string
-	// Mode is the subagent's capability, resolved from the `type` argument:
-	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
-	// AgentModeStandard (can mutate, approval applies).
-	Mode agentdomain.AgentMode
+	Agent        string
+	Tools        []string
+	MCPServers   []string
+	Mode         agentdomain.AgentMode
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -75,9 +69,10 @@ type AgentToolResult struct {
 	Message    string                   `json:"message,omitempty"`
 }
 
-// AgentTool spawns local subagents (each an `infer headless` subprocess) in
-// parallel and folds their results back into the main context. It is the
-// lightweight, no-A2A-server complement to the A2A tools.
+// AgentTool spawns local subagents in parallel and folds their results back
+// into the main context, the lightweight complement to the A2A tools. mdAgents
+// are the session's Markdown agents, toolManifests tells read-only tools, and
+// the func fields are test injection points.
 type AgentTool struct {
 	config    *config.Config
 	tracker   scheddomain.SubagentTracker
@@ -85,13 +80,9 @@ type AgentTool struct {
 	formatter BaseFormatter
 	binary    string
 
-	// mdAgents holds the Markdown-defined agents loaded once per session by
-	// the registry (see mdagent.go). Read-only after setMarkdownAgents.
-	mdAgents []markdownAgent
-	// toolManifests resolves which of an agent's allowed tools are read-only.
+	mdAgents      []markdownAgent
 	toolManifests agentdomain.ToolManifestLookup
 
-	// Injection points for tests. Default to real implementations.
 	dialDaemon           func(ctx context.Context) (agui.DialConfig, error)
 	runHeadless          func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 	interactiveAvailable func() bool

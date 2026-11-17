@@ -22,51 +22,37 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// ChannelManagerService manages pluggable messaging channels and drives
-// each sender's thread on the daemon's session registry. No process is
-// spawned per message.
+// ChannelManagerService manages pluggable messaging channels and drives each
+// sender's thread on the daemon's session registry without spawning a process.
+// A per-sender mutex keeps a sender's frames in order, router is nil when the
+// daemon hosts no workers, pendingApprovals maps a sender key to its approval
+// channel, and the telemetry instruments and slash-command registry are nil-safe.
 type ChannelManagerService struct {
 	mu       sync.RWMutex
 	channels map[string]chn.Channel
 	inbox    chan chn.InboundMessage
 	cfg      config.ChannelsConfig
 
-	// Per-sender mutex to serialize the frames one chat writes to its
-	// thread, so two messages of a sender cannot swap on the worker's
-	// stdin.
 	senderMutexes sync.Map
 
-	// router routes one chat's frames to its thread's worker. Nil when
-	// the daemon hosts no session workers (its AG-UI binding and the
-	// channels are both off).
 	router sessionsdomain.ThreadRouter
 
-	// projectDir is the working dir the channel threads run in.
 	projectDir string
 
-	// threadOpts apply to a channel thread's worker when it launches:
-	// the remote-control system prompt the `--remote` flag selected.
 	threadOpts sessionsdomain.ThreadOptions
 
-	// threadChats holds one render adapter per chat, keyed by sender.
 	threadChats sync.Map
 
-	// pendingApprovals tracks senders waiting for tool approval replies.
-	// Key: senderKey ("channel-senderID"), Value: chan ipc.ApprovalResponse
 	pendingApprovals sync.Map
 
 	cancel context.CancelFunc
 
-	// telemetryRecorder records daemon-level operational metrics (messages
-	// processed, active channels, per-message duration). Nil-safe.
 	telemetryRecorder *telemetry.Recorder
 
-	// daemon instruments (initialised in the constructor. Nil when telemetry is off)
 	messagesProcessed metric.Int64Counter
 	messageDuration   metric.Float64Histogram
 	activeChannels    metric.Int64UpDownCounter
 
-	// slash-command support (see channel_commands.go). Nil registry disables it
 	shortcutRegistry *shortcuts.Registry
 	convStore        storage.ConversationStorage
 	groupStore       storage.SessionGroupStorage

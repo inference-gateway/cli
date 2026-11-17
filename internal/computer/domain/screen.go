@@ -34,18 +34,19 @@ func IsInputAction(kind ActionKind) bool {
 	return false
 }
 
-// ScreenInput is one person-driven input on the session's screen, in frame
-// coordinate space (the space the Screen view's image and its X-Frame-Width
-// and X-Frame-Height headers use): what to do and, per kind, on what.
+// ScreenInput is one person-driven input on the session's screen, in the frame
+// space the Screen view's image uses. Kind is move, click, double_click,
+// mouse_down, mouse_up, scroll, type or key, and the other fields mean what
+// they mean on Action.
 type ScreenInput struct {
-	Kind      ActionKind `json:"kind"` // move, click, double_click, mouse_down, mouse_up, scroll, type, key
+	Kind      ActionKind `json:"kind"`
 	X         int        `json:"x,omitempty"`
 	Y         int        `json:"y,omitempty"`
-	Text      string     `json:"text,omitempty"`      // type: the text to type
-	Combo     string     `json:"combo,omitempty"`     // key: a combo such as "ctrl+shift+t" or a key name
-	Button    string     `json:"button,omitempty"`    // click and mouse kinds: left (default), right, middle
-	Direction string     `json:"direction,omitempty"` // scroll: vertical (default) or horizontal
-	Amount    int        `json:"amount,omitempty"`    // scroll: wheel clicks, negative reverses
+	Text      string     `json:"text,omitempty"`
+	Combo     string     `json:"combo,omitempty"`
+	Button    string     `json:"button,omitempty"`
+	Direction string     `json:"direction,omitempty"`
+	Amount    int        `json:"amount,omitempty"`
 }
 
 // Action builds the action this input drives the screen with, so the display

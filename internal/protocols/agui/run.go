@@ -124,9 +124,9 @@ func write(w io.Writer, ev aguievents.Event) {
 }
 
 // Run writes one AG-UI run as newline-delimited events: RUN_STARTED at Start,
-// the events its methods name, and exactly one terminal RUN_FINISHED or
-// RUN_ERROR at Finish. Every event lands within the run, one Write per event,
-// so a transport can map one Write to one frame.
+// the events its methods name, and exactly one terminal event at Finish, one
+// Write per event. state is nil until Start, carried is inherited from the run
+// a resume continues, and ended drops every event after the terminal one.
 type Run struct {
 	w io.Writer
 
@@ -137,16 +137,10 @@ type Run struct {
 	textOpen      bool
 	reasoningOpen bool
 
-	// state is the run's one state object, seeded at Start. A nil state means
-	// the run has not started yet, which is why emit drops events before it.
 	state map[string]any
 
-	// carried is the state a continuation run inherits from the run it
-	// follows, whose interrupt a resume answered.
 	carried map[string]any
 
-	// ended marks the terminal event written. Every event after it is
-	// dropped, so a run never writes outside its own frame.
 	ended bool
 	err   error
 }

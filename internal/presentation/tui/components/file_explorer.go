@@ -58,18 +58,20 @@ var (
 	actExpSubmit       = config.ActionID(config.NamespaceExplorer, "submit")
 )
 
-// explorerNode is one filesystem entry (the cached, sorted children of a dir).
+// explorerNode is one filesystem entry. relPath, relative to root, is its
+// stable identity and name its display base name.
 type explorerNode struct {
-	relPath string // path relative to root; the stable identity key
-	name    string // filepath.Base, for display
+	relPath string
+	name    string
 	isDir   bool
 }
 
-// explorerRow is one rendered line of the flattened tree.
+// explorerRow is one rendered line of the flattened tree. expanded only
+// applies to directories.
 type explorerRow struct {
 	node     explorerNode
 	depth    int
-	expanded bool // dirs only: whether currently expanded
+	expanded bool
 }
 
 // explorerWalkDoneMsg carries the result of the async fuzzy-finder file walk.
@@ -88,11 +90,11 @@ type SnippetSelection struct {
 	Annotation string
 }
 
-// FileExplorer is the VS Code-style file explorer side panel: a left tree of
-// the working directory (lazy, collapsible, .gitignore-aware) plus a scrollable,
-// syntax-highlighted preview of the selected file. A `/` fuzzy finder jumps to any
-// file. `v` opens the selection in the user's real editor. It owns its full
-// [sidebar | divider | pane] region. The chat input is composed beneath the pane.
+// FileExplorer is the file explorer side panel: a lazy, .gitignore-aware tree
+// keyed by root-relative path, a highlighted preview, a `/` fuzzy finder and
+// `v` to edit in a PTY. Select mode captures line ranges with notes from
+// previewCursor to selAnchor, -1 for none, and done hands them to the chat
+// while cancel discards them.
 type FileExplorer struct {
 	root          string
 	styleProvider *styles.Provider
@@ -104,26 +106,23 @@ type FileExplorer struct {
 	sidebarWidth int
 	paneWidth    int
 
-	// Lazy tree model, keyed by path relative to root ("" = root).
-	children map[string][]explorerNode // dir relPath -> immediate children (cached on expand)
-	expanded map[string]bool           // dir relPath -> expanded? (root is always expanded)
-	rows     []explorerRow             // flattened visible rows
+	children map[string][]explorerNode
+	expanded map[string]bool
+	rows     []explorerRow
 
 	cursor        int
-	selectedKey   string // relPath of the selected row, for re-anchor across refresh
+	selectedKey   string
 	sidebarScroll int
 
-	showHidden bool          // include dotfiles + gitignored entries
-	ignore     *ignoreFilter // current gitignore matcher (rebuilt on showHidden toggle)
+	showHidden bool
+	ignore     *ignoreFilter
 
-	// Preview pane.
 	viewport     viewport.Model
 	previewKey   string
 	previewWidth int
 	dirtyPreview bool
-	previewRaw   string // cached highlighted content before gutter markers
+	previewRaw   string
 
-	// Fuzzy finder (find mode).
 	findMode      bool
 	findQuery     string
 	candidates    []string
@@ -132,15 +131,9 @@ type FileExplorer struct {
 	walking       bool
 	walkTruncated bool
 
-	// Edit mode - the user's real editor runs in a PTY rendered into the pane.
 	editMode bool
 	editor   *ptyEditor
 
-	// Select mode - line-range selection + annotation within the preview pane.
-	// The preview cursor (previewCursor) is a 0-indexed line within the current
-	// file. SelAnchor (-1 = none) marks the other end of an inclusive range.
-	// Captured ranges accumulate in selections. Closing the explorer (done) hands
-	// them to the chat, where they appear as attachments until the next message.
 	selectMode    bool
 	previewCursor int
 	previewLines  int
@@ -150,8 +143,8 @@ type FileExplorer struct {
 	annotateInput string
 
 	loadErr error
-	done    bool // explorer closed normally (esc/q) - carry selections to chat
-	cancel  bool // discard everything (ctrl+c)
+	done    bool
+	cancel  bool
 }
 
 // NewFileExplorer creates an explorer rooted at the given working directory.
@@ -1241,15 +1234,15 @@ func (t *FileExplorer) padPlain(styled, plain string, width int) string {
 	return styled
 }
 
-// ignoreFilter decides which entries to hide, honoring the root .gitignore,
-// per-directory nested .gitignore files, and a set of always-ignored defaults.
-// It is self-contained (no shared mutable state) so it can be used both on the
-// UI goroutine (the tree) and inside the fuzzy-finder walk goroutine.
+// ignoreFilter decides which entries to hide from the root and nested
+// .gitignore files and always-ignored defaults, caching compiled matchers by
+// directory. It shares no mutable state, so the tree and the finder walk can
+// both use it.
 type ignoreFilter struct {
 	root       string
 	showHidden bool
 	rootIgnore *ignore.GitIgnore
-	cache      map[string]*ignore.GitIgnore // dir abs path -> compiled (nil = none)
+	cache      map[string]*ignore.GitIgnore
 }
 
 func newIgnoreFilter(root string, showHidden bool) *ignoreFilter {

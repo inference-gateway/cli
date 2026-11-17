@@ -38,8 +38,9 @@ const (
 )
 
 // ConversationView handles the chat conversation display. It is confined to
-// the Bubble Tea event loop: all state is read and written from Update/View
-// only, so it holds no locks. Off-loop producers must go through Program.Send.
+// the Bubble Tea event loop, so it holds no locks. renderCache memoizes each
+// entry by index until its fingerprint changes, welcomeCache memoizes the
+// welcome box, and both reset on theme refresh.
 type ConversationView struct {
 	conversation           []convdomain.ConversationEntry
 	Viewport               viewport.Model
@@ -62,17 +63,11 @@ type ConversationView struct {
 	renderedContent        string
 	renderedPreviews       string
 
-	// renderCache memoizes per-entry rendered output keyed by conversation
-	// index. An entry re-renders only when its fingerprint changes. Cleared
-	// on theme refresh, which restyles without touching entry state.
 	renderCache map[int]renderCacheEntry
 
-	// welcomeCache memoizes the tall welcome box render, invalidated on
-	// resize, theme refresh and a new config path or version.
 	welcomeCache      string
 	welcomeCacheValid bool
 
-	// Streaming state
 	streamingBuffer          strings.Builder
 	streamingReasoningBuffer strings.Builder
 	isStreaming              bool
@@ -81,7 +76,6 @@ type ConversationView struct {
 
 	keyHintFormatter *hints.Formatter
 
-	// Message history navigation
 	navigationMode       NavigationMode
 	messageSnapshots     []tui.MessageSnapshot
 	historySelectedIndex int

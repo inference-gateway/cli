@@ -418,13 +418,15 @@ type MemoryToolResult struct {
 }
 
 // memoryFrontmatter is the YAML frontmatter stored at the top of each fact-file.
+// Metadata.Project is a readable name such as "inference-gateway/cli", absent
+// for global facts, and Session is the session that last wrote the fact.
 type memoryFrontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	Metadata    struct {
 		Type    string `yaml:"type"`
-		Project string `yaml:"project,omitempty"` // human-readable, e.g. "inference-gateway/cli"; absent for global
-		Session string `yaml:"session,omitempty"` // session that last wrote the fact (chat conversation ID or headless session ID)
+		Project string `yaml:"project,omitempty"`
+		Session string `yaml:"session,omitempty"`
 	} `yaml:"metadata"`
 }
 

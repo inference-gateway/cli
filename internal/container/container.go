@@ -81,21 +81,21 @@ import (
 // same retries through the state manager's reconnecting indicator instead.
 var RetryNotifier func(message string)
 
-// ServiceContainer manages all application dependencies
+// ServiceContainer is the composition root that builds and owns every
+// application dependency. backgroundTaskRegistry tracks every background job,
+// the tokenizer is the token polyfill for providers without usage metrics,
+// mcpStartupCancel aborts async MCP startup on Shutdown, and the chat services
+// are built unconditionally with nil-safe A2A deps.
 type ServiceContainer struct {
-	// Session
 	sessionID convdomain.SessionID
 
-	// Container runtime
 	containerRuntime containerruntime.ContainerRuntime
 
-	// Configuration
 	config        *config.Config
 	loadConfig    func() (*config.Config, error)
 	startupConfig *config.Config
 	reloadMu      sync.Mutex
 
-	// Domain services
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager *conversation.SessionRollover
@@ -120,9 +120,6 @@ type ServiceContainer struct {
 	skillsService          agentdomain.SkillsService
 	githubIssueService     agentdomain.GitHubIssueService
 	messageQueue           convdomain.MessageQueue
-	// backgroundTaskRegistry is the single unified tracker for every
-	// background job: shells, subagents and A2A tasks. The narrower
-	// scheddomain.ShellTracker and SubagentTracker views share the instance.
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
 	a2aTaskTracker         *a2a.TaskTracker
@@ -133,10 +130,8 @@ type ServiceContainer struct {
 	mockGateway            *http.Server
 	agentSupervisor        a2adomain.AgentSupervisor
 
-	// Services
 	stateManager *statemanager.Store
 
-	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
 	suggestionRunner       *conversation.ChatSuggestionGenerator
 	backgroundJobManager   *scheduler.TitleBackfill
@@ -145,27 +140,17 @@ type ServiceContainer struct {
 	storage                storage.ConversationStorage
 	stores                 *storage.Stores
 
-	// Token polyfill - used by /context, conversation optimizer, and the
-	// session rollover manager. Created unconditionally so any surface can
-	// fall back to it when the provider does not return usage metrics.
 	tokenizer *conversation.TokenizerService
 
-	// UI components
 	themeService tui.ThemeService
 
-	// Extensibility
 	shortcutRegistry *shortcuts.Registry
 	insights         *insights.Generator
 
-	// Tool registry
-	toolRegistry  *tools.Registry
-	mcpSupervisor mcpdomain.Supervisor
-	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
+	toolRegistry     *tools.Registry
+	mcpSupervisor    mcpdomain.Supervisor
 	mcpStartupCancel context.CancelFunc
 
-	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
-	// Constructed unconditionally. A2A-specific deps inside the
-	// services are nil-safe when A2A is disabled.
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
 	directExecutionService   tui.DirectExecutionService

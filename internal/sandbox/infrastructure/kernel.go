@@ -13,12 +13,11 @@ import (
 )
 
 // Child is the bash child for one command, with the confinement its platform
-// applies: a Landlock ruleset on the thread that forks it on Linux, a Seatbelt
-// profile around it on macOS, nothing elsewhere. Cmd is set up like any
-// exec.Cmd, and Start is the one call that has to go through Child.
+// applies: Landlock on Linux, Seatbelt on macOS, nothing elsewhere. Cmd is set
+// up like any exec.Cmd and must Start through Child. WritePaths is what the
+// kernel lets it write, nil when unconfined.
 type Child struct {
-	Cmd *exec.Cmd
-	// WritePaths is what the kernel lets the child write, nil when unconfined.
+	Cmd        *exec.Cmd
 	WritePaths []string
 }
 

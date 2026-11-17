@@ -46,9 +46,10 @@ type SessionUsageEvent struct {
 }
 
 // Reducer folds the AG-UI events of a thread's runs into the chat events the
-// TUI handlers render: deltas become chunks, a model step its completion and
-// an interrupt the prompt the user answers. It follows one client request
-// across a suspended run and its continuations, and tolerates attaching mid-run.
+// TUI handlers render, following one client request across a suspended run and
+// its continuations, and tolerating a mid-run attach. held is a step completion
+// without tool calls, which waits for the run to finish unless a queued message
+// continues it.
 type Reducer struct {
 	requestID string
 	started   bool
@@ -62,10 +63,7 @@ type Reducer struct {
 	known     map[string]*streamedCall
 	results   []*agentdomain.ToolExecutionResult
 	prompts   []Prompt
-	// held is the completion of a step that handed no calls to tools. It
-	// ends the client's turn, so it waits for the run to finish, unless a
-	// queued message continues the run first.
-	held *agentdomain.ChatCompleteEvent
+	held      *agentdomain.ChatCompleteEvent
 }
 
 // streamedCall is a tool call the run streamed: its name and its arguments.

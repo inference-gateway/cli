@@ -70,20 +70,17 @@ type Handler interface {
 }
 
 // Conn is one authenticated connection, on either end of the binding.
+// helloAttrs and ackAttrs are the other fields the hello and the ack declared,
+// facts the binding never interprets. The token is never among them.
 type Conn struct {
-	ws   *websocket.Conn
-	kind string
-	// helloAttrs are the other fields the hello declared, client facts like a
-	// version the binding itself never interprets. The token is never among
-	// them.
+	ws         *websocket.Conn
+	kind       string
 	helloAttrs map[string]string
-	// ackAttrs are the other fields the ack declared to a dialing end, host
-	// facts like its identity the binding itself never interprets.
-	ackAttrs  map[string]string
-	out       chan []byte
-	mu        sync.Mutex
-	done      chan struct{}
-	closeOnce sync.Once
+	ackAttrs   map[string]string
+	out        chan []byte
+	mu         sync.Mutex
+	done       chan struct{}
+	closeOnce  sync.Once
 }
 
 // newConn wraps one authenticated socket and starts its writer goroutine, so

@@ -24,8 +24,10 @@ const noExtensionConnected = "no browser extension connected"
 const extensionVersionAttr = "extension_version"
 
 // ExtensionRelay is the host end of the browser RPC on a binding. It keeps the
-// one extension connection and drives every browser_command through it, one at
-// a time, answering each with the browser_result carrying its id.
+// one extension connection, tells the other clients about its state and runs
+// browser commands one at a time through busy, answering each by id.
+// ponytail: a command holds busy to its own deadline even when its sender gave
+// up. Add a cancel frame if abandoned commands stall other threads.
 type ExtensionRelay struct {
 	port     int
 	notifier agentdomain.UINotifier
@@ -33,15 +35,8 @@ type ExtensionRelay struct {
 	mu      sync.Mutex
 	ext     *agui.Conn
 	pending map[string]chan json.RawMessage
-	// clients are the other connections on the binding, which the frame about
-	// the extension's state goes to.
 	clients map[*agui.Conn]struct{}
-	// busy gates browser commands at one: every source the host routes drives
-	// the one browser.
-	// ponytail: a command runs to its own deadline even when its sender gave
-	// up, holding the gate up to timeout_ms plus the margin. Add a cancel frame
-	// if abandoned commands stall other threads.
-	busy chan struct{}
+	busy    chan struct{}
 }
 
 // NewExtensionRelay builds the relay for the binding on the extension's port.

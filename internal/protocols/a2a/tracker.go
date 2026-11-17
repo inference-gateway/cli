@@ -32,7 +32,6 @@ type TaskTracker struct {
 	mu   sync.RWMutex
 	jobs jobDiscarder
 
-	// Hierarchical structure
 	agents []*a2aAgent
 
 	agentIndex   map[string]int

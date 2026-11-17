@@ -87,10 +87,11 @@ var answerSchema = map[string]any{
 	},
 }
 
-// RunEncoder renders one agent run on the AG-UI protocol: it maps each
-// ChatEvent to the AG-UI events of the run it writes, and an approval or a
-// question suspends the run with the interrupt outcome and continues on the
-// run the answer opens.
+// RunEncoder renders one agent run on the AG-UI protocol, mapping each
+// ChatEvent to the run's events. An approval or question suspends the run and
+// continues on the run the answer opens. history is emitted as a snapshot,
+// plan is the plan accepted during the run, and todoClock splits wall time
+// between todos.
 type RunEncoder struct {
 	writer   io.Writer
 	run      *agui.Run
@@ -100,8 +101,6 @@ type RunEncoder struct {
 	repo convdomain.ConversationRepository
 	jobs func() []scheddomain.TrackedJob
 
-	// history, when non-empty, is the restored conversation Start emits as
-	// MESSAGES_SNAPSHOT right after RUN_STARTED.
 	history []convdomain.ConversationEntry
 
 	approvals <-chan ipc.ApprovalResponse
@@ -112,39 +111,32 @@ type RunEncoder struct {
 	interrupt Interrupts
 	publish   []Publish
 
-	// plan is the plan the user accepted during the run, which the serve
-	// worker executes in a fresh session once the run ends.
 	plan *string
 
 	suggestNextStep func() string
 
-	// todoClock splits the run's wall time between its todos for the
-	// terminal event.
 	todoClock *todoClock
 
 	quiet bool
 }
 
-// RunEncoderDeps are the collaborators of one run's encoder.
+// RunEncoderDeps are the collaborators of one run's encoder. SuggestNextStep,
+// when set, yields the next-step suggestion patched into the state before the
+// terminal event. Quiet keeps the run off stderr for a host that owns the terminal.
 type RunEncoderDeps struct {
-	Model     string
-	Repo      convdomain.ConversationRepository
-	History   []convdomain.ConversationEntry
-	Jobs      func() []scheddomain.TrackedJob
-	Approvals <-chan ipc.ApprovalResponse
-	Questions <-chan ipc.UserQuestionResponse
-	Plans     <-chan ipc.PlanApprovalResponse
-	Modes     agentdomain.AgentModeState
-	Startup   *startupNotes
-	Interrupt Interrupts
-	Publish   []Publish
-	// SuggestNextStep, when wired, yields the finished assistant turn's
-	// one-line next-step suggestion, which the run patches into its state
-	// before the terminal event. nil for a run that publishes none.
+	Model           string
+	Repo            convdomain.ConversationRepository
+	History         []convdomain.ConversationEntry
+	Jobs            func() []scheddomain.TrackedJob
+	Approvals       <-chan ipc.ApprovalResponse
+	Questions       <-chan ipc.UserQuestionResponse
+	Plans           <-chan ipc.PlanApprovalResponse
+	Modes           agentdomain.AgentModeState
+	Startup         *startupNotes
+	Interrupt       Interrupts
+	Publish         []Publish
 	SuggestNextStep func() string
-	// Quiet keeps the run off the process's stderr, for a host that owns the
-	// terminal.
-	Quiet bool
+	Quiet           bool
 }
 
 // NewRunEncoder builds the encoder for one run over w. Non-empty history is

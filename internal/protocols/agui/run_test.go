@@ -24,7 +24,8 @@ func (w *writes) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// wireEvent is the slice of an AG-UI event the tests assert on.
+// wireEvent is the slice of an AG-UI event the tests assert on. Delta is a text
+// fragment, or the JSON Patch of a STATE_DELTA.
 type wireEvent struct {
 	Type    string `json:"type"`
 	Name    string `json:"name"`
@@ -37,9 +38,7 @@ type wireEvent struct {
 	Result   map[string]any   `json:"result"`
 	Usage    []map[string]any `json:"usage"`
 	Snapshot map[string]any   `json:"snapshot"`
-	// delta is the string fragment of a text or reasoning content event and,
-	// on STATE_DELTA, the JSON Patch the event applies.
-	Delta    json.RawMessage `json:"delta"`
+	Delta    json.RawMessage  `json:"delta"`
 	Activity struct {
 		Type string `json:"activityType"`
 	} `json:"activity,omitempty"`

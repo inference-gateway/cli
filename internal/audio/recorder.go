@@ -37,14 +37,13 @@ var silenceStartRe = regexp.MustCompile(`silence_start:\s*(-?[0-9.]+)`)
 // It is a field so tests can substitute a fake.
 type silenceRunner func(ctx context.Context, name string, args []string) error
 
-// Recorder captures microphone audio into a 16kHz mono WAV file by shelling out
-// to ffmpeg (with arecord/sox fallbacks on Linux), mirroring the candidate-list
-// pattern used by the clipboard text writer. It adds no CGO.
+// Recorder captures microphone audio into a 16kHz mono WAV file through ffmpeg,
+// with arecord and sox fallbacks on Linux, and adds no CGO. run, runSilence and
+// lookPath are overridable in tests.
 type Recorder struct {
 	cfg      config.SpeechToTextConfig
 	binaries binariesdomain.Store
 
-	// run, runSilence and lookPath are overridable in tests.
 	run        commandRunner
 	runSilence silenceRunner
 	lookPath   func(string) (string, error)

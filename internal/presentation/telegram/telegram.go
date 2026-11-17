@@ -70,23 +70,21 @@ type VoiceTranscriber interface {
 	TranscribeFile(ctx context.Context, audioPath string) (string, error)
 }
 
-// TelegramChannel implements channels.Channel for the Telegram Bot API
-// using the go-telegram/bot SDK with long-polling.
+// TelegramChannel implements channels.Channel for the Telegram Bot API using
+// the go-telegram/bot SDK with long-polling. media retains inbound attachments
+// when enabled, commands are advertised on Start, and msgIDs tracks recent
+// message IDs per chat so ClearHistory can delete them.
+// ponytail: msgIDs is in-memory and capped, since Telegram cannot delete old messages.
 type TelegramChannel struct {
 	cfg         config.TelegramChannelConfig
 	bot         *bot.Bot
 	transcriber VoiceTranscriber
 	retention   *FileRetention
 
-	// media retains inbound photo/video attachments on disk when
-	// cfg.Media.Enabled. Nil disables the feature.
 	media *FileRetention
 
-	// commands to advertise via SetMyCommands on Start.
 	commands []channels.ChannelCommand
 
-	// msgIDs tracks recent message IDs per chat so ClearHistory can delete them.
-	// ponytail: in-memory + capped. Telegram can't delete >48h-old messages anyway, persistence buys nothing
 	msgMu  sync.Mutex
 	msgIDs map[int64][]int
 }

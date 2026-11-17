@@ -118,12 +118,12 @@ type ReadSource interface {
 
 // rangeSource is a read-only ReadSource over the current branch's PR diff, from
 // the PR base's merge-base to the working tree. It reuses gitSource and resolves
-// the base lazily through gh, caching the merge-base.
+// base, the merge-base commit, lazily through gh.
 // ponytail: only the checked-out branch's PR. Reviewing another PR would need
 // `gh pr checkout <n>` first, which would mutate the user's checkout.
 type rangeSource struct {
 	g    *gitSource
-	base string // merge-base commit; resolved lazily on first use
+	base string
 }
 
 // NewPRSource returns a read-only source for the current branch's PR diff,

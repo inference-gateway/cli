@@ -12,53 +12,41 @@ import (
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
-// ApplicationState represents the overall application state with proper typing
+// ApplicationState is the overall typed state of the chat TUI: views, agent
+// mode, the chat and tool sessions, the queue, prompt UI state, todos and
+// readiness. lastFocusedAppID and lastClick record the last computer-use click
+// on macOS, so focus can be restored before keyboard actions.
 type ApplicationState struct {
-	// View Management
 	currentView  ViewState
 	previousView ViewState
 
-	// Agent Mode
 	agentMode agentdomain.AgentMode
 
-	// Chat State
 	chatSession *ChatSession
 
-	// Tool Execution State
 	toolExecution *ToolExecutionSession
 
-	// Message Queue
 	queuedMessages []convdomain.QueuedMessage
 
-	// UI Dimensions
 	width  int
 	height int
 
-	// UI State
 	approvalUIState     *ApprovalUIState
 	planApprovalUIState *PlanApprovalUIState
 	userQuestionUIState *UserQuestionUIState
 
-	// Todo State
 	todos []agentdomain.TodoItem
 
-	// Agent Readiness State
 	agentReadiness *AgentReadinessState
 
-	// Message Edit State
 	messageEditState *MessageEditState
 
-	// Focus Management (macOS computer-use tools)
-	// Stores the application ID of the app that was clicked (for restoring focus before keyboard operations)
 	lastFocusedAppID string
-	// Stores the coordinates of the last click (for re-clicking before keyboard operations)
-	lastClickX int
-	lastClickY int
+	lastClickX       int
+	lastClickY       int
 
-	// Where a daemon chat's session runs
 	sessionPlacement SessionPlacement
 
-	// Debugging
 	debugMode bool
 }
 

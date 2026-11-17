@@ -68,42 +68,36 @@ type ApprovalDecision struct {
 	Reason   string
 }
 
-// StateContext provides access to agent dependencies for state handlers
+// StateContext gives state handlers the agent's shared state and callbacks.
+// MaxConcurrentTools bounds approved tools running while later ones await
+// approval. RequestJudgeApprovals decides a round's judge calls in one request,
+// AttachToolImages hands tool images to the model, PresentPlan reports a
+// presented plan, and WaitForBackgroundTasks runs only for non-chat runs.
 type StateContext struct {
-	// Core dependencies
 	StateMachine AgentStateMachine
 	AgentCtx     *AgentContext
 
-	// Event communication
 	Events chan AgentEvent
 
-	// Concurrency control
 	WaitGroup *sync.WaitGroup
 	Mutex     *sync.Mutex
 
-	// Shared state data
 	CurrentMessage   *sdk.Message
 	CurrentToolCalls *[]*sdk.ChatCompletionMessageToolCall
 	CurrentReasoning *string
 
-	// Tool processing state
 	Tools                agentdomain.ToolManifestLookup
 	ToolsNeedingApproval *[]sdk.ChatCompletionMessageToolCall
 	CurrentToolIndex     *int
 	ToolResults          *[]convdomain.ConversationEntry
 
-	// Request context
 	Request *agentdomain.AgentRequest
 
-	// MaxConcurrentTools bounds how many approved tools may execute concurrently
-	// while later tools are still being approved.
 	MaxConcurrentTools int
 
-	// Function callbacks
 	ToolExecutor   *func()
 	StartStreaming func()
 
-	// Helper methods - these will be implemented as methods that delegate to internal service
 	GetMetrics            func(requestID string) *agentdomain.ChatMetrics
 	ShouldRequireApproval func(toolCall *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool
 	ApprovalDelivery      func(toolCall *sdk.ChatCompletionMessageToolCall) string
@@ -111,32 +105,18 @@ type StateContext struct {
 	AddMessage            func(entry convdomain.ConversationEntry) error
 	BatchDrainQueue       func() int
 	RequestToolApproval   func(toolCall sdk.ChatCompletionMessageToolCall) (bool, string, error)
-	// RequestJudgeApprovals decides every judge-routed call of the round in one
-	// judge request, keyed by tool call id. Calls a human decides are absent.
 	RequestJudgeApprovals func(calls []sdk.ChatCompletionMessageToolCall) map[string]ApprovalDecision
 	ExecuteToolInternal   func(toolCall sdk.ChatCompletionMessageToolCall, isApproved bool) convdomain.ConversationEntry
-	// ForgetPendingToolCall drops the approval entry of a call that will not run,
-	// since only running a call clears its entry.
 	ForgetPendingToolCall func(toolCallID string)
 	GetAgentMode          func() agentdomain.AgentMode
 	PublishChatEvent      func(event agentdomain.ChatEvent)
 	PublishChatComplete   func(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *agentdomain.ChatMetrics)
 	PublishChatCancelled  func(metrics *agentdomain.ChatMetrics)
 	PublishToolResults    func(results []convdomain.ConversationEntry)
-	// AttachToolImages appends the images a round's tools returned as one
-	// hidden user message after its results, since tool messages carry text only.
-	AttachToolImages func(results []convdomain.ConversationEntry)
-	// PresentPlan appends the plan a successful RequestPlanApproval in results
-	// asked for and publishes it for approval. It reports whether one did,
-	// which ends the run until the user decides.
-	PresentPlan func(results []convdomain.ConversationEntry) bool
+	AttachToolImages      func(results []convdomain.ConversationEntry)
+	PresentPlan           func(results []convdomain.ConversationEntry) bool
 
-	// DispatchHooks runs the actions attached to a hook point. State executors call it
-	// at their loop point. The streaming path calls the service directly.
 	DispatchHooks func(hook agentdomain.HookPoint)
 
-	// WaitForBackgroundTasks blocks until in-flight background work quiesces or
-	// posts a result to the message queue. Only non-chat runs invoke it, at the
-	// completion boundary in CheckingQueue.
 	WaitForBackgroundTasks func()
 }

@@ -48,12 +48,12 @@ type TodoUpdateChatEvent struct {
 }
 
 // JudgeVerdictChatEvent reports the LLM judge's decision for one pending tool
-// call when the judge approval delivery is active. Emitted for both decisions;
-// a rejection surfaces as a TUI flash status / headless stderr line.
+// call, made by Model. It is emitted for both decisions, and a rejection shows
+// as a TUI flash status or a headless stderr line.
 type JudgeVerdictChatEvent struct {
 	BaseChatEvent
 	Tool     string
-	Model    string // the judge model that decided
+	Model    string
 	Decision JudgeDecision
 	Reason   string
 	Turn     int

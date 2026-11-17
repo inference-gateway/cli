@@ -41,8 +41,10 @@ type Registry struct {
 }
 
 // RegistryDeps carries the optional collaborators NewRegistry wires into the
-// tools it registers. The zero value is valid: a nil collaborator leaves out
-// or degrades the tools that need it, and construction never fails.
+// tools it registers. The zero value is valid: a nil collaborator leaves out or
+// degrades the tools that need it. BackgroundTasks is the container's registry,
+// shared with the agent's wait loop, and nil Stores fail Schedule and
+// RequestPlanApproval at execution.
 type RegistryDeps struct {
 	Image             agentdomain.ImageService
 	Speech            agentdomain.SpeechService
@@ -52,12 +54,8 @@ type RegistryDeps struct {
 	VideoSoundEffects agentdomain.VideoSoundEffectService
 	BackgroundShells  scheddomain.BackgroundShellService
 	ImageAnnotator    agentdomain.ImageAnnotator
-	// BackgroundTasks is the unified registry the container owns, so the
-	// subagent tools observe the same tracker the agent's wait loop does.
-	BackgroundTasks scheddomain.BackgroundTaskRegistry
-	// Stores backs the Schedule and RequestPlanApproval tools. Nil leaves
-	// those tools failing at execution with a clear error.
-	Stores *storage.Stores
+	BackgroundTasks   scheddomain.BackgroundTaskRegistry
+	Stores            *storage.Stores
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.

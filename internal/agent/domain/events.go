@@ -34,23 +34,19 @@ type ChatChunkEvent struct {
 func (e ChatChunkEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ChatCompleteEvent indicates chat completion. Cancelled is set when the
-// completion is the result of a user-initiated cancel (Esc) rather than the
-// model finishing on its own - the UI uses this to show "User interrupted"
-// rather than "Response complete".
+// ChatCompleteEvent indicates chat completion. Cancelled marks a user cancel, so
+// the UI shows "User interrupted". MaxTurnsReached and MaxDurationReached mark a
+// completion forced by the turn limit or agent.max_duration_minutes, which
+// headless renderers map to ErrMaxTurnsReached and ErrMaxDurationReached.
 type ChatCompleteEvent struct {
-	RequestID        string
-	Timestamp        time.Time
-	Message          string
-	ReasoningContent string
-	ToolCalls        []sdk.ChatCompletionMessageToolCall
-	Metrics          *ChatMetrics
-	Cancelled        bool
-	// MaxTurnsReached marks a completion forced by the turn limit rather than
-	// the task finishing. Headless renderers map it to ErrMaxTurnsReached.
-	MaxTurnsReached bool
-	// MaxDurationReached marks a completion forced by the run's time budget
-	// (agent.max_duration_minutes). Headless renderers map it to ErrMaxDurationReached.
+	RequestID          string
+	Timestamp          time.Time
+	Message            string
+	ReasoningContent   string
+	ToolCalls          []sdk.ChatCompletionMessageToolCall
+	Metrics            *ChatMetrics
+	Cancelled          bool
+	MaxTurnsReached    bool
 	MaxDurationReached bool
 }
 
@@ -90,20 +86,17 @@ type MessageQueuedEvent struct {
 func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolApprovalRequestedEvent is used for standard tool approval workflow.
-// Computer-use tools use a separate pause/resume mechanism.
+// ToolApprovalRequestedEvent asks for a standard tool approval. Context is
+// optional text shown above the call, such as a judge escalation's reason. Done
+// closes once the agent stopped waiting, so a relay can let go, and is nil when
+// nothing signals that. Computer-use tools pause and resume instead.
 type ToolApprovalRequestedEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ToolCall  sdk.ChatCompletionMessageToolCall
-	// Context is optional text shown above the call in the approval prompt.
-	// RequestApproval escalations use it for the judge's reason and the
-	// agent's justification. Regular approvals leave it empty.
+	RequestID    string
+	Timestamp    time.Time
+	ToolCall     sdk.ChatCompletionMessageToolCall
 	Context      string
 	ResponseChan chan ApprovalAction `json:"-"`
-	// Done closes once the agent stopped waiting for the answer, so whoever
-	// relays one can let go. It is nil when nothing signals that.
-	Done <-chan struct{} `json:"-"`
+	Done         <-chan struct{}     `json:"-"`
 }
 
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
@@ -145,19 +138,17 @@ type PlanApprovalRequestedEvent struct {
 func (e PlanApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e PlanApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// UserQuestionRequestedEvent is published when the AskUserQuestion tool asks the
-// user one or more interactive clarifying questions. ResponseChan delivers the
-// collected answers back to the blocked tool goroutine. Closing it without a
-// value signals cancellation.
+// UserQuestionRequestedEvent is published when AskUserQuestion asks the user
+// clarifying questions. ResponseChan delivers the answers to the blocked tool,
+// and closing it without a value cancels. Done closes once the agent stopped
+// waiting, and is nil when nothing signals that.
 type UserQuestionRequestedEvent struct {
 	RequestID    string
 	ToolCallID   string
 	Timestamp    time.Time
 	Questions    []UserQuestion
 	ResponseChan chan []UserQuestionAnswer `json:"-"`
-	// Done closes once the agent stopped waiting for the answer, so whoever
-	// relays one can let go. It is nil when nothing signals that.
-	Done <-chan struct{} `json:"-"`
+	Done         <-chan struct{}           `json:"-"`
 }
 
 func (e UserQuestionRequestedEvent) GetRequestID() string    { return e.RequestID }

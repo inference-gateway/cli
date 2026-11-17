@@ -46,10 +46,10 @@ type UpdateStatusEvent struct {
 	ToolName   string
 }
 
-// ShowErrorEvent displays an error message
+// ShowErrorEvent displays an error message. Sticky keeps it until dismissed.
 type ShowErrorEvent struct {
 	Error  string
-	Sticky bool // Whether error persists until dismissed
+	Sticky bool
 }
 
 // ClearErrorEvent clears any displayed error

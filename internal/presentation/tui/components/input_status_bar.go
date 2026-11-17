@@ -34,6 +34,8 @@ type AgentReadiness interface {
 	RemoveAgent(name string)
 }
 
+// InputStatusBar renders the status row below the input. When focused,
+// selected indexes the indicators that open a view, in build order.
 type InputStatusBar struct {
 	width                  int
 	modelService           convdomain.ModelService
@@ -54,8 +56,6 @@ type InputStatusBar struct {
 	styleProvider          *styles.Provider
 	currentInputText       string
 
-	// Keyboard focus state: when focused, selected indexes the actionable
-	// indicators (those that open a view) in build order.
 	focused  bool
 	selected int
 }

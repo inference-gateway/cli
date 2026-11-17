@@ -22,7 +22,6 @@ type stateMachine struct {
 	previousState states.AgentExecutionState
 	mu            sync.RWMutex
 
-	// State transition map: maps each state to its possible transitions with guards and actions
 	transitions map[states.AgentExecutionState][]stateTransition
 }
 

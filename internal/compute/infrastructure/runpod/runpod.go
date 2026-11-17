@@ -48,15 +48,17 @@ func (r *RunPod) URL(id string, port int) string {
 }
 
 // RunPod rents GPU instances from RunPod and translates its API into compute's
-// domain. Base URLs are fields so tests can point at httptest.
+// domain. The URLs default to RunPod's REST and GraphQL APIs and are fields so
+// tests can use httptest. ProxyBase overrides the WaitReady URL in tests, and a
+// zero pollInterval probes every 10s.
 type RunPod struct {
 	APIKey     string
-	RestURL    string // default https://rest.runpod.io/v1
-	GraphQLURL string // default https://api.runpod.io/graphql
-	ProxyBase  string // overrides URL in WaitReady; tests only
+	RestURL    string
+	GraphQLURL string
+	ProxyBase  string
 	Client     *http.Client
 
-	pollInterval time.Duration // WaitReady probe interval; 0 means 10s (short in tests)
+	pollInterval time.Duration
 }
 
 func NewRunPod(apiKey string) *RunPod {

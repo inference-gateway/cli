@@ -1,11 +1,10 @@
 package domain
 
-// Target locates an action on screen, in the frame coordinate space (the
-// same space screenshots and their annotations use).
+// Target locates an action in frame space, the space screenshots and their
+// annotations use. Region limits a screenshot to that rectangle.
 type Target struct {
-	X int
-	Y int
-	// Region, on a screenshot action, captures only this rectangle.
+	X      int
+	Y      int
 	Region *Region
 }
 

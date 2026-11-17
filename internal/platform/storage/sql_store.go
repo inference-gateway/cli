@@ -15,13 +15,12 @@ import (
 )
 
 // sqlStore is the shared SQL implementation of ConversationStorage and
-// SessionGroupStorage. Both the SQLite and Postgres backends embed it: they
-// speak the same single-table, embedded-messages schema (the one D1 also uses
-// via GetSQLiteMigrations) and differ only in placeholder style, which rebind
-// normalizes.
+// SessionGroupStorage. The SQLite and Postgres backends embed it, speaking the
+// same schema D1 uses, and differ only in the placeholder style of their
+// dialect, which rebind normalizes.
 type sqlStore struct {
 	db      *sql.DB
-	dialect string // "sqlite" | "postgres"
+	dialect string
 }
 
 // rebind converts the "?" placeholders the statements are written with into

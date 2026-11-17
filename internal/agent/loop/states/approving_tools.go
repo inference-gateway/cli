@@ -14,18 +14,18 @@ import (
 )
 
 // toolRound is the state of one round of approving and executing tool calls.
-// Judge calls are decided in one request and human prompts one at a time.
-// Nothing runs until every call is decided, so prompts never hide tool output.
-// The cleared calls then run overlapping and flush in tool-call order.
+// Judge verdicts are decided in one request and human prompts one at a time.
+// Nothing runs until every call is decided, then the cleared calls run
+// overlapping, bounded by sem and ordered by order, and results flush in order.
 type toolRound struct {
-	cleared []clearedCall                  // calls to execute once the round is decided
-	results []convdomain.ConversationEntry // indexed by tool position
-	ready   []bool                         // ready[i] set once results[i] is filled
-	flushed int                            // next slot index to flush, in order
-	wg      sync.WaitGroup                 // tracks spawned executions
-	sem     chan struct{}                  // bounds concurrent executions
-	order   CallOrder                      // keeps side effects in tool-call order
-	decided map[string]ApprovalDecision    // judge verdicts by tool call id
+	cleared []clearedCall
+	results []convdomain.ConversationEntry
+	ready   []bool
+	flushed int
+	wg      sync.WaitGroup
+	sem     chan struct{}
+	order   CallOrder
+	decided map[string]ApprovalDecision
 }
 
 // clearedCall is a call the round will execute: one the user or the judge

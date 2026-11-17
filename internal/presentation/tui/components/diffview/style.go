@@ -12,14 +12,16 @@ type LineStyle struct {
 	Code       lipgloss.Style
 }
 
-// Style aggregates LineStyles for every diff line kind.
+// Style aggregates LineStyles for every diff line kind: the @@ hunk divider,
+// the empty side of a split pair, context, additions, deletions and the file
+// header.
 type Style struct {
-	DividerLine LineStyle // hunk header @@ ... @@
-	MissingLine LineStyle // empty paired side in split layout
-	EqualLine   LineStyle // unchanged / context
-	InsertLine  LineStyle // additions
-	DeleteLine  LineStyle // deletions
-	Filename    LineStyle // file header above first hunk
+	DividerLine LineStyle
+	MissingLine LineStyle
+	EqualLine   LineStyle
+	InsertLine  LineStyle
+	DeleteLine  LineStyle
+	Filename    LineStyle
 }
 
 // hex colors chosen to read well on the dark backgrounds used by Tokyo Night
@@ -143,16 +145,16 @@ func buildStyle(p styleParts) Style {
 	}
 }
 
-// ThemePalette carries the semantic colours a diff Style derives from the
-// active application theme. Callers build it from their theme so the diffview
-// package stays decoupled from the app's theme types. Empty colour fields keep
-// the tuned base value.
+// ThemePalette carries the semantic colours a diff Style derives from the app
+// theme, so diffview stays decoupled from the theme types: additions, deletions,
+// the hunk header accent and dim line numbers. Dark picks the background base,
+// and an empty colour keeps the tuned base value.
 type ThemePalette struct {
-	Add    string // additions foreground (+ symbol and line number)
-	Remove string // deletions foreground (- symbol and line number)
-	Accent string // hunk header (@@ ... @@) foreground
-	Dim    string // gutter / context line numbers
-	Dark   bool   // pick the dark vs light tuned background base
+	Add    string
+	Remove string
+	Accent string
+	Dim    string
+	Dark   bool
 }
 
 // NewThemeAwareStyle builds a diff Style whose semantic foreground colours come

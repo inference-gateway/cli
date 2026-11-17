@@ -149,13 +149,14 @@ func buildThemedStyles(theme tui.Theme) themedStyles {
 	}
 }
 
-// Provider centralizes all styling logic and provides complete abstraction from Lipgloss.
-// Components should NEVER import lipgloss directly - they interact with styling through this provider.
+// Provider centralizes all styling and hides Lipgloss from components, which
+// must never import it. s holds the styles pre-baked for themeName, and built
+// tells an unbuilt cache apart from a theme named "".
 type Provider struct {
 	themeService tui.ThemeService
-	built        bool         // whether s has been built at all (a theme name can legitimately be "")
-	themeName    string       // theme the cache was built for
-	s            themedStyles // styles pre-baked for themeName
+	built        bool
+	themeName    string
+	s            themedStyles
 }
 
 // NewProvider creates a new style provider

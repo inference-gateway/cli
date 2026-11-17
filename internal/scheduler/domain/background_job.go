@@ -49,18 +49,14 @@ type JobMeta struct {
 	HoldsSession bool
 }
 
-// JobSignal is an intermediate, non-terminal event a running job emits to the
-// supervisor (an A2A status change, a subagent that became blocked on a tool
-// approval). The terminal outcome is Run's return value, never a signal.
+// JobSignal is a non-terminal event a running job emits, such as an A2A status
+// change. Note is shown in the UI and, with Enqueue, also queued so the agent
+// reads it next turn. State is an optional kind-specific status token. The
+// terminal outcome is Run's return value.
 type JobSignal struct {
-	// Note is a human-facing line surfaced to the UI and, when Enqueue is set,
-	// landed on the message queue so the agent reads it on its next turn.
-	Note string
-	// Enqueue lands Note on the message queue and wakes the agent loop. Otherwise
-	// Note is a UI-only status update.
+	Note    string
 	Enqueue bool
-	// State is an optional kind-specific status token (e.g. an A2A task state).
-	State string
+	State   string
 }
 
 // WindSignal is the graceful control signal the supervisor pushes into a

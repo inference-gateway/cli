@@ -22,17 +22,15 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-// ChatMessageProcessor handles message processing logic
+// ChatMessageProcessor handles message processing logic. declinedSkills,
+// guarded by declinedMu, remembers catalog skills the user refused so re-sending
+// the message does not re-open the prompt.
+// ponytail: session-scoped and never cleared - `infer skills install` remains
+// the way to change your mind.
 type ChatMessageProcessor struct {
-	handler *ChatHandler
-	// declinedSkills remembers catalog skills the user refused to install, so
-	// re-sending the same message does not re-open the prompt in a loop.
-	// ponytail: session-scoped and never cleared - `infer skills install`
-	// remains the way to change your mind.
+	handler        *ChatHandler
 	declinedSkills map[string]bool
-	// declinedMu guards declinedSkills, which the install command writes off
-	// the update loop while the next message reads it.
-	declinedMu sync.Mutex
+	declinedMu     sync.Mutex
 }
 
 func (p *ChatMessageProcessor) declineSkill(name string) {

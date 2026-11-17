@@ -28,25 +28,20 @@ const markdownAgentNameMaxLen = 64
 // charset accepted for named agents.
 var markdownAgentNameRegex = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
-// markdownAgent is a reusable subagent preset defined as a Markdown file with
-// YAML frontmatter (Claude Code / Gemini CLI compatible): the body is the
-// system prompt, the frontmatter the configuration.
+// markdownAgent is a subagent preset defined as a Markdown file with YAML
+// frontmatter: the body is the system prompt. disallowedTools is applied by the
+// worker, mcpServers nil means the enabled ones, and source is "project" or
+// "user" for listings.
 type markdownAgent struct {
-	name        string
-	description string
-	model       string
-	tools       []string
-	// disallowedTools is the frontmatter's list as written, which a thread's
-	// worker applies against the tools it has.
+	name            string
+	description     string
+	model           string
+	tools           []string
 	disallowedTools []string
-	// mcpServers names the servers of mcp.yaml its threads bring up, nil the
-	// enabled ones and an empty list none.
-	mcpServers   []string
-	systemPrompt string
-	path         string
-	// source classifies where the file was loaded from ("project" or "user"),
-	// for user-facing listings.
-	source string
+	mcpServers      []string
+	systemPrompt    string
+	path            string
+	source          string
 }
 
 // markdownAgentFrontmatter is deliberately permissive: only the keys we honor

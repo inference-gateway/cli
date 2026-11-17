@@ -9,22 +9,20 @@ import (
 	"time"
 )
 
-// Migration represents a database migration
+// Migration is one database migration: a Version such as "001", a description,
+// the SQL that applies it and optional SQL that rolls it back.
 type Migration struct {
-	// Version is the migration version (e.g., "001", "002")
-	Version string
-	// Description is a human-readable description of the migration
+	Version     string
 	Description string
-	// UpSQL contains the SQL statements to apply the migration
-	UpSQL string
-	// DownSQL contains the SQL statements to rollback the migration (optional)
-	DownSQL string
+	UpSQL       string
+	DownSQL     string
 }
 
-// MigrationRunner manages database migrations
+// MigrationRunner manages database migrations for the "sqlite" or "postgres"
+// dialect.
 type MigrationRunner struct {
 	db      *sql.DB
-	dialect string // "sqlite" or "postgres"
+	dialect string
 }
 
 // NewMigrationRunner creates a new migration runner

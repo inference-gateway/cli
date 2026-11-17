@@ -20,10 +20,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// headlessSubagentJob adapts a headless subagent to a BackgroundJob: Run drives
-// it and reports the outcome. The subagent is a thread on the daemon the job
-// follows as a client, so every client of the daemon sees the same turns, or
-// an `infer headless` subprocess when no binding is configured.
+// headlessSubagentJob adapts a headless subagent to a BackgroundJob, followed as
+// a client of its daemon thread or run as an `infer headless` subprocess without
+// a binding. done closes when Run returns, nil for fire-and-forget. A keep-alive
+// job keeps the child's stdin open between turns and closes it after idleTimeout.
 type headlessSubagentJob struct {
 	tool      *AgentTool
 	spec      AgentTaskSpec
@@ -31,12 +31,8 @@ type headlessSubagentJob struct {
 	runCtx    context.Context
 	cancelRun context.CancelFunc
 
-	// done is closed once Run returns, waking the blocking fan-in that awaits
-	// this job. nil for a fire-and-forget dispatch, which nobody awaits.
 	done chan struct{}
 
-	// A keep-alive job holds the child's stdin open between turns, reports
-	// each turn itself and closes the child after idleTimeout without input.
 	keepAlive   bool
 	idleTimeout time.Duration
 	wrapUp      string
@@ -590,11 +586,11 @@ func (j *headlessSubagentJob) Close() {
 	_ = j.tool.tracker.RemoveSubagent(j.state.ID)
 }
 
-// interactiveSubagentJob monitors a live interactive subagent (a tmux pane
-// running `infer chat`) for its whole life. Run polls the pane and returns once
-// the subagent reports done, fails, idles out, or its pane closes. Each terminal
-// outcome tears the subagent down inline. The result file's done flag is the
-// completion signal and screen stability is only an idle hint.
+// interactiveSubagentJob monitors a live interactive subagent in a tmux pane for
+// its whole life, returning once it reports done, fails, idles out or its pane
+// closes, and tearing it down inline. The result file's done flag signals
+// completion and screen stability only hints idleness. The polling tunables are
+// overridable in tests.
 type interactiveSubagentJob struct {
 	tool      *AgentTool
 	state     *scheddomain.SubagentState
@@ -603,7 +599,6 @@ type interactiveSubagentJob struct {
 	paneState func(ctx context.Context, paneID string) paneState
 	wrapUp    string
 
-	// Heuristic tunables (overridable in tests).
 	pollInterval time.Duration
 	grace        time.Duration
 	stableNeeded int

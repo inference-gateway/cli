@@ -33,7 +33,10 @@ type ConversationOptimizer struct {
 
 var _ convdomain.ConversationOptimizer = (*ConversationOptimizer)(nil)
 
-// OptimizerConfig represents configuration for the conversation optimizer
+// OptimizerConfig configures the conversation optimizer. An optional Repo lets
+// OptimizeMessages trigger on the gateway-reported LastInputTokens instead of
+// an entries-only estimate. An optional RestoreContext returns messages to
+// append after the summary, so loaded skills survive compaction verbatim.
 type OptimizerConfig struct {
 	Enabled           bool
 	AutoAt            int
@@ -42,17 +45,9 @@ type OptimizerConfig struct {
 	Client            sdk.Client
 	Config            *config.Config
 	Tokenizer         *TokenizerService
-	// Repo is optional. When provided, OptimizeMessages reads
-	// LastInputTokens from the repo's session stats and uses it as the
-	// trigger value (the gateway-reported count includes system prompt and
-	// tool definitions, matching what `/context` displays). When nil, the
-	// gate falls back to the entries-only estimate.
-	Repo convdomain.ConversationRepository
-	// RestoreContext is optional. It receives the messages that were folded
-	// into the summary and returns messages to append after it, so context
-	// the agent must keep verbatim (loaded skills) survives compaction.
-	RestoreContext func(summarized []sdk.Message) []sdk.Message
-	Strategy       config.CompactStrategy
+	Repo              convdomain.ConversationRepository
+	RestoreContext    func(summarized []sdk.Message) []sdk.Message
+	Strategy          config.CompactStrategy
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration

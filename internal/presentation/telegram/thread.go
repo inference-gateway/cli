@@ -23,11 +23,11 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// threadChat is the per-chat driving adapter onto the daemon's thread
-// registry: it is the worker's Client of one chat, follows the chat's
-// deterministic session id on the daemon's working dir, delivers the
-// worker's AG-UI renders as channel messages, and answers the interrupts
-// (tool approvals, user questions) the way the other clients do.
+// threadChat drives one chat on the daemon's thread registry as the worker's
+// client, delivering its AG-UI renders as channel messages and answering its
+// interrupts. A full frames buffer drops a frame instead of freezing the pump,
+// detach releases the worker after idling, and the render state belongs to
+// handleFrames.
 type threadChat struct {
 	ctx        context.Context
 	manager    *ChannelManagerService
@@ -36,22 +36,12 @@ type threadChat struct {
 	sessionID  string
 	projectDir string
 
-	// frames carries the frames the registry delivers until the daemon
-	// stops. handleFrames drains it. A full buffer drops the frame rather
-	// than freezing the registry's pump for every follower.
 	frames chan []byte
 
-	// mu guards the idle bookkeeping: active is the time of the last
-	// frame in either direction, and detouch detaches the chat on idle
-	// so the registry may reap its worker.
 	mu     sync.Mutex
 	active time.Time
 	detach *time.Timer
 
-	// render state, owned by handleFrames: the open assistant
-	// message's deltas and its role, the tool calls rendered for the
-	// next flush, the tool call being streamed, and the calls of the run
-	// by id, which the interrupt that suspends the run names.
 	message  strings.Builder
 	role     string
 	tools    []string

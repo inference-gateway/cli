@@ -44,6 +44,10 @@ const (
 	minDiffWidth      = 20
 )
 
+// ApprovalBoxView renders the pending tool approval as a form with a diff
+// preview. active is the approval the form was built for, and a mismatch marks
+// it stale. expanded switches the capped preview to a scrollable full diff from
+// scrollOffset, both reset per approval.
 type ApprovalBoxView struct {
 	width            int
 	height           int
@@ -52,16 +56,10 @@ type ApprovalBoxView struct {
 	toolFormatter    tui.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
-	// active is the approval state the form was built for. A mismatch with
-	// the state store (cleared externally) marks the form stale.
 	active *tui.ApprovalUIState
 	form   *huh.Form
 	choice agentdomain.ApprovalAction
 
-	// expanded switches the diff from the height-capped preview to a scrollable
-	// window over the full diff (ctrl+o), mirroring the conversation view's
-	// tool-result expansion. scrollOffset is the first visible diff line in that
-	// window. Both reset for each new approval.
 	expanded     bool
 	scrollOffset int
 }

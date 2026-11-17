@@ -14,13 +14,13 @@ import (
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
-// Store provides centralized state management with proper synchronization
+// Store provides centralized, synchronized state management. eventBridge
+// optionally multicasts events to external consumers.
 type Store struct {
 	state          *tui.ApplicationState
 	mutex          sync.RWMutex
 	stallThreshold time.Duration
 
-	// Event multicast for external event consumers (optional)
 	eventBridge agentdomain.EventBridge
 
 	debugMode bool

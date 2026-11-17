@@ -34,10 +34,10 @@ type pendingInterrupt struct {
 }
 
 // headlessControl is the single reader of the headless process's stdin. It
-// routes the run inputs a client sends into the message queue and, through
-// their resume entries, into the approval, question and plan brokers the renderer
-// blocks on, and browser results into the stdio browser. It mirrors what the
-// chat approval coordinator does in the TUI. The channels close on stdin EOF.
+// routes run inputs into the queue and their resume entries to the pending
+// interrupt's broker, and browser results to the stdio browser. turnMu keeps
+// turns and rewinds apart. deferred holds messages after the current turn, so a
+// running turn never drains a direct task as text.
 type headlessControl struct {
 	agentService agentdomain.AgentService
 	messageQueue convdomain.MessageQueue
@@ -47,33 +47,18 @@ type headlessControl struct {
 	questions    chan ipc.UserQuestionResponse
 	plans        chan ipc.PlanApprovalResponse
 
-	// pending holds the interrupts the runs raised, keyed by interrupt id
-	// and carrying the reason and the tool call that raised it, so a resume
-	// entry routes to its own broker and a take-over finds the Computer
-	// calls whose approval box is open.
 	pendingMu sync.Mutex
 	pending   map[string]pendingInterrupt
 
-	// directCancel stops the direct command the serve loop is running. The
-	// stdin reader reads it while the serve loop sets it.
 	directCancel atomic.Pointer[context.CancelFunc]
 
-	// turnMu is held by the serve loop for each turn and by the stdin reader
-	// for each rewind, so neither writes the conversation under the other.
 	turnMu sync.Mutex
 
-	// wake signals the serve loop that a run input landed on the queue.
 	wake    chan struct{}
 	browser *stdioBrowser
 	panel   *Panel
 
-	// drained signals a message that landed on the queue from elsewhere, such
-	// as a finished background job's note. Unlike wake it never closes, since
-	// a job can finish after stdin did.
-	drained chan struct{}
-	// deferred holds the messages after the serve loop's current turn, off the
-	// queue so a running agent turn does not drain a direct task as text. Only
-	// the serve loop writes it, under turnMu.
+	drained  chan struct{}
 	deferred []convdomain.QueuedMessage
 }
 

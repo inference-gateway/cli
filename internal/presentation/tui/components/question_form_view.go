@@ -28,23 +28,20 @@ const otherOptionLabel = "Other…"
 const otherSentinel = -1
 
 // QuestionFormView drives the AskUserQuestion form above the input, owning one
-// huh form per question. The state store only carries the questions, the
-// overlay flag and the response channel. The agent loop blocks until answers
-// are sent on the channel or it is closed.
+// huh form per question. active is the state it was built for, stale once it
+// no longer matches. The agent loop blocks until answers are sent on the
+// channel or it is closed.
 type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
 	stateManager  tui.UserQuestionPrompt
 
-	// active is the state this form was built for. If the state store's
-	// state no longer matches (cancelled externally), the form is stale.
 	active  *tui.UserQuestionUIState
 	idx     int
 	form    *huh.Form
 	answers []agentdomain.UserQuestionAnswer
 
-	// Form-bound values, reset per question.
 	single int
 	multi  []int
 	other  string

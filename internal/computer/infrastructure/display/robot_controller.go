@@ -78,13 +78,12 @@ var (
 	}
 )
 
-// robotController implements DisplayController on robotgo's cgo-free backends
-// (selected per platform by the `purego` build tag). Mouse/keyboard
-// coordinates are in logical pixels. On scaled displays (Retina, HiDPI)
-// physical dimensions are divided by the scale factor.
+// robotController implements DisplayController on robotgo's cgo-free backends.
+// Mouse and keyboard use logical pixels, while screenWidth and screenHeight are
+// physical and divided by scaleFactor on HiDPI displays.
 type robotController struct {
-	screenWidth  int // physical pixels
-	screenHeight int // physical pixels
+	screenWidth  int
+	screenHeight int
 	scaleFactor  float64
 }
 

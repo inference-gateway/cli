@@ -38,10 +38,11 @@ const (
 	recordStopTimeout = 10 * time.Second
 )
 
-// RecordingStatus is the result data of RecordStart and RecordStop.
+// RecordingStatus is the result data of RecordStart and RecordStop. Region is
+// in frame space.
 type RecordingStatus struct {
 	Path            string                `json:"path"`
-	Region          computerdomain.Region `json:"region"` // frame space
+	Region          computerdomain.Region `json:"region"`
 	FrameWidth      int                   `json:"frame_width"`
 	FrameHeight     int                   `json:"frame_height"`
 	DurationSeconds float64               `json:"duration_seconds,omitempty"`
@@ -50,11 +51,12 @@ type RecordingStatus struct {
 	Message         string                `json:"message"`
 }
 
-// recordRequest is what RecordStart asks to capture.
+// recordRequest is what RecordStart asks to capture: Mode screen, window or
+// region, with Region in frame space.
 type recordRequest struct {
-	Mode   string // screen, window, or region
+	Mode   string
 	Window string
-	Region *computerdomain.Region // frame space
+	Region *computerdomain.Region
 }
 
 // recording is one ffmpeg process. done is closed once Wait returns. Err and

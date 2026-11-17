@@ -60,7 +60,7 @@ const (
 // diffKeymap resolves pressed keys to configurable diff-panel action IDs and
 // exposes each action's primary key for footer hints.
 type diffKeymap struct {
-	bindings map[string]key.Binding // actionID -> key.Binding
+	bindings map[string]key.Binding
 }
 
 // matches returns the first of the candidate action IDs matching the pressed key.

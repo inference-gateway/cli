@@ -148,58 +148,44 @@ type workerInterrupt struct {
 
 // Registry is the daemon's thread registry. It runs one worker per thread,
 // relays frames both ways and stops idle workers. The first answer wins for a
-// suspended run's resume and a panel approval. A crashed worker's open run ends
-// with RUN_ERROR, browser_command frames go to the extension, and run state
-// changes broadcast thread_activity.
+// resume or a panel approval. finished and away outlive their threads to answer
+// AgentsDone, and draining holds threads whose reaped worker has not exited, so
+// no second worker writes the same conversation.
 type Registry struct {
-	launch    sessionsdomain.LaunchWorker
-	idle      time.Duration
-	browser   sessionsdomain.BrowserRelay
-	agents    sessionsdomain.ResolveAgent
-	mu        sync.Mutex
-	closed    bool
-	threads   map[sessionsdomain.ThreadKey]*thread
-	subs      map[sessionsdomain.Client]*thread
-	approvals map[string]*thread
-	all       map[sessionsdomain.Client]struct{}
-	// lastActive is when the registry last had a thread or a client, read by
-	// Idle. Written with mu held.
+	launch     sessionsdomain.LaunchWorker
+	idle       time.Duration
+	browser    sessionsdomain.BrowserRelay
+	agents     sessionsdomain.ResolveAgent
+	mu         sync.Mutex
+	closed     bool
+	threads    map[sessionsdomain.ThreadKey]*thread
+	subs       map[sessionsdomain.Client]*thread
+	approvals  map[string]*thread
+	all        map[sessionsdomain.Client]struct{}
 	lastActive time.Time
-	// finished holds, per thread that ran, whether its last run finished
-	// without waiting on the user. It outlives the thread, one entry per
-	// conversation for the daemon's lifetime. Read by AgentsDone.
-	finished map[sessionsdomain.ThreadKey]bool
-	// away holds, per thread whose session teleported, whether it now lives in
-	// another workspace (true) or arrived here (false). Read by AgentsDone and
-	// AllTeleportedAway.
-	away map[sessionsdomain.ThreadKey]bool
-	// draining holds the threads whose reaped worker has not exited yet. No
-	// worker launches for one, since two would write the same conversation.
-	draining map[sessionsdomain.ThreadKey]struct{}
+	finished   map[sessionsdomain.ThreadKey]bool
+	away       map[sessionsdomain.ThreadKey]bool
+	draining   map[sessionsdomain.ThreadKey]struct{}
 }
 
-// thread is one project dir plus conversation id and the worker running it.
-// A client follows at most one thread, because bare AG-UI events carry no
-// thread id. The worker is nil until launched, after it exits and while the
-// thread is at rest for a teleport, from Quiesce until Settle.
+// thread is one project dir plus conversation id and the worker running it,
+// which is nil until launched, after it exits and while at rest. interruptsRaw
+// is the suspended run's interrupts as written, for checkpoints, and suspended
+// is the terminal line replayed to new followers while they are open.
 type thread struct {
-	key        sessionsdomain.ThreadKey
-	opts       sessionsdomain.ThreadOptions
-	worker     sessionsdomain.Worker
-	clients    map[sessionsdomain.Client]struct{}
-	waiting    map[string][]sessionsdomain.Client
-	runID      string
-	interrupts map[string]struct{}
-	// interruptsRaw is the interrupts array of the suspended run's terminal
-	// line as the worker wrote it, so a checkpoint carries every field.
+	key           sessionsdomain.ThreadKey
+	opts          sessionsdomain.ThreadOptions
+	worker        sessionsdomain.Worker
+	clients       map[sessionsdomain.Client]struct{}
+	waiting       map[string][]sessionsdomain.Client
+	runID         string
+	interrupts    map[string]struct{}
 	interruptsRaw json.RawMessage
-	// suspended is the terminal line the run suspended on, replayed to a client
-	// that starts following while its interrupts are open.
-	suspended []byte
-	jobs      int
-	active    time.Time
-	launchErr error
-	atRest    bool
+	suspended     []byte
+	jobs          int
+	active        time.Time
+	launchErr     error
+	atRest        bool
 }
 
 // NewRegistry builds a registry that launches workers with launch and stops

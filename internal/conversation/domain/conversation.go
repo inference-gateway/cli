@@ -66,7 +66,10 @@ func CreateTitleFromMessage(content string) string {
 	return title
 }
 
-// ConversationMetadata contains metadata about a conversation
+// ConversationMetadata contains metadata about a conversation. ActiveDuration
+// sums the time the agent worked across runs, ParentSessionID names the
+// spawning orchestrator session, InvokedBy is "human" or "agent", and Project
+// is the absolute working directory backends group conversations by.
 type ConversationMetadata struct {
 	ID                  string            `json:"id"`
 	Title               string            `json:"title"`
@@ -82,25 +85,19 @@ type ConversationMetadata struct {
 	TitleGenerationTime *time.Time        `json:"title_generation_time,omitempty"`
 	ContextID           string            `json:"context_id,omitempty"`
 
-	// ActiveDuration is how long the agent has worked in this session, summed
-	// over its runs. Time spent idle between runs does not count.
 	ActiveDuration time.Duration `json:"active_duration,omitempty"`
 
-	// ParentSessionID is the orchestrator session that spawned this one
-	// (e.g. a subagent's parent). Empty for top-level sessions.
 	ParentSessionID string `json:"parent_session_id"`
 
-	// InvokedBy indicates who started the session: "human" or "agent".
-	// Defaults to "human" for sessions with no explicit invoker.
 	InvokedBy string `json:"invoked_by"`
 
-	// Project is the absolute path of the working directory the session
-	// runs in. Storage backends group conversations by it so listing can
-	// be scoped to the current project.
 	Project string `json:"project"`
 }
 
-// ConversationSummary contains summary information about a conversation
+// ConversationSummary contains summary information about a conversation, with
+// the same ParentSessionID, InvokedBy and Project as ConversationMetadata.
+// Project is empty for legacy records, and Workspace names where a daemon chat
+// runs.
 type ConversationSummary struct {
 	ID                  string            `json:"id"`
 	Title               string            `json:"title"`
@@ -116,17 +113,11 @@ type ConversationSummary struct {
 	TitleInvalidated    bool              `json:"title_invalidated,omitempty"`
 	TitleGenerationTime *time.Time        `json:"title_generation_time,omitempty"`
 
-	// ParentSessionID is the orchestrator session that spawned this one.
 	ParentSessionID string `json:"parent_session_id"`
 
-	// InvokedBy indicates who started the session: "human" or "agent".
 	InvokedBy string `json:"invoked_by"`
 
-	// Project is the absolute path of the working directory the session runs
-	// in. Empty for legacy records.
 	Project string `json:"project,omitempty"`
 
-	// Workspace names where the session runs. A daemon chat sets it, other
-	// listings leave it empty.
 	Workspace string `json:"workspace,omitempty"`
 }

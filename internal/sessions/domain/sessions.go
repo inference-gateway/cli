@@ -12,35 +12,26 @@ type ThreadKey struct {
 	ConversationID string
 }
 
-// ThreadOptions override the project's config for one thread's worker. They
-// apply when the worker launches, and zero values keep the project's config.
+// ThreadOptions override the project's config for one thread's worker at
+// launch, and zero values keep it. Agent names a Markdown agent the opening
+// daemon resolves into the other fields. MCPServers nil keeps the enabled
+// servers and empty brings none. Workspace places an unleased thread, and Env
+// never travels on the wire.
 type ThreadOptions struct {
-	Model              string   `json:"model,omitempty"`
-	Mode               string   `json:"mode,omitempty"`
-	SystemPrompt       string   `json:"system_prompt,omitempty"`
-	CustomInstructions string   `json:"custom_instructions,omitempty"`
-	SandboxDirectories []string `json:"sandbox_directories,omitempty"`
-	MaxTurns           int      `json:"max_turns,omitempty"`
-	// Subagent marks a thread another thread's Agent tool spawned.
-	Subagent *Subagent `json:"subagent,omitempty"`
-	// Agent names the Markdown agent the thread runs as. The daemon it is
-	// opened on resolves it into the model, system prompt, tool lists and MCP
-	// servers below, so a relay or a teleport carries those instead of the name.
-	Agent           string   `json:"agent,omitempty"`
-	Tools           []string `json:"tools,omitempty"`
-	DisallowedTools []string `json:"disallowed_tools,omitempty"`
-	// MCPServers names the servers of mcp.yaml the worker brings up. Nil keeps
-	// the enabled ones and an empty list brings up none, so it is omitted only
-	// when nil.
-	MCPServers []string `json:"mcp_servers,omitzero"`
-	// Workspace and WorkspaceDir place a thread no lease places: the
-	// workspace that holds its conversation and the source code there, as
-	// when a client opens a session it listed on a remote workspace.
-	Workspace    string `json:"workspace,omitempty"`
-	WorkspaceDir string `json:"workspace_dir,omitempty"`
-	// Env is extra environment the worker starts with, such as credentials a
-	// teleport handed over. It never travels on the wire.
-	Env []string `json:"-"`
+	Model              string    `json:"model,omitempty"`
+	Mode               string    `json:"mode,omitempty"`
+	SystemPrompt       string    `json:"system_prompt,omitempty"`
+	CustomInstructions string    `json:"custom_instructions,omitempty"`
+	SandboxDirectories []string  `json:"sandbox_directories,omitempty"`
+	MaxTurns           int       `json:"max_turns,omitempty"`
+	Subagent           *Subagent `json:"subagent,omitempty"`
+	Agent              string    `json:"agent,omitempty"`
+	Tools              []string  `json:"tools,omitempty"`
+	DisallowedTools    []string  `json:"disallowed_tools,omitempty"`
+	MCPServers         []string  `json:"mcp_servers,omitzero"`
+	Workspace          string    `json:"workspace,omitempty"`
+	WorkspaceDir       string    `json:"workspace_dir,omitempty"`
+	Env                []string  `json:"-"`
 }
 
 // Portable is what of the options follows a session to another workspace: the

@@ -68,44 +68,43 @@ const (
 // cache-read and cache-creation subsets of prompt tokens. Pass nil to skip cost.
 type CostFunc func(model string, prompt, completion, cached, cacheWrite int) (input, output, total float64)
 
-// Options configures a Recorder. Dir + SessionID locate the per-process local
-// file. OTLP* enable the optional remote export.
+// Options configures a Recorder. Dir and SessionID locate the per-process local
+// file, and the OTLP fields enable the optional remote export.
+// AttrSessionIDKey and AttrToolCallIDKey override the baggage member names,
+// falling back to the OTel semconv defaults.
 type Options struct {
-	Enabled         bool
-	Dir             string
-	SessionID       string
-	OTLPEndpoint    string
-	OTLPHeaders     map[string]string
-	OTLPInterval    time.Duration
-	ReceiverAddress string
-	Cost            CostFunc
-	// AttrSessionIDKey / AttrToolCallIDKey override the baggage member names;
-	// empty falls back to the OTel semconv defaults.
+	Enabled           bool
+	Dir               string
+	SessionID         string
+	OTLPEndpoint      string
+	OTLPHeaders       map[string]string
+	OTLPInterval      time.Duration
+	ReceiverAddress   string
+	Cost              CostFunc
 	AttrSessionIDKey  string
 	AttrToolCallIDKey string
 }
 
-// Recorder maps recorded events onto OTel instruments and spans. A nil
-// *Recorder is a valid no-op, so callers guard hot paths with `if rec != nil`
-// and the container skips wrapping when disabled.
+// Recorder maps recorded events onto OTel instruments, named after the gen_ai
+// and infer semconv metrics, and onto spans written to local files. sessionCtx
+// carries the root span for SpanContext, and a set conversationID is stamped on
+// every datapoint for channel /stats. A nil *Recorder is a valid no-op.
 type Recorder struct {
-	// Meter provider and instruments (metrics)
 	provider  *sdkmetric.MeterProvider
-	file      *os.File // local metric stdout-exporter target; closed on Shutdown
+	file      *os.File
 	cost      CostFunc
-	sessionID string // gen_ai.conversation.id on session and turn spans
+	sessionID string
 
-	tokenUsage   metric.Int64Histogram   // gen_ai.client.token.usage
-	toolDuration metric.Float64Histogram // gen_ai.execute_tool.duration
-	toolCalls    metric.Int64Counter     // infer.agent.tool.calls
-	runs         metric.Int64Counter     // infer.agent.runs
-	runDuration  metric.Float64Histogram // infer.agent.run.duration
-	costCounter  metric.Float64Counter   // infer.client.cost
+	tokenUsage   metric.Int64Histogram
+	toolDuration metric.Float64Histogram
+	toolCalls    metric.Int64Counter
+	runs         metric.Int64Counter
+	runDuration  metric.Float64Histogram
+	costCounter  metric.Float64Counter
 
-	// Tracer provider (traces)
 	tracerProvider *sdktrace.TracerProvider
-	traceFile      *os.File      // local trace stdout-exporter target
-	traceWriter    *lockedWriter // serialized writer shared with the OTLP receiver
+	traceFile      *os.File
+	traceWriter    *lockedWriter
 
 	otlpEndpoint string
 	otlpHeaders  map[string]string
@@ -118,12 +117,8 @@ type Recorder struct {
 	recvURL   string
 	recvSpans atomic.Int64
 
-	// sessionCtx carries the root span from StartSession so SpanContext can
-	// graft it onto request contexts that don't descend from session start.
 	sessionCtx atomic.Pointer[context.Context]
 
-	// conversationID, when set, is stamped as gen_ai.conversation.id on every
-	// metric datapoint so channel /stats can aggregate a single conversation.
 	conversationID atomic.Pointer[string]
 }
 
