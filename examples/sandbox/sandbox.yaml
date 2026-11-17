@@ -1,0 +1,25 @@
+# The sandbox policy. infer reads it from ~/.infer/sandbox.yaml only - a project
+# copy is ignored - so the home task copies this file into .home/.infer/. A list
+# present here replaces the matching default list, so every entry the demo needs
+# is spelled out. This demo deliberately trims the default credential entries
+# (id_dsa, id_ecdsa, *.pem, .environment, *.env.*) to keep the table readable:
+# keep them when you adopt this into your own file.
+filesystem:
+  allowed:
+    - .           # the working directory of this project, read and write
+    - /tmp
+    - path: /dev/null
+      access: read
+
+  denied:
+    - path: .infer/
+      on_violation: approval   # the config dirs, which can hold tokens, ask
+    - .git/
+    - auth.yaml
+    - "*.env"
+    - id_rsa
+    - "*.key"
+    - path: private/
+      on_violation: approval   # drafts stay private unless a grant is approved
+
+  enforce: true   # the kernel confines unattended bash children to the writable paths
