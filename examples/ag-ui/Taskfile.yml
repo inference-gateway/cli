@@ -1,0 +1,50 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_STORAGE_ENABLED: 'false'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  stream:
+    desc: Run one headless task with AG-UI events on stdout and print them by type
+    dir: '{{.TASKFILE_DIR}}'
+    cmds:
+      - '{{.INFER}} headless --format ag-ui --no-save "stream a run with a tool call" | python3 consume.py stream'
+
+  serve:
+    desc: Drive an infer headless --serve worker, one AG-UI run per run_agent_input frame on stdin
+    dir: '{{.TASKFILE_DIR}}'
+    env:
+      INFER: '{{.INFER}}'
+    cmds:
+      - python3 consume.py serve
+
+  serve:approval:
+    desc: The same worker with --require-approval, resumed by answering one approval over stdin
+    dir: '{{.TASKFILE_DIR}}'
+    env:
+      INFER: '{{.INFER}}'
+    cmds:
+      - python3 consume.py serve --approval
+
+  chat:
+    desc: Chat with the mock model and watch the run unfold in the TUI
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  clean:
+    desc: Remove the marker file the approval variant writes
+    cmds:
+      - rm -f ag-ui-demo.txt
