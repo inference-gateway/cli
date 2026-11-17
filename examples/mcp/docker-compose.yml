@@ -50,7 +50,7 @@ services:
     volumes:
       - ./mcp-config.yaml:/home/infer/.infer/mcp.yaml:ro
       - ./agents:/home/infer/.infer/agents:ro
-      - infer-data:/home/infer/.infer/data
+      - infer-data:/home/infer/.infer/projects
     command:
       - chat
     depends_on:
