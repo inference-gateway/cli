@@ -3,12 +3,10 @@ version: '3'
 vars:
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
   INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
-
-env:
-  INFER_GATEWAY_MOCK: 'true'
-  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
-  INFER_AGENT_MODEL: mock/openai/gpt-4o
-  INFER_TOOLS_SCHEDULE_ENABLED: 'true'
+  # Set inline on every command, not in an env block: an unquoted env block does
+  # not win when the calling shell already exports the same variable, which any
+  # CI runner driving infer does with INFER_AGENT_MODEL.
+  MOCK_ENV: 'INFER_GATEWAY_MOCK=true INFER_GATEWAY_MOCK_SCENARIOS="{{.TASKFILE_DIR}}/scenarios.yaml" INFER_AGENT_MODEL=mock/openai/gpt-4o INFER_TOOLS_SCHEDULE_ENABLED=true'
 
 tasks:
   default:
@@ -77,15 +75,19 @@ tasks:
       - build
       - home
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} daemon
 
   runs:
     desc: List the conversations the daemon recorded (fires and your own runs)
+    deps:
+      - home
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} conversations list
 
   show:
     desc: Show one recorded run, paste the ID from `task runs` (task show ID=<id>)
+    deps:
+      - home
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} conversations show --no-trunc {{.ID}}
 
@@ -99,4 +101,4 @@ tasks:
     deps:
       - home
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} headless --no-save --mode auto "{{.PROMPT}}" | grep '"role":"tool"'
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} headless --no-save --mode auto "{{.PROMPT}}" | grep '"role":"tool"'

@@ -3,11 +3,10 @@ version: '3'
 vars:
   HOME_DIR: '{{.TASKFILE_DIR}}/.home'
   INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
-
-env:
-  INFER_GATEWAY_MOCK: 'true'
-  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
-  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  # Set inline on every command, not in an env block: an env block does not win
+  # when the calling shell already exports the same variable, which any CI
+  # runner driving infer does with INFER_AGENT_MODEL.
+  MOCK_ENV: 'INFER_GATEWAY_MOCK=true INFER_GATEWAY_MOCK_SCENARIOS="{{.TASKFILE_DIR}}/scenarios.yaml" INFER_AGENT_MODEL=mock/openai/gpt-4o'
 
 tasks:
   default:
@@ -33,7 +32,7 @@ tasks:
       - build
       - home
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} daemon
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} daemon
 
   wakes:
     desc: List the conversations the wake-ups recorded
@@ -55,7 +54,7 @@ tasks:
       - build
       - home
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} headless --no-save --heartbeat "Heartbeat tick - check pending work and act on what is next."
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} headless --no-save --heartbeat "Heartbeat tick - check pending work and act on what is next."
 
   clean:
     desc: Remove the demo HOME

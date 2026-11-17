@@ -12,16 +12,17 @@ The model is a [tokenless](https://github.com/inference-gateway/tokenless) mock 
 
 ## Setup
 
-The Taskfile sets four environment variables for every task:
+Every `infer` command runs with four environment variables, set inline on the command:
 
 - `INFER_TOOLS_SCHEDULE_ENABLED=true` - turns the Schedule tool on (off by default, see
   [Scheduling](../../docs/scheduling.md#1-enable-the-tool))
 - `INFER_GATEWAY_MOCK`, `INFER_GATEWAY_MOCK_SCENARIOS`, `INFER_AGENT_MODEL` - the mock model
 
-Every `infer` call runs with `HOME` pointed at `.home`, a demo HOME the tasks keep seeded - `task home`
-drops the hand-written job into it by hand. Under it the jsonl
-storage backend keeps jobs in `~/.infer/schedules/<job id>.yaml` - one file per job, hot-reloaded by the
-daemon - and run records next to them under `.infer/schedules/runs/`.
+Inline, because a calling shell that already exports one of these (a CI runner driving `infer` exports
+`INFER_AGENT_MODEL`) would otherwise win over anything a variable block sets. The `HOME` prefix points at
+`.home`, a demo HOME the tasks keep seeded - `task home` drops the hand-written job into it by hand. Under
+it the jsonl storage backend keeps jobs in `~/.infer/schedules/<job id>.yaml` - one file per job,
+hot-reloaded by the daemon - and run records next to them under `.infer/schedules/runs/`.
 
 ## Layout
 
