@@ -22,7 +22,7 @@ import (
 var audioExtensions = []string{".wav", ".mp3"}
 
 // TextToVideoTool renders a video clip from a text prompt through the
-// gateway's Videos API and saves it as an MP4 file; with a portrait and an
+// gateway's Videos API and saves it as an MP4 file. With a portrait and an
 // audio clip it renders a lip-synced talking clip.
 type TextToVideoTool struct {
 	config *config.Config
@@ -75,12 +75,10 @@ func (t *TextToVideoTool) Validate(args map[string]any) error {
 	return err
 }
 
-// resolveAvatar resolves an optional portrait to its image paths, returning
-// none when unset. A name with an image extension is a one-off portrait in
-// the working directory (one path); a bare name is an avatar in the library
-// (~/.infer/avatars/<name>/), resolved to all of its images with the primary
-// first, and library reports true. An unknown avatar's error lists the
-// available ones so the agent can pick another.
+// resolveAvatar resolves an optional portrait to its image paths. A name with an
+// image extension is a one-off file in the working directory. A bare name is a
+// library avatar resolved to all its images, primary first, with library true.
+// An unknown avatar's error lists the available ones.
 func (t *TextToVideoTool) resolveAvatar(raw string) (paths []string, library bool, err error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {

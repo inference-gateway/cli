@@ -14,13 +14,13 @@ import (
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
-// Store provides centralized state management with proper synchronization
+// Store provides centralized, synchronized state management. eventBridge
+// optionally multicasts events to external consumers.
 type Store struct {
 	state          *tui.ApplicationState
 	mutex          sync.RWMutex
 	stallThreshold time.Duration
 
-	// Event multicast for external event consumers (optional)
 	eventBridge agentdomain.EventBridge
 
 	debugMode bool
@@ -100,16 +100,10 @@ func (sm *Store) CycleAgentMode() agentdomain.AgentMode {
 	return newMode
 }
 
-// SetChatPending marks the agent as busy before the chat actually starts.
-// This prevents race conditions where messages might not be queued
-// between the time we decide to start a chat and when StartChatSession is called.
-//
-// Promotes to "pending" if there is no existing chat session OR if the existing
-// session is in a terminal status (Completed/Error/Cancelled/Idle). Terminal
-// sessions are leftovers from a prior chat that hasn't been GC'd yet; treating
-// them as "in progress" would make IsAgentBusy() return false here but true
-// for a subsequent caller that just won the SetChatPending race, which is
-// exactly the window the chat-mode async rollover relies on for queueing.
+// SetChatPending marks the agent busy before the chat starts, so messages queue
+// in the window before StartChatSession. It promotes when there is no session or
+// the existing one is terminal, because a leftover terminal session would make
+// IsAgentBusy disagree between callers racing for the chat.
 func (sm *Store) SetChatPending() {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
@@ -129,14 +123,10 @@ func (sm *Store) SetRetryStatus(status *agentdomain.RetryStatus) {
 	sm.state.SetRetryStatus(status)
 }
 
-// GetRetryStatus returns a copy of the current retry status, or nil when the
-// connection is healthy. Besides explicit reconnect attempts (set by the
-// agent's reconnect loop), it synthesizes a zero-attempt status when a streaming
-// session has produced no chunks for stallThreshold - the render tick calls
-// this on every frame, so a stalled connection surfaces without any timer of
-// its own. A synthesized status has Attempt == 0. Terminal sessions never
-// report a status, so a stale explicit retry can't outlive the turn it
-// belonged to (the input field is disabled while this returns non-nil).
+// GetRetryStatus returns a copy of the retry status, or nil when the connection
+// is healthy. It synthesizes an Attempt 0 status when a stream has been silent
+// for stallThreshold, so a stall shows without a timer. Terminal sessions never
+// report one, so a stale retry cannot outlive its turn.
 func (sm *Store) GetRetryStatus() *agentdomain.RetryStatus {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
@@ -177,7 +167,7 @@ func (sm *Store) TouchChatActivity() {
 }
 
 // chatStatusExpectsChunks reports whether the status is one where SSE chunks
-// should be flowing; local tool execution and terminal states are excluded so
+// should be flowing. Local tool execution and terminal states are excluded so
 // a long-running tool doesn't read as a stalled connection.
 func chatStatusExpectsChunks(s tui.ChatStatus) bool {
 	switch s {

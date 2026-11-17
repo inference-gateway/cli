@@ -92,6 +92,7 @@ func (g *ConversationTitleGenerator) ProcessPendingTitles(ctx context.Context) e
 
 	logger.Info("processing conversations for title generation", "count", len(conversations))
 
+	const titleBatchThrottle = 100 * time.Millisecond
 	for _, conv := range conversations {
 		if err := g.GenerateTitleForConversation(ctx, conv.ID); err != nil {
 			logger.Error("failed to generate title for conversation", "id", conv.ID, "error", err)
@@ -103,7 +104,7 @@ func (g *ConversationTitleGenerator) ProcessPendingTitles(ctx context.Context) e
 			logger.Info("title generation cancelled", "processed", conv.ID)
 			return ctx.Err()
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(titleBatchThrottle)
 		}
 	}
 
@@ -190,6 +191,7 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entries []convdomain.ConversationEntry) string {
 	var content strings.Builder
 	maxLength := 2000
+	const titleMessagePreviewLimit = 200
 
 	for _, entry := range entries {
 		if entry.Hidden {
@@ -212,8 +214,8 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 			continue
 		}
 
-		if len(messageText) > 200 {
-			messageText = messageText[:200] + "..."
+		if len(messageText) > titleMessagePreviewLimit {
+			messageText = messageText[:titleMessagePreviewLimit] + "..."
 		}
 
 		line := fmt.Sprintf("%s: %s\n", role, messageText)

@@ -34,6 +34,8 @@ type AgentReadiness interface {
 	RemoveAgent(name string)
 }
 
+// InputStatusBar renders the status row below the input. When focused,
+// selected indexes the indicators that open a view, in build order.
 type InputStatusBar struct {
 	width                  int
 	modelService           convdomain.ModelService
@@ -54,8 +56,6 @@ type InputStatusBar struct {
 	styleProvider          *styles.Provider
 	currentInputText       string
 
-	// Keyboard focus state: when focused, selected indexes the actionable
-	// indicators (those that open a view) in build order.
 	focused  bool
 	selected int
 }
@@ -269,7 +269,7 @@ const versionRightInset = 5
 
 // renderRightSegment right-aligns "● REC • cli vX • gw vY • ● Browser" after
 // the given line width, dropping pieces until the rest fits: gateway version
-// first, then CLI version, then the Browser label (bare dot last); the REC
+// first, then CLI version, then the Browser label (bare dot last). The REC
 // badge stays. Empty when nothing fits.
 func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 	if isb.styleProvider == nil {
@@ -318,7 +318,7 @@ func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 	return ""
 }
 
-// versionLabel prefixes a numeric version with "v"; non-numeric values
+// versionLabel prefixes a numeric version with "v". Non-numeric values
 // (e.g. "dev") pass through unchanged.
 func versionLabel(v string) string {
 	if v == "" || v[0] < '0' || v[0] > '9' {
@@ -343,7 +343,7 @@ func (isb *InputStatusBar) buildBridgeDot() string {
 }
 
 // buildStatusLines builds the status bar content. Indicators are packed onto up
-// to maxLines rows; overflow beyond that is collapsed with an ellipsis. The git
+// to maxLines rows. Overflow beyond that is collapsed with an ellipsis. The git
 // branch is rendered separately, in the input box top border (see InputView), so
 // it never competes with these indicators for horizontal space.
 func (isb *InputStatusBar) buildStatusLines() []string {
@@ -416,7 +416,7 @@ func (isb *InputStatusBar) markSelected(parts []indicatorPart) []indicatorPart {
 }
 
 // renderIndicatorLine styles one row of indicators. Unfocused rows keep the
-// single dim style; focused rows style per part so the selected one stands
+// single dim style. Focused rows style per part so the selected one stands
 // out on a background highlight.
 func (isb *InputStatusBar) renderIndicatorLine(parts []indicatorPart, dimColor string) string {
 	texts := make([]string, len(parts))
@@ -602,7 +602,7 @@ func (isb *InputStatusBar) splitPartsIntoLines(parts []indicatorPart, availableW
 }
 
 // capIndicatorLines hard-caps the indicator rows at maxLines. splitPartsIntoLines
-// can emit one row beyond its budget at the cap boundary; this guarantees the
+// can emit one row beyond its budget at the cap boundary. This guarantees the
 // indicators never exceed their share of the status bar so the branch row keeps
 // the bar at a stable height. When rows are dropped, an ellipsis is appended to
 // the last kept row to signal the overflow.
@@ -915,13 +915,9 @@ func (isb *InputStatusBar) totalInputTokensOrEstimate() int {
 	return isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
 }
 
-// currentContextTokensOrEstimate returns an approximation of the tokens that
-// would be sent in the next request - i.e. how full the model's context window
-// is right now. Takes the larger of the gateway-reported LastInputTokens (which
-// includes the system prompt and tool definitions, matching what the optimizer
-// and session-rollover manager use) and a fresh tokenizer estimate of the
-// current buffer, so a single-turn tool-output spike shows up immediately
-// instead of lagging behind the last round-trip.
+// currentContextTokensOrEstimate approximates how full the context window is
+// for the next request: the larger of the gateway-reported LastInputTokens and
+// a fresh estimate of the buffer, so a tool-output spike shows up at once.
 func (isb *InputStatusBar) currentContextTokensOrEstimate() int {
 	if isb.conversationRepo == nil {
 		return 0
@@ -1034,13 +1030,10 @@ func (isb *InputStatusBar) queueIndicatorColor() string {
 	return isb.styleProvider.GetThemeColor("accent")
 }
 
-// getContextUsageIndicator returns a context usage indicator string.
-// Measures how full the model's context window is for the *next* request:
-// the gateway-reported LastInputTokens from the most recent call (which
-// includes system prompt and tool definitions) divided by the model's
-// context window. Falls back to the tokenizer polyfill before the first
-// round-trip. Renders HIGH/FULL warning labels at high thresholds.
-// This is NOT the cumulative session token count - that's shown by T.XXX.
+// getContextUsageIndicator shows how full the context window is for the next
+// request, from LastInputTokens or the tokenizer before the first round trip,
+// with HIGH and FULL warnings near the limit. It is not the cumulative session
+// count, which T.XXX shows.
 func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 	contextTokens := isb.currentContextTokensOrEstimate()
 	if contextTokens == 0 {

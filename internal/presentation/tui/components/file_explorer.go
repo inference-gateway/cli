@@ -37,7 +37,7 @@ const (
 var gitignoreDefaults = []string{".git/", ".DS_Store", ".infer/"}
 
 // Configurable action IDs for the explorer panel (defaults in
-// config.addExplorerBindings; users override them in keybindings.yaml).
+// config.addExplorerBindings. Users override them in keybindings.yaml).
 var (
 	actExpNavUp        = config.ActionID(config.NamespaceExplorer, "nav_up")
 	actExpNavDown      = config.ActionID(config.NamespaceExplorer, "nav_down")
@@ -58,18 +58,20 @@ var (
 	actExpSubmit       = config.ActionID(config.NamespaceExplorer, "submit")
 )
 
-// explorerNode is one filesystem entry (the cached, sorted children of a dir).
+// explorerNode is one filesystem entry. relPath, relative to root, is its
+// stable identity and name its display base name.
 type explorerNode struct {
-	relPath string // path relative to root; the stable identity key
-	name    string // filepath.Base, for display
+	relPath string
+	name    string
 	isDir   bool
 }
 
-// explorerRow is one rendered line of the flattened tree.
+// explorerRow is one rendered line of the flattened tree. expanded only
+// applies to directories.
 type explorerRow struct {
 	node     explorerNode
 	depth    int
-	expanded bool // dirs only: whether currently expanded
+	expanded bool
 }
 
 // explorerWalkDoneMsg carries the result of the async fuzzy-finder file walk.
@@ -88,11 +90,11 @@ type SnippetSelection struct {
 	Annotation string
 }
 
-// FileExplorer is the VS Code-style file explorer side panel: a left tree of
-// the working directory (lazy, collapsible, .gitignore-aware) plus a scrollable,
-// syntax-highlighted preview of the selected file. A `/` fuzzy finder jumps to any
-// file; `v` opens the selection in the user's real editor. It owns its full
-// [sidebar | divider | pane] region; the chat input is composed beneath the pane.
+// FileExplorer is the file explorer side panel: a lazy, .gitignore-aware tree
+// keyed by root-relative path, a highlighted preview, a `/` fuzzy finder and
+// `v` to edit in a PTY. Select mode captures line ranges with notes from
+// previewCursor to selAnchor, -1 for none, and done hands them to the chat
+// while cancel discards them.
 type FileExplorer struct {
 	root          string
 	styleProvider *styles.Provider
@@ -104,26 +106,23 @@ type FileExplorer struct {
 	sidebarWidth int
 	paneWidth    int
 
-	// Lazy tree model, keyed by path relative to root ("" = root).
-	children map[string][]explorerNode // dir relPath -> immediate children (cached on expand)
-	expanded map[string]bool           // dir relPath -> expanded? (root is always expanded)
-	rows     []explorerRow             // flattened visible rows
+	children map[string][]explorerNode
+	expanded map[string]bool
+	rows     []explorerRow
 
 	cursor        int
-	selectedKey   string // relPath of the selected row, for re-anchor across refresh
+	selectedKey   string
 	sidebarScroll int
 
-	showHidden bool          // include dotfiles + gitignored entries
-	ignore     *ignoreFilter // current gitignore matcher (rebuilt on showHidden toggle)
+	showHidden bool
+	ignore     *ignoreFilter
 
-	// Preview pane.
 	viewport     viewport.Model
 	previewKey   string
 	previewWidth int
 	dirtyPreview bool
-	previewRaw   string // cached highlighted content before gutter markers
+	previewRaw   string
 
-	// Fuzzy finder (find mode).
 	findMode      bool
 	findQuery     string
 	candidates    []string
@@ -132,15 +131,9 @@ type FileExplorer struct {
 	walking       bool
 	walkTruncated bool
 
-	// Edit mode - the user's real editor runs in a PTY rendered into the pane.
 	editMode bool
 	editor   *ptyEditor
 
-	// Select mode - line-range selection + annotation within the preview pane.
-	// The preview cursor (previewCursor) is a 0-indexed line within the current
-	// file; selAnchor (-1 = none) marks the other end of an inclusive range.
-	// Captured ranges accumulate in selections; closing the explorer (done) hands
-	// them to the chat, where they appear as attachments until the next message.
 	selectMode    bool
 	previewCursor int
 	previewLines  int
@@ -150,8 +143,8 @@ type FileExplorer struct {
 	annotateInput string
 
 	loadErr error
-	done    bool // explorer closed normally (esc/q) - carry selections to chat
-	cancel  bool // discard everything (ctrl+c)
+	done    bool
+	cancel  bool
 }
 
 // NewFileExplorer creates an explorer rooted at the given working directory.
@@ -372,7 +365,7 @@ func (t *FileExplorer) moveCursor(delta int) {
 	}
 }
 
-// toggleSelected expands/collapses a folder; on a file it is a no-op (the
+// toggleSelected expands/collapses a folder. On a file it is a no-op (the
 // preview already follows the selection).
 func (t *FileExplorer) toggleSelected() {
 	row, ok := t.currentRow()
@@ -414,7 +407,7 @@ func (t *FileExplorer) toggleHidden() {
 
 // refresh re-reads the visible tree. It drops the cache and re-flattens:
 // flatten() re-reads only the expanded directories via ensureChildren, so
-// new/removed files there show up; collapsed directories are not re-read until
+// new/removed files there show up. Collapsed directories are not re-read until
 // expanded. Called on view-entry, on in-loop tool/bash completion, on editor
 // exit, and on the manual refresh key.
 func (t *FileExplorer) refresh() {
@@ -724,7 +717,7 @@ func (t *FileExplorer) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 
 // attachSelection captures the current range (or the single cursor line when no
 // anchor is set) as a SnippetSelection carrying the given note. Line numbers are
-// converted from 0-indexed to 1-indexed inclusive; the anchor is then cleared.
+// converted from 0-indexed to 1-indexed inclusive. The anchor is then cleared.
 func (t *FileExplorer) attachSelection(note string) {
 	lo, hi, ok := t.previewSelectionRange()
 	if !ok {
@@ -741,7 +734,7 @@ func (t *FileExplorer) attachSelection(note string) {
 }
 
 // attachCurrentSelection captures the current range with no note (the Enter
-// path); the user can still add an optional note via the annotate key first.
+// path). The user can still add an optional note via the annotate key first.
 func (t *FileExplorer) attachCurrentSelection() { t.attachSelection("") }
 
 // confirmAnnotation stores the current range + typed note as a SnippetSelection
@@ -759,22 +752,10 @@ func (t *FileExplorer) Selections() []SnippetSelection {
 	return t.selections
 }
 
-// FormatAnnotations builds an LLM-ready context block from a set of snippet
-// selections. Selections are grouped by file (deduping file reads). Only the
-// selected line ranges are emitted - never the whole file - each as a fenced
-// block headed by `<file> (lines X-Y):`, optionally followed by a `note:` line
-// when the user attached an instruction.
-//
-// The output format is:
-//
-//	<file> (lines <start>-<end>):
-//	```<ext>
-//	<the selected lines, raw>
-//	```
-//	note: <annotation>   (only when an annotation was attached)
-//
-// This is a pure function (no receiver state) so it is independently
-// unit-testable.
+// FormatAnnotations builds an LLM-ready context block from snippet selections,
+// grouped by file. Each selected range is emitted, never the whole file, as
+// "<file> (lines X-Y):" and a fenced block, followed by "note: <annotation>"
+// when one was attached.
 func FormatAnnotations(root string, sels []SnippetSelection) string {
 	if len(sels) == 0 {
 		return ""
@@ -952,7 +933,7 @@ func (t *FileExplorer) chromaStyle() *chroma.Style {
 
 // ensurePreview (re)renders the selected file into the viewport, gated so the
 // read + highlight only run when the selection or width actually changed. The
-// raw highlighted content is cached in previewRaw; selection gutters are
+// raw highlighted content is cached in previewRaw. Selection gutters are
 // applied separately by applyPreviewGutters so cursor/anchor moves refresh
 // without re-tokenising the file.
 func (t *FileExplorer) ensurePreview(rel string, width int) {
@@ -1253,15 +1234,15 @@ func (t *FileExplorer) padPlain(styled, plain string, width int) string {
 	return styled
 }
 
-// ignoreFilter decides which entries to hide, honoring the root .gitignore,
-// per-directory nested .gitignore files, and a set of always-ignored defaults.
-// It is self-contained (no shared mutable state) so it can be used both on the
-// UI goroutine (the tree) and inside the fuzzy-finder walk goroutine.
+// ignoreFilter decides which entries to hide from the root and nested
+// .gitignore files and always-ignored defaults, caching compiled matchers by
+// directory. It shares no mutable state, so the tree and the finder walk can
+// both use it.
 type ignoreFilter struct {
 	root       string
 	showHidden bool
 	rootIgnore *ignore.GitIgnore
-	cache      map[string]*ignore.GitIgnore // dir abs path -> compiled (nil = none)
+	cache      map[string]*ignore.GitIgnore
 }
 
 func newIgnoreFilter(root string, showHidden bool) *ignoreFilter {
@@ -1278,7 +1259,7 @@ func newIgnoreFilter(root string, showHidden bool) *ignoreFilter {
 }
 
 // shouldHide reports whether the entry named `name` (rel = path relative to
-// root; dirAbs = absolute path of the containing directory) should be hidden.
+// root. DirAbs = absolute path of the containing directory) should be hidden.
 func (f *ignoreFilter) shouldHide(rel, name, dirAbs string, isDir bool) bool {
 	if f.showHidden {
 		return false

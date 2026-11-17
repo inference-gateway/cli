@@ -9,31 +9,24 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// TokenizerService provides token counting functionality for LLM messages.
-// This is a polyfill for providers (like Ollama Cloud) that don't return
-// token usage metrics in their API responses.
+// TokenizerService estimates token counts for providers such as Ollama Cloud
+// that return no usage metrics, from an average of characters per token plus
+// fixed overheads per message and per tool call.
 type TokenizerService struct {
-	// charsPerToken is the average characters per token estimate
-	// OpenAI suggests ~4 characters per token for English text
 	charsPerToken float64
 
-	// messageOverhead is the estimated token overhead per message
-	// for role markers, separators, and formatting
 	messageOverhead int
 
-	// toolCallOverhead is the estimated additional tokens for tool call formatting
 	toolCallOverhead int
 }
 
-// TokenizerConfig holds configuration for the tokenizer service
+// TokenizerConfig configures the tokenizer service. The defaults are 4.0
+// characters per token, 4 tokens of overhead per message and 10 per tool call.
 type TokenizerConfig struct {
-	// CharsPerToken is the average characters per token (default: 4.0)
 	CharsPerToken float64
 
-	// MessageOverhead is tokens per message for formatting (default: 4)
 	MessageOverhead int
 
-	// ToolCallOverhead is extra tokens per tool call (default: 10)
 	ToolCallOverhead int
 }
 
@@ -227,7 +220,7 @@ func (t *TokenizerService) ShouldUsePolyfill(usage *sdk.CompletionUsage) bool {
 }
 
 // GetToolStats returns token count and tool count for the tools advertised to
-// the model in the given agent mode; all mid-session modes advertise the full
+// the model in the given agent mode. All mid-session modes advertise the full
 // list, ReadOnly keeps its filtered one (see Agent.advertisedTools).
 func (t *TokenizerService) GetToolStats(toolService agentdomain.ToolService, agentMode agentdomain.AgentMode) (tokens int, count int) {
 	if toolService == nil {

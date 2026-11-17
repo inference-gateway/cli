@@ -72,7 +72,7 @@ func (d *DiffRenderer) SetStartLine(n int) *DiffRenderer { d.startLine = n; retu
 // RenderEditToolArguments renders Edit tool arguments as a diff. When the target
 // file can be read and old_string is found in it, it diffs the real file content
 // so the configured context lines surround the change with actual neighbouring
-// file lines; otherwise it falls back to a snippet diff of old_string vs new_string.
+// file lines. Otherwise it falls back to a snippet diff of old_string vs new_string.
 func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 	filePath, _ := args["file_path"].(string)
 	oldString, _ := args["old_string"].(string)
@@ -193,12 +193,9 @@ func (d *DiffRenderer) RenderDiff(info DiffInfo) string {
 
 // --- internals ---
 
-// editDiff renders an Edit as a diff with surrounding file context. When the
-// target file is readable and contains old_string, it diffs the real file
-// (before) against the file with the replacement applied (after), so the
-// renderer's context lines come from the actual file around the change. It falls
-// back to a snippet diff (old_string vs new_string) when the file can't be read
-// or old_string isn't found verbatim (e.g. a whitespace-flexible match).
+// editDiff renders an Edit as a diff with real file context, diffing the file
+// before and after the replacement. It falls back to an old_string versus
+// new_string diff when the file is unreadable or old_string is not found verbatim.
 func (d *DiffRenderer) editDiff(filePath, oldString, newString string, replaceAll bool) string {
 	if before, after, ok := editFileContents(filePath, oldString, newString, replaceAll); ok {
 		return d.buildDiffView(filePath, before, after).String()
@@ -313,7 +310,7 @@ func (d *DiffRenderer) themeOrNil() tui.Theme {
 }
 
 // isLightTheme classifies the theme by the luminance of its assistant
-// (primary text) color. Dark themes have light text (high luminance); light
+// (primary text) color. Dark themes have light text (high luminance). Light
 // themes have dark text (low luminance).
 func IsLightTheme(theme tui.Theme) bool {
 	return hexLuminance(theme.GetAssistantColor()) < 0.5

@@ -4,7 +4,7 @@
 
 Plan Mode is a read-only operating mode for the agent. The model can use
 `Read`, `Grep`, `Tree`, `A2A_QueryAgent`, `WebFetch` and `WebSearch` (online
-research is allowed; fetches saved to disk land in the scratchpad), `Agent`
+research is allowed. Fetches saved to disk land in the scratchpad), `Agent`
 (read-only exploration
 subagents only) with its companion subagent tools (`ListSubagents`,
 `GetSubagentResult`, `ReadSubagentScreen`, `SendSubagentInput`,
@@ -38,7 +38,7 @@ revisit them later.
 ## How to enter plan mode
 
 In the interactive chat TUI, press **Shift+Tab** to cycle the agent mode.
-The status line shows the current mode; cycle until it reads
+The status line shows the current mode. Cycle until it reads
 **Plan Mode**. Press Shift+Tab again to leave.
 
 The cycle is:
@@ -82,7 +82,7 @@ Plan mode therefore includes one writable directory, the **scratchpad**:
 ```
 
 It is the only location `Write`, `Edit`, `MultiEdit`, `Delete` and `Bash`
-may touch in plan mode; everything else stays read-only, whatever the
+may touch in plan mode. Everything else stays read-only, whatever the
 configured sandbox allows or what the user has granted in another mode.
 The model is told to copy the files it needs into the scratchpad instead of
 editing the originals, build and test there, and treat the scratchpad as
@@ -101,7 +101,7 @@ How it behaves:
   the fresh session that starts when a plan is approved, so the executing
   agent can still read what was verified.
 - `tools.bash.mode.plan.allow` stays empty by default, so plan-mode Bash
-  runs only the shared baseline allow-list; opt into unattended verification
+  runs only the shared baseline allow-list. Opt into unattended verification
   with entries like `go build.*` or `go test.*`. Known limit, same as every
   other mode: an allow-listed command can still read paths outside the
   scratchpad through absolute arguments, while a write outside it fails in
@@ -116,7 +116,7 @@ How it behaves:
 ## Plan structure
 
 The plan body is a Markdown document using these H2 sections, in this
-order. Sections that don't apply to the task are omitted; no extra
+order. Sections that don't apply to the task are omitted. No extra
 top-level sections are introduced.
 
 - `## Context` - why this change is being made: problem, trigger,
@@ -249,7 +249,7 @@ agent:
 ```
 
 Empty fields fall back to the built-in reminder guidance (see
-`config/reminders.go::defaultModeChangeGuidance`; it is user-overridable via
+`config/reminders.go::defaultModeChangeGuidance`. It is user-overridable via
 the `guidance.plan` key of the mode-change reminder in reminders.yaml).
 Because these instructions ride the mode-change reminder, they are not
 delivered when `reminders.enabled: false`. Environment-variable override:

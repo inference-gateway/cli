@@ -18,13 +18,10 @@ func telemetryDir() string {
 	return config.TelemetryDir()
 }
 
-// TestTelemetryRecorderEndToEnd is the acceptance check: driving the agent
-// against the mock records tool outcomes and token usage that the `infer stats`
-// aggregation reflects - a failing tool shows as one failure, and the
-// usage-report scenario's 142 tokens are counted. The recorder buffers into OTel
-// instruments and flushes to the local file, so each sub-test forces a flush
-// before aggregating. Separate sub-tests (separate temp dirs) keep the exact
-// 142-token count clean from the failing run's polyfilled usage.
+// TestTelemetryRecorderEndToEnd checks that driving the agent against the mock
+// records tool outcomes and token usage `infer stats` reflects: one failure and
+// the usage scenario's 142 tokens. Each sub-test flushes before aggregating and
+// runs in its own temp dir to keep the count clean.
 func TestTelemetryRecorderEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
 	defer cancel()

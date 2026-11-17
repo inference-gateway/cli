@@ -217,7 +217,7 @@ func bindFunctions(handle uintptr, bindings []binding) error {
 
 // dataSymbol resolves a data symbol (e.g. a CFStringRef constant) and returns
 // the pointer value stored at its address. Dlsym yields the symbol's absolute
-// address as a uintptr; unsafe.Add(nil, addr) forms the equivalent
+// address as a uintptr. Unsafe.Add(nil, addr) forms the equivalent
 // unsafe.Pointer without a uintptr->Pointer conversion, which go vet's
 // unsafeptr check flags even though the address is a stable framework symbol.
 func dataSymbol(handle uintptr, name string) (uintptr, error) {
@@ -427,11 +427,12 @@ func (b *bridge) compactElement(element uintptr) (computerdomain.UIElement, bool
 // accessibility tree. WebKit builds it only once a client first asks, so the
 // first walk of a WKWebView app finds the window's content group empty.
 func (b *bridge) awaitWindowContent(root uintptr) {
+	const webContentPollInterval = 100 * time.Millisecond
 	for range 5 {
 		if !b.hasEmptyContentGroup(root) {
 			return
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(webContentPollInterval)
 	}
 }
 

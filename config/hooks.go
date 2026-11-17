@@ -19,11 +19,9 @@ const (
 const defaultHookTimeoutSeconds = 30
 
 // DefaultHooksYAML is what `infer init` writes to a fresh hooks.yaml. Hooks ship
-// disabled with NO active entry: the example is commented out so the shape is
-// discoverable without anything running until the user opts in (and allow-lists
-// the command). `infer` drives any project, not just Go ones, so there is no
-// language-specific default hook. DefaultHooksConfig is the in-memory equivalent
-// (empty list); this template only adds the human-facing example and guidance.
+// disabled with the only example commented out, so nothing runs until the user
+// opts in. There is no language-specific default hook because infer drives any
+// project. DefaultHooksConfig is the in-memory equivalent.
 const DefaultHooksYAML = `---
 # Command hooks run a shell command at a pre-defined agent-loop hook point
 # - the executable sibling of reminders.yaml. Off by default.
@@ -53,12 +51,10 @@ type HookCommandConfig struct {
 	Timeout int                   `yaml:"timeout,omitempty" mapstructure:"timeout"` // seconds; 0 -> default
 }
 
-// HooksConfig is the content of hooks.yaml: the master switch plus the list of
-// command hooks. Each hook attaches a shell command to a pre-defined hook point
-// (agentdomain.HookPoint). HooksConfig implements agentdomain.HookCommandProvider. It is
-// the executable sibling of RemindersConfig (reminders.yaml): "run code" and
-// "inject text" stay separate concerns in separate files. Off by default;
-// commands still face the bash allow-list when the agent runs them.
+// HooksConfig is the content of hooks.yaml: the master switch and the command
+// hooks attached to agentdomain.HookPoint values. It implements
+// agentdomain.HookCommandProvider and is the executable sibling of
+// RemindersConfig. It is off by default, and commands still face the bash allow-list.
 type HooksConfig struct {
 	Enabled bool                `yaml:"enabled" mapstructure:"enabled"`
 	Hooks   []HookCommandConfig `yaml:"hooks" mapstructure:"hooks"`

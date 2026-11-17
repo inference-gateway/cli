@@ -13,33 +13,31 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 )
 
-// AgentContext represents the execution context for the agent state machine
+// AgentContext is the execution context of the agent state machine.
+// MaxTurnsExceeded and MaxDurationExceeded are set when the run is forced into
+// Completing because the turn limit or the time budget ran out first.
 type AgentContext struct {
-	RequestID        string
-	Conversation     *[]sdk.Message
-	MessageQueue     convdomain.MessageQueue
-	ConversationRepo convdomain.ConversationRepository
-	ToolCalls        []*sdk.ChatCompletionMessageToolCall
-	Turns            int
-	MaxTurns         int
-	StartedAt        time.Time
-	MaxDuration      time.Duration
-	HasToolResults   bool
-	LastToolFailed   bool
-	ApprovalPolicy   agentdomain.ApprovalPolicy
-	Ctx              context.Context
-	IsChatMode       bool
-	// MaxTurnsExceeded is set by the state machine when the run is forced into
-	// Completing because the turn limit was hit before the task could complete.
-	MaxTurnsExceeded bool
-	// MaxDurationExceeded is its wall-clock twin: the run's time budget ran out
-	// before the task could complete.
+	RequestID           string
+	Conversation        *[]sdk.Message
+	MessageQueue        convdomain.MessageQueue
+	ConversationRepo    convdomain.ConversationRepository
+	ToolCalls           []*sdk.ChatCompletionMessageToolCall
+	Turns               int
+	MaxTurns            int
+	StartedAt           time.Time
+	MaxDuration         time.Duration
+	HasToolResults      bool
+	LastToolFailed      bool
+	ApprovalPolicy      agentdomain.ApprovalPolicy
+	Ctx                 context.Context
+	IsChatMode          bool
+	MaxTurnsExceeded    bool
 	MaxDurationExceeded bool
 }
 
 // AnyToolFailed reports whether any entry in a completed tool batch failed
 // (executed with a non-success result). It backs the post_tool `on_failure`
-// reminder trigger; callers set AgentContext.LastToolFailed from it when a batch
+// reminder trigger. Callers set AgentContext.LastToolFailed from it when a batch
 // completes.
 func AnyToolFailed(results []convdomain.ConversationEntry) bool {
 	for _, entry := range results {

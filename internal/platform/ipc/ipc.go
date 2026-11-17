@@ -4,47 +4,49 @@ import (
 	"encoding/json"
 )
 
-// ApprovalRequest is emitted by the agent on stdout when a tool needs user approval.
-// The channel manager detects this JSON line, prompts the user, and writes an ApprovalResponse to stdin.
+// ApprovalRequest is the "approval_request" line the agent emits on stdout when
+// a tool needs user approval. The channel manager prompts the user and writes
+// an ApprovalResponse to stdin.
 type ApprovalRequest struct {
-	Type       string `json:"type"` // "approval_request"
+	Type       string `json:"type"`
 	ToolName   string `json:"tool_name"`
 	ToolArgs   string `json:"tool_args"`
 	ToolCallID string `json:"tool_call_id"`
 }
 
-// ApprovalResponse is written to the agent's stdin by the channel manager after user decision.
+// ApprovalResponse is the "approval_response" the channel manager writes to the
+// agent's stdin after the user decides.
 type ApprovalResponse struct {
-	Type       string `json:"type"` // "approval_response"
+	Type       string `json:"type"`
 	ToolCallID string `json:"tool_call_id"`
 	Approved   bool   `json:"approved"`
 	Scope      string `json:"scope,omitempty"`
 }
 
-// UserQuestionRequest is emitted on stdout when the AskUserQuestion tool asks
-// the user to pick from a small form. Questions carries the tool's own
-// []agentdomain.UserQuestion, kept as raw JSON so ipc stays dependency-free.
+// UserQuestionRequest is the "user_question_request" line emitted on stdout when
+// AskUserQuestion asks the user to pick from a small form. Questions carries the
+// tool's []agentdomain.UserQuestion as raw JSON so ipc stays dependency-free.
 type UserQuestionRequest struct {
-	Type       string          `json:"type"` // "user_question_request"
+	Type       string          `json:"type"`
 	ToolCallID string          `json:"tool_call_id"`
 	Questions  json.RawMessage `json:"questions"`
 }
 
-// UserQuestionResponse is written to the agent's stdin by the host UI after
-// the user submits or dismisses the form. Answers is the host's
-// []agentdomain.UserQuestionAnswer; Cancelled reports a dismissal.
+// UserQuestionResponse is the "user_question_response" the host UI writes to
+// the agent's stdin after the user submits or dismisses the form. Answers is
+// the []agentdomain.UserQuestionAnswer, and Cancelled reports a dismissal.
 type UserQuestionResponse struct {
-	Type       string          `json:"type"` // "user_question_response"
+	Type       string          `json:"type"`
 	ToolCallID string          `json:"tool_call_id"`
 	Answers    json.RawMessage `json:"answers,omitempty"`
 	Cancelled  bool            `json:"cancelled,omitempty"`
 }
 
-// PlanApprovalResponse is written to the agent's stdin by the host UI after
-// the user decides on a plan the agent asked to execute. Action is one of
+// PlanApprovalResponse is the "plan_approval_response" the host UI writes to
+// the agent's stdin after the user decides on a plan. Action is one of
 // PlanAccept, PlanAcceptStandard or PlanReject.
 type PlanApprovalResponse struct {
-	Type   string `json:"type"` // "plan_approval_response"
+	Type   string `json:"type"`
 	PlanID string `json:"plan_id"`
 	Action string `json:"action"`
 }
@@ -66,10 +68,10 @@ const RunAgentInputFrameType = "run_agent_input"
 // so the renderer can tell them apart from background-job result notes.
 const UserMessageRequestID = "stdin"
 
-// AgentErrorMessage is emitted by the agent on stdout when a fatal error occurs
-// before exiting. The channel manager forwards this to the user-facing channel
-// so users aren't left waiting in silence when the agent process fails.
+// AgentErrorMessage is the "agent_error" line the agent emits on stdout when a
+// fatal error occurs before exiting. The channel manager forwards it so users
+// are not left waiting in silence.
 type AgentErrorMessage struct {
-	Type    string `json:"type"` // "agent_error"
+	Type    string `json:"type"`
 	Message string `json:"message"`
 }

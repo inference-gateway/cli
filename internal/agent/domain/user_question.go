@@ -17,7 +17,7 @@ type UserQuestion struct {
 }
 
 // UserQuestionAnswer is the user's response to one UserQuestion. SelectedLabels
-// holds the chosen option label(s); OtherText is non-empty when the user picked
+// holds the chosen option label(s). OtherText is non-empty when the user picked
 // the synthesized "Other" free-text choice (it may coexist with selected
 // labels in multi-select). Header and Question are echoed so the tool result is
 // self-describing for the model.

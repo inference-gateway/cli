@@ -103,7 +103,7 @@ func (mq *MessageQueueService) BackendName() string {
 	return "memory"
 }
 
-// Unreachable reports whether the backend failed its latest operation; the memory queue never fails
+// Unreachable reports whether the backend failed its latest operation. The memory queue never fails
 func (mq *MessageQueueService) Unreachable() bool {
 	return false
 }

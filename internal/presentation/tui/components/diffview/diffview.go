@@ -36,7 +36,8 @@ type file struct {
 	content string
 }
 
-// DiffView is the fluent builder + renderer.
+// DiffView is the fluent builder and renderer. The fields after style are
+// computed lazily on String().
 type DiffView struct {
 	layout           Layout
 	splitMinWidth    int
@@ -51,7 +52,6 @@ type DiffView struct {
 	style            Style
 	chromaStyle      *chroma.Style
 
-	// computed lazily on String()
 	isComputed      bool
 	err             error
 	unified         udiff.UnifiedDiff

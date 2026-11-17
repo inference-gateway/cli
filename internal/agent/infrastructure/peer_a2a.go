@@ -214,7 +214,7 @@ func (c *a2aPeerClient) Send(frame []byte) error {
 }
 
 // Deliver is the host role of a peer conn. The dialing end receives frames on
-// its stream, so it never delivers one; only the contract keeps the method.
+// its stream, so it never delivers one. Only the contract keeps the method.
 func (c *a2aPeerClient) Deliver(frame []byte) {}
 
 // AckAttr is one other field the announcing event declared, empty when it

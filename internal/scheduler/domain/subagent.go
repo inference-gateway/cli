@@ -71,18 +71,16 @@ const EnvSubagentAgentMode = "INFER_SUBAGENT_AGENT_MODE"
 // when the subagent finishes. Unset for normal `infer chat`, which writes nothing.
 const EnvSubagentResultFile = "INFER_SUBAGENT_RESULT_FILE"
 
-// EnvSubagentApprovalFile names the environment variable the Agent tool sets on
-// an interactive subagent's `infer chat` so it writes a SubagentApprovalFile JSON
-// to that path whenever it blocks on a tool-approval prompt (and removes it when
-// the prompt resolves). The parent watches this file to surface "subagent is
-// awaiting approval" to the user and relay the decision (ApproveSubagent). Unset
-// for normal `infer chat`, which writes nothing.
+// EnvSubagentApprovalFile names the variable the Agent tool sets on an
+// interactive subagent's `infer chat`, so it writes a SubagentApprovalFile there
+// while blocked on a tool approval. The parent watches it to surface and relay
+// the decision. A normal `infer chat` writes nothing.
 const EnvSubagentApprovalFile = "INFER_SUBAGENT_APPROVAL_FILE"
 
 // EnvSubagentHistoryName names the environment variable the Agent tool sets on
 // an interactive subagent's `infer chat` so it uses its own history file
 // (<configDir>/history/history-<name>) instead of the main agent's history.
-// When unset or empty, the subagent falls back to the main history file; the
+// When unset or empty, the subagent falls back to the main history file. The
 // reserved value SubagentHistoryMemoryOnly selects in-memory-only history.
 const EnvSubagentHistoryName = "INFER_SUBAGENT_HISTORY_NAME"
 
@@ -196,39 +194,22 @@ func ReadSubagentResultFile(path string) (SubagentResultFile, bool) {
 	return rf, true
 }
 
-// PaneObservation is one probe of an interactive subagent's tmux pane, produced
-// by a pane inspector and consumed by the interactive subagent monitor
-// (interactiveSubagentJob) to decide when a turn completed or an approval is
-// pending.
+// PaneObservation is one probe of an interactive subagent's pane for
+// interactiveSubagentJob. Harvested is the result file's last assistant message,
+// the only content ever delivered. Screen is the pane's tail, whose stability
+// signals idleness. The rest report the pane's liveness, a pending approval and
+// the harvested turn's done flag, failure and stats.
 type PaneObservation struct {
-	// Harvested is the subagent chat's real last assistant message (from its
-	// result file); "" until its turn completes. The ONLY content ever delivered -
-	// the pane is never scraped for content (its TUI chrome is noise).
-	Harvested string
-	// Screen is a snapshot of the pane's current tail, used by the poller to detect
-	// idleness by stability: while the subagent works the chat's elapsed-time
-	// spinner changes this every poll; at idle it is frozen. The input-box
-	// placeholder ("Type your message") is NOT a usable idle signal - it is drawn
-	// even mid-turn - so the stability of the whole tail is used instead.
-	Screen string
-	// Gone means the pane no longer exists (closed).
-	Gone bool
-	// Dead means the pane's process exited (the pane is kept open by remain-on-exit).
-	Dead bool
-	// AwaitingApproval means the subagent is blocked on a tool-approval prompt.
+	Harvested        string
+	Screen           string
+	Gone             bool
+	Dead             bool
 	AwaitingApproval bool
-	// ApprovalSummary describes the pending tool call (name + args) when awaiting.
-	ApprovalSummary string
-	// Done is the result file's done flag: the subagent explicitly marked this
-	// write as its task's terminal turn.
-	Done bool
-	// HarvestFailed means the harvested turn was a failed terminal turn
-	// (the result file recorded Success=false).
-	HarvestFailed bool
-	// HarvestError is the error the subagent recorded for the harvested turn.
-	HarvestError string
-	// HarvestStats is the run's tool and token tally, nil when none was recorded.
-	HarvestStats *SubagentRunStats
+	ApprovalSummary  string
+	Done             bool
+	HarvestFailed    bool
+	HarvestError     string
+	HarvestStats     *SubagentRunStats
 }
 
 // SubagentTracker tracks local subagents spawned by the Agent tool. It is a

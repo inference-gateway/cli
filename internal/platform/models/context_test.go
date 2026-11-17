@@ -88,7 +88,7 @@ func TestLookupContextWindow_MatchedFlag(t *testing.T) {
 
 // TestIsChatCapableModalities covers the chat-capability predicate used to
 // filter the model picker: a model must accept text input and produce text
-// output. Vision chat models pass; image generation, speech-to-text,
+// output. Vision chat models pass. Image generation, speech-to-text,
 // text-to-speech, and empty/unknown modality sets do not.
 func TestIsChatCapableModalities(t *testing.T) {
 	testCases := []struct {

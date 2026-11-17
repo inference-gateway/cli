@@ -12,14 +12,10 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
-// GitBackend syncs the memory directory with a git remote. It shells out to the
-// git CLI via utils.RunGit, inheriting the ambient environment, so auth uses the
-// user's default git/ssh config (ssh-agent, credential helper, GIT_* env). Git
-// never prompts on the terminal and every command runs under a per-operation
-// timeout, so a misconfigured remote fails instead of hanging.
-//
-// All operations are best-effort: they return an error for tests/telemetry, but
-// callers log and continue - a sync failure never aborts the agent run.
+// GitBackend syncs the memory directory with a git remote through the git CLI,
+// so auth uses the user's own git and ssh config. Git never prompts and every
+// command has a timeout, so a bad remote fails instead of hanging. Operations
+// are best-effort: callers log the error and never abort the agent run.
 type GitBackend struct {
 	cfg    *config.Config
 	inOnce sync.Once
@@ -95,7 +91,7 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 }
 
 // syncInFresh clones when the remote already has the branch and the dir is
-// empty; otherwise it initializes a repo in place and either seeds a missing
+// empty. Otherwise it initializes a repo in place and either seeds a missing
 // remote branch from local memory, or - when local memory already exists and the
 // remote branch is populated - adopts the remote history into it (see
 // adoptRemoteBranch) rather than leaving an unrelated-history repo.
@@ -170,12 +166,10 @@ func (b *GitBackend) SyncOut(ctx context.Context) error {
 	return b.stageCommitPush(ctx, dir, b.git().EffectiveBranch(), false)
 }
 
-// stageCommitPush stages all memory changes, commits when the tree is dirty, and
-// pushes. pushWhenClean forces a push even with nothing new to commit - used to
-// seed a remote whose branch does not exist yet from existing local commits;
-// sync-out passes false so an unchanged memory is a no-op. Pushing to a missing
-// remote branch creates it. With no local commits at all there is nothing to
-// push, so it is a no-op regardless.
+// stageCommitPush stages all memory changes, commits a dirty tree and pushes,
+// creating a missing remote branch. pushWhenClean pushes even with nothing new,
+// to seed a new remote branch from local commits. With no local commits at all
+// it is a no-op.
 func (b *GitBackend) stageCommitPush(ctx context.Context, dir, branch string, pushWhenClean bool) error {
 	if _, err := b.run(ctx, dir, "add", "-A"); err != nil {
 		logger.Warn("memory git sync: add failed", "error", err)
@@ -377,7 +371,7 @@ func (b *GitBackend) ensureOrigin(ctx context.Context, dir, repo string) error {
 
 // remoteHasBranch reports whether the remote already has branch, via ls-remote.
 // A clean exit with empty output means the remote is reachable but empty (or
-// lacks the branch); a non-zero exit means unreachable/unauthorized - the error
+// lacks the branch). A non-zero exit means unreachable/unauthorized - the error
 // carries git's stderr (e.g. "Repository not found") rather than the opaque
 // "exit status 128".
 func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (bool, error) {

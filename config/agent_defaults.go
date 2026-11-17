@@ -57,7 +57,7 @@ var agentBaseDefaults = map[string]struct {
 
 // ResolveOCITag rewrites the tag of a known agent's default OCI reference.
 // browser-agent uses this for its engine variants (chromium, firefox, webkit,
-// lightpanda), which are published as separate image tags; any agent can use it
+// lightpanda), which are published as separate image tags. Any agent can use it
 // to pin a version.
 func ResolveOCITag(name, tag string) (string, error) {
 	template, ok := agentBaseDefaults[name]

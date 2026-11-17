@@ -307,7 +307,7 @@ func commitOverwrite(stagingDir, finalDir string) error {
 }
 
 // Uninstall removes the plugin folder named name from root. The name must
-// match the plugin-name regex; missing folders are not an error.
+// match the plugin-name regex. Missing folders are not an error.
 func Uninstall(name, root string) (string, error) {
 	if !pluginNameRegex.MatchString(name) {
 		return "", fmt.Errorf("invalid plugin name %q (must match %s)", name, pluginNameRegex.String())

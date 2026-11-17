@@ -34,10 +34,10 @@ type pendingInterrupt struct {
 }
 
 // headlessControl is the single reader of the headless process's stdin. It
-// routes the run inputs a client sends into the message queue and, through
-// their resume entries, into the approval, question and plan brokers the renderer
-// blocks on, and browser results into the stdio browser. It mirrors what the
-// chat approval coordinator does in the TUI. The channels close on stdin EOF.
+// routes run inputs into the queue and their resume entries to the pending
+// interrupt's broker, and browser results to the stdio browser. turnMu keeps
+// turns and rewinds apart. deferred holds messages after the current turn, so a
+// running turn never drains a direct task as text.
 type headlessControl struct {
 	agentService agentdomain.AgentService
 	messageQueue convdomain.MessageQueue
@@ -47,33 +47,18 @@ type headlessControl struct {
 	questions    chan ipc.UserQuestionResponse
 	plans        chan ipc.PlanApprovalResponse
 
-	// pending holds the interrupts the runs raised, keyed by interrupt id
-	// and carrying the reason and the tool call that raised it, so a resume
-	// entry routes to its own broker and a take-over finds the Computer
-	// calls whose approval box is open.
 	pendingMu sync.Mutex
 	pending   map[string]pendingInterrupt
 
-	// directCancel stops the direct command the serve loop is running. The
-	// stdin reader reads it while the serve loop sets it.
 	directCancel atomic.Pointer[context.CancelFunc]
 
-	// turnMu is held by the serve loop for each turn and by the stdin reader
-	// for each rewind, so neither writes the conversation under the other.
 	turnMu sync.Mutex
 
-	// wake signals the serve loop that a run input landed on the queue.
 	wake    chan struct{}
 	browser *stdioBrowser
 	panel   *Panel
 
-	// drained signals a message that landed on the queue from elsewhere, such
-	// as a finished background job's note. Unlike wake it never closes, since
-	// a job can finish after stdin did.
-	drained chan struct{}
-	// deferred holds the messages after the serve loop's current turn, off the
-	// queue so a running agent turn does not drain a direct task as text. Only
-	// the serve loop writes it, under turnMu.
+	drained  chan struct{}
 	deferred []convdomain.QueuedMessage
 }
 
@@ -212,11 +197,9 @@ type runInputFrame struct {
 }
 
 // enqueueRunInput queues the input's new messages for the next turn and routes
-// its resume entries to the brokers the open interrupts wait on: `@<path>` and
-// `#N` tokens in the text expand, and attachments save to the project tmp dir
-// as image parts or notes naming the saved path. A run input with no messages
-// is the continue run the client asks for after stopping one, which the agent
-// continues from the conversation it kept.
+// its resume entries to the brokers the open interrupts wait on. `@<path>` and
+// `#N` tokens expand, and attachments save to the project tmp dir. An input with
+// no messages is the continue run a client asks for after stopping one.
 func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 	for _, msg := range input.Messages {
 		text, attachments := messageParts(msg)
@@ -495,7 +478,7 @@ func (n drainWaker) Notify(event any) {
 
 // uiBridge is the headless UINotifier: it forwards the UI notifications a
 // headless client renders (screen recording status, computer-use actions,
-// background job changes) into the rendered event stream. Notify never blocks the producer; a full buffer
+// background job changes) into the rendered event stream. Notify never blocks the producer. A full buffer
 // drops the event.
 type uiBridge chan agentdomain.ChatEvent
 
@@ -527,7 +510,7 @@ func (b uiBridge) Notify(event any) {
 }
 
 // merge interleaves bridged notifications into events and closes when events
-// does; notifications arriving after that are dropped.
+// does. Notifications arriving after that are dropped.
 func (b uiBridge) merge(events <-chan agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 	merged := make(chan agentdomain.ChatEvent)
 	go func() {

@@ -60,7 +60,7 @@ func isBashTask(task string) bool {
 	return strings.HasPrefix(task, "!") && !strings.HasPrefix(task, "!!")
 }
 
-// runDirect handles a `!!Tool(...)` or `!cmd` task end to end; direct is false
+// runDirect handles a `!!Tool(...)` or `!cmd` task end to end. Direct is false
 // when the task is an ordinary prompt. Everything it reports is already
 // rendered in --format, a parse error included.
 func runDirect(ctx context.Context, opts Options, toolService agentdomain.ToolService, repo convdomain.ConversationRepository, sessionID, model string, cfg *config.Config) (direct bool, err error) {

@@ -34,17 +34,17 @@ speech_to_text:
   enabled: true          # feature flag (default: false)
   engine: whisper.cpp    # transcription engine
   model: tiny            # tiny | base | small | medium | large-v3-turbo | *.en (default: tiny)
-  language: ""           # ISO code (e.g. "en"); empty = auto-detect
+  language: ""           # ISO code (e.g. "en"). Empty = auto-detect
   auto_download: true    # download the model on first use if missing
   max_recording_seconds: 30  # /voice hard recording cap
   silence_timeout: 2     # stop /voice this many seconds after you go quiet (0 = record full cap)
   retain_recordings: 0   # keep the last N inbound Telegram voice/audio files (0 = keep none)
   # Optional overrides:
-  binary_path: ""        # explicit whisper-cli/whisper-cpp path; empty = resolve on PATH
-  ffmpeg_path: ""        # explicit ffmpeg path; empty = resolve on PATH
-  models_dir: ""         # where models are cached; empty = ~/.infer/models/whisper
-  recordings_dir: ""     # where retained recordings live; empty = <media root>/voice
-  input_device: ""       # microphone device; empty = platform default
+  binary_path: ""        # explicit whisper-cli/whisper-cpp path. Empty = resolve on PATH
+  ffmpeg_path: ""        # explicit ffmpeg path. Empty = resolve on PATH
+  models_dir: ""         # where models are cached. Empty = ~/.infer/models/whisper
+  recordings_dir: ""     # where retained recordings live. Empty = <media root>/voice
+  input_device: ""       # microphone device. Empty = platform default
   timeout: 120           # transcription timeout (seconds)
 ```
 
@@ -55,7 +55,7 @@ Every field can also be set via environment variables, e.g.
 
 The GGML model is downloaded on first use from
 `https://huggingface.co/ggerganov/whisper.cpp` and cached under `~/.infer/models/whisper/`
-(e.g. `ggml-tiny.bin`). Pick a model with the `model` setting; larger models are more accurate but
+(e.g. `ggml-tiny.bin`). Pick a model with the `model` setting. Larger models are more accurate but
 slower and heavier:
 
 | Model | Size | Notes |
@@ -76,14 +76,14 @@ the prebuilt binary from [inference-gateway/binaries](https://github.com/inferen
 into `~/.infer/bin/tools` (the shared location Desktop and opentask use too). It runs the release's
 [install.sh](https://github.com/inference-gateway/binaries/blob/main/install.sh) (downloads through
 `gh` when authenticated, `curl` otherwise) and verifies every binary against the release's
-`checksums.txt`; on Windows without a POSIX shell a Go fallback downloader applies the same rule.
-An existing binary is kept when it matches the release and replaced when it does not; if the
+`checksums.txt`. On Windows without a POSIX shell a Go fallback downloader applies the same rule.
+An existing binary is kept when it matches the release and replaced when it does not. If the
 release cannot be reached (offline), the existing binary is kept as-is.
 
 The CLI is the single owner of these binaries on a local machine, and you can drive it directly:
 
 ```bash
-# Read-only report; exits non-zero unless everything is current
+# Read-only report. Exits non-zero unless everything is current
 infer binaries status            # all tools
 infer binaries status ffmpeg     # one tool
 
@@ -127,6 +127,6 @@ and the oldest are pruned automatically once the cap is exceeded. `retain_record
 - **No audio captured on macOS** - grant microphone permission to your terminal, and list devices
   with `ffmpeg -f avfoundation -list_devices true -i ""`, then set `input_device` to the index.
 - **Wrong language** - set `language` to the ISO code instead of relying on auto-detect.
-- **First `/voice` is slow** - the model downloads once; subsequent runs use the cache.
+- **First `/voice` is slow** - the model downloads once. Subsequent runs use the cache.
 - **Suspect a corrupt model file** - delete the file under
   `~/.infer/models/whisper/` to download a fresh copy on the next run.

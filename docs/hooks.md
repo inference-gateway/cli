@@ -12,7 +12,7 @@ with an executable that must also pass the per-mode bash allow-list.
   and the defaults are listed in the [configuration reference](configuration-reference.md#system-reminders-remindersyaml);
   the memory reminders are auto-pruned when memory is off.
 - **Command Hooks** (`hooks.yaml`) run a shell command at the same hook points - the executable sibling of
-  reminders. They are **off by default**; each command still faces the per-mode bash allow-list when
+  reminders. They are **off by default**. Each command still faces the per-mode bash allow-list when
   the agent runs it, so allow-list the command and set `enabled: true` to turn hooks on.
 
 ```yaml
@@ -22,7 +22,7 @@ hooks:
   - name: gofmt
     hook: post_session
     command: "gofmt -w ."
-    timeout: 30   # seconds; 0 -> default 30
+    timeout: 30   # seconds. 0 -> default 30
 ```
 
 ## Related

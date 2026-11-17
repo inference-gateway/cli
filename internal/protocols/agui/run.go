@@ -33,7 +33,7 @@ func TokenCount(count int64) *int64 { return aguievents.TokenCount(count) }
 
 // OutcomeCancelled is the cancelled variant of the 1.0 outcome set: a run its
 // caller stopped before it completed, with nothing waited for. The Go SDK
-// names success and interrupt; this names the third variant the spec defines.
+// names success and interrupt. This names the third variant the spec defines.
 const OutcomeCancelled = aguievents.RunFinishedOutcomeType("cancelled")
 
 // The content part types of a run input message.
@@ -124,9 +124,9 @@ func write(w io.Writer, ev aguievents.Event) {
 }
 
 // Run writes one AG-UI run as newline-delimited events: RUN_STARTED at Start,
-// the events its methods name, and exactly one terminal RUN_FINISHED or
-// RUN_ERROR at Finish. Every event lands within the run, one Write per event,
-// so a transport can map one Write to one frame.
+// the events its methods name, and exactly one terminal event at Finish, one
+// Write per event. state is nil until Start, carried is inherited from the run
+// a resume continues, and ended drops every event after the terminal one.
 type Run struct {
 	w io.Writer
 
@@ -137,16 +137,10 @@ type Run struct {
 	textOpen      bool
 	reasoningOpen bool
 
-	// state is the run's one state object, seeded at Start. A nil state means
-	// the run has not started yet, which is why emit drops events before it.
 	state map[string]any
 
-	// carried is the state a continuation run inherits from the run it
-	// follows, whose interrupt a resume answered.
 	carried map[string]any
 
-	// ended marks the terminal event written. Every event after it is
-	// dropped, so a run never writes outside its own frame.
 	ended bool
 	err   error
 }
@@ -362,7 +356,7 @@ func (r *Run) Finish(result map[string]any, usage []TokenUsage) error {
 
 // emitRunError carries the failure and the usage accrued before it. RUN_ERROR
 // describes the run itself, so like RUN_STARTED and RUN_FINISHED it carries no
-// subagent attribution and no message id; unlike them the 1.0 schema keeps it
+// subagent attribution and no message id. Unlike them the 1.0 schema keeps it
 // anonymous, identified by whoever reports it.
 func (r *Run) emitRunError(message string, usage []TokenUsage) {
 	var opts []aguievents.RunErrorOption

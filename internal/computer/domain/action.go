@@ -19,16 +19,18 @@ const (
 	ActionMouseUp       ActionKind = "mouse_up"
 )
 
-// Action is one computer-use request: what to do and, where relevant, on
-// what target and with what input.
+// Action is one computer-use request. Text is what to type, Label an exact
+// accessibility label, Scope frontmost, dock, menubar, app:<name> or pid:<n>,
+// Combo a key combo, Button left, right or middle, and Direction and Amount the
+// scroll axis and wheel clicks, negative to reverse.
 type Action struct {
 	Kind      ActionKind
 	Target    *Target
-	Text      string // type: the text to type
-	Label     string // press: exact accessibility label
-	Scope     string // accessibility/press: frontmost, dock, menubar, app:<name>, or pid:<n>
-	Combo     string // key: a combo such as "cmd+shift+t"
-	Button    string // click kinds: left (default), right, middle
-	Direction string // scroll: vertical (default) or horizontal
-	Amount    int    // scroll: wheel clicks; negative reverses direction
+	Text      string
+	Label     string
+	Scope     string
+	Combo     string
+	Button    string
+	Direction string
+	Amount    int
 }

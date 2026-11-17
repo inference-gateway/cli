@@ -31,7 +31,7 @@ type ToolStat struct {
 }
 
 // ModelStat aggregates token usage and cost for one model. Cached is the
-// cached-prompt subset of Prompt (not added to Total); it stays 0 for
+// cached-prompt subset of Prompt (not added to Total). It stays 0 for
 // telemetry files written before cache_read datapoints existed.
 type ModelStat struct {
 	Model      string  `json:"model"`
@@ -51,7 +51,7 @@ type SessionStat struct {
 
 // Aggregate reads the per-session OTLP/stdout files under dir and folds their
 // delta datapoints (timestamped on/after since) into Stats. The JSON shape is
-// the SDK stdout exporter's ResourceMetrics; delta temporality means summing
+// the SDK stdout exporter's ResourceMetrics. Delta temporality means summing
 // every datapoint across every file yields the totals.
 func Aggregate(dir string, since time.Time, conversationID string) (Stats, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
@@ -84,7 +84,7 @@ func Aggregate(dir string, since time.Time, conversationID string) (Stats, error
 }
 
 // Archive moves session files older than cutoff into an archive/ subdir instead
-// of deleting them; Aggregate's non-recursive glob then skips them. Best-effort.
+// of deleting them. Aggregate's non-recursive glob then skips them. Best-effort.
 func Archive(dir string, cutoff time.Time) {
 	files, _ := filepath.Glob(filepath.Join(dir, "*.jsonl"))
 	archiveDir := filepath.Join(dir, "archive")
@@ -100,10 +100,11 @@ func Archive(dir string, cutoff time.Time) {
 	}
 }
 
+// toolAgg aggregates one tool's calls, failures and durations in seconds.
 type toolAgg struct {
 	calls    int
 	failures int
-	durSum   float64 // seconds
+	durSum   float64
 	durCount uint64
 }
 
@@ -120,12 +121,14 @@ type resourceMetrics struct {
 	} `json:"ScopeMetrics"`
 }
 
+// dataPoint is one exported metric datapoint. Counters fill Value and
+// histograms fill Sum and Count.
 type dataPoint struct {
 	Attributes []otlpAttr `json:"Attributes"`
 	Time       time.Time  `json:"Time"`
-	Value      float64    `json:"Value"` // counters
-	Sum        float64    `json:"Sum"`   // histograms
-	Count      uint64     `json:"Count"` // histograms
+	Value      float64    `json:"Value"`
+	Sum        float64    `json:"Sum"`
+	Count      uint64     `json:"Count"`
 }
 
 type otlpAttr struct {

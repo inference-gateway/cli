@@ -21,7 +21,7 @@ import (
 )
 
 // Judge input bounds: the intents are the first and latest user messages and
-// each action a pending tool call; all are truncated so one giant payload
+// each action a pending tool call. All are truncated so one giant payload
 // cannot blow up the judge call. 2000 matches the summarizer's per-message
 // cap. A turn with more than maxJudgeBatchSize gated calls is judged in
 // several requests so one huge turn cannot blow the judge's context.
@@ -95,7 +95,7 @@ func (j *LLMJudge) Judge(ctx context.Context, in agentdomain.JudgeInput) (agentd
 
 // judgeBatch asks the judge once for every action in batch and returns one
 // verdict per action in order. A failed request or unparseable answer applies
-// on_error to the whole batch; an answer that omits a call applies on_error
+// on_error to the whole batch. An answer that omits a call applies on_error
 // to that call only.
 func (j *LLMJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction) ([]agentdomain.JudgeVerdict, *sdk.CompletionUsage) {
 	jcfg := j.config.Judge.Effective()
@@ -117,7 +117,7 @@ func (j *LLMJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, ba
 
 // askJudge renders the prompt for batch, makes one side call and parses the
 // verdicts keyed by id. A reasoning judge that leaves its verdict in reasoning
-// is read through Answer; one that spends the budget names judge.max_tokens.
+// is read through Answer. One that spends the budget names judge.max_tokens.
 func (j *LLMJudge) askJudge(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction, jcfg config.JudgeConfig) (map[string]agentdomain.JudgeVerdict, *sdk.CompletionUsage, error) {
 	prompt := strings.NewReplacer(
 		"{root_intent}", truncateForJudge(in.RootIntent, maxJudgeIntentLength),

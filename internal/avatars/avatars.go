@@ -47,7 +47,7 @@ func anglePrompt(view string) string {
 type EditFunc func(ctx context.Context, prompt, imagePath string) (string, error)
 
 // Avatar is one library entry. Images are the folder's portrait file names in
-// sorted order; the first is the primary image lip-sync models receive.
+// sorted order. The first is the primary image lip-sync models receive.
 type Avatar struct {
 	Name   string   `json:"name"`
 	Images []string `json:"images"`
@@ -191,10 +191,9 @@ func move(src, dst string) error {
 }
 
 // normalizePhoto returns the bytes to store as the primary image. A JPEG is
-// decoded, turned upright per its EXIF orientation and re-encoded, which
-// drops every metadata segment (camera, GPS) before the photo is stored or
-// sent to a provider that may ignore the orientation tag.
-// ponytail: JPEG only - phone photos carry EXIF there; PNG eXIf and WebP
+// turned upright per its EXIF orientation and re-encoded, which drops metadata
+// such as GPS before the photo is stored or sent to a provider.
+// ponytail: JPEG only - phone photos carry EXIF there. PNG eXIf and WebP
 // (no stdlib decoder) pass through untouched.
 func normalizePhoto(data []byte, ext string) ([]byte, error) {
 	if ext != ".jpg" && ext != ".jpeg" {
@@ -260,7 +259,7 @@ func tiffOrientation(tiff []byte) int {
 // orient returns src transformed so EXIF orientation o displays upright:
 // 2-4 mirror/rotate in place, 5-8 swap width and height. Each destination
 // pixel is mapped back to its source pixel.
-// ponytail: per-pixel At/Set, about a second for a 12 MP photo; fine for a
+// ponytail: per-pixel At/Set, about a second for a 12 MP photo. Fine for a
 // one-off avatar, switch to direct Pix copies if it ever runs in bulk.
 func orient(src image.Image, o int) image.Image {
 	if o < 2 || o > 8 {

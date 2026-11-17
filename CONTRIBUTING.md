@@ -127,12 +127,12 @@ require_approval: false  # omit to inherit tools.safety.require_approval
 ```
 
 List `readonly` only for a tool that changes nothing: read-only subagents get it, and its calls run
-concurrently with other read-only calls. Every mode still advertises the same tools; a call outside the
+concurrently with other read-only calls. Every mode still advertises the same tools. A call outside the
 tool's modes is rejected when it runs.
 
 Add the name to the constants in `tool_manifests.go` (`ToolYourTool = "YourTool"`) and use the constant
 everywhere instead of the string. Values only known at runtime (config-driven enums or limits) stay out
-of the YAML; set them in `Definition()` with `agentdomain.PropertySchema`.
+of the YAML. Set them in `Definition()` with `agentdomain.PropertySchema`.
 
 #### 2. Implement the Tool Interface
 

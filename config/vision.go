@@ -34,7 +34,7 @@ type VisionSourceConfig struct {
 	Retention VisionRetentionConfig `yaml:"retention" mapstructure:"retention"`
 }
 
-// VisionRetentionConfig is an optional sweep of a directory source; omit it if
+// VisionRetentionConfig is an optional sweep of a directory source. Omit it if
 // the producing daemon manages cleanup itself.
 type VisionRetentionConfig struct {
 	MaxFiles int    `yaml:"max_files" mapstructure:"max_files"` // keep newest N files (0 = unlimited)

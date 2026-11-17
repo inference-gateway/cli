@@ -16,7 +16,7 @@ import (
 )
 
 // stubToolService embeds the interface so only the two execute entry points
-// need implementing; every other method would panic if the decorator called it,
+// need implementing. Every other method would panic if the decorator called it,
 // which is exactly the assertion we want for a pass-through decorator.
 type stubToolService struct {
 	agentdomain.ToolService

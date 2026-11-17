@@ -31,7 +31,7 @@ const (
 )
 
 // catalogEntry is the metadata for one skill in the centralized catalog.
-// Only name and description are consulted up front; the body is fetched
+// Only name and description are consulted up front. The body is fetched
 // on demand when the skill is activated (progressive disclosure).
 type catalogEntry struct {
 	Name        string `json:"name"`
@@ -50,7 +50,7 @@ type catalogResponse struct {
 
 // CatalogClient fetches skill metadata from the centralized skills registry.
 // It implements progressive discovery: only the index (name + description)
-// is fetched up front; the full skill body is downloaded only on activation.
+// is fetched up front. The full skill body is downloaded only on activation.
 type CatalogClient struct {
 	client     *http.Client
 	baseURL    string
@@ -172,18 +172,10 @@ func skillFromEntry(entry catalogEntry) agentdomain.Skill {
 	}
 }
 
-// Search matches query against the catalog, best match first, capped at limit.
-// An empty query returns the head of the index so the command doubles as a
-// browse.
-//
-// Ranking, in order: names fuzzy-matched by score, then entries whose
-// description literally contains the query. Fuzzy runs over names ONLY -
-// a subsequence match against a paragraph of prose is meaningless ("rust"
-// matches r..u..s..t in most English sentences), which makes description
-// matching substring-only.
-//
-// Matching is local over the cached index because catalog.json is a single
-// static file with no server-side query support - see NewCatalogClient.
+// Search returns catalog matches for query, best first, capped at limit, and the
+// head of the index for an empty query. Names are fuzzy-matched first, then
+// descriptions by substring, since fuzzy matching prose is meaningless. It runs
+// locally because catalog.json has no server-side query.
 func (c *CatalogClient) Search(ctx context.Context, query string, limit int) []agentdomain.Skill {
 	entries := c.Index(ctx)
 	if limit <= 0 || limit > catalogSearchMaxResults {
@@ -300,11 +292,8 @@ func (c *CatalogClient) Lookup(ctx context.Context, name string) (*catalogEntry,
 }
 
 // ResolveInstallURL maps a bare catalog skill name to the GitHub tree URL in its
-// catalog `source`, so `skills install <name>` fetches the body from wherever the
-// skill actually lives instead of the hardcoded <repo>/skills/<name> convention.
-// ok is false for inputs that already carry their own location - a full URL or an
-// "<org>/<skill>" shorthand, both of which contain "/" or ":" - and for names the
-// catalog does not list, leaving the caller's shorthand expansion in charge.
+// catalog source. ok is false for inputs that already carry a location, with a
+// "/" or ":", and for names the catalog does not list.
 func (c *CatalogClient) ResolveInstallURL(ctx context.Context, input string) (string, bool) {
 	if strings.ContainsAny(input, "/:") {
 		return "", false

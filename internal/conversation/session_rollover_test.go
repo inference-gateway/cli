@@ -20,7 +20,7 @@ import (
 )
 
 // seedContextWindow registers a gateway-reported context window for the test's
-// lifetime; without it token triggers gate off (unknown window).
+// lifetime. Without it token triggers gate off (unknown window).
 func seedContextWindow(t *testing.T, model string, tokens int) {
 	t.Helper()
 	models.SetGatewayContextWindows(map[string]int{model: tokens})

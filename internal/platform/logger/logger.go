@@ -108,7 +108,7 @@ var registerReopenSinkOnce sync.Once
 // reopenFileSink is a zap sink that reopens its file (recreating the parent
 // directory) whenever the path no longer exists, so deleting the logs directory
 // mid-session resumes logging instead of writing to a dead fd forever.
-// ponytail: one os.Stat per log write; buffer behind zapcore.BufferedWriteSyncer if it ever shows up in a profile.
+// ponytail: one os.Stat per log write. Buffer behind zapcore.BufferedWriteSyncer if it ever shows up in a profile.
 type reopenFileSink struct {
 	mu   sync.Mutex
 	path string
@@ -236,7 +236,7 @@ func WarnCtx(ctx context.Context, msg string, args ...any) {
 	}
 }
 
-// ErrorCtx logs an error carrying the OTel trace context of ctx; see WarnCtx.
+// ErrorCtx logs an error carrying the OTel trace context of ctx. See WarnCtx.
 func ErrorCtx(ctx context.Context, msg string, args ...any) {
 	if sugar != nil {
 		sugar.Errorw(msg, withTrace(ctx, args)...)

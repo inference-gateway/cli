@@ -6,7 +6,7 @@ Subagents can be defined as Markdown files with YAML frontmatter, the same
 format Claude Code (`.claude/agents/*.md`) and Gemini CLI
 (`.gemini/agents/*.md`) use. An existing agent file from either tool can be
 copied into `.infer/agents/` unchanged. The frontmatter sets the agent's name,
-when to use it, its model and which tools it may use; the Markdown body is its
+when to use it, its model and which tools it may use. The Markdown body is its
 system prompt.
 
 Markdown agents are reusable presets for the `Agent` tool's arguments: the
@@ -60,7 +60,7 @@ other orchestrators load unchanged.
 
 The file is loaded once per session. Files with broken frontmatter, a missing
 or invalid `name`/`description`, or a `tools` list that resolves to no known
-tool are skipped with a warning naming the file and the reason; an invalid
+tool are skipped with a warning naming the file and the reason. An invalid
 file never fails startup.
 
 ## Locations and Precedence
@@ -155,7 +155,7 @@ none.
 
 A value without a provider prefix - Claude aliases like `sonnet`, or bare
 model IDs - logs a warning and falls back to `inherit`, so Claude Code files
-still load. The file's model wins over a per-task `model` argument; when the
+still load. The file's model wins over a per-task `model` argument. When the
 file sets none, the normal resolution order applies (per-task model,
 `tools.agent.model`, then the parent turn's model).
 
@@ -239,7 +239,7 @@ question is a completed turn too, so write self-contained task descriptions.
   after `tools.agent.idle_timeout` seconds of inactivity: no new
   result, no pane change and no pending approval. The close arrives as one
   `[Subagent Closed: <label>]` note carrying anything already harvested.
-  The default is `300` seconds; `0` disables the auto-close and
+  The default is `300` seconds. `0` disables the auto-close and
   `INFER_TOOLS_AGENT_IDLE_TIMEOUT` overrides it.
 - `[Subagent Idle: <label>]` warns early in the idle window - instead of the
   old `[Subagent Completed]` masquerade it names the pending auto-close, so

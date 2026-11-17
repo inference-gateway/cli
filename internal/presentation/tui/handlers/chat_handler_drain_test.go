@@ -15,14 +15,10 @@ import (
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 )
 
-// TestHandleDrainQueueEvent guards the drain gate. It starts a fresh agent turn -
-// marking the session pending to close the double-start window - ONLY when the
-// chat view is active, the agent is idle, and the queue has content. When the
-// agent is busy with work still queued it arms a single retry Cmd (so a transient
-// gate-block can't strand the queue) WITHOUT starting a turn. When there is nothing
-// stranded (empty queue) or the user is off-chat it returns nil, so the retry never
-// fires when idle - no resurrected idle ticker. initialArmed exercises the dedup
-// guard: a second push while a retry is already outstanding arms no second timer.
+// TestHandleDrainQueueEvent guards the drain gate: it starts a turn only on an
+// idle chat view with queued content, arms a single retry while the agent is
+// busy, and returns nil when nothing is stranded or the user is off-chat.
+// initialArmed checks that a second push arms no second timer.
 func TestHandleDrainQueueEvent(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -140,7 +136,7 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 
 // TestShouldDrainAfterComplete pins the emit decision for HandleChatCompleteEvent:
 // a terminal turn (cancelled, or a final answer with no tool calls) drains only
-// when the queue is non-empty; a turn that still has tool calls never drains.
+// when the queue is non-empty. A turn that still has tool calls never drains.
 func TestShouldDrainAfterComplete(t *testing.T) {
 	toolCall := []sdk.ChatCompletionMessageToolCall{{}}
 	tests := []struct {

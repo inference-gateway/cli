@@ -6,11 +6,8 @@ import (
 )
 
 // HookPoint is one of the pre-defined points in the agent loop where actions
-// can attach. The catalog is fully symmetric: every loop phase exposes a
-// pre_/post_ pair. System reminders attach a text-injection
-// action here today; executable command hooks attach a
-// command-execution action at the same points later, both flowing through the
-// single dispatchHooks(point) seam.
+// attach. Every loop phase exposes a pre_/post_ pair. System reminders and
+// command hooks both attach here and flow through dispatchHooks(point).
 type HookPoint string
 
 const (
@@ -50,49 +47,11 @@ type SystemReminder struct {
 	AppendToToolResult bool
 }
 
-// ReminderQuery carries the context a SystemReminderProvider needs to decide
-// which reminders are due at a hook point.
-//
-// Turn and SessionTurn differ deliberately. Turn is the agent-loop turn within
-// the CURRENT run (one user message in chat), used by the turns_before_max
-// trigger relative to MaxTurns. SessionTurn is the cumulative model-turn count
-// across the whole chat session - it does NOT reset when a new user message
-// starts a fresh run, so the `interval` trigger fires on every Nth
-// conversational turn as users expect (per-request Turns would reset to 1 each
-// message and an interval reminder would essentially never fire in chat). In
-// headless `infer headless` a single invocation IS the session, so the two are
-// equal.
-//
-// Fired carries reminder names already emitted this session (consulted by the
-// `once` trigger); the caller marks names fired after injecting.
-//
-// ToolFailed reports whether the tool batch that just completed had any failed
-// call. It is meaningful only at the post_tool hook (set right before that
-// dispatch) and drives the `on_failure` trigger.
-//
-// RepeatedFailures and FailedTool are set at the post_tool hook when the same
-// tool call has failed threshold+ consecutive times; they drive the
-// `on_repeated_failure` trigger. FailedTool is the function name, for
-// templating.
-//
-// FinishReason carries the LLM response's finish_reason string. It drives
-// the `on_truncation` trigger at the post_stream hook (firing when the value
-// is "length").
-//
-// IncompleteTodos carries the remaining open todo items from the model's
-// TodoWrite list; it drives the `on_stalled_todos` trigger at the post_stream
-// hook (firing when non-empty and the response had no tool calls).
-// StalledStrikes is the count of consecutive no-tool-call responses, gating
-// that trigger's strike cap (threshold).
-//
-// EmptyResponse reports that the just-finished assistant turn carried neither
-// text nor a tool call (a reasoning-only reply); it drives the
-// `on_empty_response` trigger at the post_stream hook.
-//
-// ModeChanged reports whether the agent mode differs from the previous
-// streaming turn; PrevMode/Mode carry the transition. They are meaningful only
-// at the pre_stream hook (set right before that dispatch) and drive the
-// `on_mode_change` trigger.
+// ReminderQuery is what a SystemReminderProvider needs to pick due reminders.
+// Turn counts within the current run, while SessionTurn counts across the chat
+// so interval reminders fire. Fired lists names already emitted. The remaining
+// fields drive one trigger each at the hook that sets them: post_tool
+// failures, post_stream truncation, stalled todos and empty replies, pre_stream mode changes.
 type ReminderQuery struct {
 	Hook             HookPoint
 	Turn             int

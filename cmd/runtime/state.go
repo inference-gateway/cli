@@ -66,12 +66,9 @@ func (s *State) LoadConfig() (*config.Config, error) {
 	return cfg, err
 }
 
-// loadConfig builds the one Viper every setting flows through: defaults for
-// every leaf, config.yaml home then project, each sidecar under its key,
-// INFER_* env and the persistent flags, then a single Unmarshal.
-//
-// Precedence, lowest to highest: defaults, ~/.infer/<file>, ./.infer/<file>,
-// INFER_* env, flags. Lists replace wholesale between layers.
+// loadConfig builds the one Viper every setting flows through and unmarshals it
+// once. Precedence, lowest to highest: defaults, ~/.infer/<file>,
+// ./.infer/<file>, INFER_* env, flags. Lists replace wholesale between layers.
 func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 	v := viper.New()
 	registerConfigDefaults(v, config.DefaultConfig())

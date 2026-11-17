@@ -70,20 +70,17 @@ type Handler interface {
 }
 
 // Conn is one authenticated connection, on either end of the binding.
+// helloAttrs and ackAttrs are the other fields the hello and the ack declared,
+// facts the binding never interprets. The token is never among them.
 type Conn struct {
-	ws   *websocket.Conn
-	kind string
-	// helloAttrs are the other fields the hello declared, client facts like a
-	// version the binding itself never interprets. The token is never among
-	// them.
+	ws         *websocket.Conn
+	kind       string
 	helloAttrs map[string]string
-	// ackAttrs are the other fields the ack declared to a dialing end, host
-	// facts like its identity the binding itself never interprets.
-	ackAttrs  map[string]string
-	out       chan []byte
-	mu        sync.Mutex
-	done      chan struct{}
-	closeOnce sync.Once
+	ackAttrs   map[string]string
+	out        chan []byte
+	mu         sync.Mutex
+	done       chan struct{}
+	closeOnce  sync.Once
 }
 
 // newConn wraps one authenticated socket and starts its writer goroutine, so
@@ -180,13 +177,10 @@ func (c *Conn) serve(handler Handler) {
 	}
 }
 
-// BindingConfig configures the listening end. Host defaults to loopback. TLS
-// serves the listener over TLS and, when it requires and verifies client
-// certificates, stands in for the token. AckAttrs are the other fields the ack
-// declares, host facts a dialing end reads back with AckAttr. AllowOrigin
-// decides over requests that carry an Origin header, and without it only
-// requests without one pass. Routes registers optional non-WebSocket HTTP
-// handlers, e.g. static files, which serve under the same listener as /ws.
+// BindingConfig configures the listening end. Host defaults to loopback, and TLS
+// with verified client certificates stands in for the token. AckAttrs are host
+// facts the ack declares for AckAttr. AllowOrigin judges requests with an
+// Origin header, which are refused without it. Routes adds HTTP handlers beside /ws.
 type BindingConfig struct {
 	Host        string
 	Port        int

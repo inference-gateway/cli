@@ -98,7 +98,7 @@ func (j *fakeFinisherJob) finishCalls() int {
 }
 
 // TestSupervisor_FinishEnqueue: a finished non-silent job lands exactly one
-// note on the shared queue and keeps its terminal entry for the task view; a
+// note on the shared queue and keeps its terminal entry for the task view. A
 // silent job never enqueues. The supervisor only ever produces queue messages.
 func TestSupervisor_FinishEnqueue(t *testing.T) {
 	tests := []struct {
@@ -680,7 +680,7 @@ type fakeOutputJob struct {
 func (j *fakeOutputJob) Output() string { return j.output }
 
 // TestSupervisor_SnapshotOutput: a job implementing JobOutputProvider has its
-// output populated in the snapshot (the /tasks detail panel data path); a job
+// output populated in the snapshot (the /tasks detail panel data path). A job
 // that does not gets an empty Output.
 func TestSupervisor_SnapshotOutput(t *testing.T) {
 	tests := []struct {

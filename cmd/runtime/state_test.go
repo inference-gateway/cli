@@ -16,19 +16,11 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-// TestMain redirects the logger to a throwaway directory for the whole package.
-// Many tests here call initConfig(), which calls logger.Init; the default log dir
-// is ~/.infer/logs (config.DefaultLogsDir), so without an override the logger would
-// create logs in the tester's real home directory. No test asserts on logging.dir,
-// and tests that clear INFER_* env vars (e.g. root_defaults_test) chdir into their
-// own temp dir, so this override is safe and self-cleaning.
-//
-// It also clears every ambient INFER_* env var so viper's AutomaticEnv cannot see
-// the host environment (an Infer agent runner exports e.g.
-// INFER_TOOLS_WRITE_REQUIRE_APPROVAL=false, which otherwise overrides registered
-// defaults and the in-test config file). Tests that need a var set it with
-// t.Setenv, so each test sees only its own overrides. The logger dir is set
-// right after the scrub.
+// TestMain points the logger at a throwaway directory so initConfig never
+// writes logs into the tester's real home. It also clears every ambient INFER_*
+// env var so viper's AutomaticEnv cannot see the host environment, such as an
+// agent runner's INFER_TOOLS_WRITE_REQUIRE_APPROVAL. Tests that need a var set
+// it with t.Setenv.
 func TestMain(m *testing.M) {
 	for _, env := range os.Environ() {
 		if key, _, ok := strings.Cut(env, "="); ok && strings.HasPrefix(key, "INFER_") {

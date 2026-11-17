@@ -345,14 +345,11 @@ type threadHost struct {
 	idle <-chan struct{}
 }
 
-// startThreads starts the daemon's thread registry for every session worker
-// it hosts, and serves the AG-UI WebSocket binding on its own switch, host,
-// port, token and TLS. The browser extension relay attaches only with the
-// extension backend, the channels drive their chats as clients of the
-// registry, and the teleport service decides where each thread runs. stop,
-// called after ctx ends, closes the binding and waits for every session
-// worker to exit. The daemon is the only infer process that binds the binding
-// port, so a port that is already held fails the boot.
+// startThreads starts the thread registry that hosts every session worker and
+// serves the AG-UI WebSocket binding with the browser relay, channels and
+// teleport service behind it. stop, called after ctx ends, closes the binding
+// and waits for every worker to exit. The daemon is the only infer process that
+// binds the binding port, so a port that is already held fails the boot.
 func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelManagerService) (threadHost, error) { //nolint:funlen
 	if !threadsEnabled(cfg) {
 		return threadHost{stop: func() {}}, nil
@@ -830,12 +827,10 @@ func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service
 	return svc, nil
 }
 
-// startA2AServer hosts the A2A server when a2a.server is enabled. The bearer
-// token is required: the server exposes the coding agent over HTTP, so a
-// loopback bind alone is not protection enough against a rogue web page. Start
-// blocks, so it runs in a goroutine and this function waits for the health
-// endpoint; a boot failure here fails the daemon. The served tasks run in
-// the daemon's working directory, each bounded by a2a.task.agent_mode_max_wait_seconds.
+// startA2AServer hosts the A2A server when a2a.server is enabled and waits for
+// its health endpoint. The bearer token is required because a loopback bind
+// alone does not protect the coding agent from a rogue web page. A boot failure
+// fails the daemon. Served tasks run in the daemon's working directory.
 func startA2AServer(ctx context.Context, cfg *config.Config) (*a2ainfra.Server, error) {
 	srvCfg := cfg.A2A.Server
 	if !srvCfg.Enabled {

@@ -19,7 +19,7 @@ var (
 
 // SetGatewayContextWindows replaces the gateway-reported context windows
 // (from /v1/models?include=context_window). Keys are full "provider/model"
-// ids; matching is exact on the lowercased id.
+// ids. Matching is exact on the lowercased id.
 func SetGatewayContextWindows(windows map[string]int) {
 	normalized := make(map[string]int, len(windows))
 	for id, tokens := range windows {
@@ -77,18 +77,16 @@ func IsImageGenModalities(mods sdk.ModelModalities) bool {
 		!slices.Contains(mods.Output, sdk.ModalityText)
 }
 
-// IsChatCapableModalities reports whether a modality set describes a model
-// that can serve /chat/completions: it accepts "text" input and produces
-// "text" output. Speech-to-text (audio in), text-to-speech (audio out),
-// image generation and video models all fail this predicate. Modality sets
-// that do not include text at all are naturally rejected, including the empty
-// set the gateway leaves behind when it has no data for a model.
+// IsChatCapableModalities reports whether a modality set accepts text input and
+// produces text output, so the model can serve /chat/completions. Audio, image
+// and video models fail it, as does the empty set the gateway leaves when it
+// has no data for a model.
 func IsChatCapableModalities(mods sdk.ModelModalities) bool {
 	return slices.Contains(mods.Input, sdk.ModalityText) &&
 		slices.Contains(mods.Output, sdk.ModalityText)
 }
 
-// modelModalities returns the registry entry for a model; the zero value
+// modelModalities returns the registry entry for a model. The zero value
 // (empty input/output) stands in for unknown models, making every predicate
 // below false.
 func modelModalities(modelID string) sdk.ModelModalities {

@@ -151,7 +151,7 @@ func NewShellInfo(shell *BackgroundShell) *ShellInfo {
 // BackgroundShellService defines the interface for managing background shells
 type BackgroundShellService interface {
 	// DetachToBackground moves a running command to background. readersDone, when
-	// non-nil, is closed once the caller's pipe readers reach EOF; the supervisor
+	// non-nil, is closed once the caller's pipe readers reach EOF. The supervisor
 	// waits on it before reaping so trailing output is not truncated.
 	DetachToBackground(ctx context.Context, cmd *exec.Cmd, command string, outputBuffer *OutputRingBuffer, readersDone <-chan struct{}) (string, error)
 

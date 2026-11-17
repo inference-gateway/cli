@@ -46,10 +46,10 @@ type UpdateStatusEvent struct {
 	ToolName   string
 }
 
-// ShowErrorEvent displays an error message
+// ShowErrorEvent displays an error message. Sticky keeps it until dismissed.
 type ShowErrorEvent struct {
 	Error  string
-	Sticky bool // Whether error persists until dismissed
+	Sticky bool
 }
 
 // ClearErrorEvent clears any displayed error
@@ -71,7 +71,7 @@ type SetInputEvent struct {
 
 // NextStepSuggestionEvent applies the one-line next-step suggestion as ghost
 // text in the empty chat input. A non-empty Suggestion installs it only when
-// the UI is quiet (empty input, no autocomplete or overlay); an empty one
+// the UI is quiet (empty input, no autocomplete or overlay). An empty one
 // clears a shown suggestion.
 type NextStepSuggestionEvent struct {
 	Suggestion string
@@ -211,7 +211,7 @@ type GitPRResolvedEvent struct {
 
 // GitStatusResolvedEvent carries the workspace state for the branch icon,
 // resolved asynchronously by the input view's fetch command. Dirty means the
-// tree has uncommitted changes; Unpushed means local commits are ahead of the
+// tree has uncommitted changes. Unpushed means local commits are ahead of the
 // upstream (or there is no upstream). The zero value means clean or not a repo.
 type GitStatusResolvedEvent struct {
 	Dirty    bool
@@ -228,14 +228,10 @@ type BashCommandCompletedEvent struct {
 	ErrorMessage  string
 }
 
-// DrainQueueRetryEvent is the bounded retry behind DrainQueueEvent, and is NOT a
-// clock. A DrainQueueEvent can land while the agent is momentarily busy (e.g. a
-// background job finishes in the same instant the turn is still completing); the
-// gate drops it, so without a retry the queue would strand. HandleDrainQueueEvent
-// arms a single DrainQueueRetryEvent in that case, and the drainRetryArmed guard
-// keeps it to exactly one outstanding timer no matter how many DrainQueueEvents
-// arrived. When it fires, HandleDrainQueueRetryEvent re-runs the gate, which
-// re-arms only while work is still stranded and stops the moment the queue drains.
+// DrainQueueRetryEvent is the bounded retry behind DrainQueueEvent, not a clock.
+// When the gate drops a DrainQueueEvent because the agent is busy,
+// HandleDrainQueueEvent arms one retry, and drainRetryArmed keeps it to one
+// timer. It re-arms only while work is stranded.
 type DrainQueueRetryEvent struct{}
 
 // Agent Readiness Events
@@ -355,13 +351,10 @@ type MessageEditSubmitEvent struct {
 func (e MessageEditSubmitEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// HeartbeatEvent is the app's single periodic tick, pushed through the UI
-// notifier by one background goroutine (cmd/chat) at a fixed slow interval. It
-// exists so freshness checks that cannot be event-driven (state changed outside
-// the TUI, e.g. git status after an editor save) have one clock to ride instead
-// of each re-arming its own tea.Tick. Handlers must stay cheap: kick off a
-// tea.Cmd for any I/O, never do it inline. Consumers that want a slower cadence
-// compare At against their own last-run time.
+// HeartbeatEvent is the app's single slow periodic tick, so freshness checks
+// that cannot be event-driven share one clock instead of private tea.Ticks.
+// Handlers must stay cheap and move I/O into a tea.Cmd. Slower consumers compare
+// At with their own last run.
 type HeartbeatEvent struct {
 	At time.Time
 }

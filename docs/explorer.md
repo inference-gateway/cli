@@ -12,7 +12,7 @@ which code to change and how.
 2. Navigate the tree (`j`/`k` or arrow keys) to a file and let the preview render.
 3. Press `s` to enter **select mode** on the previewed file.
 4. Move the line cursor with `j`/`k`. Press `space` (or `v`) to anchor the other end of
-   the range. The selected lines are highlighted with a `▌` gutter; the cursor line shows
+   the range. The selected lines are highlighted with a `▌` gutter. The cursor line shows
    a `▶` gutter.
 5. Press `a` to open the **annotation input**. Type your instruction (e.g. "refactor this
    function to use early returns") and press `enter` to confirm.

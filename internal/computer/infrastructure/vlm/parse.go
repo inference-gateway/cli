@@ -15,7 +15,7 @@ const jsonContract = `Respond with ONLY this JSON, no markdown, no code fences:
 Omit "elements" when nothing is notable. %s`
 
 // parseAnnotation turns raw model output into an ImageAnnotation. It strips
-// code fences and extracts the outermost JSON object; on any failure it
+// code fences and extracts the outermost JSON object. On any failure it
 // degrades to a summary-only annotation with the raw text - it never fails.
 func parseAnnotation(raw string) *agentdomain.ImageAnnotation {
 	text := strings.TrimSpace(raw)

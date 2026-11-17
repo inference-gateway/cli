@@ -89,7 +89,7 @@ func TestLoadConfigFromViper_ChannelsEnvOverridesFile(t *testing.T) {
 // TestLoadConfigFromViper_ChannelsBlockInConfigYAMLIsIgnored asserts the
 // hard contract: a stale `channels:` block in config.yaml must be ignored
 // at runtime. Only channels.yaml feeds cfg.Channels. `infer init` provides
-// the migration path; the loader does not.
+// the migration path. The loader does not.
 func TestLoadConfigFromViper_ChannelsBlockInConfigYAMLIsIgnored(t *testing.T) {
 	withHermeticEnv(t)
 

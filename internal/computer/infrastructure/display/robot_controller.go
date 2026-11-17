@@ -12,7 +12,7 @@ import (
 )
 
 // robotBackend is the slice of robotgo's API the controller uses. macOS and
-// Windows use the top-level package; Linux picks X11 or Wayland at runtime
+// Windows use the top-level package. Linux picks X11 or Wayland at runtime
 // (robot_backend_linux.go), since robotgo's purego build hard-wires Wayland.
 type robotBackend struct {
 	GetScreenSize func() (int, int)
@@ -78,13 +78,12 @@ var (
 	}
 )
 
-// robotController implements DisplayController on robotgo's cgo-free backends
-// (selected per platform by the `purego` build tag). Mouse/keyboard
-// coordinates are in logical pixels; on scaled displays (Retina, HiDPI)
-// physical dimensions are divided by the scale factor.
+// robotController implements DisplayController on robotgo's cgo-free backends.
+// Mouse and keyboard use logical pixels, while screenWidth and screenHeight are
+// physical and divided by scaleFactor on HiDPI displays.
 type robotController struct {
-	screenWidth  int // physical pixels
-	screenHeight int // physical pixels
+	screenWidth  int
+	screenHeight int
 	scaleFactor  float64
 }
 
@@ -215,10 +214,11 @@ func (c *robotController) ClickMouse(ctx context.Context, button MouseButton, cl
 	case 2:
 		return robot.Click(robotButton, true)
 	default:
+		const doubleClickGap = 100 * time.Millisecond
 		if err := robot.Click(robotButton, true); err != nil {
 			return err
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(doubleClickGap)
 		return robot.Click(robotButton, false)
 	}
 }

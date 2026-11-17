@@ -62,7 +62,7 @@ func (d toolDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 
 // wrapDescription word-wraps a one-line description to at most toolDescLines
 // lines of the given width, ending the last line with an ellipsis when text
-// is cut. The width discounts the delegate's item padding; on absurdly narrow
+// is cut. The width discounts the delegate's item padding. On absurdly narrow
 // widths the text is left for the delegate's own truncation.
 func wrapDescription(desc string, width int) string {
 	if desc == "" || width < 8 {
@@ -112,7 +112,7 @@ func toolsTitleStyle(styleProvider *styles.Provider) lipgloss.Style {
 
 // ToolsView is a read-only, filterable list of the tools currently
 // available to the agent. It reuses the bubbles/v2 list plumbing from the
-// theme selector; enter deliberately does nothing yet - selecting a tool to
+// theme selector. Enter deliberately does nothing yet - selecting a tool to
 // inspect or execute it is future work.
 type ToolsView struct {
 	list          list.Model
@@ -195,7 +195,7 @@ func (m *ToolsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKey intercepts the cancel keys when the list is not actively
-// filtering; otherwise it lets the list own typing, enter (apply filter) and
+// filtering. Otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter). Enter outside filtering is consumed as a no-op: the
 // view is read-only for now.
 func (m *ToolsView) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {

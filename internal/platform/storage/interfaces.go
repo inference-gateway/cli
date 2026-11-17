@@ -26,7 +26,7 @@ type SessionGroupEntry struct {
 // to the current conversation session UUID for that key.
 type SessionGroupStorage interface {
 	// GetSessionGroup returns the entry for groupKey. The bool is false when
-	// no entry exists; the error is non-nil only on storage failure.
+	// no entry exists. The error is non-nil only on storage failure.
 	GetSessionGroup(ctx context.Context, groupKey string) (SessionGroupEntry, bool, error)
 
 	// PutSessionGroup creates or replaces the entry for groupKey atomically.
@@ -47,7 +47,7 @@ type ConversationStorage interface {
 
 	// ListConversations returns a list of conversation summaries. A non-empty
 	// project (absolute working-directory path) scopes the listing to that
-	// project's conversations; "" lists every project.
+	// project's conversations. "" lists every project.
 	ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error)
 
 	// DeleteConversation removes a conversation by its ID
@@ -148,24 +148,19 @@ type Stores struct {
 	Leases        agentdomain.LeaseStore
 }
 
-// StorageConfig contains configuration for storage backends
+// StorageConfig selects a storage backend by Type, one of the
+// config.StorageType constants, and holds each backend's own settings.
 type StorageConfig struct {
-	// Type specifies the storage backend type (see config.StorageType* constants)
 	Type config.StorageType `json:"type" yaml:"type"`
 
-	// SQLite specific configuration
 	SQLite SQLiteConfig `json:"sqlite,omitempty" yaml:"sqlite,omitempty"`
 
-	// Postgres specific configuration
 	Postgres PostgresConfig `json:"postgres,omitempty" yaml:"postgres,omitempty"`
 
-	// Redis specific configuration
 	Redis RedisConfig `json:"redis,omitempty" yaml:"redis,omitempty"`
 
-	// JSONL specific configuration
 	Jsonl JsonlStorageConfig `json:"jsonl,omitempty" yaml:"jsonl,omitempty"`
 
-	// D1 specific configuration
 	D1 D1Config `json:"d1,omitempty" yaml:"d1,omitempty"`
 }
 
@@ -184,26 +179,23 @@ type PostgresConfig struct {
 	SSLMode  string `json:"ssl_mode" yaml:"ssl_mode"`
 }
 
-// RedisConfig contains Redis-specific configuration
+// RedisConfig contains Redis-specific configuration. TTL is in seconds, and 0
+// means no expiration.
 type RedisConfig struct {
 	Host     string `json:"host" yaml:"host"`
 	Port     int    `json:"port" yaml:"port"`
 	Database int    `json:"database" yaml:"database"`
 	Password string `json:"password,omitempty" yaml:"password,omitempty"`
 	Username string `json:"username,omitempty" yaml:"username,omitempty"`
-	TTL      int    `json:"ttl,omitempty" yaml:"ttl,omitempty"` // TTL in seconds, 0 means no expiration
+	TTL      int    `json:"ttl,omitempty" yaml:"ttl,omitempty"`
 }
 
-// JsonlStorageConfig contains JSONL-specific configuration
+// JsonlStorageConfig contains JSONL-specific configuration. PlansPath defaults
+// to dir(Path)/plans. ProjectsPath is the root of the per-project layout, set
+// only when Path is the derived default, so listing can walk sibling projects.
 type JsonlStorageConfig struct {
-	Path string `json:"path" yaml:"path"`
-	// PlansPath is the directory plan markdown files are stored in. When
-	// empty, plans land next to the conversations directory (dir(Path)/plans).
-	PlansPath string `json:"plans_path,omitempty" yaml:"plans_path,omitempty"`
-	// ProjectsPath is the root of the default per-project layout
-	// (<ConfigDirName>/projects). Set only when Path is the derived
-	// default, so listing across projects can walk sibling project
-	// stores; explicitly configured paths only ever list themselves.
+	Path         string `json:"path" yaml:"path"`
+	PlansPath    string `json:"plans_path,omitempty" yaml:"plans_path,omitempty"`
 	ProjectsPath string `json:"projects_path,omitempty" yaml:"projects_path,omitempty"`
 }
 

@@ -105,7 +105,7 @@ func waitForAllToolsProcessed(t *testing.T, events chan states.AgentEvent) {
 
 // TestApprovingToolsState_OverlapsExecution proves that approved tools execute
 // concurrently while the remaining tools are still being approved. Each tool's
-// execution blocks on a barrier until ALL tools have started executing; if the
+// execution blocks on a barrier until ALL tools have started executing. If the
 // state serialized execution, only one tool would ever reach the barrier and
 // states.AllToolsProcessedEvent would never arrive within the timeout.
 func TestApprovingToolsState_OverlapsExecution(t *testing.T) {
@@ -304,7 +304,7 @@ func TestApprovingToolsState_ReadWaitsForEarlierWrite(t *testing.T) {
 // TestApprovingToolsState_FlushesResultsIncrementally proves a completed tool's
 // result is written to the conversation/storage as soon as it (and the
 // preceding results) finish, rather than being held until the whole batch
-// completes. Tool 2 blocks; tools 0 and 1 must be flushed while tool 2 is still
+// completes. Tool 2 blocks. Tools 0 and 1 must be flushed while tool 2 is still
 // running - the previous batch-at-the-end behavior would time out here.
 func TestApprovingToolsState_FlushesResultsIncrementally(t *testing.T) {
 	block := make(chan struct{})

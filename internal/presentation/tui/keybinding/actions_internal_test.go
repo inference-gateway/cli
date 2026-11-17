@@ -19,17 +19,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// flashTestCtx is a minimal KeyHandlerContext for exercising the clipboard
-// feedback helpers directly. It embeds the interface (so it satisfies the full
-// contract) and overrides only the accessors the helpers actually use. A
-// hand-rolled fake is used here instead of the generated FakeKeyHandlerContext
-// because that fake imports this package, which would create an import cycle in
-// an internal (package keybinding) test.
-//
-// handleCopy and handlePaste are intentionally not unit-tested here: they call
-// the package-level clipboard, which compiles to the real macOS pasteboard when
-// tests run without the `test` build tag (the repo's `task test` does). The
-// spinner-safe flash behaviour they rely on is covered via flashStatus below.
+// flashTestCtx is a minimal KeyHandlerContext for the clipboard feedback
+// helpers. The generated fake imports this package, which would be an import
+// cycle in an internal test. handleCopy and handlePaste stay untested because
+// they reach the real macOS pasteboard.
 type flashTestCtx struct {
 	KeyHandlerContext
 	status tui.StatusComponent
@@ -510,14 +503,9 @@ func newCancelTestCtx(t *testing.T, requestID string) (*cancelTestCtx, *agentdom
 	return ctx, agent
 }
 
-// TestHandleCancelDrainsQueuedMessages is the regression test for the Esc
-// path leaving queued messages stranded: handleCancel ends the session
-// synchronously, so the agent loop's ChatCompleteEvent{Cancelled:true} - the
-// only other drain trigger - lands on the now-orphaned channel and the chat
-// handler drops it. The cancel action must therefore hand the queue to the
-// drain gate itself: the returned batch carries the "User interrupted"
-// status and a DrainQueueEvent, whose gate starts the queued turn once the
-// agent is idle and arms the bounded retry while it is still winding down.
+// TestHandleCancelDrainsQueuedMessages guards Esc stranding queued messages.
+// handleCancel ends the session synchronously, so the cancelled completion
+// event is dropped, and the cancel action must emit a DrainQueueEvent itself.
 func TestHandleCancelDrainsQueuedMessages(t *testing.T) {
 	ctx, agent := newCancelTestCtx(t, "req-1")
 

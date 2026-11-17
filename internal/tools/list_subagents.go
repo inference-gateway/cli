@@ -74,7 +74,7 @@ func (t *ListSubagentsTool) Execute(ctx context.Context, args map[string]any) (*
 }
 
 // subagentInfo builds the per-subagent record. Interactive subagents get their
-// live pane status (alive=running, dead=finished, gone=closed); headless ones
+// live pane status (alive=running, dead=finished, gone=closed). Headless ones
 // report their tracked status.
 func (t *ListSubagentsTool) subagentInfo(ctx context.Context, s *scheddomain.SubagentState) map[string]any {
 	status := string(s.Status)

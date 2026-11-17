@@ -9,15 +9,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// NewPaneInspector returns a pane inspector (a func yielding a
-// scheddomain.PaneObservation) backed by the subagent result file, the approval
-// sidecar, and the tmux pane's liveness. The interactive subagent monitor
-// (interactiveSubagentJob) calls it to watch interactive subagents for completion
-// and pending approvals. It NEVER returns pane content as the delivered message -
-// the pane is rendered TUI chrome (input box, status bar), which is noise in the
-// main conversation; only the result file's last assistant message is delivered.
-// The Screen snapshot it returns is used ONLY for the monitor's idle-by-stability
-// check, never delivered.
+// NewPaneInspector returns the inspector interactiveSubagentJob uses to watch a
+// subagent pane through its result file, approval sidecar and tmux liveness.
+// Only the result file's last assistant message is ever delivered. The Screen
+// snapshot only feeds the idle-by-stability check, since pane content is TUI chrome.
 func NewPaneInspector() func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation {
 	return func(ctx context.Context, paneID, sessionID string) scheddomain.PaneObservation {
 		obs := scheddomain.PaneObservation{}
@@ -129,7 +124,7 @@ func tmuxCapturePane(ctx context.Context, paneID string) string {
 
 // tmuxSendKeys sends literal text and/or named keys to a tmux pane. Literal text
 // is sent with -l so shell metacharacters are typed verbatim (never interpreted
-// as tmux key names); named keys (Enter, Up, Escape, ...) are sent without -l so
+// as tmux key names). Named keys (Enter, Up, Escape, ...) are sent without -l so
 // tmux resolves them. A blank paneID is a no-op. Shared by sendTaskToPane (launch
 // task), SendSubagentInput (re-prompt / TUI drive) and ApproveSubagent.
 func tmuxSendKeys(ctx context.Context, paneID, text string, keys []string) error {

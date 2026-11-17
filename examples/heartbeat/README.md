@@ -64,7 +64,7 @@ heartbeat agent output conversation_id=… line={"role":"assistant",...}
 heartbeat tick complete conversation_id=…
 ```
 
-That repeats every 30 seconds; Ctrl+C stops it. `task wakes` lists the conversations the ticks recorded -
+That repeats every 30 seconds. Ctrl+C stops it. `task wakes` lists the conversations the ticks recorded -
 one per wake-up, because every tick gets a fresh session with no context carried over - and
 `task show ID=<paste an ID from the list>` prints the wake-up prompt and the reply. `task clean` removes
 the demo HOME.
@@ -73,7 +73,7 @@ the demo HOME.
 
 | Task | What happens |
 | --- | --- |
-| `task daemon` | Runs `infer daemon` with the heartbeat on; the heartbeat only fires while it runs |
+| `task daemon` | Runs `infer daemon` with the heartbeat on. The heartbeat only fires while it runs |
 | `task wakes` | `infer conversations list`, one conversation per wake-up |
 | `task show ID=...` | `infer conversations show`, the full wake-up transcript |
 | `task once` | `infer headless --heartbeat "<prompt>"` - one wake-up without a daemon |

@@ -4,7 +4,7 @@
 
 **What** - a runnable example per feature plus the common end-to-end workflows.
 **Why** - seeing a feature wired up end to end, config and all, is faster than reading a reference and guessing.
-**How** - each directory under [`examples/`](../examples/) is self-contained with its own README; copy the one closest to your setup and adapt it.
+**How** - each directory under [`examples/`](../examples/) is self-contained with its own README. Copy the one closest to your setup and adapt it.
 
 ## Runnable Examples
 

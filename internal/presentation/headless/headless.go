@@ -90,7 +90,7 @@ type Options struct {
 
 // resolveAgentMode picks the coding mode for a headless run: the --mode flag
 // wins, then INFER_AGENT_MODE, then the subagent-inherited mode
-// (INFER_SUBAGENT_AGENT_MODE). An invalid --mode is a hard error; unparseable
+// (INFER_SUBAGENT_AGENT_MODE). An invalid --mode is a hard error. Unparseable
 // env vars fall through to the next source.
 func resolveAgentMode(flag string) (agentdomain.AgentMode, error) {
 	if strings.TrimSpace(flag) != "" {
@@ -106,7 +106,7 @@ func resolveAgentMode(flag string) (agentdomain.AgentMode, error) {
 	return scheddomain.InheritedAgentMode(), nil
 }
 
-// Run executes one headless task. newServices builds the composition root; it
+// Run executes one headless task. newServices builds the composition root. It
 // is called only after the flags validate, so a bad --format or --mode never
 // starts any service.
 func Run(cfg *config.Config, opts Options, newServices func() Services) (err error) { //nolint:gocyclo,cyclop,funlen,gocognit
@@ -149,8 +149,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	// The notes buffer the local agents' boot progress; the first run the
-	// process opens drains them as its activity entries.
 	notes := newStartupNotes()
 	if agentSupervisor := svc.GetAgentSupervisor(); agentSupervisor != nil && (!isBashTask(opts.Task) || opts.PromptOnly) {
 		startLocalAgents(agentSupervisor, cfg, opts.Format, notes)

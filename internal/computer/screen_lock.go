@@ -12,12 +12,9 @@ import (
 	process "github.com/inference-gateway/cli/internal/platform/process"
 )
 
-// The screen is a machine-wide resource: two concurrent computer-use sessions
-// would fight over one mouse and keyboard. The first session to execute a
-// computer-use tool takes an exclusive flock on a lock file under ~/.infer/run;
-// any other process's computer-use tools fail with an instruction to abort.
-// The kernel releases the lock when the process exits, so a crashed session
-// can never wedge the screen.
+// The screen lock gives the first computer-use session an exclusive flock under
+// ~/.infer/run, so two sessions never fight over one mouse and keyboard. The
+// kernel releases it on exit, so a crashed session never wedges the screen.
 // ponytail: single foreground session only - when background mode lands, scope
 // the lock to foreground sessions instead of every computer-use tool call.
 var (

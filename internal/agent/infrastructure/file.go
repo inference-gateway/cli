@@ -146,7 +146,7 @@ func (s *FileService) handleDirectory(d os.DirEntry, path, cwd string) error {
 }
 
 // shouldIncludeFile determines if a file should be included in the list.
-// Under ./.infer/ only markdown context files are indexed; runtime artifacts
+// Under ./.infer/ only markdown context files are indexed. Runtime artifacts
 // (tmp scratch, artifacts) live under ~/.infer/projects/<project-slug>/ and so
 // are never walked here at all.
 func (s *FileService) shouldIncludeFile(d os.DirEntry, relPath string) bool {

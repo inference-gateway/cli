@@ -19,11 +19,12 @@ var dockerLayerRe = regexp.MustCompile(`^([0-9a-f]{10,64}): (.+)$`)
 // podmanBlobRe matches podman's "Copying blob <id> ..." output lines.
 var podmanBlobRe = regexp.MustCompile(`^Copying blob (\S+)`)
 
-// pullProgress counts image layers from docker/podman non-TTY pull output.
-// ponytail: heuristic layer counting; docker gives real totals, podman only
-// emits done-lines so the bar jumps — good enough to show liveness.
+// pullProgress counts image layers, by id and completion, from docker or podman
+// non-TTY pull output.
+// ponytail: heuristic layer counting. Docker gives real totals, podman only
+// emits done-lines so the bar jumps, which is good enough to show liveness.
 type pullProgress struct {
-	layers    map[string]bool // layer id -> completed
+	layers    map[string]bool
 	lastDone  int
 	lastTotal int
 }

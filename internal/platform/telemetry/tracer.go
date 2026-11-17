@@ -19,9 +19,9 @@ import (
 )
 
 // newTracerProvider creates a TracerProvider sharing the resource and OTLP
-// config with the meter provider. Local file export is always attempted; OTLP
+// config with the meter provider. Local file export is always attempted. OTLP
 // export is added when an endpoint is configured. Sink failures are logged
-// and dropped; returns (nil, nil) when no sink could be created.
+// and dropped. Returns (nil, nil) when no sink could be created.
 func newTracerProvider(res *resource.Resource, dir, session, endpoint string, headers map[string]string, interval time.Duration) (*sdktrace.TracerProvider, *os.File, *lockedWriter) {
 	var spanProcessors []sdktrace.SpanProcessor
 
@@ -68,7 +68,7 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 }
 
 // newTraceFileProcessor writes spans as OTLP/semconv JSON to a per-session
-// file, synchronously (tiny volume; spans survive an abrupt exit).
+// file, synchronously (tiny volume. Spans survive an abrupt exit).
 func newTraceFileProcessor(dir, session string) (*os.File, *lockedWriter, sdktrace.SpanProcessor, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, nil, nil, err
@@ -87,7 +87,7 @@ func newTraceFileProcessor(dir, session string) (*os.File, *lockedWriter, sdktra
 }
 
 // newOTLPTraceProcessor creates a batch span processor exporting over
-// OTLP/HTTP. A configured endpoint takes precedence; when empty, the
+// OTLP/HTTP. A configured endpoint takes precedence. When empty, the
 // exporter's native spec-compliant env handling applies
 // (OTEL_EXPORTER_OTLP_TRACES_ENDPOINT over OTEL_EXPORTER_OTLP_ENDPOINT,
 // per-signal path appending, headers, timeouts).

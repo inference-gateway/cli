@@ -18,7 +18,7 @@ import (
 // DirectoryFrameSource serves the newest image file under a configured
 // directory - the integration surface for camera daemons and anything else
 // that drops frames on disk. An optional retention sweep (max_files/max_age)
-// runs after each read; omit retention when the producer manages cleanup.
+// runs after each read. Omit retention when the producer manages cleanup.
 type DirectoryFrameSource struct {
 	name     string
 	path     string

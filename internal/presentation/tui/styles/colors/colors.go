@@ -109,7 +109,7 @@ var (
 
 // GetLipglossColor returns a lipgloss color for the given Color.
 // Lipgloss v2's lipgloss.Color is a constructor that returns a
-// color.Color implementation; the return type reflects that.
+// color.Color implementation. The return type reflects that.
 func (c Color) GetLipglossColor() color.Color {
 	return lipgloss.Color(c.Lipgloss)
 }

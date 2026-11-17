@@ -25,6 +25,8 @@ import (
 
 const maxTypeTextLength = 10000
 
+const maxJPEGQuality = 100
+
 // Executor performs computer-use actions through the display controller.
 // Action and observation coordinates are in the frame coordinate space (the
 // space screenshots and their annotations use).
@@ -289,7 +291,7 @@ func (e *Executor) screenshot(ctx context.Context, controller display.DisplayCon
 	}
 
 	quality := e.cfg.ComputerUse.Screenshot.Quality
-	if quality <= 0 || quality > 100 {
+	if quality <= 0 || quality > maxJPEGQuality {
 		quality = 85
 	}
 	var buf bytes.Buffer

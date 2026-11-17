@@ -3,7 +3,7 @@ package domain
 import "context"
 
 // BrowserToolResult represents the result of a browser use operation. One
-// shared shape for all browser tools; each tool fills the fields it produces.
+// shared shape for all browser tools. Each tool fills the fields it produces.
 type BrowserToolResult struct {
 	Action   string   `json:"action"`
 	URL      string   `json:"url,omitempty"`
@@ -24,7 +24,7 @@ type BrowserTab struct {
 }
 
 // BrowserScreenshotResult carries a screenshot of the current page. Data is
-// base64-encoded image bytes; the BrowserScreenshot tool persists them and
+// base64-encoded image bytes. The BrowserScreenshot tool persists them and
 // sets the attachment's on-disk source path.
 type BrowserScreenshotResult struct {
 	Data     string `json:"-"`

@@ -155,16 +155,10 @@ func withFirstChunkDeadline(parent context.Context, timeout time.Duration) (ctx 
 }
 
 // outboundConversation returns the request payload: the shared conversation
-// plus the ephemeral volatile-context tail, rebuilt here per request so the
-// volatile sections (git branch, tree, memory, active skill, date) stay fresh
-// across a long agent loop instead of freezing at RunWithStream time. The
-// shared slice is cloned before appending so the tail never leaks into
-// persistence, the TUI, or later turns. The tail decision lives here — per
-// request, after ensureConversationIntegrity has repaired the conversation —
-// and is skipped while an assistant tool_call is still unanswered, where a
-// trailing user message would orphan it. Rebuilding is prompt-cache-safe: the
-// tail always trails the newest messages, so it is never part of a reusable
-// token prefix.
+// plus a volatile-context tail rebuilt per request so the git branch, tree and
+// memory stay fresh. The slice is cloned so the tail never leaks into
+// persistence, and the tail is skipped while a tool call is unanswered. It
+// always trails the newest messages, so it never breaks the prompt-cache prefix.
 func (a *eventDrivenAgent) outboundConversation() []sdk.Message {
 	conversation := requestImages(*a.agentCtx.Conversation)
 	if conversationAwaitsToolResults(conversation) {
@@ -282,13 +276,10 @@ func (a *eventDrivenAgent) processStreamEvents(
 	}
 }
 
-// handleStreamInterrupted handles a stream that ended via ctx cancellation -
-// either a real timeout (DeadlineExceeded) or user cancellation (Canceled).
-// Timeout: publish an error and transition to StateError.
-// Cancellation: persist any partial assistant content so the user doesn't
-// lose mid-flight output (e.g. a half-written poem when Esc is pressed),
-// then return silently - the main event loop owns the StateCancelled
-// transition via cancelChan.
+// handleStreamInterrupted handles a stream ended by ctx. A timeout publishes an
+// error and moves to StateError. A cancellation persists the partial assistant
+// content so mid-flight output is not lost, and leaves the StateCancelled
+// transition to the main event loop.
 func (a *eventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, partial sdk.Message) {
 	if cause := context.Cause(requestCtx); errors.Is(cause, context.DeadlineExceeded) {
 		logger.Error("stream timeout", "error", cause)
@@ -301,12 +292,10 @@ func (a *eventDrivenAgent) handleStreamInterrupted(requestCtx context.Context, p
 	a.persistPartialAssistantMessage(partial)
 }
 
-// persistPartialAssistantMessage saves the partial assistant text + reasoning
-// produced before cancellation. Partial tool calls are intentionally dropped:
-// a half-streamed tool call can't be executed safely, so attempting to
-// preserve it risks malformed arguments. Text content alone is appended to
-// both the in-memory conversation and the repo so the next session sees the
-// interruption point in history.
+// persistPartialAssistantMessage saves the text and reasoning streamed before a
+// cancellation to the conversation and the repo, so history shows where it
+// stopped. Partial tool calls are dropped because half-streamed arguments
+// cannot run safely.
 func (a *eventDrivenAgent) persistPartialAssistantMessage(partial sdk.Message) {
 	content, err := partial.Content.AsMessageContent0()
 	if err != nil {

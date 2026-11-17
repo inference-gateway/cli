@@ -285,7 +285,7 @@ func (c *command) newInitCommand() *cobra.Command {
 }
 
 // agentsConfigPath returns the agents.yaml path for the current command. Writes
-// target the userspace baseline (~/.infer/) by default; --project targets the
+// target the userspace baseline (~/.infer/) by default. --project targets the
 // project .infer/agents.yaml instead.
 func agentsConfigPath(cmd *cobra.Command) (string, error) {
 	return runtime.ConfigPath(runtime.ProjectFlag(cmd), config.AgentsFileName)

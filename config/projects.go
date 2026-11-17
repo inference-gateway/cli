@@ -27,15 +27,10 @@ func VoiceSamplesDir() string {
 	return filepath.Join(UserSpaceConfigDir(), "voice", "samples")
 }
 
-// ConfigLookupDirs returns the config directories that directory-shaped assets
-// (shortcuts/) must be read from, in apply order: the userspace baseline first,
-// then the project override when one exists, so later entries overlay earlier
-// ones by name.
-//
-// ResolveConfigDir picks a SINGLE dir, project-first, which is right for
-// whole-file lookups (config.yaml) but wrong for a directory of many files:
-// creating any ./.infer/config.yaml would otherwise flip resolution to the
-// project and hide everything `infer init` seeded into ~/.infer/shortcuts/.
+// ConfigLookupDirs returns the config dirs that directory-shaped assets such as
+// shortcuts/ are read from, userspace first, then the project, so later entries
+// overlay earlier ones by name. ResolveConfigDir picks a single dir, which
+// would hide everything `infer init` seeded into ~/.infer/shortcuts/.
 func ConfigLookupDirs() []string {
 	dirs := []string{UserSpaceConfigDir()}
 	if _, err := os.Stat(ConfigDirName); err != nil {
@@ -72,12 +67,10 @@ func slugOfPath(path string) string {
 	return strings.Join(segments, "-")
 }
 
-// ProjectRuntimeDir is the per-project runtime root, ~/.infer/projects/<project-slug>.
-// Runtime artifacts (history, backups, tmp scratch, artifacts, exports) are
-// process output rather than project configuration, so their defaults resolve
-// here instead of into the project-local ./.infer directory. $HOME and the cwd
-// (via the slug) are resolved at call time, matching how the sandbox validates
-// paths; an explicit config path always wins over these defaults.
+// ProjectRuntimeDir is the per-project runtime root, ~/.infer/projects/<slug>.
+// Runtime artifacts such as history, backups and exports are process output,
+// not project configuration, so their defaults resolve here. It is resolved at
+// call time like the sandbox paths, and an explicit config path always wins.
 func ProjectRuntimeDir() string {
 	return filepath.Join(UserSpaceConfigDir(), ProjectsDirName, projectRuntimeSlug())
 }

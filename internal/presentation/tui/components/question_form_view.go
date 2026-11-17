@@ -24,29 +24,24 @@ const minQuestionOptionWidth = 20
 const otherOptionLabel = "Other…"
 
 // otherSentinel is the option value standing in for the synthesized "Other"
-// row; real options are their index into question.Options.
+// row. Real options are their index into question.Options.
 const otherSentinel = -1
 
-// QuestionFormView drives the interactive AskUserQuestion form behind an accent
-// rail floating above the input. It owns the
-// answer-in-progress state as one huh form per question; the state store only
-// carries the questions, the overlay-active flag, and the response channel.
-// The agent loop is blocked in the tool goroutine until the answers are sent
-// on the channel (or it is closed, signalling cancellation).
+// QuestionFormView drives the AskUserQuestion form above the input, owning one
+// huh form per question. active is the state it was built for, stale once it
+// no longer matches. The agent loop blocks until answers are sent on the
+// channel or it is closed.
 type QuestionFormView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
 	stateManager  tui.UserQuestionPrompt
 
-	// active is the state this form was built for; if the state store's
-	// state no longer matches (cancelled externally), the form is stale.
 	active  *tui.UserQuestionUIState
 	idx     int
 	form    *huh.Form
 	answers []agentdomain.UserQuestionAnswer
 
-	// Form-bound values, reset per question.
 	single int
 	multi  []int
 	other  string

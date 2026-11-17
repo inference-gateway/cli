@@ -11,7 +11,7 @@ import (
 )
 
 // compactMaxFilesPerDir caps how many files a single directory line lists in
-// the compact format; the overall line budget comes from the max_files arg.
+// the compact format. The overall line budget comes from the max_files arg.
 const compactMaxFilesPerDir = 25
 
 // compactProjectListing produces the compact one-directory-per-line listing
@@ -31,14 +31,10 @@ func gitProjectFiles(path string) []string {
 	return strings.Split(strings.TrimSpace(string(out)), "\n")
 }
 
-// formatProjectListing groups file paths one directory per line, ordered by
-// directory depth then name so root files come first and shallow structure
-// survives the line budget. Hidden files and directories (any dot-prefixed
-// path component) are omitted to save tokens - the text format still shows
-// them on demand. To save further tokens, a "name.go*" entry means both
-// name.go and name_test.go exist in that directory. Both the per-directory
-// file list and the total line count are capped, with explicit "+N more"
-// markers so truncation is never silent.
+// formatProjectListing groups paths one directory per line, shallowest first so
+// the root survives the line budget. Dot-prefixed paths are omitted, and
+// "name.go*" stands for name.go plus name_test.go. Files per directory and total
+// lines are capped with explicit "+N more" markers.
 func formatProjectListing(paths []string, maxLines, maxFilesPerDir int) string {
 	byDir := make(map[string][]string)
 	for _, p := range paths {
@@ -91,7 +87,7 @@ func formatProjectListing(paths []string, maxLines, maxFilesPerDir int) string {
 }
 
 // collapseTestSiblings folds name_test.go into a "name.go*" marker when
-// name.go exists in the same directory; standalone test files stay listed.
+// name.go exists in the same directory. Standalone test files stay listed.
 func collapseTestSiblings(files []string) []string {
 	present := make(map[string]bool, len(files))
 	for _, f := range files {

@@ -103,7 +103,7 @@ type PlanApprovalUIState struct {
 }
 
 // UserQuestionUIState drives the interactive AskUserQuestion form. The agent
-// loop is blocked in the tool goroutine while the form is up; the
+// loop is blocked in the tool goroutine while the form is up. The
 // answer-in-progress state lives in the QuestionFormView's huh form.
 // ResponseChan delivers the final answers slice back to the blocked tool;
 // closing it without a send signals cancellation.

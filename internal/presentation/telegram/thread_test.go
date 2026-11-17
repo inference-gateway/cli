@@ -140,7 +140,7 @@ func TestThreadChat_ArmIdleDetach(t *testing.T) {
 	chat.active = time.Now().Add(-2 * sessionsdomain.ChannelFollowTimeout)
 	chat.mu.Unlock()
 
-	chat.detachIdle() // the grace expired while the chat sat silent
+	chat.detachIdle()
 
 	if router.DetachCallCount() != 1 {
 		t.Fatalf("expected the idle chat to stop following its thread once, got %d", router.DetachCallCount())

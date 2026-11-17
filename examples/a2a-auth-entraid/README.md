@@ -80,7 +80,7 @@ task down
 - **v1 tokens.** If `requestedAccessTokenVersion` stays unset, Entra issues v1 tokens with
   `iss: https://sts.windows.net/<tenant>/`, which the agent rejects because it discovered the `/v2.0` issuer.
   Decode the token at [jwt.ms](https://jwt.ms) and check the `ver` claim.
-- **`AADSTS500011`** means the API has no service principal in the tenant; the `az ad sp create` step creates it.
+- **`AADSTS500011`** means the API has no service principal in the tenant. The `az ad sp create` step creates it.
 - **Every app in the tenant can request a token for your API** unless the API's service principal has "assignment
   required" turned on. Authentication proves the token came from your tenant for your API, not _which_ app asked.
 

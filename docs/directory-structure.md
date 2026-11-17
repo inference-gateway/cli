@@ -28,7 +28,7 @@ The CLI keeps everything in two locations:
   default.
 - **Project layer** - `.infer/`, sitting next to your code. An *optional*
   config override layer that exists only if you create it. The CLI never
-  writes to a project `.infer/` on its own; the only way files appear there
+  writes to a project `.infer/` on its own. The only way files appear there
   is a config write you explicitly request with
   `infer config set --project ...` (or hand-editing).
 
@@ -80,10 +80,10 @@ for the full precedence rules.
 │   └── insights.yaml
 ├── skills/               # Agent Skills - SKILL.md folders, see docs/skills.md
 ├── tools/                # custom tool manifests (<Name>.yaml), see docs/custom-tools.md
-├── avatars/              # TextToVideo avatar library: <name>/ folders of portrait images; survives /reset
+├── avatars/              # TextToVideo avatar library: <name>/ folders of portrait images. Survives /reset
 ├── schedules/            # cron-driven scheduled jobs (one YAML per job)
 ├── plans/                # plan-mode plans saved by RequestPlanApproval (one .md per plan)
-├── insights/             # /insights session reports (one .md per run); survives /reset
+├── insights/             # /insights session reports (one .md per run). Survives /reset
 ├── logs/                 # CLI + gateway logs (app/daemon/gateway <date>.log)
 ├── telemetry/            # usage stats backing `infer stats` (see docs/telemetry.md)
 ├── run/                  # daemon pid/lock files
@@ -180,7 +180,7 @@ project wants to override a config file it commits its own sparse
   See [Skills](skills.md).
 - **`agents/`** - Markdown subagent definitions you create yourself, one
   `<name>.md` per agent (frontmatter plus a system-prompt body, Claude Code /
-  Gemini CLI compatible); not seeded by init. `~/.agents/agents/` is read
+  Gemini CLI compatible). Not seeded by init. `~/.agents/agents/` is read
   after it, and a project `.infer/agents/` or `.agents/agents/` overrides a
   same-named file here. See [Markdown Subagents](subagents.md).
 
@@ -200,7 +200,7 @@ A simple rule keeps `~/.infer/` consistent:
   settings). Nobody hand-writes these, but people do open them to see why a
   chat landed in the wrong project, so the format rule follows what a human
   might read rather than who typed it. Both are **owned by the desktop
-  repo**, which writes them; the CLI only carves `projects.yaml` out of the
+  repo**, which writes them. The CLI only carves `projects.yaml` out of the
   sandbox so the agent can edit it, and preserves it across `/reset`. They
   replace `projects.json` and `desktop.json` outright, with no compatibility
   read - the old files hold regenerable sidebar state, so the app rebuilds
@@ -265,9 +265,9 @@ the project-local `.infer/`.
   `huggingface/<owner>/<name>/` holds the models fetched with
   [`infer models download`](commands-reference.md#infer-models).
 - **`~/.infer/telemetry/`** *(userspace)* - usage stats backing
-  [`infer stats`](commands-reference.md); wiped by `/reset`. See
+  [`infer stats`](commands-reference.md). Wiped by `/reset`. See
   [Telemetry](telemetry.md).
-- **`~/.infer/run/`** *(userspace)* - daemon pid/lock files; wiped by
+- **`~/.infer/run/`** *(userspace)* - daemon pid/lock files. Wiped by
   `/reset`.
 
 ### Media Directories

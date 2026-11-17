@@ -14,7 +14,7 @@ license: MIT
 # Go CLI Architecture: Cobra & Viper
 
 Treat the binary as a **router for commands**: Cobra owns flags, args, and
-routing; your business logic stays unaware of the CLI and stays testable. Viper is
+routing. Your business logic stays unaware of the CLI and stays testable. Viper is
 the single source of truth that merges defaults, config files, env vars, and flags
 into one typed config before the app runs.
 
@@ -58,12 +58,12 @@ func main() {
 `cmd.Context()` is only canceled on Ctrl+C if `main` wires signals like this -
 Cobra doesn't do it for you.
 
-> **In this repo:** `cmd/root/root.go` `NewCommand()` builds the tree; every
+> **In this repo:** `cmd/root/root.go` `NewCommand()` builds the tree. Every
 > subcommand is a `<pkg>.NewCommand(state, ...)` factory taking the shared
 > `*runtime.State` (`cmd/runtime/state.go`), which owns the `viper.New()` instance
 > and the loaded `*config.Config`. `root.Execute()` runs it through
 > `fang.Execute`, which sets `SilenceUsage`/`SilenceErrors` and calls
-> `ExecuteContext`; it installs no signal handler (no `fang.WithNotifySignal`), so
+> `ExecuteContext`. It installs no signal handler (no `fang.WithNotifySignal`), so
 > long-running commands (`daemon`, the web server) handle signals themselves.
 > Business logic lives under `internal/` behind the DI container - `cmd/` holds
 > no business logic.
@@ -101,13 +101,13 @@ call the parent explicitly, or opt into chaining with
 `cobra.EnableTraverseRunHooks = true` (Cobra 1.8+).
 
 **Flags:** `PersistentFlags()` for cross-cutting options (config, verbosity,
-output); `Flags()` for command-local ones; `BoolP`/`StringP` short flags for common
+output). `Flags()` for command-local ones. `BoolP`/`StringP` short flags for common
 options. Declare relationships instead of checking them by hand:
 `MarkFlagRequired`, `MarkFlagsMutuallyExclusive`, `MarkFlagsRequiredTogether`,
 `MarkFlagsOneRequired` (1.8+).
 
 **Help and completion:** group many subcommands with `AddGroup` + `GroupID`
-(1.6+). Completion (`myapp completion zsh|bash|fish`) is free; add
+(1.6+). Completion (`myapp completion zsh|bash|fish`) is free. Add
 `RegisterFlagCompletionFunc` for flag values and `ValidArgsFunction` for
 positional args.
 
@@ -115,14 +115,14 @@ positional args.
 `cmd.Println`). `fmt.Printf` bypasses `SetOut`/`SetErr`, so tests can't capture it.
 
 **Version:** set the root's `Version` field (`myapp --version` for free,
-`SetVersionTemplate` to format it); add a `version` subcommand only for structured
+`SetVersionTemplate` to format it). Add a `version` subcommand only for structured
 output like `--json`.
 
 ## Viper: merge sources into a typed struct
 
 Prefer an injected `*viper.Viper` from `viper.New()` over the global singleton - it
 isolates tests and lets commands run concurrently. **Don't** scatter
-`v.GetString("db.host")` through business logic; unmarshal once, at the routing
+`v.GetString("db.host")` through business logic. Unmarshal once, at the routing
 layer, into a typed struct and pass it down.
 
 **Precedence** (highest to lowest): explicit `Set` -> flags (`BindPFlags`) -> env
@@ -160,12 +160,12 @@ config struct.
 > (`cmd/runtime/defaults.go`) registers every leaf of `config.DefaultConfig()`,
 > zero values included. List values from env split on commas or newlines via
 > `parseDelimitedList` in the decode hook. The typed target is the `Config`
-> struct in `config/config.go` - extend that (and `DefaultConfig()`); don't
+> struct in `config/config.go` - extend that (and `DefaultConfig()`). Don't
 > sprinkle `viper.Get*` through services.
 
 ## Test commands in memory
 
-Cobra commands are structs - test them in process; never shell out to a compiled
+Cobra commands are structs - test them in process. Never shell out to a compiled
 binary (`os/exec` is slow, brittle, and hides coverage). **Always execute through
 a fresh root** with the subcommand name in `SetArgs`: `Execute()` on a subcommand
 runs from the root anyway, and a fresh tree + fresh Viper per case means no shared
@@ -204,11 +204,11 @@ func TestServe(t *testing.T) {
 - **Env-only values missing after `Unmarshal`** - register every key with
   `SetDefault`/`BindEnv`.
 - **Reading Viper too early** - values are empty until setup runs
-  (`PersistentPreRunE`); don't read it in `init()` or `var` blocks.
+  (`PersistentPreRunE`). Don't read it in `init()` or `var` blocks.
 - **Forgetting `BindPFlags`** - flags aren't visible to Viper until bound.
 - **Missing `SetEnvKeyReplacer`** - `serve.addr` won't match `MYAPP_SERVE_ADDR`.
 - **Cobra/Viper in business logic** - pass a typed config struct down instead.
-- **`fmt.Printf` inside commands** - breaks output capture; use `cmd.OutOrStdout()`.
+- **`fmt.Printf` inside commands** - breaks output capture. Use `cmd.OutOrStdout()`.
 - **Over-nesting subcommands** - two levels (`app cmd sub`) is usually the limit.
 
 ---

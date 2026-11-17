@@ -72,7 +72,7 @@ type InputView struct {
 }
 
 // gitCurrentBranch returns the current git branch by shelling out to git. It is
-// the default resolver wired into getCurrentGitBranch; tests inject a stub via
+// the default resolver wired into getCurrentGitBranch. Tests inject a stub via
 // the resolveGitBranch field so branch resolution is deterministic without a
 // real repository.
 func gitCurrentBranch() (string, error) {
@@ -454,14 +454,11 @@ func (iv *InputView) InvalidateGitBranchCache() {
 	iv.gitBranchCacheTime = time.Time{}
 }
 
-// fetchGitPRCmd resolves the PR number for the current branch off the UI
-// goroutine via "gh pr view --json number --jq .number". It must never run in
-// the render path: it is a network round-trip to GitHub. The error is
-// deliberately swallowed because gh exits non-zero for the normal "no PR"
-// case; the label simply omits the number.
-// ponytail: refetch is event-driven (startup, bash commands, Bash tool runs),
-// so a PR opened outside the TUI stays unknown until the next such event; if
-// that ever matters, ride tui.HeartbeatEvent, never a private tea.Tick.
+// fetchGitPRCmd resolves the current branch's PR number off the UI goroutine,
+// since it is a network round trip. Errors are swallowed because gh fails for
+// the normal "no PR" case.
+// ponytail: refetch is event-driven, so a PR opened outside the TUI stays
+// unknown until the next event. If that matters, ride tui.HeartbeatEvent.
 func fetchGitPRCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -512,7 +509,7 @@ func (iv *InputView) renderDisplayText() string {
 }
 
 // getDisplayTextAndCursorOffset returns the display text with mode prefixes and cursor offset adjustment
-// For bash mode (!), we show "! " prefix; for tools mode (!!), we show "!! " prefix
+// For bash mode (!), we show "! " prefix. For tools mode (!!), we show "!! " prefix
 func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursorOffset int) {
 	text := iv.ta.Value()
 	isToolsMode := strings.HasPrefix(text, "!!")
@@ -715,13 +712,10 @@ func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) str
 	return wrappedText
 }
 
-// ensureHighlighter lazily builds the input-token highlighter the first time it
-// is needed, once the style provider is available. Each rule is included only
-// when its backing service is wired, so the highlighter degrades gracefully (and
-// tests that set only a theme don't crash). Validators close over iv so they
-// read live service state. Rules are ordered skill-before-shortcut because they
-// share the "/" sigil - the skill rule's ANSI prevents the shortcut rule from
-// re-coloring a known skill (see inputsyntax.Highlight).
+// ensureHighlighter builds the input-token highlighter once the style provider
+// exists, including each rule only when its service is wired. Validators read
+// live service state through iv. Skill rules come before shortcut rules because
+// they share the "/" sigil.
 func (iv *InputView) ensureHighlighter() {
 	if iv.highlighter != nil || iv.styleProvider == nil {
 		return
@@ -816,13 +810,9 @@ func (iv *InputView) IsNavigatingHistory() bool {
 	return iv.historyManager.IsNavigating()
 }
 
-// navigateHistoryUp moves up in history (to older messages).
-// If the queue's head is a composer entry, it dequeues it and restores its
-// content into the input field instead of navigating history, so the user
-// can edit and re-send it. The entry becomes plain composer text again, so
-// the agent stops processing it: job results stay queued, and an entry
-// whose content is not plain text (e.g. image-only) is re-queued rather
-// than consumed.
+// navigateHistoryUp moves to older history. When the queue's head is a composer
+// entry, it restores it into the input for editing instead, so the agent stops
+// processing it. Job results and non-text entries stay queued.
 func (iv *InputView) navigateHistoryUp() {
 	if mq := iv.messageQueue; mq != nil && !mq.IsEmpty() {
 		ctx, cancel := context.WithTimeout(context.Background(), constants.QueueCallTimeout)

@@ -38,12 +38,16 @@ const (
 	expandedReservedLines = 12
 
 	// diffBorderPadding is the box border (2) plus horizontal padding (2) reserved
-	// when sizing the diff to the available width; minDiffWidth keeps it usable on
+	// when sizing the diff to the available width. MinDiffWidth keeps it usable on
 	// very narrow terminals.
 	diffBorderPadding = 4
 	minDiffWidth      = 20
 )
 
+// ApprovalBoxView renders the pending tool approval as a form with a diff
+// preview. active is the approval the form was built for, and a mismatch marks
+// it stale. expanded switches the capped preview to a scrollable full diff from
+// scrollOffset, both reset per approval.
 type ApprovalBoxView struct {
 	width            int
 	height           int
@@ -52,16 +56,10 @@ type ApprovalBoxView struct {
 	toolFormatter    tui.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
-	// active is the approval state the form was built for; a mismatch with
-	// the state store (cleared externally) marks the form stale.
 	active *tui.ApprovalUIState
 	form   *huh.Form
 	choice agentdomain.ApprovalAction
 
-	// expanded switches the diff from the height-capped preview to a scrollable
-	// window over the full diff (ctrl+o), mirroring the conversation view's
-	// tool-result expansion. scrollOffset is the first visible diff line in that
-	// window. Both reset for each new approval.
 	expanded     bool
 	scrollOffset int
 }
@@ -74,7 +72,7 @@ func (av *ApprovalBoxView) ToggleExpanded() {
 }
 
 // ScrollDiff moves the expanded diff window by delta lines (up/down). It is a no-op
-// unless the diff is expanded; the top is clamped here and the bottom at render time
+// unless the diff is expanded. The top is clamped here and the bottom at render time
 // (which is where the window height is known).
 func (av *ApprovalBoxView) ScrollDiff(delta int) {
 	if !av.expanded {
@@ -86,12 +84,10 @@ func (av *ApprovalBoxView) ScrollDiff(delta int) {
 	}
 }
 
-// IsActive reports whether an approval is *currently* being shown, so the caller can
-// route ctrl+o to this box instead of the conversation. It consults the live
-// state store (like Render does) rather than trusting av.active/av.form alone: those
-// fields are only reset by the form's own completion, so after an approval is cleared
-// externally (rejection resolved, timeout) they can linger — and a stale true here
-// would swallow ctrl+o from the rejected result the user is trying to expand.
+// IsActive reports whether an approval is currently shown, so ctrl+o routes to
+// this box. It consults the live state store like Render, because av.active and
+// av.form linger after an approval is cleared externally and would swallow
+// ctrl+o from the rejected result the user wants to expand.
 func (av *ApprovalBoxView) IsActive() bool {
 	if av.stateManager == nil || av.active == nil || av.form == nil {
 		return false
@@ -229,7 +225,7 @@ func (av *ApprovalBoxView) renderApprovalBox(state *tui.ApprovalUIState) string 
 
 // renderBody renders what is being approved. For the file-mutating tools
 // (Edit/MultiEdit/Write) it shows a height-capped, theme-aware colored diff so the
-// user sees the change before approving; every other tool keeps the compact
+// user sees the change before approving. Every other tool keeps the compact
 // "Name(arg=value, ...)" one-liner. It also falls back to the one-liner when the
 // arguments don't parse.
 func (av *ApprovalBoxView) renderBody(tc *sdk.ChatCompletionMessageToolCall) string {
@@ -242,12 +238,10 @@ func (av *ApprovalBoxView) renderBody(tc *sdk.ChatCompletionMessageToolCall) str
 	return av.renderSummary(tc)
 }
 
-// renderSummary renders the "Name(arg=value, ...)" one-liner used for every
-// non-diff tool, truncated to the available width. The name and parens stay dim
-// while the inner arguments are highlighted in the accent colour (blue in the
-// default theme, matching the box border) so the user can see at a glance exactly
-// what will be executed. Truncation happens on the plain string first so the ANSI
-// colour codes never throw off the width budget.
+// renderSummary renders the "Name(arg=value, ...)" one-liner for non-diff tools,
+// truncated to the width. The arguments are highlighted in the accent colour so
+// the user sees exactly what will run. It truncates the plain string first so
+// ANSI codes never skew the width.
 func (av *ApprovalBoxView) renderSummary(tc *sdk.ChatCompletionMessageToolCall) string {
 	full := av.toolCallSummary(tc)
 	budget := av.summaryBudget()
@@ -289,13 +283,10 @@ func (av *ApprovalBoxView) highlightSummary(summary string) string {
 		av.styleProvider.RenderWithColor(summary[closeParen:], dimColor)
 }
 
-// renderDiffPreview renders the file diff for the mutating tools using the shared,
-// theme-aware styles.DiffRenderer. The second return is false for any other
-// tool so the caller falls back to the one-liner summary. The diff is sized to the
-// box width and capped to a bounded number of lines (see capLines).
-//
-// The tool names are matched as literals on purpose: importing internal/tools
-// for its name constants would pull the whole tool layer into the UI.
+// renderDiffPreview renders the capped, box-width file diff for the mutating
+// tools, and returns false for any other tool so the caller falls back to the
+// summary. Tool names are literals because importing internal/tools would pull
+// the tool layer into the UI.
 func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]any) (string, bool) {
 	renderer := styles.NewDiffRenderer(av.styleProvider).SetWidth(av.diffWidth()).SetMaxLines(-1)
 
@@ -316,7 +307,7 @@ func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]an
 
 // capLines bounds the preview height so a large edit can't blow out the layout.
 // Collapsed it keeps the first previewLineLimit() lines with a "… N more lines"
-// hint; expanded (ctrl+o) it shows a scrollable window over the whole diff so a
+// hint. Expanded (ctrl+o) it shows a scrollable window over the whole diff so a
 // file larger than the screen stays fully reviewable while the action buttons stay
 // pinned. The full diff still renders in the conversation after the edit runs.
 func (av *ApprovalBoxView) capLines(s string) string {
@@ -348,12 +339,10 @@ func (av *ApprovalBoxView) capLines(s string) string {
 	return window + "\n" + hint
 }
 
-// previewLineLimit is the number of diff lines shown in the box at once. Collapsed
-// it is about half the terminal height so the conversation and input keep room,
-// bounded to [minPreviewLines, maxPreviewLines]; expanded (ctrl+o) it grows to fill
-// the screen (minus the header, input, and box chrome so the layout can't overflow)
-// and the rest is reached by scrolling. It falls back to defaultPreviewLines before
-// the terminal height is known (height <= 0).
+// previewLineLimit is the number of diff lines shown at once. Collapsed it is
+// about half the terminal height, within [minPreviewLines, maxPreviewLines].
+// Expanded it fills the screen minus the chrome. Before the height is known it
+// is defaultPreviewLines.
 func (av *ApprovalBoxView) previewLineLimit() int {
 	if av.height <= 0 {
 		return defaultPreviewLines

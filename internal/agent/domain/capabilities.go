@@ -16,19 +16,22 @@ type ImageAttachment struct {
 	SourcePath  string `json:"-"`
 }
 
-// AnnotateOptions carries per-call annotation parameters.
+// AnnotateOptions carries per-call annotation parameters. Prompt is the task
+// instruction, "" for the annotator default. Width and Height are the image's
+// pixel size, stated in the prompt and used to rescale normalized coordinates.
 type AnnotateOptions struct {
-	Prompt string // task instruction (UI-element detection, scene description, or a user question); "" -> annotator default
-	Width  int    // image width in pixels, stated in the prompt and used to rescale normalized coordinates
-	Height int    // image height in pixels
+	Prompt string
+	Width  int
+	Height int
 }
 
-// AnnotatedElement is one detected element of an annotated image.
+// AnnotatedElement is one detected element of an annotated image. BBox is
+// [x1, y1, x2, y2] in the image's pixel space.
 type AnnotatedElement struct {
 	Index int    `json:"index"`
 	Label string `json:"label"`
 	Text  string `json:"text,omitempty"`
-	BBox  [4]int `json:"bbox"` // [x1, y1, x2, y2] in the image's pixel space
+	BBox  [4]int `json:"bbox"`
 }
 
 // ImageAnnotation is the structured result of annotating an image: a short
@@ -53,16 +56,19 @@ type ScreenRegion struct {
 	Height int `json:"height"`
 }
 
-// Frame represents a captured image frame (screenshot, camera frame, ...) with metadata
+// Frame is a captured image frame such as a screenshot or camera frame. Data is
+// the base64 image, Path its on-disk file when there is one, Width and Height
+// the size after scaling, Format "png" or "jpeg", and Method the capture method
+// such as "x11" or "directory".
 type Frame struct {
 	ID        string    `json:"id"`
 	Timestamp time.Time `json:"timestamp"`
-	Data      string    `json:"data"`   // base64 encoded image
-	Path      string    `json:"-"`      // on-disk path when the frame exists as a file
-	Width     int       `json:"width"`  // Final image width (after scaling)
-	Height    int       `json:"height"` // Final image height (after scaling)
-	Format    string    `json:"format"` // "png" or "jpeg"
-	Method    string    `json:"method"` // capture method, e.g. "x11", "wayland", "directory"
+	Data      string    `json:"data"`
+	Path      string    `json:"-"`
+	Width     int       `json:"width"`
+	Height    int       `json:"height"`
+	Format    string    `json:"format"`
+	Method    string    `json:"method"`
 }
 
 // FrameSource provides the most recent frame of a named frame source
@@ -71,7 +77,8 @@ type FrameSource interface {
 	GetLatestFrame() (*Frame, error)
 }
 
-// FrameToolResult represents the result of a frame retrieval
+// FrameToolResult is the result of a frame retrieval. Note explains a degraded
+// result, such as "annotation unavailable: ...".
 type FrameToolResult struct {
 	Source     string           `json:"source,omitempty"`
 	Display    string           `json:"display"`
@@ -82,5 +89,5 @@ type FrameToolResult struct {
 	Method     string           `json:"method"`
 	Annotated  bool             `json:"annotated,omitempty"`
 	Annotation *ImageAnnotation `json:"annotation,omitempty"`
-	Note       string           `json:"note,omitempty"` // degrade note, e.g. "annotation unavailable: ..."
+	Note       string           `json:"note,omitempty"`
 }

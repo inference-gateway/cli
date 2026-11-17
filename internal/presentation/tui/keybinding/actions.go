@@ -428,7 +428,7 @@ const clipboardFlashDuration = 1500 * time.Millisecond
 
 // flashStatus shows a short, auto-dismissing status message. When a spinner is
 // active it saves and restores the status state so the loading indicator is not
-// interrupted; otherwise it clears the status line afterwards. Mirrors the
+// interrupted. Otherwise it clears the status line afterwards. Mirrors the
 // double-esc sequence-hint behaviour.
 func flashStatus(app KeyHandlerContext, message string) tea.Cmd {
 	statusView := app.GetStatusView()
@@ -891,8 +891,9 @@ func (m *Dispatcher) showSequenceHint(keyStr string) []tea.Cmd {
 		}
 	}
 
+	const statusClearDelay = time.Second
 	clearStatusCmd := func() tea.Msg {
-		time.Sleep(1 * time.Second)
+		time.Sleep(statusClearDelay)
 		return tui.SetStatusEvent{
 			Message: "",
 			Spinner: false,

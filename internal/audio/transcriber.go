@@ -23,13 +23,13 @@ var nonSpeechMarkerRe = regexp.MustCompile(
 // speech_to_text.binary_path is configured.
 var whisperBinaryCandidates = []string{"whisper-cli", "whisper-cpp"}
 
-// WhisperTranscriber transcribes a 16kHz mono WAV file using whisper.cpp.
+// WhisperTranscriber transcribes a 16kHz mono WAV file using whisper.cpp. run
+// and lookPath are overridable in tests.
 type WhisperTranscriber struct {
 	cfg      config.SpeechToTextConfig
 	models   *ModelStore
 	binaries binariesdomain.Store
 
-	// run and lookPath are overridable in tests.
 	run      commandRunner
 	lookPath func(string) (string, error)
 }

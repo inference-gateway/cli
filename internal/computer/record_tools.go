@@ -13,7 +13,7 @@ import (
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 )
 
-// recordTool is RecordStart, or RecordStop when stop is set; both drive the
+// recordTool is RecordStart, or RecordStop when stop is set. Both drive the
 // one shared ScreenRecorder.
 type recordTool struct {
 	config   *config.Config

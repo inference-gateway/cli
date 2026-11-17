@@ -17,6 +17,9 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
+// eventDrainDelay lets pending direct-exec events drain before the channel closes.
+const eventDrainDelay = 100 * time.Millisecond
+
 // directQuestionBroker implements agentdomain.UserQuestionBroker for `!!` direct
 // tool execution. It publishes the question request onto the per-invocation
 // event channel and blocks until the user submits (answers arrive on the
@@ -176,7 +179,7 @@ func (s *Service) executeToolCommandAsync(toolName, argsJSON, toolCallID string)
 
 	go func() {
 		defer func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(eventDrainDelay)
 			close(eventChan)
 			s.setToolEventChannel(nil)
 		}()

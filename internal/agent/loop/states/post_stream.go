@@ -7,14 +7,9 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// PostStreamState handles events in the PostStream state.
-//
-// This state:
-//  1. Stores assistant message to conversation
-//  2. If tool calls exist → EvaluatingTools (queued messages drain after the tools run)
-//  3. Checks if messages were queued during stream → CheckingQueue
-//  4. If no tools and can complete → Completing
-//  5. Otherwise → CheckingQueue
+// PostStreamState stores the assistant message, then moves to EvaluatingTools
+// when it has tool calls, to Completing when it can complete, and to
+// CheckingQueue otherwise. Messages queued during the stream drain after tools.
 type PostStreamState struct {
 	ctx *StateContext
 }
@@ -74,7 +69,7 @@ func (s *PostStreamState) transitionToEvaluatingTools() error {
 
 // handleNoToolCallsScenario handles the scenario when there are no tool calls.
 // A headless run waits here for in-flight background jobs (A2A tasks, shells,
-// subagents) before completing; their completion notes land in the queue and
+// subagents) before completing. Their completion notes land in the queue and
 // route back through CheckingQueue so the model gets a turn to report them.
 func (s *PostStreamState) handleNoToolCallsScenario() error {
 	s.ctx.AgentCtx.HasToolResults = false

@@ -29,7 +29,7 @@ const (
 
 // ModelCapabilityFilter narrows the list by input modality, ANDed with the
 // pricing tab. Only chat-capable models are listed at all, so "text" is not a
-// filter; the dimensions are the extra input modalities a chat model accepts.
+// filter. The dimensions are the extra input modalities a chat model accepts.
 type ModelCapabilityFilter int
 
 const (
@@ -46,7 +46,7 @@ const modelSelectChromeLines = 9
 // ModelSelector implements model selection UI as a huh select with the
 // pricing tabs (keys 1-4) layered on top: switching a tab rebuilds the form
 // with that tab's option set. Search is a dedicated textinput (entered with
-// `/`) filtering on the model name; huh's built-in filter is disabled since
+// `/`) filtering on the model name. Huh's built-in filter is disabled since
 // it renders the query into the select's title line instead of a real input.
 type ModelSelector struct {
 	models         []string

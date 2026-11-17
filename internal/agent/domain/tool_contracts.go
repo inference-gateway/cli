@@ -210,31 +210,28 @@ type MultiEditToolResult struct {
 	NormalizedEdits int                   `json:"normalized_edits,omitempty"`
 }
 
-// EditOperationResult represents the result of a single edit operation within MultiEdit
+// EditOperationResult is the result of one MultiEdit operation.
+// WhitespaceNormalized is set when it matched through the indentation-tolerant fallback.
 type EditOperationResult struct {
-	OldString     string `json:"old_string"`
-	NewString     string `json:"new_string"`
-	ReplaceAll    bool   `json:"replace_all"`
-	ReplacedCount int    `json:"replaced_count"`
-	Success       bool   `json:"success"`
-	Error         string `json:"error,omitempty"`
-	// WhitespaceNormalized is true when this edit matched via the indentation-tolerant fallback.
-	WhitespaceNormalized bool `json:"whitespace_normalized,omitempty"`
+	OldString            string `json:"old_string"`
+	NewString            string `json:"new_string"`
+	ReplaceAll           bool   `json:"replace_all"`
+	ReplacedCount        int    `json:"replaced_count"`
+	Success              bool   `json:"success"`
+	Error                string `json:"error,omitempty"`
+	WhitespaceNormalized bool   `json:"whitespace_normalized,omitempty"`
 }
 
-// TodoItem represents a single todo item
+// TodoItem is a single todo item. StartedAt is when its current in-progress
+// stretch began, CompletedAt when it was completed, and ElapsedMs the time spent
+// in progress over every ended stretch.
 type TodoItem struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Status  string `json:"status"`
-	// StartedAt is when the stretch the item is in progress for began, nil
-	// while it is not in progress.
-	StartedAt *time.Time `json:"started_at,omitempty"`
-	// CompletedAt is when the item was completed, nil until then.
+	ID          string     `json:"id"`
+	Content     string     `json:"content"`
+	Status      string     `json:"status"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	// ElapsedMs is the time the item spent in progress over every stretch
-	// that has ended, in milliseconds.
-	ElapsedMs int64 `json:"elapsed_ms,omitempty"`
+	ElapsedMs   int64      `json:"elapsed_ms,omitempty"`
 }
 
 // TodoWriteToolResult represents the result of a TodoWrite operation

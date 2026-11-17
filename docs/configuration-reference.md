@@ -37,7 +37,7 @@ supporting multiple configuration sources with proper precedence handling.
 
 2. **Project Configuration** (`.infer/config.yaml` in current directory)
    - An *optional*, sparse override layer that takes precedence over the
-     userspace baseline. It only exists if you create it; the CLI never
+     userspace baseline. It only exists if you create it. The CLI never
      populates a project `.infer/` on its own
    - Created with: `infer config set --project <key> <value>`, which writes
      only the keys you set (or by hand). Include just the keys you want to
@@ -103,10 +103,10 @@ gateway:
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
   run: true    # Automatically run the gateway (enabled by default)
-  standalone_binary: true  # Run the gateway as a standalone binary (default; set false for Docker mode)
+  standalone_binary: true  # Run the gateway as a standalone binary (default. Set false for Docker mode)
   version: latest  # Gateway release the binary runs: latest (default) or a release such as 0.65.0
   include_models: []  # Optional: only allow specific models (allowlist)
-  exclude_models: []  # Optional: blocklist of specific models (opt-in; the picker already hides non-chat models by modalities)
+  exclude_models: []  # Optional: blocklist of specific models (opt-in. The picker already hides non-chat models by modalities)
   tls:                # Optional: a private gateway CA and a client certificate for mTLS
     ca_file: ""
     cert_file: ""
@@ -127,7 +127,7 @@ logging:
   stdout: false # Also write logs to stdout/stderr in addition to the log file
   archive:
     enabled: true # Automatically archive oversized log files (default: true)
-    max_size_mb: 1024 # Threshold in MB; files exceeding this are gzip-compressed and truncated (default: 1024 = 1 GB)
+    max_size_mb: 1024 # Threshold in MB. Files exceeding this are gzip-compressed and truncated (default: 1024 = 1 GB)
   insights_min_level: warn # Lowest level `infer insights` folds into its report (debug|info|warn|error|dpanic|panic|fatal)
 agent:
   model: "" # Default model for agent operations
@@ -173,13 +173,13 @@ compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (1-80)
 telemetry:
-  enabled: true # Record OTel metrics locally; written as OTLP/semconv JSON under ~/.infer/telemetry
+  enabled: true # Record OTel metrics locally. Written as OTLP/semconv JSON under ~/.infer/telemetry
   retention_days: 7 # Archive telemetry files older than this many days (0 disables archiving)
   otlp:
-    endpoint: "" # OTLP/HTTP collector base URL; empty (and OTEL_EXPORTER_OTLP_ENDPOINT unset) disables export
+    endpoint: "" # OTLP/HTTP collector base URL. Empty (and OTEL_EXPORTER_OTLP_ENDPOINT unset) disables export
     headers: {} # Headers sent on every export request
     interval: 60 # Periodic export interval in seconds
-  receiver_address: "" # Address for the CLI's in-process OTLP receiver to listen on; empty disables it
+  receiver_address: "" # Address for the CLI's in-process OTLP receiver to listen on. Empty disables it
 ```
 
 ---
@@ -197,7 +197,7 @@ telemetry:
   - The gateway runs in the background and shuts down when the CLI exits
 - **gateway.standalone_binary**: Run the gateway as a standalone binary instead of a Docker container (default: `true`)
   - `true` (default): Downloads and runs the gateway as a binary (no Docker required)
-  - `false`: Uses Docker to run the gateway container (requires Docker installed; the image comes from `gateway.oci`)
+  - `false`: Uses Docker to run the gateway container (requires Docker installed. The image comes from `gateway.oci`)
 - **gateway.version**: Gateway release the standalone binary runs (default: `latest`). Set via `INFER_GATEWAY_VERSION`.
   - `latest` (default): every start checks for a newer gateway release and replaces the cached binary with it.
     A start with a working binary never fails on that check - offline, it keeps the binary it has
@@ -417,11 +417,11 @@ tools:
   (default: `5`) finished shells kept for inspection. Set via `INFER_TOOLS_BASH_BACKGROUND_SHELLS_*`.
 - **tools.custom_dir**: Directory your user [custom tools](custom-tools.md) load from (default: `""`, meaning
   `~/.infer/tools/`). Project tools in `.infer/tools/` and `.agents/tools/` load as well. Env: `INFER_TOOLS_CUSTOM_DIR`.
-- **tools.safety.require_approval**: Whether a tool needs approval at all (default: true; a per-tool `require_approval` overrides it)
+- **tools.safety.require_approval**: Whether a tool needs approval at all (default: true. A per-tool `require_approval` overrides it)
 - **tools.safety.approval_behaviour**: *How* a needed approval is delivered (default: `prompt`). Env: `INFER_TOOLS_SAFETY_APPROVAL_BEHAVIOUR`.
   - `prompt` - ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
-    (Telegram); if none is reachable (CI/heartbeat) the action is **blocked** with a reason.
-  - `ipc` - force stdin/stdout IPC approval; blocked when no broker is attached.
+    (Telegram). If none is reachable (CI/heartbeat) the action is **blocked** with a reason.
+  - `ipc` - force stdin/stdout IPC approval. Blocked when no broker is attached.
   - `judge` - one LLM judge call decides (see [Judge Approval](#judge-approval-judgeyaml)). The judge is always reachable
     (headless and CI included), so unlike `ipc` it is never downgraded to block.
   - `block` - reject immediately with a reason, never ask.
@@ -445,7 +445,7 @@ tools:
   `INFER_TOOLS_WAIT_MAX_TIMEOUT_SECONDS`, `INFER_TOOLS_WAIT_COMMAND_POLL_INTERVAL_MS`.
 - **tools.image_edit** and **tools.image_variation**: `enabled`, `model` (both default to `openai/gpt-image-2`)
   and `require_approval`. Env: `INFER_TOOLS_IMAGE_EDIT_*`, `INFER_TOOLS_IMAGE_VARIATION_*`.
-- **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit; `true` requires byte-exact
+- **tools.edit.strict_whitespace**: `false` (default) enables indentation-tolerant matching for Edit/MultiEdit. `true` requires byte-exact
 - **tools.agent.wait**: `false` (default) makes the Agent tool return as soon as its headless subagents are
   dispatched, so later tool calls in the same turn run right away and each subagent reports back with its own
   `[Subagent Completed: ...]` notification, then stays alive for `SendSubagentInput` follow-ups (see
@@ -456,7 +456,7 @@ tools:
   are dropped, not queued, and the tool result names how many. Env: `INFER_TOOLS_AGENT_MAX_PARALLEL`.
 - **tools.agent.idle_timeout**: Seconds an interactive (tmux-pane) subagent may sit idle - no harvested
   result turn, no pane change and no pending approval - before the parent monitor closes its pane automatically
-  (default: `300`; `0` disables the auto-close). A subagent reports done on its task turn, which closes the pane
+  (default: `300`. `0` disables the auto-close). A subagent reports done on its task turn, which closes the pane
   right away, so the timeout only catches one that never reports done. Env: `INFER_TOOLS_AGENT_IDLE_TIMEOUT`.
 - **tools.agent.wrap_up_message**: The message a sub-agent or A2A task receives when it is asked to wrap up,
   by pressing `c` on its row in the job list under the composer
@@ -466,7 +466,7 @@ tools:
   (a tmux pane you can watch). Env: `INFER_TOOLS_AGENT_MODE`.
 - **tools.agent.max_depth**: How deep the Agent tool may nest. A listed Agent tool is disabled inside a subagent
   until this is raised above its default of `1`. Env: `INFER_TOOLS_AGENT_MAX_DEPTH`.
-- **tools.agent.model**: Model override for subagents; empty inherits the session model. Env: `INFER_TOOLS_AGENT_MODEL`.
+- **tools.agent.model**: Model override for subagents. Empty inherits the session model. Env: `INFER_TOOLS_AGENT_MODEL`.
 - **tools.agent.inherit_mock**: Pass the mock-gateway setting down to headless subagents (default: `true`).
   Env: `INFER_TOOLS_AGENT_INHERIT_MOCK`.
 - **tools.agent.completed_retention**: Number of finished subagent results kept for later retrieval
@@ -534,26 +534,26 @@ userspace `~/.infer/computer_use.yaml`). Recording works without `computer_use.e
 ```yaml
 recording:
   enabled: false # register RecordStart/RecordStop
-  max_duration: 120 # seconds; a recording stops and finalizes itself at this cap
+  max_duration: 120 # seconds. A recording stops and finalizes itself at this cap
   max_storage_mb: 1024 # the oldest recordings are deleted before a new one starts to stay under it (0 = unbounded)
   output_dir: "" # empty = <media root>/recordings
   framerate: 24 # frames per second
-  require_approval: true # unset = true; false lets RecordStart run unattended (headless CI)
+  require_approval: true # unset = true. False lets RecordStart run unattended (headless CI)
   hide_cursor: false # true leaves the mouse pointer out of recordings
 ```
 
 - **computer_use.recording.enabled**: Register the recording tools (default: false)
-- **computer_use.recording.max_duration**: Maximum recording length in seconds (default: 120; must
+- **computer_use.recording.max_duration**: Maximum recording length in seconds (default: 120. Must
   be positive when enabled)
 - **computer_use.recording.max_storage_mb**: How much the recordings directory may hold in MiB.
   Before a recording starts, the oldest `.mp4` files there are deleted until the rest fit (default:
-  1024; 0 keeps everything)
+  1024. 0 keeps everything)
 - **computer_use.recording.output_dir**: Where recordings are written (default:
   `recordings` under the [media root](directory-structure.md#media-directories), created on first use)
-- **computer_use.recording.framerate**: Capture frame rate (default: 24; must be positive when enabled)
+- **computer_use.recording.framerate**: Capture frame rate (default: 24. Must be positive when enabled)
 - **computer_use.recording.require_approval**: Whether `RecordStart` needs approval outside
   auto-accept mode (default: true). Set it to false for unattended runs that have no approver,
-  such as headless CI recording a virtual display; `RecordStart` then follows `computer_use.approval`
+  such as headless CI recording a virtual display. `RecordStart` then follows `computer_use.approval`
 - **computer_use.recording.hide_cursor**: Leave the mouse pointer out of recordings (default:
   false). Useful for terminal demos on a virtual display, where the idle pointer sits mid-screen
 
@@ -597,12 +597,12 @@ is already in the conversation returns a short already-loaded note instead of th
   under `~/.infer/telemetry` (always, private - no prompt/response content). Telemetry is user-global: the store never moves
   with the working directory or a project-local `.infer/`
 - **telemetry.retention_days**: How long a session's telemetry file stays active before `infer stats`
-  archives it (default: 7; `0` disables archiving)
+  archives it (default: 7. `0` disables archiving)
 - **telemetry.otlp.endpoint**: OTLP/HTTP collector base URL (e.g. `http://localhost:4318`). Empty - and
   `OTEL_EXPORTER_OTLP_ENDPOINT` unset - means no export
 - **telemetry.otlp.headers**: Headers sent on every export request (e.g. auth tokens)
 - **telemetry.otlp.interval**: Periodic export interval in seconds (default: 60)
-- **telemetry.receiver_address**: Address for the CLI's in-process OTLP receiver to listen on (e.g. `0.0.0.0:0`); empty disables the receiver
+- **telemetry.receiver_address**: Address for the CLI's in-process OTLP receiver to listen on (e.g. `0.0.0.0:0`). Empty disables the receiver
 - **telemetry.attr_session_id_key**: Baggage member name carrying the session id into subprocess `BAGGAGE` env and
   outgoing HTTP requests (default: `session.id`). Env: `INFER_TELEMETRY_ATTR_SESSION_ID_KEY`.
 - **telemetry.attr_tool_call_id_key**: Baggage member name carrying the tool-call id (default: `gen_ai.tool.call.id`).
@@ -618,7 +618,7 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
   `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`). The system prompt stays byte-stable for the whole session - including
   across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits.
 - **prompts.agent.mode_adjustment_plan** (prompts.yaml): Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
-  reminder when the agent enters Plan Mode. Ships empty; the built-ins live in the mode-change-reminder guidance in reminders.yaml.
+  reminder when the agent enters Plan Mode. Ships empty. The built-ins live in the mode-change-reminder guidance in reminders.yaml.
 - **prompts.agent.mode_adjustment_auto** (prompts.yaml): Same for auto-accept mode, carrying the destructive-action policy.
 - System reminders are configured in their own `reminders.yaml`, not under `agent:` - see [System Reminders](#system-reminders-remindersyaml) below.
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
@@ -683,10 +683,10 @@ reminders:
 | `once` | The first firing of its hook point this run. |
 | `on_failure` | **`post_tool` only** - fires only when the tool call that just ran failed. Requires `hook: post_tool`. |
 | `once_after` | Once, after `threshold` session turns have elapsed (requires `threshold > 0`). |
-| `on_mode_change` | Mode changed before the next stream; substitutes `{prev_mode}`, `{new_mode}` and `{guidance}`. Requires `hook: pre_stream`. |
-| `on_repeated_failure` | **`post_tool` only** - same call (ignoring offset, limit, key order) failed `threshold` times; `{tool_name}`, `{count}`. |
+| `on_mode_change` | Mode changed before the next stream. Substitutes `{prev_mode}`, `{new_mode}` and `{guidance}`. Requires `hook: pre_stream`. |
+| `on_repeated_failure` | **`post_tool` only** - same call (ignoring offset, limit, key order) failed `threshold` times. `{tool_name}`, `{count}`. |
 | `on_truncation` | **`post_stream` only** - the previous response hit the token limit (`finish_reason: length`). Requires `hook: post_stream`. |
-| `on_stalled_todos` | **`post_stream` only** - no tool call while todos are incomplete; substitutes `{todo_list}`. Requires `hook: post_stream`. |
+| `on_stalled_todos` | **`post_stream` only** - no tool call while todos are incomplete. Substitutes `{todo_list}`. Requires `hook: post_stream`. |
 | `on_empty_response` | **`post_stream` only** - the response had neither text nor a tool call. Requires `hook: post_stream`. |
 
 The `on_failure` trigger lets a consumer nudge the model only when a change did not
@@ -698,7 +698,7 @@ The `on_repeated_failure`, `on_stalled_todos` and `on_empty_response` triggers d
 
 Embedded/CI consumers can provide reminders without writing `reminders.yaml`:
 
-- **`INFER_REMINDERS_CONFIG`** - inline YAML with the same schema as the file; when set it
+- **`INFER_REMINDERS_CONFIG`** - inline YAML with the same schema as the file. When set it
   replaces the file-loaded config.
 - **`--reminders-file PATH`** - load reminders from an arbitrary path (not constrained to
   `~/.infer/`), available on `infer headless` and `infer chat`.
@@ -749,19 +749,19 @@ correctly against the merged list.
 Tool calls that need approval can be decided by an LLM judge instead of a human -
 selected by the `auto-with-judge` agent mode or by `tools.safety.approval_behaviour:
 judge`. The judge call is a one-shot side call through the configured gateway that decides
-every judge-routed call of a turn at once; see [Judge Mode](judge-mode.md) for the
+every judge-routed call of a turn at once. See [Judge Mode](judge-mode.md) for the
 behaviour and the verdict contract.
 The judge is configured in its own file, **`judge.yaml`** (project
-`./.infer/judge.yaml` overrides userspace `~/.infer/judge.yaml`; when the file is
+`./.infer/judge.yaml` overrides userspace `~/.infer/judge.yaml`. When the file is
 absent the built-in defaults are used).
 
 ```yaml
 backend: llm # llm (default, prose verdict) or decisions (p(approve) through /v1/decisions)
-model: "" # "provider/model" id for judge calls; empty falls back to agent.model
+model: "" # "provider/model" id for judge calls. Empty falls back to agent.model
 min_confidence: 0.7 # decisions backend only: approve when p(approve) >= this, reject below
-gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
+gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver). Empty shares the agent's
 timeout: 30 # per-call timeout in seconds
-max_tokens: 2048 # llm backend only: response budget; reasoning models spend their thinking against it too
+max_tokens: 2048 # llm backend only: response budget. Reasoning models spend their thinking against it too
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
       You are the approver for an autonomous coding agent. ...
@@ -780,18 +780,18 @@ prompt: |- # user message template with {root_intent} (first user message), {int
 - **judge.backend**: `llm` (default) asks a chat model for a prose verdict, `decisions`
       asks a decision model through the gateway's `/v1/decisions` and thresholds its
       `p(approve)`. See [Judge Mode](judge-mode.md#decision-model-judge-backend-decisions).
-- **judge.model**: `provider/model` reference for judge calls; empty falls back to
+- **judge.model**: `provider/model` reference for judge calls. Empty falls back to
       `agent.model` (same precedent as conversation title generation). Selecting the
       judge with neither resolvable fails config validation at startup.
 - **judge.min_confidence**: decisions backend only - the `p(approve)` a call must reach
       to be approved, below it is rejected (default: 0.7, must be between 0 and 1)
 - **judge.timeout**: per-call timeout in seconds (default: 30)
-- **judge.max_tokens**: llm backend only - response budget per judge call (default: 2048; reasoning models spend their thinking against it)
+- **judge.max_tokens**: llm backend only - response budget per judge call (default: 2048. Reasoning models spend their thinking against it)
 - **judge.on_error**: what a failed judge call means - `deny` (default, fail closed,
       same default as the no-approver block path) or `allow`
 - **judge.system_prompt**: llm backend only - the judge's instructions, sent as the
       system message so the user text and tool arguments stay data rather than instructions
-- **judge.prompt**: user-message template; `{root_intent}` is the first non-hidden
+- **judge.prompt**: user-message template. `{root_intent}` is the first non-hidden
       user message of the session, `{intent}` the latest one (a bare "continue" is
       judged next to the root it continues) and `{action}` every pending tool call of
       the turn, one `<tool_call id="...">` block each (at most 20 per request). The
@@ -831,7 +831,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
     - **a2a_agents**: A2A agent readiness (ready/total) (default: `true`)
     - **tools**: Tool count and token usage (default: `true`)
     - **queue**: Messages waiting in the queue while the agent is busy (default: `true`)
-      - Shows a `☰ N queued` segment in the accent color while the shared message queue has entries; hidden once it drains
+      - Shows a `☰ N queued` segment in the accent color while the shared message queue has entries. Hidden once it drains
     - **mcp**: MCP server status and tool count (default: `true`)
     - **context_usage**: Token consumption percentage (default: `true`)
     - **session_tokens**: Session token usage statistics (default: `true`)
@@ -843,7 +843,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
       - Uses 5-second cache for performance
       - Automatically updates after Git operations in bash mode, after every tool run, and on the app's 10-second heartbeat
       - The `⎇` icon turns the theme warning color when there are uncommitted changes, and the accent color
-        when local commits are unpushed (or the branch has no upstream); uncommitted wins when both apply
+        when local commits are unpushed (or the branch has no upstream). Uncommitted wins when both apply
       - Long branch names are truncated with "..." indicator
     - **cost**: Running cost of the session (default: `true`)
     - **duration**: How long the agent has worked in this session (default: `true`). The counter runs
@@ -947,7 +947,7 @@ chat:
 ### Keybinding Configuration
 
 Keybindings live in their own file at `<configDir>/keybindings.yaml` (userspace:
-`~/.infer/keybindings.yaml`, seeded by `infer init`; an optional project
+`~/.infer/keybindings.yaml`, seeded by `infer init`. An optional project
 `.infer/keybindings.yaml` overrides it when present). The main `config.yaml` no longer contains a
 `chat.keybindings` block.
 
@@ -991,7 +991,7 @@ Environment variables override whichever file was loaded.
 
 > **Note (macOS):** Word-wise delete in the chat input is bound to `ctrl+w`, `opt+backspace`
 > (`alt+backspace`), and `ctrl+backspace`. Some terminals only send `opt+backspace` as
-> `alt+backspace` when "Use Option as Meta key" is enabled (iTerm2: Profiles → Keys; Terminal.app:
+> `alt+backspace` when "Use Option as Meta key" is enabled (iTerm2: Profiles → Keys. Terminal.app:
 > Settings → Profiles → Keyboard → "Use Option as Meta key"). `ctrl+w` always works.
 >
 > **Note (Ctrl+R / Ctrl+M):** In the chat view `ctrl+r` opens a fuzzy search over your
@@ -1100,7 +1100,7 @@ entry lists its keys and points at the guide that owns the behaviour.
 - **`context_windows`**: a map of model id to context window in tokens, for models the CLI does not
   know about.
 - **`queue`**: `type` - `memory` (default) or a durable `sqlite`, `postgres` or `redis` queue that reuses
-  the matching `storage.<type>` connection settings; plus `name` (the scope, default the process
+  the matching `storage.<type>` connection settings. Plus `name` (the scope, default the process
   session id) and `poll_interval` (the cross-process look cadence, default `2s`). See
   [Message Queue](message-queue.md).
 - **`provisioner`** (deprecated): still read as a legacy source of GPU defaults - `provider`,
@@ -1215,7 +1215,7 @@ OPENAI_API_KEY: sk-...
 ```
 
 A missing or unreadable `auth.yaml` changes nothing, and a malformed one is
-ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`); it is on the sandbox
+ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.yaml`). It is on the sandbox
 `filesystem.denied` list in `sandbox.yaml`, so agent tools cannot read or edit it.
 
 ### Gateway Configuration
@@ -1276,10 +1276,10 @@ ignored with a logged warning. Keep the file private (`chmod 600 ~/.infer/auth.y
 
 ### Reminders Configuration
 
-Reminders live in their own `reminders.yaml` (see [System Reminders](#system-reminders-remindersyaml)); these env vars layer on top of it:
+Reminders live in their own `reminders.yaml` (see [System Reminders](#system-reminders-remindersyaml)). These env vars layer on top of it:
 
 - `INFER_REMINDERS_ENABLED`: Master switch for all reminders (default: `true`)
-- `INFER_REMINDERS_CONFIG`: Inline reminders YAML (same schema as `reminders.yaml`); when set it
+- `INFER_REMINDERS_CONFIG`: Inline reminders YAML (same schema as `reminders.yaml`). When set it
   replaces the file-loaded reminders so embedded consumers need not write `~/.infer/reminders.yaml`
 
 ### Chat Configuration
@@ -1311,7 +1311,7 @@ Reminders live in their own `reminders.yaml` (see [System Reminders](#system-rem
 - `INFER_TOOLS_AGENT_MAX_PARALLEL`: Most subagents one Agent call may dispatch, tasks past the cap are
   dropped (default: `10`)
 - `INFER_TOOLS_AGENT_IDLE_TIMEOUT`: Close an interactive subagent's tmux pane after N seconds of
-  inactivity without a done signal (default: `300`; `0` disables the auto-close)
+  inactivity without a done signal (default: `300`. `0` disables the auto-close)
 - `INFER_TOOLS_BASH_TIMEOUT`: Timeout in seconds for a foreground Bash command (default: `120`)
 - `INFER_TOOLS_BASH_BACKGROUND_SHELLS_ENABLED`: Enable/disable the background shell manager (default: `true`)
 - `INFER_TOOLS_BASH_BACKGROUND_SHELLS_MAX_CONCURRENT`: Most background shells running at once (default: `5`)
@@ -1399,7 +1399,7 @@ scored track's directory in the [Directory Structure](directory-structure.md) an
 - `INFER_TEXT_TO_VIDEO_TIMEOUT`: Whole-render timeout in seconds (default: `900`)
 - `INFER_TEXT_TO_VIDEO_POLL_INTERVAL`: Job status poll interval in seconds (default: `5`)
 - `INFER_TEXT_TO_VIDEO_CREATE_AVATAR`: Also register the CreateAvatar tool, which builds a
-  library avatar from a photo (default: `false`; needs `INFER_TEXT_TO_VIDEO_ENABLED`)
+  library avatar from a photo (default: `false`. Needs `INFER_TEXT_TO_VIDEO_ENABLED`)
 
 These mirror the top-level `text_to_video:` YAML block: `enabled`, `model`,
 `avatar_model`, `size`, `output_dir`, `timeout`, `poll_interval`, `create_avatar` and
@@ -1413,7 +1413,7 @@ directory in the [Directory Structure](directory-structure.md).
 The Bash allow-list is **per agent mode** and configured in YAML. Set
 `tools.bash.mode.<mode>.allow` in `~/.infer/tools.yaml`, where `<mode>` is `all`
 (baseline applied in every mode), `plan`, `standard`, or `auto`. The effective
-list for a mode is `mode.all.allow` unioned with that mode's list; anything
+list for a mode is `mode.all.allow` unioned with that mode's list. Anything
 unmatched is denied (it prompts for approval in chat, or is rejected with a
 reason in headless agent mode).
 
@@ -1436,16 +1436,16 @@ rewriting config or relaxing a mode to `.*`:
 
 - `INFER_TOOLS_BASH_ALLOW_APPEND`: comma/newline-separated commands
   appended to `tools.bash.mode.all.allow` (and therefore allowed in every mode).
-  Equivalent flag: `--tools-bash-allow-append`; the env var wins when
+  Equivalent flag: `--tools-bash-allow-append`. The env var wins when
   both are set. **Append only** - it merges onto the curated defaults rather than
   replacing them, and there is no replace override.
 
 > The matcher is shell-aware and matches each entry against the WHOLE command
-> (so a bare token matches only itself; use `( .*)?` to allow arguments). A
+> (so a bare token matches only itself. Use `( .*)?` to allow arguments). A
 > clean-command guard rejects command substitution (`$(...)`), pipes/chains
 > (`|`, `&&`, `||`, `;`), file-write redirects (`>`, `>>`) and file-writing
 > options (`sort -o`, `tree -o`, `git --output`), dangerous `find` actions, and
-> printing/publishing an expanded `$VAR` (secret leak); benign redirects
+> printing/publishing an expanded `$VAR` (secret leak). Benign redirects
 > (`2>&1`, `>/dev/null`) are permitted. An allowed command also runs without
 > approval only when every path it names is inside the sandbox. The single
 > sentinel `.*` (default for `auto`) means unrestricted and skips the guard.
@@ -1461,7 +1461,7 @@ tools:
         allow:
           - gh (issue|pr) (list|view)( .*)?
           - git status( .*)?
-      standard: # opt-in: baseline-only by default; add writes here to skip approval
+      standard: # opt-in: baseline-only by default. Add writes here to skip approval
         allow:
           - gh pr create( .*)?
       auto: # headless `infer headless`: full autonomy (commit, push, etc.)
@@ -1543,7 +1543,7 @@ tools:
 - `INFER_SCHEDULER_GITHUB_APP_CLIENT_ID_SECRET`: Name of the Actions secret holding the GitHub App client id,
   passed to `actions/create-github-app-token` (default: the built-in name)
 - `INFER_SCHEDULER_GITHUB_APP_PRIVATE_KEY_SECRET`: Name of the Actions secret holding the GitHub App private key
-- `INFER_SCHEDULER_GITHUB_BOT_NAME`: Git author/committer name on deploy commits; use `<app-slug>[bot]` to attribute
+- `INFER_SCHEDULER_GITHUB_BOT_NAME`: Git author/committer name on deploy commits. Use `<app-slug>[bot]` to attribute
   them to the app
 - `INFER_SCHEDULER_GITHUB_BOT_EMAIL`: Git author/committer email (`<user-id>+<app-slug>[bot]@users.noreply.github.com` for a bot)
 - `INFER_SCHEDULER_GITHUB_PULL_REQUESTS`: Deploy schedule changes via pull request instead of pushing to the default branch (default: `false`)
@@ -1653,7 +1653,7 @@ export INFER_GATEWAY_API_KEY=...
 ```
 
 Any config key can be overridden from the environment with `INFER_<PATH_WITH_UNDERSCORES>` (for
-example `INFER_STORAGE_POSTGRES_PASSWORD` for `storage.postgres.password`); environment values
+example `INFER_STORAGE_POSTGRES_PASSWORD` for `storage.postgres.password`). Environment values
 take precedence over file values.
 
 Only the split sidecar YAML files (`channels.yaml`, `heartbeat.yaml`, `computer_use.yaml`,
@@ -1676,8 +1676,8 @@ expands to an empty string.
 - Use **userspace config** (`~/.infer/config.yaml`) for your baseline and
   personal preferences - it is the default write target
 - Use a **project config** (`.infer/config.yaml`) only for the handful of keys a
-  repo genuinely needs to override; keep it sparse
-- Commit project configs to version control; userspace configs stay on your
+  repo genuinely needs to override. Keep it sparse
+- Commit project configs to version control. Userspace configs stay on your
   machine
 
 ### Example Workflow

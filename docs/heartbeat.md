@@ -78,7 +78,7 @@ Edit `~/.infer/heartbeat.yaml`:
 enabled: true
 interval: 1h            # how often to wake (Go duration: 30s, 5m, 1h, 24h)
 initial_delay: 1m       # delay before first tick (avoids fire-on-start)
-model: ""               # optional override; empty = agent.model from config.yaml
+model: ""               # optional override. Empty = agent.model from config.yaml
 prompt: "Heartbeat tick - check for any pending tasks, todos, or background work and act on them."
 ```
 
@@ -169,7 +169,7 @@ prompt: "Check the status of the latest GitHub Actions run on this repo. If it f
 
 The agent inspects GitHub state with the `gh` CLI via the Bash tool - there is no
 built-in GitHub tool. Read-only `gh` subcommands (`gh run view`, `gh pr list`, ...)
-are on the standard bash allow-list; keep the prompt scoped to reporting and warn
+are on the standard bash allow-list. Keep the prompt scoped to reporting and warn
 against opening issues or pushing changes automatically.
 
 ## Troubleshooting
@@ -182,7 +182,7 @@ service started` on boot when it picks up the config.
 parses correctly. Bad durations (`1H`, `30 minutes`) cause the
 daemon to fail-fast on startup with a clear error.
 
-**Agent does nothing** - heartbeat works; the agent decided no
+**Agent does nothing** - heartbeat works. The agent decided no
 action was needed. Check the system prompt - the default explicitly
 tells it to no-op when nothing is pending.
 

@@ -41,13 +41,9 @@ func errorFromDataParts(parts []adk.Part) string {
 	return ""
 }
 
-// failureReasonFromTask returns the best-available human-readable failure
-// description for a task: Status.Message text → Status.Message "error"
-// data-part → last agent History message text or "error" data-part. Returns
-// "" when nothing is found.
-//
-// This is defensive against ADK servers that surface errors via different
-// channels: status message, message data parts, or history.
+// failureReasonFromTask returns the best failure description for a task from its
+// status message text, then its "error" data part, then the last agent history
+// message, or "". ADK servers surface errors through any of these.
 func failureReasonFromTask(task adk.Task) string {
 	if task.Status.Message != nil {
 		if text := textFromParts(task.Status.Message.Parts); text != "" {

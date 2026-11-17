@@ -364,12 +364,10 @@ func chatLoopbackEnv() string {
 	return " " + envChatLoopback + "=" + chatLoopback
 }
 
-// startTmuxHome returns a temp HOME for a chat process driven in the tmux
-// session and registers its teardown. HOME is created before the kill-session
-// cleanup so cleanups (LIFO) kill the process before TempDir removes the dir.
-// kill-session only sends SIGHUP, and infer's shutdown handler still writes to
-// HOME, so the teardown waits for the pane process to exit; removing HOME any
-// earlier races it ("directory not empty").
+// startTmuxHome returns a temp HOME for a chat process in the tmux session and
+// registers its teardown. kill-session only sends SIGHUP and infer still writes
+// to HOME while shutting down, so the teardown waits for the pane process before
+// TempDir removes the dir.
 func startTmuxHome(t *testing.T, session string) string {
 	t.Helper()
 	home := t.TempDir()

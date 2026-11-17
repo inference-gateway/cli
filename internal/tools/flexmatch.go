@@ -2,28 +2,21 @@ package tools
 
 import "strings"
 
-// flexMatchResult is the outcome of a leading-whitespace-tolerant match. It is produced by
-// findFlexibleMatch and consumed by the Edit and MultiEdit tools as a fallback after an exact
-// strings.Contains match has failed.
+// flexMatchResult is the outcome of findFlexibleMatch, the Edit and MultiEdit
+// fallback after an exact match failed. found is set only for exactly one
+// consistent window. Callers replace matchedBlock, the file's own bytes, with
+// reindentedNew so the file's indentation is preserved.
 type flexMatchResult struct {
-	// matchedBlock is the exact file bytes of the single matched window. Callers replace
-	// this (not the model's old_string) so the file's real indentation is preserved.
-	matchedBlock string
-	// reindentedNew is new_string re-indented to the file's indentation.
+	matchedBlock  string
 	reindentedNew string
-	// found is true only when exactly one window matched under a consistent indent mapping.
-	found bool
+	found         bool
 }
 
-// findFlexibleMatch attempts a whitespace-tolerant match of oldString within content. It is
-// intended ONLY as a fallback once an exact strings.Contains match has already failed, and it
-// deliberately refuses to guess: found is true only when exactly one block of file lines matches
-// oldString after trimming surrounding whitespace AND each distinct old-line indentation maps
-// consistently to a single file indentation across the block. On found, matchedBlock holds the
-// exact file text to replace and reindentedNew holds newString re-aligned to the file's
-// indentation (each new line's leading whitespace remapped via the same learned mapping). Any
-// ambiguity (zero or multiple candidate blocks, or a conflicting indent mapping) returns
-// found=false, and the caller must fall back to its existing error path.
+// findFlexibleMatch is a whitespace-tolerant fallback once an exact match of
+// oldString failed. It refuses to guess: found is true only when exactly one
+// block of lines matches after trimming and its indentation maps consistently.
+// matchedBlock is then the file text to replace and reindentedNew is newString
+// re-aligned to the file's indentation.
 func findFlexibleMatch(content, oldString, newString string) flexMatchResult {
 	miss := flexMatchResult{}
 
@@ -90,15 +83,10 @@ func windowMatchesTrimmed(fileWin, trimmedOld []string) bool {
 	return true
 }
 
-// buildIndentMap records how each distinct old-line indentation maps to the file's actual
-// indentation across the matched window, requiring the mapping to be consistent - the same old
-// indent must always correspond to the same file indent. ok is false on any conflict, which
-// signals the indentation relationship is ambiguous and the edit must not be applied. Blank
-// lines carry no indentation signal and are skipped.
-//
-// Deriving the mapping per distinct indent (rather than as a single uniform shift anchored on the
-// first line) is what lets a block whose header sits at column 0 - a Go struct/import/func - match:
-// the header maps "" -> "" while the body maps "\t\t" -> "\t", independently and consistently.
+// buildIndentMap maps each distinct old-line indentation to the file's
+// indentation across the matched window, skipping blank lines. ok is false on
+// any conflict. Mapping per indent rather than one uniform shift lets a block
+// whose header sits at column 0, such as a Go func, match its indented body.
 func buildIndentMap(oldLines, fileWin []string) (map[string]string, bool) {
 	indentMap := make(map[string]string)
 	for j := range oldLines {

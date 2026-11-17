@@ -33,7 +33,10 @@ type ConversationOptimizer struct {
 
 var _ convdomain.ConversationOptimizer = (*ConversationOptimizer)(nil)
 
-// OptimizerConfig represents configuration for the conversation optimizer
+// OptimizerConfig configures the conversation optimizer. An optional Repo lets
+// OptimizeMessages trigger on the gateway-reported LastInputTokens instead of
+// an entries-only estimate. An optional RestoreContext returns messages to
+// append after the summary, so loaded skills survive compaction verbatim.
 type OptimizerConfig struct {
 	Enabled           bool
 	AutoAt            int
@@ -42,17 +45,9 @@ type OptimizerConfig struct {
 	Client            sdk.Client
 	Config            *config.Config
 	Tokenizer         *TokenizerService
-	// Repo is optional. When provided, OptimizeMessages reads
-	// LastInputTokens from the repo's session stats and uses it as the
-	// trigger value (the gateway-reported count includes system prompt and
-	// tool definitions, matching what `/context` displays). When nil, the
-	// gate falls back to the entries-only estimate.
-	Repo convdomain.ConversationRepository
-	// RestoreContext is optional. It receives the messages that were folded
-	// into the summary and returns messages to append after it, so context
-	// the agent must keep verbatim (loaded skills) survives compaction.
-	RestoreContext func(summarized []sdk.Message) []sdk.Message
-	Strategy       config.CompactStrategy
+	Repo              convdomain.ConversationRepository
+	RestoreContext    func(summarized []sdk.Message) []sdk.Message
+	Strategy          config.CompactStrategy
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
@@ -110,7 +105,7 @@ func (co *ConversationOptimizer) estimateTriggerTokens(messages []sdk.Message) i
 // OptimizeMessages reduces token usage by intelligently managing conversation
 // history with LLM summarization. When force is false it is a no-op unless the
 // model has a configured context window and the conversation has crossed
-// auto_at percent of it; when force is true it always compacts (manual /compact
+// auto_at percent of it. When force is true it always compacts (manual /compact
 // and session rollover both rely on this).
 func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message {
 	if len(messages) == 0 {
@@ -401,6 +396,11 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 		Content: sdk.NewMessageContent(summarySystemPrompt),
 	})
 
+	const (
+		summaryMessageContentLimit = 2000
+		summaryToolContentLimit    = 500
+	)
+
 	for _, msg := range messages {
 		switch msg.Role {
 		case sdk.User, sdk.Assistant:
@@ -408,8 +408,8 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 			if err != nil {
 				contentStr = ""
 			}
-			if len(contentStr) > 2000 {
-				contentStr = contentStr[:2000] + "... [truncated]"
+			if len(contentStr) > summaryMessageContentLimit {
+				contentStr = contentStr[:summaryMessageContentLimit] + "... [truncated]"
 			}
 
 			summaryMessages = append(summaryMessages, sdk.Message{
@@ -421,8 +421,8 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 			if err != nil {
 				contentStr = ""
 			}
-			if len(contentStr) > 500 {
-				contentStr = contentStr[:500] + "... [tool output truncated]"
+			if len(contentStr) > summaryToolContentLimit {
+				contentStr = contentStr[:summaryToolContentLimit] + "... [tool output truncated]"
 			}
 			summaryMessages = append(summaryMessages, sdk.Message{
 				Role:    "assistant",

@@ -14,7 +14,7 @@ import (
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Tool arguments. A jsonschema tag is the field's description; fields without
+// Tool arguments. A jsonschema tag is the field's description. Fields without
 // omitempty are required.
 
 type GetTimeArgs struct {

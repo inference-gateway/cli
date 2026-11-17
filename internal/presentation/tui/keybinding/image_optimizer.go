@@ -106,11 +106,12 @@ func (o *ImageOptimizer) resizeIfNeeded(img image.Image) image.Image {
 // encodeImage encodes the image to bytes based on configuration
 // Returns image data, file extension, and error
 func (o *ImageOptimizer) encodeImage(img image.Image, originalFormat string) ([]byte, string, error) {
+	const maxJPEGQuality = 100
 	var buf bytes.Buffer
 
 	if o.config.ConvertJPEG && originalFormat != "jpeg" {
 		quality := o.config.Quality
-		if quality <= 0 || quality > 100 {
+		if quality <= 0 || quality > maxJPEGQuality {
 			quality = 75
 		}
 
@@ -124,7 +125,7 @@ func (o *ImageOptimizer) encodeImage(img image.Image, originalFormat string) ([]
 	switch originalFormat {
 	case "jpeg", "jpg":
 		quality := o.config.Quality
-		if quality <= 0 || quality > 100 {
+		if quality <= 0 || quality > maxJPEGQuality {
 			quality = 75
 		}
 		opts := &jpeg.Options{Quality: quality}

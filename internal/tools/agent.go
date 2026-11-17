@@ -33,26 +33,20 @@ import (
 // subagent (read in initConfig), so each subagent can run with its own role.
 const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 
-// AgentTaskSpec is one delegated unit of work within an Agent tool call.
+// AgentTaskSpec is one delegated unit of work within an Agent tool call. Agent
+// names a Markdown agent whose settings replace the per-task overrides. Tools
+// and MCPServers are passed to the subagent, nil to inherit. Mode is ReadOnly
+// without approval or Standard with it, from the `type` argument.
 type AgentTaskSpec struct {
 	Label        string
 	Description  string
 	Model        string
 	Files        []string
 	SystemPrompt string
-	// Agent, when set, names a Markdown-defined agent (see mdagent.go) whose
-	// system prompt, model and tool allowlist replace the per-task overrides.
-	Agent string
-	// Tools is the resolved allowlist passed to the subagent via
-	// EnvSubagentTools; nil means inherit the parent's tools.
-	Tools []string
-	// MCPServers names the servers the subagent brings up, passed via
-	// EnvMCPServers; nil means inherit the parent's servers.
-	MCPServers []string
-	// Mode is the subagent's capability, resolved from the `type` argument:
-	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
-	// AgentModeStandard (can mutate, approval applies).
-	Mode agentdomain.AgentMode
+	Agent        string
+	Tools        []string
+	MCPServers   []string
+	Mode         agentdomain.AgentMode
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -75,9 +69,10 @@ type AgentToolResult struct {
 	Message    string                   `json:"message,omitempty"`
 }
 
-// AgentTool spawns local subagents (each an `infer headless` subprocess) in
-// parallel and folds their results back into the main context. It is the
-// lightweight, no-A2A-server complement to the A2A tools.
+// AgentTool spawns local subagents in parallel and folds their results back
+// into the main context, the lightweight complement to the A2A tools. mdAgents
+// are the session's Markdown agents, toolManifests tells read-only tools, and
+// the func fields are test injection points.
 type AgentTool struct {
 	config    *config.Config
 	tracker   scheddomain.SubagentTracker
@@ -85,13 +80,9 @@ type AgentTool struct {
 	formatter BaseFormatter
 	binary    string
 
-	// mdAgents holds the Markdown-defined agents loaded once per session by
-	// the registry (see mdagent.go); read-only after setMarkdownAgents.
-	mdAgents []markdownAgent
-	// toolManifests resolves which of an agent's allowed tools are read-only.
+	mdAgents      []markdownAgent
 	toolManifests agentdomain.ToolManifestLookup
 
-	// Injection points for tests; default to real implementations.
 	dialDaemon           func(ctx context.Context) (agui.DialConfig, error)
 	runHeadless          func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 	interactiveAvailable func() bool
@@ -100,7 +91,7 @@ type AgentTool struct {
 }
 
 // NewAgentTool creates the Agent tool. tracker is the session's SubagentTracker
-// (the data store the subagent control tools read); submitter is the job
+// (the data store the subagent control tools read). Submitter is the job
 // supervisor that monitors async/interactive subagents to completion.
 func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submitter scheddomain.JobSubmitter) *AgentTool {
 	t := &AgentTool{
@@ -421,7 +412,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 // runInteractive launches each subagent in its own live `infer chat` tmux pane,
 // types in the task, and tracks it as a running interactive subagent. This is
 // fire-and-track: it returns once the panes are launched. The supervisor then
-// monitors them; a done or failed result turn and the idle timeout each close
+// monitors them. A done or failed result turn and the idle timeout each close
 // the pane, and SendSubagentInput re-prompts a live one.
 func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
@@ -608,7 +599,7 @@ func (t *AgentTool) waitForPaneReady(ctx context.Context, paneID string) {
 }
 
 // launchTmuxPane opens a new tmux pane/window running command. It returns once
-// the pane is created; the pane keeps running the subagent and, via
+// the pane is created. The pane keeps running the subagent and, via
 // remain-on-exit, stays open after it finishes so its output remains readable.
 func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (string, error) {
 	args := []string{"split-window", "-v", "-P", "-F", "#{pane_id}", command}
@@ -741,12 +732,10 @@ func (t *AgentTool) markdownAgentCatalog() string {
 	return out.String()
 }
 
-// applyNamedAgent overlays a Markdown-defined agent preset onto the task spec:
-// the file body wins as the system prompt, a frontmatter model wins over the
-// per-task model (inherit falls through to resolveModel), and the capability
-// mode is derived from the resolved tool allowlist - ReadOnly when every
-// allowed tool is read-only, ReadWrite otherwise. With no allowlist the
-// subagent keeps the parent's tools and runs as ReadWrite.
+// applyNamedAgent overlays a Markdown agent preset onto the task spec. The body
+// becomes the system prompt and a frontmatter model wins unless it is inherit.
+// The mode is ReadOnly when every allowed tool is read-only and ReadWrite
+// otherwise, including with no allowlist, where the parent's tools are kept.
 func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	if spec.Agent == "" {
 		return nil
@@ -924,7 +913,7 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 
 // resolveSubagentType maps the Agent tool's `type` argument to a subagent
 // capability mode: "ReadWrite" -> AgentModeStandard (can mutate, approval
-// applies); anything else, including the default empty value, -> AgentModeReadOnly
+// applies). Anything else, including the default empty value, -> AgentModeReadOnly
 // (Explore-like read/search, no approval). Matching is case-insensitive.
 func resolveSubagentType(t string) agentdomain.AgentMode {
 	if strings.EqualFold(strings.TrimSpace(t), "ReadWrite") {
@@ -985,8 +974,9 @@ func newSubagentSessionID(parentSession string) string {
 }
 
 func shortSession(id string) string {
-	if len(id) > 16 {
-		return id[:16]
+	const shortSessionIDLength = 16
+	if len(id) > shortSessionIDLength {
+		return id[:shortSessionIDLength]
 	}
 	return id
 }

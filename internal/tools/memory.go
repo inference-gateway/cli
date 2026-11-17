@@ -35,7 +35,7 @@ const (
 
 // MemoryTool implements persistent, cross-session agent memory as a directory of
 // individual fact-files catalogued by an index (MEMORY.md). Each fact is one
-// Markdown file with YAML frontmatter; the tool keeps the index in sync.
+// Markdown file with YAML frontmatter. The tool keeps the index in sync.
 type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
@@ -44,12 +44,10 @@ type MemoryTool struct {
 	project   projects.Identity
 }
 
-// NewMemoryTool creates a new memory tool. backend syncs the memory directory to
-// a remote after a write/delete (nil-safe: a nil backend, or the local no-op
-// backend, means no remote sync). This is the chat push path - post_session
-// would push after every message, so the tool triggers the push instead.
-// proj is the detected project the process runs in (zero value = global scope);
-// it decides where project-scoped facts are filed.
+// NewMemoryTool creates the memory tool. backend pushes the memory directory to
+// its remote after a write or delete, and nil or the local backend means no
+// sync. proj is the detected project, zero for global scope, and decides where
+// project-scoped facts are filed.
 func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj projects.Identity) *MemoryTool {
 	return &MemoryTool{
 		config:  cfg,
@@ -222,7 +220,7 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 
 // projectDisplayName returns the human-readable project name recorded in the
 // fact's frontmatter: the detected project's name when the fact is filed under
-// it, otherwise the explicit project argument as given; empty for global.
+// it, otherwise the explicit project argument as given. Empty for global.
 func (t *MemoryTool) projectDisplayName(projectSlug, projectArg string) string {
 	if projectSlug == "" {
 		return ""
@@ -360,7 +358,7 @@ func (t *MemoryTool) Validate(args map[string]any) error {
 
 // memoryOperation returns the requested operation. When it is omitted, which
 // weaker models often do, a call carrying content is a write and anything else
-// a read; delete is never inferred.
+// a read. Delete is never inferred.
 func memoryOperation(args map[string]any) (string, error) {
 	switch op := args["operation"].(type) {
 	case string:
@@ -420,22 +418,21 @@ type MemoryToolResult struct {
 }
 
 // memoryFrontmatter is the YAML frontmatter stored at the top of each fact-file.
+// Metadata.Project is a readable name such as "inference-gateway/cli", absent
+// for global facts, and Session is the session that last wrote the fact.
 type memoryFrontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 	Metadata    struct {
 		Type    string `yaml:"type"`
-		Project string `yaml:"project,omitempty"` // human-readable, e.g. "inference-gateway/cli"; absent for global
-		Session string `yaml:"session,omitempty"` // session that last wrote the fact (chat conversation ID or headless session ID)
+		Project string `yaml:"project,omitempty"`
+		Session string `yaml:"session,omitempty"`
 	} `yaml:"metadata"`
 }
 
-// sanitizeName parses a memory name into (projectSlug, slug): "p/s" ->
-// ("p", "s"), "s" -> ("", "s"). Each segment is independently slugified
-// (lowercased, non-alphanumeric runs collapsed to single hyphens, trimmed,
-// length-capped), so no dots or separators survive and the joined path always
-// stays inside the memory dir (no traversal). More than one "/" or any empty
-// sanitized segment yields ok=false.
+// sanitizeName parses "p/s" into ("p", "s") and "s" into ("", "s"), slugifying
+// each segment so the joined path never leaves the memory dir. More than one
+// "/" or an empty sanitized segment yields ok=false.
 func sanitizeName(name string) (projectSlug, slug string, ok bool) {
 	parts := strings.Split(strings.TrimSpace(name), "/")
 	switch len(parts) {
@@ -599,7 +596,7 @@ func removeIndexEntry(dir, relKey string) error {
 // writeFileAtomic writes content to path via a temp file + rename, creating the
 // parent dir if needed. It deliberately bypasses the sandboxed file writer
 // because the memory dir lives under ~/.infer/, which that writer's protected-
-// path guard rejects; the path is built entirely from a sanitized slug, so there
+// path guard rejects. The path is built entirely from a sanitized slug, so there
 // is no traversal risk.
 func writeFileAtomic(path, content string) error {
 	dir := filepath.Dir(path)

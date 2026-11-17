@@ -17,9 +17,11 @@ import (
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
-// eventDrivenAgent manages agent execution using event-driven state machine
+// eventDrivenAgent runs one agent request on the event-driven state machine.
+// It holds the current turn's message, tool calls and results, the tool
+// approval cursor, and the prompts waiting on the user with the state the first
+// one suspended. toolExecutor can be overridden in tests.
 type eventDrivenAgent struct {
-	// Core dependencies
 	service        *Agent
 	cfg            *config.AgentConfig
 	stateMachine   states.AgentStateMachine
@@ -30,34 +32,27 @@ type eventDrivenAgent struct {
 	provider       string
 	model          string
 
-	// Event channel
 	events chan states.AgentEvent
 
-	// State handlers (registered on init)
 	stateHandlers map[states.AgentExecutionState]states.StateHandler
 
-	// State data
 	currentMessage   sdk.Message
 	currentToolCalls []*sdk.ChatCompletionMessageToolCall
 	currentReasoning string
 	finishReason     string
 	availableTools   []sdk.ChatCompletionTool
 
-	// Tool processing state (for sequential approval and execution)
 	toolsNeedingApproval []sdk.ChatCompletionMessageToolCall
 	currentToolIndex     int
 	toolResults          []convdomain.ConversationEntry
 
-	// Synchronization
 	mu sync.Mutex
 	wg sync.WaitGroup
 
-	// Prompts waiting on the user and the state the first one suspended
 	promptMu    sync.Mutex
 	openPrompts int
 	resumeState states.AgentExecutionState
 
-	// Testability - can be overridden in tests
 	toolExecutor func()
 }
 

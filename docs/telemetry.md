@@ -66,7 +66,7 @@ the transition window, set the keys above to the old names on the CLI side.
 The CLI's own span attributes are **not** affected by the baggage key
 configuration. In particular, `gen_ai.conversation.id` on session and
 LLM-turn spans remains hardcoded and is not unified with the baggage keys.
-(`gen_ai.session.id` is not a semconv attribute; the GenAI-namespaced session
+(`gen_ai.session.id` is not a semconv attribute. The GenAI-namespaced session
 concept is `gen_ai.conversation.id`.)
 
 ## OTLP Export

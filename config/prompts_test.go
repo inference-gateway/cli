@@ -51,7 +51,7 @@ func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 	}
 }
 
-// Reminders moved out of prompts.yaml into their own reminders.yaml; their
+// Reminders moved out of prompts.yaml into their own reminders.yaml. Their
 // defaults are covered by TestDefaultRemindersConfig in reminders_test.go.
 
 // LoadPrompts backfills unset prompts from DefaultPromptsConfig().

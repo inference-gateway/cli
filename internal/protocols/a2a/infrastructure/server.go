@@ -65,7 +65,7 @@ func NewServer(settings Settings) (*Server, error) {
 	return &Server{inner: inner}, nil
 }
 
-// Start serves until the process stops. It blocks; run it in a goroutine.
+// Start serves until the process stops. It blocks. Run it in a goroutine.
 func (s *Server) Start(ctx context.Context) error {
 	return s.inner.Start(ctx)
 }

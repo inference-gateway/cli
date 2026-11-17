@@ -6,15 +6,14 @@ import (
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
-// backgroundTaskRegistry is the single registry that owns all in-flight
-// background work an agent session can produce. It composes the shell and
-// subagent trackers with the job supervisor. HasPending is the "is *anything*
-// running?" query the agent engine consults at the completion boundary. The
-// embedded trackers keep their own mutexes, so this struct adds no locking.
+// backgroundTaskRegistry owns all in-flight background work of an agent session,
+// promoting the shell and subagent tracker surfaces and composing them with the
+// job supervisor. HasPending is the query the agent consults at the completion
+// boundary. The trackers keep their own mutexes, so it adds no locking.
 type backgroundTaskRegistry struct {
-	scheddomain.ShellTracker    // promotes the ShellTracker surface
-	scheddomain.SubagentTracker // promotes the SubagentTracker surface
-	supervisor                  *jobs.Supervisor
+	scheddomain.ShellTracker
+	scheddomain.SubagentTracker
+	supervisor *jobs.Supervisor
 }
 
 // NewBackgroundTaskRegistry constructs the unified registry. maxConcurrentShells
@@ -52,11 +51,8 @@ func (r *backgroundTaskRegistry) IsJobRunning(id string) bool {
 }
 
 // HasPending reports whether any session-holding background job is still in
-// flight, regardless of kind - the cross-type query the agent engine
-// uses to decide whether the session is safe to close. It defers to the
-// supervisor (the single source of truth); each job opts in via
-// JobMeta.HoldsSession, so interactive subagent panes are excluded there rather
-// than by a per-kind check here.
+// flight, which tells the agent engine whether the session is safe to close. It
+// defers to the supervisor, where each job opts in via JobMeta.HoldsSession.
 func (r *backgroundTaskRegistry) HasPending() bool {
 	return r.supervisor.HasPending()
 }

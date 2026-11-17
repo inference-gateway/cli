@@ -19,9 +19,10 @@ import (
 // apart from a real load failure such as a corrupt file or an unreachable store.
 var ErrConversationNotFound = errors.New("conversation not found")
 
-// ConversationEntry represents a message in the conversation with metadata
+// ConversationEntry is a conversation message with its metadata: the model,
+// time, visibility, images and reasoning, its tool execution and approval
+// state, and its plan mode state.
 type ConversationEntry struct {
-	// Core message fields
 	Message          sdk.Message                   `json:"message"`
 	Model            string                        `json:"model,omitempty"`
 	Time             time.Time                     `json:"time"`
@@ -29,12 +30,10 @@ type ConversationEntry struct {
 	Images           []agentdomain.ImageAttachment `json:"images,omitempty"`
 	ReasoningContent string                        `json:"reasoning_content,omitempty"`
 
-	// Tool-related fields
 	ToolExecution      *agentdomain.ToolExecutionResult   `json:"tool_execution,omitempty"`
 	PendingToolCall    *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call,omitempty"`
 	ToolApprovalStatus ToolApprovalStatus                 `json:"tool_approval_status,omitempty"`
 
-	// Plan mode fields
 	Rejected           bool               `json:"rejected,omitempty"`
 	IsPlan             bool               `json:"is_plan,omitempty"`
 	PlanApprovalStatus PlanApprovalStatus `json:"plan_approval_status,omitempty"`

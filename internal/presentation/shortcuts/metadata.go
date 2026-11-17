@@ -8,7 +8,7 @@ import (
 // NewMetadataRegistry mirrors the chat TUI's shortcut registry with nil
 // dependencies, for surfaces that only read name, description and usage - the
 // channel command menu, `infer shortcuts list`. Built-in shortcuts must never
-// be Executed from it; custom shortcuts guard their own nil dependencies.
+// be Executed from it. Custom shortcuts guard their own nil dependencies.
 func NewMetadataRegistry(cfg *config.Config) *Registry {
 	reg := NewRegistry()
 

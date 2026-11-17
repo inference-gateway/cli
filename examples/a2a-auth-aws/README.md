@@ -81,7 +81,7 @@ task down
 - **No `aud` claim.** Decode the token and you find `client_id`, `token_use: access` and `scope`, but no `aud`.
   That is expected, and why `A2A_AUTH_AUDIENCE` is the app client ID.
 - **`get-client-token` needs `ALLOW_CLIENT_TOKEN_AUTH`.** An app client created for user sign-in flows cannot use
-  it; create a separate machine client.
+  it. Create a separate machine client.
 - **Bedrock AgentCore** agents accept either a JWT from an OIDC issuer like this one or IAM SigV4 request
   signing. `infer` sends bearer tokens only, so configure such an agent for JWT inbound auth.
 

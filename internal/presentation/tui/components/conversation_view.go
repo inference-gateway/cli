@@ -38,8 +38,9 @@ const (
 )
 
 // ConversationView handles the chat conversation display. It is confined to
-// the Bubble Tea event loop: all state is read and written from Update/View
-// only, so it holds no locks. Off-loop producers must go through Program.Send.
+// the Bubble Tea event loop, so it holds no locks. renderCache memoizes each
+// entry by index until its fingerprint changes, welcomeCache memoizes the
+// welcome box, and both reset on theme refresh.
 type ConversationView struct {
 	conversation           []convdomain.ConversationEntry
 	Viewport               viewport.Model
@@ -62,17 +63,11 @@ type ConversationView struct {
 	renderedContent        string
 	renderedPreviews       string
 
-	// renderCache memoizes per-entry rendered output keyed by conversation
-	// index; an entry re-renders only when its fingerprint changes. Cleared
-	// on theme refresh, which restyles without touching entry state.
 	renderCache map[int]renderCacheEntry
 
-	// welcomeCache memoizes the tall welcome box render, invalidated on
-	// resize, theme refresh and a new config path or version.
 	welcomeCache      string
 	welcomeCacheValid bool
 
-	// Streaming state
 	streamingBuffer          strings.Builder
 	streamingReasoningBuffer strings.Builder
 	isStreaming              bool
@@ -81,7 +76,6 @@ type ConversationView struct {
 
 	keyHintFormatter *hints.Formatter
 
-	// Message history navigation
 	navigationMode       NavigationMode
 	messageSnapshots     []tui.MessageSnapshot
 	historySelectedIndex int
@@ -204,13 +198,10 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 	}, changed...)
 }
 
-// rebuildPreservingScroll applies mutate (the expand/collapse state change) and
-// re-renders the viewport while keeping the content the user is looking at anchored
-// in place. Expanding an entry that sits above the viewport top would otherwise shift
-// everything down and make the view jump; we offset by the height delta of the changed
-// entries above the current scroll position. The old layout is measured before mutate
-// runs, so the delta is real. When the user is following the tail we stay pinned to the
-// bottom.
+// rebuildPreservingScroll applies mutate and re-renders the viewport while
+// keeping the content in view anchored, offsetting by the height change of the
+// changed entries above the scroll position, measured before mutate runs. A
+// user following the tail stays pinned to the bottom.
 func (cv *ConversationView) rebuildPreservingScroll(mutate func(), changed ...int) {
 	if cv.navigationMode == NavigationModeMessageHistory {
 		mutate()
@@ -370,7 +361,7 @@ func (cv *ConversationView) GetPlainTextLines() []string {
 	return lines
 }
 
-// SetWidth resizes the view and rewraps content; a no-op when unchanged.
+// SetWidth resizes the view and rewraps content. A no-op when unchanged.
 func (cv *ConversationView) SetWidth(width int) {
 	if width == cv.width {
 		return
@@ -390,7 +381,7 @@ func (cv *ConversationView) SetWidth(width int) {
 	cv.rebuild()
 }
 
-// SetHeight resizes the view; a no-op when unchanged. Follow state is read
+// SetHeight resizes the view. A no-op when unchanged. Follow state is read
 // before the resize: shrinking (e.g. the approval box opening) raises the max
 // offset, so AtBottom() is already false by the time rebuild() checks it.
 func (cv *ConversationView) SetHeight(height int) {
@@ -417,7 +408,7 @@ func (cv *ConversationView) rebuild() {
 }
 
 // Render returns the viewport with a two-space left gutter. It never mutates
-// the viewport; sizing and content updates happen in Update/SetWidth/SetHeight.
+// the viewport. Sizing and content updates happen in Update/SetWidth/SetHeight.
 func (cv *ConversationView) Render() string {
 	content := cv.Viewport.View()
 	if len(cv.conversation) == 0 && cv.navigationMode != NavigationModeMessageHistory {
@@ -834,7 +825,7 @@ func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleSty
 
 // writeRoleAndBody joins a role prefix and an already-wrapped body. The body wraps
 // to the full width, so its first line is kept on the role line only when it still
-// fits after the prefix; otherwise the body starts on its own line to avoid clipping.
+// fits after the prefix. Otherwise the body starts on its own line to avoid clipping.
 func (cv *ConversationView) writeRoleAndBody(result *strings.Builder, roleStyled, body string) {
 	result.WriteString(roleStyled)
 	firstLine, _, _ := strings.Cut(body, "\n")
@@ -1458,14 +1449,15 @@ func (cv *ConversationView) renderEditToolArgs(args map[string]any) string {
 // renderWriteToolArgs renders the Write tool arguments with content preview
 func (cv *ConversationView) renderWriteToolArgs(args map[string]any) string {
 	var result strings.Builder
+	const toolContentPreviewLimit = 200
 
 	if filePath, ok := args["file_path"].(string); ok {
 		fmt.Fprintf(&result, "  File: %s\n", filePath)
 	}
 	if content, ok := args["content"].(string); ok {
 		preview := content
-		if len(preview) > 200 {
-			preview = preview[:200] + "..."
+		if len(preview) > toolContentPreviewLimit {
+			preview = preview[:toolContentPreviewLimit] + "..."
 		}
 		fmt.Fprintf(&result, "  Content: %s\n", preview)
 	}

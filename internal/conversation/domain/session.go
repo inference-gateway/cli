@@ -71,12 +71,9 @@ func FormatChannelSessionID(channel, senderID string) string {
 	return "channel-" + channel + "-" + senderID
 }
 
-// ParseChannelSessionID extracts the channel name and recipient ID from a
-// session ID created by the daemon's channel manager. The channel manager builds
-// session IDs as "channel-<name>-<sender_id>" (see channel_manager.go).
-//
-// Returns ok=false when the session ID does not match this format (e.g. for
-// chat-mode or generic agent sessions). Channel names cannot contain a '-';
+// ParseChannelSessionID splits a "channel-<name>-<sender_id>" session ID built
+// by the daemon's channel manager into its channel and recipient. It returns
+// ok=false for any other session ID. Channel names cannot contain a '-', while
 // recipient IDs may.
 func ParseChannelSessionID(sessionID string) (channel, recipientID string, ok bool) {
 	const prefix = "channel-"

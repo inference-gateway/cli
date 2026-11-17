@@ -5,7 +5,7 @@ genre, mood, instruments and tempo in, an `.mp3` out. Typical uses are
 background music, loops and jingles for video-editing workflows.
 
 Generation goes through the gateway's Music API (`POST /v1/audio/music`). The
-CLI holds no provider key; the gateway does, and it routes the request to the
+CLI holds no provider key. The gateway does, and it routes the request to the
 configured `provider/model` (default `elevenlabs/music_v2_5`). Requests appear
 in gateway logs and `infer traces` like any other request.
 
@@ -21,9 +21,9 @@ Add a `text_to_music` section to `.infer/config.yaml` (or
 ```yaml
 text_to_music:
   enabled: true                 # feature flag (default: false) - tool absent from the LLM payload when false
-  model: ""                     # "" = elevenlabs/music_v2_5; or any provider/model the gateway serves
-  output_dir: ""                # where generated mp3s go; empty = <media root>/music
-  require_approval: false       # optional; unset = no approval, like the image tools
+  model: ""                     # "" = elevenlabs/music_v2_5. Or any provider/model the gateway serves
+  output_dir: ""                # where generated mp3s go. Empty = <media root>/music
+  require_approval: false       # optional. Unset = no approval, like the image tools
 ```
 
 Every field can also be set via environment variables, e.g.
@@ -32,7 +32,7 @@ Every field can also be set via environment variables, e.g.
 not the same as setting it to `false`: unset keeps the tool's own default (no
 approval), an explicit value pins the policy.
 
-`model` must be of the form `provider/model`; config validation rejects a bare
+`model` must be of the form `provider/model`. Config validation rejects a bare
 model name as soon as the feature is enabled.
 
 ## Gateway requirements
@@ -55,13 +55,13 @@ still completes, and no partial file is left behind.
 With `text_to_music.enabled` set, the agent gains a `TextToMusic` tool:
 
 - **Prompt** - ask for "a calm 30 second lo-fi piano loop" or "an upbeat
-  synth-pop jingle with no vocals"; the model calls `TextToMusic` with a
+  synth-pop jingle with no vocals". The model calls `TextToMusic` with a
   `prompt` describing genre, mood, instruments and tempo.
-- **Length and vocals** - `seconds` caps the clip length; omitted lets the
+- **Length and vocals** - `seconds` caps the clip length. Omitted lets the
   provider pick a length that fits the prompt. `instrumental: true` guarantees
   the clip has no vocals.
 - **Where files go** - `output_path` chooses the destination as a bare file
-  name inside `output_dir` (default `music/` under the [media root](directory-structure.md#media-directories)); otherwise a
+  name inside `output_dir` (default `music/` under the [media root](directory-structure.md#media-directories)). Otherwise a
   timestamped `music-*.mp3` is written there. The result reports the path.
 
 The clip is always written as MP3, the format every gateway music provider

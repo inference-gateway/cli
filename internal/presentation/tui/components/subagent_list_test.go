@@ -15,7 +15,7 @@ import (
 )
 
 // fakeRegistry satisfies the whole BackgroundTaskRegistry surface the list
-// depends on; the embedded nil interfaces stand in for the projections the
+// depends on. The embedded nil interfaces stand in for the projections the
 // list never calls.
 type fakeRegistry struct {
 	scheddomain.ShellTracker

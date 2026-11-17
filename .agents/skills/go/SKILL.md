@@ -49,12 +49,12 @@ func (c *Counter) Inc() { c.mu.Lock(); c.count++; c.mu.Unlock() }
 
 ## Packages: flat, named for what they do
 
-Start flat; add a package only when a domain earns a namespace. Name packages by
+Start flat. Add a package only when a domain earns a namespace. Name packages by
 **what they do** (`auth`, `billing`, `jobs`), never by what *layer* they are
 (`service`, `repository`, `controller`) - layer-named packages breed circular
 imports and interface bloat and add zero clarity in Go. No `utils/`, `helpers/`,
-or `common/` junk drawers; they signal unclear ownership. Packages don't import
-each other sideways - cycles mean wrong boundaries; the composition root wires them.
+or `common/` junk drawers. They signal unclear ownership. Packages don't import
+each other sideways - cycles mean wrong boundaries. The composition root wires them.
 
 > **In this repo:** code lives under `internal/` as DDD **bounded contexts**
 > (`agent`, `conversation`, `scheduler`, `browser`, `computer`, `audio`), each
@@ -75,7 +75,7 @@ callers get the narrow dependency they need without type-asserting to reach real
 fields.
 
 ```go
-// the consumer declares exactly what it needs; the concrete store needn't know
+// the consumer declares exactly what it needs. The concrete store needn't know
 type UserFetcher interface {
     FetchUser(id string) (*User, error)
 }
@@ -91,7 +91,7 @@ type Processor struct{ fetcher UserFetcher }
 
 ## Errors are values
 
-Check them explicitly; they aren't exceptions. Wrap with `%w` to add context while
+Check them explicitly. They aren't exceptions. Wrap with `%w` to add context while
 preserving the chain for `errors.Is` / `errors.As`. Combine siblings with
 `errors.Join` (Go 1.20) - no `multierr` needed.
 
@@ -130,7 +130,7 @@ BDD framework.
   the helper.
 - Prefer simple **fakes/stubs** for stand-ins - implicit interfaces make them
   cheap to hand-write.
-- Put fixtures in **`testdata/`** (the tool ignores it); diff large output against
+- Put fixtures in **`testdata/`** (the tool ignores it). Diff large output against
   **golden files**.
 - Compare structs with **`github.com/google/go-cmp/cmp`**, not `reflect.DeepEqual`.
 - Abstract the filesystem with **`afero`** and inject `afero.NewMemMapFs()` in tests.
@@ -139,7 +139,7 @@ BDD framework.
 - Benchmarks loop with **`for b.Loop()`**, not `for i := 0; i < b.N; i++`.
 - Test timers and goroutines with **`testing/synctest`** - `synctest.Test(t, ...)`
   runs a fake clock that advances when every goroutine blocks. Never
-  `time.Sleep` to "wait for a goroutine"; use synctest, channels, or explicit sync.
+  `time.Sleep` to "wait for a goroutine". Use synctest, channels, or explicit sync.
 
 ```go
 func TestParse(t *testing.T) {
@@ -164,7 +164,7 @@ func TestParse(t *testing.T) {
 
 > **In this repo:** fakes for domain interfaces are **counterfeiter-generated**
 > under `tests/mocks/`, not hand-written. Regenerate with `task mocks:generate`
-> (pre-commit runs it when any `*/domain` package changes); for a *new*
+> (pre-commit runs it when any `*/domain` package changes). For a *new*
 > domain interface, add a `counterfeiter` line under `mocks:generate` in
 > `Taskfile.yml`. Use the generated fakes - don't hand-roll rivals. Table tests,
 > `testdata`, and `go-cmp` still apply.
@@ -178,9 +178,9 @@ helper or hand-rolled loop:
 | --- | --- |
 | `sort.Slice(s, ...)` | `slices.Sort(s)`, `slices.SortFunc`, `slices.Contains/Index` |
 | manual key/value loops | `maps.Keys/Values` (iterators), `maps.Clone/Copy/Equal/DeleteFunc` |
-| collect keys, then `sort` | `slices.Sorted(maps.Keys(m))`; `slices.Collect(it)` |
-| returning a big slice, or a `Next()/HasNext()` type | return `iter.Seq[T]` / `iter.Seq2[K, V]`; callers `range` it |
-| `if x == 0 { x = def }` | `cmp.Or(x, def)`; `min`/`max` built-ins |
+| collect keys, then `sort` | `slices.Sorted(maps.Keys(m))`. `slices.Collect(it)` |
+| returning a big slice, or a `Next()/HasNext()` type | return `iter.Seq[T]` / `iter.Seq2[K, V]`. Callers `range` it |
+| `if x == 0 { x = def }` | `cmp.Or(x, def)`. `min`/`max` built-ins |
 | ad-hoc multi-error joins | `errors.Join(err1, err2)` |
 | `atomic.AddInt64(&n, 1)` | typed `atomic.Int64`/`Bool`/`Pointer[T]` (`n.Add(1)`) |
 | gorilla/mux for basic routing | `net/http`: `mux.HandleFunc("GET /u/{id}", ...)` + `r.PathValue("id")` |
@@ -210,7 +210,7 @@ func Map[S, T any](s []S, f func(S) T) []T {
 
 Do **not** write generic "repositories", services, or base types - that's Java in
 Go syntax. Use `comparable` for map keys/equality and `cmp.Ordered` for `<`/`>`.
-Start concrete; generify only once the same logic repeats across 3+ types.
+Start concrete. Generify only once the same logic repeats across 3+ types.
 
 ## Logging discipline
 
@@ -221,7 +221,7 @@ logger.Warn("retrying", "attempt", n)        // recoverable problems
 logger.Error("request failed", "err", err)   // needs attention
 ```
 
-- **Inject** the logger as a dependency; no package-level logger beyond `main`.
+- **Inject** the logger as a dependency. No package-level logger beyond `main`.
 - **Never log *and* return** the same error - log once at the boundary, return it
   up the stack everywhere else.
 
@@ -231,7 +231,7 @@ logger.Error("request failed", "err", err)   // needs attention
 ## Concurrency, briefly
 
 - **Share memory by communicating** - pass data over a channel instead of guarding
-  it with a mutex where you can. Channels orchestrate; mutexes serialize.
+  it with a mutex where you can. Channels orchestrate. Mutexes serialize.
 - **Bound concurrency** with `errgroup.SetLimit`, not a hand-rolled semaphore channel
   or a static worker pool (Go's scheduler is cheap):
 

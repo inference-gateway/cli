@@ -10,18 +10,14 @@ import (
 	binariesdomain "github.com/inference-gateway/cli/internal/binaries/domain"
 )
 
-// Converter converts arbitrary audio files into Whisper-ready 16kHz mono WAV.
-// It is used to turn Telegram voice notes (OGG/Opus) into a format whisper.cpp
-// can read.
+// Converter converts audio files such as Telegram voice notes into Whisper-ready
+// 16kHz mono WAV. ensureBinary installs a prebuilt ffmpeg as a last resort when
+// set. run and lookPath are overridable in tests.
 type Converter struct {
 	ffmpegPath string
 
-	// ensureBinary, when set, installs a prebuilt ffmpeg into ~/.infer/bin/tools
-	// as a last resort after config-path and PATH resolution fail (the binaries
-	// context's Store, injected via SetBinaryEnsurer to keep Converter testable).
 	ensureBinary func(ctx context.Context, name binariesdomain.Name) (string, error)
 
-	// run and lookPath are overridable in tests.
 	run      commandRunner
 	lookPath func(string) (string, error)
 }

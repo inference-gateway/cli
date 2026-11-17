@@ -38,7 +38,7 @@ type AgentService interface {
 	GetMetrics(requestID string) *ChatMetrics
 
 	// BuildSystemPrompt returns the static system prompt sent as message[0],
-	// byte-stable across turns; volatile context travels separately as a hidden
+	// byte-stable across turns. Volatile context travels separately as a hidden
 	// per-request message (see `infer debug agent system_prompt`).
 	BuildSystemPrompt() string
 

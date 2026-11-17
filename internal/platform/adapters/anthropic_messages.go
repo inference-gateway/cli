@@ -18,25 +18,17 @@ import (
 // value was configured via WithOptions.
 const defaultMaxTokens = 4096
 
-// AnthropicMessages is a removable sdk.Client decorator that reroutes agent
-// traffic for the Anthropic provider to the gateway's native /v1/messages
-// endpoint, enabling prompt caching via cache_control breakpoints (system
-// prompt, last tool, and a rolling conversation breakpoint). Anthropic SSE
-// events are translated back into OpenAI-shaped chat-completion chunks, so
-// the agent's streaming pipeline is unaware of the endpoint switch. Every
-// other provider, and every method but GenerateContentStream, delegates to
-// the wrapped client untouched. To remove the adapter, delete this package, unwrap the
-// client in the container, and drop the TakeCacheCreationTokens read in
-// storeIterationMetrics.
+// AnthropicMessages is a removable sdk.Client decorator that routes Anthropic
+// agent traffic to the gateway's /v1/messages for prompt caching, translating
+// its SSE back into OpenAI-shaped chunks, and remembers models that reject
+// output_config.effort. To remove it, delete this package, unwrap the client
+// and drop the TakeCacheCreationTokens read in storeIterationMetrics.
 type AnthropicMessages struct {
 	inner         sdk.Client
 	opts          *sdk.CreateChatCompletionRequest
 	tools         *[]sdk.ChatCompletionTool
 	cacheCreation atomic.Int64
-	// noEffort remembers models that rejected output_config.effort (e.g.
-	// Haiku 4.5) so later turns skip the parameter instead of re-tripping
-	// the same 400.
-	noEffort sync.Map
+	noEffort      sync.Map
 }
 
 var _ sdk.Client = (*AnthropicMessages)(nil)
@@ -473,7 +465,7 @@ func messageText(msg sdk.Message) string {
 }
 
 // userBlocks maps a user message to text + image blocks. All Anthropic
-// models accept image input, so image parts translate unconditionally; the
+// models accept image input, so image parts translate unconditionally. The
 // chat/agent paths attach them as data URLs, remote images as http(s) URLs.
 func userBlocks(msg sdk.Message) ([]sdk.MessagesRequestContentBlock, string) {
 	var blocks []sdk.MessagesRequestContentBlock

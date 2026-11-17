@@ -43,7 +43,7 @@ func networksToPrune(all []string, current string) []string {
 }
 
 // interpretNetworkRm classifies the output of a failed "network rm". gone means
-// the network no longer exists (treat as success); inUse means it is still
+// the network no longer exists (treat as success). InUse means it is still
 // attached to a container/session and should be left in place.
 func interpretNetworkRm(output string) (gone bool, inUse bool) {
 	switch {
@@ -58,7 +58,7 @@ func interpretNetworkRm(output string) (gone bool, inUse bool) {
 
 // pruneNetworks best-effort removes leaked infer-managed networks left behind by
 // prior sessions so a fresh network can be created after address-pool
-// exhaustion. The current network is preserved; networks still in use are
+// exhaustion. The current network is preserved. Networks still in use are
 // refused by the runtime and silently skipped. bin is the container CLI
 // ("docker" or "podman").
 func pruneNetworks(ctx context.Context, bin, current string) {

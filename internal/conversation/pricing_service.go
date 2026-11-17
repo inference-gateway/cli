@@ -90,7 +90,7 @@ func (p *PricingService) IsEnabled() bool {
 }
 
 // resolvePricing returns the input/output price for a model and whether it's known.
-// Custom prices win, then gateway-reported prices; anything else is unknown.
+// Custom prices win, then gateway-reported prices. Anything else is unknown.
 // cacheRead/cacheWrite are per-MTok when the gateway reports the rate, nil otherwise.
 func (p *PricingService) resolvePricing(model string) (input, output float64, cacheRead, cacheWrite *float64, ok bool) {
 	if customPrice, exists := p.config.CustomPrices[model]; exists {
@@ -142,13 +142,10 @@ func (p *PricingService) GetOutputPrice(model string) float64 {
 	return output
 }
 
-// CalculateCost computes the total cost for a given number of input, output
-// and cached-prompt tokens. cachedTokens and cacheWriteTokens are the
-// cache-read and cache-creation subsets of inputTokens; they are billed at
-// the gateway's cache-read/cache-write rates when known, otherwise at the
-// full input rate. Returns inputCost, outputCost, and totalCost in USD (or
-// configured currency). Subscription-gated models are billed as a flat fee,
-// so their per-token rates (if any) are informational and cost zero here.
+// CalculateCost returns the input, output and total cost in the configured
+// currency. cachedTokens and cacheWriteTokens are subsets of inputTokens billed
+// at the gateway's cache rates when known and the input rate otherwise.
+// Subscription models are a flat fee, so they cost zero here.
 func (p *PricingService) CalculateCost(model string, inputTokens, outputTokens, cachedTokens, cacheWriteTokens int) (inputCost, outputCost, totalCost float64) {
 	if !p.config.Enabled || p.resolveRequiresPro(model) {
 		return 0.0, 0.0, 0.0

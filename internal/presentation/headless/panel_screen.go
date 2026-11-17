@@ -39,18 +39,16 @@ type screenResultFrame struct {
 }
 
 // screenUnit answers the Screen view's control and input frames on the
-// worker's screen control.
+// worker's screen control. The serve wiring sets resolve, which rejects the
+// open Computer-call approval a take-over decides, and wake, which wakes the
+// turn loop for a hand-back message. Both are nil elsewhere.
 type screenUnit struct {
 	write   frameWriter
 	control computerdomain.ScreenControl
 	queue   convdomain.MessageQueue
 
-	// resolve is the serve wiring's hook: it resolves as rejected the open
-	// Computer-call approval a take-over decides for the agent. nil elsewhere.
 	resolve func()
-	// wake is the serve wiring's hook: it wakes the turn loop for the message
-	// a hand-back queues. nil elsewhere.
-	wake func()
+	wake    func()
 }
 
 func newScreenUnit(write frameWriter, deps PanelDeps) *screenUnit {

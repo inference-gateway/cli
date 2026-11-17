@@ -85,7 +85,7 @@ appends each chunk instead of replacing what it has.
 
 A computer-use action is written just before the Computer tool performs a
 pointer (`move`, `click`, `double_click`, `triple_click`) or keyboard (`type`,
-`key`) action. Keyboard actions carry no `x` and `y`; the pointer coordinates
+`key`) action. Keyboard actions carry no `x` and `y`. The pointer coordinates
 are already scaled to the screen, and `screenWidth`/`screenHeight` give the
 space they are relative to. The entry is replaced on every snapshot, so a
 client keeps one action entry per tool call.
@@ -108,7 +108,7 @@ replaces the others:
 | `usage` | The cumulative token usage, the same list the terminal event carries, `[]` until the first model request |
 | `backgroundTasks` | `{"running": <count>, "jobs": [...]}` |
 | `nextStepSuggestion` | The one-line next-step suggestion of the turn that ended, `""` until a serve run publishes one |
-| `screenRecording` | `active` (bool); while a recording runs also `path`, `region` `{x, y, width, height}`, `frameWidth`, `frameHeight` |
+| `screenRecording` | `active` (bool). While a recording runs also `path`, `region` `{x, y, width, height}`, `frameWidth`, `frameHeight` |
 
 A disabled, failed or discarded suggestion publishes nothing, so `nextStepSuggestion` stays at its seeded `""`, and the
 suggestion call's tokens land in the same session totals the terminal event carries. A turn with a message already
@@ -127,7 +127,7 @@ run left, so a client keeps one state object across the pair.
 After a run that made at least one model request, the terminal event carries `usage`: one
 `TokenUsage` entry with `model`, `inputTokens`, `outputTokens` and `cachedInputTokens`, cumulative
 across the session (not just this run). `RUN_FINISHED.result` keeps what `usage` has no field for.
-When no model request was made the event has neither; `contextWindow` is omitted when the model's
+When no model request was made the event has neither. `contextWindow` is omitted when the model's
 context window is unknown:
 
 | Key | Meaning |

@@ -100,7 +100,7 @@ func (t *SubmitTaskTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute submits a task to an A2A agent. The agent's latest tracked task is
-// resumed only when it is input-required; otherwise the message opens a fresh
+// resumed only when it is input-required. Otherwise the message opens a fresh
 // context so independent tasks on the same agent run in parallel. A caller
 // continues an earlier conversation deliberately by passing its context_id.
 //
@@ -272,11 +272,9 @@ func (t *SubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*age
 	}, nil
 }
 
-// runA2APolling polls the remote agent until the task reaches a terminal state
-// and returns the outcome. It is the body of a2aJob.Run - the supervisor owns
-// the goroutine - so it returns the result and emits intermediate status via emit
-// rather than pushing onto channels (no producer/consumer split, hence no
-// ordering sleeps). StopPolling fires on every exit so the task view stops
+// runA2APolling polls the remote agent until the task is terminal and returns
+// the outcome. It is the body of a2aJob.Run, so it emits status through emit
+// instead of channels. StopPolling fires on every exit so the task view stops
 // showing it as active.
 func (t *SubmitTaskTool) runA2APolling(
 	ctx context.Context,

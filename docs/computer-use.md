@@ -7,7 +7,7 @@ press them by label, capture screenshots, and drive the mouse and keyboard.
 **Why** - some tasks only exist in a GUI, and structured accessibility data is cheaper and
 more precise than guessing coordinates from a screenshot.
 **How** - enable `computer_use.yaml`, then the agent uses the `Computer` and `GetLatestFrame`
-tools; prefer the `accessibility` action and fall back to `screenshot`.
+tools. Prefer the `accessibility` action and fall back to `screenshot`.
 
 Computer Use is **off by default**. Turn it on in `computer_use.yaml` (or with `INFER_COMPUTER_USE_ENABLED=true`):
 
@@ -93,7 +93,7 @@ input actions wait until the hand-back and its observations keep working - and
 the run state tells every client who drives (`screenControl.held` on the run
 stream). The take-over resolves an open approval box for a `Computer` call as
 rejected and queues one continue message on hand-back, so the next turn starts
-from a fresh screenshot; the person's inputs enter no transcript. See the
+from a fresh screenshot. The person's inputs enter no transcript. See the
 web terminal's [live screen](web-terminal.md#live-screen).
 
 The streamed screen follows the person while they hold it. Outside a hold the worker captures a frame every

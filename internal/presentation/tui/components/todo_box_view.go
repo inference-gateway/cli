@@ -16,15 +16,16 @@ import (
 // AutoCollapseDelay is the duration to wait before auto-collapsing after an update
 const AutoCollapseDelay = 3 * time.Second
 
-// TodoBoxView displays a collapsible todo list component
+// TodoBoxView displays a collapsible todo list. autoExpanded is set when it
+// expanded on its own rather than by the user.
 type TodoBoxView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
 	todos         []agentdomain.TodoItem
 	expanded      bool
-	autoExpanded  bool      // true if expanded due to auto-expand (not user action)
-	lastUpdate    time.Time // time of last todo update
+	autoExpanded  bool
+	lastUpdate    time.Time
 }
 
 // NewTodoBoxView creates a new todo box view

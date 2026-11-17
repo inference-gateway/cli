@@ -77,9 +77,9 @@ type JudgeConfig struct {
 	// (e.g. a real gateway while the driver runs against the mock). Empty
 	// shares the agent's client.
 	GatewayURL string `yaml:"gateway_url" mapstructure:"gateway_url"`
-	// Timeout is the per-call timeout in seconds; 0 -> default.
+	// Timeout is the per-call timeout in seconds. 0 -> default.
 	Timeout int `yaml:"timeout" mapstructure:"timeout"`
-	// MaxTokens bounds each judge response; 0 -> default.
+	// MaxTokens bounds each judge response. 0 -> default.
 	MaxTokens int `yaml:"max_tokens" mapstructure:"max_tokens"`
 	// OnError decides the verdict when the judge fails: deny (default) or allow.
 	OnError string `yaml:"on_error" mapstructure:"on_error"`

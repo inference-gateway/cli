@@ -43,9 +43,12 @@ import (
 // the snippet attachments tree below the input.
 var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attachments")
 
-// ChatApplication represents the main application model using state management
+// ChatApplication is the main Bubble Tea model of the chat TUI, wiring its
+// services, views and handlers. Pending snippets ride along with the next
+// message. Keyboard focus can sit on the attachments, the status row, the job
+// list, whose selected transcript replaces the conversation, or the Ctrl+R
+// history search. lastHandledKey prevents double-handling of a key.
 type ChatApplication struct {
-	// Dependencies
 	config                 *config.Config
 	agentService           agentdomain.AgentService
 	conversationRepo       convdomain.ConversationRepository
@@ -67,18 +70,15 @@ type ChatApplication struct {
 	backgroundTaskService  a2adomain.BackgroundTaskService
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 
-	// Chat orchestration services
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     tui.ChatCompletionRunner
 	directExecutionService   tui.DirectExecutionService
 	toolExecutionCoordinator tui.ToolExecutionCoordinator
 	suggestionRunner         tui.NextStepSuggestionRunner
 
-	// State management
 	stateManager *statemanager.Store
 	messageQueue convdomain.MessageQueue
 
-	// UI components
 	conversationView     tui.ConversationRenderer
 	inputView            tui.InputComponent
 	autocomplete         tui.AutocompleteComponent
@@ -110,50 +110,33 @@ type ChatApplication struct {
 
 	snippetAttachmentsView *components.SnippetAttachmentsView
 
-	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
 
-	// Event handling
 	chatHandler           tui.ChatHandler
 	messageHistoryHandler *handlers.MessageHistoryHandler
 
-	// Current active component for key handling
 	focusedComponent tui.InputComponent
 
-	// Pending snippet attachments captured in the file explorer, shown as a tree
-	// below the input and sent (then cleared) with the next chat message.
 	pendingSnippets    []components.SnippetSelection
 	attachmentsFocused bool
 
-	// Keyboard focus on the status-indicator row below the input, entered
-	// with arrow-down when input-history navigation is idle.
 	statusBarFocused bool
 
-	// Keyboard focus on the job list below the status row, entered with
-	// arrow-down from that row. Enter swaps the transcript for the selected
-	// job's, which viewedJobID and viewedTranscript track.
 	jobListFocused   bool
 	viewedJobID      string
 	viewedTranscript []convdomain.ConversationEntry
 	transcriptStore  TranscriptStore
 
-	// Ctrl+R fuzzy prompt-history search overlay: holds key focus while open
-	// and renders above the input.
 	historySearchView    *components.HistorySearchView
 	historySearchFocused bool
 
-	// Key binding system
 	keyBindingManager *keybinding.Dispatcher
 
-	// Config-backed binding that moves key focus to the snippet attachments
-	// tree; the fixed guard bindings live in the package-level guardKeys.
 	focusAttachments key.Binding
 
-	// Track last key handled by keybinding action to prevent double-handling
 	lastHandledKey string
 	lastView       tui.ViewState
 
-	// Available models
 	availableModels []string
 
 	// Configuration
@@ -1023,9 +1006,9 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 }
 
 // View renders the current application view using state management.
-// Bubble Tea v2 expects tea.View; viewContent keeps the original
+// Bubble Tea v2 expects tea.View. ViewContent keeps the original
 // string-composition logic and View wraps it. Mouse tracking is always
-// on; terminals bypass it for text selection with Shift+drag
+// on. Terminals bypass it for text selection with Shift+drag
 // (Option+drag on macOS terminals).
 func (app *ChatApplication) View() tea.View {
 	v := tea.NewView(app.viewContent())
@@ -1281,7 +1264,7 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 
 // handleBackgroundColorDetected switches to the light theme when the terminal
 // reports a light background. Only requested (see Init) and applied when no
-// theme is configured, so an explicit config or /theme choice always wins; the
+// theme is configured, so an explicit config or /theme choice always wins. The
 // dark default (tokyo-night) already fits dark terminals, so dark is a no-op.
 func (app *ChatApplication) handleBackgroundColorDetected(msg tea.BackgroundColorMsg) {
 	if msg.IsDark() || app.config.GetTheme() != "" {
@@ -1802,7 +1785,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView tui.ViewS
 }
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing.
-// lastHandledKey marks a key a chat-view handler fully consumed this cycle; the mark
+// lastHandledKey marks a key a chat-view handler fully consumed this cycle. The mark
 // is trusted as-is because it was evaluated in-context when set - re-resolving here
 // would consult the current view, which the handler may have already transitioned.
 func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {

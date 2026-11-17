@@ -19,13 +19,9 @@ const (
 	mediaFilePrefix     = "infer-media-"
 )
 
-// FileRetention persists a bounded number of inbound files (voice recordings,
-// photo/video attachments) to a local directory, pruning the oldest once the
-// count exceeds Keep. A nil *FileRetention or a Keep <= 0 disables retention
-// (the default behavior).
-//
-// save serializes on mu because the channel manager may process messages
-// concurrently and they all share one directory.
+// FileRetention keeps a bounded number of inbound files in a local directory,
+// pruning the oldest past Keep. A nil *FileRetention or Keep <= 0 disables it.
+// save serializes on mu because messages may be processed concurrently.
 type FileRetention struct {
 	Dir    string
 	Keep   int

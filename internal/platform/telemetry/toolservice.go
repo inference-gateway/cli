@@ -117,7 +117,7 @@ func (r *Recorder) startToolSpan(ctx context.Context, toolName string) (context.
 }
 
 // classify maps an execution result to (infer.tool.outcome, error.type). A nil
-// result or transport error is an error; an explicit rejection is "rejected".
+// result or transport error is an error. An explicit rejection is "rejected".
 func classify(res *agentdomain.ToolExecutionResult, err error) (outcome, errType string) {
 	switch {
 	case err != nil || res == nil:

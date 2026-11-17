@@ -158,7 +158,7 @@ func printConfigValue(w io.Writer, value any, format string) error {
 
 // setConfigValue parses value to the type of the target field (discovered by
 // reflecting over the Config struct) and persists it to config.yaml. The
-// userspace baseline (~/.infer) is updated by default; --project targets the
+// userspace baseline (~/.infer) is updated by default. --project targets the
 // project .infer/config.yaml. A write that load rejects is rolled back, so a
 // bad value can never leave infer unable to start.
 func setConfigValue(cmd *cobra.Command, args []string, load func() (*config.Config, error)) error {

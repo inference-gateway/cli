@@ -124,7 +124,7 @@ func TestCloseSubagentTool_NotFound(t *testing.T) {
 // TestCloseSubagentTool_EmptyIDIsGracefulFailure guards that an empty
 // subagent_id fails as a Success:false result (like the not-found case) rather
 // than a hard (nil, err). A hard error routes the !! direct-exec path to a bare
-// error banner and, before the renderer fix, a spinner that never stops; a
+// error banner and, before the renderer fix, a spinner that never stops. A
 // graceful result renders as a normal failed tool entry.
 func TestCloseSubagentTool_EmptyIDIsGracefulFailure(t *testing.T) {
 	tool := NewCloseSubagentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker(), nil)

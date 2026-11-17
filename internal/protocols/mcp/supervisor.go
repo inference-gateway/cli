@@ -153,7 +153,7 @@ type Supervisor struct {
 }
 
 // NewSupervisor creates a new MCP supervisor. notifier is the single UI ingress the
-// liveness probes push ServerStatusUpdateEvent through; a nil notifier
+// liveness probes push ServerStatusUpdateEvent through. A nil notifier
 // degrades to no UI pushes.
 func NewSupervisor(sessionID convdomain.SessionID, cfg *config.MCPConfig, runtime containerruntime.ContainerRuntime, notifier agentdomain.UINotifier) *Supervisor {
 	if notifier == nil {
@@ -217,12 +217,10 @@ func (s *Supervisor) notify(event any) {
 	s.notifier.Notify(event)
 }
 
-// DiscoverTools probes every server once, in parallel, and returns the tools
-// of those that answered. Headless calls it before the first turn, since it has
-// no liveness loop to register tools as servers come up.
-// ponytail: run:true container servers still starting in the background are
-// skipped (their client has no URL yet); wait on StartServers if headless ever
-// needs container-hosted MCP tools on the first turn.
+// DiscoverTools probes every server once in parallel and returns the tools of
+// those that answered. Headless calls it before the first turn.
+// ponytail: run:true container servers still starting are skipped. Wait on
+// StartServers if headless ever needs them on the first turn.
 func (s *Supervisor) DiscoverTools(ctx context.Context) map[string]agentdomain.Tool {
 	s.mu.RLock()
 	clients := slices.Collect(maps.Values(s.clients))
@@ -256,11 +254,9 @@ func (s *Supervisor) GetTotalServers() int {
 }
 
 // StartMonitoring begins background health monitoring, pushing every
-// ServerStatusUpdateEvent through the injected UI notifier. It is idempotent -
-// subsequent calls are no-ops. The initial status is emitted from a goroutine
-// because Notify wraps the unbuffered (*tea.Program).Send, which blocks until the
-// Bubble Tea loop consumes; emitting it synchronously from app.Init (before the
-// loop runs) would deadlock.
+// ServerStatusUpdateEvent through the UI notifier, and is idempotent. The
+// initial status is sent from a goroutine because Notify blocks until the
+// Bubble Tea loop runs, which would deadlock from app.Init.
 func (s *Supervisor) StartMonitoring(ctx context.Context) {
 	s.mu.Lock()
 	if s.monitorStarted {
@@ -765,7 +761,7 @@ func (s *Supervisor) startContainer(ctx context.Context, server config.MCPServer
 	return nil
 }
 
-// stopContainer stops a container; failures are logged, never returned, so
+// stopContainer stops a container. Failures are logged, never returned, so
 // shutdown is not blocked by a container that is already gone.
 func (s *Supervisor) stopContainer(ctx context.Context, containerName string) error {
 	if s.containerRuntime == nil {

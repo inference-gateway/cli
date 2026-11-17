@@ -25,9 +25,9 @@ type Config struct {
 	Prompt       string
 }
 
-// Service drives the heartbeat ticker. Single global instance per
-// daemon; constructed by NewService and lifecycle-managed via
-// Start/Stop.
+// Service drives the heartbeat ticker, one per daemon, managed through
+// Start and Stop. running suppresses overlapping ticks when a run outlasts the
+// interval.
 type Service struct {
 	cfg        Config
 	execCmd    agentheadless.ExecFunc
@@ -37,22 +37,18 @@ type Service struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	// running is 1 while a heartbeat agent run is in flight. Used to
-	// suppress overlapping ticks if a single run takes longer than the
-	// configured interval.
 	running atomic.Int32
 
 	started bool
 	mu      sync.Mutex
 }
 
-// Options bundles dependencies for NewService.
+// Options bundles dependencies for NewService. ExecCommand defaults to
+// process.CommandContext and BinaryPath to os.Args[0].
 type Options struct {
-	Config Config
-	// ExecCommand defaults to process.CommandContext when nil.
+	Config      Config
 	ExecCommand agentheadless.ExecFunc
-	// BinaryPath defaults to os.Args[0] when empty.
-	BinaryPath string
+	BinaryPath  string
 }
 
 // NewService constructs a heartbeat Service. Returns an error if the

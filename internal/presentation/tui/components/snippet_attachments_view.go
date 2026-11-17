@@ -7,7 +7,7 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// maxVisibleSnippetRows caps how many snippet child rows are shown at once; the
+// maxVisibleSnippetRows caps how many snippet child rows are shown at once. The
 // window scrolls to keep the focused row visible. This keeps the inline box from
 // pushing the chat input around when many snippets are attached.
 const maxVisibleSnippetRows = 10
@@ -138,7 +138,7 @@ func (v *SnippetAttachmentsView) renderChildRow(pos int, s SnippetSelection, acc
 	return v.styleProvider.RenderWithColor(label, dim)
 }
 
-// headerText returns the box title; it shows the action keys when focused and a
+// headerText returns the box title. It shows the action keys when focused and a
 // focus affordance otherwise.
 func (v *SnippetAttachmentsView) headerText() string {
 	count := len(v.order)

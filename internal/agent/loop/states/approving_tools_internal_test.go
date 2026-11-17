@@ -160,7 +160,7 @@ func TestApprovingToolsState_UngatedToolRunsWithoutPrompt(t *testing.T) {
 }
 
 // Judge-decided calls are decided up front in one request and never reach
-// RequestToolApproval; human-decided calls in the same round still prompt one
+// RequestToolApproval. Human-decided calls in the same round still prompt one
 // at a time, and a judge rejection yields the judge rejection entry.
 func TestApprovingToolsState_JudgeVerdictsPrefetchedOncePerRound(t *testing.T) {
 	var mu sync.Mutex

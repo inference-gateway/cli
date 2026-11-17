@@ -151,13 +151,12 @@ func TestParseGitHubTreeURL(t *testing.T) {
 	}
 }
 
-// fakeRepo describes a tree the mock server should serve plus the file
-// bodies. Keys in Files are paths inside the repo (matching the tree
-// entries' Path field).
+// fakeRepo describes a tree the mock server serves. Files maps repo paths to
+// bodies and Trees marks the paths of tree entries.
 type fakeRepo struct {
 	Truncated bool
-	Files     map[string]string // repoPath -> body
-	Trees     map[string]bool   // repoPath -> exists (for "tree" entries)
+	Files     map[string]string
+	Trees     map[string]bool
 }
 
 func newMockServer(t *testing.T, repo fakeRepo) *httptest.Server {

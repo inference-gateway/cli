@@ -17,7 +17,7 @@ import (
 )
 
 // voiceSynthesizer turns text into a spoken WAV file. It is defined here
-// (consumer side) so tests can inject a fake; the gateway speech service implements it.
+// (consumer side) so tests can inject a fake. The gateway speech service implements it.
 type voiceSynthesizer interface {
 	Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error
 }
@@ -77,7 +77,7 @@ func (t *TextToSpeechTool) resolveSamplePath(raw string) (string, error) {
 // resolveMediaInputPath is the shared input-file rule for the media tools
 // (TextToSpeech voice samples, TextToVideo avatars and driving audio): a
 // bare file name (no directories, absolute paths or ..) looked up in the
-// working directory first, then in dir; an empty name resolves to an empty
+// working directory first, then in dir. An empty name resolves to an empty
 // path (input omitted).
 func resolveMediaInputPath(cfg *config.Config, dir, raw, label, kind string) (string, error) {
 	name := strings.TrimSpace(raw)
@@ -129,7 +129,7 @@ func (t *TextToSpeechTool) resolveOutputPath(raw string) (string, error) {
 
 // resolveMediaOutputPath is the shared output_path rule for the media tools
 // (TextToSpeech, TextToMusic): a supplied name must be a bare file name (no
-// directories, absolute paths or ..) and is joined onto dir; an empty name
+// directories, absolute paths or ..) and is joined onto dir. An empty name
 // allocates a unique timestamped target with extension ext under dir instead.
 func resolveMediaOutputPath(dir, prefix, ext, raw string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {

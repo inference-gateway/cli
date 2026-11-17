@@ -8,7 +8,7 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-// TestParseSourceLocalPath covers the local-directory branch; the GitHub
+// TestParseSourceLocalPath covers the local-directory branch. The GitHub
 // shorthand and URL forms are covered by TestParseSource in installer_test.go.
 func TestParseSourceLocalPath(t *testing.T) {
 	dir := t.TempDir()

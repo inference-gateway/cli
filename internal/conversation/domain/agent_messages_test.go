@@ -182,7 +182,7 @@ func TestBuildAgentMessagesFromEntries_BackfillsReasoningFromEntry(t *testing.T)
 
 // Regression, second flavor: user-typed `!command` shortcuts synthesize an
 // assistant entry (tool_calls but no reasoning_content, IDs prefixed
-// `user-bash-`) followed by a tool result; sent verbatim these were rejected
+// `user-bash-`) followed by a tool result. Sent verbatim these were rejected
 // by thinking-mode providers (DeepSeek 400) on the next turn. Both the
 // assistant and the matching tool entry must be filtered.
 func TestBuildAgentMessagesFromEntries_FiltersUserBashEntries(t *testing.T) {

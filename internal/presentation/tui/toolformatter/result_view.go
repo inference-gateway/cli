@@ -58,7 +58,7 @@ func safeToolFormat(toolName string, fn func() string) (out string) {
 
 // previewLines splits the body into the lines shown in the collapsed view and how
 // many additional lines were hidden. On success it shows the first previewLineCount
-// lines; on failure it shows the full body (so errors are immediately visible).
+// lines. On failure it shows the full body (so errors are immediately visible).
 func previewLines(body string, success bool, width int) (lines []string, more int) {
 	body = strings.TrimRight(body, "\n")
 	if body == "" {
@@ -202,12 +202,9 @@ func (s *ToolFormatterService) themeTreeLine(line string, isFirst bool) string {
 // rather than dribble a few characters per row.
 const minTreeWrapWidth = 12
 
-// wrapTreeLines wraps each line of an expanded tool-result tree to width so long
-// values (Error messages, bash commands, ...) stay fully visible instead of being
-// clipped by the viewport. Continuation lines are hanging-indented under the field
-// value, preserving the tree's vertical connectors. It runs on the raw (pre-theme)
-// tree; themeTreeLines is applied afterwards and themes the wrapped lines correctly
-// (continuation lines have no field label, so they theme as body text).
+// wrapTreeLines wraps each line of an expanded result tree to width so long
+// values stay visible, hanging continuation lines under the field value and
+// keeping the connectors. It runs on the raw tree before ThemeTreeLines.
 func wrapTreeLines(tree string, width int) string {
 	if width <= 0 {
 		return tree

@@ -66,12 +66,10 @@ func stderrJSONLogger(cfg Config) (*zap.Logger, error) {
 	return zapCfg.Build(zap.AddCallerSkip(1))
 }
 
-// CollectChildStderr logs one started child process's stderr into this
-// process's log, one entry per line, enriched with the collector's tags
-// (typically project_dir, conversation_id and worker_pid). It returns once
-// the child's stderr closes, with the child's failure: the error it reported
-// through ReportExitError, or else whatever plain lines it wrote. Plain lines
-// are logged as one warning per child.
+// CollectChildStderr logs a child process's stderr into this process's log, one
+// entry per line, tagged with tags. It returns once the stderr closes, with the
+// failure the child reported through ReportExitError or else its plain lines,
+// which are logged as one warning per child.
 func CollectChildStderr(stderr io.Reader, tags ...any) string {
 	collector := GetGlobalLogger().WithOptions(zap.WithCaller(false), zap.AddStacktrace(zapcore.DPanicLevel)).Sugar()
 	reader := bufio.NewReader(stderr)

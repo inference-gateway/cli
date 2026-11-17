@@ -19,14 +19,8 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// Runner owns the LLM streaming lifecycle for a chat session.
-//
-// Clearing the orchestrator's "active tool call" indicator on chat
-// start/error/complete is the orchestrator's responsibility, not the
-// runner's - see the ChatHandler wrappers that call SetActiveToolCallID("")
-// before delegating to these handlers.
-// stateStore is the narrow slice of the app state manager the runner needs:
-// chat-session lifecycle, tool-execution teardown, and the view transition on
+// stateStore is the slice of the app state manager the runner needs: the chat
+// session lifecycle, tool execution teardown and the view transition on
 // completion. *statemanager.Store satisfies it.
 type stateStore interface {
 	tui.ChatSessionState
@@ -34,6 +28,8 @@ type stateStore interface {
 	tui.ViewNavigator
 }
 
+// Runner owns the LLM streaming lifecycle for a chat session. Clearing the
+// active tool call indicator is left to the ChatHandler wrappers.
 type Runner struct {
 	agentService     agentdomain.AgentService
 	conversationRepo convdomain.ConversationRepository
@@ -201,17 +197,10 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 	return tea.Sequence(cmds...)
 }
 
-// writeSubagentResultFile lets an interactive subagent's `infer chat` hand its
-// last assistant message back to the parent Agent tool. When launched as an
-// interactive subagent the parent sets INFER_SUBAGENT_RESULT_FILE; on each fully
-// completed turn (a final answer, no pending tool calls) we write the last
-// assistant message as a SubagentResultFile with done set, because the task turn
-// - the only turn the parent dispatched - is terminal. The parent monitor then
-// delivers the answer and closes the pane. A no-op for a normal chat.
-//
-// The message comes from the conversation, not the event: ChatCompleteEvent.Message
-// is not populated (see publishChatComplete), but the assistant turn is already in
-// the repo by the time this runs (streaming appends it before emitting the event).
+// writeSubagentResultFile hands an interactive subagent's last assistant message
+// back to the parent Agent tool through INFER_SUBAGENT_RESULT_FILE, marked done
+// on the first fully completed turn. The message is read from the conversation
+// because ChatCompleteEvent.Message is not populated. It is a no-op in a normal chat.
 func (r *Runner) writeSubagentResultFile(msg agentdomain.ChatCompleteEvent) {
 	path := os.Getenv(scheddomain.EnvSubagentResultFile)
 	if path == "" || msg.Cancelled || len(msg.ToolCalls) > 0 {

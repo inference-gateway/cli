@@ -30,7 +30,7 @@ func TestHighlight_NoLineNumbers(t *testing.T) {
 
 // TestHighlight_ExpandsTabs guards that tabs are expanded to spaces. A literal
 // tab is measured as 0 cells by ansi.StringWidth but rendered as a tab stop by
-// the terminal; left in place it overflows the fixed-width preview pane and
+// the terminal. Left in place it overflows the fixed-width preview pane and
 // corrupts the explorer layout. Both the plain fallback and the highlighted path
 // must be tab-free.
 func TestHighlight_ExpandsTabs(t *testing.T) {

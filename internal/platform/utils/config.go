@@ -49,12 +49,10 @@ func WriteViperConfigWithIndent(v *viper.Viper, indent int) error {
 	return nil
 }
 
-// WriteViperConfigSparse writes only the keys actually present in v (its
-// AllSettings), without seeding from DefaultConfig. This is what makes a project
-// ./.infer/config.yaml a true sparse override: it carries only the keys it sets,
-// so initConfig's key-by-key merge leaves every unset key inherited from the
-// userspace ~/.infer/ baseline. (WriteViperConfigWithIndent, by contrast, writes
-// the full default-seeded config and is used for the home baseline file.)
+// WriteViperConfigSparse writes only the keys present in v, without seeding from
+// DefaultConfig. That keeps a project ./.infer/config.yaml a sparse override
+// that inherits every unset key from ~/.infer/. WriteViperConfigWithIndent
+// writes the full baseline instead.
 func WriteViperConfigSparse(v *viper.Viper, indent int) error {
 	filename := v.ConfigFileUsed()
 	if filename == "" {

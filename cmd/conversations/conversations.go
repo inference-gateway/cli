@@ -454,7 +454,7 @@ func toMetadataProjection(m convdomain.ConversationMetadata) metadataProjection 
 }
 
 // buildConversationShowJSON returns the JSON representation of a conversation
-// including metadata and entries; truncated flags a windowed view.
+// including metadata and entries. Truncated flags a windowed view.
 func buildConversationShowJSON(entries []convdomain.ConversationEntry, metadata convdomain.ConversationMetadata, truncated bool) (string, error) {
 	entryProjections := make([]conversationShowEntry, 0, len(entries))
 	for _, e := range entries {

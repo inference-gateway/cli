@@ -11,14 +11,10 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// PluginHookCommandProvider merges the user's hooks.yaml with each enabled
-// plugin's hooks.yaml additively: user hooks first, then each enabled plugin's
-// hooks in registry order. A plugin's hooks are only included when the plugin
-// is enabled, its hooks_enabled flag is true, and the plugin has a hooks.yaml
-// on disk. Plugin hooks can never override or remove a user hook.
-//
-// The master hooks.enabled switch (cfg.Hooks.Enabled) still applies on top:
-// when it is false, CommandsDue returns nil regardless of plugin hooks.
+// PluginHookCommandProvider merges the user's hooks.yaml with the hooks of every
+// enabled plugin that has hooks_enabled and a hooks.yaml, user hooks first. A
+// plugin can never override or remove a user hook. CommandsDue returns nil when
+// the master hooks.enabled switch is off.
 type PluginHookCommandProvider struct {
 	cfg        *config.Config
 	hooksCache sync.Map

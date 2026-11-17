@@ -13,7 +13,7 @@ license: Apache-2.0
 # Lip Gloss v2
 
 Declarative terminal styling and layout. Import `charm.land/lipgloss/v2` (alias
-`lipgloss`); pinned to v2.0.6. Styles are immutable values you build once and reuse.
+`lipgloss`). Pinned to v2.0.6. Styles are immutable values you build once and reuse.
 The sharp break from v1 is the color/renderer model, so start there.
 
 ## v2 vs the v1 you remember
@@ -22,7 +22,7 @@ The sharp break from v1 is the color/renderer model, so start there.
 | --- | --- | --- |
 | Import | `github.com/charmbracelet/lipgloss` | `charm.land/lipgloss/v2` |
 | Color | `lipgloss.Color` is a string type | `lipgloss.Color(s)` is a **func** → `image/color.Color` |
-| Renderer | global default renderer, `SetColorProfile` | none - styles are pure values; downsampling at print / Bubble Tea |
+| Renderer | global default renderer, `SetColorProfile` | none - styles are pure values. Downsampling at print / Bubble Tea |
 | Adaptive | `lipgloss.AdaptiveColor{Light,Dark}` | gone from root → `lipgloss.LightDark(isDark)(l,d)` or `compat.AdaptiveColor` |
 | Dark-bg detect | `HasDarkBackground()` (no args) | `HasDarkBackground(in, out)` or Bubble Tea `BackgroundColorMsg` |
 | Print | `fmt.Println(s.Render(...))` | `lipgloss.Println(...)` so color degrades to the terminal |
@@ -72,7 +72,7 @@ from `Init`, handle `tea.BackgroundColorMsg` (`msg.IsDark()`), and rebuild style
 `LightDark`. For a quick v1 port, `compat.AdaptiveColor{Light, Dark}` still works
 (reads stdio globally, like v1). Color-profile degradation is automatic when you
 print via `lipgloss.Println`/`Print`/`Sprint` (standalone) or render inside Bubble
-Tea; for explicit control use `lipgloss.Complete(profile)`.
+Tea. For explicit control use `lipgloss.Complete(profile)`.
 
 ## Layout
 
@@ -113,7 +113,7 @@ fmt.Println(t) // *table.Table is a Stringer
 
 ## Best practices & gotchas
 
-- Define styles once; building a `NewStyle()` chain inside `View()` every frame is
+- Define styles once. Building a `NewStyle()` chain inside `View()` every frame is
   wasteful.
 - Size with `lipgloss.Width`, not `len` - ANSI codes and wide glyphs make byte length
   wrong.

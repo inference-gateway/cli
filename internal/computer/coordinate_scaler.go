@@ -5,28 +5,11 @@ import (
 	"math"
 )
 
-// ScaleAPIToScreen converts coordinates from API space (the model's screenshot)
-// to screen space (actual display) with proportional scaling. Frames are
-// resized uniformly (ScreenshotToolConfig.FitDims), so the X and Y factors
-// are equal in practice; independent factors are kept for identity mapping
-// when no resize happened.
-//
-// Parameters:
-//   - apiX, apiY: Coordinates from the model's response (in screenshot space)
-//   - apiWidth, apiHeight: Screenshot dimensions from FitDims
-//   - screenWidth, screenHeight: Actual logical screen dimensions
-//
-// Returns:
-//   - screenX, screenY: Coordinates in actual screen space for mouse operations
-//   - error when the input lies outside the API space; the message stays in API
-//     space so a model that never saw the real display cannot misread it as
-//     screen bounds
-//
-// Example:
-//
-//	API screenshot: 1024x768
-//	Actual screen: 2048x1536
-//	API coordinate (512, 384) → Screen coordinate (1024, 768)
+// ScaleAPIToScreen maps a point from the model's screenshot space to the logical
+// screen, for example (512, 384) on 1024x768 to (1024, 768) on 2048x1536.
+// Frames are resized uniformly, and separate factors only serve the identity
+// mapping. A point outside the screenshot is an error worded in screenshot
+// space, so a model that never saw the display cannot misread it.
 func ScaleAPIToScreen(apiX, apiY, apiWidth, apiHeight, screenWidth, screenHeight int) (int, int, error) {
 	if apiX < 0 || apiY < 0 || apiX > apiWidth || apiY > apiHeight {
 		return 0, 0, fmt.Errorf(

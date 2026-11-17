@@ -96,7 +96,7 @@ func userPlansDir() string {
 	return filepath.Join(config.UserSpaceConfigDir(), "plans")
 }
 
-// fullBackend is the set of storage interfaces every backend implements; it
+// fullBackend is the set of storage interfaces every backend implements. It
 // lets NewStorage build the Stores aggregate from a single value.
 type fullBackend interface {
 	ConversationStorage

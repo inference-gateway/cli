@@ -125,7 +125,7 @@ func (s *Service) ListIssues(ctx context.Context) ([]agentdomain.GitHubIssue, er
 }
 
 // GetIssue fetches a single issue with body and the last maxComments comments.
-// Uncached; called once per "#N" token at message-submit time.
+// Uncached. Called once per "#N" token at message-submit time.
 func (s *Service) GetIssue(ctx context.Context, number int) (*agentdomain.GitHubIssue, error) {
 	if number <= 0 {
 		return nil, errors.New("invalid issue number")

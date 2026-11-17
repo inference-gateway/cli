@@ -17,16 +17,11 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// Service runs scheduled jobs inside the `infer daemon` process. Jobs are
-// loaded from the configured ScheduledJobStorage, registered with a robfig/cron
-// scheduler, and hot-reloaded by polling the storage and diffing (reconcile).
-//
-// On fire, a fresh `infer headless --session-id <uuid>` subprocess is spawned -
-// every fire gets a brand-new session, so no context carries between runs.
-// A RunRecord is persisted per fire (keyed by that session ID, so the run's
-// conversation is discoverable from storage), and progress is emitted through
-// the optional OnRunEvent hook. The scheduler knows nothing about channels -
-// delivery is a subscriber concern (see services.ScheduleNotifier).
+// Service runs scheduled jobs inside `infer daemon`, loading them from
+// ScheduledJobStorage and hot-reloading by polling and diffing. Every fire
+// spawns `infer headless` with a fresh session and persists a RunRecord keyed
+// by it. Progress goes to the OnRunEvent hook, and delivery to channels is a
+// subscriber concern.
 type Service struct {
 	store      storage.ScheduledJobStorage
 	runs       storage.ScheduledRunStorage
@@ -50,7 +45,7 @@ type Service struct {
 const pollInterval = 2 * time.Second
 
 // maxRunRecords caps how many run records are retained across all jobs.
-// ponytail: global cap; per-job retention if one chatty job ever starves the rest.
+// ponytail: global cap. Per-job retention if one chatty job ever starves the rest.
 const maxRunRecords = 200
 
 // Options bundles dependencies and configuration for NewService.
@@ -284,13 +279,10 @@ func (s *Service) runAgent(ctx context.Context, job scheddomain.ScheduledJob, se
 	return nil
 }
 
-// startPoller reconciles cron entries against storage once synchronously (so
-// jobs are registered when Start returns), then keeps reconciling every
-// pollInterval until ctx is cancelled or Stop is called.
-//
-// ponytail: 2s list-and-diff poll across all backends; per-backend push
-// notifications if anything ever needs sub-second reload (cron granularity is
-// one minute).
+// startPoller reconciles cron entries with storage once before Start returns,
+// then every pollInterval until ctx is cancelled or Stop is called.
+// ponytail: 2s list-and-diff poll across all backends. Per-backend push
+// notifications if anything ever needs sub-second reload.
 func (s *Service) startPoller(ctx context.Context) {
 	pctx, cancel := context.WithCancel(ctx)
 	s.pollStop = cancel
@@ -315,7 +307,7 @@ func (s *Service) startPoller(ctx context.Context) {
 // reconcile diffs the jobs in storage against the known fingerprints:
 // new/changed jobs are (re-)registered, vanished jobs are removed. The
 // fingerprint is the job's marshaled bytes, so hand-edited YAML files on the
-// jsonl backend are picked up too; unchanged jobs are never re-registered, so
+// jsonl backend are picked up too. Unchanged jobs are never re-registered, so
 // the poll does not reset @every schedules.
 func (s *Service) reconcile(ctx context.Context, known map[string]string) {
 	jobs, err := s.store.ListJobs(ctx)

@@ -42,11 +42,14 @@ const audioGatewayMemoryLimit = "16Gi"
 
 var gatewayGVR = k8sschema.GroupVersionResource{Group: orchestratorGroup, Version: orchestratorVersion, Resource: gatewayResource}
 
+// nameHashLength is the hex digest prefix each generated resource name carries.
+const nameHashLength = 12
+
 // gatewayName is the Gateway one owner's sessions share, so two owners in a
 // namespace never share one.
 func gatewayName(owner string) string {
 	sum := sha256.Sum256([]byte(owner))
-	return "infer-gateway-" + hex.EncodeToString(sum[:])[:12]
+	return "infer-gateway-" + hex.EncodeToString(sum[:])[:nameHashLength]
 }
 
 // gateway is the Gateway the workspace's sessions call: its cluster's when it

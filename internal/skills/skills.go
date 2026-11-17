@@ -128,7 +128,7 @@ func (s *Service) Load(ctx context.Context) error {
 }
 
 // mergeCatalog appends the centralized catalog's index entries to the loaded
-// list as metadata-only skills (empty Path = body not downloaded yet); the
+// list as metadata-only skills (empty Path = body not downloaded yet). The
 // SKILL.md is fetched on activation by Discover. Local skills win on name
 // collision. Best-effort: a failed fetch just leaves the list local-only.
 // Caller holds s.mu.
@@ -192,13 +192,10 @@ func (s *Service) Errors() []agentdomain.SkillLoadError {
 	return out
 }
 
-// Discover resolves a skill by name, downloading its body from the
-// centralized catalog when the loaded entry is a metadata-only catalog
-// placeholder (empty Path, seeded by Load). Any skill already backed by a
-// file on disk - local or previously downloaded - is returned as-is, so this
-// is the safe replacement for Get on the activation path. Returns false when
-// the name is unknown, or when it is only resolvable via the catalog and
-// discovery is disabled.
+// Discover resolves a skill by name, downloading the body of a metadata-only
+// catalog entry. Skills already on disk are returned as-is, so it is the safe
+// replacement for Get when activating. It returns false for unknown names, or
+// catalog-only names while discovery is disabled.
 func (s *Service) Discover(ctx context.Context, name string) (agentdomain.Skill, bool) {
 	known, ok := s.Get(name)
 	if ok && known.Path != "" {

@@ -12,10 +12,11 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
-// fakeDiffSource is a hand-written gitdiff.Source for tests.
+// fakeDiffSource is a hand-written gitdiff.Source for tests. diffs maps a path
+// to its old and new content.
 type fakeDiffSource struct {
 	staged, unstaged []gitdiff.FileChange
-	diffs            map[string][2]string // path -> {old, new}
+	diffs            map[string][2]string
 	stageCalls       []string
 	unstageCalls     []string
 	stageAllCalls    int
@@ -27,10 +28,11 @@ type fakeDiffSource struct {
 	workdir          string
 }
 
+// applyCall records one apply. lines is nil for a whole-hunk ApplyHunk.
 type applyCall struct {
 	hunkIndex int
 	reverse   bool
-	lines     map[int]bool // nil for a whole-hunk ApplyHunk; set for ApplyLines
+	lines     map[int]bool
 }
 
 func (f *fakeDiffSource) Changes() ([]gitdiff.FileChange, []gitdiff.FileChange, error) {

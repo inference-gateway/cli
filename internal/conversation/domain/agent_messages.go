@@ -44,12 +44,10 @@ func NewUserBashOutputEntry(command, output string, now time.Time) ConversationE
 	}
 }
 
-// BuildAgentMessagesFromEntries converts conversation entries into the flat
-// slice of SDK messages sent to the model, dropping the three UI-only classes:
-// plan entries, user-typed `!command` entries, and pending-approval placeholders.
-// Plan and bash entries carry no reasoning_content, which thinking-mode providers
-// reject with HTTP 400; a placeholder between an assistant tool_calls message and
-// its tool response breaks provider adjacency.
+// BuildAgentMessagesFromEntries converts entries into the SDK messages sent to
+// the model, dropping plan entries, `!command` entries and approval
+// placeholders. The first two lack reasoning_content, which thinking providers
+// reject, and placeholders break tool_calls adjacency.
 func BuildAgentMessagesFromEntries(entries []ConversationEntry) []sdk.Message {
 	messages := make([]sdk.Message, 0, len(entries))
 	for _, entry := range entries {

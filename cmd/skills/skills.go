@@ -19,7 +19,7 @@ import (
 
 // searchDescWidth keeps the search table inside a normal terminal. Catalog
 // descriptions run to several hundred columns, which wraps the borders into
-// unreadable soup; --no-trunc prints them in full.
+// unreadable soup. --no-trunc prints them in full.
 const searchDescWidth = 80
 
 type command struct {

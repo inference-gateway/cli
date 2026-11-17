@@ -57,7 +57,7 @@ share exactly this queue.
 ## Feed work from outside
 
 A producer writes one JSON record with `role`, `content`, `source`,
-`request_id` and `queued_at`; the field reference is
+`request_id` and `queued_at`. The field reference is
 [../../docs/message-queue.md](../../docs/message-queue.md#feeding-the-queue-from-outside-infer).
 One command per backend, with `queue.name: infer-shared` as above. The SQL
 table is created by infer's schema migration the first time it opens that

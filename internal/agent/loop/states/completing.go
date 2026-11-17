@@ -9,12 +9,9 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// CompletingState handles events in the Completing state.
-//
-// This state finalizes the agent execution:
-//  1. Performs a final 20ms queue check
-//  2. If messages queued → restart agent (CheckingQueue)
-//  3. Otherwise → publish completion event and transition to Idle
+// CompletingState finalizes a run with one last short queue check. Queued
+// messages restart the agent at CheckingQueue, otherwise it publishes the
+// completion event and returns to Idle.
 type CompletingState struct {
 	ctx *StateContext
 }
@@ -47,8 +44,9 @@ func (s *CompletingState) complete() error {
 	logger.Debug("completing state: finalizing agent execution",
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
 
+	const queueSettleDelay = 20 * time.Millisecond
 	logger.Debug("sleeping 20ms for final queue check")
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(queueSettleDelay)
 
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued after completion, restarting agent")

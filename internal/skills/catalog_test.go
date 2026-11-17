@@ -117,7 +117,7 @@ func TestSearch_RanksAndCaps(t *testing.T) {
 
 // Two rounds of over-matching came out of the real catalog: fuzzy over
 // descriptions made "rust" match r..u..s..t in any prose, and plain substring
-// made "go" match "good" / "algorithm". Names are fuzzy-matched; descriptions
+// made "go" match "good" / "algorithm". Names are fuzzy-matched. Descriptions
 // match on whole words only.
 func TestSearch_DescriptionsMatchWholeWordsOnly(t *testing.T) {
 	const index = `{"skills":[

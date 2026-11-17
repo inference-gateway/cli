@@ -49,7 +49,7 @@ the **full distributed trace**, including the mock-agent's spans.
    Ask the mock-agent to summarize the current project.
    ```
 
-   The model uses `A2A_SubmitTask`; trace context flows to the mock-agent,
+   The model uses `A2A_SubmitTask`. Trace context flows to the mock-agent,
    whose spans are exported to the collector and fanned back to the CLI.
 
 5. Detach with `ctrl-p ctrl-q` (keep the session running), then view the
@@ -96,7 +96,7 @@ metrics from the CLI's push.
 ## Configuration notes
 
 - `INFER_TELEMETRY_OTLP_ENDPOINT` enables the CLI's OTLP push (traces and
-  metrics); without it the CLI still records everything locally.
+  metrics). Without it the CLI still records everything locally.
 - `INFER_TELEMETRY_RECEIVER_ADDRESS: 0.0.0.0:4318` binds the CLI's local OTLP
   receiver on a fixed address so the collector can feed external spans into
   the session's trace file. Unset, the receiver only serves loopback

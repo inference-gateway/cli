@@ -22,17 +22,15 @@ import (
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 )
 
-// ChatMessageProcessor handles message processing logic
+// ChatMessageProcessor handles message processing logic. declinedSkills,
+// guarded by declinedMu, remembers catalog skills the user refused so re-sending
+// the message does not re-open the prompt.
+// ponytail: session-scoped and never cleared - `infer skills install` remains
+// the way to change your mind.
 type ChatMessageProcessor struct {
-	handler *ChatHandler
-	// declinedSkills remembers catalog skills the user refused to install, so
-	// re-sending the same message does not re-open the prompt in a loop.
-	// ponytail: session-scoped and never cleared - `infer skills install`
-	// remains the way to change your mind.
+	handler        *ChatHandler
 	declinedSkills map[string]bool
-	// declinedMu guards declinedSkills, which the install command writes off
-	// the update loop while the next message reads it.
-	declinedMu sync.Mutex
+	declinedMu     sync.Mutex
 }
 
 func (p *ChatMessageProcessor) declineSkill(name string) {
@@ -99,12 +97,9 @@ func (p *ChatMessageProcessor) handleUserInput(
 	return p.processChatMessage(content, msg.Images)
 }
 
-// isSkillInvocation reports whether content is a "/<name> ..." where <name> is
-// a loaded skill. Such input is sent to the agent (which deterministically
-// flags the skill as active via buildActiveSkillInfo) rather than dispatched as
-// a chat shortcut - otherwise "/maintainer" would dead-end as "Unknown
-// shortcut". Returns false when no skills service is wired or the token isn't a
-// known skill, leaving normal shortcut handling untouched.
+// isSkillInvocation reports whether content is "/<name> ..." for a loaded skill,
+// which goes to the agent instead of dead-ending as an unknown shortcut. It is
+// false when no skills service is wired or the name is not a skill.
 func (p *ChatMessageProcessor) isSkillInvocation(content string) bool {
 	if p.handler.skillsService == nil {
 		return false
@@ -161,17 +156,10 @@ func (p *ChatMessageProcessor) pendingCatalogSkills(content string) []string {
 	return names
 }
 
-// confirmCatalogInstall gates the download of catalog skills behind an explicit
-// user approval, and returns nil when there is nothing to install (the common
-// case) so normal input handling proceeds untouched.
-//
-// This lives in the chat input path on purpose: it is the only skill-activation
-// route a human is watching. Headless runs (`infer headless`, channels, heartbeat)
-// have no approver, so they install directly in buildActiveSkillInfo.
-//
-// The returned cmds run concurrently: the first renders the question form, the
-// second blocks on the answer, performs the install, and re-submits the
-// original input so the message is processed normally once the skill is on disk.
+// confirmCatalogInstall asks the user before downloading catalog skills and
+// returns nil when there is nothing to install. Headless runs have no approver
+// and install in buildActiveSkillInfo. The returned cmds render the question,
+// then install on approval and re-submit the original input.
 func (p *ChatMessageProcessor) confirmCatalogInstall(msg agentdomain.UserInputEvent) tea.Cmd {
 	names := p.pendingCatalogSkills(msg.Content)
 	if len(names) == 0 {
@@ -254,7 +242,7 @@ func (p *ChatMessageProcessor) expandIssueReferences(ctx context.Context, conten
 	return expanded
 }
 
-// buildUserMessage assembles the outgoing user message; image attachments
+// buildUserMessage assembles the outgoing user message. Image attachments
 // become image content parts.
 func (p *ChatMessageProcessor) buildUserMessage(
 	content string,
@@ -340,27 +328,18 @@ func (p *ChatMessageProcessor) processChatMessage(
 	return p.appendUserMessageAndStartCompletion(message, images)
 }
 
-// shouldRolloverNow is a cheap pre-check on the synchronous Update path so
-// that the vast majority of user messages (where no rollover is due) skip
-// the async dispatch entirely. The real ShouldRollover/PerformRollover run
-// inside MaybeRollover on the goroutine; a false negative here just means
-// we skip a one-message rollover that would otherwise fire, and the next
-// message will catch it.
+// shouldRolloverNow is a cheap pre-check on the Update path so most messages
+// skip the async rollover dispatch. A false negative only delays the rollover to
+// the next message.
 func (p *ChatMessageProcessor) shouldRolloverNow() bool {
 	return p.handler.sessionRolloverManager != nil &&
 		p.handler.sessionRolloverManager.ShouldRollover(p.handler.modelService.GetCurrentModel())
 }
 
-// compactThenContinue runs the rollover asynchronously so the Bubble Tea
-// Update loop stays responsive (the summary LLM call takes a few seconds and
-// would otherwise freeze the UI with no spinner). The flow:
-//
-//  1. SetChatPending so IsAgentBusy() queues any further user input arriving
-//     while the rollover is in flight.
-//  2. Emit a "Compacting conversation..." status (spinner on) for the user.
-//  3. Run MaybeRollover on a goroutine via a tea.Cmd; on completion dispatch
-//     a RolloverCompletedEvent that the chat handler routes back into
-//     appendUserMessageAndStartCompletion to resume the deferred work.
+// compactThenContinue runs the rollover on a goroutine so the UI stays
+// responsive during the summary call. It marks the chat pending so new input
+// queues, shows a "Compacting conversation..." status, and emits a
+// RolloverCompletedEvent that resumes the deferred message.
 func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {
 	p.handler.stateManager.SetChatPending()
 	logger.Info("chat rollover: deferring user message, kicking off async MaybeRollover",

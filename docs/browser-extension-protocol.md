@@ -41,7 +41,7 @@ contract the clients implement. The events themselves are defined in
 - Auth is a shared token (`extension.token` in `browser_use.yaml`, copied
   into the extension options). Browser WebSocket clients cannot set headers,
   so the token rides in the first message.
-- One extension connection at a time; a newly authenticated extension
+- One extension connection at a time. A newly authenticated extension
   replaces the previous one (service workers restart at will). Any number of
   desktop connections can be open next to it. The CLI sends WS pings every ~20s
   to keep the service worker alive.
@@ -64,7 +64,7 @@ enabled: true
 backend: extension
 extension:
   port: 52789
-  token: <shared secret; infer init seeds one>
+  token: <shared secret - infer init seeds one>
 ```
 
 ## Handshake
@@ -115,7 +115,7 @@ continues with a new run on the thread.
 
 ## Browser commands (CLI → extension)
 
-One shape, six actions; only the fields relevant to the action are set.
+One shape, six actions. Only the fields relevant to the action are set.
 `timeout_ms` is the per-action budget the extension must enforce.
 
 ```json
@@ -129,7 +129,7 @@ One shape, six actions; only the fields relevant to the action are set.
 
 - `navigate`: open the URL in the controlled tab (`chrome.tabs.update`, or
   `chrome.tabs.create` when none exists). The extension chooses/owns the
-  controlled tab; the protocol has no tab id yet (additive later).
+  controlled tab. The protocol has no tab id yet (additive later).
 - `click`: `document.querySelector(selector).click()` semantics.
 - `type`: replace the element's value with `text`, dispatch `input`/`change`,
   then a keyboard Enter when `press_enter` is true.
@@ -138,7 +138,7 @@ One shape, six actions; only the fields relevant to the action are set.
   inputs whose `autocomplete` is `current-password`/`new-password`/
   `one-time-code`, or inputs whose name/id/aria-label matches
   `/pass|secret|token|otp|cvc|card/i` — substitute `"[redacted]"`. `innerText`
-  already excludes input values; this rule binds any richer extraction.
+  already excludes input values. This rule binds any richer extraction.
 - `screenshot`: capture the visible controlled tab
   (`chrome.tabs.captureVisibleTab`) and return it as base64 in the result's
   `image` field. Passwords render masked by the browser, so no extra redaction
@@ -154,9 +154,9 @@ Extension → CLI, exactly one result per command id:
 {"type": "browser_result", "id": "<uuid>", "tabs": [{"index": 0, "url": "...", "title": "...", "active": true}]}
 ```
 
-- `error != ""` means the command failed; other fields may be empty.
-- `content` is only meaningful for `read`; `image`/`image_mime_type` for
-  `screenshot`; `tabs` for `tabs`. `events` carries optional browser-initiated
+- `error != ""` means the command failed. Other fields may be empty.
+- `content` is only meaningful for `read`. `image`/`image_mime_type` for
+  `screenshot`. `tabs` for `tabs`. `events` carries optional browser-initiated
   notices (console lines etc.) and may always be empty.
 - `url`/`title` reflect the controlled tab after the action.
 
@@ -376,7 +376,7 @@ CLI → client, newest-first (sorted by `updated_at` descending):
 ```
 
 - `title` is the conversation's title (an auto-derived first-message preview
-  until a better one is generated); `updated_at` is RFC 3339; `message_count`
+  until a better one is generated). `updated_at` is RFC 3339. `message_count`
   is the number of stored messages.
 - `token_stats` (`request_count`, `total_input_tokens`, `total_output_tokens`, …)
   and `cost_stats` (`TotalCost`, `Currency`, …) carry the session's usage, the
@@ -534,7 +534,7 @@ Client → CLI, list recent input history:
 ```
 
 CLI → client, the most recent entries, oldest first (empty when history
-storage is unavailable; capped at 1000 entries):
+storage is unavailable. Capped at 1000 entries):
 
 ```json
 {"type": "history", "history": ["fix the tests", "task check"]}
@@ -561,7 +561,7 @@ CLI → client, the discovered skills (empty when skills are unavailable):
 ```
 
 - `name` is the qualified skill name (`pluginName:skillName` for plugin skills).
-- `scope` is one of `project`, `agents`, `user`, `plugin`, `catalog`; name
+- `scope` is one of `project`, `agents`, `user`, `plugin`, `catalog`. Name
   conflicts are already resolved by precedence, so each name appears once.
   Unknown scopes are ignored by the extension.
 
@@ -740,7 +740,7 @@ CLI → client, exactly one result per request id:
 ## Agent mode
 
 The panel can toggle the thread's agent mode (the same state as the TUI's
-shift+tab cycle; it also governs `tool_request` approvals). Modes travel as
+shift+tab cycle. It also governs `tool_request` approvals). Modes travel as
 their canonical keys: `standard`, `plan`, `auto`, `auto-with-judge`.
 
 CLI → client, after every `set_mode` and `select_model`:
@@ -749,7 +749,7 @@ CLI → client, after every `set_mode` and `select_model`:
 {"type": "mode", "mode": "standard"}
 ```
 
-Client → CLI, switch the mode. Unknown values are ignored; the CLI answers
+Client → CLI, switch the mode. Unknown values are ignored. The CLI answers
 with a fresh `mode` frame either way:
 
 ```json
@@ -837,7 +837,7 @@ CLI → client, exactly one result per request id:
   is the request `id` may precede the result (see [Tool approvals](#tool-approvals)).
   A denial produces `{"success": false, "error": ...}` — never a dropped id.
 - `success: false` / `error != ""` means failure. For `Bash`, `output` is the
-  combined stdout/stderr; a non-zero exit sets `success: false` with `output`
+  combined stdout/stderr. A non-zero exit sets `success: false` with `output`
   still populated.
 - An unknown `tool_name` yields one failed result, not a closed socket.
 - The client enforces its own timeout and MUST ignore a late `tool_result`
@@ -1041,14 +1041,14 @@ client takes messages out of it:
 
 ## Extension-side checklist
 
-- WS client in the background service worker; port + token from the options
-  page storage; reconnect with backoff.
+- WS client in the background service worker. Port + token from the options
+  page storage. Reconnect with backoff.
 - `tabs` + `scripting` permissions and matching host permissions for the
   controlled tab. `screenshot` additionally needs `activeTab`/host permission
   for `chrome.tabs.captureVisibleTab`.
 - `read` must redact secret input values before returning (see the `read`
-  action above); `screenshot` must not click-to-reveal masked fields.
+  action above). `screenshot` must not click-to-reveal masked fields.
 - Known ceiling: `chrome.scripting`-synthesized clicks/keys are untrusted
   events some sites ignore, and there is no coordinate-click action for the same
-  reason; the upgrade path is `chrome.debugger` (CDP `Input.dispatch*`), which
+  reason. The upgrade path is `chrome.debugger` (CDP `Input.dispatch*`), which
   changes extension permissions, not this protocol.

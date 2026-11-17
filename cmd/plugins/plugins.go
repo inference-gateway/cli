@@ -106,7 +106,7 @@ func (c *command) pluginsRoot() (string, error) {
 	return config.PluginsConfig{}.ResolveDir()
 }
 
-// loadPluginsRegistry loads ~/.infer/plugins.yaml; the file is created on first save.
+// loadPluginsRegistry loads ~/.infer/plugins.yaml. The file is created on first save.
 func loadPluginsRegistry() (*config.PluginsConfig, error) {
 	path, err := runtime.UserConfigPath(config.PluginsFileName)
 	if err != nil {
@@ -233,7 +233,7 @@ func (c *command) printInstallSummary(w io.Writer, res *plugins.InstallResult, s
 	}
 }
 
-// confirmInstall prompts y/N on a TTY; non-interactive stdin errors unless --yes.
+// confirmInstall prompts y/N on a TTY. Non-interactive stdin errors unless --yes.
 func confirmInstall(yes bool) error {
 	if yes {
 		return nil

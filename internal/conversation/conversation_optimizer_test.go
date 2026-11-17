@@ -461,11 +461,8 @@ func TestOptimizeMessages_LastInputTokensTrigger(t *testing.T) {
 }
 
 // TestOptimizeMessages_NoAutoCompactForUnknownModel verifies that a model with
-// no configured context window does not auto-compact (force=false), even when
-// the gateway-reported token count is huge. Without this guard the optimizer
-// would measure fullness against the default fallback window and summarize on
-// nearly every turn (this was the minimax-m3 bug, before that model was added
-// to the registry).
+// no configured context window never auto-compacts, however high the token
+// count. Measuring against the fallback window would summarize nearly every turn.
 func TestOptimizeMessages_NoAutoCompactForUnknownModel(t *testing.T) {
 	model := "ollama_cloud/some-unlisted-model"
 

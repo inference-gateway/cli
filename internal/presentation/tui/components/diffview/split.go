@@ -7,7 +7,7 @@ import (
 )
 
 // splitHunk is the side-by-side projection of a unified udiff.Hunk. Each
-// splitLine has at most one "before" and one "after" entry; equal lines carry
+// splitLine has at most one "before" and one "after" entry. Equal lines carry
 // the same content on both sides, delete-only lines pair with the next
 // matching insert when one exists (to render an in-place modification), and
 // otherwise pad with nil on the missing side.

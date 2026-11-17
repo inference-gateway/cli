@@ -12,7 +12,7 @@ without moving it. Two other local locations are scanned the same way, in preced
 `~/.infer/skills/<name>/` (`scope: user`). Skills contributed by installed plugins arrive as `scope: plugin` - see [Plugins](../plugins/).
 
 The `name` (lowercase letters, digits, hyphens, equal to the directory name) and the `description` (the routing signal that tells the model
-when to activate) live in YAML frontmatter; the body below it is only loaded when the skill is used. The model is a
+when to activate) live in YAML frontmatter. The body below it is only loaded when the skill is used. The model is a
 [tokenless](https://github.com/inference-gateway/tokenless) mock scripted in [`scenarios.yaml`](scenarios.yaml), so the example runs offline with no
 API key and no gateway. You need [Task](https://taskfile.dev) to run the scenarios.
 
@@ -26,7 +26,7 @@ skills/
 ├── scenarios.yaml                        # what the mock model says, per prompt
 └── .agents/skills/
     └── commit-style/
-        └── SKILL.md                      # frontmatter: name + description; the body follows it
+        └── SKILL.md                      # frontmatter: name + description. The body follows it
 ```
 
 ## Run it
@@ -81,7 +81,7 @@ infer skills install skill-creator
 infer skills install acme/internal-comms
 infer skills install https://github.com/anthropics/skills/tree/main/skills/pdf
 
-# Defaults to .infer/skills/ in the current project; --user installs to ~/.infer/skills/
+# Defaults to .infer/skills/ in the current project. --user installs to ~/.infer/skills/
 infer skills install skill-creator --user
 
 # Remove the downloaded folder (no confirmation prompt)

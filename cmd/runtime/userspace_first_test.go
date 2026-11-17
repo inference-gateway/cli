@@ -53,7 +53,7 @@ func splitHomeProjectEnv(t *testing.T) (homeDir, projectDir string) {
 
 // TestInitConfigProjectMergesOntoHome pins the userspace-first model: the
 // project ./.infer/config.yaml merges onto the userspace ~/.infer/config.yaml
-// key by key. Keys the project sets win; keys it omits are inherited from home.
+// key by key. Keys the project sets win. Keys it omits are inherited from home.
 func TestInitConfigProjectMergesOntoHome(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)
 

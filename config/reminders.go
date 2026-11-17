@@ -123,7 +123,7 @@ const ReminderWhenTodosEmpty = "todos_empty"
 
 // RemindersConfig is the content of reminders.yaml: the master switch plus the
 // list of named reminders, each attached to a pre-defined agent-loop hook point
-// with a trigger (agentdomain.SystemReminderProvider); executable command hooks
+// with a trigger (agentdomain.SystemReminderProvider). Executable command hooks
 // get their own hooks.yaml so "inject text" and "run code" stay separate. With
 // Merge=true the entries merge onto the built-in defaults by name, else replace.
 type RemindersConfig struct {
@@ -200,7 +200,7 @@ func MemoryReminders() []ReminderConfig {
 // DefaultRemindersConfig returns the in-code default reminders configuration
 // used when no reminders.yaml exists (and to seed the file on init). Reminders
 // ship enabled by default with a todo-hygiene reminder plus the built-in memory
-// reminders (see MemoryReminders); the memory ones are pruned at load time when
+// reminders (see MemoryReminders). The memory ones are pruned at load time when
 // memory is disabled (see pruneMemoryRemindersIfDisabled).
 func DefaultRemindersConfig() *RemindersConfig {
 	reminders := []ReminderConfig{
@@ -265,7 +265,7 @@ func DefaultRemindersConfig() *RemindersConfig {
 
 // MergeWithDefaults returns a new RemindersConfig with the receiver's entries
 // merged on top of DefaultRemindersConfig by name. A supplied entry whose Name
-// matches a built-in overrides it; entries with new names are appended. The
+// matches a built-in overrides it. Entries with new names are appended. The
 // receiver's Enabled value is preserved so the consumer's intent wins.
 func (r RemindersConfig) MergeWithDefaults() *RemindersConfig {
 	defaults := DefaultRemindersConfig()
@@ -327,14 +327,10 @@ func (r RemindersConfig) effective() []ReminderConfig {
 	return out
 }
 
-// RemindersDue implements agentdomain.SystemReminderProvider: it returns every
-// reminder attached to q.Hook whose trigger fires. Multiple reminders on the
-// same hook stack (all are returned). The interval trigger keys off
-// q.SessionTurn (cumulative across the chat session) so it fires on every Nth
-// conversational turn; turns_before_max keys off q.Turn/q.MaxTurns (the current
-// run's loop budget). q.Fired is consulted only by the `once` trigger and is
-// never written here - the caller marks names fired after injecting. A nil
-// q.Fired is treated as "nothing fired yet".
+// RemindersDue implements agentdomain.SystemReminderProvider. It returns every
+// reminder on q.Hook whose trigger fires, so reminders on one hook stack.
+// interval keys off q.SessionTurn and turns_before_max off q.Turn/q.MaxTurns.
+// q.Fired is only read by the once trigger, and the caller marks names fired.
 func (r RemindersConfig) RemindersDue(q agentdomain.ReminderQuery) []agentdomain.SystemReminder {
 	if !r.Enabled {
 		return nil
@@ -408,7 +404,7 @@ func resolveStalledTodosText(rc ReminderConfig, q agentdomain.ReminderQuery) str
 }
 
 // reminderWhenHolds evaluates the optional `when` state condition. An empty
-// When always holds; an unknown value never does (fail-closed so a typo
+// When always holds. An unknown value never does (fail-closed so a typo
 // surfaces as a silent reminder rather than an unconditional one).
 func reminderWhenHolds(rc ReminderConfig, q agentdomain.ReminderQuery) bool {
 	switch rc.When {
@@ -459,9 +455,9 @@ func reminderTriggerFires(rc ReminderConfig, q agentdomain.ReminderQuery) bool {
 // Validate checks each reminder against the pre-defined hook and trigger
 // catalogs and the per-trigger requirements. It returns an error describing the
 // first invalid entry. An empty Hook/Trigger is allowed (defaulted by
-// effective); only non-empty values are checked against the catalog.
+// effective). Only non-empty values are checked against the catalog.
 //
-//nolint:gocyclo,cyclop // Validate is a flat switch of independent checks on the same loop; splitting would scatter closely related validation logic.
+//nolint:gocyclo,cyclop // Validate is a flat switch of independent checks on the same loop. Splitting would scatter closely related validation logic.
 func (r RemindersConfig) Validate() error {
 	for i, rc := range r.Reminders {
 		switch {

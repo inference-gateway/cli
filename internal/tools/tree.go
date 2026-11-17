@@ -148,8 +148,9 @@ func (t *TreeTool) Validate(args map[string]any) error {
 		if !isFloat {
 			return fmt.Errorf("max_files must be a number")
 		}
-		if maxFilesFloat < 1 || maxFilesFloat > 1000 {
-			return fmt.Errorf("max_files must be between 1 and 1000")
+		const maxFilesBound = 1000
+		if maxFilesFloat < 1 || maxFilesFloat > maxFilesBound {
+			return fmt.Errorf("max_files must be between 1 and %d", maxFilesBound)
 		}
 	}
 

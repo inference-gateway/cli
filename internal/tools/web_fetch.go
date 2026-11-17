@@ -218,12 +218,10 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*agent
 	return result, nil
 }
 
-// isBinaryContent reports whether a fetched body is non-text and therefore must
-// not be inlined into the LLM context (raw bytes tokenize into garbage and can
-// blow the context window). Content-Type is the primary signal; when it is
-// missing we fall back to a UTF-8 validity check (a PNG is never valid UTF-8). A
-// declared-textual type is trusted even if the bytes aren't valid UTF-8, so a
-// mislabeled-charset page (e.g. latin-1 HTML) is still treated as text.
+// isBinaryContent reports whether a fetched body is non-text and must not be
+// inlined into the LLM context. Content-Type decides, and a missing one falls
+// back to a UTF-8 validity check. A declared textual type is trusted even with
+// invalid UTF-8, such as latin-1 HTML.
 func isBinaryContent(contentType, body string) bool {
 	ct := strings.ToLower(strings.TrimSpace(contentType))
 	if i := strings.IndexByte(ct, ';'); i >= 0 {
@@ -421,16 +419,22 @@ func (t *WebFetchTool) extractDomain(url string) string {
 	return url
 }
 
+const (
+	sizeKiB = 1024
+	sizeMiB = sizeKiB * 1024
+	sizeGiB = sizeMiB * 1024
+)
+
 // formatSize formats byte size in human-readable format
 func (t *WebFetchTool) formatSize(size int64) string {
-	if size < 1024 {
+	if size < sizeKiB {
 		return fmt.Sprintf("%d bytes", size)
-	} else if size < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(size)/1024)
-	} else if size < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
+	} else if size < sizeMiB {
+		return fmt.Sprintf("%.1f KB", float64(size)/sizeKiB)
+	} else if size < sizeGiB {
+		return fmt.Sprintf("%.1f MB", float64(size)/sizeMiB)
 	}
-	return fmt.Sprintf("%.1f GB", float64(size)/(1024*1024*1024))
+	return fmt.Sprintf("%.1f GB", float64(size)/sizeGiB)
 }
 
 // saveToFile saves the fetched content to disk in the session's artifacts

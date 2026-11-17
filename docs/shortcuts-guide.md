@@ -45,14 +45,14 @@ These shortcuts are available out of the box:
 
 - `/new [title]` - Start a new conversation (optionally titled)
 - `/clear` - Save the current conversation and start a new one
-- `/insights [24h|7d|30d]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures; saves a report to `~/.infer/insights/`.
+- `/insights [24h|7d|30d]` - Analyze past sessions for repeatable workflows worth a skill and recurring tool failures. Saves a report to `~/.infer/insights/`.
   Vendored as `~/.infer/shortcuts/insights.yaml`, wrapping `infer insights` - edit it to pin a model or change the windows.
 - `/reset [insights|confirm]` - Wipe the local runtime state (conversations, plans, scratch, artifacts, history, backups, exports, logs) of
   **every project on this machine**.
   `/reset` previews and deletes nothing, `/reset insights` analyzes the sessions first, `/reset confirm` performs the wipe.
   Config and saved insights are preserved, remote stores are skipped.
   Vendored as `~/.infer/shortcuts/reset.yaml`, wrapping `infer reset` - edit or delete it like any other shortcut.
-  A chat session running during the wipe keeps the conversation it already has in memory; run `/new` or restart to be fully fresh.
+  A chat session running during the wipe keeps the conversation it already has in memory. Run `/new` or restart to be fully fresh.
 - `/compact` - Save the conversation and start a new session seeded with a summary
 - `/conversations` - Open the conversation selection dropdown. In a daemon chat it lists the sessions where the current one runs,
   with a Workspace column naming where each session runs now
@@ -74,7 +74,7 @@ These shortcuts are available out of the box:
   `agents +added -removed ~restarted`. Refused while the agent is busy.
 - `/stats [since] [vertical|table]` - Summarize the local telemetry: tool calls, tokens and cost by model, sessions by mode. Wraps `infer stats`
 - `/traces [session-id]` - Render the span tree of a session, or the most recent one. Wraps `infer traces`
-- `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`; default `text`)
+- `/copy [format]` - Copy the current conversation to the system clipboard (formats: `text`, `markdown`, `json`. Default `text`)
 - `/model [model-name] [prompt]` - Switch model, or run a single prompt against a specific model then restore
 - `/theme` - Switch chat interface theme or list available themes
 - `/voice [seconds]` - Record from the microphone and transcribe to the input field using Whisper (only available when `speech_to_text.enabled` is `true`)
@@ -83,7 +83,7 @@ These shortcuts are available out of the box:
 
 **Panels & views:**
 
-- `/diff` - Open the changes panel (interactive diff viewer); keybindings show as a legend at the bottom, updated per view (tree / patch / PR tab)
+- `/diff` - Open the changes panel (interactive diff viewer). Keybindings show as a legend at the bottom, updated per view (tree / patch / PR tab)
 - `/explorer` - Open the file explorer (tree + fuzzy finder)
 - `/tools` - Show the tools available to the agent (read-only, filterable list)
 - `/agents` - Show every configured agent: local presets and remote A2A agents (A2A rows require A2A)
@@ -126,7 +126,7 @@ session to another terminal or machine and continue it there. It pairs well with
 2. Run `/copy` to place the (now compact) session on the clipboard
 3. Paste it into another terminal or chat to continue the work
 
-By default `/copy` uses plain `text`; pass a format to override it - `/copy markdown` or
+By default `/copy` uses plain `text`. Pass a format to override it - `/copy markdown` or
 `/copy json`. The shortcut shells out to your platform's native clipboard utility:
 
 - **macOS:** `pbcopy`
@@ -147,7 +147,7 @@ input field - ready to review and send. It is **disabled by default** and gated 
 2. Type `/voice` and press Enter - recording starts immediately and stops a couple of
    seconds after you go quiet (`speech_to_text.silence_timeout`), or at the
    `max_recording_seconds` cap, or pass an override like `/voice 8`
-3. The transcribed text appears in the input field; edit if needed and press Enter to send
+3. The transcribed text appears in the input field. Edit if needed and press Enter to send
 
 `/voice` shells out to `ffmpeg` (or `arecord`/`sox` on Linux) to capture 16 kHz mono audio and to a
 `whisper-cli`/`whisper-cpp` binary to transcribe it. The GGML model (default `tiny`) is downloaded
@@ -182,7 +182,7 @@ Image models are not selectable from the `/model` selector - they are recognised
 by gateway-reported modalities, not by name. The model list keeps only models
 whose modalities are chat-capable (text in, text out) and drops models that
 report no modalities at all, so image-generation models are filtered out of the
-selectable list (non-chat models can still be listed as view-only rows); they
+selectable list (non-chat models can still be listed as view-only rows). They
 are only reachable through these tools. `quality` defaults to
 `low` and `size` to `1024x1024` - ask explicitly for high quality or a larger
 size to pay for it. Disable the tools with `tools.image_generation.enabled: false`,
@@ -540,7 +540,7 @@ shortcuts:
           - myapp
 ```
 
-`/mod tidy` runs `go mod tidy`; `/docker build` runs `docker build -t myapp .` and
+`/mod tidy` runs `go mod tidy`. `/docker build` runs `docker build -t myapp .` and
 `/docker run` runs `docker run -p 8080:8080 myapp`.
 
 **Project-Specific Shortcuts (`custom-project.yaml`):**

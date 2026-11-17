@@ -32,13 +32,10 @@ func NewRegistry() *Registry {
 	}
 }
 
-// LoadCustomShortcuts loads user-defined shortcuts from each base directory in
-// turn, so config.ConfigLookupDirs() can pass the userspace baseline followed by
-// the project override: later directories overlay earlier ones by shortcut name
-// rather than replacing the whole set. A custom shortcut never shadows a
-// built-in one (registered first), which keeps an init-seeded file like
-// ~/.infer/shortcuts/a2a.yaml from hiding /agents. The shadow warning fires
-// once per process per name, not once per registry.
+// LoadCustomShortcuts loads user shortcuts from each base dir in turn, so later
+// dirs overlay earlier ones by name. A custom shortcut never shadows a built-in
+// one, which keeps a seeded ~/.infer/shortcuts/a2a.yaml from hiding /agents.
+// The shadow warning fires once per process per name.
 func (r *Registry) LoadCustomShortcuts(baseDirs []string, completer llm.Completer, modelService convdomain.ModelService, imageService agentdomain.ImageService, toolService agentdomain.ToolService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -67,7 +64,7 @@ func (r *Registry) LoadCustomShortcuts(baseDirs []string, completer llm.Complete
 }
 
 // customShortcutSourceFile names the YAML file a custom shortcut was loaded
-// from, for warnings; empty for anything else.
+// from, for warnings. Empty for anything else.
 func customShortcutSourceFile(shortcut Shortcut) string {
 	if cs, ok := shortcut.(*CustomShortcut); ok {
 		return cs.sourceFile

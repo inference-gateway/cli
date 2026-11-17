@@ -17,12 +17,10 @@ import (
 	jobs "github.com/inference-gateway/cli/internal/scheduler/jobs"
 )
 
-// BackgroundShellService is the thin front-end for background bash shells: it
-// detaches a running command (registering it so the bash tools can read its
-// output), submits a shellJob to the supervisor (which monitors it, notifies the
-// agent, and reaps it), and brokers output retrieval and cancellation. The
-// completion monitoring and reaping that used to live here are now the
-// supervisor's job.
+// BackgroundShellService is the thin front end for background bash shells: it
+// detaches a running command so the bash tools can read its output, submits a
+// shellJob to the supervisor, which monitors and reaps it, and brokers output
+// retrieval and cancellation.
 type BackgroundShellService struct {
 	shellTracker scheddomain.ShellTracker
 	supervisor   *jobs.Supervisor
@@ -139,7 +137,7 @@ func (s *BackgroundShellService) GetShellOutputWithFilter(shellID string, fromOf
 }
 
 // CancelShell cancels a running background shell. It hands the kill to the
-// supervisor (WindStop -> SIGKILL); the shellJob's Run then records the
+// supervisor (WindStop -> SIGKILL). The shellJob's Run then records the
 // Cancelled state and the supervisor delivers the completion notification, so
 // the process is waited on in exactly one place.
 func (s *BackgroundShellService) CancelShell(shellID string) error {

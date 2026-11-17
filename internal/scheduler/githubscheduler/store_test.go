@@ -12,7 +12,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
-// scriptRunner records every command and answers via respond; nil respond
+// scriptRunner records every command and answers via respond. Nil respond
 // means every command succeeds with empty output.
 type scriptRunner struct {
 	commands []string

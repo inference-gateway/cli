@@ -12,18 +12,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// BlockingToolsState handles events in the BlockingTools state.
-//
-// This state is entered (from EvaluatingTools) when at least one tool call
-// requires approval but that approval cannot be delivered in the current session
-// (approval_behaviour resolves to block - e.g. approval_behaviour=block, or =ipc
-// with no broker attached). There is no approver to prompt, so each gated tool is
-// rejected with an actionable reason instead of being executed. Tool calls in the
-// same batch that do NOT require approval (e.g. read-only tools, allow-listed
-// Bash) still run, preserving tool-call order.
-//
-//  1. MessageReceivedEvent → processes the batch, then emits AllToolsProcessedEvent
-//  2. AllToolsProcessedEvent → transitions to PostToolExecution
+// BlockingToolsState rejects gated tool calls with an actionable reason when
+// their approval cannot be delivered, such as approval_behaviour=block or ipc
+// without a broker. Ungated calls in the same batch still run in order.
+// MessageReceivedEvent processes the batch and AllToolsProcessedEvent moves to
+// PostToolExecution.
 type BlockingToolsState struct {
 	ctx *StateContext
 }

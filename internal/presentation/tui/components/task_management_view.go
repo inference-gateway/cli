@@ -25,14 +25,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// TaskInfo extends TaskPollingState with additional metadata for UI display.
-// Kind/Label/Detail carry the background-work kind (A2A task, shell, subagent)
-// and its kind-specific columns so the view can render one table per kind from a
-// single flat, selectable list. A2A rows keep using the embedded
-// TaskPollingState/TaskRef; shell and subagent rows populate Kind/Label/Detail.
-// Output carries the job's captured output (shell stdout/stderr or subagent
-// result) for the detail panel. SessionID and Stats are a subagent's stored
-// conversation and run stats.
+// TaskInfo extends TaskPollingState for the background work view. A2A rows use
+// the embedded state. Shell and subagent rows fill Kind, Label and Detail so one
+// flat list renders a table per kind. Output feeds the detail panel, and
+// SessionID and Stats are a subagent's stored conversation and run stats.
 type TaskInfo struct {
 	a2adomain.TaskPollingState
 	Status      string
@@ -637,7 +633,7 @@ func (t *TaskView) cancelTaskCmd(task TaskInfo) tea.Cmd {
 
 // cancelTask routes cancellation by kind. An A2A task goes through
 // CancelBackgroundTask, which cancels the remote task and cleans up the tracker
-// in addition to winding the supervised poll job; shells and subagents wind
+// in addition to winding the supervised poll job. Shells and subagents wind
 // their supervised job down through the registry (a2aJob.Wind is a no-op, so
 // WindJob alone would never reach the remote agent).
 func (t *TaskView) cancelTask(task TaskInfo) error {
@@ -1185,7 +1181,7 @@ func (t *TaskView) writeSectionHeader(b *strings.Builder, kind scheddomain.JobKi
 }
 
 // columnHeader returns the column labels for a kind's table. A2A keeps its
-// Context ID / Task ID / Agent layout; shells and subagents share a leaner
+// Context ID / Task ID / Agent layout. Shells and subagents share a leaner
 // ID / Detail layout (Detail = command for shells, mode for subagents).
 func (t *TaskView) columnHeader(kind scheddomain.JobKind) string {
 	switch kind {

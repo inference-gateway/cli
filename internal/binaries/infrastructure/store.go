@@ -41,19 +41,19 @@ const installerURL = "https://raw.githubusercontent.com/inference-gateway/binari
 // in tests.
 var verified sync.Map
 
-// Store installs the prebuilt tools published by the binaries release into
-// ~/.infer/bin/tools on demand, mirroring ModelStore for GGML models.
+// Store installs the prebuilt tools of the binaries release into
+// ~/.infer/bin/tools on demand, like ModelStore for GGML models. baseURL,
+// installerURL, client and shLookup are overridable in tests.
 type Store struct {
 	autoDownload bool
 
-	// baseURL, installerURL, client and shLookup are overridable in tests.
 	baseURL      string
 	installerURL string
 	client       *http.Client
 	shLookup     func() (string, error)
 }
 
-// NewStore creates a Store; autoDownload gates Ensure's release check and
+// NewStore creates a Store. AutoDownload gates Ensure's release check and
 // install, while Install and Status always run. Its client bounds the
 // response-header wait so a non-responding host errors instead of hanging -
 // the request context bounds the body read for large downloads.

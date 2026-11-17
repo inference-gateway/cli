@@ -17,6 +17,10 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
+// ErrorMessageLimit caps error messages embedded in machine-format output lines
+// so a runaway provider error cannot flood them.
+const ErrorMessageLimit = 3500
+
 func emitJSON(w io.Writer, msg any, pretty bool) {
 	var data []byte
 	var err error
@@ -274,12 +278,10 @@ func judgeVerdictMessage(e agentdomain.JudgeVerdictChatEvent) map[string]any {
 	}
 }
 
-// RenderJSON renders events as JSON lines, streaming each message as its turn
-// completes: assistant messages on ChatCompleteEvent, tool results on
-// ToolExecutionCompletedEvent, approval requests and errors in real time.
-// After the channel closes only the session stats are read from the repo.
-// When approvals is non-nil it acts as the IPC approval broker: each
-// approval_request line is answered by the next matching ApprovalResponse.
+// RenderJSON streams events as JSON lines as each turn completes, then reads
+// only the session stats from the repo once the channel closes. A non-nil
+// approvals channel makes it the IPC approval broker, answering each
+// approval_request with the next matching ApprovalResponse.
 func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, questions, sessionID, model, cfg, repo, false)
 }
@@ -306,7 +308,7 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 	for event := range events {
 		switch e := event.(type) {
 		case agentdomain.ChatErrorEvent:
-			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(e.Error.Error(), 3500)})
+			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(e.Error.Error(), ErrorMessageLimit)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case agentdomain.ChatChunkEvent:
 			content.WriteString(e.Content)
@@ -424,11 +426,11 @@ func AgentStartupEmitter(w io.Writer, format string) func(name, state, message s
 // EmitPreRunError writes a machine-readable failure line for errors that occur
 // before the event stream starts (gateway down, unknown model, ...), so stdout
 // consumers - the channel manager and agentheadless - see the failure instead of
-// silence. The text format stays quiet; the CLI's stderr prose covers it. The
+// silence. The text format stays quiet. The CLI's stderr prose covers it. The
 // ag-ui format has its own RUN_ERROR writer in the headless presentation.
 func EmitPreRunError(w io.Writer, format string, err error) {
 	switch format {
 	case "json", "json-pretty":
-		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(err.Error(), 3500)}, format == "json-pretty")
+		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(err.Error(), ErrorMessageLimit)}, format == "json-pretty")
 	}
 }

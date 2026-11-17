@@ -12,7 +12,7 @@ A README for coding agents on the **Inference Gateway CLI** — an agentic CLI (
 ```bash
 task build              # → ./infer binary
 task run -- <args>      # go run ./cmd/infer <args>
-task test               # go test ./...; variants: test:verbose, test:coverage, test:race, test:e2e
+task test               # go test ./.... Variants: test:verbose, test:coverage, test:race, test:e2e
 task fmt                # gofmt + gci
 task vet                # go vet
 task lint               # lint:imports → golangci-lint → markdownlint

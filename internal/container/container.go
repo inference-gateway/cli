@@ -81,21 +81,21 @@ import (
 // same retries through the state manager's reconnecting indicator instead.
 var RetryNotifier func(message string)
 
-// ServiceContainer manages all application dependencies
+// ServiceContainer is the composition root that builds and owns every
+// application dependency. backgroundTaskRegistry tracks every background job,
+// the tokenizer is the token polyfill for providers without usage metrics,
+// mcpStartupCancel aborts async MCP startup on Shutdown, and the chat services
+// are built unconditionally with nil-safe A2A deps.
 type ServiceContainer struct {
-	// Session
 	sessionID convdomain.SessionID
 
-	// Container runtime
 	containerRuntime containerruntime.ContainerRuntime
 
-	// Configuration
 	config        *config.Config
 	loadConfig    func() (*config.Config, error)
 	startupConfig *config.Config
 	reloadMu      sync.Mutex
 
-	// Domain services
 	conversationRepo       convdomain.ConversationRepository
 	conversationOptimizer  convdomain.ConversationOptimizer
 	sessionRolloverManager *conversation.SessionRollover
@@ -120,9 +120,6 @@ type ServiceContainer struct {
 	skillsService          agentdomain.SkillsService
 	githubIssueService     agentdomain.GitHubIssueService
 	messageQueue           convdomain.MessageQueue
-	// backgroundTaskRegistry is the single unified tracker for every
-	// background job: shells, subagents and A2A tasks. The narrower
-	// scheddomain.ShellTracker and SubagentTracker views share the instance.
 	backgroundTaskRegistry scheddomain.BackgroundTaskRegistry
 	jobSupervisor          *jobs.Supervisor
 	a2aTaskTracker         *a2a.TaskTracker
@@ -133,10 +130,8 @@ type ServiceContainer struct {
 	mockGateway            *http.Server
 	agentSupervisor        a2adomain.AgentSupervisor
 
-	// Services
 	stateManager *statemanager.Store
 
-	// Background services
 	titleGenerator         *conversation.ConversationTitleGenerator
 	suggestionRunner       *conversation.ChatSuggestionGenerator
 	backgroundJobManager   *scheduler.TitleBackfill
@@ -145,27 +140,17 @@ type ServiceContainer struct {
 	storage                storage.ConversationStorage
 	stores                 *storage.Stores
 
-	// Token polyfill - used by /context, conversation optimizer, and the
-	// session rollover manager. Created unconditionally so any surface can
-	// fall back to it when the provider does not return usage metrics.
 	tokenizer *conversation.TokenizerService
 
-	// UI components
 	themeService tui.ThemeService
 
-	// Extensibility
 	shortcutRegistry *shortcuts.Registry
 	insights         *insights.Generator
 
-	// Tool registry
-	toolRegistry  *tools.Registry
-	mcpSupervisor mcpdomain.Supervisor
-	// mcpStartupCancel aborts the async MCP server startup on Shutdown.
+	toolRegistry     *tools.Registry
+	mcpSupervisor    mcpdomain.Supervisor
 	mcpStartupCancel context.CancelFunc
 
-	// Chat orchestration services - extracted from internal/handlers/chat_handler.go.
-	// Constructed unconditionally. A2A-specific deps inside the
-	// services are nil-safe when A2A is disabled.
 	approvalCoordinator      tui.ApprovalCoordinator
 	chatCompletionRunner     *chatcompletion.Runner
 	directExecutionService   tui.DirectExecutionService
@@ -176,12 +161,10 @@ type ServiceContainer struct {
 	screenControl            computerdomain.ScreenControl
 }
 
-// uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
-// the *uiNotifierHolder once at construction (never reassigning it) and call Notify
-// from their own goroutines. SetUINotifier stores the real program-backed notifier
-// exactly once at startup (before program.Run). atomic.Pointer keeps the read
-// lock-free and the late swap race-free without a mutex. The stored pointer is
-// never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
+// uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers
+// capture it at construction and SetUINotifier stores the real notifier once
+// before program.Run. atomic.Pointer keeps reads lock-free, and the seeded
+// NoopUINotifier makes Notify always safe.
 type uiNotifierHolder struct {
 	inner atomic.Pointer[agentdomain.UINotifier]
 }
@@ -724,12 +707,10 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	c.conversationRepo = conversation.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 }
 
-// initializeMessageQueue picks the message queue backend for queue.type. The
-// memory default (also when the block is omitted) is the process-local queue
-// exactly as before. sqlite, postgres and redis dial with their matching
-// storage.<type> connection settings so queued work survives a restart and
-// can be shared by several infer processes; a backend that fails to open
-// aborts startup instead of silently falling back to memory.
+// initializeMessageQueue picks the message queue backend for queue.type. Memory
+// is the process-local default. sqlite, postgres and redis use their storage
+// settings so queued work survives restarts and can be shared. A backend that
+// fails to open aborts startup instead of falling back to memory.
 func (c *ServiceContainer) initializeMessageQueue() {
 	backend := c.config.Queue.Type
 	if backend == "" {

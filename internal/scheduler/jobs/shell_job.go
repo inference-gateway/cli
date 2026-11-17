@@ -61,7 +61,7 @@ func (j *shellJob) Meta() scheddomain.JobMeta {
 
 // Run waits for the shell process to exit and records the outcome on the shell.
 // It first waits for the pipe readers to drain (ReadersDone) so Cmd.Wait doesn't
-// close the pipes mid-read and lose output; the wait honours ctx so a kill or
+// close the pipes mid-read and lose output. The wait honours ctx so a kill or
 // shutdown can't wedge when a grandchild is holding the pipe open.
 func (j *shellJob) Run(ctx context.Context, _ func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
 	if j.shell.ReadersDone != nil {
@@ -109,7 +109,7 @@ func (j *shellJob) Close() {
 }
 
 // Output returns the shell's captured stdout/stderr from the ring buffer.
-// For a running shell this is the output so far; for a finished one it is the
+// For a running shell this is the output so far. For a finished one it is the
 // full captured output (bounded by the ring buffer's max size).
 func (j *shellJob) Output() string {
 	if j.shell.OutputBuffer == nil {

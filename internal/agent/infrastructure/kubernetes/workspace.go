@@ -107,7 +107,7 @@ func (e *Workspace) Kind() agentdomain.WorkspaceKind {
 // across teleports. Workspaces sharing a namespace never reach each other's.
 func orchestratorName(workspace, conversationID string) string {
 	sum := sha256.Sum256([]byte(workspace + "/" + conversationID))
-	return "infer-" + hex.EncodeToString(sum[:])[:12]
+	return "infer-" + hex.EncodeToString(sum[:])[:nameHashLength]
 }
 
 func (e *Workspace) orchestrators() k8sdynamic.ResourceInterface {

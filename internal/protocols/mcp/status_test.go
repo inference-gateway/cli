@@ -66,7 +66,7 @@ func mcpServerEntry(t *testing.T, name string, handle func(method string) any) c
 	return config.MCPServerEntry{Name: name, Host: u.Hostname(), Port: port, Path: "/mcp", Enabled: true}
 }
 
-// A 2026-07-28 server reports its tools; a legacy server that has no
+// A 2026-07-28 server reports its tools. A legacy server that has no
 // server/discover is unavailable and told which protocol infer speaks.
 func TestProbeStatus_ProtocolVersion(t *testing.T) {
 	current := mcpServerEntry(t, "current", func(method string) any {

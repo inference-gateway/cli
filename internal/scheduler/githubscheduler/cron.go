@@ -50,7 +50,7 @@ func TranslateCron(expr string) (string, error) {
 }
 
 // checkMinuteField rejects the obvious sub-5-minute minute fields.
-// ponytail: only catches * and */N; exotic lists (1,2,3 * * * *) pass through - GitHub throttles them.
+// ponytail: only catches * and */N. Exotic lists (1,2,3 * * * *) pass through - GitHub throttles them.
 func checkMinuteField(minute string) error {
 	if minute == "*" {
 		return fmt.Errorf("fires every minute")
@@ -65,7 +65,7 @@ func checkMinuteField(minute string) error {
 }
 
 // translateEvery maps `@every <duration>` onto a */N cron when the duration
-// divides an hour (or a day) evenly; anything else is rejected.
+// divides an hour (or a day) evenly. Anything else is rejected.
 func translateEvery(durStr string) (string, error) {
 	d, err := time.ParseDuration(durStr)
 	if err != nil {

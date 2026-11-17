@@ -203,7 +203,7 @@ func TestApprovalBox_SelectEmitsResponseEvent(t *testing.T) {
 
 // TestApprovalBox_ExpandScrollsToDiffTail asserts ctrl+o (ToggleExpanded) opens a
 // scrollable window whose tail is reachable with ScrollDiff, so a diff taller than
-// the screen is fully reviewable; collapsing resets it.
+// the screen is fully reviewable. Collapsing resets it.
 func TestApprovalBox_ExpandScrollsToDiffTail(t *testing.T) {
 	var b strings.Builder
 	for i := 0; i < 40; i++ {
@@ -278,7 +278,7 @@ func TestApprovalBox_IsActiveFalseAfterExternalClear(t *testing.T) {
 
 // contextSnippet is a 9-line block with a single changed middle line, so a diff
 // renders one hunk whose context width (2 vs 3 lines) is observable: at 2 lines
-// only charlie/delta and foxtrot/golf survive; at 3 lines bravo/hotel show too.
+// only charlie/delta and foxtrot/golf survive. At 3 lines bravo/hotel show too.
 const (
 	oldContextSnippet = "alpha\nbravo\ncharlie\ndelta\necho_OLD\nfoxtrot\ngolf\nhotel\nindia"
 	newContextSnippet = "alpha\nbravo\ncharlie\ndelta\necho_NEW\nfoxtrot\ngolf\nhotel\nindia"

@@ -121,7 +121,7 @@ type StatusComponent interface {
 }
 
 // StatusIndicatorAction identifies the view a status-bar indicator opens when
-// activated; indicators without a view map to StatusIndicatorActionNone
+// activated. Indicators without a view map to StatusIndicatorActionNone
 type StatusIndicatorAction int
 
 const (

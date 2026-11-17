@@ -150,13 +150,10 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *agentdomain.ToolExe
 	return s.wrapCard(result.ToolName, strings.Join(out, "\n"), terminalWidth)
 }
 
-// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line used by the
-// collapsed status line, the live preview, the approval summary and the queue preview.
-// icon and trailing are already-styled by the caller (each surface owns its own status
-// semantics); the tool name and the width-aware, path-shortened argument preview are
-// formatted identically everywhere, replacing the per-call-site drift (e.g. the old
-// byte-slice `args[:47]` truncation in the live renderer). Pass icon=="" / trailing==""
-// to omit either segment.
+// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line of
+// the status line, live preview, approval summary and queue preview, so the
+// name and width-aware argument preview look the same everywhere. icon and
+// trailing are styled by the caller, and "" omits either.
 func (s *ToolFormatterService) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, terminalWidth int) string {
 	line := toolName
 	if icon != "" {
@@ -194,7 +191,7 @@ func (s *ToolFormatterService) statusLine(result *agentdomain.ToolExecutionResul
 	return s.RenderToolSummary(styledIcon, result.ToolName, result.Arguments, styledSuffix, terminalWidth)
 }
 
-// cardWidth is the outer width for a tool-result card; the caller passes an
+// cardWidth is the outer width for a tool-result card. The caller passes an
 // already-responsive width and lipgloss Width() includes the border.
 func (s *ToolFormatterService) cardWidth(width int) int {
 	return max(width, 20)
@@ -287,7 +284,7 @@ func (s *ToolFormatterService) FormatToolResultExpanded(result *agentdomain.Tool
 }
 
 // expandedDiffTree renders the colored diff Edit and MultiEdit results show in the
-// expanded view. The tools themselves emit plain text only; the ANSI rendering
+// expanded view. The tools themselves emit plain text only. The ANSI rendering
 // lives here, behind the ToolFormatter seam. The second return is false for any
 // other tool (or when there is nothing to diff), sending the caller down the
 // generic FormatResult path.
@@ -364,7 +361,7 @@ func multiEditSummaryDiff(result *agentdomain.ToolExecutionResult) *styles.DiffI
 
 // simulateMultiEditDiff previews a failed MultiEdit by re-reading the target file
 // and applying the requested edits in sequence.
-// ponytail: render-time file IO, inherited from the old MultiEdit.GetDiffInfo; the
+// ponytail: render-time file IO, inherited from the old MultiEdit.GetDiffInfo. The
 // file may have changed since the tool ran.
 func simulateMultiEditDiff(args map[string]any) *styles.DiffInfo {
 	filePath, _ := args["file_path"].(string)

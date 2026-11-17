@@ -17,11 +17,11 @@ type Format int
 const (
 	// FmtText is UTF-8 text.
 	FmtText Format = iota
-	// FmtImage is PNG image data. Reads are supported; writes are ignored.
+	// FmtImage is PNG image data. Reads are supported. Writes are ignored.
 	FmtImage
 )
 
-// Init is a no-op; the clipboard backend needs no initialization.
+// Init is a no-op. The clipboard backend needs no initialization.
 func Init() error { return nil }
 
 // Read returns the clipboard contents for the given format, or nil if the

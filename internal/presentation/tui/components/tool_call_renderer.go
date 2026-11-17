@@ -34,7 +34,7 @@ func (r *ToolCallRenderer) SetToolFormatter(f tui.ToolFormatter) {
 }
 
 // summaryLine builds the shared tool summary. args are the raw JSON string carried
-// by the live tool state; icon and trailing are already styled by the caller.
+// by the live tool state. Icon and trailing are already styled by the caller.
 func (r *ToolCallRenderer) summaryLine(icon, name, argsJSON, trailing string) string {
 	if r.toolFormatter != nil {
 		return r.toolFormatter.RenderToolSummary(icon, name, parseToolArgs(argsJSON), trailing, r.width)

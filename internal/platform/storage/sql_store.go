@@ -15,21 +15,18 @@ import (
 )
 
 // sqlStore is the shared SQL implementation of ConversationStorage and
-// SessionGroupStorage. Both the SQLite and Postgres backends embed it: they
-// speak the same single-table, embedded-messages schema (the one D1 also uses
-// via GetSQLiteMigrations) and differ only in placeholder style, which rebind
-// normalizes.
+// SessionGroupStorage. The SQLite and Postgres backends embed it, speaking the
+// same schema D1 uses, and differ only in the placeholder style of their
+// dialect, which rebind normalizes.
 type sqlStore struct {
 	db      *sql.DB
-	dialect string // "sqlite" | "postgres"
+	dialect string
 }
 
-// rebind converts the SQLite "?" placeholders the statements are written with
-// into "$1, $2, …" for Postgres; every other dialect is left untouched.
-//
-// ponytail: naive ?→$N rewrite, assumes no "?" inside a SQL string literal —
-// true for every statement in this file. Upgrade to sqlx.Rebind only if a
-// literal "?" ever appears.
+// rebind converts the "?" placeholders the statements are written with into
+// "$1, $2, …" for Postgres and leaves other dialects untouched.
+// ponytail: naive ?→$N rewrite, assumes no "?" inside a SQL string literal.
+// Upgrade to sqlx.Rebind only if a literal "?" ever appears.
 func (s *sqlStore) rebind(query string) string {
 	if s.dialect != "postgres" {
 		return query
@@ -774,7 +771,7 @@ func (s *sqlStore) AppendHistory(ctx context.Context, project, command string) e
 }
 
 // LoadHistory returns the project's most recent commands up to limit in
-// chronological order; limit <= 0 returns everything.
+// chronological order. Limit <= 0 returns everything.
 func (s *sqlStore) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
 	query := "SELECT command FROM shell_history WHERE project = ? ORDER BY id DESC"
 	args := []any{project}

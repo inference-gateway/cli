@@ -22,7 +22,7 @@ import (
 )
 
 // HandleBashCommand processes bash commands starting with `!`. A trailing `&`
-// hands the command off to the background-shell service; otherwise it
+// hands the command off to the background-shell service. Otherwise it
 // executes in the foreground with progress events piped over the bash event
 // channel.
 func (s *Service) HandleBashCommand(commandText string) tea.Cmd {
@@ -193,7 +193,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 
 	go func() {
 		defer func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(eventDrainDelay)
 			close(eventChan)
 			s.setBashEventChannel(nil)
 			s.ClearBashDetachChan()

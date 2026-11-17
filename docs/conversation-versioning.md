@@ -146,7 +146,7 @@ During active LLM streaming or tool execution:
 1. **User and assistant messages only**: Only user messages and assistant responses are shown in the history. Tool results are not.
 2. **Permanent deletion**: Messages deleted during restore cannot be recovered
 3. **No undo**: There's no undo for the restore operation
-4. **Auto-save required**: Changes are automatically saved; manual save is not supported
+4. **Auto-save required**: Changes are automatically saved. Manual save is not supported
 5. **Single conversation**: Only works within the current conversation context
 
 ## Technical Details

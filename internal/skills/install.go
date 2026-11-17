@@ -50,19 +50,10 @@ func SkillTreeURL(repository, skill string) string {
 		owner, repo, defaultSkillsRef, defaultSkillsSubdir, skill)
 }
 
-// ExpandShorthand turns shorthand install targets into full GitHub tree URLs,
-// resolving them against the configured "<owner>/<repo>" skills repository
-// (config.DefaultSkillsRepository when empty). For the default repository:
-//
-//   - "<skill>"          → https://github.com/inference-gateway/skills/tree/main/skills/<skill>
-//   - "<org>/<skill>"    → https://github.com/<org>/skills/tree/main/skills/<skill>
-//   - any http(s):// URL → returned unchanged
-//
-// The two-segment form keeps the repository *name* from the configured value and
-// swaps only the owner, so a renamed fork stays reachable as "<org>/<skill>".
-//
-// Anything else (3+ slash-separated segments, empty segments, etc.) is
-// returned unchanged so ParseGitHubTreeURL produces its existing error.
+// ExpandShorthand expands "<skill>" and "<org>/<skill>" into GitHub tree URLs in
+// the configured "<owner>/<repo>" skills repository. The two-segment form swaps
+// only the owner, so a renamed fork stays reachable. Anything else, URLs
+// included, is returned unchanged.
 func ExpandShorthand(input, repository string) string {
 	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
 		return input
@@ -95,12 +86,9 @@ type GitHubLocation struct {
 	Path  string
 }
 
-// ParseGitHubTreeURL accepts URLs of the form
-//
-//	https://github.com/<owner>/<repo>/tree/<ref>/<path-to-skill>
-//
-// Refs containing a literal "/" (e.g. "feature/foo" branches) are not
-// supported; pass the URL of a tag or single-segment branch instead.
+// ParseGitHubTreeURL parses https://github.com/<owner>/<repo>/tree/<ref>/<path>.
+// Refs containing "/" are not supported, so pass a tag or a single-segment
+// branch instead.
 func ParseGitHubTreeURL(rawURL string) (*GitHubLocation, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -140,26 +128,22 @@ type treeResponse struct {
 	Truncated bool        `json:"truncated"`
 }
 
-// Installer downloads a skill folder from a GitHub repo into a local
-// destination directory. When Token is non-empty its requests are
-// authenticated, which raises the GitHub API rate limit from 60 to 5,000
-// requests/hour and allows access to private repositories the token can see.
+// Installer downloads a skill folder from a GitHub repo into a local directory.
+// A Token raises the rate limit and reaches private repos. Repository is the
+// "<owner>/<repo>" shorthand targets resolve against, or
+// config.DefaultSkillsRepository when empty.
 type Installer struct {
-	Client  *http.Client
-	APIBase string
-	RawBase string
-	Token   string
-	// Repository is the "<owner>/<repo>" skills repository shorthand install
-	// targets resolve against. Empty means config.DefaultSkillsRepository.
+	Client     *http.Client
+	APIBase    string
+	RawBase    string
+	Token      string
 	Repository string
 }
 
-// NewInstaller returns an Installer pointed at github.com with a 30s HTTP
-// timeout, resolving shorthand targets against the given "<owner>/<repo>"
-// skills repository (empty = config.DefaultSkillsRepository). The GitHub token
-// comes from github.Token (GITHUB_TOKEN, then GH_TOKEN); when neither is set
-// requests are made unauthenticated. Tests substitute APIBase / RawBase to
-// point at httptest.Server.
+// NewInstaller returns an Installer for github.com that resolves shorthand
+// against repository, or config.DefaultSkillsRepository when empty. It
+// authenticates with github.Token when set. Tests point APIBase and RawBase at
+// an httptest.Server.
 func NewInstaller(repository string) *Installer {
 	return &Installer{
 		Client:     &http.Client{Timeout: installerTimeout},
@@ -179,12 +163,9 @@ func (i *Installer) setAuth(req *http.Request) {
 }
 
 // InstallFromGitHub downloads the skill folder at rawURL into
-// <destBase>/<dirname>/, where dirname is the last path segment of the
-// repo URL. Existing folders are rejected unless overwrite is true.
-//
-// The download is staged beside the destination and validated with
-// LoadSkillMetadata before it replaces anything, so a failed install leaves an
-// existing skill as it was. Returns the absolute path of the installed skill.
+// <destBase>/<last segment>/ and returns its absolute path. Existing folders are
+// rejected unless overwrite is set. The download is staged and validated
+// first, so a failed install leaves an existing skill as it was.
 func (i *Installer) InstallFromGitHub(ctx context.Context, rawURL, destBase string, overwrite bool) (string, error) {
 	rawURL = ExpandShorthand(rawURL, i.Repository)
 	loc, err := ParseGitHubTreeURL(rawURL)

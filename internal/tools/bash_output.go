@@ -121,8 +121,9 @@ func (t *BashOutputTool) Validate(args map[string]any) error {
 	}
 
 	if filter, ok := args["filter"].(string); ok && filter != "" {
-		if len(filter) > 1000 {
-			return fmt.Errorf("filter pattern is too long (max 1000 characters)")
+		const maxFilterLength = 1000
+		if len(filter) > maxFilterLength {
+			return fmt.Errorf("filter pattern is too long (max %d characters)", maxFilterLength)
 		}
 	}
 

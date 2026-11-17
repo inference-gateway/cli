@@ -268,7 +268,7 @@ func (s *AgentSupervisor) livenessInterval() time.Duration {
 // WaitForAgentsReady blocks until every run:true agent started by StartAgents
 // has settled (ready or failed), or ctx is done. Headless mode calls this
 // before the first LLM turn so the model never races an agent whose 3GB image
-// is still pulling; failed agents settle too, so a broken agent can't block
+// is still pulling. Failed agents settle too, so a broken agent can't block
 // forever. Chat mode never calls it (the TUI streams status instead).
 func (s *AgentSupervisor) WaitForAgentsReady(ctx context.Context) {
 	settled := make(chan struct{})
@@ -729,7 +729,7 @@ func (s *AgentSupervisor) otlpEndpoint() string {
 // agentTelemetryEnv returns the ADK env that makes an agent container export
 // traces to the same collector the CLI uses. Loopback hosts are rewritten to
 // host.docker.internal since localhost inside the container is the container.
-// ponytail: assumes the collector is reachable from the container network; no
+// ponytail: assumes the collector is reachable from the container network. No
 // remote-collector or TLS handling.
 func agentTelemetryEnv(endpoint string) map[string]string {
 	if endpoint == "" {

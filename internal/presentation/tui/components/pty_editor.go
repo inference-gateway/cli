@@ -50,12 +50,10 @@ func (t *vtTerm) readReply(p []byte) (int, error) { return t.em.Read(p) }
 // closeEmulator unblocks readReply so the reply-forwarding goroutine can exit.
 func (t *vtTerm) closeEmulator() { _ = t.em.Close() }
 
-// stopReplies unblocks the reply-forwarding goroutine's blocked Read by closing the
-// emulator's input pipe, which returns EOF. We close the pipe directly rather than
-// calling em.Close because Close also writes the emulator's `closed` flag, which that
-// same goroutine reads inside Read - an unsynchronized access the race detector flags.
-// The io.Pipe gives the writer-close ↔ Read-EOF happens-before; the em.Close fallback
-// only runs if the emulator's pipe type ever changes, so close() never hangs.
+// stopReplies unblocks the reply goroutine's Read by closing the emulator's
+// input pipe. em.Close would race on the `closed` flag that goroutine reads,
+// while the pipe close gives a clean happens-before. The em.Close fallback only
+// runs if the pipe type ever changes, so close() never hangs.
 func (t *vtTerm) stopReplies() {
 	if pw, ok := t.em.InputPipe().(*io.PipeWriter); ok {
 		_ = pw.CloseWithError(io.EOF)
@@ -82,8 +80,8 @@ func forwardReplies(term *vtTerm, w io.Writer) {
 }
 
 // ptyEditor runs the user's editor in a pseudo-terminal and renders it into the
-// diff pane. Output is streamed via a re-arming read command; key input is
-// re-encoded and written to the PTY; the pane size drives the PTY window size.
+// diff pane. Output is streamed via a re-arming read command. Key input is
+// re-encoded and written to the PTY. The pane size drives the PTY window size.
 type ptyEditor struct {
 	pty        *os.File
 	cmd        *exec.Cmd
@@ -103,14 +101,10 @@ func resolveEditor() []string {
 	return []string{"vim"}
 }
 
-// editorColorArgs returns the flags that force on-screen syntax highlighting for
-// vim-family editors. A bare vim spawned with no vimrc can't detect the emulator's
-// background (it doesn't answer vim's OSC-11 query), so the default colorscheme
-// renders washed-out - looking like no highlighting at all. We pin the background to
-// the TUI theme, enable syntax, and show line numbers (matching the diff view's
-// line-numbered display). The flags run after the user's own vimrc (if any),
-// so they only force these settings. Non-vim editors get nil (they do their own
-// highlighting, or don't accept `-c`).
+// editorColorArgs returns flags that force syntax highlighting and line numbers
+// in vim-family editors, pinning the background to the TUI theme because vim
+// cannot query the emulator's background. They run after the user's vimrc.
+// Other editors get nil.
 func editorColorArgs(editorBin string, dark bool) []string {
 	switch strings.ToLower(filepath.Base(editorBin)) {
 	case "vim", "nvim", "vi", "gvim", "mvim":
@@ -202,7 +196,7 @@ func (e *ptyEditor) View(width, height int) string {
 // close kills the child and closes the PTY (unblocking the in-flight output read and
 // any reply write), then unblocks the reply-forwarding goroutine via the emulator's
 // input pipe and waits for it to exit. Closing the pipe (rather than the emulator)
-// avoids racing the emulator's `closed` flag against that goroutine's Read; joining on
+// avoids racing the emulator's `closed` flag against that goroutine's Read. Joining on
 // readerDone ensures no emulator access outlives close.
 func (e *ptyEditor) close() {
 	if e.cmd != nil && e.cmd.Process != nil {

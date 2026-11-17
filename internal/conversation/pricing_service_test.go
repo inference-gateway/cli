@@ -329,7 +329,7 @@ func TestFormatModelPricingLabel(t *testing.T) {
 
 // TestPricingService_LocalProvidersUnknown verifies that locally-hosted
 // providers (llamacpp, ollama) resolve as unknown pricing - there is no
-// built-in free assumption; users declare prices via custom_prices.
+// built-in free assumption. Users declare prices via custom_prices.
 func TestPricingService_LocalProvidersUnknown(t *testing.T) {
 	service := NewPricingService(&config.PricingConfig{Enabled: true})
 

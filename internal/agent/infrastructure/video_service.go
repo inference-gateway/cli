@@ -50,11 +50,9 @@ func NewVideoService(cfg *config.Config, client sdk.Client) *VideoService {
 }
 
 // Render creates the video job for request, polls it until it completes and
-// writes the downloaded MP4 content to outPath. An avatar request (audio
-// set) is a lip-synced talking clip rendered with text_to_video.avatar_model;
-// any other request is rendered with text_to_video.model.
-// Errors name the configured model so a gateway without the endpoint (or a
-// provider that rejects it) is diagnosable.
+// writes the MP4 to outPath. An avatar request renders with
+// text_to_video.avatar_model, any other with text_to_video.model. Errors name
+// the model so a gateway or provider without the endpoint is diagnosable.
 func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
 	model := s.config.TextToVideo.ResolveGatewayModel(request.IsAvatar())
 	provider, modelName := config.ParseModel(model)
@@ -77,7 +75,7 @@ func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequ
 // Dub creates the dubbing job for the clip at request.VideoPath through the
 // gateway's Videos API, polls it until it completes and writes the downloaded
 // MP4 - the clip re-rendered with the generated sound as its new soundtrack -
-// to outPath. The model is video_to_sfx.model; the job loop reuses the
+// to outPath. The model is video_to_sfx.model. The job loop reuses the
 // TextToVideo polling code and its timeout and poll_interval knobs.
 func (s *VideoService) Dub(ctx context.Context, request agentdomain.VideoDubRequest, outPath string) error {
 	model := s.config.VideoToSFX.ResolveGatewayModel()
@@ -235,7 +233,7 @@ func (s *VideoService) buildCreateRequest(request agentdomain.VideoRequest, mode
 }
 
 // pollVideo retrieves the job every poll_interval until it completes, fails
-// or the context ends; the interval is the configured
+// or the context ends. The interval is the configured
 // text_to_video.poll_interval (default 5s).
 func (s *VideoService) pollVideo(ctx context.Context, model string, provider sdk.Provider, videoID string) error {
 	interval := time.Duration(cmp.Or(s.config.TextToVideo.PollInterval, defaultVideoPollIntervalSeconds)) * time.Second

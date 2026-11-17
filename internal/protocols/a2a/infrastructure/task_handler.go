@@ -34,10 +34,10 @@ func NewHeadlessTaskHandler(mode string, timeout time.Duration) *HeadlessTaskHan
 	return &HeadlessTaskHandler{Runner: agentheadless.Run, Mode: mode, Timeout: timeout}
 }
 
-// SetAgent is the TaskHandler contract; a served task never calls the ADK's OpenAI-compatible agent.
+// SetAgent is the TaskHandler contract. A served task never calls the ADK's OpenAI-compatible agent.
 func (*HeadlessTaskHandler) SetAgent(adkserver.OpenAICompatibleAgent) {}
 
-// GetAgent is the TaskHandler contract; see SetAgent.
+// GetAgent is the TaskHandler contract. See SetAgent.
 func (*HeadlessTaskHandler) GetAgent() adkserver.OpenAICompatibleAgent { return nil }
 
 // HandleTask validates the task and runs it. Validation and run failures land

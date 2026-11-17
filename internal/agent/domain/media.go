@@ -33,7 +33,7 @@ type ImageService interface {
 	// EditImage edits the image at imagePath using prompt and model
 	// ("provider/name") and returns the path of the saved file. A blank quality
 	// or size leaves the provider's own default. A non-empty maskPath points to
-	// a PNG whose transparent (alpha=0) areas mark the editable region; all
+	// a PNG whose transparent (alpha=0) areas mark the editable region. All
 	// other pixels are preserved exactly.
 	EditImage(ctx context.Context, model, prompt, imagePath, quality, size, maskPath string) (string, error)
 	// CreateImageVariation creates a variation of the image at imagePath using
@@ -43,7 +43,7 @@ type ImageService interface {
 }
 
 // SpeechService synthesizes speech through the gateway's Audio API, writing
-// the audio to outPath; a non-empty voiceSamplePath is forwarded as a
+// the audio to outPath. A non-empty voiceSamplePath is forwarded as a
 // reference sample for zero-shot voice cloning.
 type SpeechService interface {
 	Synthesize(ctx context.Context, text, voiceSamplePath, outPath string) error
@@ -51,7 +51,7 @@ type SpeechService interface {
 
 // MusicService composes a music clip from a text prompt through the gateway's
 // Music API, writing the audio to outPath. A non-nil seconds caps the clip
-// length in seconds; a non-nil instrumental requests a vocal-free clip. An
+// length in seconds. A non-nil instrumental requests a vocal-free clip. An
 // omitted knob leaves the choice to the configured provider.
 type MusicService interface {
 	Compose(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error
@@ -59,7 +59,7 @@ type MusicService interface {
 
 // SoundEffectService generates a short sound effect or ambience clip from a
 // text prompt through the gateway's SFX API, writing WAV audio to outPath.
-// A non-nil seconds caps the clip length in seconds; a non-nil loop requests
+// A non-nil seconds caps the clip length in seconds. A non-nil loop requests
 // a clip that loops seamlessly. An omitted knob leaves the choice to the
 // configured provider.
 type SoundEffectService interface {
@@ -87,12 +87,10 @@ type VideoSoundEffectService interface {
 	Score(ctx context.Context, request VideoSoundEffectRequest, outPath string) (string, error)
 }
 
-// VideoRequest is one video render: a text prompt (required unless the audio
-// drives the render), the optional seconds and size passthroughs, the
-// optional avatar portrait and driving audio for lip-synced talking clips,
-// and the optional reference images of the subject (e.g. an avatar from
-// several angles) that keep them consistent in a prompt render. The gateway
-// rejects reference images together with a portrait.
+// VideoRequest is one video render: a prompt, required unless audio drives it,
+// optional seconds and size, an optional avatar portrait with driving audio for
+// lip-synced clips, and optional reference images that keep a subject
+// consistent. The gateway rejects reference images together with a portrait.
 type VideoRequest struct {
 	Prompt         string
 	Seconds        string

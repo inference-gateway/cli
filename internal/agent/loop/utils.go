@@ -131,7 +131,7 @@ func (s *Agent) clearToolCallsMap() {
 // BuildSystemPrompt assembles the static system prompt sent as message[0]
 // (base prompt + custom instructions + AGENTS.md + plugins + static context).
 // It is deliberately byte-identical across turns and agent-mode switches so LLM
-// servers get KV-cache prefix hits; volatile context rides in volatileTailMessage
+// servers get KV-cache prefix hits. Volatile context rides in volatileTailMessage
 // and per-mode behaviour in the mode-change reminder. Returns "" when unset.
 func (s *Agent) BuildSystemPrompt() string {
 	baseSystemPrompt := s.config.Prompts.Agent.SystemPrompt
@@ -165,7 +165,7 @@ func (s *Agent) BuildSystemPrompt() string {
 }
 
 // VolatileTailText renders the volatile-context tail a fresh session (turn 0)
-// would send as a hidden per-request <system-reminder> user message; ok=false
+// would send as a hidden per-request <system-reminder> user message. Ok=false
 // means no tail is sent. Exposed for the `infer debug agent system_prompt`
 // command, alongside SystemPromptSections.
 func (s *Agent) VolatileTailText() (string, bool) {
@@ -199,7 +199,7 @@ func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 // carrying the volatile context (git, tree, active and loaded skills, memory,
 // current date, live-mode tool roster and bash allow-list), appended to the outbound
 // payload only, never persisted, so message[0] stays byte-stable for KV-cache
-// reuse. ok=false means append nothing; callers gate the append after repair.
+// reuse. ok=false means append nothing. Callers gate the append after repair.
 func (s *Agent) volatileTailMessage(ctx context.Context, messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
@@ -230,7 +230,7 @@ type PromptSection struct {
 	Volatile bool
 }
 
-// contextSections lists the static context builders in prompt order; it is
+// contextSections lists the static context builders in prompt order. It is
 // the single source for both prompt assembly and diagnostics. Only sections
 // stable for the WHOLE chat session belong here - anything that changes with
 // the work or the live agent mode (tool roster, bash allow-list) goes in
@@ -249,7 +249,7 @@ func (s *Agent) contextSections() []PromptSection {
 
 // volatileContextSections lists the context builders whose output changes as
 // the session progresses (or with an agent-mode switch, since the tool roster
-// and bash allow-list advertise the live mode); they are delivered per request
+// and bash allow-list advertise the live mode). They are delivered per request
 // via volatileTailMessage rather than in the system prompt.
 func (s *Agent) volatileContextSections(ctx context.Context, currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
 	return []PromptSection{
@@ -299,11 +299,9 @@ func (s *Agent) SystemPromptSections() []PromptSection {
 }
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
-// and away from shell habits that needlessly trip the Bash allowed list. There is
-// no built-in GitHub tool; `gh` (via Bash) covers issues, PRs, releases, and the
-// raw API with clearer errors and the standard credential chain. Emitted only
-// when Bash is enabled (otherwise the guidance is moot). Lives in the dynamic
-// context so it reaches existing users regardless of their prompts.yaml override.
+// and away from shell habits that trip the Bash allow-list. It is emitted only
+// when Bash is enabled, and it lives in the dynamic context so it reaches users
+// whatever their prompts.yaml override says.
 func (s *Agent) buildGitHubGuidanceInfo() string {
 	if !s.config.Tools.Bash.Enabled {
 		return ""
@@ -327,12 +325,10 @@ func (s *Agent) buildGitHubGuidanceInfo() string {
 		"ALLOW-LIST below."
 }
 
-// buildBashAllowInfo lists the bash commands auto-approved in the active agent
-// mode so the model knows its sandbox up front. It reads the live mode and is
-// delivered via the volatile tail, so toggling auto/plan updates it on the
-// next turn without rewriting the byte-stable system prompt. Empty when the
-// Bash tool is disabled or filtered out of the current mode; an unrestricted
-// mode (".*") is described in prose.
+// buildBashAllowInfo lists the bash commands auto-approved in the active mode
+// so the model knows its sandbox. It rides the volatile tail, so a mode toggle
+// updates it without rewriting the system prompt. It is empty when Bash is off
+// in this mode, and an unrestricted mode is described in prose.
 func (s *Agent) buildBashAllowInfo() string {
 	if !s.config.Tools.Bash.Enabled || s.toolService == nil {
 		return ""
@@ -386,9 +382,9 @@ func (s *Agent) buildBashAllowInfo() string {
 }
 
 // buildToolsInfo lists the tools executable in the active agent mode as a
-// name + one-line-description roster; the request advertises the full list,
+// name + one-line-description roster. The request advertises the full list,
 // so anything absent here is advertised but disabled. It rides in the
-// volatile tail so a mode switch never rewrites message[0]; empty when tools
+// volatile tail so a mode switch never rewrites message[0]. Empty when tools
 // are disabled or none are registered.
 func (s *Agent) buildToolsInfo() string {
 	if s.toolService == nil {
@@ -425,16 +421,11 @@ func (s *Agent) buildToolsInfo() string {
 	return b.String()
 }
 
-// buildSkillsInfo lists discovered Agent Skills with their absolute SKILL.md
-// paths so the model can read each one on demand via the Read tool.
-// Empty when skills are disabled or none were discovered.
-//
-// Catalog skills are listed WITHOUT a path, even after their body has been
-// downloaded. This section rides in the static system prompt, so rendering the
-// mutable Path here would rewrite message[0] the moment a skill is installed
-// and invalidate the whole conversation's KV-cache prefix. The concrete path is
-// delivered by buildActiveSkillInfo in the volatile tail instead, which is
-// per-request by design.
+// buildSkillsInfo lists discovered skills with their SKILL.md paths so the model
+// can read them on demand, and is empty when there are none. Catalog skills
+// are listed without a path, because this rides the static system prompt and
+// an install would otherwise invalidate the KV-cache prefix.
+// buildActiveSkillInfo delivers that path in the volatile tail.
 func (s *Agent) buildSkillsInfo() string {
 	if s.skillsService == nil {
 		return ""
@@ -494,21 +485,11 @@ var (
 	skillPhraseTrigger = regexp.MustCompile(`(?i)\buse(?:\s+the)?\s+([a-z0-9-]+)\s+skill\b`)
 )
 
-// buildActiveSkillInfo deterministically surfaces the skills the user
-// explicitly invoked (via "/<name>" or "use the <name> skill"). Unlike
-// buildSkillsInfo - which lists every available skill and leaves it to the
-// model whether to engage one - this guarantees an invoked skill is flagged as
-// active regardless of mode (chat, `infer headless`, channels, heartbeat), all of
-// which funnel through addSystemPrompt. It injects only the skill's metadata
-// (description + path), not the body: the SKILL.md body stays progressive
-// disclosure, loaded on demand by the model via the Skill tool. Empty when no trigger matched a loaded
-// skill.
-//
-// A catalog skill that has not been downloaded yet (empty Path) is installed
-// on the spot when isChat is false - headless runs have nobody to ask. In chat
-// the install is user-approved at the input layer instead (see
-// ChatMessageProcessor.confirmCatalogInstall), so a not-yet-installed skill is
-// skipped here rather than fetched behind the user's back.
+// buildActiveSkillInfo flags the skills the user explicitly invoked as active in
+// every mode, with their description and path but not their body. A catalog
+// skill that is not downloaded yet is installed on the spot in headless runs.
+// In chat the input layer asks the user first, so it is skipped here. Empty
+// when no trigger matched a loaded skill.
 func (s *Agent) buildActiveSkillInfo(ctx context.Context, messages []sdk.Message, isChat bool) string {
 	if s.skillsService == nil {
 		return ""
@@ -690,8 +671,8 @@ func (s *Agent) buildAgentsMDInfo() string {
 }
 
 // buildMemoryInfo loads the MEMORY.md index once per session and injects it as a
-// context block so the agent knows which durable facts exist; individual facts
-// are loaded on demand via the Memory tool. Cached like gitContextCache; the
+// context block so the agent knows which durable facts exist. Individual facts
+// are loaded on demand via the Memory tool. Cached like gitContextCache. The
 // per-turn TTL means writes from the prior turn are reflected on the next turn.
 func (s *Agent) buildMemoryInfo(currentTurn int) string {
 	if !s.config.Memory.Enabled {
@@ -986,12 +967,9 @@ func (s *Agent) buildGitContextInfo(currentTurn int) string {
 const projectTreeMaxLines = 100
 
 // buildProjectTreeInfo injects a root-first, depth-prioritized project listing
-// into the system prompt so the model reads real paths instead of guessing
-// them. It runs the Tree tool in compact format, which in a git repository
-// lists tracked plus untracked non-ignored files one directory per line
-// (shallow directories first, so the root and top-level layout always fit the
-// line budget) and outside a git repo falls back to the ASCII tree. Shares the
-// git-context caching scheme, refreshing every GitContextRefreshTurns turns.
+// so the model reads real paths instead of guessing. It runs the compact Tree
+// tool, which lists git-tracked and untracked files shallowest first and falls
+// back to the ASCII tree outside git. It refreshes every GitContextRefreshTurns turns.
 func (s *Agent) buildProjectTreeInfo(currentTurn int) string {
 	cfg := s.config.GetAgentConfig()
 	if !cfg.Context.TreeEnabled {
@@ -1040,7 +1018,7 @@ func (s *Agent) compactProjectTree() string {
 	return ""
 }
 
-// gitCommandContext bounds an ad-hoc git shell; the system-prompt build path
+// gitCommandContext bounds an ad-hoc git shell. The system-prompt build path
 // carries no context, so the leaf helpers create their own (same precedent as
 // compactProjectTree).
 func gitCommandContext() (context.Context, context.CancelFunc) {
@@ -1179,12 +1157,10 @@ func (s *Agent) sessionID(ctx context.Context) string {
 	return ""
 }
 
-// waitForBackgroundTasks blocks until in-flight background work (A2A tasks,
-// background shells) pushes a result onto the shared message queue or
-// quiesces, up to a2a.task.agent_mode_max_wait_seconds. Headless runs call
-// this at the completion boundary so a run never exits with orphaned
-// background tasks; chat mode never calls it (the UI ticker starts fresh
-// turns instead).
+// waitForBackgroundTasks blocks until background work pushes a result onto the
+// message queue or quiesces, up to a2a.task.agent_mode_max_wait_seconds.
+// Headless runs call it at the completion boundary so they never exit with
+// orphaned tasks. Chat never calls it.
 func (s *Agent) waitForBackgroundTasks(ctx context.Context) {
 	if s.bgRegistry == nil || s.messageQueue == nil || !s.bgRegistry.HasPending() {
 		return
@@ -1220,12 +1196,10 @@ func (s *Agent) waitForBackgroundTasks(ctx context.Context) {
 	}
 }
 
-// maybeRolloverSession rolls the conversation over into a new session when it
-// crosses the compact threshold (SessionRollover gates and performs the
-// rollover), then rebuilds the in-flight conversation from the now-compacted
-// repository. Called at the top of every headless turn after the first - chat
-// rollover is owned by the UI (chat_message_processor), and the first turn is
-// handled by the headless command before the run starts.
+// maybeRolloverSession rolls the conversation into a new session once it
+// crosses the compact threshold and rebuilds the in-flight conversation. It runs
+// at the top of every headless turn after the first. The UI owns chat rollover
+// and the headless command handles the first turn.
 func (s *Agent) maybeRolloverSession(agentCtx *states.AgentContext, req *agentdomain.AgentRequest) {
 	if s.rolloverManager == nil {
 		return
@@ -1279,18 +1253,11 @@ func conversationAwaitsToolResults(conv []sdk.Message) bool {
 	return last.Role == sdk.Assistant && last.ToolCalls != nil && len(*last.ToolCalls) > 0
 }
 
-// injectDueReminders asks the reminder provider which reminders are due at the
-// given hook point, then appends each as a hidden user message, persists it via
-// the conversation repo (when wired in), emits a `system_reminder` stream event
-// tagged with the reminder name and hook so downstream observers can see the
-// nudge, and marks it fired (for the `once` trigger). Multiple reminders due at
-// the same hook stack.
-//
-// Cadence state is session-scoped (s.sessionTurns, s.firedReminders), NOT taken
-// from the per-request AgentContext, so `interval` counts cumulative turns
-// across the whole chat session and `once` fires once per session. The mutex
-// guards the fired-set because the streaming goroutine (pre_session/pre_stream)
-// and the event-loop goroutine (the other points) can both reach here.
+// injectDueReminders appends every reminder due at hook as a hidden user
+// message, persists it, emits a system_reminder stream event and marks it fired.
+// Cadence state is session-scoped, so interval counts turns across the chat and
+// once fires once per session. The mutex guards the fired set because the
+// streaming and event-loop goroutines both reach here.
 func (s *Agent) injectDueReminders(agentCtx *states.AgentContext, hook agentdomain.HookPoint) {
 	provider := s.reminderProvider
 	if provider == nil && s.config != nil {
@@ -1408,7 +1375,7 @@ func (s *Agent) injectReminderAsUserMessage(agentCtx *states.AgentContext, r age
 
 // modeChangeSinceLastStream reads the live agent mode and compares it against
 // the previous streaming turn's mode, advancing the stored baseline. The first
-// call seeds the baseline without reporting a change; a nil stateManager (the
+// call seeds the baseline without reporting a change. A nil stateManager (the
 // headless path has no mid-session mode) never reports a change. The result
 // drives the on_mode_change reminder trigger via ReminderQuery.
 func (s *Agent) modeChangeSinceLastStream() (changed bool, prev, cur agentdomain.AgentMode) {

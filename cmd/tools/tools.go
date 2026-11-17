@@ -160,7 +160,7 @@ type execResult struct {
 }
 
 // ExecTool executes a tool with the given arguments. approved runs it as
-// user-approved (like the extension bridge after an approval); otherwise
+// user-approved (like the extension bridge after an approval). Otherwise
 // --format json reports approval_required instead of running a call the
 // approval policy would gate.
 func ExecTool(w io.Writer, cfg *config.Config, args []string, format, sessionID string, approved bool) error {
@@ -284,7 +284,7 @@ func recordToolCall(ctx context.Context, repo convdomain.ConversationRepository,
 // canonicalToolName resolves a user-supplied tool name to its registered
 // (PascalCase) form case-insensitively, so `infer tools execute read` matches
 // the `Read` tool. Falls back to the input when there is no match. This
-// convenience is CLI-only; the agent always invokes tools by their exact name.
+// convenience is CLI-only. The agent always invokes tools by their exact name.
 func canonicalToolName(available []string, name string) string {
 	for _, registered := range available {
 		if strings.EqualFold(registered, name) {

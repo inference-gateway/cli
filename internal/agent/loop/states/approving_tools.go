@@ -13,21 +13,19 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// toolRound holds the per-round state for approving and executing a batch of
-// tool calls. Judge-decided calls are decided up front in one judge request and
-// human approval prompts are handled one at a time. Nothing executes until every
-// call of the round is decided, so these prompts never hide what a tool reports.
-// The cleared calls then run overlapping, and their results are flushed to the
-// conversation in tool-call order, which the conversation validator requires.
+// toolRound is the state of one round of approving and executing tool calls.
+// Judge verdicts are decided in one request and human prompts one at a time.
+// Nothing runs until every call is decided, then the cleared calls run
+// overlapping, bounded by sem and ordered by order, and results flush in order.
 type toolRound struct {
-	cleared []clearedCall                  // calls to execute once the round is decided
-	results []convdomain.ConversationEntry // indexed by tool position
-	ready   []bool                         // ready[i] set once results[i] is filled
-	flushed int                            // next slot index to flush, in order
-	wg      sync.WaitGroup                 // tracks spawned executions
-	sem     chan struct{}                  // bounds concurrent executions
-	order   CallOrder                      // keeps side effects in tool-call order
-	decided map[string]ApprovalDecision    // judge verdicts by tool call id
+	cleared []clearedCall
+	results []convdomain.ConversationEntry
+	ready   []bool
+	flushed int
+	wg      sync.WaitGroup
+	sem     chan struct{}
+	order   CallOrder
+	decided map[string]ApprovalDecision
 }
 
 // clearedCall is a call the round will execute: one the user or the judge
@@ -38,15 +36,10 @@ type clearedCall struct {
 	approved bool
 }
 
-// ApprovingToolsState handles events in the ApprovingTools state.
-//
-// This state manages sequential tool approval, then overlapping execution:
-//  1. MessageReceivedEvent → initializes the tool round, starts sequential approval
-//  2. AllToolsProcessedEvent → transitions to PostToolExecution
-//  3. ApprovalFailedEvent → handles approval failures
-//
-// Calls the approval policy does not gate (e.g. TodoWrite batched with a
-// gated call) are cleared without a prompt, mirroring BlockingToolsState.
+// ApprovingToolsState approves tool calls one at a time, then runs them
+// overlapping. MessageReceivedEvent starts the round, AllToolsProcessedEvent
+// moves to PostToolExecution and ApprovalFailedEvent handles failures. Calls the
+// policy does not gate are cleared without a prompt, like BlockingToolsState.
 type ApprovingToolsState struct {
 	ctx *StateContext
 }
@@ -321,12 +314,10 @@ func (s *ApprovingToolsState) finishApprovals(round *toolRound) {
 	s.ctx.Events <- AllToolsProcessedEvent{}
 }
 
-// buildRejectionEntry is the single rejection-entry builder for every approval
-// path. It constructs the Tool-role result for a rejected tool and publishes
-// the rejection event. reason is non-empty only for judge
-// rejections: those carry the verdict reason and do not end the turn, so the
-// driver can adjust. The entry is appended to the conversation in order by
-// the flush.
+// buildRejectionEntry builds the Tool-role result for a rejected call on every
+// approval path and publishes the rejection event. reason is set only for judge
+// rejections, which do not end the turn so the driver can adjust. The flush
+// appends the entry to the conversation in order.
 func (s *ApprovingToolsState) buildRejectionEntry(tc sdk.ChatCompletionMessageToolCall, reason string) convdomain.ConversationEntry {
 	logger.Debug("tool rejected by user", "tool", tc.Function.Name)
 

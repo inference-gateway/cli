@@ -120,7 +120,7 @@ func (t *ImageDecodeTool) Execute(ctx context.Context, args map[string]any) (*ag
 	}, nil
 }
 
-// imageDimensions sniffs pixel dimensions from base64 image data; zero values
+// imageDimensions sniffs pixel dimensions from base64 image data. Zero values
 // mean unknown (the annotator prompt then omits them).
 func imageDimensions(b64 string) (int, int) {
 	raw, err := base64.StdEncoding.DecodeString(b64)

@@ -460,7 +460,7 @@ func pruneMemoryRemindersIfDisabled(cfg *config.Config) {
 
 // ProjectFlag checks for the --project flag on the current command or any
 // parent command. Userspace-first model: config writes target the home
-// ~/.infer/ baseline by default; --project opts into a project override.
+// ~/.infer/ baseline by default. --project opts into a project override.
 func ProjectFlag(cmd *cobra.Command) bool {
 	if project, err := cmd.Flags().GetBool("project"); err == nil && project {
 		return true

@@ -386,7 +386,7 @@ func TestAgentServiceImpl_ParseProvider(t *testing.T) {
 }
 
 // Reminder interval/trigger gating now lives in config.RemindersDue and is
-// covered by config/reminders_test.go; reminder injection/emission is covered
+// covered by config/reminders_test.go. Reminder injection/emission is covered
 // by agent_reminder_emission_test.go.
 
 func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
@@ -1405,12 +1405,9 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 	wg.Wait()
 }
 
-// TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls is the
-// regression test for the bug where a user message queued during tool
-// execution + Esc would land in the conversation immediately after an
-// assistant message with orphan tool_calls, producing a payload the
-// gateway rejected with HTTP 400 ("insufficient tool messages
-// following tool_calls message").
+// TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls guards against a
+// message queued during tool execution plus Esc landing right after orphan
+// tool_calls, which the gateway rejects with HTTP 400.
 func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
 		{ID: "tc-a", Type: sdk.Function, Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},

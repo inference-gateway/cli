@@ -22,7 +22,7 @@ func (s stubModeState) GetAgentMode() agentdomain.AgentMode   { return s.mode }
 func (s stubModeState) SetAgentMode(_ agentdomain.AgentMode)  {}
 func (s stubModeState) CycleAgentMode() agentdomain.AgentMode { return s.mode }
 
-// stubStatusView is the status surface the row builder reads; the rest of the
+// stubStatusView is the status surface the row builder reads. The rest of the
 // interface is unused by it.
 type stubStatusView struct {
 	tui.StatusComponent
