@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.263.0](https://github.com/inference-gateway/cli/compare/v0.262.1...v0.263.0) (2026-11-17)
+
+### 🚀 Features
+
+* **chat:** enable next-step suggestions by default ([#1887](https://github.com/inference-gateway/cli/issues/1887)) ([bcc604f](https://github.com/inference-gateway/cli/commit/bcc604f32c5c282239fc969a7c80baca8c029026))
+
+### 🐛 Bug Fixes
+
+* **tools:** allow WebFetch and WebSearch in plan mode ([#1884](https://github.com/inference-gateway/cli/issues/1884)) ([d500109](https://github.com/inference-gateway/cli/commit/d500109ed76f8f929f8bd07ce43dd584d463b29d)), closes [#1880](https://github.com/inference-gateway/cli/issues/1880), references [#1184](https://github.com/inference-gateway/cli/issues/1184)
+* **sandbox:** report kernel confinement off when Linux has no Landlock ([#1898](https://github.com/inference-gateway/cli/issues/1898)) ([5ff3bcc](https://github.com/inference-gateway/cli/commit/5ff3bcc08f430ccaa1e9cc444eea37aa21dbe299)), references [#1889](https://github.com/inference-gateway/cli/issues/1889)
+
+### ♻️ Code Refactoring
+
+* **readability:** apply code readability guidelines ([#1901](https://github.com/inference-gateway/cli/issues/1901)) ([d73ec7d](https://github.com/inference-gateway/cli/commit/d73ec7d7d66134a20a1df791150e4b357badd91d)), closes [#1900](https://github.com/inference-gateway/cli/issues/1900), references [#1899](https://github.com/inference-gateway/cli/issues/1899)
+
+### 📚 Documentation
+
+* **examples:** add a runnable sandbox policy example (resolves [#1889](https://github.com/inference-gateway/cli/issues/1889)) ([#1897](https://github.com/inference-gateway/cli/issues/1897)) ([54360c1](https://github.com/inference-gateway/cli/commit/54360c18e58523ec521c30631f64b62546b5a5a9))
+* **agents:** add code readability guidelines ([#1899](https://github.com/inference-gateway/cli/issues/1899)) ([813bc3a](https://github.com/inference-gateway/cli/commit/813bc3a7a58db5a08457524daac2fb1668da589f))
+* **examples:** add subagents and AG-UI runnable examples ([#1895](https://github.com/inference-gateway/cli/issues/1895)) ([28fff77](https://github.com/inference-gateway/cli/commit/28fff77342d2b60a7e2fab4aa8ce95b5e10500b4)), closes [#1891](https://github.com/inference-gateway/cli/issues/1891), references [inference-gateway/docs#1255](https://github.com/inference-gateway/docs/issues/1255)
+* **examples:** align media-video, mcp, shortcuts and a2a examples with their scenarios and the CLI ([#1893](https://github.com/inference-gateway/cli/issues/1893)) ([2dc362b](https://github.com/inference-gateway/cli/commit/2dc362b5ca55210c59b75b8e47868070cdf140e1)), closes [#1888](https://github.com/inference-gateway/cli/issues/1888)
+* **config:** mark provisioner block deprecated and fix broken infer-gpu link ([#1886](https://github.com/inference-gateway/cli/issues/1886)) ([756a07b](https://github.com/inference-gateway/cli/commit/756a07b92003ec1e866a364e20019dfb51418327)), closes [#1883](https://github.com/inference-gateway/cli/issues/1883)
+* remove false claim that infer init migrates legacy config blocks ([#1885](https://github.com/inference-gateway/cli/issues/1885)) ([3d49581](https://github.com/inference-gateway/cli/commit/3d4958125615dac7bc7676692cdab7972cba3b15)), closes [#1882](https://github.com/inference-gateway/cli/issues/1882)
+* **examples:** runnable scheduling and heartbeat examples ([#1894](https://github.com/inference-gateway/cli/issues/1894)) ([3d1bc0a](https://github.com/inference-gateway/cli/commit/3d1bc0a159193f8d69838971de2c458fdaa85793)), closes [#1892](https://github.com/inference-gateway/cli/issues/1892)
+* **examples:** runnable skills, plugins and hooks examples ([#1896](https://github.com/inference-gateway/cli/issues/1896)) ([d996273](https://github.com/inference-gateway/cli/commit/d996273046c3ec883e8967ca5e66a720e227094e)), closes [#1890](https://github.com/inference-gateway/cli/issues/1890), references [#1890](https://github.com/inference-gateway/cli/issues/1890) [inference-gateway/docs#1257](https://github.com/inference-gateway/docs/issues/1257)
+
+### 🔧 Build System
+
+* **deps:** bump github.com/inference-gateway/sdk to v1.47.1 ([#1902](https://github.com/inference-gateway/cli/issues/1902)) ([85d86e3](https://github.com/inference-gateway/cli/commit/85d86e300889ed1433523ec48323cb75aa28a8c2))
+
+### 👷 CI/CD
+
+* set up orchestrators from repos.yaml ([#1881](https://github.com/inference-gateway/cli/issues/1881)) ([848c4b3](https://github.com/inference-gateway/cli/commit/848c4b3d7b5431004f3c540d905ef69c7c6a41cc))
+
 ## [0.262.1](https://github.com/inference-gateway/cli/compare/v0.262.0...v0.262.1) (2026-11-16)
 
 ### 🐛 Bug Fixes
