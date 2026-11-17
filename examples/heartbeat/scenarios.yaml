@@ -1,0 +1,7 @@
+fallback:
+  content: 'Say "heartbeat tick - check pending work" to simulate a wake-up.'
+scenarios:
+  - name: heartbeat-tick
+    match: '(?i)heartbeat tick'
+    turns:
+      - content: Nothing pending: no unfinished todos and no background jobs. Ending this tick idle.

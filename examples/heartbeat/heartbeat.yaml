@@ -1,0 +1,4 @@
+enabled: true
+interval: 30s
+initial_delay: 5s
+prompt: Heartbeat tick - check pending work and act on what is next.

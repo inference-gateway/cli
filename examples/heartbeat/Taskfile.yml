@@ -1,0 +1,58 @@
+version: '3'
+
+vars:
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  home:
+    desc: Seed the demo HOME with heartbeat.yaml
+    cmds:
+      - mkdir -p {{.HOME_DIR}}/.infer
+      - cp heartbeat.yaml {{.HOME_DIR}}/.infer/heartbeat.yaml
+
+  daemon:
+    desc: Run the daemon and let the heartbeat wake the agent (foreground, watch "heartbeat tick - spawning agent")
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon
+
+  wakes:
+    desc: List the conversations the wake-ups recorded
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} conversations list
+
+  show:
+    desc: Show one wake-up, paste the ID from `task wakes` (task show ID=<id>)
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} conversations show --no-trunc {{.ID}}
+
+  once:
+    desc: One tick without the daemon - infer headless runs with the heartbeat system prompt
+    deps:
+      - build
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} headless --no-save --heartbeat "Heartbeat tick - check pending work and act on what is next."
+
+  clean:
+    desc: Remove the demo HOME
+    cmds:
+      - rm -rf {{.HOME_DIR}}
