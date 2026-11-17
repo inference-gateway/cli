@@ -1,0 +1,7 @@
+fallback:
+  content: 'Try "say hello".'
+scenarios:
+  - name: hello
+    match: '(?i)say hello'
+    turns:
+      - content: Hello from the mock model.

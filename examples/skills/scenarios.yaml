@@ -1,0 +1,11 @@
+fallback:
+  content: 'Try "load the commit-style skill" or "what do the commit conventions say".'
+scenarios:
+  - name: load-skill
+    match: '(?i)load the commit-style skill|what do the commit conventions say'
+    turns:
+      - tool_calls:
+          - name: Skill
+            args:
+              name: commit-style
+      - content: I loaded the commit-style skill with the Skill tool and will follow its rules.

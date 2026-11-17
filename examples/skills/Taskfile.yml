@@ -1,0 +1,39 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_STORAGE_ENABLED: 'false'
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  list:
+    desc: Show the skills discovered in this directory, with their scope
+    cmds:
+      - '{{.INFER}} skills list'
+
+  disabled:
+    desc: With skills turned off via INFER_AGENT_SKILLS_ENABLED, the list still runs but the Skill tool is refused
+    cmds:
+      - "INFER_AGENT_SKILLS_ENABLED=false {{.INFER}} skills list | head -5"
+      - "INFER_AGENT_SKILLS_ENABLED=false {{.INFER}} headless --no-save 'load the commit-style skill' | grep '\"role\":\"tool\"'"
+
+  load:
+    desc: The mock model calls the Skill tool with the skill name, and the tool result carries the SKILL.md body
+    cmds:
+      - "{{.INFER}} headless --no-save 'load the commit-style skill' | grep '\"role\":\"tool\"'"
+
+  chat:
+    desc: Chat with the mock model, and load the skill yourself with /commit-style
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'

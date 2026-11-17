@@ -1,0 +1,8 @@
+enabled: true
+merge: true
+
+reminders:
+  - name: conventions-nudge
+    hook: pre_stream
+    trigger: once
+    text: '<system-reminder>Verify the answer against this repository conventions before you finish.</system-reminder>'

@@ -1,0 +1,7 @@
+enabled: true
+
+hooks:
+  - name: session-end-marker
+    hook: post_session
+    command: tee hook-runs.log
+    timeout: 10

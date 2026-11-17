@@ -1,0 +1,77 @@
+version: '3'
+
+vars:
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  PLUGIN_DIR: my-plugin
+  NAME: demo-hygiene
+  INFER: infer
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  install:
+    desc: Install the local plugin into the demo HOME (the install summary asks, --yes skips it)
+    cmds:
+      - 'HOME={{.HOME_DIR}} {{.INFER}} plugins install ./{{.PLUGIN_DIR}} --yes'
+
+  list:
+    desc: List installed plugins from the demo HOME's registry
+    cmds:
+      - 'HOME={{.HOME_DIR}} {{.INFER}} plugins list'
+
+  skills:
+    desc: Show the plugin's skill discovered with scope "plugin"
+    cmds:
+      - "HOME={{.HOME_DIR}} INFER_AGENT_SKILLS_DISCOVERY_ENABLED=false {{.INFER}} skills list"
+
+  prompt:
+    desc: Show the plugin's AGENTS.md injected into the system prompt
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} debug agent system_prompt | grep -A3 'PLUGIN INSTRUCTIONS'"
+
+  disable:
+    desc: Disable the plugin, so its skill and instructions stop loading
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins disable {{.NAME}}"
+      - "'HOME={{.HOME_DIR}} INFER_AGENT_SKILLS_DISCOVERY_ENABLED=false' {{.INFER}} skills list"
+
+  enable:
+    desc: Re-enable the plugin
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins enable {{.NAME}}"
+
+  enable-hooks:
+    desc: The plugin's hooks.yaml is installed disabled - opt in, then show the registry flag flip
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins list --format json | grep hooks_enabled || echo 'no hooks_enabled flag in the registry: plugin hooks are disabled'"
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins enable-hooks {{.NAME}}"
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins list --format json | grep hooks_enabled"
+
+  disable-hooks:
+    desc: Opt back out of the plugin's command hooks
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins disable-hooks {{.NAME}}"
+
+  update:
+    desc: Re-fetch the plugin from its recorded source (the local plugin directory)
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins update {{.NAME}}"
+
+  remove:
+    desc: Remove the plugin and its registry entry
+    cmds:
+      - "'HOME={{.HOME_DIR}}' {{.INFER}} plugins remove {{.NAME}}"
+
+  clean:
+    desc: Remove the demo HOME with the registry and downloads
+    cmds:
+      - rm -rf {{.HOME_DIR}}

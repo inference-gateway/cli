@@ -1,0 +1,5 @@
+{
+  "name": "demo-hygiene",
+  "version": "0.1.0",
+  "description": "A local demo plugin: one skill, an always-on instruction ruleset, and a hooks.yaml"
+}

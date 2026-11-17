@@ -1,0 +1,53 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_STORAGE_ENABLED: 'false'
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  hook:
+    desc: Allow-list the hook command and run a session - post_session fires and writes hook-runs.log
+    cmds:
+      - rm -f hook-runs.log
+      - "INFER_TOOLS_BASH_ALLOW_APPEND='echo hook-ran >> hook-runs.log' {{.INFER}} headless --no-save --verbose 'say hello' | grep '\"type\":\"hook_command\"'"
+      - cat hook-runs.log
+
+  hook:skipped:
+    desc: Same session without the allow-list entry - the post_session hook is skipped, nothing is written or run
+    cmds:
+      - rm -f hook-runs.log
+      - "{{.INFER}} headless --no-save --verbose 'say hello' | grep '\"type\":\"hook_command_skipped\"'"
+      - echo 'no hook-runs.log - the command was skipped, never run:'
+
+  reminder:
+    desc: reminders.yaml merges one custom reminder onto the built-in defaults - watch it fire
+    cmds:
+      - "{{.INFER}} headless --no-save --verbose 'say hello' | grep '\"name\":\"conventions-nudge\"'"
+
+  reminder:swap:
+    desc: --reminders-file swaps the whole set for swap-reminders.yaml
+    cmds:
+      - "{{.INFER}} headless --no-save --verbose --reminders-file swap-reminders.yaml 'say hello' | grep '\"name\":\"focus-checkpoint\"'"
+      - "{{.INFER}} headless --no-save --verbose --reminders-file swap-reminders.yaml 'say hello' | grep conventions-nudge || echo 'conventions-nudge is gone - the file replaced the whole set'"
+
+  chat:
+    desc: Chat with the mock model, and see hook-runs.log after every finished session
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  clean:
+    desc: Remove the artifacts the hook and the demos write
+    cmds:
+      - rm -f hook-runs.log demo-plugin-hook-ran

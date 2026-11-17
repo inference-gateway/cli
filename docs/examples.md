@@ -23,6 +23,9 @@ Most examples ship a Docker Compose file:
 | [computer-use](../examples/computer-use/) | Computer Use on a sandboxed desktop container, driven from the web terminal its daemon serves |
 | [model-switching](../examples/model-switching/) | Switching models mid-session, with a small frontend |
 | [shortcuts](../examples/shortcuts/) | Custom `/`-shortcuts wired through config |
+| [skills](../examples/skills/) | Agent Skills: authoring and discovery with scopes, the Skill tool offline against a scripted mock model, and the catalog commands |
+| [plugins](../examples/plugins/) | Installing a local Claude Code-format plugin under a demo HOME: the registry, plugin skills and prompt injection, the hooks opt-in, then disable and remove |
+| [hooks](../examples/hooks/) | A post_session command hook, allow-listed and skipped, plus `reminders.yaml` with `merge: true` and a `--reminders-file` swap, offline against a scripted mock model |
 | [web-terminal](../examples/web-terminal/) | The chat TUI in browser tabs served by the daemon, on loopback and over TLS for the LAN |
 | [telegram-channel](../examples/telegram-channel/) | Driving the agent from a Telegram channel |
 | [working-offline](../examples/working-offline/) | Fully offline usage with local models via Ollama or llama.cpp |
