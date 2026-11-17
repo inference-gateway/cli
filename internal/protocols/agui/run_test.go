@@ -186,7 +186,7 @@ func TestRunFramesEvents(t *testing.T) {
 		},
 		{
 			name:  "an event before the run starts is dropped",
-			write: func(r *Run) { /* nothing reaches the run that never started */ },
+			write: func(r *Run) {},
 			want:  []string{"RUN_STARTED", "STATE_SNAPSHOT", "RUN_FINISHED"},
 		},
 	}

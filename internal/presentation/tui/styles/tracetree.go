@@ -1,6 +1,3 @@
-// Package styles: lipgloss rendering of telemetry span trees. Lives in the
-// presentation layer so internal/platform/telemetry stays otel-only.
-
 package styles
 
 import (
@@ -26,14 +23,9 @@ type TreeStyle struct {
 const enumeratorWidth = 4
 
 // RenderTraceTree renders the span tree via lipgloss/v2/tree with durations
-// right-aligned in a column:
-//
-//	session (standard, success)          42.1s
-//	├── chat deepseek/deepseek-v4-flash   3.2s
-//	╰── execute_tool Bash                27.5s
-//
-// Failed spans carry a trailing [error: <type> - <message>] marker; benign
-// end-of-stream conditions carry none (see spanErrorText).
+// right-aligned in a column. Failed spans carry a trailing
+// [error: <type> - <message>] marker, benign end-of-stream conditions carry
+// none (see spanErrorText).
 func RenderTraceTree(roots []*telemetry.TraceSpan, style TreeStyle) string {
 	width := 0
 	var measure func(s *telemetry.TraceSpan, depth int)

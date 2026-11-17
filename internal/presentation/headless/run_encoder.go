@@ -367,7 +367,9 @@ func (r *RunEncoder) emitPublished(event agentdomain.ChatEvent) {
 	}
 }
 
-// Handle renders one agent ChatEvent into the run's AG-UI stream.
+// Handle renders one agent ChatEvent into the run's AG-UI stream. The usage
+// state is patched after each LLM step, so a client's readout climbs gradually
+// instead of jumping at the terminal event.
 //
 //nolint:gocyclo,cyclop // cohesive event switch; each case renders one ChatEvent variant
 func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
@@ -384,8 +386,6 @@ func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 		for _, tc := range ev.ToolCalls {
 			r.run.ToolCall(tc.ID, tc.Function.Name, tc.Function.Arguments)
 		}
-		// the usage state climbs after each LLM step, so a client's readout
-		// does not jump at the terminal event.
 		if usage := sessionUsage(r.model, r.repo); usage != nil {
 			r.run.PatchState(agui.StateUsage, usage)
 		}

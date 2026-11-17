@@ -149,8 +149,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		return fmt.Errorf("failed to start inference gateway: %w", err)
 	}
 
-	// The notes buffer the local agents' boot progress; the first run the
-	// process opens drains them as its activity entries.
 	notes := newStartupNotes()
 	if agentSupervisor := svc.GetAgentSupervisor(); agentSupervisor != nil && (!isBashTask(opts.Task) || opts.PromptOnly) {
 		startLocalAgents(agentSupervisor, cfg, opts.Format, notes)

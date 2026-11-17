@@ -247,6 +247,8 @@ func (t *ReadTool) notFoundHint(absPath string) string {
 
 const maxNearbyPaths = 5
 
+const nearbyWalkBudget = 20000
+
 // nearbyPaths ranks the siblings of the nearest existing ancestor by name
 // similarity and, when none carries the missing base name, searches the
 // sandbox root for files with that base name.
@@ -314,13 +316,12 @@ func (t *ReadTool) sameBaseNameInSandbox(absPath, fallback string) []string {
 	base := strings.ToLower(filepath.Base(absPath))
 	var hits []string
 	visited := 0
-	// ponytail: walk budget 20k entries, index the tree if repos outgrow it
 	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		visited++
-		if visited > 20000 || len(hits) >= maxNearbyPaths {
+		if visited > nearbyWalkBudget || len(hits) >= maxNearbyPaths {
 			return filepath.SkipAll
 		}
 		name := d.Name()
