@@ -85,8 +85,9 @@ tasks:
         vars:
           PROMPT: probe the sandbox writes
           MODE: auto
+      - rm -f /var/tmp/outside-demo.txt   # a stale file from an unconfined run would fail the check below
       - test -f inside-demo.txt
-      - test ! -e {{.HOME_DIR}}/outside-demo.txt
+      - test ! -e /var/tmp/outside-demo.txt
 
   all:
     desc: Run the three headless scenarios
@@ -98,7 +99,7 @@ tasks:
   clean:
     desc: Remove the demo HOME and the files the scenarios created
     cmds:
-      - rm -rf {{.HOME_DIR}} private secret.env inside-demo.txt
+      - rm -rf {{.HOME_DIR}} private secret.env inside-demo.txt /var/tmp/outside-demo.txt
 
   headless:
     internal: true
