@@ -14,11 +14,13 @@ scenarios:
             args:
               video: clip.mp4
               prompt: Rooftop breeze and distant city hum
+              output_path: clip.wav
       - tool_calls:
           - name: DubVideo
             args:
               video: clip.mp4
               prompt: Rooftop breeze and distant city hum
+              output_path: dub-clip.mp4
       - content: clip.mp4 is rendered, scored and dubbed. The clips sit in the video media folder and the score in the sfx one.
   - name: presenter-line
     match: '(?i)presenter say good morning'

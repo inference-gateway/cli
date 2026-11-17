@@ -223,7 +223,7 @@ This ensures:
 ## Next Steps
 
 - Check out other examples in `examples/` directory
-- Explore built-in shortcuts in the main `.infer/shortcuts/` directory
+- Explore the built-in shortcuts: run `infer shortcuts list`, or look in `~/.infer/shortcuts/` where `infer init` writes them
 - Create shortcuts for your common workflows
 
 ## Troubleshooting
@@ -243,7 +243,7 @@ This ensures:
 ## Cleanup
 
 ```bash
-docker compose down -v
+docker compose down
 ```
 
-This removes containers and volumes, including persisted conversation data.
+This removes the containers and the network - this example persists no conversation data.
