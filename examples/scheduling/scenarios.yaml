@@ -1,0 +1,53 @@
+fallback:
+  content: 'Try "schedule an inspiring quote every minute", "remind me to stand up, just once", "what jobs are scheduled right now?" or "delete the stand-up summary job".'
+scenarios:
+  - name: quote-recurring
+    match: '(?i)inspiring quote every minute'
+    turns:
+      - tool_calls:
+          - name: Schedule
+            args:
+              operation: create
+              cron_expression: '@every 1m'
+              prompt: Answer with one quote worth reading and its author, in three sentences max.
+              name: Reading quote
+              description: A short quote worth reading
+      - content: Created the recurring "Reading quote" job on @every 1m. The running daemon hot-reloads it within two seconds.
+  - name: reminder-once
+    match: '(?i)stand up, just once'
+    turns:
+      - tool_calls:
+          - name: Schedule
+            args:
+              operation: create
+              cron_expression: '@every 1m'
+              run_once: true
+              prompt: Remind me to stand up and stretch.
+              name: Stand-up reminder
+      - content: Created the one-off "Stand-up reminder". It fires once and the scheduler deletes it afterwards.
+  - name: list-jobs
+    match: '(?i)jobs are scheduled'
+    turns:
+      - tool_calls:
+          - name: Schedule
+            args:
+              operation: list
+      - content: Here are the jobs currently scheduled.
+  - name: delete-job
+    match: '(?i)delete the stand-up summary job'
+    turns:
+      - tool_calls:
+          - name: Schedule
+            args:
+              operation: delete
+              job_id: demo-standup-summary
+      - content: Deleted the "Stand-up summary" job. The daemon drops its cron entry within two seconds.
+  # What a fire looks like: the daemon runs the job's prompt in a fresh headless session.
+  - name: fire-quote
+    match: '(?i)quote worth reading'
+    turns:
+      - content: '"The best time to plant a tree was twenty years ago. The second best time is now." - Chinese proverb'
+  - name: fire-reminder
+    match: '(?i)stand up and stretch'
+    turns:
+      - content: Reminder - stand up and stretch your legs.

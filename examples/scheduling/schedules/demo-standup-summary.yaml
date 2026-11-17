@@ -1,0 +1,5 @@
+id: demo-standup-summary
+name: Stand-up summary
+description: Hand-written demo job - the daemon hot-reloads job files dropped into this directory
+cron_expression: 0 9 * * 1-5
+prompt: Summarise the team stand-up notes file into three bullets.

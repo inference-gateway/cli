@@ -1,0 +1,98 @@
+version: '3'
+
+vars:
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TOOLS_SCHEDULE_ENABLED: 'true'
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  home:
+    desc: Seed the demo HOME with the hand-written job file the daemon hot-reloads
+    cmds:
+      - mkdir -p {{.HOME_DIR}}/.infer/schedules
+      - cp schedules/demo-standup-summary.yaml {{.HOME_DIR}}/.infer/schedules/demo-standup-summary.yaml
+
+  jobs:
+    desc: Print the job files and run records written under the demo HOME's ~/.infer/schedules
+    cmds:
+      - find {{.HOME_DIR}}/.infer/schedules -name '*.yaml' -print -exec cat {} ;
+
+  create:quote:
+    desc: The mock model calls Schedule create with a recurring @every 1m job
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: schedule an inspiring quote every minute for me
+
+  create:reminder:
+    desc: The mock model calls Schedule create with run_once=true, a job the scheduler deletes after its first fire
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: remind me to stand up, just once
+
+  list:
+    desc: The mock model calls Schedule list, and the jobs come back with their IDs
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: what jobs are scheduled right now?
+
+  delete:
+    desc: The mock model calls Schedule delete, removing the hand-written demo job
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: delete the stand-up summary job
+
+  all:
+    desc: Run every headless scenario
+    cmds:
+      - task: create:quote
+      - task: create:reminder
+      - task: list
+      - task: delete
+
+  daemon:
+    desc: Run the daemon so the jobs fire (foreground, keep it in its own shell and watch "firing scheduled job")
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} daemon
+
+  runs:
+    desc: List the conversations the daemon recorded (fires and your own runs)
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} conversations list
+
+  show:
+    desc: Show one recorded run, paste the ID from `task runs` (task show ID=<id>)
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} conversations show --no-trunc {{.ID}}
+
+  clean:
+    desc: Remove the demo HOME
+    cmds:
+      - rm -rf {{.HOME_DIR}}
+
+  headless:
+    internal: true
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} headless --no-save --mode auto "{{.PROMPT}}" | grep '"role":"tool"'
