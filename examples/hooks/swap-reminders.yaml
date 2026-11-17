@@ -1,0 +1,7 @@
+enabled: true
+
+reminders:
+  - name: focus-checkpoint
+    hook: pre_stream
+    trigger: once
+    text: '<system-reminder>Swap checkpoint: state what you are about to do in one line first.</system-reminder>'

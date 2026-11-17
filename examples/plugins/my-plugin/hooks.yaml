@@ -1,0 +1,5 @@
+hooks:
+  - name: demo-hook
+    hook: post_session
+    command: touch demo-plugin-hook-ran
+    timeout: 10
