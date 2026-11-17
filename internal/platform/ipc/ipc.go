@@ -32,7 +32,7 @@ type UserQuestionRequest struct {
 
 // UserQuestionResponse is written to the agent's stdin by the host UI after
 // the user submits or dismisses the form. Answers is the host's
-// []agentdomain.UserQuestionAnswer; Cancelled reports a dismissal.
+// []agentdomain.UserQuestionAnswer. Cancelled reports a dismissal.
 type UserQuestionResponse struct {
 	Type       string          `json:"type"` // "user_question_response"
 	ToolCallID string          `json:"tool_call_id"`

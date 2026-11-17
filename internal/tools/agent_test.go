@@ -384,7 +384,7 @@ func TestSubagentMockModePropagation(t *testing.T) {
 }
 
 // resolveSubagentType maps the `type` argument to a capability mode, defaulting
-// to ReadOnly; the parent's own mode no longer leaks into the subagent.
+// to ReadOnly. The parent's own mode no longer leaks into the subagent.
 func TestResolveSubagentType(t *testing.T) {
 	cases := map[string]agentdomain.AgentMode{
 		"":          agentdomain.AgentModeReadOnly,

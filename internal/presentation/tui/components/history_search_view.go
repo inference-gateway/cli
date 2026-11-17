@@ -88,7 +88,7 @@ func (v *HistorySearchView) Open(history []string) {
 	v.refilter()
 }
 
-// Close dismisses the overlay; the caller keeps the input exactly as it was.
+// Close dismisses the overlay. The caller keeps the input exactly as it was.
 func (v *HistorySearchView) Close() {
 	v.open = false
 	v.query = nil
@@ -203,7 +203,7 @@ func (v *HistorySearchView) window() (start, end int) {
 	return start, start + maxVisibleHistoryRows
 }
 
-// contentLines builds the unframed overlay lines; Render and GetHeight both
+// contentLines builds the unframed overlay lines. Render and GetHeight both
 // derive from it so the reserved layout height never drifts from what's drawn.
 func (v *HistorySearchView) contentLines() []string {
 	if !v.open || v.styleProvider == nil {
@@ -279,7 +279,7 @@ func dedupeHistoryNewestFirst(history []string) []string {
 	return out
 }
 
-// onelineHistoryEntry flattens a prompt onto one line for list display; the
+// onelineHistoryEntry flattens a prompt onto one line for list display. The
 // original text is what Enter loads.
 func onelineHistoryEntry(entry string) string {
 	return strings.ReplaceAll(entry, "\n", newlineDisplay)

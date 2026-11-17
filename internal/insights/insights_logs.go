@@ -108,13 +108,13 @@ func fieldText(fields map[string]any) string {
 // that never came up, a background job that died. An unreadable or absent dir
 // costs this section, never the report, so it returns no error.
 //
-// Only app-*.log and daemon-*.log (and their gzip archives) are read; the
+// Only app-*.log and daemon-*.log (and their gzip archives) are read. The
 // sibling gateway-*.log is raw subprocess stdout with no level or timestamp to
 // filter on. The gateway's own failures still land here, because the gateway
 // manager logs them through zap.
 //
 // ponytail: one sequential pass. A log dir is a handful of daily files, so
-// coordinating goroutines would cost more than the read; fan out over files with
+// coordinating goroutines would cost more than the read. Fan out over files with
 // an errgroup if a dir ever outgrows it.
 func collectLogs(dir string, since time.Time, minLevel string) logDigest {
 	minRank := slices.Index(logLevels, strings.ToLower(strings.TrimSpace(minLevel)))

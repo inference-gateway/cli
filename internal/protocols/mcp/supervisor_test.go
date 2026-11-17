@@ -416,7 +416,7 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 }
 
 // StartServer drives containers only through the runtime port: a detached
-// shared container is reused via its published port; otherwise the image is
+// shared container is reused via its published port. Otherwise the image is
 // pulled, run detached and polled until its healthcheck passes.
 func TestSupervisor_StartServer_UsesContainerRuntime(t *testing.T) {
 	server := config.MCPServerEntry{

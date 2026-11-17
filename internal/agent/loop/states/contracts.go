@@ -39,7 +39,7 @@ type AgentContext struct {
 
 // AnyToolFailed reports whether any entry in a completed tool batch failed
 // (executed with a non-success result). It backs the post_tool `on_failure`
-// reminder trigger; callers set AgentContext.LastToolFailed from it when a batch
+// reminder trigger. Callers set AgentContext.LastToolFailed from it when a batch
 // completes.
 func AnyToolFailed(results []convdomain.ConversationEntry) bool {
 	for _, entry := range results {

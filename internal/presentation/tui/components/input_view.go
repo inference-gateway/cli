@@ -72,7 +72,7 @@ type InputView struct {
 }
 
 // gitCurrentBranch returns the current git branch by shelling out to git. It is
-// the default resolver wired into getCurrentGitBranch; tests inject a stub via
+// the default resolver wired into getCurrentGitBranch. Tests inject a stub via
 // the resolveGitBranch field so branch resolution is deterministic without a
 // real repository.
 func gitCurrentBranch() (string, error) {
@@ -458,9 +458,9 @@ func (iv *InputView) InvalidateGitBranchCache() {
 // goroutine via "gh pr view --json number --jq .number". It must never run in
 // the render path: it is a network round-trip to GitHub. The error is
 // deliberately swallowed because gh exits non-zero for the normal "no PR"
-// case; the label simply omits the number.
+// case. The label simply omits the number.
 // ponytail: refetch is event-driven (startup, bash commands, Bash tool runs),
-// so a PR opened outside the TUI stays unknown until the next such event; if
+// so a PR opened outside the TUI stays unknown until the next such event. If
 // that ever matters, ride tui.HeartbeatEvent, never a private tea.Tick.
 func fetchGitPRCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -512,7 +512,7 @@ func (iv *InputView) renderDisplayText() string {
 }
 
 // getDisplayTextAndCursorOffset returns the display text with mode prefixes and cursor offset adjustment
-// For bash mode (!), we show "! " prefix; for tools mode (!!), we show "!! " prefix
+// For bash mode (!), we show "! " prefix. For tools mode (!!), we show "!! " prefix
 func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursorOffset int) {
 	text := iv.ta.Value()
 	isToolsMode := strings.HasPrefix(text, "!!")

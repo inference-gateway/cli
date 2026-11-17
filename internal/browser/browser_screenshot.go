@@ -15,7 +15,7 @@ import (
 )
 
 // BrowserScreenshotTool captures the current browser page as an image and
-// attaches it to the conversation (vision models see it inline; others get a
+// attaches it to the conversation (vision models see it inline. Others get a
 // file path for ImageDecode).
 type BrowserScreenshotTool struct {
 	browserToolBase

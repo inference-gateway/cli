@@ -20,7 +20,7 @@ import (
 // ConversationStorage implementation. newStorage must return a fresh, isolated
 // backend on every call so the groups below don't contaminate each other's
 // list/count assertions. Backends that also implement SessionGroupStorage get
-// the session-group group; the others skip it.
+// the session-group group. The others skip it.
 func runConversationStorageConformance(t *testing.T, newStorage func(t *testing.T) ConversationStorage) {
 	t.Helper()
 

@@ -77,7 +77,7 @@ func slugOfPath(path string) string {
 // process output rather than project configuration, so their defaults resolve
 // here instead of into the project-local ./.infer directory. $HOME and the cwd
 // (via the slug) are resolved at call time, matching how the sandbox validates
-// paths; an explicit config path always wins over these defaults.
+// paths. An explicit config path always wins over these defaults.
 func ProjectRuntimeDir() string {
 	return filepath.Join(UserSpaceConfigDir(), ProjectsDirName, projectRuntimeSlug())
 }

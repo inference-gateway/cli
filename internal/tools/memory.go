@@ -35,7 +35,7 @@ const (
 
 // MemoryTool implements persistent, cross-session agent memory as a directory of
 // individual fact-files catalogued by an index (MEMORY.md). Each fact is one
-// Markdown file with YAML frontmatter; the tool keeps the index in sync.
+// Markdown file with YAML frontmatter. The tool keeps the index in sync.
 type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
@@ -222,7 +222,7 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 
 // projectDisplayName returns the human-readable project name recorded in the
 // fact's frontmatter: the detected project's name when the fact is filed under
-// it, otherwise the explicit project argument as given; empty for global.
+// it, otherwise the explicit project argument as given. Empty for global.
 func (t *MemoryTool) projectDisplayName(projectSlug, projectArg string) string {
 	if projectSlug == "" {
 		return ""
@@ -360,7 +360,7 @@ func (t *MemoryTool) Validate(args map[string]any) error {
 
 // memoryOperation returns the requested operation. When it is omitted, which
 // weaker models often do, a call carrying content is a write and anything else
-// a read; delete is never inferred.
+// a read. Delete is never inferred.
 func memoryOperation(args map[string]any) (string, error) {
 	switch op := args["operation"].(type) {
 	case string:
@@ -599,7 +599,7 @@ func removeIndexEntry(dir, relKey string) error {
 // writeFileAtomic writes content to path via a temp file + rename, creating the
 // parent dir if needed. It deliberately bypasses the sandboxed file writer
 // because the memory dir lives under ~/.infer/, which that writer's protected-
-// path guard rejects; the path is built entirely from a sanitized slug, so there
+// path guard rejects. The path is built entirely from a sanitized slug, so there
 // is no traversal risk.
 func writeFileAtomic(path, content string) error {
 	dir := filepath.Dir(path)

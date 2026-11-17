@@ -23,7 +23,7 @@ const (
 )
 
 // Configurable action IDs for the changes panel (defaults in
-// config.addDiffViewerBindings; users override them in keybindings.yaml).
+// config.addDiffViewerBindings. Users override them in keybindings.yaml).
 var (
 	actDiffNavUp       = config.ActionID(config.NamespaceDiffViewer, "nav_up")
 	actDiffNavDown     = config.ActionID(config.NamespaceDiffViewer, "nav_down")
@@ -136,7 +136,7 @@ type patchErrMsg struct{ err error }
 // DiffViewer is the VS Code-style "Changes" side panel: a left tree of
 // changed files (grouped Staged/Changes → folder → file) plus a scrollable diff
 // pane for the selected file. It owns its full [sidebar | divider | diff]
-// region; the chat input row is composed beneath the diff pane by the caller.
+// region. The chat input row is composed beneath the diff pane by the caller.
 type DiffViewer struct {
 	source        gitdiff.Source
 	styleProvider *styles.Provider
@@ -260,7 +260,7 @@ func (t *DiffViewer) Reset() {
 
 // readSource returns the data source for the active tab: the PR (range) source
 // on the PR tab, else the local working-tree source. Only read paths route
-// through it; staging/discard/patch/commit are Local-tab only.
+// through it. Staging/discard/patch/commit are Local-tab only.
 func (t *DiffViewer) readSource() gitdiff.ReadSource {
 	if t.activeTab == diffTabPR && t.prSource != nil {
 		return t.prSource
@@ -491,7 +491,7 @@ func (t *DiffViewer) handleWheel(msg tea.MouseWheelMsg) {
 	}
 }
 
-//nolint:gocyclo,cyclop // cohesive key-dispatch switch; splitting it would obscure the flow
+//nolint:gocyclo,cyclop // cohesive key-dispatch switch. Splitting it would obscure the flow
 func (t *DiffViewer) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if t.patchMode {
 		return t.handlePatchKey(msg)
@@ -671,7 +671,7 @@ func (t *DiffViewer) discardCmd(fc gitdiff.FileChange) tea.Cmd {
 }
 
 // handleDiscardConfirm resolves the pending discard confirmation: `y` discards
-// the file's working-tree changes; any other key cancels.
+// the file's working-tree changes. Any other key cancels.
 func (t *DiffViewer) handleDiscardConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	fc := t.confirmDiscard
 	t.confirmDiscard = nil
@@ -741,10 +741,10 @@ func (t *DiffViewer) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 // --- patch (hunk staging) mode ---
 
 // handlePatchKey handles keys while in patch mode: the line cursor moves over
-// change lines; the select key starts/cancels a range selection; apply stages
+// change lines. The select key starts/cancels a range selection. Apply stages
 // (or unstages, following the loaded patch direction) the selection or, with no
-// selection, the whole hunk under the cursor; split breaks the hunk into pieces;
-// [ / ] jump hunks; esc clears a selection or exits. New-action candidates are
+// selection, the whole hunk under the cursor. Split breaks the hunk into pieces;
+// [ / ] jump hunks. Esc clears a selection or exits. New-action candidates are
 // listed before apply so they win any shared key.
 func (t *DiffViewer) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch t.keymap.matches(msg,
@@ -1312,7 +1312,7 @@ func filePathFromKey(key string) (string, bool) {
 // --- rendering ---
 
 // View satisfies tea.Model. The app composes the real layout via Render (which
-// stacks the input beneath the diff pane); this is a standalone fallback.
+// stacks the input beneath the diff pane). This is a standalone fallback.
 func (t *DiffViewer) View() tea.View {
 	return tea.NewView(t.Render(""))
 }

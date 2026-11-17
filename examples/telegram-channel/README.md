@@ -87,7 +87,7 @@ Ask in the chat:
   the model confirms the schedule, calls the `Schedule` tool with
   `operation: create` and the cron expression, and you approve the call right
   in the chat
-- *"Remind me at 6pm today to call mum."* - a one-off; the model sets
+- *"Remind me at 6pm today to call mum."* - a one-off. The model sets
   `run_once: true`, the job fires once and the scheduler deletes it afterwards
 
 Because the job was created from a Telegram chat, the daemon delivers each
@@ -156,13 +156,13 @@ persistent storage (`storage.enabled: true`, the default):
   messages in Telegram (only messages the daemon has seen since it started,
   and Telegram refuses to delete messages older than 48 hours). The previous
   conversation is kept — switch back anytime via `/conversations`
-- `/conversations` — lists your past conversations as tappable buttons; tap
+- `/conversations` — lists your past conversations as tappable buttons. Tap
   one to switch the agent back to that context (typing
   `/conversations <id-prefix>` works too)
 - `/stats [since] [table]` — usage statistics (tool calls, tokens, cost) for
   **your current conversation** (resets when you `/new` or switch via
   `/conversations`), e.g. `/stats 24h`. The default is a phone-friendly key/value
-  list that never folds on narrow screens; the reply offers 24h/7d buttons plus a
+  list that never folds on narrow screens. The reply offers 24h/7d buttons plus a
   **Table view** toggle (or type `table` for the aligned tables). The host
   `infer stats` CLI still reports daemon-wide totals
 - `/help` — lists the commands available in the channel plus the TUI-only ones
@@ -181,7 +181,7 @@ Voice is already enabled in this example: the compose file sets
 `INFER_SPEECH_TO_TEXT_ENABLED: true` with model `small` on the `infer-daemon` service. There is
 nothing to install - with `speech_to_text.auto_download` on (the default) the CLI downloads
 prebuilt `whisper-cli` and `ffmpeg` binaries into `~/.infer/bin/tools` on first use (see
-"Prebuilt binaries" in [docs/speech-to-text.md](../../docs/speech-to-text.md)); inside this
+"Prebuilt binaries" in [docs/speech-to-text.md](../../docs/speech-to-text.md)). Inside this
 container that resolves to `/home/infer/.infer/bin/tools`, persisted to your host through the
 existing `./tmp:/home/infer` volume mount.
 
@@ -195,7 +195,7 @@ INFER_SPEECH_TO_TEXT_AUTO_DOWNLOAD: true    # fetch the GGML model on first use 
 INFER_SPEECH_TO_TEXT_RETAIN_RECORDINGS: 10  # keep the last 10 voice files (0 = keep none, the default)
 ```
 
-Send a voice note to your bot; it is downloaded, transcribed, and answered as if you had typed it.
+Send a voice note to your bot. It is downloaded, transcribed, and answered as if you had typed it.
 
 With `retain_recordings` greater than `0`, the original audio is also kept under `recordings_dir`
 (default `voice/` under the media root), and the oldest files are pruned once the cap is exceeded. The daemon
@@ -234,7 +234,7 @@ telegram:
       - video/quicktime
 ```
 
-Send a photo or video to your bot; it is saved under `media.dir` (default
+Send a photo or video to your bot. It is saved under `media.dir` (default
 `attachments/` under the media root - in this compose setup that persists to
 `./tmp/.infer/tmp/media/attachments` on your host) and the agent receives the saved path in the message, e.g.
 `[Attachment saved: /home/infer/.infer/tmp/media/attachments/infer-media-1234.mp4]`. Files
@@ -257,7 +257,7 @@ The default annotator model is `anthropic/claude-haiku-4-5-20251001`, so put an
 `ANTHROPIC_API_KEY` in `.env` (or point `INFER_VISION_ANNOTATOR_MODEL` at any
 vision model your gateway serves, e.g. a local Ollama one). Asking the bot to
 *generate* an image works out of the box via the ImageGeneration tool
-(`openai/gpt-image-2` by default - needs `OPENAI_API_KEY`); generated images are
+(`openai/gpt-image-2` by default - needs `OPENAI_API_KEY`). Generated images are
 sent back to the chat as photos. Image generation/edits/variations go through the
 gateway's Images API, which is opt-in - the compose sets `IMAGES_ENABLED: true` on
 the `inference-gateway` service (currently OpenAI-only).

@@ -22,7 +22,7 @@ func modeChangeQuery(changed bool, prev, cur agentdomain.AgentMode) agentdomain.
 	}
 }
 
-// The on_mode_change trigger fires only when the query reports a change; in
+// The on_mode_change trigger fires only when the query reports a change. In
 // particular the default entry must NOT fire on an ordinary pre_stream turn
 // (regression for the trigger:always raw-template leak).
 func TestModeChangeTrigger_FiresOnlyOnChange(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 
 // CallOrder keeps a tool batch's side effects in the order the model issued
 // them while still running read-only calls concurrently. Next must be called
-// in batch order from one goroutine at a time; the zero value, which knows no
+// in batch order from one goroutine at a time. The zero value, which knows no
 // read-only tools, runs every call in order.
 type CallOrder struct {
 	Tools   agentdomain.ToolManifestLookup // tells which tools are read-only

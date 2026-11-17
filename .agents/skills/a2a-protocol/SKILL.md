@@ -20,9 +20,9 @@ A2A is an open protocol for **agent-to-agent** interoperability: one agent (the
 **client**) discovers and delegates work to another (the **remote agent** /
 server) over HTTP, without either exposing its internal tools, memory, or
 prompts. It is **complementary to MCP** - MCP connects an agent to tools,
-resources, and context; A2A connects an agent to *other agents*. It is built on
+resources, and context. A2A connects an agent to *other agents*. It is built on
 existing standards (HTTP, SSE, JSON-RPC 2.0). Governance: created by Google
-(April 2025), donated to the **Linux Foundation** (June 2025); the canonical repo
+(April 2025), donated to the **Linux Foundation** (June 2025). The canonical repo
 moved `google-a2a/A2A` → **`a2aproject/A2A`**, Apache-2.0.
 
 ## Source of truth - reference it, don't copy it
@@ -45,7 +45,7 @@ at the schema and regenerate**, so you never drift from the source.
 
 A2A's latest released spec is **v1.0.1** (a text-only patch over v1.0.0:
 HTTP+JSON SHOULD use `Content-Type: application/a2a+json`, and error-to-HTTP-status
-mapping follows `google.rpc.Code`; prior lines: 0.3.0, 0.2.x, 0.1.0). **v0.3.0 →
+mapping follows `google.rpc.Code`. Prior lines: 0.3.0, 0.2.x, 0.1.0). **v0.3.0 →
 v1.0 is breaking.** Much online guidance still describes v0.x, and this ecosystem
 mixes the two, so *always know which shape you're looking at*:
 
@@ -55,7 +55,7 @@ mixes the two, so *always know which shape you're looking at*:
 | JSON-RPC methods | slash names: `message/send`, `tasks/get` | PascalCase: `SendMessage`, `GetTask` |
 | Transport advertising | `url` + `preferredTransport` + `additionalInterfaces` | one `supportedInterfaces[]` array (first entry preferred) |
 | Part content | separate `TextPart` / `FilePart` / `DataPart` | one unified `Part` (a `oneof`) |
-| Error codes | `-32001`…`-32007` | adds `-32008`, `-32009`; `-32007` renamed |
+| Error codes | `-32001`…`-32007` | adds `-32008`, `-32009`. `-32007` renamed |
 
 **The `schemas` proto now tracks upstream v1.0.1.** It is `package lf.a2a.v1`,
 spells `TASK_STATE_CANCELED` (single L), moves `protocol_version` onto each
@@ -70,7 +70,7 @@ maps both through `NormalizeTaskState` (`internal/protocols/a2a/domain/tasks.go`
 
 > **Do not mix shapes.** Pick a target version, read *that* version's schema, and
 > use its field/method names. The well-known path also moved with versions:
-> pre-v0.3.0 used `/.well-known/agent.json`; **v0.3.0+ uses
+> pre-v0.3.0 used `/.well-known/agent.json`. **v0.3.0+ uses
 > `/.well-known/agent-card.json`** (RFC 8615). Where `protocolVersion` lives
 > depends on the shape: a top-level `AgentCard` field in v0.x, but
 > `AgentInterface.protocol_version` (required, per interface) in the `schemas`
@@ -84,18 +84,18 @@ maps both through `NormalizeTaskState` (`internal/protocols/a2a/domain/tasks.go`
   (state + message), `artifacts` (outputs), `history`.
 - **Context** (`contextId`) - server-generated id that groups many tasks (one per
   turn) and messages into one conversation. The client echoes it back to
-  continue; the agent may use it to hold internal state/history across turns.
-- **Message** - one turn (`role: user | agent`), one or more **Parts**; may cite
+  continue. The agent may use it to hold internal state/history across turns.
+- **Message** - one turn (`role: user | agent`), one or more **Parts**. May cite
   prior work via `referenceTaskIds`.
 - **Part** - `text`, `file` (bytes or uri + mimeType), or `data` (structured JSON).
 - **Artifact** - a durable task output, itself a list of Parts.
-- **Opaque agents** - agents expose *capabilities*, not internals; interact only
+- **Opaque agents** - agents expose *capabilities*, not internals. Interact only
   through the protocol, never assume the remote's tools/prompts/memory.
 
 ## Agent Card & discovery
 
 A2A defines **three discovery mechanisms**: (1) **Well-Known URI** - host the card
-at `https://{domain}/.well-known/agent-card.json` (RFC 8615); (2) **Curated
+at `https://{domain}/.well-known/agent-card.json` (RFC 8615). (2) **Curated
 Registries** - a catalog service clients query (see the ecosystem's `registry`);
 (3) **Direct Configuration** - hardcoded/env/config for private discovery.
 
@@ -110,18 +110,18 @@ Card authoring:
   can't do.
 - **Advertise transports honestly** - v1.0 lists one `supportedInterfaces[]`
   (each interface carries its own `url` + `protocolBinding` + `tenant`, and in
-  released v1.0.x its `protocolVersion`); v0.x uses `preferredTransport` +
+  released v1.0.x its `protocolVersion`). V0.x uses `preferredTransport` +
   `additionalInterfaces`. Every advertised interface must be **functionally
   equivalent**.
 - **Never put secrets in the card.** Declare *how* to authenticate via
-  `securitySchemes` + `security`; credentials come out-of-band. If the card
+  `securitySchemes` + `security`. Credentials come out-of-band. If the card
   itself carries sensitive data, protect the endpoint (auth/mTLS/network) and/or
   serve an **authenticated extended card** with the extra detail.
 - **Signed cards:** `signatures` (JWS, RFC 7515) let clients verify authenticity.
 
 ## Transports - three equal bindings, one behavior
 
-A2A defines three wire bindings; an agent **MUST implement at least one** and MAY
+A2A defines three wire bindings. An agent **MUST implement at least one** and MAY
 offer several. They are **functionally equivalent** - same operations, same
 semantics. `protocolBinding` values: `JSONRPC`, `GRPC`, `HTTP+JSON` (JSON-RPC is
 the default when a preference is unspecified).
@@ -157,18 +157,18 @@ A send returns **either** a `Message` (immediate, self-contained reply) **or** a
   `unknown` for indeterminate (v1.0: `TASK_STATE_UNSPECIFIED`). A terminal task
   **cannot restart** - do follow-up work as a *new* task in the same `contextId`.
 
-Guidance: one Task per unit of work; reuse `contextId` to relate turns; put
+Guidance: one Task per unit of work. Reuse `contextId` to relate turns. Put
 results in `artifacts` and a human-readable summary in `status.message`. (Casing
-is version-dependent - see the version map; normalize `canceled`,
+is version-dependent - see the version map. Normalize `canceled`,
 `TASK_STATE_CANCELED`, and the older `TASK_STATE_CANCELLED`.)
 
 ## Messaging & content
 
 - `Message.role` is `user` (client→agent) or `agent` (agent→client).
-- A `Part` is exactly one of `text`, `file` (small → base64 `bytes`; large → a
-  `uri`; always set the media type), or `data` (structured JSON). v1.0 unifies
-  these into one `Part` type; v0.x had separate `*Part` types.
-- **Artifacts** are the durable outputs; stream them incrementally with
+- A `Part` is exactly one of `text`, `file` (small → base64 `bytes`. Large → a
+  `uri`. Always set the media type), or `data` (structured JSON). v1.0 unifies
+  these into one `Part` type. V0.x had separate `*Part` types.
+- **Artifacts** are the durable outputs. Stream them incrementally with
   `TaskArtifactUpdateEvent` (`append` / `lastChunk`) and reassemble client-side.
 - Honor `defaultInputModes` / `defaultOutputModes` (MIME types), overridable per
   skill and per request (`acceptedOutputModes`).
@@ -178,13 +178,13 @@ is version-dependent - see the version map; normalize `canceled`,
 The spec's canonical patterns are three (note: **polling is a sub-mode of
 request/response**, not a separate pattern):
 
-- **Synchronous request/response** - `SendMessage`; optionally **poll**
-  `GetTask` on an interval for longer work. Simplest, always available; use
+- **Synchronous request/response** - `SendMessage`. Optionally **poll**
+  `GetTask` on an interval for longer work. Simplest, always available. Use
   **exponential backoff** (this is what the CLI's A2A tools do).
 - **Streaming (SSE)** - `SendStreamingMessage` / `SubscribeToTask`. Requires
   `capabilities.streaming`. The server emits `TaskStatusUpdateEvent` (watch
   `final: true` for the terminal event) and `TaskArtifactUpdateEvent` (chunks).
-  Best for real-time incremental output; resubscribe to resume a dropped stream.
+  Best for real-time incremental output. Resubscribe to resume a dropped stream.
 - **Push notifications** - `CreateTaskPushNotificationConfig` a webhook, for
   long-running work (minutes→days) or disconnected clients (mobile, serverless).
   Requires `capabilities.pushNotifications`.
@@ -196,23 +196,23 @@ treat every field as hostile:
 
 - **Authenticate the sender.** The server MUST authenticate to the webhook per
   `PushNotificationConfig.authentication` (Bearer/OAuth2, API key, HMAC, or mTLS).
-  Recommended JWT pattern: server signs with its private key; the webhook fetches
+  Recommended JWT pattern: server signs with its private key. The webhook fetches
   the public key from the server's **JWKS** endpoint and verifies the signature
   plus `iss`/`aud`/`iat`/`exp`/`jti`.
 - **Prevent SSRF.** Never blindly POST to a client-supplied URL - **allowlist
   domains** and verify URL ownership before sending.
-- **Prevent replay.** Include a timestamp + single-use id (`jti`/nonce); the
+- **Prevent replay.** Include a timestamp + single-use id (`jti`/nonce). The
   webhook rejects stale or repeated events. Webhook targets must be HTTPS.
 
 ## Security
 
-- **HTTPS + modern TLS (1.3+)** in production; agent URLs are absolute HTTPS;
+- **HTTPS + modern TLS (1.3+)** in production. Agent URLs are absolute HTTPS;
   clients validate the remote cert against trusted CAs.
 - Declare auth in `securitySchemes` - five OpenAPI-derived types: `apiKey`,
   `http` (Basic/Bearer), `oauth2` (flows: authorizationCode, clientCredentials,
   implicit, password), `openIdConnect`, `mutualTLS`.
 - **Credentials ride in HTTP headers, never in the payload**, and are obtained
-  out-of-band; the card says *how* to authenticate, never *what* the secret is.
+  out-of-band. The card says *how* to authenticate, never *what* the secret is.
 - Enforce authorization per skill where it matters (`AgentSkill.security`).
 
 ## Error handling
@@ -239,9 +239,9 @@ failure** (the work ran and failed → a Task in state `failed`, reason in
 
 ## Versioning & interoperability
 
-- Set/read `protocolVersion`; negotiate on `capabilities` - don't call
+- Set/read `protocolVersion`. Negotiate on `capabilities` - don't call
   `SendStreamingMessage` unless the card advertises `streaming`.
-- Add fields backward-compatibly; keep advertised transports equivalent.
+- Add fields backward-compatibly. Keep advertised transports equivalent.
 - Validate with the official
   [A2A Inspector](https://github.com/a2aproject/a2a-inspector) (card + JSON-RPC
   surface) and the [A2A TCK](https://github.com/a2aproject/a2a-tck) conformance
@@ -256,10 +256,10 @@ failure** (the work ran and failed → a Task in state `failed`, reason in
 - **Consume from the CLI:** the `A2A_QueryAgent` / `A2A_SubmitTask` /
   `A2A_QueryTask` tools (`internal/protocols/a2a/`, manifests in
   `internal/protocols/a2a/tools/`),
-  gated by `a2a.enabled` in `.infer` config; register agents in
+  gated by `a2a.enabled` in `.infer` config. Register agents in
   `.infer/agents.yaml`.
 - **Debug:** [`a2a-debugger`](https://github.com/inference-gateway/a2a-debugger)
-  to inspect/replay traffic; `mock-agent` for canned responses in tests.
+  to inspect/replay traffic. `mock-agent` for canned responses in tests.
 - **Proxy to an LLM:** the
   [Inference Gateway](https://github.com/inference-gateway/inference-gateway).
 - **Official SDKs** (`a2aproject`): `a2a-python` (`pip install a2a-sdk`),
@@ -270,17 +270,17 @@ failure** (the work ran and failed → a Task in state `failed`, reason in
 Building a server:
 
 - [ ] Card at `/.well-known/agent-card.json` with required fields + descriptive `skills`.
-- [ ] `capabilities` flags match reality; advertised transports are equivalent.
-- [ ] Tasks get stable `id` + `contextId`; terminal states stay terminal.
-- [ ] `securitySchemes` declared; HTTPS/TLS enforced; no secrets in the card.
-- [ ] Push webhooks: server authenticates, SSRF-allowlisted, replay-guarded; correct A2A error codes.
+- [ ] `capabilities` flags match reality. Advertised transports are equivalent.
+- [ ] Tasks get stable `id` + `contextId`. Terminal states stay terminal.
+- [ ] `securitySchemes` declared. HTTPS/TLS enforced. No secrets in the card.
+- [ ] Push webhooks: server authenticates, SSRF-allowlisted, replay-guarded. Correct A2A error codes.
 
 Building a client:
 
-- [ ] Fetch + cache the card; negotiate on `capabilities`, don't assume.
+- [ ] Fetch + cache the card. Negotiate on `capabilities`, don't assume.
 - [ ] Pick request/response (poll with backoff) / streaming / push per task duration.
-- [ ] Carry `contextId`/`taskId` to continue; handle `input-required` + `auth-required`.
-- [ ] Handle both JSON-RPC errors and `failed` Tasks; pin the spec version you target.
+- [ ] Carry `contextId`/`taskId` to continue. Handle `input-required` + `auth-required`.
+- [ ] Handle both JSON-RPC errors and `failed` Tasks. Pin the spec version you target.
 
 ---
 

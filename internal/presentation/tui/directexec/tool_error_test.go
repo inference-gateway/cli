@@ -66,7 +66,7 @@ func TestHandleToolCommand_ErrorStopsSpinner(t *testing.T) {
 
 // drainToolEvents reads the per-invocation tool event channel until the async
 // goroutine closes it. The goroutine buffers (cap 100) and closes after a short
-// delay, so this never blocks indefinitely; a guard timeout fails loudly if it
+// delay, so this never blocks indefinitely. A guard timeout fails loudly if it
 // ever does.
 func drainToolEvents(t *testing.T, svc *directexec.Service) []interface{} {
 	t.Helper()

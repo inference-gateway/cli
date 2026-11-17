@@ -184,7 +184,7 @@ Notes:
 - **Parameters**:
   - `agent_url` (required): URL of the A2A agent
   - `task_description` (required): Description of the task to perform
-  - `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
+  - `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent. Omitting it starts an independent task
   - `tenant` (optional): The agent to address behind a gateway that fronts several agents, taken from the `tenant` of an
     interface on the gateway's agent card. See the [a2a-gateway example](../examples/a2a-gateway/)
 - **Returns**: Task result with ID, status, and response content

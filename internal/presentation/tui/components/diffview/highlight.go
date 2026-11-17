@@ -27,7 +27,7 @@ func selectLexer(path, content string) chroma.Lexer {
 // Highlight renders a whole file's contents as ANSI-styled, optionally
 // line-numbered text for a preview pane (NOT a diff). It reuses the same chroma
 // formatter as the in-line diff highlighter, so colors stay consistent. A nil
-// style disables colorization; any tokenise/format error falls back to the
+// style disables colorization. Any tokenise/format error falls back to the
 // plain (uncolored) content, so it never returns an error string.
 func Highlight(path, content string, style *chroma.Style, lineNumbers bool) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
@@ -53,7 +53,7 @@ func Highlight(path, content string, style *chroma.Style, lineNumbers bool) stri
 // highlightToLines tokenises the whole file once (so multi-line strings and
 // comments lex correctly), splits the token stream into lines, and formats each
 // line independently into an ANSI-styled string. Splitting into lines first is
-// required because chromaFormatter trims trailing newlines per token; feeding it
+// required because chromaFormatter trims trailing newlines per token. Feeding it
 // the whole file would drop the line breaks. Returns ok=false when highlighting
 // is unavailable (nil style, or a lexer/format error) so the caller falls back.
 func highlightToLines(path, content string, style *chroma.Style) ([]string, bool) {

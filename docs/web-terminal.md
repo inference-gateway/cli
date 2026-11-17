@@ -40,7 +40,7 @@ so after `/teleport` to a desktop workspace the view shows that desktop, relayed
 When the agent reaches a step a person has to do - a login, a two-factor code, a CAPTCHA, a cookie dialog
 the judge keeps rejecting - press **Take over**: the image takes focus and clicks, wheel and keys inside it drive
 the session's screen, with the poll dropping to 250 ms so typing feels live. The agent is held for the actions it
-issues meanwhile and runs them after the hand-back; observations keep flowing. **Done**, or `Esc` twice, hands the
+issues meanwhile and runs them after the hand-back. Observations keep flowing. **Done**, or `Esc` twice, hands the
 screen back and queues one user message, so the next turn starts from a fresh screenshot of what the person left
 behind. The inputs the person types are theirs alone: they create no approval prompt, no judge call and no
 conversation entry, and a take-over resolves the agent's open approval box for a `Computer` call as rejected.

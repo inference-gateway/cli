@@ -16,7 +16,7 @@ import (
 // ApproveSubagentTool relays the user's approve/reject decision to an interactive
 // subagent that is blocked on a tool-approval prompt (the parent is notified with
 // a "[Subagent Awaiting Approval: ...]" message). approve presses Enter on the
-// pane's default-focused [Approve] button; reject presses Escape. The tool is
+// pane's default-focused [Approve] button. Reject presses Escape. The tool is
 // always approval-gated so the human confirms the relay in the MAIN chat.
 type ApproveSubagentTool struct {
 	config    *config.Config

@@ -470,7 +470,7 @@ func (h *ChatHandler) HandleToolExecutionProgressEvent(
 }
 
 // HandleJudgeVerdictChatEvent flashes the LLM judge's decision for the pending
-// tool call. Approvals proceed silently; a rejection surfaces as a flash status
+// tool call. Approvals proceed silently. A rejection surfaces as a flash status
 // so the user sees what the judge refused and why.
 func (h *ChatHandler) HandleJudgeVerdictChatEvent(
 	msg agentdomain.JudgeVerdictChatEvent,
@@ -585,7 +585,7 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ tui.AgentStatusUpdateEvent)
 //
 // When work is stranded (chat view, non-empty queue) it also arms a single bounded
 // retry. A background job can finish at the exact instant the agent is still
-// finishing its own turn; the supervisor's one-shot DrainQueueEvent would then be
+// finishing its own turn. The supervisor's one-shot DrainQueueEvent would then be
 // gate-dropped and, without a retry, the queue would be stranded forever (the old
 // always-on ticker's repetition was the de-facto retry). armDrainRetry restores
 // that robustness without an idle clock AND without multiplying timers: the

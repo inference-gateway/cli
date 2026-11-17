@@ -38,7 +38,7 @@ const (
 	expandedReservedLines = 12
 
 	// diffBorderPadding is the box border (2) plus horizontal padding (2) reserved
-	// when sizing the diff to the available width; minDiffWidth keeps it usable on
+	// when sizing the diff to the available width. MinDiffWidth keeps it usable on
 	// very narrow terminals.
 	diffBorderPadding = 4
 	minDiffWidth      = 20
@@ -52,7 +52,7 @@ type ApprovalBoxView struct {
 	toolFormatter    tui.ToolFormatter
 	keyHintFormatter *hints.Formatter
 
-	// active is the approval state the form was built for; a mismatch with
+	// active is the approval state the form was built for. A mismatch with
 	// the state store (cleared externally) marks the form stale.
 	active *tui.ApprovalUIState
 	form   *huh.Form
@@ -74,7 +74,7 @@ func (av *ApprovalBoxView) ToggleExpanded() {
 }
 
 // ScrollDiff moves the expanded diff window by delta lines (up/down). It is a no-op
-// unless the diff is expanded; the top is clamped here and the bottom at render time
+// unless the diff is expanded. The top is clamped here and the bottom at render time
 // (which is where the window height is known).
 func (av *ApprovalBoxView) ScrollDiff(delta int) {
 	if !av.expanded {
@@ -229,7 +229,7 @@ func (av *ApprovalBoxView) renderApprovalBox(state *tui.ApprovalUIState) string 
 
 // renderBody renders what is being approved. For the file-mutating tools
 // (Edit/MultiEdit/Write) it shows a height-capped, theme-aware colored diff so the
-// user sees the change before approving; every other tool keeps the compact
+// user sees the change before approving. Every other tool keeps the compact
 // "Name(arg=value, ...)" one-liner. It also falls back to the one-liner when the
 // arguments don't parse.
 func (av *ApprovalBoxView) renderBody(tc *sdk.ChatCompletionMessageToolCall) string {
@@ -316,7 +316,7 @@ func (av *ApprovalBoxView) renderDiffPreview(toolName string, args map[string]an
 
 // capLines bounds the preview height so a large edit can't blow out the layout.
 // Collapsed it keeps the first previewLineLimit() lines with a "… N more lines"
-// hint; expanded (ctrl+o) it shows a scrollable window over the whole diff so a
+// hint. Expanded (ctrl+o) it shows a scrollable window over the whole diff so a
 // file larger than the screen stays fully reviewable while the action buttons stay
 // pinned. The full diff still renders in the conversation after the edit runs.
 func (av *ApprovalBoxView) capLines(s string) string {
@@ -350,7 +350,7 @@ func (av *ApprovalBoxView) capLines(s string) string {
 
 // previewLineLimit is the number of diff lines shown in the box at once. Collapsed
 // it is about half the terminal height so the conversation and input keep room,
-// bounded to [minPreviewLines, maxPreviewLines]; expanded (ctrl+o) it grows to fill
+// bounded to [minPreviewLines, maxPreviewLines]. Expanded (ctrl+o) it grows to fill
 // the screen (minus the header, input, and box chrome so the layout can't overflow)
 // and the rest is reached by scrolling. It falls back to defaultPreviewLines before
 // the terminal height is known (height <= 0).

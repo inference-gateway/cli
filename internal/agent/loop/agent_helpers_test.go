@@ -70,13 +70,13 @@ func TestClearToolCallsMap(t *testing.T) {
 }
 
 // Reminder interval/trigger gating moved to config.RemindersDue (see
-// config/reminders_test.go); injection/emission lives in
+// config/reminders_test.go). Injection/emission lives in
 // agent_reminder_emission_test.go.
 
 // Per-mode system prompt selection (getSystemPromptForMode) was removed:
 // message[0] stays byte-stable across mode switches. That contract is pinned
 // by TestAgentServiceImpl_BuildSystemPromptByteStableAcrossModeSwitch in
-// agent_test.go; the per-mode instructions ride the on_mode_change reminder.
+// agent_test.go. The per-mode instructions ride the on_mode_change reminder.
 
 // TestCheckPlanApproval tests pulling plan content out of tool results.
 func TestCheckPlanApproval(t *testing.T) {

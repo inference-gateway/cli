@@ -155,8 +155,8 @@ func newEventPublisher(requestID string, chatEvents chan<- agentdomain.ChatEvent
 // chatQuestionBroker implements agentdomain.UserQuestionBroker for the chat
 // executor: it publishes a UserQuestionRequestedEvent onto the per-request
 // chatEvents channel and blocks on the response channel, mirroring
-// requestToolApproval. Only the tool's Execute goroutine blocks; the TUI keeps
-// running. Dismissing the form closes the channel (ok=false); ctx.Done unblocks.
+// requestToolApproval. Only the tool's Execute goroutine blocks. The TUI keeps
+// running. Dismissing the form closes the channel (ok=false). Ctx.Done unblocks.
 type chatQuestionBroker struct {
 	publisher  *eventPublisher
 	toolCallID string
@@ -535,7 +535,7 @@ func (s *Agent) SetMemoryBackend(backend memory.MemoryBackend) {
 
 // advertisedTools returns the tool definitions to send with a request. All
 // mid-session modes advertise the same full list so a mode switch never
-// invalidates the provider's prompt cache; restrictions apply at execution
+// invalidates the provider's prompt cache. Restrictions apply at execution
 // time. ReadOnly subagents keep their filtered list - their mode never
 // changes mid-session, so there is no cache to break.
 func (s *Agent) advertisedTools() []sdk.ChatCompletionTool {
@@ -550,7 +550,7 @@ func (s *Agent) advertisedTools() []sdk.ChatCompletionTool {
 
 // ensureConversationIntegrity enforces the OpenAI tool_call/response
 // invariant by inserting a synthetic Tool-role message for every orphan
-// tool_call_id, returning the number inserted; idempotent. persistSynthetics
+// tool_call_id, returning the number inserted. Idempotent. persistSynthetics
 // is true at the drain-time chokepoint (the real corruption point), false at
 // defensive call sites where the orphan may pre-exist on disk.
 func (s *Agent) ensureConversationIntegrity(
@@ -1073,7 +1073,7 @@ func (s *Agent) executeToolInternal(
 
 // requestSandboxApproval asks the user - through the standard approval
 // pipeline, as a synthetic SandboxAccess tool call - to grant the denied
-// access. Approve grants it for this session; auto-accept ("always") also
+// access. Approve grants it for this session. Auto-accept ("always") also
 // persists it to the userspace sandbox.yaml.
 func (s *Agent) requestSandboxApproval(
 	ctx context.Context,
@@ -1499,7 +1499,7 @@ func (s *Agent) createImageMessageFromToolResults(toolResults []convdomain.Conve
 
 // requestToolApproval requests approval for a tool and waits for the response.
 // The auto-with-judge mode (or approval_behaviour "judge") hands the decision
-// to the LLM judge instead of a human; it returns (false, judgeReason, nil)
+// to the LLM judge instead of a human. It returns (false, judgeReason, nil)
 // so the rejection tool result can carry the judge's reasoning and, unlike a
 // human rejection, not end the turn. Human decisions return an empty reason.
 func (s *Agent) requestToolApproval(

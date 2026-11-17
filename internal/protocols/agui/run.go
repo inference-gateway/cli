@@ -33,7 +33,7 @@ func TokenCount(count int64) *int64 { return aguievents.TokenCount(count) }
 
 // OutcomeCancelled is the cancelled variant of the 1.0 outcome set: a run its
 // caller stopped before it completed, with nothing waited for. The Go SDK
-// names success and interrupt; this names the third variant the spec defines.
+// names success and interrupt. This names the third variant the spec defines.
 const OutcomeCancelled = aguievents.RunFinishedOutcomeType("cancelled")
 
 // The content part types of a run input message.
@@ -362,7 +362,7 @@ func (r *Run) Finish(result map[string]any, usage []TokenUsage) error {
 
 // emitRunError carries the failure and the usage accrued before it. RUN_ERROR
 // describes the run itself, so like RUN_STARTED and RUN_FINISHED it carries no
-// subagent attribution and no message id; unlike them the 1.0 schema keeps it
+// subagent attribution and no message id. Unlike them the 1.0 schema keeps it
 // anonymous, identified by whoever reports it.
 func (r *Run) emitRunError(message string, usage []TokenUsage) {
 	var opts []aguievents.RunErrorOption

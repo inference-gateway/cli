@@ -22,7 +22,7 @@ var (
 )
 
 // SetWriter overrides the destination io.Writer for emitted events and
-// returns a restore function. Used by tests; production callers should
+// returns a restore function. Used by tests. Production callers should
 // not touch it.
 func SetWriter(w io.Writer) func() {
 	writerMu.Lock()

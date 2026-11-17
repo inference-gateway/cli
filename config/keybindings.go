@@ -414,7 +414,7 @@ func addDiffViewerBindings(bindings map[string]KeyBindingEntry) {
 
 // addExplorerBindings registers the configurable keys for the `/explorer` file
 // panel (the VS Code-style tree opened with /explorer). The fuzzy-finder overlay
-// captures its own typing; only the keys below are resolved from these entries.
+// captures its own typing. Only the keys below are resolved from these entries.
 func addExplorerBindings(bindings map[string]KeyBindingEntry) {
 	enabled := true
 	add := func(action, desc string, keys ...string) {
@@ -446,7 +446,7 @@ func addExplorerBindings(bindings map[string]KeyBindingEntry) {
 
 // ResolveKeybindings merges user overrides from cfg onto GetDefaultKeybindings()
 // and returns the effective entry for every default action ID. Overrides replace
-// Keys (when non-empty) and Enabled (when set); Description/Category always come
+// Keys (when non-empty) and Enabled (when set). Description/Category always come
 // from the defaults. cfg.Enabled==false yields pure defaults. The second return
 // lists override IDs that match no default action, so the caller can warn about
 // typos (this package stays log-free).

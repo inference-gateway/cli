@@ -27,7 +27,7 @@ type SyntheticToolResponse struct {
 // tail of the existing tool responses for that assistant turn,
 // preserving the original tool_calls order.
 //
-// The returned conversation is a copy; the input slice is not mutated.
+// The returned conversation is a copy. The input slice is not mutated.
 // The returned synthetics list is in insertion order and is non-nil
 // only when at least one synthetic was added.
 //

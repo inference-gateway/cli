@@ -6,7 +6,7 @@ API keys, nothing leaves the machine.
 The CLI always talks to an Inference Gateway (it needs the gateway's
 provider-prefixed model IDs), so "offline" means: the containerized CLI talks
 to a local gateway, which talks to a local model server - Ollama or llama.cpp,
-your pick. Everything, including the model download, runs in containers; the
+your pick. Everything, including the model download, runs in containers. The
 only host requirement is Docker.
 
 ## One-time preparation (the only step that needs network)
@@ -23,7 +23,7 @@ the gateway at it via `host.docker.internal`.
 
 ```bash
 # Install https://ollama.com (or: brew install ollama), then
-ollama pull qwen3:8b   # small model with solid tool-calling; any tool-capable model works
+ollama pull qwen3:8b   # small model with solid tool-calling. Any tool-capable model works
 docker compose up -d
 ```
 
@@ -120,7 +120,7 @@ prompt-prefix cache makes a turn cost a full re-read of that prompt.
   byte-identical across turns so the cache holds and follow-up turns only pay
   for your new message. Don't remove them for local backends.
 - The first turn of a session always pays the full prefill - that one is slow
-  by nature; follow-ups should be fast.
+  by nature. Follow-ups should be fast.
 - Set expectations by hardware: agentic use means prefilling thousands of
   prompt tokens per turn, so a discrete GPU with high memory bandwidth matters
   more than CPU. On an Apple Silicon laptop (M4 Pro), expect ~1 minute for the
@@ -139,7 +139,7 @@ everything that would otherwise reach the network:
 
 | Env var | Why |
 | --- | --- |
-| `INFER_GATEWAY_RUN=false` | Compose runs the gateway; the CLI must not download/start one |
+| `INFER_GATEWAY_RUN=false` | Compose runs the gateway. The CLI must not download/start one |
 | `INFER_TOOLS_WEB_SEARCH_ENABLED=false` | Outbound HTTP to search engines |
 | `INFER_TOOLS_WEB_FETCH_ENABLED=false` | Outbound HTTP fetches |
 | `INFER_A2A_ENABLED=false` | Would probe remote agent URLs |

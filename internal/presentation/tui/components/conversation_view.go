@@ -63,7 +63,7 @@ type ConversationView struct {
 	renderedPreviews       string
 
 	// renderCache memoizes per-entry rendered output keyed by conversation
-	// index; an entry re-renders only when its fingerprint changes. Cleared
+	// index. An entry re-renders only when its fingerprint changes. Cleared
 	// on theme refresh, which restyles without touching entry state.
 	renderCache map[int]renderCacheEntry
 
@@ -207,7 +207,7 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 // rebuildPreservingScroll applies mutate (the expand/collapse state change) and
 // re-renders the viewport while keeping the content the user is looking at anchored
 // in place. Expanding an entry that sits above the viewport top would otherwise shift
-// everything down and make the view jump; we offset by the height delta of the changed
+// everything down and make the view jump. We offset by the height delta of the changed
 // entries above the current scroll position. The old layout is measured before mutate
 // runs, so the delta is real. When the user is following the tail we stay pinned to the
 // bottom.
@@ -370,7 +370,7 @@ func (cv *ConversationView) GetPlainTextLines() []string {
 	return lines
 }
 
-// SetWidth resizes the view and rewraps content; a no-op when unchanged.
+// SetWidth resizes the view and rewraps content. A no-op when unchanged.
 func (cv *ConversationView) SetWidth(width int) {
 	if width == cv.width {
 		return
@@ -390,7 +390,7 @@ func (cv *ConversationView) SetWidth(width int) {
 	cv.rebuild()
 }
 
-// SetHeight resizes the view; a no-op when unchanged. Follow state is read
+// SetHeight resizes the view. A no-op when unchanged. Follow state is read
 // before the resize: shrinking (e.g. the approval box opening) raises the max
 // offset, so AtBottom() is already false by the time rebuild() checks it.
 func (cv *ConversationView) SetHeight(height int) {
@@ -417,7 +417,7 @@ func (cv *ConversationView) rebuild() {
 }
 
 // Render returns the viewport with a two-space left gutter. It never mutates
-// the viewport; sizing and content updates happen in Update/SetWidth/SetHeight.
+// the viewport. Sizing and content updates happen in Update/SetWidth/SetHeight.
 func (cv *ConversationView) Render() string {
 	content := cv.Viewport.View()
 	if len(cv.conversation) == 0 && cv.navigationMode != NavigationModeMessageHistory {
@@ -834,7 +834,7 @@ func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleSty
 
 // writeRoleAndBody joins a role prefix and an already-wrapped body. The body wraps
 // to the full width, so its first line is kept on the role line only when it still
-// fits after the prefix; otherwise the body starts on its own line to avoid clipping.
+// fits after the prefix. Otherwise the body starts on its own line to avoid clipping.
 func (cv *ConversationView) writeRoleAndBody(result *strings.Builder, roleStyled, body string) {
 	result.WriteString(roleStyled)
 	firstLine, _, _ := strings.Cut(body, "\n")

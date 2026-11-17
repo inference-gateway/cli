@@ -21,7 +21,7 @@ func NewModeIndicator(styleProvider *styles.Provider) *ModeIndicator {
 }
 
 // SetJudgeModelFn names the model that approves tool calls in Auto+Judge mode
-// so the indicator shows who the judge is; resolved at render time so it
+// so the indicator shows who the judge is. Resolved at render time so it
 // follows a model switched during the session.
 func (mi *ModeIndicator) SetJudgeModelFn(fn func() string) {
 	mi.judgeModel = fn

@@ -9,7 +9,7 @@ import (
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
 
-// floating_window was removed in favor of the desktop app; it stays in the
+// floating_window was removed in favor of the desktop app. It stays in the
 // fixture to prove unknown/removed keys don't break config load.
 const computerUseValidYAML = `---
 enabled: true

@@ -95,7 +95,7 @@ func (b *GitBackend) syncInExisting(ctx context.Context, dir, branch string, rem
 }
 
 // syncInFresh clones when the remote already has the branch and the dir is
-// empty; otherwise it initializes a repo in place and either seeds a missing
+// empty. Otherwise it initializes a repo in place and either seeds a missing
 // remote branch from local memory, or - when local memory already exists and the
 // remote branch is populated - adopts the remote history into it (see
 // adoptRemoteBranch) rather than leaving an unrelated-history repo.
@@ -377,7 +377,7 @@ func (b *GitBackend) ensureOrigin(ctx context.Context, dir, repo string) error {
 
 // remoteHasBranch reports whether the remote already has branch, via ls-remote.
 // A clean exit with empty output means the remote is reachable but empty (or
-// lacks the branch); a non-zero exit means unreachable/unauthorized - the error
+// lacks the branch). A non-zero exit means unreachable/unauthorized - the error
 // carries git's stderr (e.g. "Repository not found") rather than the opaque
 // "exit status 128".
 func (b *GitBackend) remoteHasBranch(ctx context.Context, repo, branch string) (bool, error) {

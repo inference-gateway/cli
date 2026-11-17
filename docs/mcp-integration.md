@@ -71,7 +71,7 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI models
 ### Key Features
 
 - **Direct connections**: CLI connects directly to MCP servers, or to the gateway's `/mcp` as a single entry
-- **Stateless design**: No handshake or session; every request carries its protocol version
+- **Stateless design**: No handshake or session. Every request carries its protocol version
 - **Auto-start servers**: Automatically start and manage MCP servers in OCI/Docker containers
 - **Automatic port assignment**: No need to manually configure ports for auto-started servers
 - **Per-server configuration**: Enable/disable servers independently
@@ -164,7 +164,7 @@ infer chat
 Type `/help` to see available tools. MCP tools appear as `MCP_<server>_<tool>`.
 
 Outside of chat, `infer mcp status` dials each enabled server once and reports the same
-`connected/total (tools)` counts the status bar shows; `infer mcp status <server>` probes one
+`connected/total (tools)` counts the status bar shows. `infer mcp status <server>` probes one
 server and `--format json` prints a machine-readable report (`total_servers`, `connected_servers`,
 `total_tools`, per-server `connected`, `tools`, `error`).
 
@@ -314,7 +314,7 @@ export MCP_FILESYSTEM_HOST=localhost
 
 1. **CLI startup**: The MCP supervisor starts
 2. **Concurrent discovery**: Each enabled server is queried in parallel
-3. **Protocol check**: `server/discover` must list `2026-07-28`; a server that doesn't is marked unavailable
+3. **Protocol check**: `server/discover` must list `2026-07-28`. A server that doesn't is marked unavailable
 4. **Tool listing**: `tools/list`, following pagination cursors
 5. **Tool registration**: Discovered tools are registered in the tool registry
 6. **Filtering applied**: Include/exclude rules are enforced
@@ -455,7 +455,7 @@ Common errors and handling:
 | Invalid arguments | Validation error before server call |
 | Server error | Error response passed to LLM |
 | Tool result with `isError` | Execution fails, the tool's message is passed to LLM |
-| Tool asks for input (`input_required`) | Execution fails; elicitation and sampling are not supported |
+| Tool asks for input (`input_required`) | Execution fails. Elicitation and sampling are not supported |
 
 ## Examples
 
@@ -589,7 +589,7 @@ servers:
 
 **Check 3**: Check CLI logs
 
-There is no `--log-level` flag; debug logging is enabled with the `INFER_LOGGING_DEBUG=true`
+There is no `--log-level` flag. Debug logging is enabled with the `INFER_LOGGING_DEBUG=true`
 environment variable or the global `-v/--verbose` flag. Logs are written to
 `~/.infer/logs/app-<date>.log`, not to the terminal:
 

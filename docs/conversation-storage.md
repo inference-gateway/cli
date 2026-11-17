@@ -90,7 +90,7 @@ git commit -m "Save conversations"
 ### SQLite (Alternative for local use)
 
 SQLite provides a lightweight, file-based storage solution perfect for personal use. By default the database lives at
-`~/.infer/conversations.db` - one shared file across projects; each conversation records its `project` so listings
+`~/.infer/conversations.db` - one shared file across projects. Each conversation records its `project` so listings
 scope to the current one:
 
 ```yaml
@@ -209,11 +209,11 @@ storage:
 
   # JSONL configuration (used when type: jsonl)
   jsonl:
-    path: ~/.infer/projects/<project-slug>/conversations  # optional; unset = per-project default
+    path: ~/.infer/projects/<project-slug>/conversations  # optional. Unset = per-project default
 
   # SQLite configuration (used when type: sqlite)
   sqlite:
-    path: ~/.infer/conversations.db  # optional; default when unset
+    path: ~/.infer/conversations.db  # optional. Default when unset
 
   # PostgreSQL configuration (used when type: postgres)
   postgres:
@@ -238,12 +238,12 @@ Every session records the project it ran in (the absolute working directory).
 Listings scope to that project by default:
 
 - The `/conversations` TUI picker shows only the current project's conversations.
-- `infer conversations list` does the same; pass `--all-projects` to list
+- `infer conversations list` does the same. Pass `--all-projects` to list
   every project's conversations.
 - JSONL (default) keeps one store per project under
-  `~/.infer/projects/<project-slug>/conversations/`; SQLite keeps one shared
+  `~/.infer/projects/<project-slug>/conversations/`. SQLite keeps one shared
   database (`~/.infer/conversations.db`) and groups rows by the `project`
-  column; server backends (PostgreSQL, Redis, D1) group by the same field in
+  column. Server backends (PostgreSQL, Redis, D1) group by the same field in
   conversation metadata.
 - An explicit `storage.jsonl.path` or `storage.sqlite.path` always wins and
   only ever lists itself.
@@ -370,7 +370,7 @@ Delete a conversation:
 Each conversation includes:
 
 - **ID**: Unique identifier (UUID)
-- **Project**: absolute working directory of the session; scopes listings per project
+- **Project**: absolute working directory of the session. Scopes listings per project
 - **Title**: Human-readable title
 - **Created/Updated**: Timestamps
 - **Message Count**: Number of messages

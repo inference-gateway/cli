@@ -70,7 +70,7 @@ func (t *fakeTool) FormatResult(_ *agentdomain.ToolExecutionResult, ft agentdoma
 func (t *fakeTool) FormatPreview(*agentdomain.ToolExecutionResult) string { return t.preview }
 func (t *fakeTool) ShouldAlwaysExpand() bool                              { return t.alwaysExpand }
 
-// FormatResultBody satisfies ResultBodyProvider; returns "" when hasBody is false so
+// FormatResultBody satisfies ResultBodyProvider. Returns "" when hasBody is false so
 // resultBody falls back to FormatPreview (simulating summary-only tools).
 func (t *fakeTool) FormatResultBody(*agentdomain.ToolExecutionResult) string {
 	if !t.hasBody {

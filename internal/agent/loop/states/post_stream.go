@@ -74,7 +74,7 @@ func (s *PostStreamState) transitionToEvaluatingTools() error {
 
 // handleNoToolCallsScenario handles the scenario when there are no tool calls.
 // A headless run waits here for in-flight background jobs (A2A tasks, shells,
-// subagents) before completing; their completion notes land in the queue and
+// subagents) before completing. Their completion notes land in the queue and
 // route back through CheckingQueue so the model gets a turn to report them.
 func (s *PostStreamState) handleNoToolCallsScenario() error {
 	s.ctx.AgentCtx.HasToolResults = false

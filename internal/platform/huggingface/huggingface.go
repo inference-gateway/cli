@@ -23,7 +23,7 @@ const defaultRevision = "main"
 var ErrNotCached = errors.New("file not cached and download not allowed")
 
 // Repo identifies a model repository on the Hub, e.g. "ggerganov/whisper.cpp".
-// An empty Revision means "main"; set a commit SHA to pin the files.
+// An empty Revision means "main". Set a commit SHA to pin the files.
 type Repo struct {
 	ID       string
 	Revision string

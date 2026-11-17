@@ -20,13 +20,13 @@ import (
 // installed: conversations, plans, scratch dirs, artifacts, history, backups,
 // exports, logs, telemetry, scheduled jobs, pid/lock files and the userspace
 // tmp tree - machine-wide, across every project under ~/.infer/projects.
-// Config, shortcuts, skills, insights and remote stores are preserved; dirs outside ~/.infer are left alone.
+// Config, shortcuts, skills, insights and remote stores are preserved. Dirs outside ~/.infer are left alone.
 type wiper struct {
 	cfg   *config.Config
 	store storage.ConversationStorage
 }
 
-// targets is what a wipe removes. prune dirs are deleted outright; empty dirs
+// targets is what a wipe removes. prune dirs are deleted outright. Empty dirs
 // are deleted and recreated because they are fixed userspace locations. The
 // per-project runtime dirs are pruned so a reset leaves no empty skeleton
 // behind - the project dir itself stays, since projects.yaml references it.
@@ -139,7 +139,7 @@ func resolves(dir string, parts []string) bool {
 	return false
 }
 
-// sqlitePaths lists the database file and its WAL sidecars; all of them are
+// sqlitePaths lists the database file and its WAL sidecars. All of them are
 // removed, and all of them count toward the reported space.
 func sqlitePaths(db string) []string {
 	return []string{db, db + "-wal", db + "-shm", db + "-journal"}
@@ -216,9 +216,9 @@ func (w *wiper) purge(ctx context.Context) {
 	}
 }
 
-// wipe removes each target. Pruned dirs are deleted outright; the rest are
+// wipe removes each target. Pruned dirs are deleted outright. The rest are
 // recreated empty because they are fixed userspace locations. The SQLite
-// database is only deleted; SQLite recreates it on demand, and the WAL sidecars
+// database is only deleted. SQLite recreates it on demand, and the WAL sidecars
 // go with it so no stale write-ahead log resurrects the old data.
 func (w *wiper) wipe(ctx context.Context, t targets) (string, error) {
 	if t.sqliteDB != "" {

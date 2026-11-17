@@ -55,7 +55,7 @@ storage:
     database: infer_conversations
     username: infer
     password: infer
-    ssl_mode: disable   # local container has no TLS; use "require" for managed PG
+    ssl_mode: disable   # local container has no TLS. Use "require" for managed PG
 ```
 
 Any field can be overridden by an environment variable, which is the safer place

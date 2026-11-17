@@ -47,7 +47,7 @@ type supervised struct {
 
 // NewSupervisor constructs a supervisor. messageQueue and conversationRepo are
 // long-lived singletons used to deliver finished jobs' results back onto the
-// conversation; either may be nil (the supervisor degrades to event-only).
+// conversation. Either may be nil (the supervisor degrades to event-only).
 // notifier is the single UI ingress used to push DrainQueueEvent (so landed work
 // drains promptly) and BackgroundTasksChangedEvent (so the task view refreshes);
 // a nil notifier degrades to no UI pushes.
@@ -92,7 +92,7 @@ func (s *Supervisor) SetRetentionCount(kind scheddomain.JobKind, max int) {
 }
 
 // Start launches the periodic cleanup that reaps finished jobs older than
-// retention. interval is how often to sweep. Call once; Stop ends it.
+// retention. interval is how often to sweep. Call once. Stop ends it.
 func (s *Supervisor) Start(interval, retention time.Duration) {
 	if interval <= 0 {
 		interval = 10 * time.Minute
@@ -196,7 +196,7 @@ func (s *Supervisor) onSignal(sj *supervised, sig scheddomain.JobSignal) {
 
 // finish marks a job terminal and lands its result on the shared queue (unless
 // the job is Silent and delivered its own per-turn notes). The entry is KEPT
-// (terminal) so the task view can show it; Cleanup reaps it after the retention
+// (terminal) so the task view can show it. Cleanup reaps it after the retention
 // window. enqueue pushes a DrainQueueEvent so the agent picks up the note, and a
 // BackgroundTasksChangedEvent refreshes the task view's status.
 func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResult) {
@@ -319,7 +319,7 @@ func asNotifier(job scheddomain.BackgroundJob) scheddomain.JobNotifier {
 // enqueue lands content on the shared message queue as a user-role message and
 // pushes a DrainQueueEvent so an idle agent on the chat view starts a turn to
 // read it. The gate (HandleDrainQueueEvent) drops the event when the agent is
-// busy or off-chat; that work is then picked up at the next turn completion or on
+// busy or off-chat. That work is then picked up at the next turn completion or on
 // returning to chat. The entry carries the job kind's queue source so the UI
 // can tell job results from typed messages.
 func (s *Supervisor) enqueue(content string, kind scheddomain.JobKind) {
@@ -383,10 +383,10 @@ func (s *Supervisor) WindAll(sig scheddomain.WindSignal) {
 
 // DiscardKind stops and forgets every job of one kind: running jobs are dropped
 // from the map immediately (the status bar and task view clear synchronously),
-// hard-stopped, and finish without a queue note or retention entry; terminal
+// hard-stopped, and finish without a queue note or retention entry. Terminal
 // unreaped jobs are reaped on the spot. This is the conversation-clear semantic
 // - discarding the cleared conversation's A2A tasks without touching other
-// kinds. Unlike a user cancel it does not notify the remote agent; it only
+// kinds. Unlike a user cancel it does not notify the remote agent. It only
 // stops and forgets the local monitor.
 func (s *Supervisor) DiscardKind(kind scheddomain.JobKind) {
 	s.mu.Lock()
@@ -511,7 +511,7 @@ func (s *Supervisor) IsRunning(id string) bool {
 
 // HasPending reports whether any session-holding job is still running - the
 // cross-kind "is the session safe to close?" query. A job opts in via
-// JobMeta.HoldsSession (A2A tasks, shells, headless subagents); interactive
+// JobMeta.HoldsSession (A2A tasks, shells, headless subagents). Interactive
 // subagent panes set it false so a one-shot `infer headless` does not wait on a
 // user-driven pane.
 func (s *Supervisor) HasPending() bool {

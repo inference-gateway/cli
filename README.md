@@ -126,7 +126,7 @@ Each directory under [`examples/`](examples/) is a self-contained, runnable setu
 ## Contributing
 
 Development is documented in **[CONTRIBUTING.md](CONTRIBUTING.md)**. Coding agents working in this repository
-should read **[AGENTS.md](AGENTS.md)** first; packages with their own agent-specific rules ship an `AGENTS.md`
+should read **[AGENTS.md](AGENTS.md)** first. Packages with their own agent-specific rules ship an `AGENTS.md`
 next to the code.
 
 ## License

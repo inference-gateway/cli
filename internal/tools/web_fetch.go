@@ -220,7 +220,7 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*agent
 
 // isBinaryContent reports whether a fetched body is non-text and therefore must
 // not be inlined into the LLM context (raw bytes tokenize into garbage and can
-// blow the context window). Content-Type is the primary signal; when it is
+// blow the context window). Content-Type is the primary signal. When it is
 // missing we fall back to a UTF-8 validity check (a PNG is never valid UTF-8). A
 // declared-textual type is trusted even if the bytes aren't valid UTF-8, so a
 // mislabeled-charset page (e.g. latin-1 HTML) is still treated as text.

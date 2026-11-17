@@ -31,7 +31,7 @@ const (
 )
 
 // catalogEntry is the metadata for one skill in the centralized catalog.
-// Only name and description are consulted up front; the body is fetched
+// Only name and description are consulted up front. The body is fetched
 // on demand when the skill is activated (progressive disclosure).
 type catalogEntry struct {
 	Name        string `json:"name"`
@@ -50,7 +50,7 @@ type catalogResponse struct {
 
 // CatalogClient fetches skill metadata from the centralized skills registry.
 // It implements progressive discovery: only the index (name + description)
-// is fetched up front; the full skill body is downloaded only on activation.
+// is fetched up front. The full skill body is downloaded only on activation.
 type CatalogClient struct {
 	client     *http.Client
 	baseURL    string

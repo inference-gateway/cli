@@ -689,7 +689,7 @@ func (t *Thread) deliverNotes() {
 }
 
 // isRunFrame reports whether a frame type is an AG-UI event, which only runs
-// carry; app frames are lowercase.
+// carry. App frames are lowercase.
 func isRunFrame(frameType string) bool {
 	return frameType != "" && strings.ToUpper(frameType[:1]) == frameType[:1]
 }

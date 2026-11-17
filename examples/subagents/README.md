@@ -18,7 +18,7 @@ subagents/
 ├── Taskfile.yml               # one task per scenario, with the mock model's environment
 ├── scenarios.yaml             # what the mock model says, per prompt - parent and subagents each match their own
 └── .agents/agents/
-    └── researcher.md          # frontmatter: name, description, tools allowlist, model; body: system prompt
+    └── researcher.md          # frontmatter: name, description, tools allowlist, model. Body: system prompt
 ```
 
 The `tools` allowlist resolves against the session's real tool set, so only known tools (here `Read` and `Grep`) are
@@ -38,7 +38,7 @@ subagent's answer.
 | `task fanout` | The mock model calls `Agent` with two `tasks` - one naming `researcher` through `agent`, one plain - and reads both results back |
 | `task fanout:name` | The single-task shorthand: one `Agent` call with `agent: researcher` plus a `description`, no `tasks` array |
 | `task all` | Runs both fan-out scenarios |
-| `task chat` | Opens `infer chat` with the mock model; ask it to fan out and watch the sub-agent list fill in under the composer |
+| `task chat` | Opens `infer chat` with the mock model. Ask it to fan out and watch the sub-agent list fill in under the composer |
 
 The tasks use the `infer` on your `PATH`. To use a local build instead, run `task build` in the repository root and
 pass it in, for example `task fanout INFER=../../infer`.
@@ -80,9 +80,9 @@ Set them through config or the `INFER_TOOLS_AGENT_*` environment variables (see
 
 | Knob | Default | What it does here |
 | --- | --- | --- |
-| `tools.agent.max_parallel` | 10 | Tasks past the cap are dropped, not queued; with two tasks and the default both run |
+| `tools.agent.max_parallel` | 10 | Tasks past the cap are dropped, not queued. With two tasks and the default both run |
 | `tools.agent.max_depth` | 1 | Subagents cannot spawn further subagents until this is raised |
-| `tools.agent.idle_timeout` | 300 | Closes an interactive subagent's tmux pane after N seconds of silence; headless subagents are unaffected |
+| `tools.agent.idle_timeout` | 300 | Closes an interactive subagent's tmux pane after N seconds of silence. Headless subagents are unaffected |
 | `tools.agent.inherit_mock` | true | Subagents inherit the mock gateway, which is why the subagents here run offline |
 | `tools.agent.wait` | false | This example sets it `true` so the `Agent` call blocks for one aggregated result - see the async note below |
 | `tools.agent.mode` | headless | Set to `interactive` to run subagents in tmux panes you can watch - the surface `idle_timeout` closes |

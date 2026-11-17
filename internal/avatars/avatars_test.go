@@ -111,7 +111,7 @@ func TestDelete(t *testing.T) {
 }
 
 // fakeEdit returns an EditFunc that writes a generated PNG into scratch and
-// records the prompts it saw; prompts in fail make it return an error.
+// records the prompts it saw. Prompts in fail make it return an error.
 func fakeEdit(t *testing.T, fail ...string) (EditFunc, *[]string) {
 	t.Helper()
 	scratch := t.TempDir()

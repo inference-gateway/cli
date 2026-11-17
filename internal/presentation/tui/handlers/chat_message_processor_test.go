@@ -618,7 +618,7 @@ func TestChatHandler_HandleRolloverCompletedEvent(t *testing.T) {
 }
 
 // fakeSkills returns a SkillsService whose Get resolves exactly the given
-// skills; every other name is unknown. Discover mirrors Get so a test that
+// skills. Every other name is unknown. Discover mirrors Get so a test that
 // activates a skill sees the same set.
 func fakeSkills(skills ...agentdomain.Skill) *agentdomainmocks.FakeSkillsService {
 	byName := make(map[string]agentdomain.Skill, len(skills))

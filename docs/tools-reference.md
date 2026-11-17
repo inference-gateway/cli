@@ -3,7 +3,7 @@
 [← Back to README](../README.md)
 
 **What** - every built-in tool an LLM can call through the Inference Gateway CLI, with its parameters and approval default.
-**Why** - a tool's scope, side effects, and gating differ; picking the wrong one either fails the task or runs something you did not sanction.
+**Why** - a tool's scope, side effects, and gating differ. Picking the wrong one either fails the task or runs something you did not sanction.
 **How** - find the tool by category in the overview below, then read its section for the exact contract.
 
 This document provides comprehensive documentation for all tools available to LLMs when tool execution
@@ -42,7 +42,7 @@ is enabled in the Inference Gateway CLI.
 
 ## Tool Overview
 
-Tools are grouped by category. Many are gated behind a config flag (noted per group); the
+Tools are grouped by category. Many are gated behind a config flag (noted per group). The
 always-available set is registered for every session. There is **no built-in GitHub tool** - use the
 `gh` CLI through Bash (or the built-in `/scm` shortcuts) for GitHub operations.
 
@@ -65,7 +65,7 @@ See the [Plan Mode Guide](plan-mode.md) for the scratchpad's behavior.
 | **Tree** | Display directory structure | No |
 | **Skill** | Load a skill's SKILL.md into the conversation by name | No |
 
-**Shell** (Bash is always available; the background-shell trio needs `tools.bash.background_shells.enabled`):
+**Shell** (Bash is always available. The background-shell trio needs `tools.bash.background_shells.enabled`):
 
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
@@ -91,7 +91,7 @@ See the [Plan Mode Guide](plan-mode.md) for the scratchpad's behavior.
 | **WebSearch** | Search the web (DuckDuckGo/Google) | Yes |
 | **WebFetch** | Fetch content from a URL | No |
 
-`WebFetch` does not require approval by default; set `tools.web_fetch.require_approval: true` to require it.
+`WebFetch` does not require approval by default. Set `tools.web_fetch.require_approval: true` to require it.
 
 **Subagents** (the `Agent` tool and its companions, enabled by default):
 
@@ -120,7 +120,7 @@ exactly the same modes.
 | **RecordStart** | Record the screen, a window, or a region to MP4 | Yes | `computer_use.recording.enabled` |
 | **RecordStop** | Stop the recording and return the file path, duration, and size | No | `computer_use.recording.enabled` |
 
-**Browser** (require `browser_use.enabled`; see [Browser Tools](#browser-tools)):
+**Browser** (require `browser_use.enabled`. See [Browser Tools](#browser-tools)):
 
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
@@ -131,7 +131,7 @@ exactly the same modes.
 | **BrowserScreenshot** | Capture the current page as an image | No |
 | **BrowserTabs** | List the open tabs | No |
 
-**Media** (each gated by its own flag; all output is written to disk, never played aloud):
+**Media** (each gated by its own flag. All output is written to disk, never played aloud):
 
 | Tool | Purpose | Approval | Enabled by |
 | ------ | --------- | ---------- | ------------ |
@@ -258,7 +258,7 @@ is downloaded on the spot in headless runs and refused in chat, where the user i
 ### Write Tool
 
 Write content to files on the filesystem with security controls and directory creation support.
-Existing files are always overwritten - there is no `overwrite` option; use the Edit tool to modify an existing file's content in place.
+Existing files are always overwritten - there is no `overwrite` option. Use the Edit tool to modify an existing file's content in place.
 
 **Parameters:**
 
@@ -268,7 +268,7 @@ Existing files are always overwritten - there is no `overwrite` option; use the 
 **Features:**
 
 - **Directory Creation**: Automatically creates parent directories when needed
-- **Always Overwrites**: Existing files are always overwritten; use the Edit tool to modify an existing file's content in place
+- **Always Overwrites**: Existing files are always overwritten. Use the Edit tool to modify an existing file's content in place
 - **Security Validation**: Respects path exclusions and security restrictions
 - **Performance Optimized**: Efficient file writing with proper error handling
 
@@ -309,7 +309,7 @@ Perform exact string replacements in files with security validation and preview 
 
 **Features:**
 
-- **Indentation-Tolerant Matching**: Exact first; on a miss, a unique leading-whitespace match is re-indented (`strict_whitespace: true` disables)
+- **Indentation-Tolerant Matching**: Exact first. On a miss, a unique leading-whitespace match is re-indented (`strict_whitespace: true` disables)
 - **Preview Support**: Shows diff preview before applying changes
 - **Atomic Operations**: Either all changes succeed or none are applied
 - **Security Validation**: Respects path exclusions and file permissions
@@ -557,7 +557,7 @@ tools:
 The effective allow-list for a mode is `mode.all.allow` unioned with that mode's own list. Each entry
 is a regex matched against the **whole** command (`\A(?:entry)\z`), so a bare token matches only
 itself (`gh` allows `gh`, never `gh issue list`) - use `( .*)?` to accept arguments. The single
-sentinel `.*` means **unrestricted** (any single command, guard skipped); it is the default for `auto`
+sentinel `.*` means **unrestricted** (any single command, guard skipped). It is the default for `auto`
 mode, which is how an autonomous `infer headless` commits and pushes. Tighten `mode.auto.allow` to a
 curated list for CI with secrets so the guard re-applies.
 
@@ -568,7 +568,7 @@ A command is rejected before matching, regardless of the allow-list, when it:
 - **Pipes or chains** (`|`, `|&`, `&&`, `||`, `;`, `&`, newline) - only a **single** command is
   auto-approved, so `ls | head` is rejected even if both `ls` and `head` are allowed. Operators inside
   quotes (a jq `'… | …'` or `--title "a && b"`) do not count.
-- **Writes to a file** (`>`, `>>`, `&>file`, `>&file`) - `echo secret > /etc/passwd` is rejected; this
+- **Writes to a file** (`>`, `>>`, `&>file`, `>&file`) - `echo secret > /etc/passwd` is rejected. This
   cannot be unlocked by an allow entry. The same goes for options that write a file: `sort -o`,
   `tree -o`, `git --output`, and `uniq`'s output operand.
 - Uses **command substitution** (`$(...)`, backticks, `<(...)`, `>(...)`).
@@ -684,18 +684,18 @@ is set, or falls back to Playwright's bundled Chromium.
 
 Configured in `browser_use.yaml` (global `enabled` flag, per-tool enable
 flags, and shared rate limiting - same shape as `computer_use.yaml`).
-Disabled by default; enable with `INFER_BROWSER_USE_ENABLED=true` or by
+Disabled by default. Enable with `INFER_BROWSER_USE_ENABLED=true` or by
 editing the file.
 
-- **BrowserNavigate** - open a URL; returns the final URL and page title.
+- **BrowserNavigate** - open a URL. Returns the final URL and page title.
 - **BrowserClick** - click an element by CSS or Playwright selector
   (e.g. `text=Sign in`).
-- **BrowserType** - fill an input element; optional `press_enter` to submit.
+- **BrowserType** - fill an input element. Optional `press_enter` to submit.
 - **BrowserRead** - read the page (or one element's) visible text plus
   URL/title. Also returns browser-initiated events: console messages,
   auto-dismissed dialogs, and calls page scripts make to
   `window.inferNotify(...)` - the browser-to-CLI channel.
-- **BrowserScreenshot** - capture the current page as an image; the
+- **BrowserScreenshot** - capture the current page as an image. The
   screenshot is attached to the conversation and saved to disk.
 - **BrowserTabs** - list the open tabs (title and URL).
 
@@ -704,10 +704,10 @@ editing the file.
 ### ImageGeneration Tool
 
 Generate an image from a text prompt and save it as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The
-chat model calls the tool when the user asks for an image; the tool sends the prompt as a plain
+chat model calls the tool when the user asks for an image. The tool sends the prompt as a plain
 one-off request to `/v1/images/generations` using the configured image model - no system prompt,
 no tools, independent of the model selected for the chat session. Image models never appear in
-the `/model` selector; they are only reachable through this tool.
+the `/model` selector. They are only reachable through this tool.
 
 **Parameters:**
 
@@ -729,7 +729,7 @@ tools:
 ### ImageEdit Tool
 
 Edit an existing image and save the result as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The chat model calls the tool
-when the user asks to edit an image; the tool reads the input image from a local file path and sends a plain
+when the user asks to edit an image. The tool reads the input image from a local file path and sends a plain
 one-off request to `/v1/images/edits` using the configured image model - no system prompt, no tools,
 independent of the model selected for the chat session.
 
@@ -757,7 +757,7 @@ tools:
 ### ImageVariation Tool
 
 Create a variation of an existing image and save the result as a PNG under `~/.infer/projects/<project-slug>/artifacts/`. The chat model
-calls the tool when the user asks for a variation; the tool reads the input image from a local file path and
+calls the tool when the user asks for a variation. The tool reads the input image from a local file path and
 sends a plain one-off request to `/v1/images/edits` using the configured image model - no system
 prompt, no tools, independent of the model selected for the chat session.
 
@@ -790,9 +790,9 @@ too. Disabled by default: while
 **Parameters:**
 
 - `text` (required): The text to speak
-- `voice_sample` (optional): Bare file name of a WAV of the target speaker (~10-30s of clean speech) to clone; looked up
+- `voice_sample` (optional): Bare file name of a WAV of the target speaker (~10-30s of clean speech) to clone. Looked up
   in the working directory, then in the voice samples library (`~/.infer/voice/samples`)
-- `output_path` (optional): Bare file name for the generated WAV, placed inside `text_to_speech.output_dir`; defaults to a timestamped file
+- `output_path` (optional): Bare file name for the generated WAV, placed inside `text_to_speech.output_dir`. Defaults to a timestamped file
 
 **Configuration:**
 
@@ -801,24 +801,24 @@ text_to_speech:
   enabled: true
   model: local/qwen3-tts # provider/model, e.g. openai/gpt-4o-mini-tts
   # voice: alloy
-  require_approval: true # optional; unset = no approval, like the image tools
+  require_approval: true # optional. Unset = no approval, like the image tools
 ```
 
 ### TextToMusic Tool
 
 Compose a music clip from a text prompt and save it as an MP3 file. The chat model calls the tool when the user asks for background
 music, a loop or a jingle. The clip is generated behind the gateway's Music API (`/v1/audio/music`) with the configured
-`provider/model` (default `elevenlabs/music_v2_5`); the CLI holds no provider key, the gateway does. Disabled by default: while
+`provider/model` (default `elevenlabs/music_v2_5`). The CLI holds no provider key, the gateway does. Disabled by default: while
 `text_to_music.enabled` is false the tool definition is not sent to the LLM at all. See
 [text-to-music](text-to-music.md) for setup and gateway requirements.
 
 **Parameters:**
 
 - `prompt` (required): Description of the music - genre, mood, instruments, tempo
-- `seconds` (optional): Clip length in seconds; omitted lets the provider pick a length that fits the prompt
+- `seconds` (optional): Clip length in seconds. Omitted lets the provider pick a length that fits the prompt
 - `instrumental` (optional): `true` to guarantee the generated clip has no vocals
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP3, placed inside
-  `text_to_music.output_dir`; defaults to a timestamped file
+  `text_to_music.output_dir`. Defaults to a timestamped file
 
 **Configuration:**
 
@@ -827,7 +827,7 @@ text_to_music:
   enabled: true
   # model: elevenlabs/music_v2_5 # gateway provider/model id
   # output_dir: <media root>/music
-  require_approval: false # optional; unset = no approval, like the image tools
+  require_approval: false # optional. Unset = no approval, like the image tools
 ```
 
 ---
@@ -837,19 +837,19 @@ text_to_music:
 Generate a short sound effect or ambience clip from a text prompt and save it as an MP3 file. The chat model calls the tool when the user asks for a
 whoosh, a click, a riser or room tone - non-speech audio that `TextToSpeech` (it would read the word aloud) and `TextToMusic` (composes songs)
 cannot cover. The clip is generated behind the gateway's SFX API (`/v1/audio/sfx`) with the configured `provider/model` (default
-`elevenlabs/eleven_text_to_sound_v2`; alternatives `mirelo/sfx-2.0` and `mirelo/sfx-1.6`). Mirelo generates the sound effect as an
-asynchronous job, so the request can take longer than an ElevenLabs one; the CLI holds no provider key, the gateway does. Disabled by default:
+`elevenlabs/eleven_text_to_sound_v2`. Alternatives `mirelo/sfx-2.0` and `mirelo/sfx-1.6`). Mirelo generates the sound effect as an
+asynchronous job, so the request can take longer than an ElevenLabs one. The CLI holds no provider key, the gateway does. Disabled by default:
 while `text_to_sfx.enabled` is false the tool definition is not sent to the LLM at all.
 
 **Parameters:**
 
 - `prompt` (required): Description of the sound - the event or atmosphere and its character (e.g. a whoosh, a click, a riser, room tone)
-- `seconds` (optional): Clip length in seconds, 0.5-30; omitted lets the provider pick a length that fits the prompt - Mirelo requires a length, so its
+- `seconds` (optional): Clip length in seconds, 0.5-30. Omitted lets the provider pick a length that fits the prompt - Mirelo requires a length, so its
   models default to 5 seconds when `seconds` is omitted
-- `loop` (optional): `true` to generate a clip that loops seamlessly; needs an ElevenLabs model or `mirelo/sfx-1.6` -
+- `loop` (optional): `true` to generate a clip that loops seamlessly. Needs an ElevenLabs model or `mirelo/sfx-1.6` -
   `mirelo/sfx-2.0` answers `capability_unsupported`
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP3, placed inside
-  `text_to_sfx.output_dir`; defaults to a timestamped file
+  `text_to_sfx.output_dir`. Defaults to a timestamped file
 
 **Configuration:**
 
@@ -858,35 +858,35 @@ text_to_sfx:
   enabled: true
   # model: elevenlabs/eleven_text_to_sound_v2 # gateway provider/model id, alternatives mirelo/sfx-2.0 and mirelo/sfx-1.6
   # output_dir: <media root>/sfx
-  require_approval: false # optional; unset = no approval, like the image tools
+  require_approval: false # optional. Unset = no approval, like the image tools
 ```
 
 ---
 
 ### TextToVideo Tool
 
-Render a video clip from a text prompt and save it as an MP4 file; with a portrait and an audio clip the render is a lip-synced talking clip - the face
+Render a video clip from a text prompt and save it as an MP4 file. With a portrait and an audio clip the render is a lip-synced talking clip - the face
 half of the desktop's Content workflow, with `TextToSpeech` as the voice half. The clip is generated behind the gateway's Videos API (`/v1/videos`) with
 `text_to_video.model` for prompt renders (default `elevenlabs/veo-3.1-fast-generate-001`) or `text_to_video.avatar_model` for lip-synced renders
-(default `elevenlabs/creatify-aurora`); the CLI holds no provider key, the gateway does. Avatar renders upload the user's
+(default `elevenlabs/creatify-aurora`). The CLI holds no provider key, the gateway does. Avatar renders upload the user's
 face and voice to a third-party provider, so the tool is disabled by default: while `text_to_video.enabled` is false the tool definition is not sent to
 the LLM at all. See [text-to-video](text-to-video.md) for setup, the size rules and the upload limit.
 
 **Parameters:**
 
-- `prompt` (required unless `audio` is given): Description of the shot; for avatar renders it describes framing only - the dialogue
+- `prompt` (required unless `audio` is given): Description of the shot. For avatar renders it describes framing only - the dialogue
   comes from the audio clip
-- `seconds` (optional): Clip length in seconds as a string; providers accept a limited set of values; ignored when `audio` is present
-- `size` (optional): Output resolution as `widthxheight` (e.g. `720x1280` portrait or `1280x720` landscape), passed through verbatim; omitted means the
-  provider default; `creatify-aurora` renders 480p or 720p only and keeps the portrait's aspect ratio
-- `avatar` (optional): The name of an avatar in the library (`~/.infer/avatars/<name>/`; see `infer avatars list`), or a bare
-  file name of a .png, .jpg, .jpeg or .webp portrait in the working directory; required with `audio`. With `audio` the avatar's
-  first image is lip-synced; without it a library avatar's images all go as `reference_images` (Veo takes at most 3), while a bare
+- `seconds` (optional): Clip length in seconds as a string. Providers accept a limited set of values. Ignored when `audio` is present
+- `size` (optional): Output resolution as `widthxheight` (e.g. `720x1280` portrait or `1280x720` landscape), passed through verbatim. Omitted means the
+  provider default. `creatify-aurora` renders 480p or 720p only and keeps the portrait's aspect ratio
+- `avatar` (optional): The name of an avatar in the library (`~/.infer/avatars/<name>/`. See `infer avatars list`), or a bare
+  file name of a .png, .jpg, .jpeg or .webp portrait in the working directory. Required with `audio`. With `audio` the avatar's
+  first image is lip-synced. Without it a library avatar's images all go as `reference_images` (Veo takes at most 3), while a bare
   file becomes the first frame
 - `audio` (optional): Bare file name of a `.wav` or `.mp3` clip that drives the render, looked up in the working directory then in the
-  `TextToSpeech` output directory; requires `avatar`
+  `TextToSpeech` output directory. Requires `avatar`
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the generated MP4, placed inside
-  `text_to_video.output_dir`; defaults to a timestamped file
+  `text_to_video.output_dir`. Defaults to a timestamped file
 
 **Configuration:**
 
@@ -899,7 +899,7 @@ text_to_video:
   # output_dir: <media root>/video
   # timeout: 900                      # whole-render timeout (seconds)
   # poll_interval: 5                  # job status poll cadence (seconds)
-  require_approval: false # optional; unset = no approval, like the image tools
+  require_approval: false # optional. Unset = no approval, like the image tools
 ```
 
 ---
@@ -948,10 +948,10 @@ See [text-to-video](text-to-video.md#createavatar-tool).
 
 **Parameters:**
 
-- `name` (required): Bare name of the new avatar; an existing name fails, nothing is overwritten
+- `name` (required): Bare name of the new avatar. An existing name fails, nothing is overwritten
 - `photo` (required): Bare file name of a `.png`, `.jpg`, `.jpeg` or `.webp` photo, looked up in the working directory, then in the
-  session's artifacts directory; absolute paths, directories and `..` are rejected
-- `angles` (optional): Views to generate - `three-quarter-left`, `three-quarter-right`, `left-profile`, `right-profile`; defaults to
+  session's artifacts directory. Absolute paths, directories and `..` are rejected
+- `angles` (optional): Views to generate - `three-quarter-left`, `three-quarter-right`, `left-profile`, `right-profile`. Defaults to
   both three-quarter views, `[]` stores the photo only
 - `quality` (optional): `auto`, `low`, `medium`, `high` (default) or `standard`
 - `size` (optional): Generated image size as `WIDTHxHEIGHT` or `auto` (default `1024x1536`)
@@ -981,7 +981,7 @@ Dub a video clip: the provider generates the sound that fits the clip and re-ren
 that sound as its new soundtrack, and the finished MP4 is saved - the sound half of the desktop's
 Content workflow, with `TextToVideo` as the face half and `TextToSpeech` as the voice half. The dub
 runs behind the gateway's Videos API (`/v1/videos`) with `video_to_sfx.model` (default
-`mirelo/sfx-2.0`); the CLI holds no provider key, the gateway does. The clip is uploaded to a
+`mirelo/sfx-2.0`). The CLI holds no provider key, the gateway does. The clip is uploaded to a
 third-party provider, so the tool is disabled by default: while `video_to_sfx.enabled` and
 `video_to_sfx.dub` are not both true the tool definition is not sent to the LLM at all. Mirelo lays
 only the generated mix onto the clip - the separated speech and sfx tracks are not available on a
@@ -998,7 +998,7 @@ dubbed clip, so the tool offers no `track` parameter. See
 - `preserve_speech` (optional): `true` to keep the clip's own dialogue under the generated sound
 - `start_seconds` (optional): Offset in seconds where the dubbed window starts - omitted dubs from the beginning
 - `output_path` (optional): Bare file name (no directories or absolute paths) for the dubbed MP4,
-  placed inside `text_to_video.output_dir`; defaults to a timestamped file
+  placed inside `text_to_video.output_dir`. Defaults to a timestamped file
 
 **Configuration:**
 
@@ -1020,7 +1020,7 @@ video_to_sfx:
 
 - `accessibility` - preferred first observation. Returns compact `{role,label,state,bbox}` elements
   for the frontmost application or another target. Bounding boxes use the same frame coordinate space
-  as screenshots and pointer actions. Read-only; no screenshot or vision annotator is invoked.
+  as screenshots and pointer actions. Read-only. No screenshot or vision annotator is invoked.
 - `press` - performs the accessibility `press` action on the first element with an exact `label`,
   without moving the cursor or taking a screenshot.
 - `screenshot` - captures a fresh screen image or a native-resolution `region`. Use this when the
@@ -1033,12 +1033,12 @@ The `accessibility` and `press` actions accept an optional `target`: `frontmost`
 `label` returned by `accessibility`.
 
 Under `computer_use.approval: destructive`, `accessibility`, `screenshot`, and `cursor` bypass
-approval; `press` and the input actions require approval.
+approval. `press` and the input actions require approval.
 
 ### RecordStart and RecordStop Tools
 
 Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickTime). Enabled by
-`computer_use.recording.enabled` (off by default; see
+`computer_use.recording.enabled` (off by default. See
 [Configuration Reference](configuration-reference.md#screen-recording-computer_useyaml)).
 
 **RecordStart parameters:**
@@ -1072,7 +1072,7 @@ Record the screen to an MP4 file (H.264, `yuv420p`, plays in browsers and QuickT
 - When the CLI exits (normal exit, Ctrl+C, SIGTERM) an active recording is finalized, and no ffmpeg
   process is left behind. Call `RecordStop` in the same session: channel and scheduled runs each
   start a fresh process. `infer tools execute` refuses both tools.
-- `window` mode records the window's bounds at the moment the recording starts; anything drawn over
+- `window` mode records the window's bounds at the moment the recording starts. Anything drawn over
   that area is recorded too, and moving the window does not move the capture.
 - Files go to `recordings/<timestamp>.mp4` under the [media root](directory-structure.md#media-directories) unless `output_dir` is set.
 - The chat status bar shows `● REC` while a recording runs.
@@ -1113,7 +1113,7 @@ written to disk). Enabled whenever at least one frame source is registered.
 
 For the `screen` source, annotated output includes element centers usable with the `Computer` tool's `click` action.
 Annotated frames carry no base64 - the text replaces the image, so text-only models can use the tool
-directly; vision models can always request `format: regular`.
+directly. Vision models can always request `format: regular`.
 
 ### ImageDecode Tool
 
@@ -1241,7 +1241,7 @@ is in **Plan Mode** (toggle via Shift+Tab in the chat TUI).
 - The plan is written atomically to `<configDir>/plans/<YYYY-MM-DD-HHMMSS>-<slug>.md` (e.g. `~/.infer/plans/2026-04-27-103015-add-login-flow.md`).
 - The chat TUI shows the rendered plan with **Accept** (auto-accept mode), **Reject**, and **Approve Each Step** (standard mode) options.
 - On accept, the agent switches out of plan mode and executes the plan.
-- On reject, the file remains on disk as an audit trail; the user can reply with feedback and the agent re-iterates.
+- On reject, the file remains on disk as an audit trail. The user can reply with feedback and the agent re-iterates.
 - The LLM is instructed to ask clarifying questions in normal assistant turns first, and only call this tool when the plan is complete.
 
 **Parameters:**
@@ -1272,7 +1272,7 @@ The tool is auto-registered and always enabled in plan mode. No config knobs.
 
 Asks the user to override a tool call the LLM judge rejected (Auto+Judge mode or
 `tools.safety.approval_behaviour: judge`). Every judge rejection result hints at
-this tool; see [Judge Mode](judge-mode.md#overriding-a-rejection-requestapproval).
+this tool. See [Judge Mode](judge-mode.md#overriding-a-rejection-requestapproval).
 
 **How it works:**
 
@@ -1319,14 +1319,14 @@ today to call mum" - initiated from a chat with the bot.
 
 **How it works:**
 
-- Each scheduled job is persisted through the configured storage backend; the default jsonl backend stores it as a YAML file under `~/.infer/schedules/`.
+- Each scheduled job is persisted through the configured storage backend. The default jsonl backend stores it as a YAML file under `~/.infer/schedules/`.
 - The `infer daemon` process hosts the scheduler and polls storage every 2s, so newly created jobs fire without a restart.
 - Each fire spawns a brand-new `infer headless` session - no context carries between runs. Make prompts specific and
   self-contained. A run record (`session_id`, `status`, `error`, timestamps) is persisted per fire, so job output is
   readable from storage.
 - Channel + recipient are derived automatically from the current session ID -
   the LLM never passes them. From a channel-driven session the job delivers its
-  output back to that channel; from any other session the job is record-only.
+  output back to that channel. From any other session the job is record-only.
 - One-off jobs (`run_once: true`) are deleted automatically after their first fire.
 
 **Disabled by default.** Enable in config under `tools.schedule.enabled: true`.
@@ -1338,7 +1338,7 @@ today to call mum" - initiated from a chat with the bot.
 - `cron_expression`: Required for `create`. Standard 5-field crontab or `@every <duration>`.
 - `prompt`: Required for `create`. The task to give the agent on each fire.
 - `run_once` (optional, default `false`): When true, the job is deleted after its first fire.
-- `name`, `description`, `model`: Optional metadata; `model` overrides `agent.model` for that job.
+- `name`, `description`, `model`: Optional metadata. `model` overrides `agent.model` for that job.
 
 The LLM is instructed to **always confirm with the user whether they want a
 one-off or recurring job** before creating one - there is no safe default
@@ -1414,7 +1414,7 @@ Submit tasks to specialized A2A agents for distributed processing.
 
 - `agent_url` (required): URL of the A2A agent server
 - `task_description` (required): Description of the task to perform
-- `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent; omitting it starts an independent task
+- `context_id` (optional): Context ID from an earlier task to continue that conversation with the agent. Omitting it starts an independent task
 - `tenant` (optional): The agent to address behind a gateway that fronts several agents, taken from the `tenant` of an
   interface on the gateway's agent card
 

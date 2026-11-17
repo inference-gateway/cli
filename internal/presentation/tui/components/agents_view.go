@@ -49,7 +49,7 @@ type agentItem struct {
 // The kind prefix lets the user filter to a type by typing it.
 func (i agentItem) FilterValue() string { return i.kind + " " + i.name }
 
-// agentSection is the title row of a group; it is not an agent, so selecting it
+// agentSection is the title row of a group. It is not an agent, so selecting it
 // is a no-op and it only stays visible while filtering when the query matches
 // the title.
 type agentSection struct {
@@ -197,7 +197,7 @@ func (m *AgentsView) skipSection(prev int) {
 }
 
 // handleKey intercepts the cancel keys when the list is not actively
-// filtering; otherwise it lets the list own typing, enter (apply filter) and
+// filtering. Otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter). Enter outside filtering is consumed as a no-op.
 func (m *AgentsView) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {

@@ -8,7 +8,7 @@ import (
 // HookPoint is one of the pre-defined points in the agent loop where actions
 // can attach. The catalog is fully symmetric: every loop phase exposes a
 // pre_/post_ pair. System reminders attach a text-injection
-// action here today; executable command hooks attach a
+// action here today. Executable command hooks attach a
 // command-execution action at the same points later, both flowing through the
 // single dispatchHooks(point) seam.
 type HookPoint string
@@ -64,14 +64,14 @@ type SystemReminder struct {
 // equal.
 //
 // Fired carries reminder names already emitted this session (consulted by the
-// `once` trigger); the caller marks names fired after injecting.
+// `once` trigger). The caller marks names fired after injecting.
 //
 // ToolFailed reports whether the tool batch that just completed had any failed
 // call. It is meaningful only at the post_tool hook (set right before that
 // dispatch) and drives the `on_failure` trigger.
 //
 // RepeatedFailures and FailedTool are set at the post_tool hook when the same
-// tool call has failed threshold+ consecutive times; they drive the
+// tool call has failed threshold+ consecutive times. They drive the
 // `on_repeated_failure` trigger. FailedTool is the function name, for
 // templating.
 //
@@ -80,17 +80,17 @@ type SystemReminder struct {
 // is "length").
 //
 // IncompleteTodos carries the remaining open todo items from the model's
-// TodoWrite list; it drives the `on_stalled_todos` trigger at the post_stream
+// TodoWrite list. It drives the `on_stalled_todos` trigger at the post_stream
 // hook (firing when non-empty and the response had no tool calls).
 // StalledStrikes is the count of consecutive no-tool-call responses, gating
 // that trigger's strike cap (threshold).
 //
 // EmptyResponse reports that the just-finished assistant turn carried neither
-// text nor a tool call (a reasoning-only reply); it drives the
+// text nor a tool call (a reasoning-only reply). It drives the
 // `on_empty_response` trigger at the post_stream hook.
 //
 // ModeChanged reports whether the agent mode differs from the previous
-// streaming turn; PrevMode/Mode carry the transition. They are meaningful only
+// streaming turn. PrevMode/Mode carry the transition. They are meaningful only
 // at the pre_stream hook (set right before that dispatch) and drive the
 // `on_mode_change` trigger.
 type ReminderQuery struct {

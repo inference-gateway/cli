@@ -53,7 +53,7 @@ type Store struct {
 	shLookup     func() (string, error)
 }
 
-// NewStore creates a Store; autoDownload gates Ensure's release check and
+// NewStore creates a Store. AutoDownload gates Ensure's release check and
 // install, while Install and Status always run. Its client bounds the
 // response-header wait so a non-responding host errors instead of hanging -
 // the request context bounds the body read for large downloads.

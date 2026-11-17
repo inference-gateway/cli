@@ -11,7 +11,7 @@ import (
 // Outcome is what a surface without a TUI - headless, a channel bot - should do
 // with a slash command: print Text, or run Prompt through the agent as if the
 // user had typed it, optionally on Model. The chat TUI splits the same two cases
-// across status messages and SetInputEvent; everything else it does with a
+// across status messages and SetInputEvent. Everything else it does with a
 // ShortcutResult is view state, which has no meaning here.
 type Outcome struct {
 	Text   string
@@ -23,7 +23,7 @@ type Outcome struct {
 // surfaces that have no handlers. A nil func means that command is unavailable
 // and reports itself as such.
 type Deps struct {
-	// SessionID is the conversation the command runs against; /stats and
+	// SessionID is the conversation the command runs against. /stats and
 	// /traces read it from the context, exactly as the TUI passes it.
 	SessionID string
 	// Compact summarises the conversation into a fresh session and returns what

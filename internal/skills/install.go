@@ -100,7 +100,7 @@ type GitHubLocation struct {
 //	https://github.com/<owner>/<repo>/tree/<ref>/<path-to-skill>
 //
 // Refs containing a literal "/" (e.g. "feature/foo" branches) are not
-// supported; pass the URL of a tag or single-segment branch instead.
+// supported. Pass the URL of a tag or single-segment branch instead.
 func ParseGitHubTreeURL(rawURL string) (*GitHubLocation, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -157,7 +157,7 @@ type Installer struct {
 // NewInstaller returns an Installer pointed at github.com with a 30s HTTP
 // timeout, resolving shorthand targets against the given "<owner>/<repo>"
 // skills repository (empty = config.DefaultSkillsRepository). The GitHub token
-// comes from github.Token (GITHUB_TOKEN, then GH_TOKEN); when neither is set
+// comes from github.Token (GITHUB_TOKEN, then GH_TOKEN). When neither is set
 // requests are made unauthenticated. Tests substitute APIBase / RawBase to
 // point at httptest.Server.
 func NewInstaller(repository string) *Installer {

@@ -35,7 +35,7 @@ type ArtifactPollerOptions struct {
 // ArtifactPoller periodically downloads conversation artifacts uploaded by
 // GitHub-backed job runs and drops their jsonl files into local conversation
 // storage. Lifecycle mirrors the heartbeat service.
-// ponytail: raw jsonl drop only works for storage.type jsonl; parse-and-save via ConversationStorage if sqlite/postgres users ask.
+// ponytail: raw jsonl drop only works for storage.type jsonl. Parse-and-save via ConversationStorage if sqlite/postgres users ask.
 type ArtifactPoller struct {
 	opts ArtifactPollerOptions
 
@@ -52,7 +52,7 @@ type ArtifactPoller struct {
 }
 
 // pollerState is persisted across daemon restarts. Cursor is the highest
-// artifact ID ever listed; Pending tracks download attempts for artifacts that
+// artifact ID ever listed. Pending tracks download attempts for artifacts that
 // have not been fully extracted yet.
 type pollerState struct {
 	Cursor  int64         `json:"cursor"`
@@ -320,7 +320,7 @@ func (p *ArtifactPoller) runGH(ctx context.Context, timeout time.Duration, args 
 	return p.opts.Runner.Run(ctx, "gh", args...)
 }
 
-// loadState restores the cursor file; a missing or corrupt file starts fresh.
+// loadState restores the cursor file. A missing or corrupt file starts fresh.
 func (p *ArtifactPoller) loadState() {
 	if p.opts.StatePath == "" {
 		return
@@ -339,7 +339,7 @@ func (p *ArtifactPoller) loadState() {
 	p.state = st
 }
 
-// saveState persists the cursor atomically (tmp+rename); failures are logged,
+// saveState persists the cursor atomically (tmp+rename). Failures are logged,
 // not fatal - the worst case is re-downloading already-extracted artifacts.
 func (p *ArtifactPoller) saveState() {
 	if p.opts.StatePath == "" {

@@ -13,7 +13,7 @@ import (
 )
 
 // ImageGenerationTool generates an image with the configured image model and
-// saves it to a local PNG. The chat model calls it with a plain prompt; the
+// saves it to a local PNG. The chat model calls it with a plain prompt. The
 // request goes straight to /v1/images/generations, independent of the model
 // selected for the session.
 type ImageGenerationTool struct {

@@ -203,7 +203,7 @@ func (r *Runner) HandleChatComplete(msg agentdomain.ChatCompleteEvent) tea.Cmd {
 
 // writeSubagentResultFile lets an interactive subagent's `infer chat` hand its
 // last assistant message back to the parent Agent tool. When launched as an
-// interactive subagent the parent sets INFER_SUBAGENT_RESULT_FILE; on each fully
+// interactive subagent the parent sets INFER_SUBAGENT_RESULT_FILE. On each fully
 // completed turn (a final answer, no pending tool calls) we write the last
 // assistant message as a SubagentResultFile with done set, because the task turn
 // - the only turn the parent dispatched - is terminal. The parent monitor then

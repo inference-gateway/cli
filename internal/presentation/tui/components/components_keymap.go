@@ -5,7 +5,7 @@ import (
 )
 
 // Centralised key.Binding sets for per-view components. These are navigation
-// keys local to their overlay and are not user-remappable; each set follows
+// keys local to their overlay and are not user-remappable. Each set follows
 // the guardKeys pattern from internal/app/chat_keymap.go.
 
 var taskManagerKeys = struct {
@@ -136,7 +136,7 @@ var listViewKeys = struct {
 }
 
 // fileExplorerFindKeys drives the find-in-tree text-input sub-mode of the file
-// explorer. These are inherent text-entry keys (not user-remappable); the
+// explorer. These are inherent text-entry keys (not user-remappable). The
 // switch only catches control keys  and lets printable characters fall
 // through to the query buffer.
 var fileExplorerFindKeys = struct {

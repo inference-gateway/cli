@@ -2,7 +2,7 @@ package migrations
 
 // GetPostgresMigrations returns all PostgreSQL migrations in order. The schema
 // mirrors GetSQLiteMigrations one-for-one (single conversations table with
-// embedded JSON messages) so both dialects share the same SQL core; only the
+// embedded JSON messages) so both dialects share the same SQL core. Only the
 // column types differ. JSON columns are TEXT: the app marshals JSON itself -
 // switch to JSONB only if server-side JSON querying is ever needed.
 //

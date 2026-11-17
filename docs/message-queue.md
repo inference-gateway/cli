@@ -83,7 +83,7 @@ The record is one JSON object with these fields:
 | ----- | ---- | ----- |
 | `role` | string | SDK role of the message, `"user"` for user work |
 | `content` | JSON | the SDK message content - a plain text message is a JSON string |
-| `source` | string | one of `composer`, `stdin`, `a2a`, `shell`, `subagent`, `job`; use `a2a` for work another agent pushes |
+| `source` | string | one of `composer`, `stdin`, `a2a`, `shell`, `subagent`, `job`. Use `a2a` for work another agent pushes |
 | `request_id` | string | free-form producer-supplied id for tracing and ordering, empty allowed |
 | `queued_at` | RFC3339 timestamp | when the producer created the entry |
 
@@ -112,7 +112,7 @@ redis-cli RPUSH infer:queue:my-shared-queue '{
 }'
 ```
 
-- `RPUSH` appends to the tail; infer consumes from the head, so producers
+- `RPUSH` appends to the tail. Infer consumes from the head, so producers
   never prepend.
 - `LRANGE infer:queue:<name> 0 -1` reads the queue without consuming.
 - The consumer empties the key in a single Lua step, so readers never race a

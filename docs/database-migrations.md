@@ -269,7 +269,7 @@ Both dialects carry the same nine migrations:
 **PostgreSQL**:
 
 - Created `conversations` table (single-table schema with messages embedded as a
-  JSON blob, mirroring SQLite; the shared SQL core drives both dialects)
+  JSON blob, mirroring SQLite. The shared SQL core drives both dialects)
 - Added index on `updated_at` for efficient queries
 
 ## See Also

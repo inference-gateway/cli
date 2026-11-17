@@ -8,7 +8,7 @@ import (
 // ScaleAPIToScreen converts coordinates from API space (the model's screenshot)
 // to screen space (actual display) with proportional scaling. Frames are
 // resized uniformly (ScreenshotToolConfig.FitDims), so the X and Y factors
-// are equal in practice; independent factors are kept for identity mapping
+// are equal in practice. Independent factors are kept for identity mapping
 // when no resize happened.
 //
 // Parameters:
@@ -18,7 +18,7 @@ import (
 //
 // Returns:
 //   - screenX, screenY: Coordinates in actual screen space for mouse operations
-//   - error when the input lies outside the API space; the message stays in API
+//   - error when the input lies outside the API space. The message stays in API
 //     space so a model that never saw the real display cannot misread it as
 //     screen bounds
 //

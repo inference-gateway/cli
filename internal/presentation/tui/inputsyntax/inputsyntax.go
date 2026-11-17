@@ -55,7 +55,7 @@ func New(rules []Rule, colorOf func(key string) string, render func(text, hexCol
 }
 
 // Highlight runs every rule over s and returns the styled string. Rules are
-// applied in order; since each rule already styles only genuine plain-text
+// applied in order. Since each rule already styles only genuine plain-text
 // tokens (an earlier rule's ANSI moves a token's sigil off the boundary), the
 // ordering matters only for tokens sharing a sigil (skills before shortcuts).
 func (h *Highlighter) Highlight(s string) string {

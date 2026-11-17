@@ -13,8 +13,8 @@ license: Apache-2.0
 # Bubble Tea v2
 
 The Elm-Architecture TUI runtime. Import `charm.land/bubbletea/v2` (alias `tea`);
-pinned to v2.1.1. State lives in a `Model`; messages drive `Update`, which returns
-a new model and optional commands; `View` renders. The biggest risk here is v1
+pinned to v2.1.1. State lives in a `Model`. Messages drive `Update`, which returns
+a new model and optional commands. `View` renders. The biggest risk here is v1
 muscle memory, so start with what changed.
 
 ## v2 vs the v1 you remember
@@ -25,7 +25,7 @@ muscle memory, so start with what changed.
 | `View()` returns | `string` | **`tea.View`** (wrap via `tea.NewView(s)`) |
 | Full-screen / mouse | `WithAltScreen()` / `WithMouseCellMotion()` opts | **View fields** `v.AltScreen=true`, `v.MouseMode` (opts gone) |
 | Cursor / title / focus | imperative cmds | View fields: `v.Cursor`, `v.WindowTitle`, `v.ReportFocus` |
-| Keys | `tea.KeyMsg` struct (`msg.Type`, `msg.Runes`) | **`tea.KeyPressMsg`** / `KeyReleaseMsg`; match `msg.String()` |
+| Keys | `tea.KeyMsg` struct (`msg.Type`, `msg.Runes`) | **`tea.KeyPressMsg`** / `KeyReleaseMsg`. Match `msg.String()` |
 | Quit | `return m, tea.Quit` | same - `tea.Quit` is a `Cmd`, pass it, don't call it |
 
 ## The Model interface (exact v2)
@@ -88,7 +88,7 @@ func (m model) View() tea.View {
     v.MouseMode = tea.MouseModeCellMotion // or MouseModeAllMotion / MouseModeNone
     v.WindowTitle = "my app"
     v.ReportFocus = true                  // deliver FocusMsg / BlurMsg
-    v.Cursor = tea.NewCursor(m.cx, m.cy)  // *tea.Cursor; nil hides it
+    v.Cursor = tea.NewCursor(m.cx, m.cy)  // *tea.Cursor. Nil hides it
     return v
 }
 ```
@@ -111,7 +111,7 @@ longer exist. The real `tea.NewProgram` options are `WithContext`, `WithInput`,
 ## Commands & messages
 
 A `tea.Cmd` is `func() tea.Msg` - the only place to do I/O. Never mutate the model
-from a bare goroutine; return a command and handle its message in `Update`.
+from a bare goroutine. Return a command and handle its message in `Update`.
 
 ```go
 type gotData struct {
@@ -132,9 +132,9 @@ func fetch(url string) tea.Cmd {
 }
 ```
 
-- `tea.Batch(c1, c2)` runs commands concurrently; `tea.Sequence(c1, c2)` in order.
+- `tea.Batch(c1, c2)` runs commands concurrently. `tea.Sequence(c1, c2)` in order.
 - `tea.Tick(d, fn)` / `tea.Every(d, fn)` are timers (`fn` returns a `tea.Msg`).
-- `tea.Quit` exits; `tea.Printf` / `tea.Println` print above the UI.
+- `tea.Quit` exits. `tea.Printf` / `tea.Println` print above the UI.
 - From outside the loop, push messages with `p.Send(msg)`.
 
 ## Input
@@ -144,28 +144,28 @@ func fetch(url string) tea.Cmd {
 - Resize: `case tea.WindowSizeMsg: m.w, m.h = msg.Width, msg.Height` - propagate to
   child components.
 - Mouse: `tea.MouseClickMsg`, `MouseReleaseMsg`, `MouseMotionMsg`, `MouseWheelMsg`
-  (all satisfy `tea.MouseMsg`); sent only when `v.MouseMode != MouseModeNone`.
+  (all satisfy `tea.MouseMsg`). Sent only when `v.MouseMode != MouseModeNone`.
 - Focus/paste: `tea.FocusMsg` / `tea.BlurMsg` (needs `v.ReportFocus`), `tea.PasteMsg`.
 - Light/dark: return `tea.RequestBackgroundColor` from `Init`, handle
   `tea.BackgroundColorMsg` (`msg.IsDark()`), rebuild styles - see **lipgloss-v2**.
 
 ## Best practices
 
-- Keep `Update`/`View` pure and fast; offload I/O and sleeps to commands (a
+- Keep `Update`/`View` pure and fast. Offload I/O and sleeps to commands (a
   `time.Sleep` in `Update` freezes the UI - use `tea.Tick`).
 - Compose: give each child its own model and have the parent delegate (route
   messages down, join views) - see **bubbles-v2** for the embed-and-delegate pattern.
-- Value receivers are idiomatic; the runtime swaps in whatever model you return, so
+- Value receivers are idiomatic. The runtime swaps in whatever model you return, so
   always return the updated copy.
 - Cancel cleanly with `tea.NewProgram(m, tea.WithContext(ctx))`.
 
 ## Gotchas
 
 - `View()` must return `tea.View` - wrap your string with `tea.NewView(...)`.
-- Return `tea.Quit` (a `Cmd`); calling `tea.Quit()` yields a `Msg` and is wrong here.
+- Return `tea.Quit` (a `Cmd`). Calling `tea.Quit()` yields a `Msg` and is wrong here.
 - Never call another model's `Update` directly, and never touch the model from a
   goroutine - return a command instead.
-- `tea.Batch` is unordered; use `tea.Sequence` when order matters.
+- `tea.Batch` is unordered. Use `tea.Sequence` when order matters.
 - Reaching for `tea.WithAltScreen()`? Gone - set `v.AltScreen = true` in the View.
 
 Pairs with **lipgloss-v2** (styling the strings in your View) and **bubbles-v2**

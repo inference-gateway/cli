@@ -19,7 +19,7 @@ A plugin repo is mapped onto native infer features — **content only**:
 | --- | --- |
 | `skills/<name>/SKILL.md` | Native skills system, new `plugin` scope (autocomplete, `/name` invocation, `infer skills list`) |
 | `AGENTS.md` (repo root) | Injected into the system prompt as a labeled `PLUGIN INSTRUCTIONS (<name>)` section while the plugin is enabled |
-| `hooks.yaml` (repo root) | Native Infer command hooks (disabled by default; enable with `infer plugins enable-hooks <name>`) |
+| `hooks.yaml` (repo root) | Native Infer command hooks (disabled by default. Enable with `infer plugins enable-hooks <name>`) |
 | `.claude-plugin/plugin.json` | Name/version/description metadata (optional — falls back to the repo name) |
 | `hooks/`, `commands/`, `agents/` | **Detected and reported, never executed or installed** |
 
@@ -39,7 +39,7 @@ executed.
 
 Because a plugin's `AGENTS.md` becomes always-on prompt content, `install`
 prints a summary of what the plugin provides and asks for confirmation
-(`--yes` skips it; non-interactive stdin requires `--yes`).
+(`--yes` skips it. Non-interactive stdin requires `--yes`).
 
 ## Commands
 
@@ -57,7 +57,7 @@ infer plugins remove <name>
 Sources: `owner/repo` (optionally `owner/repo@ref`), a `github.com` URL
 (optionally `/tree/<ref>`), or a local directory (`./my-plugin`) for plugin
 development. Without a ref, `HEAD` (the default branch) is used. Downloads go
-through the GitHub tree + raw APIs — no `git` binary needed; set
+through the GitHub tree + raw APIs — no `git` binary needed. Set
 `GITHUB_TOKEN`/`GH_TOKEN` for higher rate limits or private repos.
 
 ## Storage and layering
@@ -74,7 +74,7 @@ seeded or overwritten by `infer init`).
   enabled plugin's `AGENTS.md`, in registry order.
 - Instruction files are read verbatim (no environment-variable expansion) and
   capped at `max_instructions_lines` (default 399, per the AGENTS.md standard)
-  with a `max_instructions_chars` backstop (default 8000); truncation is
+  with a `max_instructions_chars` backstop (default 8000). Truncation is
   always explicitly marked.
 
 ## Configuration
@@ -98,7 +98,7 @@ plugins:
 Related toggles:
 
 - `agent.skills.enabled: false` stops plugin skills from loading (plugin
-  instructions still inject; disable the plugin or set
+  instructions still inject. Disable the plugin or set
   `INFER_PLUGINS_ENABLED=false` to remove everything).
 - `agent.agents_md.enabled` / `max_lines` / `max_chars` control the native
   injection of your own project `AGENTS.md` (`INFER_AGENT_AGENTS_MD_*`).

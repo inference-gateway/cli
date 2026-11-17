@@ -7,7 +7,7 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
-// FrameSourceLookup resolves named frame sources; the tool registry satisfies it.
+// FrameSourceLookup resolves named frame sources. The tool registry satisfies it.
 type FrameSourceLookup interface {
 	FrameSource(name string) (agentdomain.FrameSource, bool)
 	FrameSourceNames() []string
@@ -19,7 +19,7 @@ type rateLimiter interface {
 }
 
 // NewTools builds the computer-use tool set. GetLatestFrame is always included
-// (it also serves non-screen frame sources such as cameras); the Computer tool
+// (it also serves non-screen frame sources such as cameras). The Computer tool
 // is gated on computer_use.enabled and RecordStart/RecordStop, which share
 // recorder, on computer_use.recording.enabled. notifier may be nil, in which
 // case the tools publish nothing. The screen control parks the Computer

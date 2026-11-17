@@ -15,8 +15,8 @@ package config
 //   - "judge": an LLM judge decides (see judge.yaml). The judge call is always
 //     reachable (headless and CI included), so it is never downgraded to block.
 //   - "prompt" (and any unrecognised value, which resolves to this safe default):
-//     a TUI prompt in chat; otherwise IPC if a broker is attached (the channel
-//     manager relays the prompt to the user); otherwise block (e.g. CI/heartbeat
+//     a TUI prompt in chat. Otherwise IPC if a broker is attached (the channel
+//     manager relays the prompt to the user). Otherwise block (e.g. CI/heartbeat
 //     with no approver).
 func ResolveApprovalDelivery(behaviour string, brokerAttached, isChat bool) string {
 	switch behaviour {

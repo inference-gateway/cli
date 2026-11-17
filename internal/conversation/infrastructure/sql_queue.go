@@ -66,7 +66,7 @@ func applySQLMigrations(db *sql.DB, dialect string) error {
 	return err
 }
 
-// placeholderSQL rewrites ? placeholders into $N slots for PostgreSQL; SQLite
+// placeholderSQL rewrites ? placeholders into $N slots for PostgreSQL. SQLite
 // keeps them as-is.
 func (b *sqlQueueBackend) placeholderSQL(query string) string {
 	if b.dialect == "sqlite" {

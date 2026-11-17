@@ -6,7 +6,7 @@
 **Why** - cheap or text-only models (DeepSeek, small local models) cannot read images, and a
 vision model plus coordinates is often more than the task needs.
 **How** - set `vision.annotator.enabled: true` and pick the `vision.annotator.model`, then add one or
-more `vision.sources`; the agent then reads frames through `GetLatestFrame` and arbitrary images
+more `vision.sources`. The agent then reads frames through `GetLatestFrame` and arbitrary images
 through `ImageDecode`.
 
 The built-in `screen` source is computer-use screenshot streaming. **Directory sources** watch a folder

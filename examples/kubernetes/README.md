@@ -13,7 +13,7 @@ Jump to [Chat and traces without any API keys](#chat-and-traces-without-any-api-
 
 ## Prerequisites
 
-- [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5.x (ctlptl drives k3d; the k3s image is pinned in `Cluster.yaml`)
+- [ctlptl](https://github.com/tilt-dev/ctlptl) and [k3d](https://k3d.io/) v5.x (ctlptl drives k3d. The k3s image is pinned in `Cluster.yaml`)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [task](https://taskfile.dev/) (or `go-task`)
 - [docker](https://docs.docker.com/get-docker/) (k3d needs it)
@@ -62,7 +62,7 @@ k3d cluster
     └── mock-gateway                     (plain Deployment, Service :8080 - canned /v1/models + chat)
 ```
 
-The Gateway, Orchestrator, and Agent are custom resources; the operator owns
+The Gateway, Orchestrator, and Agent are custom resources. The operator owns
 their Deployments and Services. Telemetry is pushed via OTLP to the collector,
 which logs it (`debug` exporter). To see a trace, send the mock agent an A2A
 message and watch the collector logs:
@@ -153,7 +153,7 @@ receiver port, so an `infer headless` subprocess spawned by a channel while you
 are chatting will not get the remote spans.
 
 Two things to know: the `session` root span is exported when the session ends,
-so it shows as `(in progress)` while the chat is open; and a headless
+so it shows as `(in progress)` while the chat is open. And a headless
 `infer headless` run exits in ~2s, before the collector flushes, so the remote
 spans miss it - use `infer chat` for the nested view.
 
@@ -178,7 +178,7 @@ prefix itself - which would give `openai/openai/gpt-4o`. It is started with
 `--model gpt-4o` so it advertises the bare id a real OpenAI endpoint would, and
 the model is plain `openai/gpt-4o`.
 
-The mock gateway itself emits no spans; the last hop
+The mock gateway itself emits no spans. The last hop
 (`POST /proxy/:provider/*path` → mock) is visible as the gateway's client span.
 
 ## Notes

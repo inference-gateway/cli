@@ -988,7 +988,7 @@ func TestVolatileTailMessage(t *testing.T) {
 
 // TestBuildSkillsInfo_CatalogEntryIsCacheStable locks in that installing a
 // catalog skill mid-session does not rewrite the static system prompt. The
-// AVAILABLE SKILLS section rides in message[0]; if the freshly-downloaded path
+// AVAILABLE SKILLS section rides in message[0]. If the freshly-downloaded path
 // leaked into it, every conversation would lose its KV-cache prefix the moment
 // a skill was fetched.
 func TestBuildSkillsInfo_CatalogEntryIsCacheStable(t *testing.T) {

@@ -59,7 +59,7 @@ task daemon
 ```
 
 It logs `scheduler started jobs=3`, and about a minute later `firing scheduled job` twice. The quote job
-fires every minute with a fresh session ID; the reminder fires once and the daemon logs
+fires every minute with a fresh session ID. The reminder fires once and the daemon logs
 `one-off scheduled job consumed and deleted`. Back in the first shell, read the fires that were recorded:
 
 ```bash
@@ -84,7 +84,7 @@ task clean    # Ctrl+C the daemon first: removes the demo HOME
 | `task delete` | The mock model calls `Schedule` with `operation: delete` on the seeded job's ID |
 | `task jobs` | Prints the job files and any run records under `~/.infer/schedules/` |
 | `task home` | Seeds the demo HOME, re-copying the hand-written job into `~/.infer/schedules/` |
-| `task daemon` | Runs `infer daemon`; jobs only fire while it runs |
+| `task daemon` | Runs `infer daemon`. Jobs only fire while it runs |
 | `task runs` / `task show ID=...` | `infer conversations list` / `infer conversations show`, the recorded fires |
 | `task all` | Runs the four headless scenarios above |
 | `task clean` | Removes the demo HOME |
@@ -124,7 +124,7 @@ is gone.
 
 The headless tasks run with `--mode auto`, where tool calls execute without approval - headless mode has no
 one to ask, and the demo would otherwise only print `Blocked: Schedule requires approval`. In a real chat
-the default `tools.schedule.require_approval: true` is worth keeping; the user confirms every create,
+the default `tools.schedule.require_approval: true` is worth keeping. The user confirms every create,
 update or delete before it runs (see the
 [security notes](../../docs/scheduling.md#security-considerations)).
 
@@ -140,7 +140,7 @@ export INFER_TOOLS_SCHEDULE_ENABLED=true
 export HOME="$PWD/.home"
 
 ../../infer headless --mode auto "schedule an inspiring quote every minute for me" | grep '"role":"tool"'
-HOME="$PWD/.home" ../../infer daemon    # fires while this runs; Ctrl+C when done
+HOME="$PWD/.home" ../../infer daemon    # fires while this runs. Ctrl+C when done
 HOME="$PWD/.home" ../../infer conversations list
 ```
 

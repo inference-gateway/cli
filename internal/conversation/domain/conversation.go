@@ -123,7 +123,7 @@ type ConversationSummary struct {
 	InvokedBy string `json:"invoked_by"`
 
 	// Project is the absolute path of the working directory the session runs
-	// in; empty for legacy records.
+	// in. Empty for legacy records.
 	Project string `json:"project,omitempty"`
 
 	// Workspace names where the session runs. A daemon chat sets it, other

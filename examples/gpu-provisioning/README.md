@@ -58,7 +58,7 @@ When done: infer compute gpus destroy <pod-id>
 ```
 
 (Provisioned from the container? The key is saved nowhere - it came from
-`.env`; the printed handoff values are all you need to keep.)
+`.env`. The printed handoff values are all you need to keep.)
 
 ## Connect
 
@@ -108,7 +108,7 @@ a ~4 GB model) is the accepted trade-off for paying zero while idle.
 - The pod is reachable only through RunPod's HTTPS proxy
   (`https://<pod-id>-8080.proxy.runpod.net`) and the llama.cpp server requires
   the per-session `--api-key` token - never an open port.
-- The proxy has a ~100s idle timeout; streaming responses (the CLI default)
+- The proxy has a ~100s idle timeout. Streaming responses (the CLI default)
   are unaffected.
 - Gated Hugging Face models need an `HF_TOKEN` on the pod - not wired up yet;
   stick to open models like the `ggml-org/*` GGUFs.

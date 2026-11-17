@@ -61,12 +61,12 @@ type ChannelManagerService struct {
 	// processed, active channels, per-message duration). Nil-safe.
 	telemetryRecorder *telemetry.Recorder
 
-	// daemon instruments (initialised in the constructor; nil when telemetry is off)
+	// daemon instruments (initialised in the constructor. Nil when telemetry is off)
 	messagesProcessed metric.Int64Counter
 	messageDuration   metric.Float64Histogram
 	activeChannels    metric.Int64UpDownCounter
 
-	// slash-command support (see channel_commands.go); nil registry disables it
+	// slash-command support (see channel_commands.go). Nil registry disables it
 	shortcutRegistry *shortcuts.Registry
 	convStore        storage.ConversationStorage
 	groupStore       storage.SessionGroupStorage

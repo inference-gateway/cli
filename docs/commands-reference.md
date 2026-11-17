@@ -4,7 +4,7 @@
 
 **What** - the main `infer` subcommands, their flags and examples, plus the global flags. Run `infer --help` for the full list.
 **Why** - the chat TUI covers daily use, but setup, automation and maintenance happen on the command line.
-**How** - find the command by group in the table of contents; each section lists its flags and examples.
+**How** - find the command by group in the table of contents. Each section lists its flags and examples.
 
 ## Table of Contents
 
@@ -133,12 +133,12 @@ infer config get tools.web_fetch -f json
 ### `infer config set <key> <value>`
 
 Set a configuration value in `config.yaml`. The value is parsed to the field's type (bool, integer,
-number or string); list keys take a comma-separated value that replaces the whole list. Unknown keys
+number or string). List keys take a comma-separated value that replaces the whole list. Unknown keys
 are rejected.
 
-By default the userspace `~/.infer/config.yaml` baseline is updated; pass
+By default the userspace `~/.infer/config.yaml` baseline is updated. Pass
 `--project` to write a sparse override into the project `.infer/config.yaml`
-instead. Project overrides are meant to be committed; they never receive
+instead. Project overrides are meant to be committed. They never receive
 runtime-generated files.
 
 A running `infer chat` picks the change up when you type `/reload`. Keys it cannot apply mid-session are
@@ -493,9 +493,9 @@ The chat interface supports four operational modes that can be toggled with **sh
 - **⚖ Auto+Judge Mode**: Autonomous with a gate: tool calls that would prompt a human are decided by an LLM judge
   (one call per gated tool) instead of a human, so the agent runs unattended but not unrestricted:
   - Uses the standard approval rules - allow-listed bash commands pass without a judge call
-  - Gated calls are decided by the judge against your latest request; rejections arrive with the judge's reason
+  - Gated calls are decided by the judge against your latest request. Rejections arrive with the judge's reason
   - The model can ask you to override a rejection with the `RequestApproval` tool: the regular approval box
-    opens with the judge's reason; approve runs that one call with the judge bypassed, reject feeds the
+    opens with the judge's reason. Approve runs that one call with the judge bypassed, reject feeds the
     decision back to the model
   - Configured in `judge.yaml` (`model`, `timeout`, `max_tokens`, `on_error`, `prompt`) - see [Judge Mode](judge-mode.md)
   - Ideal for CI and headless runs where an approval prompt would deadlock
@@ -564,7 +564,7 @@ infer headless "/cost"      # prints the session cost breakdown, no model call
 - `--remote`: Use remote-control system prompt (used by the daemon)
 - `--result-file`: Write the final assistant message and outcome as JSON to this path on exit
 - `--format json|json-pretty|ag-ui|text`: Output format (default json)
-- `--mode`: Agent mode: standard, plan, auto, auto-with-judge (env: `INFER_AGENT_MODE`); a value that fails
+- `--mode`: Agent mode: standard, plan, auto, auto-with-judge (env: `INFER_AGENT_MODE`). A value that fails
      validation, or `auto-with-judge` with no resolvable judge model, fails before the gateway or agent starts
 - `--serve`: Run as a long-lived worker that takes no task, runs one turn per `run_agent_input` frame read on stdin
   and writes each turn as one AG-UI run (implies `--format ag-ui`, see [Serve worker](ag-ui-output.md#serve-worker))
@@ -698,10 +698,10 @@ any binary whose sha256 differs (a matching one is kept).
 
 **Subcommands:**
 
-- `install [name...]`: Install or upgrade via the release's `install.sh`; no
+- `install [name...]`: Install or upgrade via the release's `install.sh`. No
   names means all tools. `--version <tag>` pins a release (default latest).
 - `status [name...]`: Read-only report of each binary as `missing`, `stale` or
-  `current` against the latest release; exits non-zero unless all are current.
+  `current` against the latest release. Exits non-zero unless all are current.
   On the default approval-free bash allow-list, so agents can check without a
   prompt.
 
@@ -760,7 +760,7 @@ rather than reading files directly).
 **Subcommands:**
 
 - `list`: List saved conversations with metadata (id, title, message/request counts, tokens, cost).
-     Scoped to the current project by default; pass `--all-projects` for every project's conversations.
+     Scoped to the current project by default. Pass `--all-projects` for every project's conversations.
 - `show <session-id>`: Print a single conversation's entries in chronological order
   (first 10 entries by default: see the `show` flags below).
 - `delete <session-id>`: Delete a saved conversation.
@@ -769,7 +769,7 @@ rather than reading files directly).
 
 - `--limit`, `-l`: Maximum number of conversations to display (default 50).
 - `--offset`: Number of conversations to skip, for pagination.
-- `--format`, `-f` `text|json`: `text` (default) is human-readable; `json` is machine-readable.
+- `--format`, `-f` `text|json`: `text` (default) is human-readable. `json` is machine-readable.
 - `--all-projects`: List every project's conversations.
 
 **`show` flags:**
@@ -777,7 +777,7 @@ rather than reading files directly).
 - `--include-hidden`: Include entries marked hidden - system reminders, plan-approval prompts,
   drained background-task results, and the synthetic verify message injected by `infer headless`.
   Off by default.
-- `--format text|json`: `text` (default) is human-readable; `json` emits one pretty-printed
+- `--format text|json`: `text` (default) is human-readable. `json` emits one pretty-printed
   object with `metadata` and `entries`, so a whole conversation parses in one `jq` call.
 - `--grep <substring>`: Only show the entries whose text contains the substring
   (case-insensitive), so a long session can be cherry-picked entry by entry without
@@ -928,7 +928,7 @@ Analyze past sessions for repeatable workflows and recurring tool failures.
 ```bash
 infer insights                # Every saved session
 infer insights 7d             # Only the last 7 days (also 24h, 30d)
-infer insights --model <id>   # Pick the model; defaults to agent.model
+infer insights --model <id>   # Pick the model. Defaults to agent.model
 ```
 
 Writes a markdown report to `~/.infer/insights/`. Needs conversation storage enabled.
@@ -943,7 +943,7 @@ model sees them: records at or above `logging.insights_min_level` (default `warn
 are folded by normalized message, so lines differing only in a path, an id or a number become one
 group with a count, a first/last timestamp and one verbatim sample. The report's frontmatter states
 how many records were read (`log_records`) and how many groups survived (`log_groups`). Only the
-structured `app-*.log` and `daemon-*.log` files and their `.gz` archives are read; `gateway-*.log` is
+structured `app-*.log` and `daemon-*.log` files and their `.gz` archives are read. `gateway-*.log` is
 raw subprocess output with no level or timestamp to filter on, and the gateway's own failures are
 logged through zap into `app-*.log` anyway.
 
@@ -963,7 +963,7 @@ Wipe all local runtime state and start fresh.
 **Examples:**
 
 ```bash
-infer reset             # Preview every path that would be deleted; deletes nothing
+infer reset             # Preview every path that would be deleted. Deletes nothing
 infer reset confirm     # Perform the wipe
 infer reset insights    # Analyze past sessions first, then preview (takes --model)
 ```
@@ -972,7 +972,7 @@ Clears the runtime directories of **every project on this machine**, the persist
 and the local conversation store. Per-project runtime directories are deleted rather than recreated
 empty, and a project whose working directory no longer exists is removed entirely.
 
-Config, custom shortcuts, skills and saved insights are preserved; remote stores (postgres, redis, d1)
+Config, custom shortcuts, skills and saved insights are preserved. Remote stores (postgres, redis, d1)
 are skipped, and a git-backed memory directory syncs back from its remote on the next run.
 
 The `/reset` and `/insights` chat shortcuts are thin YAML wrappers over these commands, written to
@@ -1178,7 +1178,7 @@ These flags are available on every command:
 - `-v, --verbose`: Enable verbose output
 - `--no-colors`: Disable ANSI colors in command output (colors are also auto-disabled when stdout is not a terminal or `NO_COLOR` is set)
 - `--tools-bash-allow-append <cmds>`: Comma/newline-separated commands added to the bash allow-list in every mode
-  (`standard`, `plan`, `auto`); `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
+  (`standard`, `plan`, `auto`). `INFER_TOOLS_BASH_ALLOW_APPEND` takes precedence
 - `--reminders-file <path>`: Path to a reminders YAML file, overriding project `.infer/` and `~/.infer/` reminders,
   `INFER_REMINDERS_CONFIG` takes precedence
 

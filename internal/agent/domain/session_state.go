@@ -1,6 +1,6 @@
 // Session state the agent core reads and writes (agent mode, todos,
 // computer-use pause, retry status). statemanager.Store implements
-// them; the TUI-only state contracts live in internal/presentation/tui.
+// them. The TUI-only state contracts live in internal/presentation/tui.
 
 package domain
 

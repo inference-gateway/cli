@@ -40,7 +40,7 @@ type ChatSuggestionGenerator struct {
 
 // NewChatSuggestionGenerator creates the generator. currentModel reports the
 // chat's active model (the fallback when chat.suggestions.model is empty) and
-// recorder is optional telemetry; the repo receives the call's tokens either way.
+// recorder is optional telemetry. The repo receives the call's tokens either way.
 func NewChatSuggestionGenerator(client sdk.Client, repo convdomain.ConversationRepository, config *config.Config, currentModel func() string, recorder SuggestionTelemetryRecorder) *ChatSuggestionGenerator {
 	if currentModel == nil {
 		currentModel = func() string { return "" }

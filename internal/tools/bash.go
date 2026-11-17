@@ -66,7 +66,7 @@ func (t *BashTool) Manifest() agentdomain.ToolManifest {
 // intentionally not constrained by an enum: the set of auto-approved commands is
 // per-mode (and may be ".*"), so it cannot be expressed as a fixed schema. The
 // effective allow-list for the active mode is surfaced in the system prompt
-// instead; off-list commands still execute via approval (chat) or are rejected
+// instead. Off-list commands still execute via approval (chat) or are rejected
 // with a reason (agent mode).
 func (t *BashTool) Definition() sdk.ChatCompletionTool {
 	return t.Manifest().Definition()

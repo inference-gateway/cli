@@ -68,7 +68,7 @@ func NewScheduledJob(spec ScheduledJob, now time.Time) (*ScheduledJob, error) {
 	return &spec, nil
 }
 
-// JobPatch carries edits to a ScheduledJob; a nil field is left unchanged.
+// JobPatch carries edits to a ScheduledJob. A nil field is left unchanged.
 type JobPatch struct {
 	Name           *string
 	Description    *string
@@ -133,7 +133,7 @@ type RunRecord struct {
 
 // RunEvent is emitted by the scheduler as a job run progresses. Line events
 // carry one raw agent stdout line (valid only for the duration of the
-// callback); the terminal event has Done set, with Err populated on failure.
+// callback). The terminal event has Done set, with Err populated on failure.
 type RunEvent struct {
 	Line []byte
 	Err  error

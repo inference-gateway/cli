@@ -16,7 +16,7 @@ import (
 
 // ImageEditTool edits an existing image with the configured image model and
 // saves the result to a local PNG. The chat model calls it with a local image
-// path and a plain prompt; the request goes straight to /v1/images/edits,
+// path and a plain prompt. The request goes straight to /v1/images/edits,
 // independent of the model selected for the session.
 type ImageEditTool struct {
 	config       *config.Config

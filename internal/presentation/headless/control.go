@@ -495,7 +495,7 @@ func (n drainWaker) Notify(event any) {
 
 // uiBridge is the headless UINotifier: it forwards the UI notifications a
 // headless client renders (screen recording status, computer-use actions,
-// background job changes) into the rendered event stream. Notify never blocks the producer; a full buffer
+// background job changes) into the rendered event stream. Notify never blocks the producer. A full buffer
 // drops the event.
 type uiBridge chan agentdomain.ChatEvent
 
@@ -527,7 +527,7 @@ func (b uiBridge) Notify(event any) {
 }
 
 // merge interleaves bridged notifications into events and closes when events
-// does; notifications arriving after that are dropped.
+// does. Notifications arriving after that are dropped.
 func (b uiBridge) merge(events <-chan agentdomain.ChatEvent) <-chan agentdomain.ChatEvent {
 	merged := make(chan agentdomain.ChatEvent)
 	go func() {

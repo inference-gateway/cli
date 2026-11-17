@@ -14,7 +14,7 @@ import (
 )
 
 // queueFactory returns a fresh MessageQueue adapter. Every queue built by one
-// factory inside one subtest talks to the same backend scope; scopes differ per
+// factory inside one subtest talks to the same backend scope. Scopes differ per
 // subtest so groups never see each other's entries.
 type queueFactory func(t *testing.T) convdomain.MessageQueue
 

@@ -32,12 +32,12 @@ call and look at the output:
 
 **Non-empty output → you are inside the user's tmux session. Add a PANE to it
 so the work is visible in the window the user already has open. Do NOT run
-`tmux new-session` - a new session is detached and hidden; the user cannot see
+`tmux new-session` - a new session is detached and hidden. The user cannot see
 it (that is exactly the wrong behavior).** Split the current window:
 
     tmux split-window -h -P -F '#{pane_id}'
 
-This prints the new pane id (e.g. `%7`); pass it as `-t %7` to every command
+This prints the new pane id (e.g. `%7`). Pass it as `-t %7` to every command
 below. Use `-h` for a side-by-side split, `-v` for top/bottom, or
 `tmux new-window -P -F '#{pane_id}'` for a new tab in the SAME session. Launch a
 program directly in the pane by appending it:
@@ -72,14 +72,14 @@ Common named keys: `Enter`, `Escape`, `Tab`, `BTab` (shift+tab), `Space`,
 
 ## 3. Read the screen - sleep first
 
-The program repaints asynchronously; an immediate capture shows a stale frame.
+The program repaints asynchronously. An immediate capture shows a stale frame.
 Sleep briefly, then capture in the next call:
 
     sleep 1
 
     tmux capture-pane -t %7 -p -S -50
 
-`-p` prints the pane to stdout; `-S -50` includes the last 50 scrollback lines.
+`-p` prints the pane to stdout. `-S -50` includes the last 50 scrollback lines.
 Inspect the returned text in your following step. If the output you expect is not
 there yet, sleep again and re-capture rather than piping into grep.
 

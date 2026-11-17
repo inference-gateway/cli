@@ -44,10 +44,10 @@ type AgentTaskSpec struct {
 	// system prompt, model and tool allowlist replace the per-task overrides.
 	Agent string
 	// Tools is the resolved allowlist passed to the subagent via
-	// EnvSubagentTools; nil means inherit the parent's tools.
+	// EnvSubagentTools. Nil means inherit the parent's tools.
 	Tools []string
 	// MCPServers names the servers the subagent brings up, passed via
-	// EnvMCPServers; nil means inherit the parent's servers.
+	// EnvMCPServers. Nil means inherit the parent's servers.
 	MCPServers []string
 	// Mode is the subagent's capability, resolved from the `type` argument:
 	// ReadOnly -> AgentModeReadOnly (Explore-like, no approval), ReadWrite ->
@@ -86,12 +86,12 @@ type AgentTool struct {
 	binary    string
 
 	// mdAgents holds the Markdown-defined agents loaded once per session by
-	// the registry (see mdagent.go); read-only after setMarkdownAgents.
+	// the registry (see mdagent.go). Read-only after setMarkdownAgents.
 	mdAgents []markdownAgent
 	// toolManifests resolves which of an agent's allowed tools are read-only.
 	toolManifests agentdomain.ToolManifestLookup
 
-	// Injection points for tests; default to real implementations.
+	// Injection points for tests. Default to real implementations.
 	dialDaemon           func(ctx context.Context) (agui.DialConfig, error)
 	runHeadless          func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 	interactiveAvailable func() bool
@@ -100,7 +100,7 @@ type AgentTool struct {
 }
 
 // NewAgentTool creates the Agent tool. tracker is the session's SubagentTracker
-// (the data store the subagent control tools read); submitter is the job
+// (the data store the subagent control tools read). Submitter is the job
 // supervisor that monitors async/interactive subagents to completion.
 func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submitter scheddomain.JobSubmitter) *AgentTool {
 	t := &AgentTool{
@@ -421,7 +421,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 // runInteractive launches each subagent in its own live `infer chat` tmux pane,
 // types in the task, and tracks it as a running interactive subagent. This is
 // fire-and-track: it returns once the panes are launched. The supervisor then
-// monitors them; a done or failed result turn and the idle timeout each close
+// monitors them. A done or failed result turn and the idle timeout each close
 // the pane, and SendSubagentInput re-prompts a live one.
 func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
@@ -608,7 +608,7 @@ func (t *AgentTool) waitForPaneReady(ctx context.Context, paneID string) {
 }
 
 // launchTmuxPane opens a new tmux pane/window running command. It returns once
-// the pane is created; the pane keeps running the subagent and, via
+// the pane is created. The pane keeps running the subagent and, via
 // remain-on-exit, stays open after it finishes so its output remains readable.
 func (t *AgentTool) launchTmuxPane(ctx context.Context, title, command string) (string, error) {
 	args := []string{"split-window", "-v", "-P", "-F", "#{pane_id}", command}
@@ -924,7 +924,7 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 
 // resolveSubagentType maps the Agent tool's `type` argument to a subagent
 // capability mode: "ReadWrite" -> AgentModeStandard (can mutate, approval
-// applies); anything else, including the default empty value, -> AgentModeReadOnly
+// applies). Anything else, including the default empty value, -> AgentModeReadOnly
 // (Explore-like read/search, no approval). Matching is case-insensitive.
 func resolveSubagentType(t string) agentdomain.AgentMode {
 	if strings.EqualFold(strings.TrimSpace(t), "ReadWrite") {

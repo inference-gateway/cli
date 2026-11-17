@@ -26,7 +26,7 @@ type SessionGroupEntry struct {
 // to the current conversation session UUID for that key.
 type SessionGroupStorage interface {
 	// GetSessionGroup returns the entry for groupKey. The bool is false when
-	// no entry exists; the error is non-nil only on storage failure.
+	// no entry exists. The error is non-nil only on storage failure.
 	GetSessionGroup(ctx context.Context, groupKey string) (SessionGroupEntry, bool, error)
 
 	// PutSessionGroup creates or replaces the entry for groupKey atomically.
@@ -47,7 +47,7 @@ type ConversationStorage interface {
 
 	// ListConversations returns a list of conversation summaries. A non-empty
 	// project (absolute working-directory path) scopes the listing to that
-	// project's conversations; "" lists every project.
+	// project's conversations. "" lists every project.
 	ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error)
 
 	// DeleteConversation removes a conversation by its ID
@@ -203,7 +203,7 @@ type JsonlStorageConfig struct {
 	// ProjectsPath is the root of the default per-project layout
 	// (<ConfigDirName>/projects). Set only when Path is the derived
 	// default, so listing across projects can walk sibling project
-	// stores; explicitly configured paths only ever list themselves.
+	// stores. Explicitly configured paths only ever list themselves.
 	ProjectsPath string `json:"projects_path,omitempty" yaml:"projects_path,omitempty"`
 }
 

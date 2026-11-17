@@ -95,7 +95,7 @@ func (q *durableMessageQueue) primeSnapshot() {
 }
 
 // Stop ends the poller. Production runs never need it - the goroutine dies with
-// the process; tests use it to stay hermetic.
+// the process. Tests use it to stay hermetic.
 func (q *durableMessageQueue) Stop() {
 	q.stopOnce.Do(func() { close(q.stop) })
 	<-q.done

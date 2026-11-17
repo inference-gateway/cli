@@ -100,7 +100,7 @@ func (t *SubmitTaskTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute submits a task to an A2A agent. The agent's latest tracked task is
-// resumed only when it is input-required; otherwise the message opens a fresh
+// resumed only when it is input-required. Otherwise the message opens a fresh
 // context so independent tasks on the same agent run in parallel. A caller
 // continues an earlier conversation deliberately by passing its context_id.
 //

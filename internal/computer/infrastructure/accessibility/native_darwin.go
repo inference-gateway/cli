@@ -217,7 +217,7 @@ func bindFunctions(handle uintptr, bindings []binding) error {
 
 // dataSymbol resolves a data symbol (e.g. a CFStringRef constant) and returns
 // the pointer value stored at its address. Dlsym yields the symbol's absolute
-// address as a uintptr; unsafe.Add(nil, addr) forms the equivalent
+// address as a uintptr. Unsafe.Add(nil, addr) forms the equivalent
 // unsafe.Pointer without a uintptr->Pointer conversion, which go vet's
 // unsafeptr check flags even though the address is a stable framework symbol.
 func dataSymbol(handle uintptr, name string) (uintptr, error) {

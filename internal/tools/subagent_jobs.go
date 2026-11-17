@@ -105,7 +105,7 @@ func (j *headlessSubagentJob) Meta() scheddomain.JobMeta {
 }
 
 // Run executes the subagent subprocess and returns its outcome. It runs under the
-// detached runCtx (so it survives the spawning turn); AfterFunc ties the
+// detached runCtx (so it survives the spawning turn). AfterFunc ties the
 // supervisor's context to it, so Wind/Stop/shutdown also cancel the subprocess
 // (via exec.CommandContext). Run returns promptly on either cancellation.
 func (j *headlessSubagentJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {

@@ -50,7 +50,7 @@ type Supervisor interface {
 
 	// StartMonitoring begins background liveness probes, pushing every
 	// ServerStatusUpdateEvent through the UI notifier injected at
-	// construction. Idempotent; the initial status is emitted asynchronously.
+	// construction. Idempotent. The initial status is emitted asynchronously.
 	StartMonitoring(ctx context.Context)
 
 	// DiscoverTools probes every server once and returns the agent tools of

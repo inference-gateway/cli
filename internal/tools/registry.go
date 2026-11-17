@@ -24,7 +24,7 @@ import (
 
 // MCP tools are not built here. The MCP context (internal/protocols/mcp) wraps each
 // server's tools as agentdomain.Tool values and they arrive through
-// RegisterTools; construction never blocks on MCP I/O.
+// RegisterTools. Construction never blocks on MCP I/O.
 
 type Registry struct {
 	config         *config.Config
@@ -55,7 +55,7 @@ type RegistryDeps struct {
 	// BackgroundTasks is the unified registry the container owns, so the
 	// subagent tools observe the same tracker the agent's wait loop does.
 	BackgroundTasks scheddomain.BackgroundTaskRegistry
-	// Stores backs the Schedule and RequestPlanApproval tools; nil leaves
+	// Stores backs the Schedule and RequestPlanApproval tools. Nil leaves
 	// those tools failing at execution with a clear error.
 	Stores *storage.Stores
 }
@@ -257,7 +257,7 @@ func (r *Registry) registerTextToSpeech(cfg *config.Config) {
 
 // RegisterTools installs capability tools constructed outside this package
 // (A2A, browser use, computer use, MCP). The agent core consumes them through the
-// agentdomain.Tool contract only; a tool that brings its own manifest also
+// agentdomain.Tool contract only. A tool that brings its own manifest also
 // brings its policy.
 func (r *Registry) RegisterTools(tools map[string]agentdomain.Tool) {
 	r.toolsMu.Lock()
@@ -298,7 +298,7 @@ func (r *Registry) register(tool builtinTool) {
 
 // SetMemoryBackend wires the memory sync backend into the Memory tool so a
 // write/delete pushes to the remote. The container calls this after
-// constructing the shared backend; it re-registers the Memory tool so the
+// constructing the shared backend. It re-registers the Memory tool so the
 // backend takes effect. A nil backend (or the local no-op backend) means no
 // remote sync.
 func (r *Registry) SetMemoryBackend(backend memory.MemoryBackend) {

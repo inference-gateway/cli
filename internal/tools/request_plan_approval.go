@@ -34,7 +34,7 @@ type RequestPlanApprovalTool struct {
 }
 
 // NewRequestPlanApprovalTool creates a new RequestPlanApproval tool. planStore
-// may be nil when storage failed to initialize; Execute then fails with a
+// may be nil when storage failed to initialize. Execute then fails with a
 // clear error.
 func NewRequestPlanApprovalTool(cfg *config.Config, planStore storage.PlanStorage) *RequestPlanApprovalTool {
 	return &RequestPlanApprovalTool{
@@ -232,7 +232,7 @@ func buildPlanMarkdown(title, plan string) string {
 // markdown filename stem under ~/.infer/plans/.
 //
 // ponytail: a second plan with the same title in the same second overwrites
-// the first (upsert); resubmits after a rejection are minutes apart in practice.
+// the first (upsert). Resubmits after a rejection are minutes apart in practice.
 func (t *RequestPlanApprovalTool) savePlanToStore(ctx context.Context, title, plan string, ts time.Time) (string, error) {
 	if t.planStore == nil {
 		return "", fmt.Errorf("plan storage is not available")

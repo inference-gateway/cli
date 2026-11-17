@@ -131,7 +131,7 @@ func (s *Agent) clearToolCallsMap() {
 // BuildSystemPrompt assembles the static system prompt sent as message[0]
 // (base prompt + custom instructions + AGENTS.md + plugins + static context).
 // It is deliberately byte-identical across turns and agent-mode switches so LLM
-// servers get KV-cache prefix hits; volatile context rides in volatileTailMessage
+// servers get KV-cache prefix hits. Volatile context rides in volatileTailMessage
 // and per-mode behaviour in the mode-change reminder. Returns "" when unset.
 func (s *Agent) BuildSystemPrompt() string {
 	baseSystemPrompt := s.config.Prompts.Agent.SystemPrompt
@@ -165,7 +165,7 @@ func (s *Agent) BuildSystemPrompt() string {
 }
 
 // VolatileTailText renders the volatile-context tail a fresh session (turn 0)
-// would send as a hidden per-request <system-reminder> user message; ok=false
+// would send as a hidden per-request <system-reminder> user message. Ok=false
 // means no tail is sent. Exposed for the `infer debug agent system_prompt`
 // command, alongside SystemPromptSections.
 func (s *Agent) VolatileTailText() (string, bool) {
@@ -199,7 +199,7 @@ func (s *Agent) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 // carrying the volatile context (git, tree, active and loaded skills, memory,
 // current date, live-mode tool roster and bash allow-list), appended to the outbound
 // payload only, never persisted, so message[0] stays byte-stable for KV-cache
-// reuse. ok=false means append nothing; callers gate the append after repair.
+// reuse. ok=false means append nothing. Callers gate the append after repair.
 func (s *Agent) volatileTailMessage(ctx context.Context, messages []sdk.Message, isChat bool) (sdk.Message, bool) {
 	if s.config.Prompts.Agent.SystemPrompt == "" {
 		return sdk.Message{}, false
@@ -230,7 +230,7 @@ type PromptSection struct {
 	Volatile bool
 }
 
-// contextSections lists the static context builders in prompt order; it is
+// contextSections lists the static context builders in prompt order. It is
 // the single source for both prompt assembly and diagnostics. Only sections
 // stable for the WHOLE chat session belong here - anything that changes with
 // the work or the live agent mode (tool roster, bash allow-list) goes in
@@ -249,7 +249,7 @@ func (s *Agent) contextSections() []PromptSection {
 
 // volatileContextSections lists the context builders whose output changes as
 // the session progresses (or with an agent-mode switch, since the tool roster
-// and bash allow-list advertise the live mode); they are delivered per request
+// and bash allow-list advertise the live mode). They are delivered per request
 // via volatileTailMessage rather than in the system prompt.
 func (s *Agent) volatileContextSections(ctx context.Context, currentTurn int, messages []sdk.Message, isChat bool) []PromptSection {
 	return []PromptSection{
@@ -300,7 +300,7 @@ func (s *Agent) SystemPromptSections() []PromptSection {
 
 // buildGitHubGuidanceInfo steers the model toward the `gh` CLI for GitHub work
 // and away from shell habits that needlessly trip the Bash allowed list. There is
-// no built-in GitHub tool; `gh` (via Bash) covers issues, PRs, releases, and the
+// no built-in GitHub tool. `gh` (via Bash) covers issues, PRs, releases, and the
 // raw API with clearer errors and the standard credential chain. Emitted only
 // when Bash is enabled (otherwise the guidance is moot). Lives in the dynamic
 // context so it reaches existing users regardless of their prompts.yaml override.
@@ -331,7 +331,7 @@ func (s *Agent) buildGitHubGuidanceInfo() string {
 // mode so the model knows its sandbox up front. It reads the live mode and is
 // delivered via the volatile tail, so toggling auto/plan updates it on the
 // next turn without rewriting the byte-stable system prompt. Empty when the
-// Bash tool is disabled or filtered out of the current mode; an unrestricted
+// Bash tool is disabled or filtered out of the current mode. An unrestricted
 // mode (".*") is described in prose.
 func (s *Agent) buildBashAllowInfo() string {
 	if !s.config.Tools.Bash.Enabled || s.toolService == nil {
@@ -386,9 +386,9 @@ func (s *Agent) buildBashAllowInfo() string {
 }
 
 // buildToolsInfo lists the tools executable in the active agent mode as a
-// name + one-line-description roster; the request advertises the full list,
+// name + one-line-description roster. The request advertises the full list,
 // so anything absent here is advertised but disabled. It rides in the
-// volatile tail so a mode switch never rewrites message[0]; empty when tools
+// volatile tail so a mode switch never rewrites message[0]. Empty when tools
 // are disabled or none are registered.
 func (s *Agent) buildToolsInfo() string {
 	if s.toolService == nil {
@@ -690,8 +690,8 @@ func (s *Agent) buildAgentsMDInfo() string {
 }
 
 // buildMemoryInfo loads the MEMORY.md index once per session and injects it as a
-// context block so the agent knows which durable facts exist; individual facts
-// are loaded on demand via the Memory tool. Cached like gitContextCache; the
+// context block so the agent knows which durable facts exist. Individual facts
+// are loaded on demand via the Memory tool. Cached like gitContextCache. The
 // per-turn TTL means writes from the prior turn are reflected on the next turn.
 func (s *Agent) buildMemoryInfo(currentTurn int) string {
 	if !s.config.Memory.Enabled {
@@ -1040,7 +1040,7 @@ func (s *Agent) compactProjectTree() string {
 	return ""
 }
 
-// gitCommandContext bounds an ad-hoc git shell; the system-prompt build path
+// gitCommandContext bounds an ad-hoc git shell. The system-prompt build path
 // carries no context, so the leaf helpers create their own (same precedent as
 // compactProjectTree).
 func gitCommandContext() (context.Context, context.CancelFunc) {
@@ -1183,7 +1183,7 @@ func (s *Agent) sessionID(ctx context.Context) string {
 // background shells) pushes a result onto the shared message queue or
 // quiesces, up to a2a.task.agent_mode_max_wait_seconds. Headless runs call
 // this at the completion boundary so a run never exits with orphaned
-// background tasks; chat mode never calls it (the UI ticker starts fresh
+// background tasks. Chat mode never calls it (the UI ticker starts fresh
 // turns instead).
 func (s *Agent) waitForBackgroundTasks(ctx context.Context) {
 	if s.bgRegistry == nil || s.messageQueue == nil || !s.bgRegistry.HasPending() {
@@ -1408,7 +1408,7 @@ func (s *Agent) injectReminderAsUserMessage(agentCtx *states.AgentContext, r age
 
 // modeChangeSinceLastStream reads the live agent mode and compares it against
 // the previous streaming turn's mode, advancing the stored baseline. The first
-// call seeds the baseline without reporting a change; a nil stateManager (the
+// call seeds the baseline without reporting a change. A nil stateManager (the
 // headless path has no mid-session mode) never reports a change. The result
 // drives the on_mode_change reminder trigger via ReminderQuery.
 func (s *Agent) modeChangeSinceLastStream() (changed bool, prev, cur agentdomain.AgentMode) {

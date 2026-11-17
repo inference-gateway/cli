@@ -168,7 +168,7 @@ func NewProvider(themeService tui.ThemeService) *Provider {
 // styles returns the pre-baked styles for the current theme, lazily rebuilding
 // them when the theme changed since the last call. There is no theme-change
 // notification in ThemeService, so a name check per access is the invalidation
-// mechanism; it is one string compare versus rebuilding every style chain per
+// mechanism. It is one string compare versus rebuilding every style chain per
 // render. Not goroutine-safe: each Provider instance is owned by a single
 // goroutine today (TUI loop or a tool's executor), matching existing usage.
 func (p *Provider) styles() *themedStyles {
@@ -227,7 +227,7 @@ func (p *Provider) RenderListItemWithDescription(title, description string, sele
 
 // RenderInputField renders an input field with border. When branchLabel is
 // non-empty it is embedded in the top border, right-aligned, as a titled border
-// (e.g. "╭──────── ⎇ main ─╮"); pass "" for a plain border. A non-empty iconColor
+// (e.g. "╭──────── ⎇ main ─╮"). Pass "" for a plain border. A non-empty iconColor
 // colors only the label's leading icon rune (workspace dirty/unpushed signal).
 func (p *Provider) RenderInputField(content string, width int, focused bool, branchLabel, iconColor string) string {
 	theme := p.themeService.GetCurrentTheme()

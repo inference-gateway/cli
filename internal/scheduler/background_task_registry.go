@@ -54,7 +54,7 @@ func (r *backgroundTaskRegistry) IsJobRunning(id string) bool {
 // HasPending reports whether any session-holding background job is still in
 // flight, regardless of kind - the cross-type query the agent engine
 // uses to decide whether the session is safe to close. It defers to the
-// supervisor (the single source of truth); each job opts in via
+// supervisor (the single source of truth). Each job opts in via
 // JobMeta.HoldsSession, so interactive subagent panes are excluded there rather
 // than by a per-kind check here.
 func (r *backgroundTaskRegistry) HasPending() bool {

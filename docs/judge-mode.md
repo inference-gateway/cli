@@ -5,7 +5,7 @@
 Judge mode (displayed as **Auto+Judge**) is an autonomous operating mode: there is no
 human in the loop, but tool calls that would normally prompt you are decided by an
 **LLM judge** instead of bypassing approval the way Auto-Accept does. One judge call
-answers every gated tool call of a turn; everything else about the agent loop is
+answers every gated tool call of a turn. Everything else about the agent loop is
 unchanged.
 
 It exists for unattended runs where a human approval prompt would deadlock (CI,
@@ -59,7 +59,7 @@ changes only *who answers the gate*:
 - The judge prompt carries the first and the latest non-hidden user messages (the
   intents) and every pending tool call, each as its own `<tool_call id="...">` block
   (name + arguments, capped per call).
-- An approved call executes; a rejection becomes a failed tool result
+- An approved call executes. A rejection becomes a failed tool result
   (`rejected by judge: <reason>`) and the turn continues, so the model reads the
   reason and adjusts (the mode guidance tells it to change approach rather than
   retry the same call). Only a human rejection ends the turn.
@@ -70,7 +70,7 @@ The judge can reject a legitimate call when it lacks context (a `git push` judge
 against a bare "continue", say). Every rejection result therefore ends with a hint
 that the model may call the `RequestApproval` tool to ask you directly. The tool
 takes the rejected call (tool name + arguments), what the permission is needed for,
-and why; the chat TUI shows the regular approval box for the rejected call with the
+and why. The chat TUI shows the regular approval box for the rejected call with the
 judge's reason and the model's justification above it.
 
 - **Approve** arms a one-shot bypass: the model re-issues the exact same call and it
@@ -78,9 +78,9 @@ judge's reason and the model's justification above it.
   **Auto-Approve** does the same and switches the session to Auto-Accept mode, as
   it does for any approval.
 - **Reject** returns the decision to the model as a normal tool result, so the turn
-  continues and the model adjusts; explain in your next message if you want to
+  continues and the model adjusts. Explain in your next message if you want to
   steer it.
-- Each rejected call can be escalated once; a second `RequestApproval` for the same
+- Each rejected call can be escalated once. A second `RequestApproval` for the same
   call is refused, and calls the judge never rejected cannot be escalated at all.
 - A daemon session's worker relays the escalation to the chat attached to it. A plain
   headless run has no interactive approver, so the tool returns a distinguishable
@@ -113,19 +113,19 @@ unparseable output applies `on_error` to every call in the request.
 ## Configuring the judge (judge.yaml)
 
 The judge is configured in its own file, **`judge.yaml`** (project
-`./.infer/judge.yaml` overrides userspace `~/.infer/judge.yaml`; when the file is
+`./.infer/judge.yaml` overrides userspace `~/.infer/judge.yaml`. When the file is
 absent the built-in defaults are used). It is the decision-sibling of `hooks.yaml` and
 `reminders.yaml` - a separate file per concern.
 
 ```yaml
-model: "" # "provider/model" id for judge calls; empty falls back to agent.model
-gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver); empty shares the agent's
+model: "" # "provider/model" id for judge calls. Empty falls back to agent.model
+gateway_url: "" # send judge calls to another gateway (e.g. real judge, mock driver). Empty shares the agent's
 timeout: 30 # per-call timeout in seconds
-max_tokens: 2048 # response budget; reasoning models spend their thinking against it too
+max_tokens: 2048 # response budget. Reasoning models spend their thinking against it too
 on_error: deny # what a failed judge call means: deny (default) or allow
 system_prompt: |- # judge instructions (system message)
   You are the approver for an autonomous coding agent. ...
-prompt: |- # user message template; {root_intent}, {intent} and {action} are filled in
+prompt: |- # user message template. {root_intent}, {intent} and {action} are filled in
   <root_request>
   {root_intent}
   </root_request>
@@ -154,7 +154,7 @@ capped at 2048 tokens, and a failing judge **denies**.
 **`on_error` semantics.** A judge call can fail (timeout, gateway error, unparseable
 output) or return garbage. `on_error: deny` (default) rejects the call with a
 distinguishable `judge unavailable: ...` reason - the same fail-closed default as the
-no-approver block path. `on_error: allow` approves instead; choose it only if the
+no-approver block path. `on_error: allow` approves instead. Choose it only if the
 judge is a convenience and availability matters more than the gate.
 
 **Model resolution.** `judge.model` falls back to `agent.model` (same precedent as

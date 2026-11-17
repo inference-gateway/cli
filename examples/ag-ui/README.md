@@ -15,7 +15,7 @@ the complete shape of a run.
 | Task | What happens |
 | --- | --- |
 | `task stream` | Runs `infer headless --format ag-ui --no-save` and prints the run's events by type |
-| `task serve` | Starts `infer headless --serve` on a fixed session id; two `run_agent_input` frames in on stdin, one run each, then stdin closes |
+| `task serve` | Starts `infer headless --serve` on a fixed session id. Two `run_agent_input` frames in on stdin, one run each, then stdin closes |
 | `task serve:approval` | Same worker with `--require-approval`: the `Write` call suspends the run as an `interrupt`, answered over stdin |
 | `task clean` | Removes the marker file the approval variant wrote |
 
@@ -24,7 +24,7 @@ it in, for example `task stream INFER=../../infer`.
 
 ### What to expect
 
-`task stream` (the program filters the events it does not name; text arrives as one `TEXT_MESSAGE_CONTENT` per chunk):
+`task stream` (the program filters the events it does not name. Text arrives as one `TEXT_MESSAGE_CONTENT` per chunk):
 
 ```text
 RUN_STARTED threadId=<session id> runId=<per-run id>
@@ -67,12 +67,12 @@ Every row maps into [AG-UI Output Format](../../docs/ag-ui-output.md):
 
 | Printed line | Meaning |
 | --- | --- |
-| `RUN_STARTED` | The run opens; `threadId` is the session id and `runId` is fresh per run |
-| `TEXT_MESSAGE_CONTENT` | One streamed chunk of an assistant message; the role rode the skipped `TEXT_MESSAGE_START` |
-| `TOOL_CALL_START` | A tool call opens; the program shows the call id and name |
+| `RUN_STARTED` | The run opens. `threadId` is the session id and `runId` is fresh per run |
+| `TEXT_MESSAGE_CONTENT` | One streamed chunk of an assistant message. The role rode the skipped `TEXT_MESSAGE_START` |
+| `TOOL_CALL_START` | A tool call opens. The program shows the call id and name |
 | `TOOL_CALL_RESULT` | The raw JSON execution result, with the legacy `"Result of tool call:"` prefix gone |
 | `RUN_FINISHED success` | The run's terminal event, carrying `usage` and `result` |
-| `RUN_FINISHED interrupt` | The run suspends on a tool approval; `resolved` answers it, `cancelled` declines |
+| `RUN_FINISHED interrupt` | The run suspends on a tool approval. `resolved` answers it, `cancelled` declines |
 | `-- next frame --` | Serve worker vocabulary: app frames on stdin carry run inputs, events come back per frame |
 
 | Printed line | Documented in |
@@ -103,7 +103,7 @@ go run . serve
 go run . serve --approval
 ```
 
-`serve` spawns the `infer` on your `PATH`; set `INFER=../../infer` to point it at a local build.
+`serve` spawns the `infer` on your `PATH`. Set `INFER=../../infer` to point it at a local build.
 
 ## Use a real model
 

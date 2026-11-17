@@ -33,7 +33,7 @@ import (
 var receiverGracePeriod = 6 * time.Second
 
 // Process-wide facts stamped onto every metric via the resource. Version is the
-// build version; ExecutionMode distinguishes interactive chat from headless
+// build version. ExecutionMode distinguishes interactive chat from headless
 // `infer headless`. cmd sets these before building the service container.
 var (
 	Version       = "dev"
@@ -47,7 +47,7 @@ const (
 	ExecDaemon      = "daemon"
 )
 
-// Tool outcomes (attribute infer.tool.outcome; error.type on non-success).
+// Tool outcomes (attribute infer.tool.outcome. Error.type on non-success).
 const (
 	ToolSuccess  = "success"
 	ToolError    = "error"
@@ -69,7 +69,7 @@ const (
 type CostFunc func(model string, prompt, completion, cached, cacheWrite int) (input, output, total float64)
 
 // Options configures a Recorder. Dir + SessionID locate the per-process local
-// file; OTLP* enable the optional remote export.
+// file. OTLP* enable the optional remote export.
 type Options struct {
 	Enabled         bool
 	Dir             string
@@ -160,7 +160,7 @@ func deltaTemporality(sdkmetric.InstrumentKind) metricdata.Temporality {
 }
 
 // New builds a Recorder, or nil when disabled or no sink could be created. The
-// local file sink is always attempted; the OTLP sink is added when an endpoint
+// local file sink is always attempted. The OTLP sink is added when an endpoint
 // is configured (or OTEL_EXPORTER_OTLP_ENDPOINT is set). Sink failures are
 // logged and dropped so telemetry never breaks a run.
 func New(opts Options) *Recorder {
@@ -256,7 +256,7 @@ func newFileReader(dir, session string, interval time.Duration) (*os.File, sdkme
 }
 
 // newOTLPReader builds the remote metric exporter. A configured endpoint takes
-// precedence; when empty, the exporter's native spec-compliant env handling
+// precedence. When empty, the exporter's native spec-compliant env handling
 // applies (OTEL_EXPORTER_OTLP_METRICS_ENDPOINT over OTEL_EXPORTER_OTLP_ENDPOINT,
 // per-signal path appending, headers, timeouts).
 func newOTLPReader(endpoint string, headers map[string]string, interval time.Duration) (sdkmetric.Reader, error) {

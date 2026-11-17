@@ -728,7 +728,7 @@ func (c *ServiceContainer) handleStorageInitFailure(
 // memory default (also when the block is omitted) is the process-local queue
 // exactly as before. sqlite, postgres and redis dial with their matching
 // storage.<type> connection settings so queued work survives a restart and
-// can be shared by several infer processes; a backend that fails to open
+// can be shared by several infer processes. A backend that fails to open
 // aborts startup instead of silently falling back to memory.
 func (c *ServiceContainer) initializeMessageQueue() {
 	backend := c.config.Queue.Type

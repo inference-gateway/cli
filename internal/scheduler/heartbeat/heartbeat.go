@@ -26,7 +26,7 @@ type Config struct {
 }
 
 // Service drives the heartbeat ticker. Single global instance per
-// daemon; constructed by NewService and lifecycle-managed via
+// daemon. Constructed by NewService and lifecycle-managed via
 // Start/Stop.
 type Service struct {
 	cfg        Config

@@ -49,7 +49,7 @@ type ReadTool struct {
 }
 
 // NewReadTool creates a new read tool. images reads an image file as an
-// attachment for a model that can see; nil sends every image to ImageDecode.
+// attachment for a model that can see. Nil sends every image to ImageDecode.
 func NewReadTool(cfg *config.Config, images agentdomain.ImageService) *ReadTool {
 	return &ReadTool{
 		config:    cfg,

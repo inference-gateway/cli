@@ -13,8 +13,8 @@ license: Apache-2.0
 
 # Huh v2
 
-Terminal forms for Bubble Tea v2. Import `charm.land/huh/v2`; pinned to v2.0.3.
-A `Form` is a sequence of `Group`s (one visible at a time); a `Group` holds
+Terminal forms for Bubble Tea v2. Import `charm.land/huh/v2`. Pinned to v2.0.3.
+A `Form` is a sequence of `Group`s (one visible at a time). A `Group` holds
 `Field`s. Values bind to your variables via `.Value(&x)`.
 
 ## The contract: embedding a form in a Bubble Tea model
@@ -61,7 +61,7 @@ func (w *wizard) View() tea.View { return tea.NewView(w.form.View()) }
 internal command messages (`nextFieldMsg`, `nextGroupMsg`): the field returns
 a cmd, the runtime executes it, and the resulting message must be routed back
 into `form.Update` or the form stalls one step before completion. This is
-automatic when the form's owner is the top-level model; when the form floats
+automatic when the form's owner is the top-level model. When the form floats
 inside a larger app (see `question_form_view.go` + `forwardToOverlayForms` in
 `internal/presentation/tui/app/chat.go`), forward non-key messages explicitly. The same applies
 to tests: pump returned cmds back through the form instead of asserting after
@@ -72,13 +72,13 @@ a single `Update` call.
 | Topic | v1 | v2 |
 | --- | --- | --- |
 | Import | `github.com/charmbracelet/huh` | `charm.land/huh/v2` |
-| `Theme` | struct | **interface** `Theme(isDark bool) *Styles`; adapt funcs with `huh.ThemeFunc` |
+| `Theme` | struct | **interface** `Theme(isDark bool) *Styles`. Adapt funcs with `huh.ThemeFunc` |
 | Built-in themes | `huh.ThemeCharm()` returns `*Theme` | `huh.ThemeCharm(isDark bool) *Styles` (same for Dracula/Catppuccin/Base/Base16) |
-| Accessible mode | per-field `WithAccessible` | form-level only: `Form.WithAccessible(true)`; field methods removed |
+| Accessible mode | per-field `WithAccessible` | form-level only: `Form.WithAccessible(true)`. Field methods removed |
 | Bubble Tea types | v1 `tea.Cmd`/`tea.Msg` | `charm.land/bubbletea/v2` throughout |
 | Styling types | Lip Gloss v1 | Lip Gloss v2 (see **lipgloss-v2**) |
 | Button alignment | v1 `lipgloss.Position` | v2 `lipgloss.Position` |
-| Form model | unexported | `huh.Model` exported; `Form.View()` returns `string` |
+| Form model | unexported | `huh.Model` exported. `Form.View()` returns `string` |
 
 ## Fields you'll reach for
 
@@ -86,8 +86,8 @@ a single `Update` call.
 | --- | --- | --- |
 | `Input` | one-line text | `.Validate(func(string) error)`, `.Placeholder` |
 | `Text` | multi-line text | `.Lines(n)` |
-| `Select[T]` | pick one | generic over the value; `.Height(n)`; `/` filter built in; `.Inline(true)` carousel; `.OptionsFunc`, `.GetFiltering()` |
-| `MultiSelect[T]` | pick many | toggle with space/x; `.Validate` for "at least one" |
+| `Select[T]` | pick one | generic over the value. `.Height(n)`. `/` filter built in. `.Inline(true)` carousel. `.OptionsFunc`, `.GetFiltering()` |
+| `MultiSelect[T]` | pick many | toggle with space/x. `.Validate` for "at least one" |
 | `Confirm` | yes/no | `.Affirmative("Yes")` / `.Negative("No")` |
 | `FilePicker` | pick a file | `.CurrentDirectory`, `.AllowedTypes([]string{".pem"})`, `.Height` |
 | `Note` | static text | display-only card |
@@ -98,13 +98,13 @@ Options carry a display key and a typed value: `huh.NewOption("label", value)`.
 ## Best practices & gotchas
 
 - **Forms are one-shot.** After `StateCompleted`/`StateAborted` a form is
-  done; build a new one (and run its `Init()`) to show it again. Reset bound
+  done. Build a new one (and run its `Init()`) to show it again. Reset bound
   variables when rebuilding - they keep their last values.
-- **Quit is ctrl+c only by default; esc does NOT abort.** Rebind when needed:
+- **Quit is ctrl+c only by default. Esc does NOT abort.** Rebind when needed:
   `km := huh.NewDefaultKeyMap(); km.Quit = key.NewBinding(key.WithKeys("esc"))`
   then `.WithKeyMap(km)`. Beware: form-level Quit wins over field keys, so
   binding esc to Quit breaks Select's esc-clears-filter.
-- **Enter is both next-field and submit** in the default keymap; the last
+- **Enter is both next-field and submit** in the default keymap. The last
   group's completion submits the form.
 - **Select's `/` filter is substring, not fuzzy**, and matches `option.Key` -
   including any suffix text you baked into the label.
@@ -114,12 +114,12 @@ Options carry a display key and a typed value: `huh.NewOption("label", value)`.
 - **Theming**: this repo maps the active style-provider palette via
   `huhTheme(styleProvider)` in `internal/presentation/tui/components/huh_theme.go` - use it
   on every form (`.WithTheme(huhTheme(p))`). The theme is captured at build
-  time; the rebuild-per-phase pattern picks up theme switches for free.
+  time. The rebuild-per-phase pattern picks up theme switches for free.
 - **Plain-terminal prompts** (outside any Bubble Tea program): call `Run()`
   directly - `huh.NewConfirm().Title("Proceed?").Value(&ok).Run()` runs its
   own mini program (see `confirmInstall` in `cmd/plugins/plugins.go`). Guard for
   non-interactive stdin first.
-- **Sizing**: overlay forms never see `tea.WindowSizeMsg`; set `.WithWidth`
+- **Sizing**: overlay forms never see `tea.WindowSizeMsg`. Set `.WithWidth`
   from your component's own width at build time.
 
 Pairs with **bubbletea-v2** (the runtime), **bubbles-v2** (components), and

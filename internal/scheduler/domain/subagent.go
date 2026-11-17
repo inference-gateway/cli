@@ -82,7 +82,7 @@ const EnvSubagentApprovalFile = "INFER_SUBAGENT_APPROVAL_FILE"
 // EnvSubagentHistoryName names the environment variable the Agent tool sets on
 // an interactive subagent's `infer chat` so it uses its own history file
 // (<configDir>/history/history-<name>) instead of the main agent's history.
-// When unset or empty, the subagent falls back to the main history file; the
+// When unset or empty, the subagent falls back to the main history file. The
 // reserved value SubagentHistoryMemoryOnly selects in-memory-only history.
 const EnvSubagentHistoryName = "INFER_SUBAGENT_HISTORY_NAME"
 
@@ -202,12 +202,12 @@ func ReadSubagentResultFile(path string) (SubagentResultFile, bool) {
 // pending.
 type PaneObservation struct {
 	// Harvested is the subagent chat's real last assistant message (from its
-	// result file); "" until its turn completes. The ONLY content ever delivered -
+	// result file). "" until its turn completes. The ONLY content ever delivered -
 	// the pane is never scraped for content (its TUI chrome is noise).
 	Harvested string
 	// Screen is a snapshot of the pane's current tail, used by the poller to detect
 	// idleness by stability: while the subagent works the chat's elapsed-time
-	// spinner changes this every poll; at idle it is frozen. The input-box
+	// spinner changes this every poll. At idle it is frozen. The input-box
 	// placeholder ("Type your message") is NOT a usable idle signal - it is drawn
 	// even mid-turn - so the stability of the whole tail is used instead.
 	Screen string

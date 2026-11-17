@@ -57,7 +57,7 @@ type recordRequest struct {
 	Region *computerdomain.Region // frame space
 }
 
-// recording is one ffmpeg process. done is closed once Wait returns; err and
+// recording is one ffmpeg process. done is closed once Wait returns. Err and
 // ended are written before that, so readers wait on done first.
 type recording struct {
 	status  RecordingStatus
@@ -74,7 +74,7 @@ type recording struct {
 // ScreenRecorder runs at most one ffmpeg screen recording at a time, machine
 // wide: a lock file under ~/.infer/run keeps a second infer process from
 // starting a competing capture. The process outlives the RecordStart tool
-// call; RecordStop, the max_duration cap (ffmpeg -t), or Close on CLI
+// call. RecordStop, the max_duration cap (ffmpeg -t), or Close on CLI
 // shutdown ends it. While it runs it is a background job, so a headless run
 // waits for it instead of exiting.
 type ScreenRecorder struct {
@@ -300,7 +300,7 @@ func (r *ScreenRecorder) lockRecording() (*os.File, error) {
 // recordingJob tracks a running recording on the background job supervisor:
 // HoldsSession makes a headless run wait for it instead of exiting (which would
 // finalize it early) and lists it in the task views. It is Silent because
-// RecordStop reports the file itself; only a recording that ends on its own
+// RecordStop reports the file itself. Only a recording that ends on its own
 // (the max_duration cap, an ffmpeg exit, or Wind) wakes the agent to collect it.
 type recordingJob struct {
 	r    *ScreenRecorder
@@ -452,7 +452,7 @@ func stderrTail(rec *recording) string {
 
 // resolveFFmpeg prefers ffmpeg on PATH and otherwise installs the prebuilt
 // binary into ~/.infer/bin/tools (upgrading a stale download).
-// ponytail: no capability probe; a build missing libx264 is diagnosed at the
+// ponytail: no capability probe. A build missing libx264 is diagnosed at the
 // startup check, which reports a missing encoder with the fix.
 func resolveFFmpeg(ctx context.Context) (string, error) {
 	if path, err := exec.LookPath("ffmpeg"); err == nil {
@@ -491,10 +491,10 @@ func nativeRect(rect display.Region, s capture.Screen) display.Region {
 }
 
 // ffmpegArgs builds the capture command for a logical screen rectangle.
-// ponytail: records at native resolution; 5K+ displays exceed the 4096px
+// ponytail: records at native resolution. 5K+ displays exceed the 4096px
 // width many H.264 decoders accept, add a scale filter if that bites.
 // macOS crops relative to the captured input size, so the Retina backing
-// scale never needs to be known; X11 and GDI take the area as input options.
+// scale never needs to be known. X11 and GDI take the area as input options.
 func ffmpegArgs(goos, displayName string, rect display.Region, s capture.Screen, rc config.RecordingConfig, out string) ([]string, error) {
 	if rect.Width < 2 || rect.Height < 2 {
 		return nil, fmt.Errorf("capture area %dx%d is too small to record", rect.Width, rect.Height)

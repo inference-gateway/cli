@@ -14,7 +14,7 @@ func (t *ComputerTool) RequiresApproval(args map[string]any, _ agentdomain.Agent
 	return computerUseApproval(t.config, isObservation(actionKinds[action]))
 }
 
-// RequiresApproval gates GetLatestFrame per computer_use.approval; reading a
+// RequiresApproval gates GetLatestFrame per computer_use.approval. Reading a
 // frame is an observation.
 func (t *GetLatestFrameTool) RequiresApproval(map[string]any, agentdomain.AgentMode) bool {
 	return computerUseApproval(t.config, true)

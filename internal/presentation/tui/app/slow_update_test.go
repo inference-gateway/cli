@@ -14,7 +14,7 @@ import (
 )
 
 // logSlowUpdate is the single-ingress instrumentation: a handler slower than
-// SlowUpdateThreshold warns once, tagged with the event type; a fast handler is
+// SlowUpdateThreshold warns once, tagged with the event type. A fast handler is
 // silent.
 func TestLogSlowUpdate(t *testing.T) {
 	core, logs := observer.New(zapcore.WarnLevel)

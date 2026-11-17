@@ -4,7 +4,7 @@ package shortcuts
 // view trigger with no dependencies - the side effect transitions the UI to the
 // diff viewer, which loads working-tree changes itself. The viewer has two tabs
 // (Local working-tree changes and the current branch's PR diff), switched with
-// Tab; the PR tab is read-only.
+// Tab. The PR tab is read-only.
 func NewDiffShortcut() *PanelShortcut {
 	return &PanelShortcut{name: "diff", description: "Open the changes panel (interactive diff viewer)", sideEffect: SideEffectShowDiffViewer}
 }

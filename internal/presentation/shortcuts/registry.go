@@ -67,7 +67,7 @@ func (r *Registry) LoadCustomShortcuts(baseDirs []string, completer llm.Complete
 }
 
 // customShortcutSourceFile names the YAML file a custom shortcut was loaded
-// from, for warnings; empty for anything else.
+// from, for warnings. Empty for anything else.
 func customShortcutSourceFile(shortcut Shortcut) string {
 	if cs, ok := shortcut.(*CustomShortcut); ok {
 		return cs.sourceFile

@@ -130,13 +130,13 @@ func (a *Autocomplete) SetPricingService(pricingService convdomain.PricingServic
 }
 
 // SetGitHubIssueService sets the GitHub issue lookup used by the "#"
-// autocomplete trigger. Safe to call with nil; the trigger then shows nothing.
+// autocomplete trigger. Safe to call with nil. The trigger then shows nothing.
 func (a *Autocomplete) SetGitHubIssueService(s agentdomain.GitHubIssueService) {
 	a.githubIssueService = s
 }
 
 // SetFileService sets the project file lister used by the "@" autocomplete
-// trigger. Safe to call with nil; the trigger then shows nothing.
+// trigger. Safe to call with nil. The trigger then shows nothing.
 func (a *Autocomplete) SetFileService(s agentdomain.FileService) {
 	a.fileService = s
 }
@@ -1014,7 +1014,7 @@ func (a *Autocomplete) calculateMaxShortcutWidth() int {
 }
 
 // calculateKindWidth returns the widest kind label among the filtered rows so
-// all rows share one aligned kind column; zero when the list carries no labels
+// all rows share one aligned kind column. Zero when the list carries no labels
 // (models, tools, files, issues).
 func (a *Autocomplete) calculateKindWidth() int {
 	kindWidth := 0

@@ -28,11 +28,11 @@ type TokenEstimator interface {
 // across the chain.
 type SessionRollover interface {
 	// ResolveSessionID maps a raw (possibly group) id to the group's current
-	// session id; returns (sessionID, groupKey, error).
+	// session id. Returns (sessionID, groupKey, error).
 	ResolveSessionID(rawID string) (string, string, error)
 	ShouldRollover(model string) bool
 	// MaybeRollover rolls over when ShouldRollover fires and returns the new
-	// session id and true; failures are logged and reported as no rollover.
+	// session id and true. Failures are logged and reported as no rollover.
 	MaybeRollover(ctx context.Context, model, groupKey string) (string, bool)
 	PerformRollover(ctx context.Context, model, groupKey string) (string, error)
 }

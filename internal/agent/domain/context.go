@@ -16,7 +16,7 @@ const bashOutputCallbackKey contextKey = "bash_output_callback"
 // BashOutputCallback receives streaming bash output. Output is coalesced before
 // delivery, so a single invocation may carry several newline-joined lines (the
 // argument never has a trailing newline). This keeps the number of callbacks
-// bounded for high-volume commands; the full command output is captured
+// bounded for high-volume commands. The full command output is captured
 // separately by the tool and is unaffected.
 type BashOutputCallback func(output string)
 
@@ -24,7 +24,7 @@ type BashOutputCallback func(output string)
 const toolProgressCallbackKey contextKey = "tool_progress_callback"
 
 // ToolProgressCallback receives a progress line describing what a tool is
-// currently doing. Callers throttle their own reporting; a callback must be
+// currently doing. Callers throttle their own reporting. A callback must be
 // safe to invoke from the goroutine running the tool.
 type ToolProgressCallback func(message string)
 
@@ -80,6 +80,6 @@ const userQuestionBrokerKey contextKey = "user_question_broker"
 
 // approvalEscalationKey is the context key for the judge-rejection escalation
 // gate used by the RequestApproval tool. Injected only on the chat path, where
-// the tool approval box can reach the user; headless/no-TTY runs see a
+// the tool approval box can reach the user. Headless/no-TTY runs see a
 // nil gate and the tool returns a distinguishable "no approver reachable" result.
 const approvalEscalationKey contextKey = "approval_escalation"

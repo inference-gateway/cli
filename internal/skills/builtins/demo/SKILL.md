@@ -22,7 +22,7 @@ in the result comment: that directory IS the delivery channel, so a recording
 never needs to go into the repository to survive the runner.
 
 Run every shell command as its OWN Bash call - no `|`, `&&`, `;`, `$(...)` or
-redirects; the Bash gate rejects those.
+redirects. The Bash gate rejects those.
 
 ## 1. Plan first
 
@@ -50,7 +50,7 @@ display holds only what you put on it.
 
 - Terminal programs: use only that session - `tmux send-keys -t demo` and
   `tmux capture-pane -p -t demo`. Do not create sessions, start xterms,
-  resize panes or switch clients; those windows are not what gets recorded.
+  resize panes or switch clients. Those windows are not what gets recorded.
 - GUI apps: start them from the demo session with `DISPLAY=:99` in front so
   the window opens on the recorded display, then drive them with the
   Computer tools.
@@ -71,7 +71,7 @@ the user has open.
   record them.
 
 If RecordStart is not in your tools, recording is off for this run (CI: the
-request did not say "demo"; locally: `computer_use.recording.enabled`). That
+request did not say "demo". Locally: `computer_use.recording.enabled`). That
 switch covers VHS too: do not record with it either. Say so once, never edit
 config, and show the steps as commands plus captured output or screenshots
 instead.
@@ -94,7 +94,7 @@ session sized like the tape.
    version or an empty window will look the same in the GIF - fix it now.
    - A state that flashes by (streaming, loading, a queue) is hard to catch
      live: slow the fake backend down rather than racing it.
-   - tmux: text goes with `-l` so it is typed verbatim; keys go without it
+   - tmux: text goes with `-l` so it is typed verbatim. Keys go without it
      (`Enter`, `Tab`, `Down`, `Escape`, `C-c`).
 3. Reset to a clean start: quit with the app's own keys or close its window,
    then `tmux send-keys -t demo 'clear' Enter`. Never `pkill -f` or
@@ -111,7 +111,7 @@ It has no 60 s cap, but still aim for 20-45 s. Check it as below.
 RecordStart: send the whole take as ONE response of tool calls - RecordStart,
 then each step (`tmux send-keys`, or a Click/Type/Key) followed by `sleep 2`
 (3 for a busy frame), then RecordStop. Calls in one response run in order with no
-model turn between them; spread over turns, each step costs ~10 s and the
+model turn between them. Spread over turns, each step costs ~10 s and the
 60 s cap hits before the interesting frame. Aim for 20-45 s.
 
 RecordStop names the MP4 under the media root's `recordings/` and reports
@@ -122,7 +122,7 @@ the PNG:
 
 Never open the MP4 or a GIF with image tools - an animated GIF sent to the
 model fails the whole run. A bad take (capped, wrong screen)? Rehearse the
-broken step again, then record a new take; unconverted takes stay in
+broken step again, then record a new take. Unconverted takes stay in
 `recordings/` and never reach the comment.
 
 ## 5. Convert the good take

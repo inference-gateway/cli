@@ -83,11 +83,11 @@ type Source interface {
 	// hunk-level unstaging.
 	IndexPatch(path string) (FilePatch, error)
 	// ApplyHunk applies a single hunk to the index. reverse=false stages a
-	// worktree hunk; reverse=true unstages a staged hunk.
+	// worktree hunk. Reverse=true unstages a staged hunk.
 	ApplyHunk(fp FilePatch, hunkIndex int, reverse bool) error
 	// ApplyLines applies only the selected change-lines of one hunk to the index.
 	// selected holds 0-based indices into the hunk's Lines slice ('+'/'-' lines
-	// only; others are ignored). reverse=false stages the selected worktree lines,
+	// only. Others are ignored). reverse=false stages the selected worktree lines,
 	// reverse=true unstages the selected staged lines. Unselected changes are
 	// neutralized so they keep their prior staged/unstaged state.
 	ApplyLines(fp FilePatch, hunkIndex int, selected map[int]bool, reverse bool) error
@@ -123,7 +123,7 @@ type ReadSource interface {
 //
 // ponytail: the PR tab always reflects the *checked-out* branch's PR. Reviewing
 // an arbitrary un-checked-out PR would require `gh pr checkout <n>` first (we do
-// not mutate the user's checkout); add that only if the need shows up.
+// not mutate the user's checkout). Add that only if the need shows up.
 type rangeSource struct {
 	g    *gitSource
 	base string // merge-base commit; resolved lazily on first use
@@ -200,7 +200,7 @@ func (r *rangeSource) Changes() (staged, unstaged []FileChange, err error) {
 
 // parseNameStatus parses NUL-separated `git diff --name-status -z` output into a
 // flat, read-only file list. Renames/copies carry the original path as a second
-// token (status\0old\0new); all others are status\0path.
+// token (status\0old\0new). All others are status\0path.
 func parseNameStatus(data []byte) []FileChange {
 	tokens := strings.Split(string(data), "\x00")
 	var out []FileChange
@@ -260,7 +260,7 @@ func (g *gitSource) Changes() (staged, unstaged []FileChange, err error) {
 }
 
 // parseStatus parses NUL-separated `git status --porcelain=v1 -z` output. Each
-// record is "XY<space>path"; for renames/copies the original path follows as a
+// record is "XY<space>path". For renames/copies the original path follows as a
 // separate NUL-terminated token (the -z format reverses the order to new\0old).
 func parseStatus(data []byte) (staged, unstaged []FileChange) {
 	tokens := strings.Split(string(data), "\x00")
@@ -466,7 +466,7 @@ func firstByte(s string) byte {
 // buildLineSelectionPatch assembles a single-hunk patch that contains only the
 // selected change-lines. Unselected changes are neutralized so they keep their
 // current state: when staging ('+'/'-' against the index), an unselected '+' is
-// dropped and an unselected '-' becomes context; when unstaging (reverse), the
+// dropped and an unselected '-' becomes context. When unstaging (reverse), the
 // roles flip. Combined with `git apply --recount`, the result applies cleanly.
 func buildLineSelectionPatch(fp FilePatch, idx int, selected map[int]bool, reverse bool) string {
 	h := fp.Hunks[idx]

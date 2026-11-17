@@ -29,7 +29,7 @@ func (s *Service) ParseToolCall(input string) (string, map[string]any, error) {
 	return ParseToolCall(input)
 }
 
-// ParseArguments parses `key=value` pairs; see ParseToolCall.
+// ParseArguments parses `key=value` pairs. See ParseToolCall.
 func (s *Service) ParseArguments(argsStr string) (map[string]any, error) {
 	return ParseArguments(argsStr)
 }
@@ -76,7 +76,7 @@ func ParseToolCall(input string) (string, map[string]any, error) {
 }
 
 // ParseArguments parses function arguments in the format key="value",
-// key2="value2". Numeric values are stored as float64; everything else as
+// key2="value2". Numeric values are stored as float64. Everything else as
 // string.
 func ParseArguments(argsStr string) (map[string]any, error) {
 	args := make(map[string]any)

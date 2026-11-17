@@ -72,7 +72,7 @@ func (d *DiffRenderer) SetStartLine(n int) *DiffRenderer { d.startLine = n; retu
 // RenderEditToolArguments renders Edit tool arguments as a diff. When the target
 // file can be read and old_string is found in it, it diffs the real file content
 // so the configured context lines surround the change with actual neighbouring
-// file lines; otherwise it falls back to a snippet diff of old_string vs new_string.
+// file lines. Otherwise it falls back to a snippet diff of old_string vs new_string.
 func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 	filePath, _ := args["file_path"].(string)
 	oldString, _ := args["old_string"].(string)
@@ -313,7 +313,7 @@ func (d *DiffRenderer) themeOrNil() tui.Theme {
 }
 
 // isLightTheme classifies the theme by the luminance of its assistant
-// (primary text) color. Dark themes have light text (high luminance); light
+// (primary text) color. Dark themes have light text (high luminance). Light
 // themes have dark text (low luminance).
 func IsLightTheme(theme tui.Theme) bool {
 	return hexLuminance(theme.GetAssistantColor()) < 0.5

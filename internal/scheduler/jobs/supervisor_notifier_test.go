@@ -84,7 +84,7 @@ func TestSupervisor_SignalEnqueuePushesDrain(t *testing.T) {
 }
 
 // Cleanup warns exactly once for a still-running job that has exceeded
-// JobRunningLongThreshold; the warnedLong guard suppresses repeats on later sweeps.
+// JobRunningLongThreshold. The warnedLong guard suppresses repeats on later sweeps.
 func TestSupervisor_CleanupWarnsLongRunningJobOnce(t *testing.T) {
 	core, logs := observer.New(zapcore.WarnLevel)
 	prev := logger.GetGlobalLogger()

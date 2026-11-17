@@ -408,7 +408,7 @@ Configure a remote code review agent:
 infer agents add code-reviewer https://code-review.example.com
 ```
 
-This creates an entry in `~/.infer/agents.yaml` (the userspace baseline; pass `--project` to write
+This creates an entry in `~/.infer/agents.yaml` (the userspace baseline. Pass `--project` to write
 `.infer/agents.yaml` instead):
 
 ```yaml
@@ -572,7 +572,7 @@ happens automatically when a chat or headless session starts (`StartAgents` / `s
   `A2A_AGENT_CLIENT_MODEL`, falling back to the CLI's configured `agent.model`) and gateway settings
   (`A2A_AGENT_CLIENT_BASE_URL`)
 - Maps the artifacts server port (8081 in the container) when `artifacts_url` is set
-- Polls the agent's `/health` endpoint and reports status in the TUI; headless mode waits for local agents to
+- Polls the agent's `/health` endpoint and reports status in the TUI. Headless mode waits for local agents to
   settle before the first turn
 
 **Requirements for local agents:**
@@ -583,11 +583,11 @@ happens automatically when a chat or headless session starts (`StartAgents` / `s
   value (see [Environment Variable Substitution](#environment-variable-substitution))
 
 **Detached containers:** `infer agents start [name]` starts `run: true` agents as detached containers that
-outlive the command; later chat and headless sessions reuse them instead of starting their own, and
+outlive the command. Later chat and headless sessions reuse them instead of starting their own, and
 `infer agents stop [name]` stops them (`cmd/agents/agents.go`).
 
 **Note:** Do not start local agent containers by hand with `docker run`. The CLI starts its own container per
-session; a manually started container on the same port collides with the ones the CLI starts.
+session. A manually started container on the same port collides with the ones the CLI starts.
 
 ## Best Practices
 

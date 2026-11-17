@@ -17,7 +17,7 @@ import (
 )
 
 // TestMain redirects the logger to a throwaway directory for the whole package.
-// Many tests here call initConfig(), which calls logger.Init; the default log dir
+// Many tests here call initConfig(), which calls logger.Init. The default log dir
 // is ~/.infer/logs (config.DefaultLogsDir), so without an override the logger would
 // create logs in the tester's real home directory. No test asserts on logging.dir,
 // and tests that clear INFER_* env vars (e.g. root_defaults_test) chdir into their

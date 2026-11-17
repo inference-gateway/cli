@@ -46,7 +46,7 @@ var digitRun = regexp.MustCompile(`\d+`)
 
 // Generator distills past sessions into a markdown report: which workflows
 // repeat often enough to deserve a skill, and which tool calls keep failing
-// the same way. Counts and error strings are computed here; the model only
+// the same way. Counts and error strings are computed here. The model only
 // interprets them, because a model asked to both count and interpret will
 // confidently invent the counts.
 type Generator struct {
@@ -337,7 +337,7 @@ func countMemoryFacts(index string) int {
 	return count
 }
 
-// buildDigest renders the prompt payload with secrets masked; pure, so the
+// buildDigest renders the prompt payload with secrets masked. Pure, so the
 // tests target it directly.
 func buildDigest(sessions []sessionDigest, failures []toolFailure, tools []telemetry.ToolStat, memory string, logs logDigest) string {
 	var b strings.Builder
@@ -410,7 +410,7 @@ func topErrors(f toolFailure) []string {
 	return keys[:min(len(keys), maxErrorsPerTool)]
 }
 
-// insightsPrompt asks for interpretation only; the report already carries the
+// insightsPrompt asks for interpretation only. The report already carries the
 // numbers. The skill-name constraints mirror the skills loader's, so a
 // suggestion can be pasted straight into ~/.infer/skills/<name>/SKILL.md.
 const insightsPrompt = `You are reviewing a developer's past CLI agent sessions and logs to tell them what to change.
@@ -590,7 +590,7 @@ func truncate(s string, limit int) string {
 	return string(runes[:limit]) + "..."
 }
 
-// oneLine collapses a message to a single truncated line; a failed shell command
+// oneLine collapses a message to a single truncated line. A failed shell command
 // carries its whole output in Error.
 func oneLine(s string, limit int) string {
 	return truncate(strings.Join(strings.Fields(s), " "), limit)

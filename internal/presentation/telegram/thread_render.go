@@ -15,7 +15,7 @@ import (
 )
 
 // onTextStart opens or reopens the streamed message the deltas build. The
-// worker echoes inbound messages; the chat never re-renders those.
+// worker echoes inbound messages. The chat never re-renders those.
 func (t *threadChat) onTextStart(frame []byte) {
 	var ev struct {
 		Role string `json:"role"`

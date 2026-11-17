@@ -254,7 +254,7 @@ func (p *ChatMessageProcessor) expandIssueReferences(ctx context.Context, conten
 	return expanded
 }
 
-// buildUserMessage assembles the outgoing user message; image attachments
+// buildUserMessage assembles the outgoing user message. Image attachments
 // become image content parts.
 func (p *ChatMessageProcessor) buildUserMessage(
 	content string,
@@ -343,7 +343,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 // shouldRolloverNow is a cheap pre-check on the synchronous Update path so
 // that the vast majority of user messages (where no rollover is due) skip
 // the async dispatch entirely. The real ShouldRollover/PerformRollover run
-// inside MaybeRollover on the goroutine; a false negative here just means
+// inside MaybeRollover on the goroutine. A false negative here just means
 // we skip a one-message rollover that would otherwise fire, and the next
 // message will catch it.
 func (p *ChatMessageProcessor) shouldRolloverNow() bool {
@@ -358,7 +358,7 @@ func (p *ChatMessageProcessor) shouldRolloverNow() bool {
 //  1. SetChatPending so IsAgentBusy() queues any further user input arriving
 //     while the rollover is in flight.
 //  2. Emit a "Compacting conversation..." status (spinner on) for the user.
-//  3. Run MaybeRollover on a goroutine via a tea.Cmd; on completion dispatch
+//  3. Run MaybeRollover on a goroutine via a tea.Cmd. On completion dispatch
 //     a RolloverCompletedEvent that the chat handler routes back into
 //     appendUserMessageAndStartCompletion to resume the deferred work.
 func (p *ChatMessageProcessor) compactThenContinue(message sdk.Message, images []agentdomain.ImageAttachment) tea.Cmd {

@@ -29,7 +29,7 @@ func NewSFXService(cfg *config.Config, client sdk.Client) *SFXService {
 
 // Generate produces a sound effect for prompt using the configured
 // text_to_sfx.model ("provider/model"), writing MP3 audio to outPath. A
-// non-nil seconds caps the clip length; a non-nil loop requests a seamless
+// non-nil seconds caps the clip length. A non-nil loop requests a seamless
 // loop. Errors name the configured model so a gateway without the endpoint
 // (or a provider that rejects it) is diagnosable.
 func (s *SFXService) Generate(ctx context.Context, prompt, outPath string, seconds *float32, loop *bool) error {

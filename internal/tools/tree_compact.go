@@ -11,7 +11,7 @@ import (
 )
 
 // compactMaxFilesPerDir caps how many files a single directory line lists in
-// the compact format; the overall line budget comes from the max_files arg.
+// the compact format. The overall line budget comes from the max_files arg.
 const compactMaxFilesPerDir = 25
 
 // compactProjectListing produces the compact one-directory-per-line listing
@@ -91,7 +91,7 @@ func formatProjectListing(paths []string, maxLines, maxFilesPerDir int) string {
 }
 
 // collapseTestSiblings folds name_test.go into a "name.go*" marker when
-// name.go exists in the same directory; standalone test files stay listed.
+// name.go exists in the same directory. Standalone test files stay listed.
 func collapseTestSiblings(files []string) []string {
 	present := make(map[string]bool, len(files))
 	for _, f := range files {

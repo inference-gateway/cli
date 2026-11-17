@@ -171,7 +171,7 @@ func (c *Coordinator) applyAutoAccept(msg agentdomain.ToolApprovalResponseEvent)
 }
 
 // sendApprovalDecision forwards the user's decision to the agent via the
-// response channel held on the approval UI state. Non-blocking; logs a
+// response channel held on the approval UI state. Non-blocking. Logs a
 // warning if the channel is full or closed.
 func (c *Coordinator) sendApprovalDecision(action agentdomain.ApprovalAction) {
 	approvalState := c.stateManager.GetApprovalUIState()
@@ -307,7 +307,7 @@ func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressE
 // HandleToolExecutionCompleted finalizes the tool round-trip: clears the
 // active-tool indicator, refreshes history, optionally fires a todo-update
 // command, and emits a "Tools completed" status. The "preparing response"
-// spinner only makes sense when an agent turn will follow; without an active
+// spinner only makes sense when an agent turn will follow. Without an active
 // chat session (extension-initiated tool calls) the status resets to idle,
 // since no response will ever arrive to clear it.
 func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecutionCompletedEvent) tea.Cmd {
@@ -331,7 +331,7 @@ func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecution
 }
 
 // toolsCompletedStatus picks the post-tool status: "preparing response" only
-// when an agent turn is pending; with no active chat session (extension-
+// when an agent turn is pending. With no active chat session (extension-
 // initiated tool calls) it resets to idle, since no response will follow to
 // clear a spinner.
 func (c *Coordinator) toolsCompletedStatus(msg agentdomain.ToolExecutionCompletedEvent) tea.Msg {

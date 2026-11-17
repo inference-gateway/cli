@@ -11,7 +11,7 @@ import (
 
 // TestBrowserSessionLive exercises the real Playwright driver end-to-end against
 // headless bundled Chromium. Skipped by default (it launches / may download a
-// browser); run it with INFER_BROWSER_LIVE=1 to verify the screenshot, tabs,
+// browser). Run it with INFER_BROWSER_LIVE=1 to verify the screenshot, tabs,
 // coordinate-click, and password-redacting read paths for real.
 func TestBrowserSessionLive(t *testing.T) {
 	if os.Getenv("INFER_BROWSER_LIVE") != "1" {

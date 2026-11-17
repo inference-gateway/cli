@@ -106,7 +106,7 @@ func (sm *Store) CycleAgentMode() agentdomain.AgentMode {
 //
 // Promotes to "pending" if there is no existing chat session OR if the existing
 // session is in a terminal status (Completed/Error/Cancelled/Idle). Terminal
-// sessions are leftovers from a prior chat that hasn't been GC'd yet; treating
+// sessions are leftovers from a prior chat that hasn't been GC'd yet. Treating
 // them as "in progress" would make IsAgentBusy() return false here but true
 // for a subsequent caller that just won the SetChatPending race, which is
 // exactly the window the chat-mode async rollover relies on for queueing.
@@ -177,7 +177,7 @@ func (sm *Store) TouchChatActivity() {
 }
 
 // chatStatusExpectsChunks reports whether the status is one where SSE chunks
-// should be flowing; local tool execution and terminal states are excluded so
+// should be flowing. Local tool execution and terminal states are excluded so
 // a long-running tool doesn't read as a stalled connection.
 func chatStatusExpectsChunks(s tui.ChatStatus) bool {
 	switch s {

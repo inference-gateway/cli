@@ -273,7 +273,7 @@ func TestRefreshTick_ReArmsAndDedups(t *testing.T) {
 }
 
 // TestIsCancellable: active A2A rows and running shell/subagent rows can be
-// cancelled; retained A2A rows and terminal rows cannot.
+// cancelled. Retained A2A rows and terminal rows cannot.
 func TestIsCancellable(t *testing.T) {
 	if !isCancellable(TaskInfo{Kind: scheddomain.JobKindA2A}) {
 		t.Fatal("active A2A row must be cancellable")
@@ -296,7 +296,7 @@ func TestIsCancellable(t *testing.T) {
 }
 
 // TestCancelTask_DispatchesByKind: an A2A row cancels through
-// CancelBackgroundTask (which also cancels the remote task); shell and subagent
+// CancelBackgroundTask (which also cancels the remote task). Shell and subagent
 // rows wind their supervised job down with WindStop.
 func TestCancelTask_DispatchesByKind(t *testing.T) {
 	bg := &a2amocks.FakeBackgroundTaskService{}

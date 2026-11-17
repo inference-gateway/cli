@@ -14,7 +14,7 @@ import (
 )
 
 // CloseSubagentTool closes a subagent. For an interactive subagent it harvests
-// its last assistant message (result file) and kills the tmux pane; for a
+// its last assistant message (result file) and kills the tmux pane. For a
 // headless one it cancels the running subprocess. The subagent analogue of KillShell.
 type CloseSubagentTool struct {
 	config   *config.Config

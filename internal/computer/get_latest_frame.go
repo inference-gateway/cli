@@ -158,7 +158,7 @@ func (t *GetLatestFrameTool) resolveSource(args map[string]any) (string, agentdo
 	return name, src, ""
 }
 
-// checkRateLimit enforces the per-source minimum call interval; it returns a
+// checkRateLimit enforces the per-source minimum call interval. It returns a
 // wait message when the call is too soon. Only successful frame fetches count
 // as calls (see recordCall), so a cold-buffer failure never throttles the retry.
 func (t *GetLatestFrameTool) checkRateLimit(source string) string {
@@ -180,7 +180,7 @@ func (t *GetLatestFrameTool) recordCall(source string) {
 	t.lastCallTimes[source] = time.Now()
 }
 
-// wantAnnotated resolves the format: explicit wins; omitted defaults to
+// wantAnnotated resolves the format: explicit wins. Omitted defaults to
 // annotated whenever an annotator is configured.
 func (t *GetLatestFrameTool) wantAnnotated(args map[string]any) bool {
 	switch format, _ := args["format"].(string); format {
@@ -248,7 +248,7 @@ func parseRegion(args map[string]any) (agentdomain.ScreenRegion, bool) {
 
 // regionResult re-captures a sub-region of the screen at native resolution.
 // Small UI (Dock icons, dense toolbars) is unreadable in the downscaled full
-// frame, so the annotator gets the crop at full detail; element coordinates
+// frame, so the annotator gets the crop at full detail. Element coordinates
 // are translated back into the standard frame space before returning.
 func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]any, region agentdomain.ScreenRegion, start time.Time, fail func(string) (*agentdomain.ToolExecutionResult, error)) (*agentdomain.ToolExecutionResult, error) {
 	displayProvider, err := display.DetectDisplay()

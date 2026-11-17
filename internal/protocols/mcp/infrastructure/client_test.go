@@ -202,7 +202,7 @@ func TestClient_CallTool(t *testing.T) {
 }
 
 // A server on another revision is reported as unsupported, naming what it
-// supports when it says; auth refusals and transport failures are not.
+// supports when it says. Auth refusals and transport failures are not.
 func TestClient_Discover_UnsupportedProtocol(t *testing.T) {
 	tests := []struct {
 		name            string

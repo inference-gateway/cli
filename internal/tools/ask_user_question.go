@@ -323,7 +323,7 @@ func extractOptions(raw any, qIdx int) ([]agentdomain.UserQuestionOption, error)
 
 // formatAnswersForLLM renders the collected answers as one line per question:
 //
-//	[Header] question -> label1, label2; Other: "free text"
+//	[Header] question -> label1, label2. Other: "free text"
 func formatAnswersForLLM(answers []agentdomain.UserQuestionAnswer) string {
 	if len(answers) == 0 {
 		return "The user provided no answers."

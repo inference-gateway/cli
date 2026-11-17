@@ -5,7 +5,7 @@ description: >
   viewport, textinput/textarea, spinner, progress, list, table, tree, key, help. Use when
   adding or reviewing prebuilt TUI components - scrollable viewports, text inputs,
   spinners, progress bars, key bindings and help - with this stack. Each component is
-  a sub-model you embed and delegate to; v2 constructors and key handling differ from
+  a sub-model you embed and delegate to. V2 constructors and key handling differ from
   v1, so lead with the contract and the v1->v2 table.
 license: Apache-2.0
 ---
@@ -48,13 +48,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() tea.View {
-    // components return string; compose, then wrap ONCE at the root
+    // components return string. Compose, then wrap ONCE at the root
     body := lipgloss.JoinVertical(lipgloss.Left, m.sp.View(), m.vp.View())
     return tea.NewView(body)
 }
 ```
 
-That last step is the integration key: components produce **strings**; only the root
+That last step is the integration key: components produce **strings**. Only the root
 model wraps the composed string in `tea.NewView` (see **bubbletea-v2**).
 
 ## v2 vs the v1 you remember
@@ -65,23 +65,23 @@ model wraps the composed string in `tea.NewView` (see **bubbletea-v2**).
 | Constructors | positional, e.g. `viewport.New(w, h)` | functional options: `viewport.New(viewport.WithWidth(w), ...)` |
 | Default keymap | `DefaultKeyMap` variable | `DefaultKeyMap()` function |
 | Sizing | public `Width`/`Height` fields | `SetWidth`/`SetHeight` methods |
-| Keys | `tea.KeyMsg` | `tea.KeyPressMsg`; `key.Matches` is generic over `fmt.Stringer` |
+| Keys | `tea.KeyMsg` | `tea.KeyPressMsg`. `key.Matches` is generic over `fmt.Stringer` |
 | Styling | Lip Gloss v1 | Lip Gloss v2 (`Color()` func, `LightDark`) |
 
 ## Components you'll reach for
 
 | Component | Purpose | Construct / must-know |
 | --- | --- | --- |
-| `viewport` | scrollable region | `New(WithWidth(w), WithHeight(h))`; `SetContent`, `SetWidth/SetHeight`, `DefaultKeyMap()` |
-| `textinput` | one-line input | `New()`; `Focus() tea.Cmd`, `Blur()`, `Value()`, `SetValue()` |
-| `textarea` | multi-line input | `New()`; `Focus()`, `Value()`, `SetWidth/SetHeight`; `SelectAll`, `SelectedText`, `CopySelection()` |
-| `spinner` | activity indicator | `New(WithSpinner(spinner.Dot))`; start with its `Tick` |
-| `progress` | progress bar | `New(WithDefaultBlend())`; static `ViewAs` vs animated `SetPercent` |
+| `viewport` | scrollable region | `New(WithWidth(w), WithHeight(h))`. `SetContent`, `SetWidth/SetHeight`, `DefaultKeyMap()` |
+| `textinput` | one-line input | `New()`. `Focus() tea.Cmd`, `Blur()`, `Value()`, `SetValue()` |
+| `textarea` | multi-line input | `New()`. `Focus()`, `Value()`, `SetWidth/SetHeight`. `SelectAll`, `SelectedText`, `CopySelection()` |
+| `spinner` | activity indicator | `New(WithSpinner(spinner.Dot))`. Start with its `Tick` |
+| `progress` | progress bar | `New(WithDefaultBlend())`. Static `ViewAs` vs animated `SetPercent` |
 | `list` | filterable list | `New(items, delegate, width, height)` (positional) |
 | `table` | data grid | `New(WithColumns(...), WithRows(...))` |
-| `tree` | collapsible tree | `New(tree.Root(v).Child(...), width, height)` (positional); `SetNodes`, `SetSize` |
-| `key` | key bindings | `NewBinding(WithKeys("q"), WithHelp("q","quit"))`; `key.Matches(msg, b)` |
-| `help` | keymap help line | `New()`; renders short/full help from your keymap |
+| `tree` | collapsible tree | `New(tree.Root(v).Child(...), width, height)` (positional). `SetNodes`, `SetSize` |
+| `key` | key bindings | `NewBinding(WithKeys("q"), WithHelp("q","quit"))`. `key.Matches(msg, b)` |
+| `help` | keymap help line | `New()`. Renders short/full help from your keymap |
 
 ## Notes on the common ones
 
@@ -95,7 +95,7 @@ case tea.WindowSizeMsg:
 m.vp.SetContent(body)
 ```
 
-**spinner** - animation is a self-perpetuating command; kick it off in `Init` and let
+**spinner** - animation is a self-perpetuating command. Kick it off in `Init` and let
 its `TickMsg` flow back through the component's `Update`:
 
 ```go
@@ -114,11 +114,11 @@ own. Animated: `cmd := m.pr.SetPercent(0.4)`, then route `progress.FrameMsg` thr
 
 - Always reassign the component (`m.vp, cmd = m.vp.Update(msg)`) and `tea.Batch` the
   cmds - dropping either loses state or stops animation.
-- Set component sizes from `tea.WindowSizeMsg`; account for borders/margins you wrap
+- Set component sizes from `tea.WindowSizeMsg`. Account for borders/margins you wrap
   around them.
-- Manage focus: exactly one input `Focus()`ed at a time; `Blur()` the rest. `Focus()`
+- Manage focus: exactly one input `Focus()`ed at a time. `Blur()` the rest. `Focus()`
   returns a `tea.Cmd` - don't drop it.
-- Constructors take options now: `viewport.New(w, h)` won't compile; use `WithWidth`/
+- Constructors take options now: `viewport.New(w, h)` won't compile. Use `WithWidth`/
   `WithHeight`. (`list.New` and `tree.New` are the exceptions - still positional.)
 - `DefaultKeyMap` is a call now: `viewport.DefaultKeyMap()`.
 - `list.DefaultKeyMap().Quit` is `v` ("select") since v2.2.0, not `q`/`esc`. Call

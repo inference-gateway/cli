@@ -56,7 +56,7 @@ func NewService(opts Options) *Service {
 }
 
 // HandlePlanApprovalRequested sets up the plan-approval UI state and emits an
-// info status. Always returns a cmd; no restart side-effect.
+// info status. Always returns a cmd. No restart side-effect.
 func (s *Service) HandlePlanApprovalRequested(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd {
 	logger.Info("approvalCoordinator.HandlePlanApprovalRequested called")
 

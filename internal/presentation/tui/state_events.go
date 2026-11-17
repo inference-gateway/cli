@@ -71,7 +71,7 @@ type SetInputEvent struct {
 
 // NextStepSuggestionEvent applies the one-line next-step suggestion as ghost
 // text in the empty chat input. A non-empty Suggestion installs it only when
-// the UI is quiet (empty input, no autocomplete or overlay); an empty one
+// the UI is quiet (empty input, no autocomplete or overlay). An empty one
 // clears a shown suggestion.
 type NextStepSuggestionEvent struct {
 	Suggestion string
@@ -211,7 +211,7 @@ type GitPRResolvedEvent struct {
 
 // GitStatusResolvedEvent carries the workspace state for the branch icon,
 // resolved asynchronously by the input view's fetch command. Dirty means the
-// tree has uncommitted changes; Unpushed means local commits are ahead of the
+// tree has uncommitted changes. Unpushed means local commits are ahead of the
 // upstream (or there is no upstream). The zero value means clean or not a repo.
 type GitStatusResolvedEvent struct {
 	Dirty    bool
@@ -230,7 +230,7 @@ type BashCommandCompletedEvent struct {
 
 // DrainQueueRetryEvent is the bounded retry behind DrainQueueEvent, and is NOT a
 // clock. A DrainQueueEvent can land while the agent is momentarily busy (e.g. a
-// background job finishes in the same instant the turn is still completing); the
+// background job finishes in the same instant the turn is still completing). The
 // gate drops it, so without a retry the queue would strand. HandleDrainQueueEvent
 // arms a single DrainQueueRetryEvent in that case, and the drainRetryArmed guard
 // keeps it to exactly one outstanding timer no matter how many DrainQueueEvents

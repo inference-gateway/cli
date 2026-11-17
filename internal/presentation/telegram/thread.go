@@ -37,7 +37,7 @@ type threadChat struct {
 	projectDir string
 
 	// frames carries the frames the registry delivers until the daemon
-	// stops. handleFrames drains it; a full buffer drops the frame rather
+	// stops. handleFrames drains it. A full buffer drops the frame rather
 	// than freezing the registry's pump for every follower.
 	frames chan []byte
 

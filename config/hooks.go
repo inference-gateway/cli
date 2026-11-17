@@ -23,7 +23,7 @@ const defaultHookTimeoutSeconds = 30
 // discoverable without anything running until the user opts in (and allow-lists
 // the command). `infer` drives any project, not just Go ones, so there is no
 // language-specific default hook. DefaultHooksConfig is the in-memory equivalent
-// (empty list); this template only adds the human-facing example and guidance.
+// (empty list). This template only adds the human-facing example and guidance.
 const DefaultHooksYAML = `---
 # Command hooks run a shell command at a pre-defined agent-loop hook point
 # - the executable sibling of reminders.yaml. Off by default.

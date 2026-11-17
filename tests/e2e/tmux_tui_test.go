@@ -368,7 +368,7 @@ func chatLoopbackEnv() string {
 // session and registers its teardown. HOME is created before the kill-session
 // cleanup so cleanups (LIFO) kill the process before TempDir removes the dir.
 // kill-session only sends SIGHUP, and infer's shutdown handler still writes to
-// HOME, so the teardown waits for the pane process to exit; removing HOME any
+// HOME, so the teardown waits for the pane process to exit. Removing HOME any
 // earlier races it ("directory not empty").
 func startTmuxHome(t *testing.T, session string) string {
 	t.Helper()

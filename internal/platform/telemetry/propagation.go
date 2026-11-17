@@ -38,7 +38,7 @@ func (c envCarrier) Keys() []string {
 
 // Default baggage member names, per the OTel semantic conventions. These are
 // a cross-repo contract with the consumer (the ADK reads the same defaults)
-// and must match byte-for-byte; override via telemetry.attr_session_id_key /
+// and must match byte-for-byte. Override via telemetry.attr_session_id_key /
 // telemetry.attr_tool_call_id_key.
 const (
 	defaultAttrSessionIDKey  = "session.id"

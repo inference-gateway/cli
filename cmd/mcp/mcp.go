@@ -153,7 +153,7 @@ Example:
 }
 
 // getMCPConfigPath returns the mcp.yaml path to write. Writes target the
-// userspace baseline (~/.infer/) by default; --project targets the project
+// userspace baseline (~/.infer/) by default. --project targets the project
 // .infer/mcp.yaml instead. A missing home directory is an error like the
 // other write-path lookups.
 func getMCPConfigPath(cmd *cobra.Command) (string, error) {

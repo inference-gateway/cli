@@ -113,7 +113,7 @@ func newConfigTestCommand(t *testing.T) *cobra.Command {
 
 // TestConfigInitWritesUserspaceOnly pins that `infer config init` seeds only the
 // userspace baseline. A project ./.infer/config.yaml is a sparse override written
-// by `config set --project`; a full default config there would shadow the whole
+// by `config set --project`. A full default config there would shadow the whole
 // baseline, since project values replace userspace ones key-by-key.
 func TestConfigInitWritesUserspaceOnly(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)

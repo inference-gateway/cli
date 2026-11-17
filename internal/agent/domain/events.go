@@ -7,7 +7,7 @@ import (
 )
 
 // Chat events the agent publishes on its ChatEvent stream. Delivery surfaces
-// (TUI, headless renderers, the browser bridge) subscribe to the stream; the
+// (TUI, headless renderers, the browser bridge) subscribe to the stream. The
 // domain does not know how they render.
 
 // ChatStartEvent indicates a chat request has started
@@ -47,10 +47,10 @@ type ChatCompleteEvent struct {
 	Metrics          *ChatMetrics
 	Cancelled        bool
 	// MaxTurnsReached marks a completion forced by the turn limit rather than
-	// the task finishing; headless renderers map it to ErrMaxTurnsReached.
+	// the task finishing. Headless renderers map it to ErrMaxTurnsReached.
 	MaxTurnsReached bool
 	// MaxDurationReached marks a completion forced by the run's time budget
-	// (agent.max_duration_minutes); headless renderers map it to ErrMaxDurationReached.
+	// (agent.max_duration_minutes). Headless renderers map it to ErrMaxDurationReached.
 	MaxDurationReached bool
 }
 
@@ -98,7 +98,7 @@ type ToolApprovalRequestedEvent struct {
 	ToolCall  sdk.ChatCompletionMessageToolCall
 	// Context is optional text shown above the call in the approval prompt.
 	// RequestApproval escalations use it for the judge's reason and the
-	// agent's justification; regular approvals leave it empty.
+	// agent's justification. Regular approvals leave it empty.
 	Context      string
 	ResponseChan chan ApprovalAction `json:"-"`
 	// Done closes once the agent stopped waiting for the answer, so whoever
@@ -150,7 +150,7 @@ func (e PlanApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestam
 
 // UserQuestionRequestedEvent is published when the AskUserQuestion tool asks the
 // user one or more interactive clarifying questions. ResponseChan delivers the
-// collected answers back to the blocked tool goroutine; closing it without a
+// collected answers back to the blocked tool goroutine. Closing it without a
 // value signals cancellation.
 type UserQuestionRequestedEvent struct {
 	RequestID    string

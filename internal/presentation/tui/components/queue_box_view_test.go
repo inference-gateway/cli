@@ -104,7 +104,7 @@ func TestQueueBoxView_JobResultHeaderCollapsed(t *testing.T) {
 }
 
 // TestQueueBoxView_JobNoteNotCollapsed keeps a supervisor progress note (no
-// completion header) whole; only formatted job results collapse.
+// completion header) whole. Only formatted job results collapse.
 func TestQueueBoxView_JobNoteNotCollapsed(t *testing.T) {
 	view := newQueueBoxView()
 	note := "compiling (42%)\nstill running"

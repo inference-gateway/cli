@@ -25,7 +25,7 @@ type sqlStore struct {
 }
 
 // rebind converts the SQLite "?" placeholders the statements are written with
-// into "$1, $2, …" for Postgres; every other dialect is left untouched.
+// into "$1, $2, …" for Postgres. Every other dialect is left untouched.
 //
 // ponytail: naive ?→$N rewrite, assumes no "?" inside a SQL string literal —
 // true for every statement in this file. Upgrade to sqlx.Rebind only if a
@@ -774,7 +774,7 @@ func (s *sqlStore) AppendHistory(ctx context.Context, project, command string) e
 }
 
 // LoadHistory returns the project's most recent commands up to limit in
-// chronological order; limit <= 0 returns everything.
+// chronological order. Limit <= 0 returns everything.
 func (s *sqlStore) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
 	query := "SELECT command FROM shell_history WHERE project = ? ORDER BY id DESC"
 	args := []any{project}

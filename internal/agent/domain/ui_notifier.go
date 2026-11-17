@@ -10,7 +10,7 @@ import (
 // Update loop. It is the one ingress every background producer uses to push work
 // or status changes into the UI, replacing the per-source self-rescheduling
 // pollers. The only production implementation wraps (*tea.Program).Send and lives
-// in cmd/chat.go; keeping this interface tea-free lets services depend on it
+// in cmd/chat.go. Keeping this interface tea-free lets services depend on it
 // without importing bubbletea. The event is an `any` (tea.Msg is itself `any`).
 type UINotifier interface {
 	Notify(event any)

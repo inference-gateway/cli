@@ -473,7 +473,7 @@ func messageText(msg sdk.Message) string {
 }
 
 // userBlocks maps a user message to text + image blocks. All Anthropic
-// models accept image input, so image parts translate unconditionally; the
+// models accept image input, so image parts translate unconditionally. The
 // chat/agent paths attach them as data URLs, remote images as http(s) URLs.
 func userBlocks(msg sdk.Message) ([]sdk.MessagesRequestContentBlock, string) {
 	var blocks []sdk.MessagesRequestContentBlock

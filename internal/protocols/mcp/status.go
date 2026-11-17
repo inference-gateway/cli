@@ -18,7 +18,7 @@ type ServerStatus struct {
 
 // StatusReport mirrors the TUI's "MCP connected/total (tools)" indicator plus
 // a per-server breakdown. TotalServers counts every configured server, like
-// the TUI; only enabled servers are dialed.
+// the TUI. Only enabled servers are dialed.
 type StatusReport struct {
 	Enabled          bool           `json:"enabled"`
 	TotalServers     int            `json:"total_servers"`

@@ -25,11 +25,11 @@ type judgeEscalation struct {
 }
 
 // judgeEscalations tracks judge-rejected tool calls keyed by tool name and
-// canonical arguments. Each rejected call may be escalated once; an approved
+// canonical arguments. Each rejected call may be escalated once. An approved
 // escalation sets a bypass marker that makes the next matching judge decision
 // approve without consulting the judge (that single invocation only).
 //
-// ponytail: entries live for the session and are never pruned; add eviction
+// ponytail: entries live for the session and are never pruned. Add eviction
 // if a long session ever accumulates thousands of distinct rejections.
 type judgeEscalations struct {
 	mu    sync.Mutex
@@ -81,7 +81,7 @@ func (j *judgeEscalations) claim(name, args string) (reason, status string) {
 	return esc.reason, ""
 }
 
-// approve records the user's approval; takeBypass consumes it once.
+// approve records the user's approval. TakeBypass consumes it once.
 func (j *judgeEscalations) approve(name, args string) {
 	key := escalationKey(name, args)
 	j.mu.Lock()
@@ -94,7 +94,7 @@ func (j *judgeEscalations) approve(name, args string) {
 // takeBypass consumes the approval marker recorded for this call, reporting
 // whether one existed. Called by requestJudgeApproval ahead of the judge. The
 // entry is dropped so a later judge rejection of the same call starts fresh
-// and can be escalated again; only denials stick for the session.
+// and can be escalated again. Only denials stick for the session.
 func (j *judgeEscalations) takeBypass(name, args string) bool {
 	key := escalationKey(name, args)
 	j.mu.Lock()
@@ -118,7 +118,7 @@ type approvalEscalator struct {
 
 // Escalate answers the RequestApproval tool: is the call judge-rejected and not
 // yet escalated (the attempt is consumed first), and what did the user decide?
-// Approve (or Auto-Approve) overrides the judge for one invocation; Reject,
+// Approve (or Auto-Approve) overrides the judge for one invocation. Reject,
 // dismissal, or a timeout denies.
 func (e *approvalEscalator) Escalate(ctx context.Context, req agentdomain.ApprovalEscalationRequest) (agentdomain.ApprovalEscalationResult, error) {
 	tc := req.ToolCall

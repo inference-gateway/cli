@@ -83,7 +83,7 @@ func (s *ImageService) GenerateImage(ctx context.Context, model, prompt, quality
 // ("provider/name") and returns the path of the saved PNG. A blank quality or
 // size is omitted from the request, leaving the provider's own default. A
 // non-empty maskPath points to a PNG whose transparent (alpha=0) areas mark
-// the editable region; all other pixels are preserved exactly.
+// the editable region. All other pixels are preserved exactly.
 func (s *ImageService) EditImage(ctx context.Context, model, prompt, imagePath, quality, size, maskPath string) (string, error) {
 	provider, modelName, ok := strings.Cut(model, "/")
 	if !ok {

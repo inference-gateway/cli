@@ -205,7 +205,7 @@ func TestModeChangeReminder_PersistsHiddenViaRepo(t *testing.T) {
 	assert.Equal(t, sdk.User, entry.Message.Role)
 }
 
-// After a change is recorded, the new mode becomes the baseline; a later turn
+// After a change is recorded, the new mode becomes the baseline. A later turn
 // in that same mode must not re-inject.
 func TestModeChangeReminder_BaselineAdvancesAfterChange(t *testing.T) {
 	sm := statemanager.NewStore(false)

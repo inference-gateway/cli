@@ -79,14 +79,14 @@ type TelegramChannel struct {
 	retention   *FileRetention
 
 	// media retains inbound photo/video attachments on disk when
-	// cfg.Media.Enabled; nil disables the feature.
+	// cfg.Media.Enabled. Nil disables the feature.
 	media *FileRetention
 
 	// commands to advertise via SetMyCommands on Start.
 	commands []channels.ChannelCommand
 
 	// msgIDs tracks recent message IDs per chat so ClearHistory can delete them.
-	// ponytail: in-memory + capped; Telegram can't delete >48h-old messages anyway, persistence buys nothing
+	// ponytail: in-memory + capped. Telegram can't delete >48h-old messages anyway, persistence buys nothing
 	msgMu  sync.Mutex
 	msgIDs map[int64][]int
 }
@@ -412,7 +412,7 @@ func (t *TelegramChannel) Stop() error {
 
 // processUpdate converts a Telegram update into an channels.InboundMessage (or nil if
 // skipped). Videos are only accepted when mediaEnabled (channels.telegram.media
-// saving is on); otherwise they are skipped as before.
+// saving is on). Otherwise they are skipped as before.
 func processUpdate(update *models.Update, mediaEnabled bool) *channels.InboundMessage {
 	if update.CallbackQuery != nil {
 		return processCallbackQuery(update.CallbackQuery)
@@ -670,7 +670,7 @@ func mimeFromPath(path string) string {
 }
 
 // processCallbackQuery converts a Telegram callback query (e.g., inline button click)
-// into an channels.InboundMessage. Approval buttons carry approval metadata; command
+// into an channels.InboundMessage. Approval buttons carry approval metadata. Command
 // buttons ("/..." callback data) are delivered as if the user typed the
 // command. Returns nil for unrecognized data.
 func processCallbackQuery(cq *models.CallbackQuery) *channels.InboundMessage {
@@ -787,7 +787,7 @@ func sendableImage(p string) bool {
 // extractImagePaths finds local image file references in agent output —
 // <img src="..."> tags, markdown ![..](path), and bare absolute paths — and
 // returns the sendable ones. Tag and markdown references are stripped from the
-// returned text; bare paths stay visible so the user still sees the location.
+// returned text. Bare paths stay visible so the user still sees the location.
 //
 // Fenced code blocks are skipped: tool results are forwarded as a ``` fence
 // (formatAgentMessage) whose JSON embeds the saved artifact path — and the
@@ -839,7 +839,7 @@ func extractImagePaths(content string) ([]string, string) {
 // code, bold, headers) to Telegram HTML. Everything else is escaped so the
 // message never breaks on user content. "> "-quoted line groups become
 // <blockquote expandable> — collapsed by default in Telegram clients (Bot API
-// 7.3+); the channel manager quotes tool calls/results to get that behavior.
+// 7.3+). The channel manager quotes tool calls/results to get that behavior.
 func renderTelegramHTML(md string) string {
 	var sb strings.Builder
 	last := 0
@@ -925,7 +925,7 @@ func renderProseHTML(s string) string {
 // renderTable turns a markdown pipe table into a column-aligned <pre> block,
 // dropping the |---|---| separator row. Escaping happens after alignment so
 // entity length doesn't skew the columns.
-// ponytail: tabwriter measures rune width — fine for ASCII/stats tables; wide
+// ponytail: tabwriter measures rune width — fine for ASCII/stats tables. Wide
 // CJK could misalign. Swap to a width-aware writer only if that ever shows up.
 func renderTable(md string) string {
 	var buf bytes.Buffer

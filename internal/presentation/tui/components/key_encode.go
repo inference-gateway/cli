@@ -10,7 +10,7 @@ import (
 // input bytes to feed a child process (vim) running in a PTY. Bubble Tea owns
 // stdin and delivers structured key events, so to drive the child we re-encode
 // them. This covers the keys an editor needs (text, control/alt combos, and the
-// common special keys); it is intentionally a pragmatic subset, not a full
+// common special keys). It is intentionally a pragmatic subset, not a full
 // terminal-input encoder.
 func encodeKey(k tea.KeyPressMsg) []byte {
 	alt := k.Mod&tea.ModAlt != 0

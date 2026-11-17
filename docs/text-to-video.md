@@ -4,12 +4,12 @@ The CLI can render a short video clip in two modes:
 
 - **Text to video** - a text prompt in, an `.mp4` out: b-roll, establishing shots, simple animated scenes.
 - **Lip-synced avatar** - a portrait plus an audio clip in, a talking clip out: the portrait is animated to match the voice. This is the face
-  half of the desktop's Content project workflow; `TextToSpeech` is the voice half.
+  half of the desktop's Content project workflow. `TextToSpeech` is the voice half.
 - **Dubbing** - a `.mov`/`.mp4`/`.m4v`/`.webm` clip in, the same clip re-rendered with a generated soundtrack out: the sound half of the
-  Content workflow. It runs on the same Videos API behind the `DubVideo` tool; see [Dubbing](#dubbing).
+  Content workflow. It runs on the same Videos API behind the `DubVideo` tool. See [Dubbing](#dubbing).
 
 Generation goes through the gateway's unified Videos API (`POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content`, gateway v0.54.0+).
-The CLI holds no provider key; the gateway does, and it routes the job to the configured `provider/model`: `model` for prompt renders
+The CLI holds no provider key. The gateway does, and it routes the job to the configured `provider/model`: `model` for prompt renders
 (default `elevenlabs/veo-3.1-fast-generate-001`) and `avatar_model` for lip-synced renders (default `elevenlabs/creatify-aurora`).
 Requests appear in gateway logs and `infer traces` like any other request.
 
@@ -23,14 +23,14 @@ Add a `text_to_video` section to `.infer/config.yaml` (or `~/.infer/config.yaml`
 ```yaml
 text_to_video:
   enabled: true            # feature flag (default: false) - tool absent from the LLM payload when false
-  model: ""                # prompt renders; "" = elevenlabs/veo-3.1-fast-generate-001
-  avatar_model: ""         # lip-synced avatar renders; "" = elevenlabs/creatify-aurora
-  size: ""                 # optional widthxheight passthrough, e.g. 720x1280; empty = provider default
-  output_dir: ""           # where generated mp4s go; empty = <media root>/video
+  model: ""                # prompt renders. "" = elevenlabs/veo-3.1-fast-generate-001
+  avatar_model: ""         # lip-synced avatar renders. "" = elevenlabs/creatify-aurora
+  size: ""                 # optional widthxheight passthrough, e.g. 720x1280. Empty = provider default
+  output_dir: ""           # where generated mp4s go. Empty = <media root>/video
   timeout: 900             # whole-render timeout (seconds): create, poll and download
   poll_interval: 5         # job status poll cadence (seconds)
   create_avatar: false     # also give the agent the CreateAvatar tool (see Avatar library)
-  require_approval: false  # optional; unset = no approval, like the image tools
+  require_approval: false  # optional. Unset = no approval, like the image tools
 ```
 
 Every field can also be set via environment variables, e.g. `INFER_TEXT_TO_VIDEO_ENABLED=true`,
@@ -40,14 +40,14 @@ not the same as setting it to `false`: unset keeps the tool's own default (no ap
 
 ## Models
 
-A render with `audio` is an avatar render and goes to `avatar_model`; every other render (a prompt, optionally with a portrait as the
+A render with `audio` is an avatar render and goes to `avatar_model`. Every other render (a prompt, optionally with a portrait as the
 first frame or a library avatar as reference images) goes to `model`. Swap either one independently for any video model the gateway
 serves - for ElevenLabs that includes
 `veo-3.1-generate-001`, `veo-3.1-fast-generate-001` and the `bytedance-seedance-v2*` family for prompts, and `creatify-aurora` for
 avatars. Avatar models take exactly one image and an audio clip, so a prompt-only render sent to one fails - which is why the two are
 separate settings.
 
-Both must be of the form `provider/model`; config validation rejects a bare model name, and a negative `timeout` or `poll_interval`,
+Both must be of the form `provider/model`. Config validation rejects a bare model name, and a negative `timeout` or `poll_interval`,
 as soon as the feature is enabled.
 
 A `local/` model, such as `avatar_model: local/musetalk`, is rendered by an engine built into the gateway and not by a provider. The
@@ -71,9 +71,9 @@ A gateway that cannot map a size rejects the job and the tool surfaces the provi
 
 ## Gateway requirements
 
-The Videos API is part of the gateway (v0.54.0+; library avatars as reference images need v0.55.0+) and is served only with
+The Videos API is part of the gateway (v0.54.0+. Library avatars as reference images need v0.55.0+) and is served only with
 `VIDEOS_ENABLED=true`. A gateway the CLI starts itself gets
-the flag automatically while `text_to_video.enabled` is true; a gateway that was already running without it must be restarted. The
+the flag automatically while `text_to_video.enabled` is true. A gateway that was already running without it must be restarted. The
 gateway must also hold credentials for the provider behind the models (for the defaults, an ElevenLabs API key). If you point the CLI
 at an externally managed gateway, make sure it is on v0.54.0 or later, runs with `VIDEOS_ENABLED=true` and holds the provider key.
 
@@ -85,20 +85,20 @@ is left behind.
 
 With `text_to_video.enabled` set, the agent gains a `TextToVideo` tool:
 
-- **Text-only clip** - ask for "a slow drone shot over neon rooftops"; the model calls `TextToVideo` with a `prompt`, optionally
-  `seconds` and `size`. `seconds` is a passthrough string (providers accept a limited set of values); the gateway rejects unsupported ones.
+- **Text-only clip** - ask for "a slow drone shot over neon rooftops". The model calls `TextToVideo` with a `prompt`, optionally
+  `seconds` and `size`. `seconds` is a passthrough string (providers accept a limited set of values). The gateway rejects unsupported ones.
 - **Lip-synced avatar** - give it a portrait (`avatar`: the name of an avatar in the [library](#avatar-library), or a bare
   `.png`/`.jpg`/`.jpeg`/`.webp` file name in the working directory) and a driving clip (`audio`, a bare `.wav` or `.mp3` name: working
   directory first, then the `TextToSpeech` output directory - so a just-generated `TextToSpeech` clip can be lip-synced in the next
-  tool call). `prompt` then describes framing only; the dialogue comes from the audio.
+  tool call). `prompt` then describes framing only. The dialogue comes from the audio.
 - **Same person, new shot** - a library `avatar` without `audio` sends every image in the avatar's folder as `reference_images`, so
   `model` keeps that person consistent in a prompt-driven shot (e.g. "the presenter walks into frame and says ..."). The gateway
   checks the count per model: `veo-3.1-*` takes at most 3 (the default `create` builds exactly 3) and needs its default 8-second
-  length, `bytedance-seedance-v2*` takes up to 9 and `-v2.5` up to 30; models without reference-image support reject the render.
+  length, `bytedance-seedance-v2*` takes up to 9 and `-v2.5` up to 30. Models without reference-image support reject the render.
 - **First frame** - a bare image file as `avatar` without `audio` renders the prompt with that portrait as the opening frame. The
   gateway does not combine a first frame with reference images.
 - **Where files go** - `output_path` chooses the destination as a bare file name inside `output_dir`
-  (default `video/` under the [media root](directory-structure.md#media-directories)); otherwise a timestamped `video-*.mp4` is
+  (default `video/` under the [media root](directory-structure.md#media-directories)). Otherwise a timestamped `video-*.mp4` is
   written there. The result reports the path, model, size and which avatar/audio were used.
 
 The clip is always written as MP4 (`video/mp4` for creatify-aurora). To place it elsewhere, compose first and copy the returned file.
@@ -119,9 +119,9 @@ video_to_sfx:
 
 - **`video` (required)** - a bare `.mov`, `.mp4`, `.m4v` or `.webm` file name, looked up in the working directory, then in the TextToVideo
   output directory, so a clip `TextToVideo` just rendered can be dubbed by its file name in the next tool call.
-- **`prompt` (optional)** - guidance on the sound; the clip itself drives the result. `preserve_speech: true` keeps the clip's own dialogue
+- **`prompt` (optional)** - guidance on the sound. The clip itself drives the result. `preserve_speech: true` keeps the clip's own dialogue
   under the generated sound, and `start_seconds` starts the dubbed window that many seconds into the clip.
-- **`output_path` (optional)** - a bare file name inside `text_to_video.output_dir` (`<media root>/video` by default); otherwise a
+- **`output_path` (optional)** - a bare file name inside `text_to_video.output_dir` (`<media root>/video` by default). Otherwise a
   timestamped `dub-*.mp4` is written there. Dubbed clips share the rendered clips' folder.
 - **Mirelo's limit** - only the generated mix is laid onto the clip. The separated speech and sfx tracks come back only as audio from the
   SFX scoring flow (`/v1/audio/sfx`), so `DubVideo` offers no `track` parameter. The clip is uploaded to a third-party provider and must
@@ -134,7 +134,7 @@ enabled) and a Mirelo API key configured on the gateway. A failed dub surfaces t
 
 An avatar is a folder under `~/.infer/avatars/<name>/` holding one or more portrait images (`.png`, `.jpg`, `.jpeg`, `.webp`) of the
 same person - several shots from different angles are fine. Lip-sync models take a single image, so an avatar render uses the first
-image in sort order (name it e.g. `01-front.png`); a prompt render sends all of them as reference images. The library lives beside
+image in sort order (name it e.g. `01-front.png`). A prompt render sends all of them as reference images. The library lives beside
 the config, not under `tmp/`, so `/reset` keeps it.
 
 ```text
@@ -164,13 +164,13 @@ never reach the library or a provider. PNG and WebP photos are stored as-is.
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--from` | required | Front-facing photo (`.png`, `.jpg`, `.jpeg`, `.webp`) |
-| `--angles` | `three-quarter-left,three-quarter-right` | Views to generate: also `left-profile`, `right-profile`; `""` only copies the photo |
+| `--angles` | `three-quarter-left,three-quarter-right` | Views to generate: also `left-profile`, `right-profile`. `""` only copies the photo |
 | `--quality` | `high` | `auto`, `low`, `medium`, `high` or `standard` |
-| `--size` | `1024x1536` | Generated image size as `WIDTHxHEIGHT` (portrait by default) or `auto`; `gpt-image-2` accepts arbitrary sizes |
+| `--size` | `1024x1536` | Generated image size as `WIDTHxHEIGHT` (portrait by default) or `auto`. `gpt-image-2` accepts arbitrary sizes |
 
 Generating views sends the photo to the provider behind `tools.image_edit.model` (OpenAI by default), in addition to the video
 provider at render time. The prompts ask for the same identity, clothing, lighting and background with a neutral, closed mouth,
-but check the results - profiles drift more than three-quarter views. Lip-sync models only use the primary image; the extra
+but check the results - profiles drift more than three-quarter views. Lip-sync models only use the primary image. The extra
 views feed prompt renders as reference images. Keep Veo's limit of 3 images in mind before adding profiles.
 
 ### CreateAvatar tool
@@ -185,23 +185,23 @@ with `ImageGeneration`/`ImageEdit`, a selfie sent over a channel such as Telegra
 - **Photo confinement** - `photo` is a bare `.png`/`.jpg`/`.jpeg`/`.webp` file name looked up in the working directory (inside the
   sandbox), then in the session's artifacts directory where generated images land. It never reads absolute paths, `..` or
   anywhere else.
-- **Create only** - an existing name fails, and there is no delete tool; deleting stays `infer avatars delete`.
+- **Create only** - an existing name fails, and there is no delete tool. Deleting stays `infer avatars delete`.
 - **Same knobs** - `angles` (default both three-quarter views, `[]` stores the photo only), `quality` (default `high`) and `size`
-  (default `1024x1536`); generating angles needs `tools.image_edit` enabled with a model.
+  (default `1024x1536`). Generating angles needs `tools.image_edit` enabled with a model.
 
 The result lists the saved images so the agent can go straight to `TextToVideo` with `avatar` set to the new name.
 
 You can also build an avatar by hand: create the folder and copy the images in. When the agent passes an unknown avatar name the
 tool call fails with the list of available avatars, so it can pick an existing one.
 
-The portrait is sent inline with every render; nothing is stored as an avatar or asset at the provider, so there is nothing remote to
+The portrait is sent inline with every render. Nothing is stored as an avatar or asset at the provider, so there is nothing remote to
 clean up. The rendered clips may still be kept in the provider's generation history.
 
 ## Upload limit
 
 The avatar images and the driving audio travel in one multipart request body, and the gateway caps request bodies at 10 MiB by
 default. The tool checks the combined size before sending and rejects bigger uploads with a one-line error suggesting a shorter clip,
-an MP3 or fewer avatar images. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 MB per minute, so typical clips fit; for longer audio prefer MP3.
+an MP3 or fewer avatar images. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 MB per minute, so typical clips fit. For longer audio prefer MP3.
 
 ## Troubleshooting
 
@@ -217,6 +217,6 @@ an MP3 or fewer avatar images. A `TextToSpeech` WAV at 24 kHz mono is roughly 3 
   images than `model` takes, or `model` has no reference-image support: trim the folder or switch `model`.
 - **"video generation with ... failed: \<provider message\>"** - the provider rejected the job: an unsupported `size`, an unreadable
   portrait or a moderation refusal. Adjust the request and retry.
-- **"did not complete in time"** - renders can take a few minutes; raise `text_to_video.timeout`.
-- **No partial files** - a failed render, timeout or download error never leaves a half-written clip behind; the output directory
+- **"did not complete in time"** - renders can take a few minutes. Raise `text_to_video.timeout`.
+- **No partial files** - a failed render, timeout or download error never leaves a half-written clip behind. The output directory
   keeps only completed clips.

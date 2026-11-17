@@ -16,7 +16,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// maxBrowserEvents caps the browser-initiated event buffer; older events are
+// maxBrowserEvents caps the browser-initiated event buffer. Older events are
 // dropped once the cap is reached.
 const maxBrowserEvents = 50
 
@@ -256,7 +256,7 @@ func (s *browserSession) Type(_ context.Context, selector, text string, pressEnt
 
 // browserReadJS extracts text from the matched element. For form fields it
 // returns the field's metadata + value (so BrowserRead can report input
-// contents); for everything else it returns rendered innerText, which never
+// contents). For everything else it returns rendered innerText, which never
 // includes input values. Go decides redaction from the metadata (see
 // extractReadContent) so the security rule lives in testable Go, not JS.
 const browserReadJS = `(el) => {

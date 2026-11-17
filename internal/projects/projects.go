@@ -35,7 +35,7 @@ var (
 
 // Detect returns the current project, cached for the process lifetime (chat
 // sessions and `infer headless` subprocesses run with a fixed cwd). Detection
-// order: git remote origin -> org/repo; else the cwd basename; else global
+// order: git remote origin -> org/repo. Else the cwd basename. Else global
 // (the zero Identity).
 func Detect() Identity {
 	detectOnce.Do(func() { detected = detect() })
@@ -44,7 +44,7 @@ func Detect() Identity {
 
 // Path returns the absolute working directory, cached for the process
 // lifetime. It identifies the project in conversation metadata and drives the
-// per-project storage slug; an empty result means the cwd could not be
+// per-project storage slug. An empty result means the cwd could not be
 // resolved (process runs without a filesystem context).
 func Path() string {
 	pathOnce.Do(func() {

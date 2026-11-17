@@ -29,10 +29,10 @@ Add a `text_to_speech` section to `.infer/config.yaml` (or
 text_to_speech:
   enabled: true                 # feature flag (default: false) - tool absent from the LLM payload when false
   model: local/qwen3-tts        # provider/model, e.g. elevenlabs/eleven_v4_turbo or openai/gpt-4o-mini-tts
-  voice: ""                     # provider voice id (an ElevenLabs voice id, or OpenAI: alloy, echo, nova, ...); unused by local/qwen3-tts
+  voice: ""                     # provider voice id (an ElevenLabs voice id, or OpenAI: alloy, echo, nova, ...). Unused by local/qwen3-tts
   auto_download: true           # let the gateway download what local/qwen3-tts needs
-  output_dir: ""                # where generated wavs go; empty = <media root>/tts
-  require_approval: true        # optional; unset = no approval
+  output_dir: ""                # where generated wavs go. Empty = <media root>/tts
+  require_approval: true        # optional. Unset = no approval
 ```
 
 Every field can also be set via environment variables, e.g.

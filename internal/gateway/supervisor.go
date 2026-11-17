@@ -270,7 +270,7 @@ func (gm *Supervisor) killGateway() {
 }
 
 // inferHomeDir returns a path under the userspace ~/.infer directory.
-// $HOME is always set on supported platforms; no project-relative fallback.
+// $HOME is always set on supported platforms. No project-relative fallback.
 func inferHomeDir(part string) string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, config.ConfigDirName, part)
@@ -621,7 +621,7 @@ func (gm *Supervisor) needsAudioRestart() bool {
 
 // audioAPIEnabled probes POST /v1/audio/speech on the running gateway. The
 // route only exists when the gateway runs with AUDIO_ENABLED, so a 404 means
-// audio is off; any other response (400, 401, 503, ...) means it is served.
+// audio is off. Any other response (400, 401, 503, ...) means it is served.
 func (gm *Supervisor) audioAPIEnabled() bool {
 	url := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/v1/audio/speech"
 	client := &http.Client{Timeout: 2 * time.Second, Transport: gm.transport}
@@ -647,7 +647,7 @@ func (gm *Supervisor) waitForStopped(ctx context.Context) {
 }
 
 // Version reports the version of the gateway serving at the managed URL, or ""
-// when it cannot be determined. The gateway's /version endpoint wins; managed
+// when it cannot be determined. The gateway's /version endpoint wins. Managed
 // modes fall back to the cached binary or the configured container image tag.
 // Externally managed gateways (Gateway.Run off) have no local source to ask.
 func (gm *Supervisor) Version(ctx context.Context) string {
@@ -852,7 +852,7 @@ func (gm *Supervisor) loadEnvironment() []string {
 }
 
 // determineGatewayPort determines the port to use for the gateway
-// If a port is already assigned, it returns that; otherwise finds an available port
+// If a port is already assigned, it returns that. Otherwise finds an available port
 func (gm *Supervisor) determineGatewayPort() int {
 	if gm.assignedPort > 0 {
 		return gm.assignedPort

@@ -132,7 +132,7 @@ type StateContext struct {
 	PresentPlan func(results []convdomain.ConversationEntry) bool
 
 	// DispatchHooks runs the actions attached to a hook point. State executors call it
-	// at their loop point; the streaming path calls the service directly.
+	// at their loop point. The streaming path calls the service directly.
 	DispatchHooks func(hook agentdomain.HookPoint)
 
 	// WaitForBackgroundTasks blocks until in-flight background work quiesces or

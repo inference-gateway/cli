@@ -470,7 +470,7 @@ func createPromptsConfigFile(path string) error {
 
 // createRemindersConfigFile writes a fresh reminders.yaml seeded from the
 // in-code defaults (disabled, one todo-hygiene reminder). Reminders attach to
-// the agent-loop hook-point catalog; executable command hooks live in hooks.yaml.
+// the agent-loop hook-point catalog. Executable command hooks live in hooks.yaml.
 func createRemindersConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -503,7 +503,7 @@ func createHeartbeatConfigFile(path string) error {
 }
 
 // createJudgeConfigFile writes a fresh judge.yaml seeded from the in-code
-// defaults so the knobs are discoverable; the judge only runs when the mode
+// defaults so the knobs are discoverable. The judge only runs when the mode
 // or approval_behaviour selects it.
 func createJudgeConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -539,7 +539,7 @@ func createAgentsConfigFile(path string) error {
 }
 
 // createSkillsDir creates an empty skills directory. Skills are authored by
-// dropping a folder containing SKILL.md into this directory; see docs/skills.md for the format.
+// dropping a folder containing SKILL.md into this directory. See docs/skills.md for the format.
 func createSkillsDir(dir string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create skills directory: %w", err)

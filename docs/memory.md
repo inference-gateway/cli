@@ -4,7 +4,7 @@
 
 **What** - a durable, cross-session memory of individual Markdown fact-files catalogued by an auto-maintained `MEMORY.md` index.
 **Why** - the agent otherwise forgets everything between sessions, and re-discovering project facts on every run wastes turns and tokens.
-**How** - memory is on by default; the index is injected at session start and the agent reads or
+**How** - memory is on by default. The index is injected at session start and the agent reads or
 writes individual facts through the `Memory` tool. Configure it in `memory.yaml`.
 
 ```yaml

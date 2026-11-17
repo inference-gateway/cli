@@ -110,7 +110,7 @@ func (co *ConversationOptimizer) estimateTriggerTokens(messages []sdk.Message) i
 // OptimizeMessages reduces token usage by intelligently managing conversation
 // history with LLM summarization. When force is false it is a no-op unless the
 // model has a configured context window and the conversation has crossed
-// auto_at percent of it; when force is true it always compacts (manual /compact
+// auto_at percent of it. When force is true it always compacts (manual /compact
 // and session rollover both rely on this).
 func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message {
 	if len(messages) == 0 {

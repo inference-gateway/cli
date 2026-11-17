@@ -82,7 +82,7 @@ func (s literalString) MarshalYAML() (any, error) {
 }
 
 // inferActionInputs mirrors the provider pass-through list of
-// githubsetup.workflowAgentInputs; a struct keeps the rendered key order stable.
+// githubsetup.workflowAgentInputs. A struct keeps the rendered key order stable.
 type inferActionInputs struct {
 	DirectPrompt      literalString `yaml:"direct-prompt"`
 	Model             string        `yaml:"model"`
@@ -138,7 +138,7 @@ func appSecretNames(cfg config.SchedulerGitHubConfig) (clientID, privateKey stri
 }
 
 // RenderWorkflow renders one job's Actions workflow. ghCron must already be
-// translated via TranslateCron; defaultModel is used when the job has none.
+// translated via TranslateCron. DefaultModel is used when the job has none.
 func RenderWorkflow(job *scheddomain.ScheduledJob, ghCron, defaultModel string, cfg config.SchedulerGitHubConfig) ([]byte, error) {
 	clientIDSecret, privateKeySecret := appSecretNames(cfg)
 	model := job.Model

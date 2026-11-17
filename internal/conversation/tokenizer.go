@@ -227,7 +227,7 @@ func (t *TokenizerService) ShouldUsePolyfill(usage *sdk.CompletionUsage) bool {
 }
 
 // GetToolStats returns token count and tool count for the tools advertised to
-// the model in the given agent mode; all mid-session modes advertise the full
+// the model in the given agent mode. All mid-session modes advertise the full
 // list, ReadOnly keeps its filtered one (see Agent.advertisedTools).
 func (t *TokenizerService) GetToolStats(toolService agentdomain.ToolService, agentMode agentdomain.AgentMode) (tokens int, count int) {
 	if toolService == nil {

@@ -8,7 +8,7 @@ import (
 )
 
 // A control event (e.g. a tool approval) must reach the subscriber even when the
-// buffer is saturated with streaming chunks; otherwise the panel never shows the
+// buffer is saturated with streaming chunks. Otherwise the panel never shows the
 // approval card. Publish is non-blocking, so this is fully synchronous.
 func TestPublish_DeliversControlEventWhenBufferFull(t *testing.T) {
 	eb := NewEventBridge()

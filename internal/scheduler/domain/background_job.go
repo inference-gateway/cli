@@ -32,7 +32,7 @@ const (
 func (s JobStatus) IsTerminal() bool { return s == JobCompleted || s == JobFailed }
 
 // JobMeta is the identity/display snapshot a background job exposes. The
-// supervisor reads it once at submit (and surfaces it in the task view); it is
+// supervisor reads it once at submit (and surfaces it in the task view). It is
 // not on any hot path. Origin says where the work runs for a kind that has more
 // than one place, and is empty otherwise. SessionID names the stored
 // conversation of a job that keeps one, so it outlives the job's tracker entry.
@@ -56,7 +56,7 @@ type JobSignal struct {
 	// Note is a human-facing line surfaced to the UI and, when Enqueue is set,
 	// landed on the message queue so the agent reads it on its next turn.
 	Note string
-	// Enqueue lands Note on the message queue and wakes the agent loop; otherwise
+	// Enqueue lands Note on the message queue and wakes the agent loop. Otherwise
 	// Note is a UI-only status update.
 	Enqueue bool
 	// State is an optional kind-specific status token (e.g. an A2A task state).
@@ -65,7 +65,7 @@ type JobSignal struct {
 
 // WindSignal is the one-directional graceful control signal the supervisor pushes
 // into a running job. WindWrapUp asks it to start finishing (send the configured
-// wrap-up message to an agent, SIGTERM a shell); WindStop terminates it now (kill
+// wrap-up message to an agent, SIGTERM a shell). WindStop terminates it now (kill
 // pane, SIGKILL, cancel). Graceful shutdown sends WindWrapUp to all jobs, waits a
 // grace window, then WindStop. The supervisor also uses WindStop as the teardown
 // when it reaps a finished job.
@@ -86,7 +86,7 @@ func (w WindSignal) String() string {
 
 // BackgroundJob is one unit of monitorable background work. The supervisor owns
 // the single goroutine that calls Run plus all the lifecycle around it (events,
-// queue notification, tracking, cleanup); a job only has to (a) block until it
+// queue notification, tracking, cleanup). A job only has to (a) block until it
 // reaches a terminal state and return the outcome, and (b) honour wind-down/stop
 // signals. This is the seam that lets A2A tasks, shells, and subagents share one
 // fan-in implementation - each kind differs only in how it learns it is done.

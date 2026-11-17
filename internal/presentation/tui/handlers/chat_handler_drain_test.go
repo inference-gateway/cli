@@ -140,7 +140,7 @@ func TestHandleDrainQueueRetryEvent(t *testing.T) {
 
 // TestShouldDrainAfterComplete pins the emit decision for HandleChatCompleteEvent:
 // a terminal turn (cancelled, or a final answer with no tool calls) drains only
-// when the queue is non-empty; a turn that still has tool calls never drains.
+// when the queue is non-empty. A turn that still has tool calls never drains.
 func TestShouldDrainAfterComplete(t *testing.T) {
 	toolCall := []sdk.ChatCompletionMessageToolCall{{}}
 	tests := []struct {

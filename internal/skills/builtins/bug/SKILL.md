@@ -6,14 +6,14 @@ description: >
   on startup) or asks to reproduce and report a bug: it gathers details,
   reproduces the bug in a scratch directory, optionally records a window or
   region GIF, checks for duplicates, and files a [BUG] issue only after the
-  user approves. Built-in and CLI-specific; not for feature requests or
+  user approves. Built-in and CLI-specific. Not for feature requests or
   general support questions.
 license: Apache-2.0
 ---
 
 # Reproducing and reporting a bug
 
-The user types `/bug <context>` because reporting is a chore; your job is to
+The user types `/bug <context>` because reporting is a chore. Your job is to
 make it lazy on their side: gather just enough context, reproduce the bug,
 optionally record it, and draft the issue. Nothing is ever posted without
 the user's explicit approval.
@@ -23,7 +23,7 @@ Declining anything is fine and expected: a declined step degrades the report
 the skill.
 
 Run every shell command as its OWN Bash call - no `|`, `&&`, `;`, `$(...)` or
-redirects like `2>/dev/null`; the Bash gate rejects those. Capture values a
+redirects like `2>/dev/null`. The Bash gate rejects those. Capture values a
 command prints and paste them literally into later calls.
 
 ## 1. Gather
@@ -39,7 +39,7 @@ with AskUserQuestion in ONE call of up to 4 questions:
 Rules:
 
 - Every question MUST include a `Just reproduce it` option (2-4 options per
-  question; the UI adds an `Other` free-text choice automatically). Picking
+  question. The UI adds an `Other` free-text choice automatically). Picking
   it - in any question - ends questioning immediately: move on with what you
   know and never open another question round for this bug.
 - Do not spend an option slot on anything `<context>` already answers.
@@ -54,12 +54,12 @@ Work in a scratch directory so the user's project is not modified:
 
     mktemp -d
 
-(keep the printed path; paste it literally into later calls - `$(...)` is
+(keep the printed path. Paste it literally into later calls - `$(...)` is
 forbidden).
 
 - Terminal / TUI bugs: load the tmux skill (read its `SKILL.md` - the path
   is in your AVAILABLE SKILLS list) and drive the program there. The infer
-  CLI's own chat UI is a TUI; `INFER_GATEWAY_MOCK=true` exercises it without
+  CLI's own chat UI is a TUI. `INFER_GATEWAY_MOCK=true` exercises it without
   a real LLM.
 - GUI bugs: use the Computer tools - `Screenshot` first to find the affected
   window, then Click / Type / Key to drive it.
@@ -80,7 +80,7 @@ Recording is OFF by default (`computer_use.recording.enabled` in
 from your available tools, say so once - with the config key that enables
 it - and continue text-only. Never edit the config yourself.
 
-On consent (one AskUserQuestion: record now / text-only; `Just reproduce it`
+On consent (one AskUserQuestion: record now / text-only. `Just reproduce it`
 counts as no):
 
 1. NEVER record with `mode: screen`. Use `mode: window` scoped to the
@@ -88,7 +88,7 @@ counts as no):
    around it.
 2. Before RecordStart, take a Screenshot of the target window and check it
    shows no secrets - see the guardrails below. When in doubt, do not
-   record; file a text-only report.
+   record. File a text-only report.
 3. Rehearse the steps once so the replay fits
    `computer_use.recording.max_duration` (120s default). Then RecordStart,
    replay the minimal steps, RecordStop.
@@ -133,7 +133,7 @@ so once and fall back to a text-only report.
 
        gh issue create --repo <target> --web --title "[BUG] <one line>" --body-file <draft.md> --label bug
 
-   The browser opens with the form prefilled; the user drags the GIF in from
+   The browser opens with the form prefilled. The user drags the GIF in from
    the printed path and submits it themselves.
 
 When the report is filed (or handed back), clean up the scratch directory.
@@ -146,7 +146,7 @@ When the report is filed (or handed back), clean up the scratch directory.
   env vars, `.env` or config files, tokens / API keys, password managers,
   email or chat apps, notifications. When in doubt, do not record - file a
   text-only report.
-- Never type real credentials while recording; use placeholders.
+- Never type real credentials while recording. Use placeholders.
 - Redact tokens, keys, emails, hostnames and home-directory paths from any
   log or output pasted into the issue (`/home/<user>/...` becomes `~/...`).
 - The user reviews the GIF (local path printed) and the issue body before

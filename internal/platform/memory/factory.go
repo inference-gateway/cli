@@ -9,9 +9,9 @@ import (
 
 // NewMemoryBackend selects a memory backend from config, mirroring
 // storage.NewStorage. The git backend is used only when memory is enabled, the
-// backend type is git, and a repo is configured; otherwise the local no-op
+// backend type is git, and a repo is configured. Otherwise the local no-op
 // backend is returned so behavior is unchanged. Validation (config.Validate)
-// already rejects a git backend without a repo when memory is enabled; the
+// already rejects a git backend without a repo when memory is enabled. The
 // guard here is defensive so a partial/legacy config degrades to local rather
 // than constructing a broken git backend.
 func NewMemoryBackend(cfg *config.Config) MemoryBackend {

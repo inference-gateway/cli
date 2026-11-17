@@ -139,7 +139,7 @@ func (s *BackgroundShellService) GetShellOutputWithFilter(shellID string, fromOf
 }
 
 // CancelShell cancels a running background shell. It hands the kill to the
-// supervisor (WindStop -> SIGKILL); the shellJob's Run then records the
+// supervisor (WindStop -> SIGKILL). The shellJob's Run then records the
 // Cancelled state and the supervisor delivers the completion notification, so
 // the process is waited on in exactly one place.
 func (s *BackgroundShellService) CancelShell(shellID string) error {

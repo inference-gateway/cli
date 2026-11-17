@@ -42,7 +42,7 @@ type RecordingConfig struct {
 }
 
 // ApprovalRequired reports whether RecordStart must be approved outside
-// auto-accept mode; unset keeps the safe default (required).
+// auto-accept mode. Unset keeps the safe default (required).
 func (c RecordingConfig) ApprovalRequired() bool {
 	return c.RequireApproval == nil || *c.RequireApproval
 }

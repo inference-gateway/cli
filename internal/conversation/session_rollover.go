@@ -36,10 +36,10 @@ type SessionRollover struct {
 }
 
 // NewSessionRollover constructs a manager. The optimizer is required for
-// PerformRollover to work; if it's nil, ShouldRollover always returns false and
+// PerformRollover to work. If it's nil, ShouldRollover always returns false and
 // PerformRollover returns an error. This mirrors how the chat-mode /compact
 // shortcut behaves when the optimizer is disabled. groupStore is required for
-// non-UUID session-id resolution; if it is nil, group-keyed lookups will fall
+// non-UUID session-id resolution. If it is nil, group-keyed lookups will fall
 // back to passing the raw id through.
 func NewSessionRollover(
 	cfg *config.Config,
@@ -67,7 +67,7 @@ func NewSessionRollover(
 //   - If rawID parses as a UUID, it is treated as a literal session ID and
 //     returned unchanged with an empty groupKey.
 //   - Otherwise it is treated as a group key. The configured SessionGroupStorage
-//     is consulted: if the group exists, its current_session_id is returned; if
+//     is consulted: if the group exists, its current_session_id is returned. If
 //     it does not, the group is registered with rawID as its initial
 //     current_session_id (this is the migration path for existing channel JSONL
 //     files named after the deterministic group key).
@@ -116,7 +116,7 @@ func (m *SessionRollover) ResolveSessionID(rawID string) (string, string, error)
 
 // MaybeRollover combines the ShouldRollover gate with PerformRollover and the
 // uniform warn-on-failure fallback that both `chat` and `infer headless` need.
-// Returns the new session id and true if a rollover fired; "" and false
+// Returns the new session id and true if a rollover fired. "" and false
 // otherwise (whether because the gate was closed or because PerformRollover
 // errored - callers do not need to distinguish).
 func (m *SessionRollover) MaybeRollover(ctx context.Context, model, groupKey string) (string, bool) {
@@ -228,7 +228,7 @@ func VisibleMessages(entries []convdomain.ConversationEntry) []sdk.Message {
 
 // ReseedConversation starts a fresh conversation titled "Continued from <old
 // title>" and seeds it with the given messages. The old conversation is
-// preserved in storage; per-message save failures are logged, not returned.
+// preserved in storage. Per-message save failures are logged, not returned.
 func ReseedConversation(repo convdomain.ConversationRepository, messages []sdk.Message, model string) error {
 	if err := repo.StartNewConversation(fmt.Sprintf("Continued from %s", repo.GetCurrentConversationTitle())); err != nil {
 		return err

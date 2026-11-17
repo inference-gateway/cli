@@ -196,7 +196,7 @@ func IsUnrestricted(allow []string) bool {
 // Each entry is wrapped as \A(?s:entry)\z so it must match the entire command - a
 // prefix match is never enough, and any anchors the entry already carries are
 // harmless. The s flag lets . span quoted newlines (e.g. a multi-line
-// git commit -m "..."); unquoted newlines never reach here - they are segment
+// git commit -m "..."). Unquoted newlines never reach here - they are segment
 // split points. Invalid regexes are skipped rather than failing the whole check.
 func matchesAnyAllow(seg string, allow []string) bool {
 	for _, entry := range allow {
@@ -242,7 +242,7 @@ var outputCommandRe = regexp.MustCompile(
 // that executes a nested command: $(...), backticks, or process substitution
 // <(...) / >(...). Single-quoted spans are literal in bash, so constructs inside
 // them are ignored. $(...) and backticks are still active inside double quotes,
-// so those are flagged there; process substitution does not occur inside double
+// so those are flagged there. Process substitution does not occur inside double
 // quotes, so <(/>( are flagged only when fully unquoted.
 func containsCommandSubstitution(command string) bool {
 	var inSingle, inDouble bool

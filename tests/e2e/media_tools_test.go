@@ -27,7 +27,7 @@ func runAgentWithEnv(t *testing.T, gatewayURL, dir, prompt string, extra map[str
 }
 
 // TestAgentTextToSFXWritesClip runs the built binary headless with the
-// TextToSFX tool enabled; the mock gateway serves /v1/audio/sfx with a canned
+// TextToSFX tool enabled. The mock gateway serves /v1/audio/sfx with a canned
 // clip, which must land in the configured output dir and be reported back to
 // the model as a successful tool result.
 func TestAgentTextToSFXWritesClip(t *testing.T) {

@@ -91,7 +91,7 @@ Channel settings live in their own file at `.infer/channels.yaml`, separate
 from the main `config.yaml` so bot tokens stay out of the agent's reach: the
 default `.infer/` denied entry makes the agent ask before reading or writing
 it, and a grant inside a config directory is never persisted. `infer init`
-seeds it from the in-code defaults; edit it like so:
+seeds it from the in-code defaults. Edit it like so:
 
 ```yaml
 # .infer/channels.yaml
@@ -266,7 +266,7 @@ saved to a local directory so the agent can use them as assets (edit them,
 feed them to other tools, generate content from them):
 
 - Files land in `media.dir` (default `attachments` under the [media root](directory-structure.md#media-directories)) with an
-  `infer-media-` prefix; the saved path is appended to the message the agent
+  `infer-media-` prefix. The saved path is appended to the message the agent
   receives (`[Attachment saved: /path/to/infer-media-xxx.mp4]`) and exposed
   as `media_path` metadata.
 - **Retention**: only the last `media.retain` files are kept (default 20);
@@ -277,7 +277,7 @@ feed them to other tools, generate content from them):
   JPEG/PNG/WebP images and MP4/QuickTime videos).
 
 Photos are still forwarded to the model as vision input regardless of this
-setting; enabling it additionally keeps the original files on disk. Videos
+setting. Enabling it additionally keeps the original files on disk. Videos
 are only accepted when this setting is on - otherwise they are skipped.
 
 ## Security

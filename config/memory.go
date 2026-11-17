@@ -39,9 +39,9 @@ const (
 // enabled, durable facts are stored as individual Markdown fact-files under a
 // global directory (~/.infer/memory by default), catalogued by an index file
 // (MEMORY.md) that the Memory tool keeps in sync. The index is injected into
-// context at session start; the agent reads individual facts on demand.
+// context at session start. The agent reads individual facts on demand.
 //
-// Runtime knobs live here (in memory.yaml); the tool's LLM-facing description
+// Runtime knobs live here (in memory.yaml). The tool's LLM-facing description
 // lives in its manifest, and the session reminder lives in reminders.yaml -
 // keeping each concern in its own file, like Heartbeat/ComputerUse/Channels.
 type MemoryConfig struct {
@@ -73,7 +73,7 @@ type MemoryGitConfig struct {
 }
 
 // MemoryGitSyncConfig gates the two sync directions. Empty values fall back to
-// the enabled defaults (pull / push); "off" disables that direction.
+// the enabled defaults (pull / push). "off" disables that direction.
 type MemoryGitSyncConfig struct {
 	OnStart  string `yaml:"on_start" mapstructure:"on_start"`   // pull (default) | off
 	OnFinish string `yaml:"on_finish" mapstructure:"on_finish"` // push (default) | off
@@ -82,7 +82,7 @@ type MemoryGitSyncConfig struct {
 // DefaultMemoryConfig returns the in-code default memory configuration used when
 // no memory.yaml file exists. `infer init` seeds the file from this and the
 // runtime falls back to it when the file is absent. Memory is enabled by
-// default; the backend defaults to local so behavior is unchanged until a user
+// default. The backend defaults to local so behavior is unchanged until a user
 // opts into git.
 func DefaultMemoryConfig() *MemoryConfig {
 	return &MemoryConfig{

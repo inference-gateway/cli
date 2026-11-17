@@ -37,7 +37,7 @@ const (
 var gitignoreDefaults = []string{".git/", ".DS_Store", ".infer/"}
 
 // Configurable action IDs for the explorer panel (defaults in
-// config.addExplorerBindings; users override them in keybindings.yaml).
+// config.addExplorerBindings. Users override them in keybindings.yaml).
 var (
 	actExpNavUp        = config.ActionID(config.NamespaceExplorer, "nav_up")
 	actExpNavDown      = config.ActionID(config.NamespaceExplorer, "nav_down")
@@ -91,8 +91,8 @@ type SnippetSelection struct {
 // FileExplorer is the VS Code-style file explorer side panel: a left tree of
 // the working directory (lazy, collapsible, .gitignore-aware) plus a scrollable,
 // syntax-highlighted preview of the selected file. A `/` fuzzy finder jumps to any
-// file; `v` opens the selection in the user's real editor. It owns its full
-// [sidebar | divider | pane] region; the chat input is composed beneath the pane.
+// file. `v` opens the selection in the user's real editor. It owns its full
+// [sidebar | divider | pane] region. The chat input is composed beneath the pane.
 type FileExplorer struct {
 	root          string
 	styleProvider *styles.Provider
@@ -138,8 +138,8 @@ type FileExplorer struct {
 
 	// Select mode - line-range selection + annotation within the preview pane.
 	// The preview cursor (previewCursor) is a 0-indexed line within the current
-	// file; selAnchor (-1 = none) marks the other end of an inclusive range.
-	// Captured ranges accumulate in selections; closing the explorer (done) hands
+	// file. SelAnchor (-1 = none) marks the other end of an inclusive range.
+	// Captured ranges accumulate in selections. Closing the explorer (done) hands
 	// them to the chat, where they appear as attachments until the next message.
 	selectMode    bool
 	previewCursor int
@@ -372,7 +372,7 @@ func (t *FileExplorer) moveCursor(delta int) {
 	}
 }
 
-// toggleSelected expands/collapses a folder; on a file it is a no-op (the
+// toggleSelected expands/collapses a folder. On a file it is a no-op (the
 // preview already follows the selection).
 func (t *FileExplorer) toggleSelected() {
 	row, ok := t.currentRow()
@@ -414,7 +414,7 @@ func (t *FileExplorer) toggleHidden() {
 
 // refresh re-reads the visible tree. It drops the cache and re-flattens:
 // flatten() re-reads only the expanded directories via ensureChildren, so
-// new/removed files there show up; collapsed directories are not re-read until
+// new/removed files there show up. Collapsed directories are not re-read until
 // expanded. Called on view-entry, on in-loop tool/bash completion, on editor
 // exit, and on the manual refresh key.
 func (t *FileExplorer) refresh() {
@@ -724,7 +724,7 @@ func (t *FileExplorer) handleAnnotateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 
 // attachSelection captures the current range (or the single cursor line when no
 // anchor is set) as a SnippetSelection carrying the given note. Line numbers are
-// converted from 0-indexed to 1-indexed inclusive; the anchor is then cleared.
+// converted from 0-indexed to 1-indexed inclusive. The anchor is then cleared.
 func (t *FileExplorer) attachSelection(note string) {
 	lo, hi, ok := t.previewSelectionRange()
 	if !ok {
@@ -741,7 +741,7 @@ func (t *FileExplorer) attachSelection(note string) {
 }
 
 // attachCurrentSelection captures the current range with no note (the Enter
-// path); the user can still add an optional note via the annotate key first.
+// path). The user can still add an optional note via the annotate key first.
 func (t *FileExplorer) attachCurrentSelection() { t.attachSelection("") }
 
 // confirmAnnotation stores the current range + typed note as a SnippetSelection
@@ -952,7 +952,7 @@ func (t *FileExplorer) chromaStyle() *chroma.Style {
 
 // ensurePreview (re)renders the selected file into the viewport, gated so the
 // read + highlight only run when the selection or width actually changed. The
-// raw highlighted content is cached in previewRaw; selection gutters are
+// raw highlighted content is cached in previewRaw. Selection gutters are
 // applied separately by applyPreviewGutters so cursor/anchor moves refresh
 // without re-tokenising the file.
 func (t *FileExplorer) ensurePreview(rel string, width int) {
@@ -1278,7 +1278,7 @@ func newIgnoreFilter(root string, showHidden bool) *ignoreFilter {
 }
 
 // shouldHide reports whether the entry named `name` (rel = path relative to
-// root; dirAbs = absolute path of the containing directory) should be hidden.
+// root. DirAbs = absolute path of the containing directory) should be hidden.
 func (f *ignoreFilter) shouldHide(rel, name, dirAbs string, isDir bool) bool {
 	if f.showHidden {
 		return false

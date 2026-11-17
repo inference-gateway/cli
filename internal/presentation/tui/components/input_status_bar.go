@@ -269,7 +269,7 @@ const versionRightInset = 5
 
 // renderRightSegment right-aligns "● REC • cli vX • gw vY • ● Browser" after
 // the given line width, dropping pieces until the rest fits: gateway version
-// first, then CLI version, then the Browser label (bare dot last); the REC
+// first, then CLI version, then the Browser label (bare dot last). The REC
 // badge stays. Empty when nothing fits.
 func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 	if isb.styleProvider == nil {
@@ -318,7 +318,7 @@ func (isb *InputStatusBar) renderRightSegment(lineWidth int) string {
 	return ""
 }
 
-// versionLabel prefixes a numeric version with "v"; non-numeric values
+// versionLabel prefixes a numeric version with "v". Non-numeric values
 // (e.g. "dev") pass through unchanged.
 func versionLabel(v string) string {
 	if v == "" || v[0] < '0' || v[0] > '9' {
@@ -343,7 +343,7 @@ func (isb *InputStatusBar) buildBridgeDot() string {
 }
 
 // buildStatusLines builds the status bar content. Indicators are packed onto up
-// to maxLines rows; overflow beyond that is collapsed with an ellipsis. The git
+// to maxLines rows. Overflow beyond that is collapsed with an ellipsis. The git
 // branch is rendered separately, in the input box top border (see InputView), so
 // it never competes with these indicators for horizontal space.
 func (isb *InputStatusBar) buildStatusLines() []string {
@@ -416,7 +416,7 @@ func (isb *InputStatusBar) markSelected(parts []indicatorPart) []indicatorPart {
 }
 
 // renderIndicatorLine styles one row of indicators. Unfocused rows keep the
-// single dim style; focused rows style per part so the selected one stands
+// single dim style. Focused rows style per part so the selected one stands
 // out on a background highlight.
 func (isb *InputStatusBar) renderIndicatorLine(parts []indicatorPart, dimColor string) string {
 	texts := make([]string, len(parts))
@@ -602,7 +602,7 @@ func (isb *InputStatusBar) splitPartsIntoLines(parts []indicatorPart, availableW
 }
 
 // capIndicatorLines hard-caps the indicator rows at maxLines. splitPartsIntoLines
-// can emit one row beyond its budget at the cap boundary; this guarantees the
+// can emit one row beyond its budget at the cap boundary. This guarantees the
 // indicators never exceed their share of the status bar so the branch row keeps
 // the bar at a stable height. When rows are dropped, an ellipsis is appended to
 // the last kept row to signal the overflow.

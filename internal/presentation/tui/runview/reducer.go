@@ -100,7 +100,7 @@ func (r *Reducer) Decode(frame []byte) ([]agentdomain.ChatEvent, End) {
 // Reduce folds one typed event into the run and returns the chat events it
 // completes, with where it leaves the run.
 //
-//nolint:gocyclo,cyclop // cohesive event switch; each case reduces one AG-UI event type
+//nolint:gocyclo,cyclop // cohesive event switch. Each case reduces one AG-UI event type
 func (r *Reducer) Reduce(event agui.Event) ([]agentdomain.ChatEvent, End) {
 	switch e := event.(type) {
 	case *agui.RunStartedEvent:

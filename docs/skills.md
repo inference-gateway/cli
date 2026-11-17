@@ -31,7 +31,7 @@ has activated the skill.
 
 ### Frontmatter
 
-- `name` (required): ≤64 chars; lowercase letters, digits and hyphens only;
+- `name` (required): ≤64 chars. Lowercase letters, digits and hyphens only;
   must equal the directory name.
 - `description` (required): non-empty, ≤1024 chars.
 
@@ -70,14 +70,14 @@ centralized skills catalog published by
 
 A local skill with the same name always short-circuits discovery - no catalog
 lookup or download is performed. Only catalog metadata (name, description) is
-consulted up front; the full skill body is fetched only when the skill is
+consulted up front. The full skill body is fetched only when the skill is
 actually activated (progressive disclosure).
 
 Catalog skills therefore show up in the chat `/` dropdown and in the agent's
 `AVAILABLE SKILLS` list alongside local ones, marked as not-yet-downloaded.
 Invoking one (`/rust`, or "use the rust skill") downloads its `SKILL.md` on the
 spot. The index fetch and the download both use `GITHUB_TOKEN` / `GH_TOKEN`
-when set, which raises GitHub's 60-requests-per-hour anonymous rate limit; the
+when set, which raises GitHub's 60-requests-per-hour anonymous rate limit. The
 token is only ever sent to GitHub hosts.
 
 Dynamically downloaded skills are stored under `~/.infer/projects/<project-slug>/tmp/skills/` and are
@@ -111,7 +111,7 @@ a few thousand entries, but the `AVAILABLE SKILLS:` block in the system prompt
 is bounded by `agent.skills.max_chars` (default 4000). Skills that have a local
 `SKILL.md` are listed first - the model loads those with the `Skill` tool - and whatever does not
 fit is reported as a count, not a list of names. So a large catalog costs a
-fixed number of prompt tokens no matter how big it gets; use
+fixed number of prompt tokens no matter how big it gets. Use
 `infer skills search` to find what the prompt does not name.
 
 ## Searching the catalog
@@ -132,7 +132,7 @@ The `Installed` column shows the path to the local `SKILL.md` when the skill is
 already on disk, and `no` when it is not - relative to the working directory for
 a project skill, `~`-prefixed for a user-global one. The header shows the
 catalog's published release. Descriptions are truncated to keep the table inside
-the terminal; pass `--no-trunc` for the full text.
+the terminal. Pass `--no-trunc` for the full text.
 
 The catalog is versioned as a whole - individual skills carry no version of
 their own, so there is nothing to pin per skill.
@@ -171,14 +171,14 @@ skill you authored there yourself. Current built-ins:
 Because they are ordinary user-scope skills, you customise them with the same
 knobs as any other skill - there is no special "built-in" mode:
 
-- **Edit in place**: change `~/.infer/skills/tmux/SKILL.md`; a re-run of `infer
+- **Edit in place**: change `~/.infer/skills/tmux/SKILL.md`. A re-run of `infer
   init` never re-seeds over your edit.
 - **Override per project**: a `.infer/skills/tmux/` (or `.agents/skills/tmux/`)
   shadows the built-in for that repo (first match wins).
 - **Disable**: add the name to `agent.skills.disabled_skills`.
 - **Reset to the shipped default**: `infer init --overwrite` re-seeds it. Note
   this refreshes the other shipped `~/.infer` defaults too, so use it when you
-  want a clean baseline; to restore just one skill, replace its `SKILL.md` by
+  want a clean baseline. To restore just one skill, replace its `SKILL.md` by
   hand (a plain `infer init` will not re-seed over an already-initialized home).
 
 ## Enabling
@@ -275,7 +275,7 @@ infer skills uninstall --user internal-comms
 
 The argument is the on-disk skill directory name (matching the skill's
 `name` frontmatter). By default the project-local `.infer/skills/<name>/`
-is removed; pass `--user` to remove from `~/.infer/skills/<name>/`.
+is removed. Pass `--user` to remove from `~/.infer/skills/<name>/`.
 
 There is no confirmation prompt - matches `npm uninstall`,
 `brew uninstall`, etc. The skill name is regex-validated before any

@@ -146,7 +146,7 @@ type ChatApplication struct {
 	keyBindingManager *keybinding.Dispatcher
 
 	// Config-backed binding that moves key focus to the snippet attachments
-	// tree; the fixed guard bindings live in the package-level guardKeys.
+	// tree. The fixed guard bindings live in the package-level guardKeys.
 	focusAttachments key.Binding
 
 	// Track last key handled by keybinding action to prevent double-handling
@@ -1023,9 +1023,9 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 }
 
 // View renders the current application view using state management.
-// Bubble Tea v2 expects tea.View; viewContent keeps the original
+// Bubble Tea v2 expects tea.View. ViewContent keeps the original
 // string-composition logic and View wraps it. Mouse tracking is always
-// on; terminals bypass it for text selection with Shift+drag
+// on. Terminals bypass it for text selection with Shift+drag
 // (Option+drag on macOS terminals).
 func (app *ChatApplication) View() tea.View {
 	v := tea.NewView(app.viewContent())
@@ -1281,7 +1281,7 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 
 // handleBackgroundColorDetected switches to the light theme when the terminal
 // reports a light background. Only requested (see Init) and applied when no
-// theme is configured, so an explicit config or /theme choice always wins; the
+// theme is configured, so an explicit config or /theme choice always wins. The
 // dark default (tokyo-night) already fits dark terminals, so dark is a no-op.
 func (app *ChatApplication) handleBackgroundColorDetected(msg tea.BackgroundColorMsg) {
 	if msg.IsDark() || app.config.GetTheme() != "" {
@@ -1802,7 +1802,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg, activeView tui.ViewS
 }
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing.
-// lastHandledKey marks a key a chat-view handler fully consumed this cycle; the mark
+// lastHandledKey marks a key a chat-view handler fully consumed this cycle. The mark
 // is trusted as-is because it was evaluated in-context when set - re-resolving here
 // would consult the current view, which the handler may have already transitioned.
 func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {

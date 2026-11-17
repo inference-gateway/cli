@@ -10,7 +10,7 @@ import (
 // SystemReminderProvider decides which system reminders are due for a given
 // ReminderQuery (hook point, per-run turn, cumulative session turn, max turns,
 // and the already-fired set). It is implemented by config from the user's
-// reminders list; the agent depends on this interface so reminder policy can be
+// reminders list. The agent depends on this interface so reminder policy can be
 // faked in tests.
 type SystemReminderProvider interface {
 	RemindersDue(q ReminderQuery) []SystemReminder
@@ -18,7 +18,7 @@ type SystemReminderProvider interface {
 
 // HookCommandProvider resolves which command hooks are due at a hook point. It
 // is the command-action sibling of SystemReminderProvider, implemented by config
-// from the user's hooks list. The provider only resolves the commands; the agent
+// from the user's hooks list. The provider only resolves the commands. The agent
 // runs them through the existing bash allow-list, so config stays free of
 // os/exec. The agent depends on this interface so the command set can be faked
 // in tests.

@@ -71,7 +71,7 @@ func IsKnownKey(keyStr string) bool {
 
 // PrintableText returns the literal characters represented by a key press, or
 // "" if the key has no printable text (Enter, Backspace, arrow keys, modifier
-// combos, etc.). The printable text lives in KeyPressMsg.Text; String()
+// combos, etc.). The printable text lives in KeyPressMsg.Text. String()
 // returns the human-readable key *name* ("space", "ctrl+c"), which is what
 // keybinding lookups want but is not what should be inserted into a text
 // buffer. Use this helper when you need the literal input.

@@ -82,7 +82,7 @@ func BashCommandDeniedPath(cfg *config.Config, command string) (string, bool) {
 // deny entry matches - the same exclusion the file tools give. Approval-class
 // denials and out-of-sandbox reads stay with the mode's own gate.
 // ponytail: argv ceiling - $(...), $VAR and interpreter payloads slip past the
-// walker; the kernel deny-read rules are the hard boundary on darwin.
+// walker. The kernel deny-read rules are the hard boundary on darwin.
 func segmentDeniedPath(cfg *config.Config, seg string) (string, bool) {
 	words := splitShellWords(seg)
 	if len(words) < 2 || slices.Contains(printOnlyCommands, words[0].text) {

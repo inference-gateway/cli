@@ -22,7 +22,7 @@ func newAllowlistTestService(t *testing.T) *Service {
 }
 
 // A named Markdown subagent receives its tool allowlist through
-// scheddomain.EnvSubagentTools; isToolEnabled must gate both advertisement and
+// scheddomain.EnvSubagentTools. IsToolEnabled must gate both advertisement and
 // execution, so a disallowed tool fails even when the model names it.
 func TestSubagentToolAllowlistGates(t *testing.T) {
 	t.Setenv(scheddomain.EnvSubagentTools, "Read,Grep")

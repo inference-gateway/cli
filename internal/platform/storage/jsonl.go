@@ -66,7 +66,7 @@ type EntryLine struct {
 
 // NewJsonlStorage creates a new JSONL storage instance. It creates the
 // conversations directory but never probes it for writability, so read-only
-// consumers work where writes are confined; Health reports writability.
+// consumers work where writes are confined. Health reports writability.
 func NewJsonlStorage(config JsonlStorageConfig) (*JsonlStorage, error) {
 	path := utils.ExpandHome(config.Path)
 
@@ -300,10 +300,10 @@ func (s *JsonlStorage) scanV2Metadata(firstLine []byte, scanner *bufio.Scanner) 
 
 // ListConversations returns a list of conversation summaries. A non-empty
 // project scopes the listing to this storage's conversations directory (the
-// per-project store it is rooted at); "" additionally walks sibling project
+// per-project store it is rooted at). "" additionally walks sibling project
 // stores under projectsPath. Explicitly configured paths only ever list
 // themselves - there is no per-project layout to walk.  # ponytail: custom
-// paths opt out of cross-project listing; thread a flag through config if
+// paths opt out of cross-project listing. Thread a flag through config if
 // that is ever needed.
 func (s *JsonlStorage) ListConversations(ctx context.Context, project string, limit, offset int) ([]convdomain.ConversationSummary, error) {
 	s.mu.RLock()

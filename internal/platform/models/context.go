@@ -19,7 +19,7 @@ var (
 
 // SetGatewayContextWindows replaces the gateway-reported context windows
 // (from /v1/models?include=context_window). Keys are full "provider/model"
-// ids; matching is exact on the lowercased id.
+// ids. Matching is exact on the lowercased id.
 func SetGatewayContextWindows(windows map[string]int) {
 	normalized := make(map[string]int, len(windows))
 	for id, tokens := range windows {
@@ -88,7 +88,7 @@ func IsChatCapableModalities(mods sdk.ModelModalities) bool {
 		slices.Contains(mods.Output, sdk.ModalityText)
 }
 
-// modelModalities returns the registry entry for a model; the zero value
+// modelModalities returns the registry entry for a model. The zero value
 // (empty input/output) stands in for unknown models, making every predicate
 // below false.
 func modelModalities(modelID string) sdk.ModelModalities {

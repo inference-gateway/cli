@@ -70,7 +70,7 @@ type traceLine struct {
 
 // LoadTraceTree reads a session's trace file and assembles the span tree.
 // Spans whose parent is not in the file (the root, or orphans from a partial
-// file) become roots; siblings are ordered by start time. Malformed lines are
+// file) become roots. Siblings are ordered by start time. Malformed lines are
 // skipped best-effort.
 func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 	fh, err := os.Open(filepath.Join(dir, session+"-traces.jsonl"))
@@ -145,7 +145,7 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 }
 
 // spanErrorMsgMax caps the status message appended to error.type in the trace
-// tree marker; enough to tell two failures apart on one line.
+// tree marker. Enough to tell two failures apart on one line.
 const spanErrorMsgMax = 20
 
 // benignSpanErrors are end-of-stream conditions otelhttp reports as span
@@ -153,7 +153,7 @@ const spanErrorMsgMax = 20
 // error on a finished SSE relay flips the span to Error and stamps error.type
 // with a Go type name (*errors.errorString). Marking every LLM call failed
 // hides the real failures.
-// ponytail: substring match on the status message; a truncation that actually
+// ponytail: substring match on the status message. A truncation that actually
 // matters still surfaces in the gateway logs ("failed to read stream", "error
 // reading stream", "ReverseProxy read error during body copy").
 var benignSpanErrors = []string{

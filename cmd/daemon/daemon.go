@@ -834,7 +834,7 @@ func startHeartbeat(ctx context.Context, cfg *config.Config) (*heartbeat.Service
 // token is required: the server exposes the coding agent over HTTP, so a
 // loopback bind alone is not protection enough against a rogue web page. Start
 // blocks, so it runs in a goroutine and this function waits for the health
-// endpoint; a boot failure here fails the daemon. The served tasks run in
+// endpoint. A boot failure here fails the daemon. The served tasks run in
 // the daemon's working directory, each bounded by a2a.task.agent_mode_max_wait_seconds.
 func startA2AServer(ctx context.Context, cfg *config.Config) (*a2ainfra.Server, error) {
 	srvCfg := cfg.A2A.Server

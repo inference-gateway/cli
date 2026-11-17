@@ -61,7 +61,7 @@ type SkillLoadError struct {
 // safe for concurrent reads after Load returns.
 type SkillsService interface {
 	// Load scans the configured skill directories and populates the
-	// in-memory list. Safe to call once at startup; calling again rescans.
+	// in-memory list. Safe to call once at startup. Calling again rescans.
 	// Returns nil and does nothing when skills are disabled in config.
 	Load(ctx context.Context) error
 	// List returns the currently loaded skills. The slice is a defensive

@@ -4,7 +4,7 @@
 
 **What** - real-time estimates of what each chat session costs, per model and in aggregate.
 **Why** - API spend is easy to lose track of, and a per-model breakdown shows which model is actually driving the bill.
-**How** - costs are computed from token usage times each model's price from the gateway; view them with
+**How** - costs are computed from token usage times each model's price from the gateway. View them with
 `/cost`, and override or add prices under `pricing.custom_prices` in `config.yaml`.
 
 ## Viewing Costs

@@ -50,7 +50,7 @@ conflicts: map the bounded contexts under internal/ (AGENTS.md "Architecture") a
 the commands under cmd/; commands are NewCommand(...) factories registered in
 cmd/root/root.go via AddCommand - a new subcommand must appear in the spec's file
 list with that registration point, and must not add package-level command or flag
-vars; note existing types/interfaces the spec should reuse rather than reinvent;
+vars. Note existing types/interfaces the spec should reuse rather than reinvent;
 note the Go version in go.mod and flag idioms it has obsoleted (third-party routers
 where ServeMux suffices, interface{}, loops that slices/maps handle, hand-rolled
 worker pools or semaphores).
@@ -58,7 +58,7 @@ worker pools or semaphores).
 Step 2 - Go philosophy:
 | Concern      | Look for |
 | ------------ | -------- |
-| Simplicity   | layers/abstractions with one implementation; over-engineering |
+| Simplicity   | layers/abstractions with one implementation - over-engineering |
 | Dependencies | each new third-party dependency justified against a stdlib option? |
 | Interfaces   | consumer-defined? small (1-3 methods)? real polymorphism? |
 | Errors       | returned explicitly, wrapped with %w, never swallowed? sentinels named where callers branch? |
@@ -76,7 +76,7 @@ Step 3 - Cobra/Viper (skip if not a CLI):
 | Registration | new subcommands added in cmd/root/root.go via AddCommand? |
 | RunE vs Run  | RunE so errors propagate |
 | Args         | positional args validated with cobra.Args, not counted inside RunE? |
-| Flag scope   | config-level on root (persistent); per-operation on the subcommand |
+| Flag scope   | config-level on root (persistent) - per-operation on the subcommand |
 | Viper        | new keys in the config struct with a default in DefaultConfig()? env names bound? business logic gets typed config, never Viper? |
 | Output       | written via cmd.OutOrStdout() so it's testable? |
 | Path clash   | --input and --output guarded against resolving to the same path? |
@@ -99,7 +99,7 @@ requirement in an otherwise sound spec is a Question, not an Issue. Respect THIS
 repo's established conventions (DDD bounded contexts with pure domain/ packages and
 depguard-enforced import direction, the DI container as composition root,
 counterfeiter-generated mocks, YAML tool manifests, the per-mode bash allow-list) -
-judge idiomaticity within them; do not flag the chosen architecture itself as a
+judge idiomaticity within them. Do not flag the chosen architecture itself as a
 defect. Approve unless gaps would lead to a flawed or incomplete implementation.
 
 Output:

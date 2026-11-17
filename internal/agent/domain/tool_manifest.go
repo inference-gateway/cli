@@ -18,7 +18,7 @@ import (
 var toolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 
 // ToolManifest defines a tool: the JSON Schema the model sees, the agent modes
-// it may run in and its default approval; the Go tool registered under the same
+// it may run in and its default approval. The Go tool registered under the same
 // name executes it. Nil Modes means defaultToolModes and a nil RequireApproval
 // inherits tools.safety.require_approval, so the zero value is the policy of
 // any tool without a manifest, such as an MCP tool.

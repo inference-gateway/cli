@@ -371,7 +371,7 @@ func (r *RunEncoder) emitPublished(event agentdomain.ChatEvent) {
 // state is patched after each LLM step, so a client's readout climbs gradually
 // instead of jumping at the terminal event.
 //
-//nolint:gocyclo,cyclop // cohesive event switch; each case renders one ChatEvent variant
+//nolint:gocyclo,cyclop // cohesive event switch. Each case renders one ChatEvent variant
 func (r *RunEncoder) Handle(event agentdomain.ChatEvent) {
 	switch ev := event.(type) {
 	case agentdomain.ChatChunkEvent:

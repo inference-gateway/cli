@@ -46,7 +46,7 @@ type d1RequestBody struct {
 	Params []any  `json:"params"`
 }
 
-// d1Meta carries per-statement execution metadata; we only need the affected
+// d1Meta carries per-statement execution metadata. We only need the affected
 // row count to detect not-found on DELETE/UPDATE.
 type d1Meta struct {
 	Changes int64 `json:"changes"`
@@ -103,10 +103,10 @@ func NewD1Storage(config D1Config) (*D1Storage, error) {
 
 // runMigrations applies the SQLite schema over HTTP, tracking applied versions
 // in a schema_migrations table so each migration runs exactly once. D1 has no
-// database/sql MigrationRunner, so this mirrors that table over HTTP; without
+// database/sql MigrationRunner, so this mirrors that table over HTTP. Without
 // it, a non-idempotent migration (e.g. ALTER TABLE ADD COLUMN) would re-run on
 // the next startup and fail ("duplicate column"). The migration SQL is reused
-// verbatim from the SQLite migrations to guarantee schema parity; each
+// verbatim from the SQLite migrations to guarantee schema parity. Each
 // statement is sent individually so it works whether or not D1 accepts
 // multi-statement queries.
 func (s *D1Storage) runMigrations(ctx context.Context) error {
@@ -978,7 +978,7 @@ func (s *D1Storage) AppendHistory(ctx context.Context, project, command string) 
 }
 
 // LoadHistory returns the project's most recent commands up to limit in
-// chronological order; limit <= 0 returns everything.
+// chronological order. Limit <= 0 returns everything.
 func (s *D1Storage) LoadHistory(ctx context.Context, project string, limit int) ([]string, error) {
 	query := "SELECT command FROM shell_history WHERE project = ? ORDER BY id DESC"
 	args := []any{project}

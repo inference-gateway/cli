@@ -128,7 +128,7 @@ func (s *Service) Load(ctx context.Context) error {
 }
 
 // mergeCatalog appends the centralized catalog's index entries to the loaded
-// list as metadata-only skills (empty Path = body not downloaded yet); the
+// list as metadata-only skills (empty Path = body not downloaded yet). The
 // SKILL.md is fetched on activation by Discover. Local skills win on name
 // collision. Best-effort: a failed fetch just leaves the list local-only.
 // Caller holds s.mu.

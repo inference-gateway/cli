@@ -148,7 +148,7 @@ func (m *ThemeSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleKey intercepts selection/cancel keys when the list is not actively
-// filtering; otherwise it lets the list own typing, enter (apply filter) and
+// filtering. Otherwise it lets the list own typing, enter (apply filter) and
 // esc (clear filter).
 func (m *ThemeSelector) handleKey(msg tea.KeyPressMsg) (handled bool, cmd tea.Cmd) {
 	if m.list.FilterState() == list.Filtering {
