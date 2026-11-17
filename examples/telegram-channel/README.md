@@ -77,6 +77,26 @@ The daemon has `INFER_A2A_ENABLED=true` and the browser agent
 registered, so the spawned `infer headless` process will pick `A2A_SubmitTask`
 and delegate the browsing task to the `browser-agent` container.
 
+## Scheduled Tasks
+
+The compose file already sets `INFER_TOOLS_SCHEDULE_ENABLED: true` on the
+`infer-daemon` service, so the bot can put cron prompts on a schedule for you.
+Ask in the chat:
+
+- *"Can you send me an inspiring quote every day at 8 AM?"* - a recurring job;
+  the model confirms the schedule, calls the `Schedule` tool with
+  `operation: create` and the cron expression, and you approve the call right
+  in the chat
+- *"Remind me at 6pm today to call mum."* - a one-off; the model sets
+  `run_once: true`, the job fires once and the scheduler deletes it afterwards
+
+Because the job was created from a Telegram chat, the daemon delivers each
+fire's output back to the same chat: the 8 AM bot message is the quote. Jobs
+created outside a channel chat are record-only instead - their output lands in
+conversation storage (the offline [scheduling example](../scheduling/) shows
+that). The full cron syntax and every tool operation (`list`, `get`, `update`,
+`delete`) are in the [Scheduling Guide](../../docs/scheduling.md).
+
 ### Watching the Browser Live (Optional)
 
 The browser-agent runs Playwright in headed mode inside Xvfb. To watch what
