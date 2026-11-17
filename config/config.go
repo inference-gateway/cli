@@ -1408,7 +1408,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			InputMaxLines: 20,
 			AGUILoopback:  true,
 			Suggestions: ChatSuggestionsConfig{
-				Enabled:         false,
+				Enabled:         true,
 				Model:           "",
 				ContextMessages: 4,
 				MaxTokens:       512,

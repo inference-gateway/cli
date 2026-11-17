@@ -139,8 +139,8 @@ agent:
 chat:
   theme: "" # "" applies the built-in default, tokyo-night
   daemon: false # Run every turn through the local infer daemon, like infer chat --daemon
-  suggestions: # Opt-in one-line next-step suggestion as ghost text after an assistant turn
-    enabled: false # Each completed assistant turn can spend one small LLM call
+  suggestions: # One-line next-step suggestion as ghost text after an assistant turn
+    enabled: true # Each completed assistant turn can spend one small LLM call
     model: "" # Suggestion model, empty falls back to the active chat model
     context_messages: 4 # Recent non-hidden messages grounding the suggestion
     max_tokens: 512 # Output cap for the suggestion call, reasoning models spend thinking tokens against it
@@ -866,12 +866,14 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
   env `INFER_CHAT_AGUI_LOOPBACK`). Set it to `false` to fall back to the handlers reading the agent directly
 
 - **chat.suggestions.enabled**: Show a one-line next-step suggestion as dim ghost text in the empty
-  chat input after an assistant turn completes (default: `false`). The request is sent about two
+  chat input after an assistant turn completes (default: `true`). The request is sent about two
   seconds after the turn completes, and only when the UI stayed quiet for that window - empty input,
   no typing, no autocomplete popup, no overlay form, no busy turn, no queued messages - so it costs
   at most one small LLM call per completed turn. Tab or Right Arrow accepts it into the input
-  without sending. Typing, Esc or a new turn dismisses it and cancels the in-flight request. Enable
-  it with `infer config set chat.suggestions.enabled true`, then `/reload` in a running chat
+  without sending. Typing, Esc or a new turn dismisses it and cancels the in-flight request. Only
+  the chat TUI and the daemon's `headless --serve` worker ask for one - a plain `infer headless` run,
+  such as infer-action's, never does. Disable it with `infer config set chat.suggestions.enabled false`,
+  then `/reload` in a running chat
 
 - **chat.suggestions.model**: Model used for the suggestion call. Empty falls back to the model the
   chat is currently using, then `agent.model` - a cheap, fast model fits since the answer is a
