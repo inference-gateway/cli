@@ -117,8 +117,10 @@ func buildApprovalCases() []approvalCase {
 		tools.ToolBash, tools.ToolRead, tools.ToolWrite, tools.ToolEdit)...)
 	tests = append(tests, approvalCases("plan mode approves the executable mutating and bash tools:", standardPolicy(agentdomain.AgentModePlan),
 		`{"command": "rm -rf /"}`, true, true, tools.ToolBash, tools.ToolWrite, tools.ToolEdit, tools.ToolDelete)...)
+	tests = append(tests, approvalCases("plan mode approves the admitted web tools too:", standardPolicy(agentdomain.AgentModePlan),
+		`{}`, true, true, tools.ToolWebFetch, tools.ToolWebSearch)...)
 	tests = append(tests, approvalCases("plan mode skips approval for exec-rejected tools:", standardPolicy(agentdomain.AgentModePlan),
-		`{}`, true, false, tools.ToolWebSearch)...)
+		`{}`, true, false, tools.ToolBashOutput, tools.ToolListShells)...)
 	judge := standardPolicy(agentdomain.AgentModeAutoWithJudge)
 	tests = append(tests, approvalCases("judge mode follows standard rules:", judge,
 		"{}", true, true, tools.ToolRead, tools.ToolWrite, tools.ToolEdit, tools.ToolGrep)...)

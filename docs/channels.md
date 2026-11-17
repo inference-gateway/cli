@@ -159,10 +159,10 @@ Channel settings live in their own file:
   denied entry makes the agent ask before reading or writing it, and a grant
   inside a config directory is never persisted.
 - **`.infer/config.yaml`** - agent settings (model, max turns, etc.).
-  Any legacy `channels:` block here is **ignored** at runtime; only
-  `channels.yaml` is read. Run `infer init` to migrate an existing block:
-  it seeds `channels.yaml` from the loaded values when no
-  `channels.yaml` exists yet.
+  Any legacy `channels:` block here is **ignored** at runtime. Only
+  `channels.yaml` is read. `infer init` seeds `channels.yaml` from the
+  built-in defaults, so the old block's settings must be copied into
+  `channels.yaml` by hand.
 
 The lookup order for `channels.yaml` is project (`./.infer/channels.yaml`)
 first, then userspace (`~/.infer/channels.yaml`).

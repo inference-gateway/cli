@@ -48,6 +48,8 @@ always-available set is registered for every session. There is **no built-in Git
 
 In plan mode, `Write`, `Edit`, `MultiEdit`, `Delete` and `Bash` execute only inside the plan-mode
 scratchpad (`~/.infer/projects/<project-slug>/tmp/scratchpad`) - every other path stays read-only.
+`WebFetch` and `WebSearch` are available for online research, and `WebFetch` saves downloads (and
+binary responses) into the scratchpad instead of the session artifacts dir.
 See the [Plan Mode Guide](plan-mode.md) for the scratchpad's behavior.
 
 **Core file & search** (always available):
