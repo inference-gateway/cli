@@ -1,0 +1,29 @@
+# The tools policy. infer reads it from ~/.infer/tools.yaml only, so the home
+# task copies this file into .home/.infer/. A list present here replaces the
+# matching default list: the baseline below is trimmed to the demo commands.
+enabled: true
+
+safety:
+  require_approval: true
+  approval_behaviour: prompt   # prompt, ipc, judge or block - delivery of an approval request
+
+tools:
+  bash:
+    mode:
+      all:        # baseline, applied in every mode
+        allow:
+          - echo( .*)?
+          - ls( .*)?
+          - pwd( .*)?
+          - wc( .*)?
+          - tree( .*)?
+          - head( .*)?
+          - git status( .*)?
+          - git diff( .*)?
+      plan:       # plan mode adds nothing - its commands stay pinned to the scratchpad
+        allow: []
+      standard:   # the interactive default: baseline only
+        allow: []
+      auto:       # full autonomy: every command, the clean-command guard skipped
+        allow:
+          - .*

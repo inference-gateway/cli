@@ -1,0 +1,34 @@
+fallback:
+  content: 'Try "read the secret env", "read the private notes" or "probe the sandbox writes".'
+
+scenarios:
+  - name: read-secret
+    match: '(?i)read the secret'
+    turns:
+      - tool_calls:
+          - name: Read
+            args:
+              file_path: secret.env
+      - content: The Read tool was not allowed to open secret.env.
+
+  - name: ask-private
+    match: '(?i)read the private'
+    turns:
+      - tool_calls:
+          - name: Read
+            args:
+              file_path: private/notes.md
+      - content: The Read tool asked for a grant for private/notes.md and nobody could approve it.
+
+  - name: sandbox-writes
+    match: '(?i)probe the sandbox writes'
+    turns:
+      - tool_calls:
+          - name: Bash
+            args:
+              command: touch ~/outside-demo.txt
+      - tool_calls:
+          - name: Bash
+            args:
+              command: touch inside-demo.txt
+      - content: The write outside the sandbox failed with the kernel's permission error and the one inside the working directory landed.

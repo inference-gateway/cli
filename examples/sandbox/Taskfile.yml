@@ -1,0 +1,106 @@
+version: '3'
+
+vars:
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  home:
+    desc: Seed the demo HOME with the sandbox policy and the bash allow-list, and write the fixture files the scenarios touch
+    cmds:
+      - mkdir -p {{.HOME_DIR}}/.infer private
+      - cp sandbox.yaml {{.HOME_DIR}}/.infer/sandbox.yaml
+      - cp tools.yaml {{.HOME_DIR}}/.infer/tools.yaml
+      - printf 'mocked-credential\n' > secret.env
+      - printf 'an internal draft nobody approved publishing\n' > private/notes.md
+
+  policy:
+    desc: Print the three tables infer debug sandbox shows - the policy, the built-in carve-outs and the kernel confinement
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} debug sandbox --no-colors
+
+  validate:
+    desc: Check one allow-listed command and one off-list command with infer tools validate
+    deps:
+      - build
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.INFER}} tools validate "ls"
+      - cmd: HOME={{.HOME_DIR}} {{.INFER}} tools validate "curl --version"
+        ignore_error: true
+
+  validate:append:
+    desc: Add the off-list command for one run with INFER_TOOLS_BASH_ALLOW_APPEND (which beats the --tools-bash-allow-append flag) and validate it again
+    deps:
+      - build
+      - home
+    cmds:
+      - INFER_TOOLS_BASH_ALLOW_APPEND="curl --version" HOME={{.HOME_DIR}} {{.INFER}} tools validate "curl --version"
+
+  read-secret:
+    desc: The model reads a file a blocking filesystem.denied entry closes, so the Read tool refuses outright
+    deps:
+      - build
+      - home
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: read the secret env
+
+  ask-private:
+    desc: The model reads a file guarded by on_violation approval, so headless blocks the grant nobody can approve
+    deps:
+      - build
+      - home
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: read the private notes
+
+  confinement:
+    desc: In auto mode a Bash write outside every writable path fails with the kernel's permission error while the working directory stays writable
+    deps:
+      - build
+      - home
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: probe the sandbox writes
+          MODE: auto
+      - test -f inside-demo.txt
+      - test ! -e {{.HOME_DIR}}/outside-demo.txt
+
+  all:
+    desc: Run the three headless scenarios
+    cmds:
+      - task: read-secret
+      - task: ask-private
+      - task: confinement
+
+  clean:
+    desc: Remove the demo HOME and the files the scenarios created
+    cmds:
+      - rm -rf {{.HOME_DIR}} private secret.env inside-demo.txt
+
+  headless:
+    internal: true
+    cmds:
+      - HOME={{.HOME_DIR}} INFER_AGENT_MODEL=mock/openai/gpt-4o {{.INFER}} headless --no-save --mode {{.MODE | default "standard"}} "{{.PROMPT}}" | grep '"role":"tool"'
