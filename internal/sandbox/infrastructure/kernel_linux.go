@@ -14,10 +14,9 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-const (
-	kernelSupported = true
-	kernelName      = "Landlock"
-)
+const kernelName = "Landlock"
+
+var kernelSupported = landlockAvailable()
 
 // accessRead lets a path be read and run, accessFile is every right a file can
 // carry, and accessV1 is the whole first Landlock ABI, which each later one
@@ -88,6 +87,13 @@ func (c *Child) startRestricted() error {
 		return fmt.Errorf("applying the kernel sandbox (filesystem.enforce: false in sandbox.yaml runs bash without it): %w", err)
 	}
 	return c.Cmd.Start()
+}
+
+// landlockAvailable asks the running kernel for its Landlock ABI, so a kernel
+// built without it reports confinement off instead of claiming it.
+func landlockAvailable() bool {
+	abi, err := llsys.LandlockGetABIVersion()
+	return err == nil && abi >= 1
 }
 
 // restrictThread applies to the calling thread a ruleset that lets it read and

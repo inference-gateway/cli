@@ -165,7 +165,7 @@ func writeCarveOuts(w io.Writer, cfg *config.Config, r *output.Renderer) {
 // since the project gives way to the scratchpad there.
 func writeKernel(w io.Writer, cfg *config.Config, r *output.Renderer) {
 	if !sandboxinfra.Enforced(cfg) {
-		fmt.Fprintln(w, r.Hint("off: filesystem.enforce is false or this platform has no kernel sandbox, so the policy above is the only guard"))
+		fmt.Fprintln(w, r.Hint("off: filesystem.enforce is false or this platform or kernel has no kernel sandbox (no Landlock), so the policy above is the only guard"))
 		return
 	}
 	standard := sandbox.WritePaths(cfg, agentdomain.AgentModeStandard)
