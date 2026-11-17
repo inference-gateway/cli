@@ -176,12 +176,10 @@ type ServiceContainer struct {
 	screenControl            computerdomain.ScreenControl
 }
 
-// uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers capture
-// the *uiNotifierHolder once at construction (never reassigning it) and call Notify
-// from their own goroutines. SetUINotifier stores the real program-backed notifier
-// exactly once at startup (before program.Run). atomic.Pointer keeps the read
-// lock-free and the late swap race-free without a mutex. The stored pointer is
-// never nil (newUINotifierHolder seeds a NoopUINotifier), so Notify is always safe.
+// uiNotifierHolder is a swap-once, read-many agentdomain.UINotifier. Producers
+// capture it at construction and SetUINotifier stores the real notifier once
+// before program.Run. atomic.Pointer keeps reads lock-free, and the seeded
+// NoopUINotifier makes Notify always safe.
 type uiNotifierHolder struct {
 	inner atomic.Pointer[agentdomain.UINotifier]
 }
@@ -724,12 +722,10 @@ func (c *ServiceContainer) handleStorageInitFailure(
 	c.conversationRepo = conversation.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 }
 
-// initializeMessageQueue picks the message queue backend for queue.type. The
-// memory default (also when the block is omitted) is the process-local queue
-// exactly as before. sqlite, postgres and redis dial with their matching
-// storage.<type> connection settings so queued work survives a restart and
-// can be shared by several infer processes. A backend that fails to open
-// aborts startup instead of silently falling back to memory.
+// initializeMessageQueue picks the message queue backend for queue.type. Memory
+// is the process-local default. sqlite, postgres and redis use their storage
+// settings so queued work survives restarts and can be shared. A backend that
+// fails to open aborts startup instead of falling back to memory.
 func (c *ServiceContainer) initializeMessageQueue() {
 	backend := c.config.Queue.Type
 	if backend == "" {

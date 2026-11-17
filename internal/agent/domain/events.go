@@ -120,12 +120,9 @@ type ToolApprovalResolvedEvent struct {
 func (e ToolApprovalResolvedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovalResolvedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolCancelledEvent is published when the conversation validator
-// synthesizes a Tool-role response for an assistant tool_call whose
-// real execution never completed (typically because the user pressed
-// Esc between the model emitting tool_calls and the tools running).
-// The conversation view uses this to surface a "[cancelled]" entry
-// so the user understands why a requested tool never produced output.
+// ToolCancelledEvent is published when the conversation validator synthesizes
+// a Tool-role response for a tool call that never ran, typically because the
+// user pressed Esc. The conversation view shows a "[cancelled]" entry for it.
 type ToolCancelledEvent struct {
 	RequestID  string
 	Timestamp  time.Time

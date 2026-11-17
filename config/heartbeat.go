@@ -9,13 +9,10 @@ const (
 	DefaultHeartbeatPath = ConfigDirName + "/" + HeartbeatFileName
 )
 
-// HeartbeatConfig configures the periodic "wake-up" tick that spawns
-// `infer headless` with a tailored system prompt so the agent can check
-// for pending work without waiting for user input. Disabled by default.
-//
-// The companion system prompt lives at
-// PromptsConfig.Agent.SystemPromptHeartbeat in prompts.yaml - keeping
-// runtime knobs (interval, model) here separate from prompt text.
+// HeartbeatConfig configures the periodic tick that spawns `infer headless` so
+// the agent can check for pending work without user input. It is disabled by
+// default. Its system prompt lives in prompts.yaml under
+// agent.system_prompt_heartbeat, apart from these runtime knobs.
 type HeartbeatConfig struct {
 	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
 	Interval     string `yaml:"interval" mapstructure:"interval"`

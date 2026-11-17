@@ -236,12 +236,10 @@ func (t *ScheduleTool) execCreate(ctx context.Context, args map[string]any, stor
 	})
 }
 
-// resolveRouting derives an optional delivery target from the current session
-// ID. Channel-driven sessions ("channel-<name>-<sender_id>", set by the
-// daemon's channel manager) stamp that channel/recipient as the job's delivery
-// target. Any other session creates a record-only job whose output lives in
-// storage. It only errors when the session names a channel that is not enabled
-// in config - a silent no-delivery there would hide a misconfiguration.
+// resolveRouting derives a job's delivery target from the session ID. A
+// "channel-<name>-<sender_id>" session delivers to that channel and recipient,
+// and any other session creates a record-only job. It errors when the channel
+// is not enabled, which would otherwise hide a misconfiguration.
 func (t *ScheduleTool) resolveRouting(ctx context.Context) (channel, recipient string, err error) {
 	channel, recipient, ok := convdomain.ParseChannelSessionID(agentdomain.GetSessionID(ctx))
 	if !ok {

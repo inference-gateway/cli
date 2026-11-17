@@ -31,15 +31,10 @@ func ValidJobID(id string) bool {
 	return id != "" && id != "." && id != ".." && !strings.ContainsAny(id, `/\`)
 }
 
-// ScheduledJob describes a task that the LLM has asked the system to run on a
-// cron schedule. Jobs are persisted through the configured storage backend and
-// executed by the scheduler running inside the `infer daemon` process.
-//
-// Each fire spawns a fresh `infer headless` subprocess with its own session
-// ID - no context is carried between fires. Channel/RecipientID are an
-// optional delivery target: when set, run output is forwarded to that channel;
-// when empty, the run is record-only and its output lives in storage (run
-// record + conversation).
+// ScheduledJob is a task the LLM asked to run on a cron schedule, persisted in
+// storage and run by the scheduler in `infer daemon`. Every fire spawns
+// `infer headless` with a fresh session. Channel and RecipientID optionally name
+// where output is delivered, and without them the run is record-only.
 type ScheduledJob struct {
 	ID             string     `yaml:"id" json:"id"`
 	Name           string     `yaml:"name,omitempty" json:"name,omitempty"`

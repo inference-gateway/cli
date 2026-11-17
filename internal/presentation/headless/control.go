@@ -212,11 +212,9 @@ type runInputFrame struct {
 }
 
 // enqueueRunInput queues the input's new messages for the next turn and routes
-// its resume entries to the brokers the open interrupts wait on: `@<path>` and
-// `#N` tokens in the text expand, and attachments save to the project tmp dir
-// as image parts or notes naming the saved path. A run input with no messages
-// is the continue run the client asks for after stopping one, which the agent
-// continues from the conversation it kept.
+// its resume entries to the brokers the open interrupts wait on. `@<path>` and
+// `#N` tokens expand, and attachments save to the project tmp dir. An input with
+// no messages is the continue run a client asks for after stopping one.
 func (c *headlessControl) enqueueRunInput(input agui.RunAgentInput) {
 	for _, msg := range input.Messages {
 		text, attachments := messageParts(msg)

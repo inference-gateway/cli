@@ -71,12 +71,10 @@ const EnvSubagentAgentMode = "INFER_SUBAGENT_AGENT_MODE"
 // when the subagent finishes. Unset for normal `infer chat`, which writes nothing.
 const EnvSubagentResultFile = "INFER_SUBAGENT_RESULT_FILE"
 
-// EnvSubagentApprovalFile names the environment variable the Agent tool sets on
-// an interactive subagent's `infer chat` so it writes a SubagentApprovalFile JSON
-// to that path whenever it blocks on a tool-approval prompt (and removes it when
-// the prompt resolves). The parent watches this file to surface "subagent is
-// awaiting approval" to the user and relay the decision (ApproveSubagent). Unset
-// for normal `infer chat`, which writes nothing.
+// EnvSubagentApprovalFile names the variable the Agent tool sets on an
+// interactive subagent's `infer chat`, so it writes a SubagentApprovalFile there
+// while blocked on a tool approval. The parent watches it to surface and relay
+// the decision. A normal `infer chat` writes nothing.
 const EnvSubagentApprovalFile = "INFER_SUBAGENT_APPROVAL_FILE"
 
 // EnvSubagentHistoryName names the environment variable the Agent tool sets on

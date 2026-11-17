@@ -150,13 +150,10 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *agentdomain.ToolExe
 	return s.wrapCard(result.ToolName, strings.Join(out, "\n"), terminalWidth)
 }
 
-// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line used by the
-// collapsed status line, the live preview, the approval summary and the queue preview.
-// icon and trailing are already-styled by the caller (each surface owns its own status
-// semantics). The tool name and the width-aware, path-shortened argument preview are
-// formatted identically everywhere, replacing the per-call-site drift (e.g. the old
-// byte-slice `args[:47]` truncation in the live renderer). Pass icon=="" / trailing==""
-// to omit either segment.
+// RenderToolSummary renders the shared "<icon> Name(args) <trailing>" line of
+// the status line, live preview, approval summary and queue preview, so the
+// name and width-aware argument preview look the same everywhere. icon and
+// trailing are styled by the caller, and "" omits either.
 func (s *ToolFormatterService) RenderToolSummary(icon, toolName string, args map[string]any, trailing string, terminalWidth int) string {
 	line := toolName
 	if icon != "" {

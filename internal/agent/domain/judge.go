@@ -73,11 +73,9 @@ type JudgeApprover interface {
 	Judge(ctx context.Context, in JudgeInput) (JudgeVerdicts, error)
 }
 
-// ParseJudgeVerdicts extracts the verdicts from the judge's raw output, keyed
-// by tool call id. Keeping only the outermost [...] (or {...}) drops code
-// fences and prose. A bare object without an id is accepted only for a
-// single-call batch so prompts written for the old one-object contract keep
-// working. Entries with an unknown id or decision are dropped so the caller
+// ParseJudgeVerdicts extracts the judge's verdicts keyed by tool call id from
+// the outermost [...] or {...}. A bare object without an id is accepted only
+// for a single-call batch. Unknown ids or decisions are dropped so the caller
 // fails closed per call. Only unparseable output is an error.
 func ParseJudgeVerdicts(raw string, ids []string) (map[string]JudgeVerdict, error) {
 	payload, err := outermostJSON(strings.TrimSpace(raw))

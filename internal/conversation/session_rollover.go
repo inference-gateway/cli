@@ -19,13 +19,10 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
-// SessionRollover decides when to roll over a long-running conversation
-// into a new file (matching the chat-mode `/compact` behavior) and exposes the
-// machinery to perform that rollover. It also resolves "group key" inputs from
-// the channel manager (e.g. `channel-telegram-XYZ`) to the current session UUID
-// via the configured SessionGroupStorage backend, so callers like the channel
-// manager can keep using a stable, deterministic identifier without worrying
-// about which physical session it points at right now.
+// SessionRollover decides when a long conversation rolls over into a new file,
+// like the chat `/compact`, and performs it. It also resolves channel group keys
+// such as `channel-telegram-XYZ` to the group's current session UUID, so callers
+// keep a stable identifier whatever session it points at.
 type SessionRollover struct {
 	cfg        *config.Config
 	optimizer  convdomain.ConversationOptimizer
@@ -35,12 +32,9 @@ type SessionRollover struct {
 	indexMutex sync.Mutex
 }
 
-// NewSessionRollover constructs a manager. The optimizer is required for
-// PerformRollover to work. If it's nil, ShouldRollover always returns false and
-// PerformRollover returns an error. This mirrors how the chat-mode /compact
-// shortcut behaves when the optimizer is disabled. groupStore is required for
-// non-UUID session-id resolution. If it is nil, group-keyed lookups will fall
-// back to passing the raw id through.
+// NewSessionRollover constructs a SessionRollover. Without an optimizer,
+// ShouldRollover is always false and PerformRollover fails, like /compact with
+// the optimizer disabled. Without a groupStore, group keys pass through as raw ids.
 func NewSessionRollover(
 	cfg *config.Config,
 	optimizer convdomain.ConversationOptimizer,
@@ -61,20 +55,11 @@ func NewSessionRollover(
 	}
 }
 
-// ResolveSessionID maps a raw --session-id value to the conversation ID that
-// should actually be loaded.
-//
-//   - If rawID parses as a UUID, it is treated as a literal session ID and
-//     returned unchanged with an empty groupKey.
-//   - Otherwise it is treated as a group key. The configured SessionGroupStorage
-//     is consulted: if the group exists, its current_session_id is returned. If
-//     it does not, the group is registered with rawID as its initial
-//     current_session_id (this is the migration path for existing channel JSONL
-//     files named after the deterministic group key).
-//
-// Returns (sessionID, groupKey, error). On any error reading/writing the
-// store, the function logs a warning and falls back to passing rawID through
-// unchanged so the agent can still run.
+// ResolveSessionID maps a raw --session-id to the conversation ID to load and
+// its group key. A UUID is returned unchanged with no group key. Anything else
+// is a group key resolved to its current session, registering rawID as that
+// session when the group is new. A store error is logged and rawID passes
+// through so the agent still runs.
 func (m *SessionRollover) ResolveSessionID(rawID string) (string, string, error) {
 	if rawID == "" {
 		return "", "", nil
@@ -188,15 +173,10 @@ func (m *SessionRollover) idleTriggerFires(entries []convdomain.ConversationEntr
 	return time.Since(lastTime) >= time.Duration(mins)*time.Minute
 }
 
-// tokenTriggerFires reports whether the conversation's estimated token count
-// crosses compact.auto_at percent of the model's context window. Returns false
-// when no context window is configured for the model, since there is no
-// meaningful threshold to compare against.
-//
-// Uses the larger of the gateway-reported LastInputTokens (the authoritative
-// count of what was actually sent, including system prompt and tool
-// definitions, also what `/context` displays) and a fresh entries estimate, so
-// a single-turn tool-output spike triggers rollover before the oversized send.
+// tokenTriggerFires reports whether the conversation crosses compact.auto_at
+// percent of the model's context window, and is false with no window. It uses
+// the larger of the gateway-reported LastInputTokens and a fresh estimate, so a
+// single tool-output spike rolls over before the oversized send.
 func (m *SessionRollover) tokenTriggerFires(entries []convdomain.ConversationEntry, model string) bool {
 	autoAt := m.cfg.Compact.AutoAt
 	if autoAt < 1 || autoAt > 80 {
@@ -266,15 +246,10 @@ func hasCheckpoint(messages []sdk.Message) bool {
 	return false
 }
 
-// PerformRollover runs the optimizer with force=true to produce a summary,
-// calls StartNewConversation on the repo to begin a fresh conversation file,
-// re-adds the summarized messages, and (if groupKey != "") updates the
-// configured SessionGroupStorage to point the group at the new session ID.
-//
-// The same reseed work backs /compact (performCompactAsync), with both paths
-// handing them over to ReseedConversation.
-//
-// Returns the new session UUID on success.
+// PerformRollover summarizes the conversation with force=true, starts a fresh
+// conversation file reseeded with the summary through ReseedConversation, like
+// /compact, and points groupKey at the new session when set. It returns the new
+// session UUID.
 func (m *SessionRollover) PerformRollover(ctx context.Context, model, groupKey string) (string, error) {
 	return m.performRollover(ctx, model, groupKey, true)
 }

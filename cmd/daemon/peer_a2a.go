@@ -17,13 +17,10 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// peerA2AHost is the a2a peer endpoint a workspace's daemon serves on its
-// binding at /a2a, for the workspaces that chose protocol a2a: the frame
-// vocabulary over A2A JSON-RPC. A streamed exchange announces this daemon in
-// its first event and carries every frame as an A2A message, a SendMessage
-// puts one frame on it, and whatever that frame handling produces rides the
-// exchange's stream. The binding's token or client certificates authenticate
-// it, exactly as the WebSocket route does.
+// peerA2AHost is the a2a peer endpoint a workspace's daemon serves at /a2a for
+// workspaces that chose protocol a2a. A streamed exchange carries every frame
+// as an A2A message, and a SendMessage puts one frame on it. The binding's
+// token or client certificates authenticate it, exactly as on the WebSocket route.
 type peerA2AHost struct {
 	registry    *sessions.Registry
 	teleports   *agentteleport.Service

@@ -22,16 +22,10 @@ const (
 	KindIssueRef
 )
 
-// Rule describes one token class: how to find it, whether a given body is a real
-// reference, and which theme color key to paint it with.
-//
-// Regex contract: exactly two capture groups.
-//
-//	group 1 = the leading boundary (start-of-string or a single whitespace rune),
-//	          re-emitted UNSTYLED (Go's regexp has no lookbehind).
-//	group 2 = the full token INCLUDING its sigil (e.g. "/plan", "@a/b", "#365").
-//
-// Sigil must be the first byte of group 2.
+// Rule describes one token class: how to find it, whether a body is a real
+// reference, and which theme color paints it. Its regex has two groups: the
+// leading boundary, re-emitted unstyled since Go has no lookbehind, and the full
+// token whose first byte is the sigil, such as "/plan", "@a/b" or "#365".
 type Rule struct {
 	Kind     Kind
 	Re       *regexp.Regexp

@@ -1405,12 +1405,9 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 	wg.Wait()
 }
 
-// TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls is the
-// regression test for the bug where a user message queued during tool
-// execution + Esc would land in the conversation immediately after an
-// assistant message with orphan tool_calls, producing a payload the
-// gateway rejected with HTTP 400 ("insufficient tool messages
-// following tool_calls message").
+// TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls guards against a
+// message queued during tool execution plus Esc landing right after orphan
+// tool_calls, which the gateway rejects with HTTP 400.
 func TestAgentServiceImpl_BatchDrainQueue_ClosesOrphanToolCalls(t *testing.T) {
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
 		{ID: "tc-a", Type: sdk.Function, Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},

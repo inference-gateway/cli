@@ -229,12 +229,10 @@ func GetAgentURLs(path string) ([]string, error) {
 	return urls, nil
 }
 
-// IsA2AAgentHost reports whether url points at the host of a configured
-// A2A agent (its endpoint or artifacts server). Registering an agent is the
-// trust decision: the A2A tools instruct the model to WebFetch artifact
-// Download URLs, so those hosts must stay fetchable regardless of how
-// tools.web_fetch.allowed_domains is overridden. Ports are ignored because
-// locally-run agents get their host ports reassigned on collision.
+// IsA2AAgentHost reports whether url points at a configured A2A agent's
+// endpoint or artifacts host. Registering an agent is the trust decision, so
+// those hosts stay fetchable whatever tools.web_fetch.allowed_domains says.
+// Ports are ignored because locally run agents get reassigned host ports.
 func (c *Config) IsA2AAgentHost(rawURL string) bool {
 	if !c.A2A.Enabled {
 		return false

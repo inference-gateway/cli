@@ -741,12 +741,10 @@ func (t *AgentTool) markdownAgentCatalog() string {
 	return out.String()
 }
 
-// applyNamedAgent overlays a Markdown-defined agent preset onto the task spec:
-// the file body wins as the system prompt, a frontmatter model wins over the
-// per-task model (inherit falls through to resolveModel), and the capability
-// mode is derived from the resolved tool allowlist - ReadOnly when every
-// allowed tool is read-only, ReadWrite otherwise. With no allowlist the
-// subagent keeps the parent's tools and runs as ReadWrite.
+// applyNamedAgent overlays a Markdown agent preset onto the task spec. The body
+// becomes the system prompt and a frontmatter model wins unless it is inherit.
+// The mode is ReadOnly when every allowed tool is read-only and ReadWrite
+// otherwise, including with no allowlist, where the parent's tools are kept.
 func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	if spec.Agent == "" {
 		return nil

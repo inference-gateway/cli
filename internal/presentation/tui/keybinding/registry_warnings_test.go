@@ -12,17 +12,10 @@ import (
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
 )
 
-// TestApplyConfigOverrides_UnknownActionWarnings guards two regressions at once:
-//
-//   - Bug B: a stock `infer init` config must NOT warn about the namespace-path
-//     actions (chat_focus_attachments, diff_viewer_*, explorer_*) that the registry
-//     never registers but components consume via config.ResolveNamespaceBindings.
-//   - Bug A: the warning must be a structured log carrying an "action" field, never
-//     the printf misuse that made zap emit a second "Ignored key without a value."
-//     error line.
-//
-// The subtests mutate the package-global sugared logger, so they must not run in
-// parallel.
+// TestApplyConfigOverrides_UnknownActionWarnings checks that a stock config
+// never warns about namespace-path actions the registry does not register, and
+// that the warning is a structured log with an "action" field. The subtests
+// mutate the global logger, so they must not run in parallel.
 func TestApplyConfigOverrides_UnknownActionWarnings(t *testing.T) {
 	enabled := true
 	tests := []struct {

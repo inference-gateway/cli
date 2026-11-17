@@ -180,13 +180,10 @@ func (c *Conn) serve(handler Handler) {
 	}
 }
 
-// BindingConfig configures the listening end. Host defaults to loopback. TLS
-// serves the listener over TLS and, when it requires and verifies client
-// certificates, stands in for the token. AckAttrs are the other fields the ack
-// declares, host facts a dialing end reads back with AckAttr. AllowOrigin
-// decides over requests that carry an Origin header, and without it only
-// requests without one pass. Routes registers optional non-WebSocket HTTP
-// handlers, e.g. static files, which serve under the same listener as /ws.
+// BindingConfig configures the listening end. Host defaults to loopback, and TLS
+// with verified client certificates stands in for the token. AckAttrs are host
+// facts the ack declares for AckAttr. AllowOrigin judges requests with an
+// Origin header, which are refused without it. Routes adds HTTP handlers beside /ws.
 type BindingConfig struct {
 	Host        string
 	Port        int

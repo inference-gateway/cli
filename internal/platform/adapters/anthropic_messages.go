@@ -18,16 +18,11 @@ import (
 // value was configured via WithOptions.
 const defaultMaxTokens = 4096
 
-// AnthropicMessages is a removable sdk.Client decorator that reroutes agent
-// traffic for the Anthropic provider to the gateway's native /v1/messages
-// endpoint, enabling prompt caching via cache_control breakpoints (system
-// prompt, last tool, and a rolling conversation breakpoint). Anthropic SSE
-// events are translated back into OpenAI-shaped chat-completion chunks, so
-// the agent's streaming pipeline is unaware of the endpoint switch. Every
-// other provider, and every method but GenerateContentStream, delegates to
-// the wrapped client untouched. To remove the adapter, delete this package, unwrap the
-// client in the container, and drop the TakeCacheCreationTokens read in
-// storeIterationMetrics.
+// AnthropicMessages is a removable sdk.Client decorator that routes Anthropic
+// agent traffic to the gateway's /v1/messages for prompt caching, translating
+// its SSE back into OpenAI-shaped chunks. Everything else delegates untouched.
+// To remove it, delete this package, unwrap the client in the container and
+// drop the TakeCacheCreationTokens read in storeIterationMetrics.
 type AnthropicMessages struct {
 	inner         sdk.Client
 	opts          *sdk.CreateChatCompletionRequest

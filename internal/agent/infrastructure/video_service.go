@@ -50,11 +50,9 @@ func NewVideoService(cfg *config.Config, client sdk.Client) *VideoService {
 }
 
 // Render creates the video job for request, polls it until it completes and
-// writes the downloaded MP4 content to outPath. An avatar request (audio
-// set) is a lip-synced talking clip rendered with text_to_video.avatar_model;
-// any other request is rendered with text_to_video.model.
-// Errors name the configured model so a gateway without the endpoint (or a
-// provider that rejects it) is diagnosable.
+// writes the MP4 to outPath. An avatar request renders with
+// text_to_video.avatar_model, any other with text_to_video.model. Errors name
+// the model so a gateway or provider without the endpoint is diagnosable.
 func (s *VideoService) Render(ctx context.Context, request agentdomain.VideoRequest, outPath string) error {
 	model := s.config.TextToVideo.ResolveGatewayModel(request.IsAvatar())
 	provider, modelName := config.ParseModel(model)

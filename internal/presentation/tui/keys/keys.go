@@ -69,12 +69,9 @@ func IsKnownKey(keyStr string) bool {
 	return slices.Contains(AllKnownKeys, keyStr) || IsPrintableCharacter(keyStr)
 }
 
-// PrintableText returns the literal characters represented by a key press, or
-// "" if the key has no printable text (Enter, Backspace, arrow keys, modifier
-// combos, etc.). The printable text lives in KeyPressMsg.Text. String()
-// returns the human-readable key *name* ("space", "ctrl+c"), which is what
-// keybinding lookups want but is not what should be inserted into a text
-// buffer. Use this helper when you need the literal input.
+// PrintableText returns the literal characters of a key press, or "" for keys
+// with no printable text. String() returns the key name such as "ctrl+c", which
+// suits keybinding lookups but not text input.
 func PrintableText(key tea.KeyPressMsg) string {
 	return key.Text
 }

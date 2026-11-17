@@ -101,12 +101,10 @@ type GatewayConfig struct {
 	TLS              PeerTLSConfig `yaml:"tls,omitempty" mapstructure:"tls"`
 }
 
-// SpeechToTextConfig contains speech-to-text (Whisper) integration settings.
-// It is an opt-in feature flag: when Enabled, the /voice chat shortcut and
-// inbound Telegram voice-message transcription become available. Transcription
-// shells out to a local whisper.cpp binary (whisper-cli/whisper-cpp) and uses
-// ffmpeg for audio capture and OGG->WAV conversion. The GGML model is
-// downloaded on first use. None of this adds CGO to the Go binary.
+// SpeechToTextConfig is the opt-in Whisper integration behind the /voice chat
+// shortcut and Telegram voice-message transcription. It shells out to a local
+// whisper.cpp binary and ffmpeg, downloads the GGML model on first use, and
+// adds no CGO to the binary.
 type SpeechToTextConfig struct {
 	Enabled             bool   `yaml:"enabled" mapstructure:"enabled"`
 	Engine              string `yaml:"engine" mapstructure:"engine"`                               // "whisper.cpp" (only engine for now)
@@ -181,16 +179,11 @@ func (c TextToSFXConfig) ResolveOutputDir() (string, error) {
 	return MediaDir(sfxMediaDir)
 }
 
-// TextToVideoConfig contains opt-in settings for video generation. The clip
-// is rendered behind the gateway's Videos API (POST /v1/videos, GET
-// /v1/videos/{id}, GET /v1/videos/{id}/content). The CLI holds no provider
-// key, the gateway does. When avatar and audio are supplied, the portrait and
-// the driving voice are sent to a third-party provider, so the tool stays off
-// by default. Model renders prompts. AvatarModel renders lip-synced clips
-// from a portrait and an audio clip, so each can be swapped independently.
-// CreateAvatar additionally registers the CreateAvatar tool, which turns a
-// photo into a library avatar. It is a separate opt-in because the agent
-// could then build an avatar from any face it sees.
+// TextToVideoConfig holds the opt-in settings for video generation through the
+// gateway's Videos API. It is off by default because avatar renders send a
+// portrait and voice to a third-party provider. Model renders prompts and
+// AvatarModel renders lip-synced clips. CreateAvatar is a separate opt-in
+// because the agent could then build an avatar from any face it sees.
 type TextToVideoConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	Model           string `yaml:"model" mapstructure:"model"`
@@ -632,21 +625,17 @@ type QueryTaskToolConfig struct {
 }
 
 // BashModeAllowConfig is the per-mode bash allow-list. Each entry is a Go regex
-// matched against the WHOLE command (anchored as \A(?:entry)\z), so a bare token
-// like "gh" matches only "gh" and never "gh issue list" - write "gh issue.*" to
-// allow arguments. The single sentinel ".*" (or "^.*$"/".+") means "allow any
-// single command" and additionally skips the clean-command guard, i.e. full
-// autonomy (used by mode.auto so headless `infer headless` can act unattended).
+// anchored to the whole command, so "gh" never matches "gh issue list". The
+// sentinel ".*" (or "^.*$", ".+") allows any single command and skips the
+// clean-command guard, which is full autonomy for mode.auto.
 type BashModeAllowConfig struct {
 	Allow []string `yaml:"allow" mapstructure:"allow"`
 }
 
-// BashModesConfig holds the bash allow-list for each agent mode. The effective
-// allow-list for a mode is mode.all.allow unioned with that mode's own list, so
-// "all" is the baseline shared by every mode (standard, plan, auto). A command
-// not matched by the effective list is default-denied: it falls through to
-// approval in chat mode, or is rejected with an actionable reason in headless
-// agent mode. There is no separate deny list - anything not allowed is denied.
+// BashModesConfig holds the bash allow-list for each agent mode. A mode's
+// effective list is mode.all.allow unioned with its own. Anything it does not
+// match is denied: it asks for approval in chat and is rejected with a reason
+// in headless mode. There is no separate deny list.
 type BashModesConfig struct {
 	All      BashModeAllowConfig `yaml:"all" mapstructure:"all"`
 	Plan     BashModeAllowConfig `yaml:"plan" mapstructure:"plan"`
@@ -1046,12 +1035,10 @@ type SchedulerArtifactsConfig struct {
 	RateLimitBackoff string `yaml:"rate_limit_backoff" mapstructure:"rate_limit_backoff"` // pause after a rate-limited API call
 }
 
-// TelemetryConfig controls the OpenTelemetry metrics the CLI records - tool
-// outcomes, token usage, sessions. The recorded data is written as OTLP/semconv
-// JSON under <config-dir>/telemetry (always, private - no prompt/response
-// content) and, opt-in, exported to an OpenTelemetry collector. OTLP export
-// activates only when otlp.endpoint (or OTEL_EXPORTER_OTLP_ENDPOINT) is set.
-// Named "telemetry" (not "metrics") to leave room for traces/logs later.
+// TelemetryConfig controls the OpenTelemetry metrics the CLI records: tool
+// outcomes, token usage and sessions. They are always written privately as
+// OTLP JSON under <config-dir>/telemetry, with no prompt content, and exported
+// to a collector only when otlp.endpoint or OTEL_EXPORTER_OTLP_ENDPOINT is set.
 type TelemetryConfig struct {
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 	// RetentionDays is how long a session's telemetry file stays active before
@@ -1480,13 +1467,10 @@ func DefaultConfig() *Config { //nolint:funlen
 	}
 }
 
-// ApprovalBehaviourFor returns how an approval-requiring action should be
-// delivered for toolName: one of ApprovalBehaviourPrompt (default),
-// ApprovalBehaviourIPC, ApprovalBehaviourBlock, or ApprovalBehaviourJudge. It
-// reads the global tools.safety.approval_behaviour. ToolName is reserved for a
-// future per-tool override. An empty or unrecognised value resolves to the safe
-// default (prompt). This decides HOW to handle an action that needs approval;
-// the tool's manifest and require_approval settings decide WHETHER it does.
+// ApprovalBehaviourFor returns how an approval-requiring action for toolName is
+// delivered, read from tools.safety.approval_behaviour. Empty or unknown values
+// resolve to prompt. toolName is reserved for a per-tool override. The manifest
+// and require_approval decide whether a tool needs approval at all.
 func (c *Config) ApprovalBehaviourFor(toolName string) string {
 	switch c.Tools.Safety.ApprovalBehaviour {
 	case ApprovalBehaviourBlock, ApprovalBehaviourIPC, ApprovalBehaviourJudge, ApprovalBehaviourPrompt:
@@ -1847,14 +1831,10 @@ func CanonicalPath(absPath string) string {
 // instead of a second hardcoded copy.
 var RuntimeArtifactDirNames = []string{"history", "backups", "tmp", ArtifactsDirName, "exports"}
 
-// UserspaceRuntimeDirNames are runtime dirs pinned directly under ~/.infer no
-// matter where config resolves: the artifact poller's GitHub download dir
-// (cmd/daemon), the plan store (storage.userPlansDir) and the userspace
-// scratch dir (~/.infer/tmp, where the desktop saves pasted attachments).
-// Anchoring them to the userspace dir rather than GetConfigDir() is what keeps
-// them reachable when a project supplies its own ./.infer/config.yaml -
-// GetConfigDir() is the relative ".infer" then, so a config-relative check
-// would only ever look at the project directory.
+// UserspaceRuntimeDirNames are runtime dirs pinned under ~/.infer wherever
+// config resolves: the artifact download dir, the plan store and the scratch
+// dir. A project ./.infer/config.yaml turns GetConfigDir() into the relative
+// ".infer", so anchoring them to the userspace dir keeps them reachable.
 var UserspaceRuntimeDirNames = []string{ArtifactsDirName, "plans", "tmp"}
 
 // KeyNamespace represents the namespace for key binding actions

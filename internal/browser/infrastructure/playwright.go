@@ -28,15 +28,9 @@ const maxBrowserReadChars = 50000
 const screenshotJPEGQuality = 80
 
 // browserSession is the single shared browser the browser use tools drive via
-// Playwright (CDP under the hood for Chromium). It launches lazily on first
-// use - either the user's installed browser (config channel, e.g. "chrome"),
-// an already-running browser via a CDP endpoint, or Playwright's bundled
-// Chromium as a fallback - and stays open across tool calls so navigation
-// state persists.
-//
-// Browser-initiated actions reach the CLI through the event buffer: console
-// messages, dialogs (auto-dismissed), and page scripts calling
-// window.inferNotify(...) are recorded and surfaced by the BrowserRead tool.
+// Playwright. It launches lazily as the installed browser, a CDP endpoint or the
+// bundled Chromium, and stays open so navigation state persists. Console
+// messages, dialogs and window.inferNotify calls are buffered for BrowserRead.
 type browserSession struct {
 	cfg *config.BrowserUseConfig
 

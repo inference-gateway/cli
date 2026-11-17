@@ -85,12 +85,9 @@ func TestValidateRead_SkillsCarveOut(t *testing.T) {
 	})
 }
 
-// TestValidateRead_AgentsSkillsCarveOut covers the .agents/skills open
-// standard. Unlike .infer/, the .agents/ directory is not denied, so
-// the carve-out is only observable against a *restrictive* sandbox: with skills
-// enabled, .agents/skills/** must be readable even though it sits outside the
-// configured sandbox dirs (parity with .infer/skills), while non-skills paths
-// under .agents and lookalike siblings stay denied.
+// TestValidateRead_AgentsSkillsCarveOut checks against a restrictive sandbox
+// that, with skills enabled, .agents/skills/** is readable like .infer/skills,
+// while other .agents paths and lookalike siblings stay denied.
 func TestValidateRead_AgentsSkillsCarveOut(t *testing.T) {
 	sandboxDir := t.TempDir()
 

@@ -87,12 +87,10 @@ type VideoSoundEffectService interface {
 	Score(ctx context.Context, request VideoSoundEffectRequest, outPath string) (string, error)
 }
 
-// VideoRequest is one video render: a text prompt (required unless the audio
-// drives the render), the optional seconds and size passthroughs, the
-// optional avatar portrait and driving audio for lip-synced talking clips,
-// and the optional reference images of the subject (e.g. an avatar from
-// several angles) that keep them consistent in a prompt render. The gateway
-// rejects reference images together with a portrait.
+// VideoRequest is one video render: a prompt, required unless audio drives it,
+// optional seconds and size, an optional avatar portrait with driving audio for
+// lip-synced clips, and optional reference images that keep a subject
+// consistent. The gateway rejects reference images together with a portrait.
 type VideoRequest struct {
 	Prompt         string
 	Seconds        string

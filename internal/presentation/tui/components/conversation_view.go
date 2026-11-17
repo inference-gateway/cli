@@ -204,13 +204,10 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 	}, changed...)
 }
 
-// rebuildPreservingScroll applies mutate (the expand/collapse state change) and
-// re-renders the viewport while keeping the content the user is looking at anchored
-// in place. Expanding an entry that sits above the viewport top would otherwise shift
-// everything down and make the view jump. We offset by the height delta of the changed
-// entries above the current scroll position. The old layout is measured before mutate
-// runs, so the delta is real. When the user is following the tail we stay pinned to the
-// bottom.
+// rebuildPreservingScroll applies mutate and re-renders the viewport while
+// keeping the content in view anchored, offsetting by the height change of the
+// changed entries above the scroll position, measured before mutate runs. A
+// user following the tail stays pinned to the bottom.
 func (cv *ConversationView) rebuildPreservingScroll(mutate func(), changed ...int) {
 	if cv.navigationMode == NavigationModeMessageHistory {
 		mutate()

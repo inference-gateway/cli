@@ -20,19 +20,10 @@ type SyntheticToolResponse struct {
 	ToolName   string
 }
 
-// EnsureToolCallsClosed enforces the OpenAI-style invariant that every
-// assistant message with tool_calls is followed by a Tool-role message
-// for each tool_call_id. For every unmatched tool_call_id it inserts a
-// synthetic Tool-role response with CancelledToolResponseContent at the
-// tail of the existing tool responses for that assistant turn,
-// preserving the original tool_calls order.
-//
-// The returned conversation is a copy. The input slice is not mutated.
-// The returned synthetics list is in insertion order and is non-nil
-// only when at least one synthetic was added.
-//
-// Idempotent: running on an already-repaired conversation returns the
-// input shape with an empty synthetics slice.
+// EnsureToolCallsClosed makes every assistant tool_call_id answered by a
+// Tool-role message, inserting a CancelledToolResponseContent synthetic after
+// that turn's existing responses in tool_calls order. It returns a copy and
+// the synthetics in insertion order, nil when none were added. It is idempotent.
 func EnsureToolCallsClosed(conv []sdk.Message) ([]sdk.Message, []SyntheticToolResponse) {
 	if len(conv) == 0 {
 		return conv, nil

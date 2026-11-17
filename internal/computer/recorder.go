@@ -71,12 +71,10 @@ type recording struct {
 	lock    *os.File
 }
 
-// ScreenRecorder runs at most one ffmpeg screen recording at a time, machine
-// wide: a lock file under ~/.infer/run keeps a second infer process from
-// starting a competing capture. The process outlives the RecordStart tool
-// call. RecordStop, the max_duration cap (ffmpeg -t), or Close on CLI
-// shutdown ends it. While it runs it is a background job, so a headless run
-// waits for it instead of exiting.
+// ScreenRecorder runs at most one ffmpeg screen recording machine wide, enforced
+// by a lock file under ~/.infer/run. The capture outlives RecordStart and ends
+// on RecordStop, the max_duration cap or Close. While it runs it is a
+// background job, so a headless run waits for it.
 type ScreenRecorder struct {
 	cfg         *config.Config
 	notifier    agentdomain.UINotifier

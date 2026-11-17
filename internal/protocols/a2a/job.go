@@ -57,14 +57,10 @@ func (j *a2aJob) agentOrigin() string {
 	return "external"
 }
 
-// Run polls the remote agent until the task terminates. It records each remote
-// state change through the emit wrapper so PollingState can report the live
-// status to the task view without racing the poll goroutine on the shared state.
-//
-// The supervisor runs jobs under a fresh context, so the submit span's trace
-// context and baggage are re-attached here: every poll then carries the
-// session traceparent and the remote agent's spans nest under the submit span
-// instead of starting a new trace per poll.
+// Run polls the remote agent until the task terminates, recording each state
+// change through emit so PollingState reports it without racing the poller. It
+// re-attaches the submit span's trace context, so every poll carries the
+// session traceparent and the remote spans nest under the submit span.
 func (j *a2aJob) Run(ctx context.Context, emit func(scheddomain.JobSignal)) agentdomain.ToolExecutionResult {
 	ctx = trace.ContextWithSpanContext(ctx, j.spanCtx)
 	ctx = baggage.ContextWithBaggage(ctx, j.bag)

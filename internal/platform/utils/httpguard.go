@@ -9,12 +9,10 @@ import (
 	"time"
 )
 
-// NewPublicOnlyHTTPClient returns an *http.Client that refuses to connect to
-// loopback, private, link-local (including the 169.254.169.254 cloud metadata
-// endpoint), multicast, or unspecified addresses. Use it whenever the URL
-// comes from an untrusted source (an LLM tool argument) and no explicit host
-// allow-list applies. The check runs at dial time on the resolved IP, so DNS
-// rebinding cannot bypass it, and it applies to every redirect hop too.
+// NewPublicOnlyHTTPClient returns an *http.Client that refuses loopback,
+// private, link-local (including cloud metadata), multicast and unspecified
+// addresses, for URLs from untrusted sources with no host allow-list. It checks
+// the resolved IP at dial time and on every redirect, so DNS rebinding cannot bypass it.
 func NewPublicOnlyHTTPClient(timeout time.Duration) *http.Client {
 	dialer := &net.Dialer{
 		Control: func(_, address string, _ syscall.RawConn) error {

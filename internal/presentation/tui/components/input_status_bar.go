@@ -915,13 +915,9 @@ func (isb *InputStatusBar) totalInputTokensOrEstimate() int {
 	return isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
 }
 
-// currentContextTokensOrEstimate returns an approximation of the tokens that
-// would be sent in the next request - i.e. how full the model's context window
-// is right now. Takes the larger of the gateway-reported LastInputTokens (which
-// includes the system prompt and tool definitions, matching what the optimizer
-// and session-rollover manager use) and a fresh tokenizer estimate of the
-// current buffer, so a single-turn tool-output spike shows up immediately
-// instead of lagging behind the last round-trip.
+// currentContextTokensOrEstimate approximates how full the context window is
+// for the next request: the larger of the gateway-reported LastInputTokens and
+// a fresh estimate of the buffer, so a tool-output spike shows up at once.
 func (isb *InputStatusBar) currentContextTokensOrEstimate() int {
 	if isb.conversationRepo == nil {
 		return 0
@@ -1034,13 +1030,10 @@ func (isb *InputStatusBar) queueIndicatorColor() string {
 	return isb.styleProvider.GetThemeColor("accent")
 }
 
-// getContextUsageIndicator returns a context usage indicator string.
-// Measures how full the model's context window is for the *next* request:
-// the gateway-reported LastInputTokens from the most recent call (which
-// includes system prompt and tool definitions) divided by the model's
-// context window. Falls back to the tokenizer polyfill before the first
-// round-trip. Renders HIGH/FULL warning labels at high thresholds.
-// This is NOT the cumulative session token count - that's shown by T.XXX.
+// getContextUsageIndicator shows how full the context window is for the next
+// request, from LastInputTokens or the tokenizer before the first round trip,
+// with HIGH and FULL warnings near the limit. It is not the cumulative session
+// count, which T.XXX shows.
 func (isb *InputStatusBar) getContextUsageIndicator(model string) string {
 	contextTokens := isb.currentContextTokensOrEstimate()
 	if contextTokens == 0 {

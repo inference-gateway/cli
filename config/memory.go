@@ -35,15 +35,10 @@ const (
 	DefaultMemoryGitTimeout       = 60
 )
 
-// MemoryConfig configures the agent's persistent, cross-session memory. When
-// enabled, durable facts are stored as individual Markdown fact-files under a
-// global directory (~/.infer/memory by default), catalogued by an index file
-// (MEMORY.md) that the Memory tool keeps in sync. The index is injected into
-// context at session start. The agent reads individual facts on demand.
-//
-// Runtime knobs live here (in memory.yaml). The tool's LLM-facing description
-// lives in its manifest, and the session reminder lives in reminders.yaml -
-// keeping each concern in its own file, like Heartbeat/ComputerUse/Channels.
+// MemoryConfig configures the agent's persistent cross-session memory: Markdown
+// fact files under a global directory, indexed by MEMORY.md and injected at
+// session start. Backend picks the store, Git and its Sync settings version it.
+// The tool description lives in the manifest and the reminder in reminders.yaml.
 type MemoryConfig struct {
 	Enabled       bool                `yaml:"enabled" mapstructure:"enabled"`
 	Dir           string              `yaml:"dir" mapstructure:"dir"`                         // "" => ~/.infer/memory

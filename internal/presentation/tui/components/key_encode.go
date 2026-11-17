@@ -6,12 +6,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// encodeKey converts a parsed Bubble Tea key event back into the raw terminal
-// input bytes to feed a child process (vim) running in a PTY. Bubble Tea owns
-// stdin and delivers structured key events, so to drive the child we re-encode
-// them. This covers the keys an editor needs (text, control/alt combos, and the
-// common special keys). It is intentionally a pragmatic subset, not a full
-// terminal-input encoder.
+// encodeKey re-encodes a Bubble Tea key event into the raw terminal bytes for a
+// child editor in a PTY, since Bubble Tea owns stdin. It covers the keys an
+// editor needs and is deliberately not a full terminal-input encoder.
 func encodeKey(k tea.KeyPressMsg) []byte {
 	alt := k.Mod&tea.ModAlt != 0
 

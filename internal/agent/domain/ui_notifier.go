@@ -7,11 +7,9 @@ import (
 )
 
 // UINotifier delivers a background-originated event to the single Bubble Tea
-// Update loop. It is the one ingress every background producer uses to push work
-// or status changes into the UI, replacing the per-source self-rescheduling
-// pollers. The only production implementation wraps (*tea.Program).Send and lives
-// in cmd/chat.go. Keeping this interface tea-free lets services depend on it
-// without importing bubbletea. The event is an `any` (tea.Msg is itself `any`).
+// Update loop, the one ingress every background producer uses. The production
+// implementation wraps (*tea.Program).Send. Keeping it tea-free lets services
+// depend on it without importing bubbletea.
 type UINotifier interface {
 	Notify(event any)
 }
@@ -50,14 +48,10 @@ type BackgroundTasksChangedEvent struct {
 func (e BackgroundTasksChangedEvent) GetRequestID() string    { return "" }
 func (e BackgroundTasksChangedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// DrainQueueEvent asks the orchestrator to start a fresh agent turn when the
-// agent is idle on the chat view and the shared message queue has content
-// (background-job completion notes or user messages typed while busy). Unlike the
-// old queue-drain tick it is not a clock: it is pushed exactly once per real
-// trigger (a background job landing work, a turn completing with a non-empty
-// queue, or re-entering the chat view), and HandleDrainQueueEvent is a pure gate
-// that starts a turn (Idle -> CheckingQueue -> ... -> Completing -> Idle) or
-// returns nil. There is no self-reschedule.
+// DrainQueueEvent asks the orchestrator to start a fresh agent turn when it is
+// idle on the chat view and the message queue has content. It is pushed once
+// per real trigger, never on a clock, and HandleDrainQueueEvent is a pure gate
+// that either starts a turn or returns nil.
 type DrainQueueEvent struct{}
 
 // ToolExecutionCompletedEvent indicates tool execution is complete

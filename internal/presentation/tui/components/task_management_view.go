@@ -25,14 +25,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// TaskInfo extends TaskPollingState with additional metadata for UI display.
-// Kind/Label/Detail carry the background-work kind (A2A task, shell, subagent)
-// and its kind-specific columns so the view can render one table per kind from a
-// single flat, selectable list. A2A rows keep using the embedded
-// TaskPollingState/TaskRef. Shell and subagent rows populate Kind/Label/Detail.
-// Output carries the job's captured output (shell stdout/stderr or subagent
-// result) for the detail panel. SessionID and Stats are a subagent's stored
-// conversation and run stats.
+// TaskInfo extends TaskPollingState for the background work view. A2A rows use
+// the embedded state. Shell and subagent rows fill Kind, Label and Detail so one
+// flat list renders a table per kind. Output feeds the detail panel, and
+// SessionID and Stats are a subagent's stored conversation and run stats.
 type TaskInfo struct {
 	a2adomain.TaskPollingState
 	Status      string

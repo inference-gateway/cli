@@ -25,14 +25,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// Streaming-output coalescing thresholds. readPipeWithBatching accumulates
-// command output and flushes it to the streaming callback at most once per
-// bashStreamFlushInterval (or sooner once bashStreamFlushBytes have piled up),
-// so a high-volume command (e.g. `git diff` on a large branch) emits a bounded
-// number of UI events instead of one per line. One event per line otherwise
-// stalls the TUI: every chunk makes a full Bubble Tea Update/View round-trip,
-// and the terminal completion event that clears the status bar queues behind
-// them. The full result output is captured separately and is unaffected.
+// Streaming output is coalesced so a high-volume command emits a bounded number
+// of UI events, flushing at most once per bashStreamFlushInterval or after
+// bashStreamFlushBytes. One event per line would stall the TUI and queue the
+// completion event behind them. The full result output is captured separately.
 const (
 	bashStreamFlushInterval = 50 * time.Millisecond
 	bashStreamFlushBytes    = 64 * 1024
@@ -62,12 +58,10 @@ func (t *BashTool) Manifest() agentdomain.ToolManifest {
 	return toolManifests.MustGet(ToolBash).WithRequireApproval(t.config.Tools.Bash.RequireApproval)
 }
 
-// Definition returns the tool definition for the LLM. The command parameter is
-// intentionally not constrained by an enum: the set of auto-approved commands is
-// per-mode (and may be ".*"), so it cannot be expressed as a fixed schema. The
-// effective allow-list for the active mode is surfaced in the system prompt
-// instead. Off-list commands still execute via approval (chat) or are rejected
-// with a reason (agent mode).
+// Definition returns the tool definition for the LLM. The command parameter has
+// no enum because the auto-approved set is per mode and may be ".*", so the
+// active allow-list is surfaced in the system prompt instead. Off-list commands
+// ask for approval in chat and are rejected in agent mode.
 func (t *BashTool) Definition() sdk.ChatCompletionTool {
 	return t.Manifest().Definition()
 }
@@ -462,12 +456,6 @@ func (t *BashTool) readPipeWithBatching(
 	}
 }
 
-// notAllowedError builds the rejection error for a command that is not in the
-// bash allow-list for mode, appending the actionable hint from
-// sandbox.BashCommandRejectionHint (run one command at a time, drop a redirect,
-// avoid leaking a $VAR, ...) so the model can correct course rather than retrying
-// blindly. The Bash tool, the approval policy, and agent auto-approval all share
-// sandbox.IsBashCommandAllowed, so they agree on exactly what runs without prompting.
 // deniedPathError refuses a command naming a path a blocking deny entry
 // matches: the same answer in every mode, approved or not, and from validate.
 func deniedPathError(path string) error {

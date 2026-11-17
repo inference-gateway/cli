@@ -146,14 +146,11 @@ type workerInterrupt struct {
 	ID string `json:"id"`
 }
 
-// Registry is the daemon's thread registry. It launches one worker per thread,
-// relays client frames to worker stdin and worker lines to the thread's
-// clients, and stops idle workers. Two answers race per thread and the first
-// wins each: the resume of a suspended run's interrupts (an incomplete resume
-// is refused with RUN_ERROR) and the approval_response of a panel tool_request.
-// A run a crashed worker left open ends with RUN_ERROR, and worker
-// browser_command frames route to the connected browser extension. Run
-// state changes broadcast a thread_activity frame to every attached client.
+// Registry is the daemon's thread registry. It runs one worker per thread,
+// relays frames both ways and stops idle workers. The first answer wins for a
+// suspended run's resume and a panel approval. A crashed worker's open run ends
+// with RUN_ERROR, browser_command frames go to the extension, and run state
+// changes broadcast thread_activity.
 type Registry struct {
 	launch    sessionsdomain.LaunchWorker
 	idle      time.Duration
@@ -545,12 +542,10 @@ func (r *Registry) answer(c sessionsdomain.Client, toolCallID string, frame []by
 	}
 }
 
-// resumePolicyLocked checks one run input's resume entries against the open
-// interrupts the thread's last suspended run waits on. The first resume wins:
-// it forwards, and the RUN_STARTED of the continuation run tells the thread's
-// other clients the answer. A resume that answers nothing open, one a client
-// sent after that wait, is dropped. A resume that misses one of the open
-// interrupts is refused, the resume contract's every-interrupt rule.
+// resumePolicyLocked checks a run input's resume entries against the open
+// interrupts of the thread's last suspended run. The first resume wins and
+// forwards. A resume that answers nothing open is dropped, and one that misses
+// an open interrupt is refused.
 func resumePolicyLocked(t *thread, frame []byte) (bool, error) {
 	answered := resumeIDs(frame)
 	if len(answered) == 0 {

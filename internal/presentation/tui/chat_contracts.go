@@ -121,14 +121,9 @@ type ChatStreamOpenedEvent struct {
 	Err       error
 }
 
-// ApprovalCoordinator owns the "pause the assistant turn pending external
-// decision" family of events: plan approval (the agent stops, presents a
-// plan, awaits user accept/reject) and computer-use pause/resume (the user
-// hits a key to interrupt computer-use execution and later resumes).
-//
-// Response handlers return a restart bool so the orchestrator can fire
-// ChatCompletionRunner.Start() after the cmds without ApprovalCoordinator
-// having to depend on the runner.
+// ApprovalCoordinator owns the events that pause a turn pending a decision:
+// plan approval and computer-use pause and resume. Response handlers return a
+// restart bool so the orchestrator starts the ChatCompletionRunner itself.
 type ApprovalCoordinator interface {
 	HandlePlanApprovalRequested(msg agentdomain.PlanApprovalRequestedEvent) tea.Cmd
 	HandlePlanApprovalResponse(msg PlanApprovalResponseEvent) (cmd tea.Cmd, restart bool)
@@ -167,15 +162,10 @@ type ToolExecutionCoordinator interface {
 	HandleToolCancelled(msg agentdomain.ToolCancelledEvent) tea.Cmd
 }
 
-// DirectExecutionService owns user-typed `!command` (bash) and `!!Tool(...)`
-// (tool) execution. It synthesizes the conversation entries, spawns the async
-// goroutines, owns the per-call event/detach channels, and exposes the
-// channels via PendingBashChannel / PendingToolChannel so the
-// ToolExecutionCoordinator can keep pumping them.
-//
-// Implements BashDetachChannelHolder so the agent core can find it on the
-// request context (see WithChatHandler / GetChatHandler in
-// context_helpers.go).
+// DirectExecutionService runs user-typed `!command` and `!!Tool(...)` calls: it
+// synthesizes their entries, spawns the goroutines and exposes their channels
+// for the ToolExecutionCoordinator to pump. It implements
+// BashDetachChannelHolder so the agent core finds it on the request context.
 type DirectExecutionService interface {
 	agentdomain.BashDetachChannelHolder
 

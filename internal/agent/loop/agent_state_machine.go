@@ -12,32 +12,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// stateMachine implements the AgentStateMachine interface.
-//
-// The state machine manages the agent's execution flow through the following states:
-//
-// State Flow:
-//
-//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/BlockingTools/ExecutingTools (⇄ InputRequired while a prompt waits on the user) → PostToolExecution → CheckingQueue (loop) → Completing → Idle
-//
-// State Descriptions:
-//   - Idle: Agent is not executing, waiting for work
-//   - CheckingQueue: Checking if there are queued messages or if completion criteria are met
-//   - StreamingLLM: Streaming responses from the LLM
-//   - PostStream: Processing LLM response, checking for tool calls or completion
-//   - EvaluatingTools: Determining if tool calls need approval
-//   - ApprovingTools: Waiting for user approval of tool calls (only in chat mode)
-//   - BlockingTools: Approval required but undeliverable (approval_behaviour=block). Gated tools are rejected with a reason
-//   - ExecutingTools: Executing approved or auto-approved tool calls
-//   - PostToolExecution: Processing tool results, checking for completion or continuing
-//   - Completing: Finalizing the agent execution
-//   - Error: An error occurred during execution
-//   - Cancelled: User cancelled the execution
-//   - Stopped: Tool execution indicated stop (user rejection or error)
-//
-// Thread Safety:
-//
-//	All state transitions are protected by a read-write mutex to ensure thread-safe access.
+// stateMachine implements AgentStateMachine, guarding every transition with a
+// read-write mutex. The flow is Idle → CheckingQueue → StreamingLLM →
+// PostStream → EvaluatingTools → ApprovingTools, BlockingTools or ExecutingTools
+// (⇄ InputRequired) → PostToolExecution → CheckingQueue → Completing → Idle,
+// with Error, Cancelled and Stopped as exits.
 type stateMachine struct {
 	currentState  states.AgentExecutionState
 	previousState states.AgentExecutionState
@@ -65,13 +44,9 @@ func newAgentStateMachine() states.AgentStateMachine {
 	return sm
 }
 
-// registerTransitions registers all valid state transitions with guards and actions.
-//
-// Each transition can have:
-//   - guard: A function that must return true for the transition to be allowed
-//   - action: A function executed when the transition occurs
-//
-// Transitions without guards are always allowed. Nil guards/actions are permitted.
+// registerTransitions registers every valid state transition. A transition's
+// guard must return true for it to fire and its action runs when it does. Nil
+// guards and actions are allowed, and a transition without a guard always fires.
 func (sm *stateMachine) registerTransitions() {
 	sm.addTransition(states.StateIdle, states.StateCheckingQueue, nil, nil)
 
@@ -279,15 +254,9 @@ func (sm *stateMachine) GetCurrentState() states.AgentExecutionState {
 // Guard functions determine whether a state transition should be allowed.
 // They return true if the transition can proceed, false otherwise.
 
-// canComplete checks if the agent can complete (no more work to do).
-//
-// Completion criteria:
-//   - At least one turn has been completed
-//   - No pending tool results to process
-//   - Message queue is empty
-//   - Last message is not from the user (agent has responded)
-//
-// Returns true if all completion criteria are met.
+// canComplete reports whether the agent has no more work: at least one turn
+// ran, no tool results are pending, the queue is empty and the last message is
+// not from the user.
 func (sm *stateMachine) canComplete(ctx *states.AgentContext) bool {
 
 	if ctx.Turns == 0 {
@@ -312,14 +281,8 @@ func (sm *stateMachine) canComplete(ctx *states.AgentContext) bool {
 	return true
 }
 
-// needsApproval checks if any tool calls need user approval.
-//
-// Tool approval is required if:
-//   - An approval policy is configured
-//   - At least one tool call requires approval according to the policy
-//   - The agent is running in chat mode (approval not needed in background mode)
-//
-// Returns true if user approval is needed before executing tools.
+// needsApproval reports whether an approval policy is configured and gates at
+// least one of the pending tool calls.
 func (sm *stateMachine) needsApproval(ctx *states.AgentContext) bool {
 	if ctx.ApprovalPolicy == nil {
 		return false

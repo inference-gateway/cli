@@ -278,12 +278,10 @@ func judgeVerdictMessage(e agentdomain.JudgeVerdictChatEvent) map[string]any {
 	}
 }
 
-// RenderJSON renders events as JSON lines, streaming each message as its turn
-// completes: assistant messages on ChatCompleteEvent, tool results on
-// ToolExecutionCompletedEvent, approval requests and errors in real time.
-// After the channel closes only the session stats are read from the repo.
-// When approvals is non-nil it acts as the IPC approval broker: each
-// approval_request line is answered by the next matching ApprovalResponse.
+// RenderJSON streams events as JSON lines as each turn completes, then reads
+// only the session stats from the repo once the channel closes. A non-nil
+// approvals channel makes it the IPC approval broker, answering each
+// approval_request with the next matching ApprovalResponse.
 func RenderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-chan ipc.ApprovalResponse, questions <-chan ipc.UserQuestionResponse, sessionID, model string, cfg *config.Config, repo convdomain.ConversationRepository) error {
 	return renderJSON(events, w, approvals, questions, sessionID, model, cfg, repo, false)
 }

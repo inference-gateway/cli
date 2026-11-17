@@ -218,12 +218,9 @@ func (cm *ChannelManagerService) routeInbound(ctx context.Context) {
 	}
 }
 
-// deliverApprovalReply forwards an approval decision to the waiting
-// resolveApproval goroutine without blocking. respChan is buffered(1) and
-// one-shot, so a straggler reply (double-tap Approve, or tap + type "yes") that
-// arrives after the approval already resolved is dropped rather than wedging
-// routeInbound — the single consumer of cm.inbox, whose block would freeze
-// message processing for every sender.
+// deliverApprovalReply forwards an approval decision without blocking. The
+// one-shot buffered respChan drops a straggler reply, such as a double tap,
+// instead of wedging routeInbound, whose block would freeze every sender.
 func deliverApprovalReply(respChan any, approved bool) {
 	ch, ok := respChan.(chan ipc.ApprovalResponse)
 	if !ok {

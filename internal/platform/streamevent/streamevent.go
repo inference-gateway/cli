@@ -51,12 +51,9 @@ func SetDebugEnabledForTest(enabled bool) func() {
 	}
 }
 
-// debugEnabled reports whether emission is currently turned on.
-//
-// In production this defers to the global zap logger's level: if the
-// core accepts DebugLevel (i.e. the user passed `--verbose` or set
-// `logging.debug=true`), events fire. Otherwise they're silently
-// dropped. Tests can pin the gate via SetDebugEnabledForTest.
+// debugEnabled reports whether emission is on. In production it follows the
+// global zap level, so --verbose or logging.debug=true turns it on. Tests pin
+// it with SetDebugEnabledForTest.
 func debugEnabled() bool {
 	gateMu.RLock()
 	override := gateOverride
@@ -72,14 +69,10 @@ func debugEnabled() bool {
 	return l.Core().Enabled(zapcore.DebugLevel)
 }
 
-// EmitDebugMessage writes a JSON-line that mirrors the shape of a normal
-// conversation message but flagged `hidden: true` and tagged with a
-// `kind` discriminator so observers can distinguish it from real
-// conversation turns. Used to surface internally-injected messages (e.g.
-// the hidden user-role system-reminder appended every N turns) that the
-// user would not otherwise see.
-//
-// No-op unless debug is enabled (see package docs).
+// EmitDebugMessage writes a JSON line shaped like a conversation message but
+// flagged hidden and tagged with kind, so observers can see internally injected
+// messages such as system reminders apart from real turns. It is a no-op
+// unless debug is enabled.
 func EmitDebugMessage(role, content, kind string, extra map[string]any) {
 	if !debugEnabled() {
 		return

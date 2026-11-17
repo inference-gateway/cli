@@ -193,12 +193,9 @@ func (d *DiffRenderer) RenderDiff(info DiffInfo) string {
 
 // --- internals ---
 
-// editDiff renders an Edit as a diff with surrounding file context. When the
-// target file is readable and contains old_string, it diffs the real file
-// (before) against the file with the replacement applied (after), so the
-// renderer's context lines come from the actual file around the change. It falls
-// back to a snippet diff (old_string vs new_string) when the file can't be read
-// or old_string isn't found verbatim (e.g. a whitespace-flexible match).
+// editDiff renders an Edit as a diff with real file context, diffing the file
+// before and after the replacement. It falls back to an old_string versus
+// new_string diff when the file is unreadable or old_string is not found verbatim.
 func (d *DiffRenderer) editDiff(filePath, oldString, newString string, replaceAll bool) string {
 	if before, after, ok := editFileContents(filePath, oldString, newString, replaceAll); ok {
 		return d.buildDiffView(filePath, before, after).String()

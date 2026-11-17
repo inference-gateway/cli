@@ -226,12 +226,9 @@ func (gm *Supervisor) Stop(ctx context.Context) error {
 	return stopErr
 }
 
-// stopBinary stops the binary process using PID-file reference counting.
-// Every process that started or attached to the shared binary registers
-// its PID in ~/.infer/run/pids/. On stop, it deregisters itself and
-// prunes stale entries (crashed processes). The binary is killed only
-// when the last live registration is gone - whichever process exits last
-// turns off the lights.
+// stopBinary deregisters this process's PID under ~/.infer/run/pids/, prunes
+// entries of crashed processes and kills the shared binary only when no live
+// registration is left, so whichever process exits last turns off the lights.
 func (gm *Supervisor) stopBinary() error {
 	gm.deregisterPID()
 

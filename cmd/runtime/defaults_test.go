@@ -43,12 +43,10 @@ func TestViperDefaultsCoverConfigLeaves(t *testing.T) {
 		len(missing), strings.Join(missing, "\n  "))
 }
 
-// TestViperUnmarshalReproducesDefaultConfig verifies the stronger contract:
-// after initConfig() with no config file and no env overrides, unmarshaling
-// viper into an empty Config produces a value semantically equal to
-// config.DefaultConfig() at every non-zero leaf. Catches both missing defaults
-// AND mismatched values (e.g. a SetDefault that drifted out of sync with
-// DefaultConfig()).
+// TestViperUnmarshalReproducesDefaultConfig verifies that with no config file
+// and no env overrides, unmarshaling viper yields config.DefaultConfig() at
+// every non-zero leaf. It catches missing defaults and SetDefault values that
+// drifted out of sync with DefaultConfig().
 func TestViperUnmarshalReproducesDefaultConfig(t *testing.T) {
 	withHermeticEnv(t)
 

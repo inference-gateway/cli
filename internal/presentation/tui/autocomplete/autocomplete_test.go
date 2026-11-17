@@ -802,12 +802,9 @@ func TestAutocomplete_TabCompletesWithoutSubmitting(t *testing.T) {
 	})
 }
 
-// TestAutocomplete_RenderMultibyteDescription guards the crash reported for
-// `infer chat`: TruncateText cuts to display columns, so a description holding
-// one multibyte rune comes back longer in bytes than the column budget. Padding
-// that result with len() built a negative strings.Repeat count and panicked the
-// whole TUI the moment "/" was typed. The skills catalog ships exactly this
-// shape (motion-graphics, ~580 runes with an em dash and an arrow).
+// TestAutocomplete_RenderMultibyteDescription guards a crash on typing "/":
+// TruncateText cuts to display columns, so padding a multibyte description with
+// len() produced a negative strings.Repeat count.
 func TestAutocomplete_RenderMultibyteDescription(t *testing.T) {
 	longMultibyte := "A short, design-led motion graphic where motion is the message \u2014 " +
 		strings.Repeat("kinetic typography, stat count-up, chart hit, logo sting, ", 8) +

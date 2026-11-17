@@ -44,12 +44,10 @@ type MemoryTool struct {
 	project   projects.Identity
 }
 
-// NewMemoryTool creates a new memory tool. backend syncs the memory directory to
-// a remote after a write/delete (nil-safe: a nil backend, or the local no-op
-// backend, means no remote sync). This is the chat push path - post_session
-// would push after every message, so the tool triggers the push instead.
-// proj is the detected project the process runs in (zero value = global scope);
-// it decides where project-scoped facts are filed.
+// NewMemoryTool creates the memory tool. backend pushes the memory directory to
+// its remote after a write or delete, and nil or the local backend means no
+// sync. proj is the detected project, zero for global scope, and decides where
+// project-scoped facts are filed.
 func NewMemoryTool(cfg *config.Config, backend memory.MemoryBackend, proj projects.Identity) *MemoryTool {
 	return &MemoryTool{
 		config:  cfg,
@@ -430,12 +428,9 @@ type memoryFrontmatter struct {
 	} `yaml:"metadata"`
 }
 
-// sanitizeName parses a memory name into (projectSlug, slug): "p/s" ->
-// ("p", "s"), "s" -> ("", "s"). Each segment is independently slugified
-// (lowercased, non-alphanumeric runs collapsed to single hyphens, trimmed,
-// length-capped), so no dots or separators survive and the joined path always
-// stays inside the memory dir (no traversal). More than one "/" or any empty
-// sanitized segment yields ok=false.
+// sanitizeName parses "p/s" into ("p", "s") and "s" into ("", "s"), slugifying
+// each segment so the joined path never leaves the memory dir. More than one
+// "/" or an empty sanitized segment yields ok=false.
 func sanitizeName(name string) (projectSlug, slug string, ok bool) {
 	parts := strings.Split(strings.TrimSpace(name), "/")
 	switch len(parts) {

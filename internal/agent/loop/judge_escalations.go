@@ -24,11 +24,9 @@ type judgeEscalation struct {
 	bypass bool
 }
 
-// judgeEscalations tracks judge-rejected tool calls keyed by tool name and
-// canonical arguments. Each rejected call may be escalated once. An approved
-// escalation sets a bypass marker that makes the next matching judge decision
-// approve without consulting the judge (that single invocation only).
-//
+// judgeEscalations tracks judge-rejected tool calls by tool name and canonical
+// arguments. Each rejection may be escalated once, and an approved escalation
+// lets the next matching call through without consulting the judge.
 // ponytail: entries live for the session and are never pruned. Add eviction
 // if a long session ever accumulates thousands of distinct rejections.
 type judgeEscalations struct {

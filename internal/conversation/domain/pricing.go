@@ -58,13 +58,10 @@ type PricingService interface {
 	FormatModelPricing(model string) string
 }
 
-// FormatModelPricingLabel builds a human-readable pricing/availability label for
-// a model, combining the per-token price with a subscription marker. A
-// subscription model has no per-token price ($0/$0 → "free"), which would be
-// misleading, so the bare "free" token is replaced by "subscription". A model
-// that is both priced and subscription-gated keeps its price and gains the
-// marker. Returns "" when there is nothing to show (pricing disabled, no entry,
-// and not subscription-gated).
+// FormatModelPricingLabel builds a pricing label for model that marks
+// subscription models. A subscription model's $0 price would read "free", so
+// that becomes "subscription", and a priced subscription model keeps its price
+// plus the marker. It returns "" when there is nothing to show.
 func FormatModelPricingLabel(pricingService PricingService, model string) string {
 	if pricingService == nil {
 		return ""

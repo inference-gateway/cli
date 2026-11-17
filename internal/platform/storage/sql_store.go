@@ -24,12 +24,10 @@ type sqlStore struct {
 	dialect string // "sqlite" | "postgres"
 }
 
-// rebind converts the SQLite "?" placeholders the statements are written with
-// into "$1, $2, …" for Postgres. Every other dialect is left untouched.
-//
-// ponytail: naive ?→$N rewrite, assumes no "?" inside a SQL string literal —
-// true for every statement in this file. Upgrade to sqlx.Rebind only if a
-// literal "?" ever appears.
+// rebind converts the "?" placeholders the statements are written with into
+// "$1, $2, …" for Postgres and leaves other dialects untouched.
+// ponytail: naive ?→$N rewrite, assumes no "?" inside a SQL string literal.
+// Upgrade to sqlx.Rebind only if a literal "?" ever appears.
 func (s *sqlStore) rebind(query string) string {
 	if s.dialect != "postgres" {
 		return query

@@ -740,12 +740,10 @@ func (t *DiffViewer) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // --- patch (hunk staging) mode ---
 
-// handlePatchKey handles keys while in patch mode: the line cursor moves over
-// change lines. The select key starts/cancels a range selection. Apply stages
-// (or unstages, following the loaded patch direction) the selection or, with no
-// selection, the whole hunk under the cursor. Split breaks the hunk into pieces;
-// [ / ] jump hunks. Esc clears a selection or exits. New-action candidates are
-// listed before apply so they win any shared key.
+// handlePatchKey handles keys in patch mode, where the cursor moves over change
+// lines. Select starts or cancels a range, apply stages or unstages the range
+// or the hunk, split breaks the hunk, [ and ] jump hunks and Esc clears or exits.
+// New-action candidates are listed first so they win any shared key.
 func (t *DiffViewer) handlePatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch t.keymap.matches(msg,
 		actDiffCancel, actDiffNavUp, actDiffNavDown,

@@ -7,13 +7,10 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// NewMemoryBackend selects a memory backend from config, mirroring
-// storage.NewStorage. The git backend is used only when memory is enabled, the
-// backend type is git, and a repo is configured. Otherwise the local no-op
-// backend is returned so behavior is unchanged. Validation (config.Validate)
-// already rejects a git backend without a repo when memory is enabled. The
-// guard here is defensive so a partial/legacy config degrades to local rather
-// than constructing a broken git backend.
+// NewMemoryBackend selects a memory backend from config, like storage.NewStorage.
+// It returns the git backend only when memory is enabled with a git backend and
+// a repo, and the local no-op backend otherwise. config.Validate already rejects
+// a git backend without a repo, so this guard only keeps legacy configs safe.
 func NewMemoryBackend(cfg *config.Config) MemoryBackend {
 	if cfg == nil || !cfg.Memory.Enabled {
 		return NewLocalBackend()

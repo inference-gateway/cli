@@ -5,18 +5,10 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// CheckingQueueState handles events in the CheckingQueue state.
-//
-// This state evaluates conditions to determine the next action:
-//  1. Tool results pending → must respond to tools first (StreamingLLM)
-//  2. Messages queued → drain queue into conversation
-//  3. Can complete → transition to Completing
-//  4. Otherwise → continue agent loop (StreamingLLM)
-//
-// In chat mode the turn does NOT wait in-state for background work (the UI
-// ticker starts fresh turns that drain completion notes here). Headless runs
-// wait at the completion boundary via WaitForBackgroundTasks so a run never
-// exits with orphaned background tasks.
+// CheckingQueueState picks the next step: answer pending tool results, drain
+// queued messages, complete, or keep looping. Chat turns never wait here for
+// background work, since the UI starts fresh turns. Headless runs wait at the
+// completion boundary so they never exit with orphaned background tasks.
 type CheckingQueueState struct {
 	ctx *StateContext
 }

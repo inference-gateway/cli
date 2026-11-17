@@ -444,12 +444,10 @@ func addExplorerBindings(bindings map[string]KeyBindingEntry) {
 	add("cancel", "close the explorer panel", "esc", "q")
 }
 
-// ResolveKeybindings merges user overrides from cfg onto GetDefaultKeybindings()
-// and returns the effective entry for every default action ID. Overrides replace
-// Keys (when non-empty) and Enabled (when set). Description/Category always come
-// from the defaults. cfg.Enabled==false yields pure defaults. The second return
-// lists override IDs that match no default action, so the caller can warn about
-// typos (this package stays log-free).
+// ResolveKeybindings merges the user overrides in cfg onto the defaults and
+// returns the effective entry for every default action ID. Overrides replace
+// Keys and Enabled, never Description or Category. The second return lists
+// override IDs that match no action, so the caller can warn about typos.
 func ResolveKeybindings(cfg KeybindingsConfig) (map[string]KeyBindingEntry, []string) {
 	resolved := GetDefaultKeybindings()
 	if !cfg.Enabled {

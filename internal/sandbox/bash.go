@@ -9,14 +9,10 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
-// benignTrailingRedirectRe matches a single trailing shell redirection that only
-// discards or merges output streams - it never writes to or reads from the
-// filesystem. Covered forms: output to /dev/null (>, >>, with an optional fd or
-// the &> "both streams" prefix) and file-descriptor duplications such as 2>&1 or
-// 2>&-. These are stripped before allow-matching so that benign,
-// reliability-motivated suffixes (which some models append by habit) neither
-// break end-anchored patterns nor act as a policy escape hatch. A redirection to
-// a real file is intentionally NOT matched, so it stays in the command.
+// benignTrailingRedirectRe matches one trailing redirection that only discards
+// or merges streams, such as >/dev/null or 2>&1. It is stripped before
+// allow-matching so habitual suffixes neither break end-anchored patterns nor
+// escape the policy. A redirection to a real file never matches.
 var benignTrailingRedirectRe = regexp.MustCompile(
 	`\s*(?:&>>?\s*/dev/null|[0-9]*>>?\s*/dev/null|[0-9]*>&(?:[0-9]+|-))\s*$`,
 )
@@ -42,32 +38,11 @@ func BashAllowedCommands(cfg *config.Config, mode agentdomain.AgentMode) []strin
 	return out
 }
 
-// IsBashCommandAllowed reports whether command is auto-approved in the given
-// agent mode (see BashAllowedCommands for the mode-to-bucket mapping). The model is a pure
-// allow-list with no separate deny list: anything the effective list does not
-// match is denied - in chat mode it falls through to user approval, in headless
-// agent mode it is rejected with a reason (see BashCommandRejectionHint).
-//
-//   - If the effective allow-list contains the sentinel ".*" the mode is
-//     UNRESTRICTED: any single command is allowed and the clean-command guard is
-//     skipped (full autonomy - this is what mode.auto / headless `infer headless`
-//     uses). Tighten mode.auto.allow to a curated list to re-enable the guard.
-//   - Otherwise the clean-command guard runs first and rejects, regardless of the
-//     list: command substitution ($(...), backticks, <()/>()), multi-command
-//     chains/pipelines (top-level &&, ||, |, ;, &, newline), a surviving
-//     file-write redirect (>, >>), a file-writing option (sort -o, tree -o,
-//     git --output, uniq's output operand), dangerous find actions
-//     (-exec/-delete/...), and printing/publishing an expanded $VAR
-//     (echo/printf/gh ... $SECRET, which would leak the value).
-//   - The single clean command is then matched WHOLE against each allow entry
-//     (anchored as \A(?:entry)\z), so a bare "gh" allows only "gh" - an entry
-//     must opt into arguments explicitly (e.g. "gh issue.*").
-//   - Finally every path the command names must pass the sandbox check the file
-//     tools use, so an allow-listed command on a path outside the sandbox asks.
-//
-// It is the single source of truth consulted by the Bash tool, the approval
-// policy, and agent auto-approval, so all three agree on exactly what runs
-// without prompting.
+// IsBashCommandAllowed reports whether command is auto-approved in mode, for the
+// Bash tool, the approval policy and agent auto-approval alike. A ".*" entry
+// allows anything. Otherwise the command must pass cleanSingleCommand, match an
+// allow entry whole, and name only paths inside the sandbox. What is not
+// allowed asks in chat and is rejected in headless mode.
 func IsBashCommandAllowed(cfg *config.Config, command string, mode agentdomain.AgentMode) bool {
 	command = strings.TrimSpace(command)
 	if command == "" {
@@ -141,13 +116,10 @@ func BashCommandRejectionHint(cfg *config.Config, command string) string {
 	return ""
 }
 
-// cleanSingleCommand validates that command is a single, side-effect-free shell
-// command suitable for whole-command allow-matching, returning the normalized
-// segment (benign trailing redirections stripped). ok is false - the command is
-// not auto-approvable regardless of the allow-list - when it uses command
-// substitution, chains/pipes more than one command, has unbalanced quoting,
-// writes to a file, runs a dangerous find action, or prints/publishes an
-// expanded environment variable.
+// cleanSingleCommand returns command as one side-effect-free segment with
+// benign redirections stripped. ok is false for command substitution, chains
+// and pipes, unbalanced quotes, file writes, dangerous find actions, or a
+// printed or published variable expansion.
 func cleanSingleCommand(command string) (seg string, ok bool) {
 	if containsCommandSubstitution(command) {
 		return "", false
@@ -192,12 +164,9 @@ func IsUnrestricted(allow []string) bool {
 	return false
 }
 
-// matchesAnyAllow reports whether seg matches any allow entry as a WHOLE command.
-// Each entry is wrapped as \A(?s:entry)\z so it must match the entire command - a
-// prefix match is never enough, and any anchors the entry already carries are
-// harmless. The s flag lets . span quoted newlines (e.g. a multi-line
-// git commit -m "..."). Unquoted newlines never reach here - they are segment
-// split points. Invalid regexes are skipped rather than failing the whole check.
+// matchesAnyAllow reports whether seg matches any allow entry as a whole
+// command, wrapping each as \A(?s:entry)\z. The s flag lets . span quoted
+// newlines in a multi-line commit message. Invalid regexes are skipped.
 func matchesAnyAllow(seg string, allow []string) bool {
 	for _, entry := range allow {
 		if entry == "" {
@@ -226,24 +195,18 @@ var dangerousFindActionRe = regexp.MustCompile(
 	`(^|\s)-(execdir|exec|okdir|ok|delete|fprintf|fprint0|fprint|fls)(\s|$)`,
 )
 
-// outputCommandRe matches a command whose effect is to emit its arguments where a
-// secret would become visible: echo/printf write to stdout (which the model
-// reads back), and the gh issue/pr subcommands publish to GitHub. Variable
-// expansion is allowed in general, but expanding one in such a command (echo
-// $TOKEN, gh issue comment --body $TOKEN) would leak the value, so a match here
-// combined with containsVariableExpansion blocks auto-approval. It is evaluated
-// on the single command segment (after benign redirections are stripped), so it
-// sees the real command name.
+// outputCommandRe matches commands that expose their arguments: echo and printf
+// print them back to the model and gh issue and pr publish them. Combined with
+// containsVariableExpansion it blocks auto-approval, since echo $TOKEN would
+// leak the value. It runs on the redirect-stripped segment.
 var outputCommandRe = regexp.MustCompile(
 	`^(echo|printf)( |$)|^gh (issue|pr) (create|comment|edit)( |$)`,
 )
 
-// containsCommandSubstitution reports whether command contains a shell construct
-// that executes a nested command: $(...), backticks, or process substitution
-// <(...) / >(...). Single-quoted spans are literal in bash, so constructs inside
-// them are ignored. $(...) and backticks are still active inside double quotes,
-// so those are flagged there. Process substitution does not occur inside double
-// quotes, so <(/>( are flagged only when fully unquoted.
+// containsCommandSubstitution reports whether command runs a nested command
+// through $(...), backticks or <(...) and >(...). Single-quoted spans are
+// ignored. $(...) and backticks count inside double quotes, while process
+// substitution counts only unquoted.
 func containsCommandSubstitution(command string) bool {
 	var inSingle, inDouble bool
 	runes := []rune(command)
@@ -293,15 +256,10 @@ func containsCommandSubstitution(command string) bool {
 	return false
 }
 
-// containsVariableExpansion reports whether command performs shell parameter or
-// variable expansion - $NAME, ${...}, or a special parameter such as $1/$?/$@ -
-// outside single quotes. Single-quoted spans are literal in bash, so a '$' there
-// is ignored (echo '$HOME' prints the text verbatim and is safe). Inside double
-// quotes and when unquoted, '$NAME' expands, which would let an otherwise
-// read-only command leak environment variables (echo $AWS_SECRET_ACCESS_KEY), so
-// it is flagged. A backslash-escaped '$' is literal and ignored. Command
-// substitution ('$(') is handled by containsCommandSubstitution, so it is not
-// re-flagged here.
+// containsVariableExpansion reports whether command expands a variable such as
+// $NAME, ${...} or $1 outside single quotes, which could leak a secret from an
+// otherwise read-only command. Escaped '$' is ignored, and '$(' is left to
+// containsCommandSubstitution.
 func containsVariableExpansion(command string) bool {
 	var inSingle, inDouble bool
 	runes := []rune(command)
@@ -486,13 +444,10 @@ func splitBashSegments(command string) (segments []string, ok bool) {
 	return segments, true
 }
 
-// consumeAmpersand classifies an unquoted '&' encountered at index i and returns
-// how many extra runes to advance past (i is the '&' itself):
-//
-//   - "&&" → control operator: split, skip the second '&'.
-//   - "&>" → redirection of both streams: keep the '&' in the current segment.
-//   - the '&' completing a ">&" fd-duplication (e.g. the one in 2>&1): keep it.
-//   - a lone trailing/standalone '&' → background operator: split.
+// consumeAmpersand classifies the unquoted '&' at i and returns how many extra
+// runes to skip. "&&" splits and skips the second '&', "&>" and the '&' of a
+// ">&" duplication stay in the segment, and a lone '&' splits as the
+// background operator.
 func consumeAmpersand(runes []rune, i int, cur *strings.Builder, flush func()) int {
 	if i+1 < len(runes) && runes[i+1] == '&' {
 		flush()

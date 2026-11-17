@@ -230,12 +230,9 @@ func (a *Autocomplete) loadShortcuts() {
 	a.appendSkills(seen)
 }
 
-// appendSkills adds installed skills to the suggestion list as "/<name>"
-// entries so they autocomplete like shortcuts. Skills are invoked as
-// "/<name> ..." and routed to the agent (see isSkillInvocation). A skill whose
-// name already matches a registered shortcut is skipped to avoid duplicates.
-// Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
-// reference them unambiguously.
+// appendSkills adds installed skills to the suggestions as "/<name>" entries,
+// shown as "/<pluginName>:<skillName>" for plugin skills, skipping names a
+// shortcut already uses.
 func (a *Autocomplete) appendSkills(seen map[string]bool) {
 	if a.skillsService == nil {
 		return
@@ -256,12 +253,9 @@ func (a *Autocomplete) appendSkills(seen map[string]bool) {
 	}
 }
 
-// loadSkillsOnly populates the suggestion list with skills only - no
-// registered shortcuts. Used by the mid-text "/" trigger because shortcuts
-// are commands that only make sense at start-of-input, while skills are
-// agent capabilities that can be referenced anywhere in a sentence.
-// Plugin skills are displayed as "/<pluginName>:<skillName>" so the user can
-// reference them unambiguously.
+// loadSkillsOnly fills the suggestions with skills and no shortcuts, for the
+// mid-text "/" trigger, since shortcuts only make sense at the start of input.
+// Plugin skills are shown as "/<pluginName>:<skillName>".
 func (a *Autocomplete) loadSkillsOnly() {
 	a.suggestions = []ShortcutOption{}
 	if a.skillsService == nil {
@@ -520,13 +514,9 @@ func (a *Autocomplete) generateArgumentTemplate(paramName string, properties map
 	return paramName + "=\"\""
 }
 
-// findIssueTriggerStart locates the start of a `#<query>` token at the cursor,
-// scanning backward from cursorPos. Returns the index of the `#` sigil, or -1
-// if the cursor isn't inside an issue-reference token. A trigger is valid when
-// the `#` sits at start-of-string or directly after whitespace, and there is
-// no whitespace between the `#` and the cursor (so the user is actively
-// editing one token). This lets the `#` autocomplete fire mid-sentence, e.g.
-// "can you work on #57|" - typing more characters refines the same query.
+// findIssueTriggerStart returns the index of the `#` that starts the token
+// under the cursor, or -1. The `#` must start the text or follow whitespace,
+// with no whitespace before the cursor, so "work on #57|" refines one query.
 func findIssueTriggerStart(text string, cursorPos int) int {
 	return findSigilTriggerStart(text, cursorPos, '#')
 }
@@ -808,12 +798,9 @@ func (a *Autocomplete) IsVisible() bool {
 	return a.visible
 }
 
-// spliceMidText reconstructs the input by inserting `selected` between
-// `prefix` and `suffix`, preserving the user's surrounding sentence. Adds a
-// trailing space only when the suffix doesn't already start with whitespace,
-// so the user doesn't end up with a double space when editing mid-sentence.
-// Returns the new input and the caret position immediately after the inserted
-// token (past the separating space).
+// spliceMidText inserts selected between prefix and suffix, adding a trailing
+// space only when suffix does not start with whitespace. It returns the new
+// input and the caret position just after the inserted token.
 func (a *Autocomplete) spliceMidText(selected, prefix, suffix string) (string, int) {
 	tail := suffix
 	addedSpace := false

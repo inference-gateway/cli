@@ -304,12 +304,10 @@ func (c *Coordinator) runningProgressCmds(msg agentdomain.ToolExecutionProgressE
 	}}
 }
 
-// HandleToolExecutionCompleted finalizes the tool round-trip: clears the
-// active-tool indicator, refreshes history, optionally fires a todo-update
-// command, and emits a "Tools completed" status. The "preparing response"
-// spinner only makes sense when an agent turn will follow. Without an active
-// chat session (extension-initiated tool calls) the status resets to idle,
-// since no response will ever arrive to clear it.
+// HandleToolExecutionCompleted clears the active-tool indicator, refreshes
+// history, may fire a todo update and emits a "Tools completed" status. Without
+// an active chat session, such as extension-initiated calls, the status resets
+// to idle because no response will follow.
 func (c *Coordinator) HandleToolExecutionCompleted(msg agentdomain.ToolExecutionCompletedEvent) tea.Cmd {
 	c.SetActiveToolCallID("")
 

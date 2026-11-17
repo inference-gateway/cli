@@ -69,12 +69,10 @@ type ScreenshotToolConfig struct {
 	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
 }
 
-// FitDims returns the frame dimensions for a screen, scaling uniformly to fit
-// inside the target box. Preserving the aspect ratio keeps one scale factor
-// for both axes, so VLM coordinates map back to the screen without the
-// grounding drift that stretching to a fixed box introduces. When no target
-// is configured (or the screen already fits) the screen dimensions are
-// returned unchanged.
+// FitDims returns the frame dimensions for a screen, scaled uniformly to fit
+// the target box. Keeping the aspect ratio keeps one scale factor for both
+// axes, so VLM coordinates map back without grounding drift. With no target,
+// or a screen that already fits, the screen dimensions are returned unchanged.
 func (s ScreenshotToolConfig) FitDims(screenW, screenH int) (int, int) {
 	if s.TargetWidth <= 0 || s.TargetHeight <= 0 || screenW <= 0 || screenH <= 0 {
 		return screenW, screenH

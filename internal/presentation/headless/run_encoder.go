@@ -147,12 +147,10 @@ type RunEncoderDeps struct {
 	Quiet bool
 }
 
-// NewRunEncoder builds the encoder for one run over w. History, when non-empty,
-// is emitted as MESSAGES_SNAPSHOT right after RUN_STARTED, so the run continues
-// an existing conversation. Approvals and questions broker IPC decisions for
-// gated tool calls and questions (nil channels reject or dismiss immediately).
-// Startup drains the boot progress the run opens with, and Interrupt notes the
-// interrupts the run raises so resume entries find their broker.
+// NewRunEncoder builds the encoder for one run over w. Non-empty history is
+// emitted as MESSAGES_SNAPSHOT right after RUN_STARTED. Approvals and questions
+// broker IPC decisions, and nil channels reject or dismiss at once. Startup
+// drains boot progress and Interrupt notes raised interrupts for resume.
 func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 	return &RunEncoder{
 		writer:          w,

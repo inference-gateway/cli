@@ -102,20 +102,11 @@ func fieldText(fields map[string]any) string {
 	return strings.Join(parts, " ")
 }
 
-// collectLogs folds the structured logs under dir into a bounded digest of
-// recurring failures. It answers the question the conversation store cannot: what
-// went wrong without ever reaching a saved session - a startup crash, a gateway
-// that never came up, a background job that died. An unreadable or absent dir
-// costs this section, never the report, so it returns no error.
-//
-// Only app-*.log and daemon-*.log (and their gzip archives) are read. The
-// sibling gateway-*.log is raw subprocess stdout with no level or timestamp to
-// filter on. The gateway's own failures still land here, because the gateway
-// manager logs them through zap.
-//
-// ponytail: one sequential pass. A log dir is a handful of daily files, so
-// coordinating goroutines would cost more than the read. Fan out over files with
-// an errgroup if a dir ever outgrows it.
+// collectLogs folds app-*.log and daemon-*.log under dir into a digest of
+// recurring failures that never reached a saved session, such as a startup
+// crash. gateway-*.log is skipped because it has no level to filter on. An
+// unreadable dir only costs this section, so it returns no error.
+// ponytail: one sequential pass. Fan out with an errgroup if a log dir outgrows it.
 func collectLogs(dir string, since time.Time, minLevel string) logDigest {
 	minRank := slices.Index(logLevels, strings.ToLower(strings.TrimSpace(minLevel)))
 	if minRank < 0 {

@@ -227,10 +227,8 @@ func buildPlanMarkdown(title, plan string) string {
 	return b.String()
 }
 
-// savePlanToStore persists the plan to PlanStorage and returns the plan ID:
-// "<UTC stamp>-<slug>", identical across backends. On jsonl the ID is also the
-// markdown filename stem under ~/.infer/plans/.
-//
+// savePlanToStore persists the plan to PlanStorage and returns its ID,
+// "<UTC stamp>-<slug>", which is also the jsonl markdown filename stem.
 // ponytail: a second plan with the same title in the same second overwrites
 // the first (upsert). Resubmits after a rejection are minutes apart in practice.
 func (t *RequestPlanApprovalTool) savePlanToStore(ctx context.Context, title, plan string, ts time.Time) (string, error) {

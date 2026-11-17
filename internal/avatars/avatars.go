@@ -191,9 +191,8 @@ func move(src, dst string) error {
 }
 
 // normalizePhoto returns the bytes to store as the primary image. A JPEG is
-// decoded, turned upright per its EXIF orientation and re-encoded, which
-// drops every metadata segment (camera, GPS) before the photo is stored or
-// sent to a provider that may ignore the orientation tag.
+// turned upright per its EXIF orientation and re-encoded, which drops metadata
+// such as GPS before the photo is stored or sent to a provider.
 // ponytail: JPEG only - phone photos carry EXIF there. PNG eXIf and WebP
 // (no stdlib decoder) pass through untouched.
 func normalizePhoto(data []byte, ext string) ([]byte, error) {

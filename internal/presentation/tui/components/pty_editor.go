@@ -50,12 +50,10 @@ func (t *vtTerm) readReply(p []byte) (int, error) { return t.em.Read(p) }
 // closeEmulator unblocks readReply so the reply-forwarding goroutine can exit.
 func (t *vtTerm) closeEmulator() { _ = t.em.Close() }
 
-// stopReplies unblocks the reply-forwarding goroutine's blocked Read by closing the
-// emulator's input pipe, which returns EOF. We close the pipe directly rather than
-// calling em.Close because Close also writes the emulator's `closed` flag, which that
-// same goroutine reads inside Read - an unsynchronized access the race detector flags.
-// The io.Pipe gives the writer-close ↔ Read-EOF happens-before. The em.Close fallback
-// only runs if the emulator's pipe type ever changes, so close() never hangs.
+// stopReplies unblocks the reply goroutine's Read by closing the emulator's
+// input pipe. em.Close would race on the `closed` flag that goroutine reads,
+// while the pipe close gives a clean happens-before. The em.Close fallback only
+// runs if the pipe type ever changes, so close() never hangs.
 func (t *vtTerm) stopReplies() {
 	if pw, ok := t.em.InputPipe().(*io.PipeWriter); ok {
 		_ = pw.CloseWithError(io.EOF)
@@ -103,14 +101,10 @@ func resolveEditor() []string {
 	return []string{"vim"}
 }
 
-// editorColorArgs returns the flags that force on-screen syntax highlighting for
-// vim-family editors. A bare vim spawned with no vimrc can't detect the emulator's
-// background (it doesn't answer vim's OSC-11 query), so the default colorscheme
-// renders washed-out - looking like no highlighting at all. We pin the background to
-// the TUI theme, enable syntax, and show line numbers (matching the diff view's
-// line-numbered display). The flags run after the user's own vimrc (if any),
-// so they only force these settings. Non-vim editors get nil (they do their own
-// highlighting, or don't accept `-c`).
+// editorColorArgs returns flags that force syntax highlighting and line numbers
+// in vim-family editors, pinning the background to the TUI theme because vim
+// cannot query the emulator's background. They run after the user's vimrc.
+// Other editors get nil.
 func editorColorArgs(editorBin string, dark bool) []string {
 	switch strings.ToLower(filepath.Base(editorBin)) {
 	case "vim", "nvim", "vi", "gvim", "mvim":

@@ -8,13 +8,9 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// EvaluatingToolsState handles events in the EvaluatingTools state.
-//
-// This state:
-//  1. Publishes chat complete event with tool calls
-//  2. Checks if any tool requires approval
-//  3. If approval needed → ApprovingTools
-//  4. Otherwise → ExecutingTools (starts background execution)
+// EvaluatingToolsState publishes the chat complete event with its tool calls,
+// then moves to ApprovingTools when any call needs approval and to
+// ExecutingTools otherwise.
 type EvaluatingToolsState struct {
 	ctx *StateContext
 }

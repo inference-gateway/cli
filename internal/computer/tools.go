@@ -19,11 +19,9 @@ type rateLimiter interface {
 }
 
 // NewTools builds the computer-use tool set. GetLatestFrame is always included
-// (it also serves non-screen frame sources such as cameras). The Computer tool
-// is gated on computer_use.enabled and RecordStart/RecordStop, which share
-// recorder, on computer_use.recording.enabled. notifier may be nil, in which
-// case the tools publish nothing. The screen control parks the Computer
-// tool's input actions while a person holds the screen.
+// because cameras use it too. Computer is gated on computer_use.enabled and the
+// Record tools on computer_use.recording.enabled. A nil notifier publishes
+// nothing, and screen parks Computer's input while a person holds the screen.
 func NewTools(cfg *config.Config, frames FrameSourceLookup, annotator agentdomain.ImageAnnotator, recorder *ScreenRecorder, notifier agentdomain.UINotifier, screen computerdomain.ScreenControl) map[string]agentdomain.Tool {
 	tools := map[string]agentdomain.Tool{
 		ToolGetLatestFrame: NewGetLatestFrameTool(cfg, frames, annotator),

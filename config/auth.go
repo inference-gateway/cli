@@ -21,12 +21,10 @@ func AuthFilePath() string {
 	return filepath.Join(home, ConfigDirName, AuthFileName)
 }
 
-// LoadAuthKeys reads the userspace auth file as the lowest-precedence
-// fallback source of provider API keys (after the system environment and
-// the project .env). A missing, unreadable, or empty file yields no keys and
-// no error. A malformed file yields no keys plus an error. The error is a
-// warning for the caller to log (config cannot import the platform logger,
-// which imports config), so the fallback never blocks startup.
+// LoadAuthKeys reads the userspace auth file as the lowest-precedence source of
+// provider API keys. A missing or empty file yields no keys and no error. A
+// malformed file yields an error the caller logs as a warning, since config
+// cannot import the logger and the fallback must never block startup.
 func LoadAuthKeys() (map[string]string, error) {
 	path := AuthFilePath()
 

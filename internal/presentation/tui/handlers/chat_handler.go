@@ -255,13 +255,9 @@ func (h *ChatHandler) dispatch(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,f
 	return nil
 }
 
-// startChatCompletion bridges the orchestrator to the extracted runner. The
-// DirectExecutionService owns the bash detach channel and satisfies
-// BashDetachChannelHolder for the agent core's context lookup.
-//
-// SetChatPending runs while the Cmd is BUILT, not when it runs: the pending
-// session is the token Runner.Start captures and handleChatStreamOpened compares
-// against, so every caller must be on the Update loop.
+// startChatCompletion bridges the orchestrator to the runner. SetChatPending
+// runs while the Cmd is built, because the pending session is the token
+// Runner.Start captures, so every caller must be on the Update loop.
 func (h *ChatHandler) startChatCompletion() tea.Cmd {
 	h.stateManager.SetChatPending()
 	return h.completionRunner.Start(h.directExec)
@@ -579,24 +575,11 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(_ tui.AgentStatusUpdateEvent)
 	return nil
 }
 
-// HandleDrainQueueEvent gates draining queued work into a fresh agent turn. When
-// the chat view is active and the agent is idle, it marks the session pending and
-// starts a turn whose CheckingQueue state drains the queue.
-//
-// When work is stranded (chat view, non-empty queue) it also arms a single bounded
-// retry. A background job can finish at the exact instant the agent is still
-// finishing its own turn. The supervisor's one-shot DrainQueueEvent would then be
-// gate-dropped and, without a retry, the queue would be stranded forever (the old
-// always-on ticker's repetition was the de-facto retry). armDrainRetry restores
-// that robustness without an idle clock AND without multiplying timers: the
-// drainRetryArmed guard keeps exactly one retry chain no matter how many
-// DrainQueueEvents arrive, and the chain stops the moment the queue drains (so it
-// never fires when idle on chat or off-chat - no /model flicker regression).
-//
-// startChatCompletion() marks the session pending synchronously (StartChatSession
-// only runs later, once ChatStreamOpenedEvent lands back in Update), so the retry
-// sees "busy" and cannot double-start. The Bubble Tea Update loop is
-// single-threaded, so this check-then-mark is race-free.
+// HandleDrainQueueEvent starts a turn that drains the queue when the chat view
+// is active and the agent is idle. When work is stranded behind a busy agent it
+// arms one bounded retry, guarded by drainRetryArmed and stopped once the queue
+// drains. The Update loop is single-threaded and startChatCompletion marks the
+// session pending at once, so the retry cannot double-start.
 func (h *ChatHandler) HandleDrainQueueEvent(_ agentdomain.DrainQueueEvent) tea.Cmd {
 	if h.messageQueue.IsEmpty() || h.stateManager.GetCurrentView() != tui.ViewStateChat {
 		return nil
@@ -624,12 +607,9 @@ func (h *ChatHandler) armDrainRetry() tea.Cmd {
 	})
 }
 
-// HandleDrainQueueRetryEvent fires when the bounded retry tick elapses. It clears
-// the armed flag (this timer is spent) and re-runs the drain gate, which re-arms a
-// single fresh timer iff work is still stranded. A dedicated event type - rather
-// than re-emitting DrainQueueEvent - is what lets the guard distinguish "the retry
-// fired" from "a fresh external push", so exactly one retry chain stays alive
-// regardless of how many DrainQueueEvents were pushed.
+// HandleDrainQueueRetryEvent clears the armed flag and re-runs the drain gate,
+// which re-arms one fresh timer only while work is stranded. A dedicated event
+// type tells a retry apart from a fresh push, so exactly one chain stays alive.
 func (h *ChatHandler) HandleDrainQueueRetryEvent(_ tui.DrainQueueRetryEvent) tea.Cmd {
 	h.drainRetryArmed = false
 	return h.HandleDrainQueueEvent(agentdomain.DrainQueueEvent{})

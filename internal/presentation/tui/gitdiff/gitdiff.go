@@ -116,14 +116,11 @@ type ReadSource interface {
 	Workdir() string
 }
 
-// rangeSource is a read-only ReadSource over the current branch's pull-request
-// diff: everything between the PR base's merge-base and the working tree. It
-// reuses gitSource for all git plumbing and resolves the PR base lazily via the
-// gh CLI, caching the merge-base commit.
-//
-// ponytail: the PR tab always reflects the *checked-out* branch's PR. Reviewing
-// an arbitrary un-checked-out PR would require `gh pr checkout <n>` first (we do
-// not mutate the user's checkout). Add that only if the need shows up.
+// rangeSource is a read-only ReadSource over the current branch's PR diff, from
+// the PR base's merge-base to the working tree. It reuses gitSource and resolves
+// the base lazily through gh, caching the merge-base.
+// ponytail: only the checked-out branch's PR. Reviewing another PR would need
+// `gh pr checkout <n>` first, which would mutate the user's checkout.
 type rangeSource struct {
 	g    *gitSource
 	base string // merge-base commit; resolved lazily on first use

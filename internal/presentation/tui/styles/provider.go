@@ -165,12 +165,10 @@ func NewProvider(themeService tui.ThemeService) *Provider {
 	}
 }
 
-// styles returns the pre-baked styles for the current theme, lazily rebuilding
-// them when the theme changed since the last call. There is no theme-change
-// notification in ThemeService, so a name check per access is the invalidation
-// mechanism. It is one string compare versus rebuilding every style chain per
-// render. Not goroutine-safe: each Provider instance is owned by a single
-// goroutine today (TUI loop or a tool's executor), matching existing usage.
+// styles returns the pre-baked styles for the current theme, rebuilding them
+// when the theme name changed since the last call, since ThemeService has no
+// change notification. It is not goroutine-safe: each Provider is owned by one
+// goroutine.
 func (p *Provider) styles() *themedStyles {
 	if name := p.themeService.GetCurrentThemeName(); !p.built || name != p.themeName {
 		p.s = buildThemedStyles(p.themeService.GetCurrentTheme())

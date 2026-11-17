@@ -75,12 +75,10 @@ func (t *TextToVideoTool) Validate(args map[string]any) error {
 	return err
 }
 
-// resolveAvatar resolves an optional portrait to its image paths, returning
-// none when unset. A name with an image extension is a one-off portrait in
-// the working directory (one path). A bare name is an avatar in the library
-// (~/.infer/avatars/<name>/), resolved to all of its images with the primary
-// first, and library reports true. An unknown avatar's error lists the
-// available ones so the agent can pick another.
+// resolveAvatar resolves an optional portrait to its image paths. A name with an
+// image extension is a one-off file in the working directory. A bare name is a
+// library avatar resolved to all its images, primary first, with library true.
+// An unknown avatar's error lists the available ones.
 func (t *TextToVideoTool) resolveAvatar(raw string) (paths []string, library bool, err error) {
 	name := strings.TrimSpace(raw)
 	if name == "" {

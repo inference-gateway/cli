@@ -25,15 +25,10 @@ const (
 	maxQuestionHeader = 12
 )
 
-// AskUserQuestionTool presents the user with a small interactive form of 1-4
-// multiple-choice questions and returns the chosen answers to the agent.
-// In plan mode the answers fold into the plan before RequestPlanApproval.
-//
-// It is read-only (no approval gate) and only reaches the user when a
-// UserQuestionBroker is in the execution context: the chat TUI, `!!` direct
-// execution, or a headless host (ag-ui/json formats) answering over stdin.
-// Without a broker (text format, no host) the tool degrades gracefully
-// instead of blocking.
+// AskUserQuestionTool asks the user 1-4 multiple-choice questions and returns
+// the answers, which plan mode folds into the plan. It is read-only and reaches
+// the user only through a UserQuestionBroker in the execution context, such as
+// the chat TUI or a headless host over stdin. Without one it degrades instead of blocking.
 type AskUserQuestionTool struct {
 	config    *config.Config
 	enabled   bool

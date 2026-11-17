@@ -17,11 +17,9 @@ type SystemReminderProvider interface {
 }
 
 // HookCommandProvider resolves which command hooks are due at a hook point. It
-// is the command-action sibling of SystemReminderProvider, implemented by config
-// from the user's hooks list. The provider only resolves the commands. The agent
-// runs them through the existing bash allow-list, so config stays free of
-// os/exec. The agent depends on this interface so the command set can be faked
-// in tests.
+// is the command sibling of SystemReminderProvider. The agent runs the commands
+// through the bash allow-list, so config stays free of os/exec, and tests can
+// fake the command set.
 type HookCommandProvider interface {
 	CommandsDue(hook HookPoint) []HookCommand
 }
@@ -33,12 +31,10 @@ type BashDetachChannelHolder interface {
 	ClearBashDetachChan()
 }
 
-// UserQuestionBroker publishes an interactive clarifying-question request to the
-// user (chat TUI, or a headless host over stdin) and blocks until the user
-// answers or the context is cancelled. It is injected into the AskUserQuestion
-// tool's execution context when UserQuestionsAvailable reports a host that can
-// render the form. Returns ok=false when the user dismisses
-// the form (the response channel is closed without a value) or on cancellation.
+// UserQuestionBroker publishes a clarifying-question request to the user and
+// blocks until they answer or the context is cancelled. It is injected into
+// AskUserQuestion when a host can render the form. It returns ok=false when the
+// user dismisses the form or on cancellation.
 type UserQuestionBroker interface {
 	AskUserQuestions(ctx context.Context, questions []UserQuestion) (answers []UserQuestionAnswer, ok bool, err error)
 }

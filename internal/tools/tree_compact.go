@@ -31,14 +31,10 @@ func gitProjectFiles(path string) []string {
 	return strings.Split(strings.TrimSpace(string(out)), "\n")
 }
 
-// formatProjectListing groups file paths one directory per line, ordered by
-// directory depth then name so root files come first and shallow structure
-// survives the line budget. Hidden files and directories (any dot-prefixed
-// path component) are omitted to save tokens - the text format still shows
-// them on demand. To save further tokens, a "name.go*" entry means both
-// name.go and name_test.go exist in that directory. Both the per-directory
-// file list and the total line count are capped, with explicit "+N more"
-// markers so truncation is never silent.
+// formatProjectListing groups paths one directory per line, shallowest first so
+// the root survives the line budget. Dot-prefixed paths are omitted, and
+// "name.go*" stands for name.go plus name_test.go. Files per directory and total
+// lines are capped with explicit "+N more" markers.
 func formatProjectListing(paths []string, maxLines, maxFilesPerDir int) string {
 	byDir := make(map[string][]string)
 	for _, p := range paths {

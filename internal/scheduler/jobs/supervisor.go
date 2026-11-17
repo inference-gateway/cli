@@ -45,12 +45,10 @@ type supervised struct {
 	discard     bool
 }
 
-// NewSupervisor constructs a supervisor. messageQueue and conversationRepo are
-// long-lived singletons used to deliver finished jobs' results back onto the
-// conversation. Either may be nil (the supervisor degrades to event-only).
-// notifier is the single UI ingress used to push DrainQueueEvent (so landed work
-// drains promptly) and BackgroundTasksChangedEvent (so the task view refreshes);
-// a nil notifier degrades to no UI pushes.
+// NewSupervisor constructs a supervisor. messageQueue and conversationRepo
+// deliver finished results back onto the conversation, and notifier pushes
+// DrainQueueEvent and BackgroundTasksChangedEvent. Any of them may be nil, which
+// drops that delivery.
 func NewSupervisor(messageQueue convdomain.MessageQueue, conversationRepo convdomain.ConversationRepository, notifier agentdomain.UINotifier) *Supervisor {
 	if notifier == nil {
 		notifier = agentdomain.NoopUINotifier{}
@@ -241,11 +239,8 @@ func (s *Supervisor) finish(sj *supervised, result agentdomain.ToolExecutionResu
 }
 
 // evictOverCapLocked drops the oldest terminal jobs of kind beyond its retention
-// count and returns them for teardown. The caller MUST hold s.mu and MUST call
-// Close on each returned job AFTER releasing the lock (Close can kill a pane or
-// touch the filesystem). A retention count of 0 (or negative) means unbounded.
-// Running jobs are never candidates, so a live interactive subagent is never
-// reaped by a burst of finished headless ones.
+// count, where 0 means unbounded, and returns them. The caller must hold s.mu
+// and Close each returned job after releasing it. Running jobs are never evicted.
 func (s *Supervisor) evictOverCapLocked(kind scheddomain.JobKind) []*supervised {
 	max := s.retentionByKind[kind]
 	if max <= 0 {
@@ -316,12 +311,9 @@ func asNotifier(job scheddomain.BackgroundJob) scheddomain.JobNotifier {
 	return nil
 }
 
-// enqueue lands content on the shared message queue as a user-role message and
-// pushes a DrainQueueEvent so an idle agent on the chat view starts a turn to
-// read it. The gate (HandleDrainQueueEvent) drops the event when the agent is
-// busy or off-chat. That work is then picked up at the next turn completion or on
-// returning to chat. The entry carries the job kind's queue source so the UI
-// can tell job results from typed messages.
+// enqueue puts content on the message queue as a user message tagged with the
+// job kind's source, and pushes a DrainQueueEvent so an idle chat starts a turn.
+// A busy or off-chat agent picks it up at the next turn or on returning to chat.
 func (s *Supervisor) enqueue(content string, kind scheddomain.JobKind) {
 	if s.messageQueue == nil {
 		return
@@ -381,13 +373,10 @@ func (s *Supervisor) WindAll(sig scheddomain.WindSignal) {
 	}
 }
 
-// DiscardKind stops and forgets every job of one kind: running jobs are dropped
-// from the map immediately (the status bar and task view clear synchronously),
-// hard-stopped, and finish without a queue note or retention entry. Terminal
-// unreaped jobs are reaped on the spot. This is the conversation-clear semantic
-// - discarding the cleared conversation's A2A tasks without touching other
-// kinds. Unlike a user cancel it does not notify the remote agent. It only
-// stops and forgets the local monitor.
+// DiscardKind stops and forgets every job of one kind when a conversation is
+// cleared. Running jobs leave the map at once and hard-stop without a queue note
+// or retention entry, and terminal ones are reaped. It never notifies a remote
+// agent, only the local monitor stops.
 func (s *Supervisor) DiscardKind(kind scheddomain.JobKind) {
 	s.mu.Lock()
 	var toWind []*supervised

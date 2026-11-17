@@ -784,17 +784,10 @@ func sendableImage(p string) bool {
 	return true
 }
 
-// extractImagePaths finds local image file references in agent output —
-// <img src="..."> tags, markdown ![..](path), and bare absolute paths — and
-// returns the sendable ones. Tag and markdown references are stripped from the
-// returned text. Bare paths stay visible so the user still sees the location.
-//
-// Fenced code blocks are skipped: tool results are forwarded as a ``` fence
-// (formatAgentMessage) whose JSON embeds the saved artifact path — and the
-// WebFetch hint's literal ![image](path) template — so scanning it would send the
-// photo a second time on top of the assistant's own ![image](path). The assistant
-// is told to place its image line outside any code block, so only unfenced text
-// is a real "display this" instruction.
+// extractImagePaths returns the sendable local images referenced in agent
+// output by <img> tags, markdown images and bare absolute paths, stripping the
+// first two from the text. Fenced code blocks are skipped, because forwarded
+// tool results embed the artifact path and would send the photo twice.
 func extractImagePaths(content string) ([]string, string) {
 	var paths []string
 	seen := map[string]bool{}

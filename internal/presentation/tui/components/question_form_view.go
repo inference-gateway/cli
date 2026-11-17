@@ -27,12 +27,10 @@ const otherOptionLabel = "Other…"
 // row. Real options are their index into question.Options.
 const otherSentinel = -1
 
-// QuestionFormView drives the interactive AskUserQuestion form behind an accent
-// rail floating above the input. It owns the
-// answer-in-progress state as one huh form per question. The state store only
-// carries the questions, the overlay-active flag, and the response channel.
-// The agent loop is blocked in the tool goroutine until the answers are sent
-// on the channel (or it is closed, signalling cancellation).
+// QuestionFormView drives the AskUserQuestion form above the input, owning one
+// huh form per question. The state store only carries the questions, the
+// overlay flag and the response channel. The agent loop blocks until answers
+// are sent on the channel or it is closed.
 type QuestionFormView struct {
 	width         int
 	height        int

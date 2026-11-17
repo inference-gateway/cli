@@ -15,13 +15,10 @@ import (
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
-// D1Storage implements ConversationStorage and SessionGroupStorage on top of
-// Cloudflare D1. D1 is SQLite exposed over an HTTP query API, so this driver
-// issues the exact same SQL as SQLiteStorage but ships it over the network via
-// POST /accounts/{account}/d1/database/{database}/query instead of a local
-// file handle. Timestamps are stored as UTC RFC3339 strings so ORDER BY sorts
-// chronologically regardless of the runner's timezone and external readers get
-// unambiguous ISO-8601 values.
+// D1Storage implements ConversationStorage and SessionGroupStorage on Cloudflare
+// D1, sending the same SQL as SQLiteStorage over D1's HTTP query API.
+// Timestamps are UTC RFC3339 strings so ORDER BY is chronological whatever the
+// runner's timezone.
 type D1Storage struct {
 	accountID  string
 	databaseID string
@@ -101,14 +98,10 @@ func NewD1Storage(config D1Config) (*D1Storage, error) {
 	return s, nil
 }
 
-// runMigrations applies the SQLite schema over HTTP, tracking applied versions
-// in a schema_migrations table so each migration runs exactly once. D1 has no
-// database/sql MigrationRunner, so this mirrors that table over HTTP. Without
-// it, a non-idempotent migration (e.g. ALTER TABLE ADD COLUMN) would re-run on
-// the next startup and fail ("duplicate column"). The migration SQL is reused
-// verbatim from the SQLite migrations to guarantee schema parity. Each
-// statement is sent individually so it works whether or not D1 accepts
-// multi-statement queries.
+// runMigrations applies the SQLite migrations verbatim over HTTP, one statement
+// at a time, tracking versions in schema_migrations so each runs exactly once.
+// D1 has no database/sql MigrationRunner, and a re-run ALTER TABLE ADD COLUMN
+// would fail on the next startup.
 func (s *D1Storage) runMigrations(ctx context.Context) error {
 	if _, err := s.exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version VARCHAR(255) PRIMARY KEY,

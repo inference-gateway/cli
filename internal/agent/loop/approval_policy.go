@@ -12,19 +12,11 @@ import (
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
-// StandardApprovalPolicy implements the default approval policy with the following rules:
-//  1. A tool that approves per call (agentdomain.CallApprover) decides for
-//     itself, ahead of the agent mode
-//  2. Auto-accept mode bypasses all approval
-//     2.5. ReadOnly mode (Explore-like subagent) bypasses approval. Its toolset is
-//     read-only by construction so nothing it can call mutates. Neither needs
-//     a call the mode does not make available: execution rejects it
-//  3. The decision is the same in chat and headless. Where nobody can approve
-//     (headless with no broker) a gated call is blocked, see BlockingToolsState
-//  4. Bash commands are governed by the per-mode allow-list (sandbox.IsBashCommandAllowed):
-//     allowed commands bypass approval and anything off-list needs it
-//  5. Other tools follow their own require_approval setting, then their
-//     manifest's default, then the global require_approval setting
+// StandardApprovalPolicy is the default approval policy. A CallApprover tool
+// decides for itself, then auto-accept and read-only modes bypass approval.
+// Bash follows the per-mode allow-list, and other tools follow their own
+// require_approval, their manifest default, then the global setting. Chat and
+// headless decide alike, and headless blocks where nobody can approve.
 type StandardApprovalPolicy struct {
 	config       *config.Config
 	stateManager agentdomain.AgentModeState

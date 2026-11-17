@@ -50,12 +50,10 @@ func Highlight(path, content string, style *chroma.Style, lineNumbers bool) stri
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
-// highlightToLines tokenises the whole file once (so multi-line strings and
-// comments lex correctly), splits the token stream into lines, and formats each
-// line independently into an ANSI-styled string. Splitting into lines first is
-// required because chromaFormatter trims trailing newlines per token. Feeding it
-// the whole file would drop the line breaks. Returns ok=false when highlighting
-// is unavailable (nil style, or a lexer/format error) so the caller falls back.
+// highlightToLines tokenises the whole file once so multi-line tokens lex
+// correctly, then formats each line on its own, since chromaFormatter trims
+// trailing newlines per token. It returns ok=false when highlighting is
+// unavailable, so the caller falls back.
 func highlightToLines(path, content string, style *chroma.Style) ([]string, bool) {
 	if style == nil {
 		return nil, false

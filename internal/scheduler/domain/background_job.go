@@ -63,12 +63,10 @@ type JobSignal struct {
 	State string
 }
 
-// WindSignal is the one-directional graceful control signal the supervisor pushes
-// into a running job. WindWrapUp asks it to start finishing (send the configured
-// wrap-up message to an agent, SIGTERM a shell). WindStop terminates it now (kill
-// pane, SIGKILL, cancel). Graceful shutdown sends WindWrapUp to all jobs, waits a
-// grace window, then WindStop. The supervisor also uses WindStop as the teardown
-// when it reaps a finished job.
+// WindSignal is the graceful control signal the supervisor pushes into a
+// running job. WindWrapUp asks it to finish, such as SIGTERM for a shell, and
+// WindStop terminates it now. Shutdown sends WindWrapUp, waits a grace window,
+// then sends WindStop, which also tears down reaped jobs.
 type WindSignal int
 
 const (
@@ -85,11 +83,9 @@ func (w WindSignal) String() string {
 }
 
 // BackgroundJob is one unit of monitorable background work. The supervisor owns
-// the single goroutine that calls Run plus all the lifecycle around it (events,
-// queue notification, tracking, cleanup). A job only has to (a) block until it
-// reaches a terminal state and return the outcome, and (b) honour wind-down/stop
-// signals. This is the seam that lets A2A tasks, shells, and subagents share one
-// fan-in implementation - each kind differs only in how it learns it is done.
+// the goroutine that calls Run and the lifecycle around it. A job only blocks
+// until it is terminal and honours wind signals, which lets A2A tasks, shells
+// and subagents share one fan-in.
 type BackgroundJob interface {
 	// Meta returns the job's identity/display snapshot.
 	Meta() JobMeta

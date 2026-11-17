@@ -8,23 +8,18 @@ import (
 	"strings"
 )
 
-// builtinSkills holds the skills shipped with the binary. They are seeded into
-// the user's ~/.infer/skills on `infer init` (see SeedBuiltins) so the normal
-// user-scope loader discovers them with no special-casing - a project or
-// .agents skill of the same name still shadows them, and disabled_skills still
-// removes them.
+// builtinSkills holds the skills shipped with the binary. `infer init` seeds
+// them into ~/.infer/skills, so the normal loader finds them and a project
+// skill of the same name or disabled_skills still overrides them.
 //
 //go:embed builtins
 var builtinSkills embed.FS
 
 const builtinsRoot = "builtins"
 
-// SeedBuiltins writes each embedded built-in skill under destDir, mirroring the
-// embedded tree (destDir/<name>/SKILL.md, plus any helper files). A file is
-// written only when it is absent, unless overwrite is set - so a user's edits to
-// a seeded skill survive a re-run of `infer init` (seed-if-absent). destDir is
-// the user-scope skills directory (~/.infer/skills), the same directory the
-// loader reads user skills from.
+// SeedBuiltins writes each embedded skill under destDir, the user-scope skills
+// directory, mirroring the embedded tree. A file is written only when absent
+// unless overwrite is set, so user edits survive a re-run of `infer init`.
 func SeedBuiltins(destDir string, overwrite bool) error {
 	return fs.WalkDir(builtinSkills, builtinsRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

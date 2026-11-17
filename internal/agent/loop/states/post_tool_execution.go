@@ -5,14 +5,9 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
-// PostToolExecutionState handles events in the PostToolExecution state.
-//
-// This state:
-//  1. Hands the images the tools returned to the model, then checks if the
-//     tools requested a plan → presents it and goes to Stopped
-//  2. Checks if messages were queued during tool execution → drains and goes to CheckingQueue
-//  3. Checks if can complete → Completing
-//  4. Otherwise → CheckingQueue for next turn
+// PostToolExecutionState hands the images the tools returned to the model, then
+// presents a requested plan and stops, drains messages queued during execution,
+// completes, or moves to CheckingQueue for the next turn.
 type PostToolExecutionState struct {
 	ctx *StateContext
 }

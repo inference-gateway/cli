@@ -148,11 +148,8 @@ func LoadTraceTree(dir, session string) ([]*TraceSpan, error) {
 // tree marker. Enough to tell two failures apart on one line.
 const spanErrorMsgMax = 20
 
-// benignSpanErrors are end-of-stream conditions otelhttp reports as span
-// errors: its response-body wrapper compares `err == io.EOF`, so any other tail
-// error on a finished SSE relay flips the span to Error and stamps error.type
-// with a Go type name (*errors.errorString). Marking every LLM call failed
-// hides the real failures.
+// benignSpanErrors are end-of-stream conditions otelhttp reports as span errors
+// on a finished SSE relay. Marking every LLM call failed hides real failures.
 // ponytail: substring match on the status message. A truncation that actually
 // matters still surfaces in the gateway logs ("failed to read stream", "error
 // reading stream", "ReverseProxy read error during body copy").

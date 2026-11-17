@@ -327,14 +327,10 @@ func (r RemindersConfig) effective() []ReminderConfig {
 	return out
 }
 
-// RemindersDue implements agentdomain.SystemReminderProvider: it returns every
-// reminder attached to q.Hook whose trigger fires. Multiple reminders on the
-// same hook stack (all are returned). The interval trigger keys off
-// q.SessionTurn (cumulative across the chat session) so it fires on every Nth
-// conversational turn. Turns_before_max keys off q.Turn/q.MaxTurns (the current
-// run's loop budget). q.Fired is consulted only by the `once` trigger and is
-// never written here - the caller marks names fired after injecting. A nil
-// q.Fired is treated as "nothing fired yet".
+// RemindersDue implements agentdomain.SystemReminderProvider. It returns every
+// reminder on q.Hook whose trigger fires, so reminders on one hook stack.
+// interval keys off q.SessionTurn and turns_before_max off q.Turn/q.MaxTurns.
+// q.Fired is only read by the once trigger, and the caller marks names fired.
 func (r RemindersConfig) RemindersDue(q agentdomain.ReminderQuery) []agentdomain.SystemReminder {
 	if !r.Enabled {
 		return nil

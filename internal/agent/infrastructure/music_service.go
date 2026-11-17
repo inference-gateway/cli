@@ -27,12 +27,10 @@ func NewMusicService(cfg *config.Config, client sdk.Client) *MusicService {
 	}
 }
 
-// Compose generates a music clip for prompt using the configured
-// text_to_music.model ("provider/model"), writing MP3 audio to outPath (the gateway music providers serve mp3. WAV
-// is not offered by elevenlabs).
-// A non-nil seconds caps the clip length. A non-nil instrumental requests
-// a clip without vocals. Errors name the configured model so a gateway
-// without the endpoint (or a provider that rejects it) is diagnosable.
+// Compose generates an MP3 clip for prompt with text_to_music.model and writes
+// it to outPath. A non-nil seconds caps the length and a non-nil instrumental
+// asks for no vocals. Errors name the model so a gateway or provider without
+// the endpoint is diagnosable.
 func (s *MusicService) Compose(ctx context.Context, prompt, outPath string, seconds *float32, instrumental *bool) error {
 	model := s.config.TextToMusic.ResolveGatewayModel()
 	provider, modelName, ok := strings.Cut(model, "/")

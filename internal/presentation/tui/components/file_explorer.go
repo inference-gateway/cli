@@ -759,22 +759,10 @@ func (t *FileExplorer) Selections() []SnippetSelection {
 	return t.selections
 }
 
-// FormatAnnotations builds an LLM-ready context block from a set of snippet
-// selections. Selections are grouped by file (deduping file reads). Only the
-// selected line ranges are emitted - never the whole file - each as a fenced
-// block headed by `<file> (lines X-Y):`, optionally followed by a `note:` line
-// when the user attached an instruction.
-//
-// The output format is:
-//
-//	<file> (lines <start>-<end>):
-//	```<ext>
-//	<the selected lines, raw>
-//	```
-//	note: <annotation>   (only when an annotation was attached)
-//
-// This is a pure function (no receiver state) so it is independently
-// unit-testable.
+// FormatAnnotations builds an LLM-ready context block from snippet selections,
+// grouped by file. Each selected range is emitted, never the whole file, as
+// "<file> (lines X-Y):" and a fenced block, followed by "note: <annotation>"
+// when one was attached.
 func FormatAnnotations(root string, sels []SnippetSelection) string {
 	if len(sels) == 0 {
 		return ""
