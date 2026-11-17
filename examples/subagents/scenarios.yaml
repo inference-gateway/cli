@@ -1,0 +1,38 @@
+fallback:
+  content: 'Try "research the repository with two subagents" or "research the README with the researcher agent".'
+scenarios:
+  - name: fanout
+    match: '(?i)^research the repository with two subagents'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              tasks:
+                - label: readme-summary
+                  agent: researcher
+                  description: Read the repository README and summarize its Quick Start in one sentence
+                - label: docs-counter
+                  description: Count the Markdown files under docs/ and report what kind of guides they are
+      - content: Both subagents are done. Their answers are in the Agent tool result above - the named researcher agent and the plain one reported back from their own sessions.
+      - content: Both subagents are done. Their answers are in the Agent tool result above - the named researcher agent and the plain one reported back from their own sessions.
+  - name: named-agent
+    match: '(?i)^research the README with the researcher agent'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              agent: researcher
+              description: Read the repository README and summarize its Quick Start in one sentence
+              label: readme-summary
+      - content: The researcher agent reported back through its Markdown preset - allowlist Read plus Grep, derived read-only capability, inherited model.
+      - content: The researcher agent reported back through its Markdown preset - allowlist Read plus Grep, derived read-only capability, inherited model.
+  - name: researcher-task
+    match: '(?i)^Read the repository README and summarize its Quick Start in one sentence'
+    turns:
+      - content: 'Researcher: the Quick Start is three commands that install infer, set the gateway URL and open the chat TUI.'
+      - content: 'Researcher: the Quick Start is three commands that install infer, set the gateway URL and open the chat TUI.'
+  - name: counter-task
+    match: '(?i)^Count the Markdown files under docs/ and report what kind of guides they are'
+    turns:
+      - content: 'Counter: docs/ holds the reference guides of this repository, one document per feature.'
+      - content: 'Counter: docs/ holds the reference guides of this repository, one document per feature.'

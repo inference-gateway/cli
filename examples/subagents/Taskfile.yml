@@ -1,0 +1,55 @@
+version: '3'
+
+vars:
+  INFER: infer
+
+env:
+  INFER_GATEWAY_MOCK: 'true'
+  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
+  INFER_AGENT_MODEL: mock/openai/gpt-4o
+  INFER_TOOLS_AGENT_WAIT: 'true'
+
+tasks:
+  default:
+    desc: List the scenarios
+    silent: true
+    cmds:
+      - task --list
+
+  list:
+    desc: Show the Markdown agent with infer agents list
+    cmds:
+      - '{{.INFER}} agents list'
+
+  fanout:
+    desc: The model calls the Agent tool with two tasks and folds both results back
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: research the repository with two subagents
+          MODE: auto
+
+  fanout:name:
+    desc: The model dispatches one subagent through its Markdown agent name
+    cmds:
+      - task: headless
+        vars:
+          PROMPT: research the README with the researcher agent
+          MODE: auto
+
+  all:
+    desc: Run both fan-out scenarios
+    cmds:
+      - task: fanout
+      - task: fanout:name
+
+  chat:
+    desc: Chat with the mock model and fan out subagents from the TUI
+    interactive: true
+    cmds:
+      - '{{.INFER}} chat'
+
+  headless:
+    internal: true
+    cmds:
+      - "{{.INFER}} headless --no-save --mode {{.MODE | default \"standard\"}} \"{{.PROMPT}}\" | grep '\"role\":\"tool\"'"
