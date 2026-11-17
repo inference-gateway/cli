@@ -19,12 +19,12 @@ tasks:
   list:
     desc: Show the skills discovered in this directory, with their scope
     cmds:
-      - '{{.INFER}} skills list'
+      - "INFER_AGENT_SKILLS_DISCOVERY_ENABLED=false {{.INFER}} skills list"
 
   disabled:
     desc: With skills turned off via INFER_AGENT_SKILLS_ENABLED, the list still runs but the Skill tool is refused
     cmds:
-      - "INFER_AGENT_SKILLS_ENABLED=false {{.INFER}} skills list | head -5"
+      - "INFER_AGENT_SKILLS_DISCOVERY_ENABLED=false INFER_AGENT_SKILLS_ENABLED=false {{.INFER}} skills list | head -5"
       - "INFER_AGENT_SKILLS_ENABLED=false {{.INFER}} headless --no-save 'load the commit-style skill' | grep '\"role\":\"tool\"'"
 
   load:

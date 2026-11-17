@@ -1,8 +1,12 @@
 # Plugins
 
-A plugin is a content package: skills, an always-on instruction ruleset, and command hooks you opt into. The format is the Claude Code plugin layout (`.claude-plugin/plugin.json`, `skills/`, root `AGENTS.md`, `hooks/`, `commands/`), so plugins published for that ecosystem install into `infer` unchanged - including from a local directory, which is how you develop one. This example installs `my-plugin/` from disk.
+A plugin is a content package: skills, an always-on instruction ruleset, and command hooks you opt into. The format is the Claude Code plugin
+layout (`.claude-plugin/plugin.json`, `skills/`, root `AGENTS.md`, `hooks/`, `commands/`), so plugins published for that ecosystem install into
+`infer` unchanged - including from a local directory, which is how you develop one. This example installs `my-plugin/` from disk.
 
-Plugins are **userspace-only**: content lives under `~/.infer/plugins/<name>/` and the registry is `~/.infer/plugins.yaml`, created on the first install. To keep the example out of your real home, every task runs under a demo HOME (`examples/plugins/.home`) the way `examples/web-terminal` does. The mock model is not needed here - these are registry commands, no gateway involved. You need [Task](https://taskfile.dev).
+Plugins are **userspace-only**: content lives under `~/.infer/plugins/<name>/` and the registry is `~/.infer/plugins.yaml`, created on the first
+install. To keep the example out of your real home, every task runs under a demo HOME (`examples/plugins/.home`) the way `examples/web-terminal`
+does. The mock model is not needed here - these are registry commands, no gateway involved. You need [Task](https://taskfile.dev).
 
 What the demo plugin ships, and which infer feature each part maps to:
 
@@ -58,9 +62,9 @@ Pass `INFER=../../infer` after `task build` in the repository root to use a loca
 Plugin: demo-hygiene
 Version: 0.1.0
 Description: A local demo plugin: one skill, an always-on instruction ruleset, and a hooks.yaml
-Source: ./my-plugin
+Source: .../examples/plugins/my-plugin
 Skills (1): repo-hygiene
-Instructions: AGENTS.md (349 chars) - injected into EVERY system prompt while enabled
+Instructions: AGENTS.md (348 chars) - injected into EVERY system prompt while enabled
 Hooks (1): demo-hook (post_session)
   hooks are disabled by default - use `infer plugins enable-hooks <name>` to opt in
 detected but ignored: commands/ (1 files) - infer does not execute plugin code
@@ -82,14 +86,17 @@ Discovered Skills (1)
 ```text
 no hooks_enabled flag in the registry: plugin hooks are disabled
 ✓ Plugin hooks for demo-hygiene enabled
-"hooks_enabled": true
+hooks_enabled: true
 ```
 
 ## Running the plugin's hooks for real
 
-`enable-hooks` only flips the per-plugin flag. Three more switches stand between a plugin hook and your shell, on purpose: the master `hooks.enabled` (hooks.yaml at the project or user level, default off), the bash allow-list, and the same points that gate your own hooks. See [Reminders & Command Hooks](../hooks/) for a hook that actually runs and the skip behavior when it is not allow-listed.
+`enable-hooks` only flips the per-plugin flag. Three more switches stand between a plugin hook and your shell, on purpose: the master
+`hooks.enabled` (hooks.yaml at the project or user level, default off), the bash allow-list, and the same points that gate your own hooks. See
+[Reminders & Command Hooks](../hooks/) for a hook that actually runs and the skip behavior when it is not allow-listed.
 
-The `commands/` directory never participates: its files are counted and listed under "detected but ignored", and nothing in `hooks/`, `commands/` or `agents/` is installed.
+The `commands/` directory never participates: its files are counted and listed under "detected but ignored", and nothing in
+`hooks/`, `commands/` or `agents/` is installed.
 
 ## Without Task
 
@@ -106,4 +113,5 @@ infer plugins enable-hooks demo-hygiene
 infer plugins remove demo-hygiene
 ```
 
-`task clean` removes `.home` when you are done. Installing from a real registry works the same way: `infer plugins install owner/repo` fetches the same mapped subset over the GitHub API - no `git` binary needed - and a local directory is exactly one alternative source.
+`task clean` removes `.home` when you are done. Installing from a real registry works the same way: `infer plugins install owner/repo` fetches
+the same mapped subset over the GitHub API - no `git` binary needed - and a local directory is exactly one alternative source.

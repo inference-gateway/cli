@@ -1,14 +1,20 @@
 # Agent Skills
 
-Skills are instruction folders the agent loads on demand: one directory with a `SKILL.md` per skill, discovered at startup, listed in the system prompt's `AVAILABLE SKILLS` block, and activated by name with the `Skill` tool. This example ships one such skill in the open-standard location:
+Skills are instruction folders the agent loads on demand: one directory with a `SKILL.md` per skill, discovered at startup, listed in the system
+prompt's `AVAILABLE SKILLS` block, and activated by name with the `Skill` tool. This example ships one such skill in the open-standard location:
 
 ```text
 .agents/skills/commit-style/SKILL.md
 ```
 
-`.agents/skills/` is the emerging cross-tool convention (Claude Code, Gemini CLI, Codex CLI), so a skill authored there works in `infer` without moving it. Two other local locations are scanned the same way, in precedence order: `.infer/skills/<name>/` (`scope: project`) and `~/.infer/skills/<name>/` (`scope: user`). Skills contributed by installed plugins arrive as `scope: plugin` - see [Plugins](../plugins/).
+`.agents/skills/` is the emerging cross-tool convention (Claude Code, Gemini CLI, Codex CLI), so a skill authored there works in `infer`
+without moving it. Two other local locations are scanned the same way, in precedence order: `.infer/skills/<name>/` (`scope: project`) and
+`~/.infer/skills/<name>/` (`scope: user`). Skills contributed by installed plugins arrive as `scope: plugin` - see [Plugins](../plugins/).
 
-The `name` (lowercase letters, digits, hyphens, equal to the directory name) and the `description` (the routing signal that tells the model when to activate) live in YAML frontmatter; the body below it is only loaded when the skill is used. The model is a [tokenless](https://github.com/inference-gateway/tokenless) mock scripted in [`scenarios.yaml`](scenarios.yaml), so the example runs offline with no API key and no gateway. You need [Task](https://taskfile.dev) to run the scenarios.
+The `name` (lowercase letters, digits, hyphens, equal to the directory name) and the `description` (the routing signal that tells the model
+when to activate) live in YAML frontmatter; the body below it is only loaded when the skill is used. The model is a
+[tokenless](https://github.com/inference-gateway/tokenless) mock scripted in [`scenarios.yaml`](scenarios.yaml), so the example runs offline with no
+API key and no gateway. You need [Task](https://taskfile.dev) to run the scenarios.
 
 See [Skills](../../docs/skills.md) for the complete reference.
 
@@ -32,7 +38,9 @@ skills/
 | `task disabled` | With `INFER_AGENT_SKILLS_ENABLED=false` the list still runs (with a note), but the `Skill` tool is refused |
 | `task chat` | Opens `infer chat` with the mock model. Type `/commit-style` to load the skill yourself |
 
-The tasks use the `infer` on your `PATH`. To use a local build instead, run `task build` in the repository root and pass it in, for example `task load INFER=../../infer`.
+The tasks use the `infer` on your `PATH`. To use a local build instead, run `task build` in the repository root and pass it in, for example
+`task load INFER=../../infer`. The list tasks pin progressive discovery off (`INFER_AGENT_SKILLS_DISCOVERY_ENABLED=false`), so `Discovered
+Skills` shows only the skills in this directory - catalog skills appear through the explicit `search` and `install` commands below.
 
 ### What to expect
 
@@ -48,18 +56,20 @@ Discovered Skills (1)
 `task load` - the tool result carries the skill body:
 
 ```text
-{"content":"{\"tool_name\":\"Skill\", ..., \"data\":\"# Commit style\\n\\n1. Start with a type and scope, like feat(skills): ... or fix(hooks): ...\\n\"}", ...}
+{"content":"{\"tool_name\":\"Skill\",...,\"data\":{\"name\":\"commit-style\",\"content\":\"# Commit style ...\"}}","failed":false,"role":"tool", ...}
 ```
 
 `task disabled` - the `Skill` tool is off with the feature, so the scripted call is refused:
 
 ```text
-{"content":"skill commit-style not available: skills are disabled ...", ...}
+{"content":"tool Skill is not enabled","failed":true,"role":"tool", ...}
 ```
 
 ## The catalog, on a real network
 
-Local skills are only half the picture. The CLI also has a centralized skills catalog published by [inference-gateway/skills](https://github.com/inference-gateway/skills), which needs network access, so these commands are not part of the offline tasks above:
+Local skills are only half the picture. The CLI also has a centralized skills catalog published by
+[inference-gateway/skills](https://github.com/inference-gateway/skills), which needs network access, so these are not part of the offline tasks
+above:
 
 ```bash
 # Fuzzy-name search over the fetched catalog index (omit the term to browse)
@@ -78,7 +88,8 @@ infer skills install skill-creator --user
 infer skills uninstall pdf
 ```
 
-`install` runs the same frontmatter validator the startup scan uses, so what installs is what loads. Requests are unauthenticated (GitHub allows 60 per hour per IP) and go up to 5,000 per hour with `GITHUB_TOKEN` set.
+`install` runs the same frontmatter validator the startup scan uses, so what installs is what loads. Requests are unauthenticated (GitHub allows
+60 per hour per IP) and go up to 5,000 per hour with `GITHUB_TOKEN` set.
 
 ## The switch
 
@@ -95,16 +106,19 @@ agent:
 INFER_AGENT_SKILLS_ENABLED=false infer chat
 ```
 
-`task disabled` runs with the switch off: `infer skills list` still works (it always does, so you can verify discovery) and its note says the feature is disabled, while the mock model's `Skill` call comes back refused.
+`task disabled` runs with the switch off: `infer skills list` still works (it always does, so you can verify discovery) and its note says the
+feature is disabled, while the mock model's `Skill` call comes back refused.
 
 ## Without Task
 
-The Taskfile only sets three environment variables. Set them yourself to run `infer` directly from this directory:
+The Taskfile only sets four environment variables. Set them yourself to run `infer` directly from this directory:
 
 ```bash
 export INFER_GATEWAY_MOCK=true
 export INFER_GATEWAY_MOCK_SCENARIOS="$PWD/scenarios.yaml"
 export INFER_AGENT_MODEL=mock/openai/gpt-4o
+export INFER_STORAGE_ENABLED=false
+export INFER_AGENT_SKILLS_DISCOVERY_ENABLED=false
 
 infer skills list
 infer headless --no-save "load the commit-style skill" | grep '"role":"tool"'
@@ -112,4 +126,5 @@ infer headless --no-save "load the commit-style skill" | grep '"role":"tool"'
 
 ## Use a real model
 
-Drop `INFER_GATEWAY_MOCK`, `INFER_GATEWAY_MOCK_SCENARIOS` and `INFER_AGENT_MODEL` to talk to a real model through the gateway. Nothing else changes: a capable model picks `commit-style` up from the `AVAILABLE SKILLS` block on its own when you ask it to commit something.
+Drop `INFER_GATEWAY_MOCK`, `INFER_GATEWAY_MOCK_SCENARIOS` and `INFER_AGENT_MODEL` to talk to a real model through the gateway. Nothing else
+changes: a capable model picks `commit-style` up from the `AVAILABLE SKILLS` block on its own when you ask it to commit something.
