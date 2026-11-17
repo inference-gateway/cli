@@ -17,6 +17,10 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
 
+// ErrorMessageLimit caps error messages embedded in machine-format output lines
+// so a runaway provider error cannot flood them.
+const ErrorMessageLimit = 3500
+
 func emitJSON(w io.Writer, msg any, pretty bool) {
 	var data []byte
 	var err error
@@ -306,7 +310,7 @@ func renderJSON(events <-chan agentdomain.ChatEvent, w io.Writer, approvals <-ch
 	for event := range events {
 		switch e := event.(type) {
 		case agentdomain.ChatErrorEvent:
-			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(e.Error.Error(), 3500)})
+			emit(ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(e.Error.Error(), ErrorMessageLimit)})
 			runErr = fmt.Errorf("agent error: %w", e.Error)
 		case agentdomain.ChatChunkEvent:
 			content.WriteString(e.Content)
@@ -429,6 +433,6 @@ func AgentStartupEmitter(w io.Writer, format string) func(name, state, message s
 func EmitPreRunError(w io.Writer, format string, err error) {
 	switch format {
 	case "json", "json-pretty":
-		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(err.Error(), 3500)}, format == "json-pretty")
+		emitJSON(w, ipc.AgentErrorMessage{Type: "agent_error", Message: Truncate(err.Error(), ErrorMessageLimit)}, format == "json-pretty")
 	}
 }

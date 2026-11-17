@@ -29,6 +29,10 @@ func WAVDurationSeconds(path string) (float64, error) {
 		byteRate uint32
 		dataSize uint64
 	)
+	const (
+		wavFmtChunkMinSize = 16
+		wavFmtChunkMaxSize = 4096
+	)
 	chunk := make([]byte, 8)
 	for {
 		if _, err := io.ReadFull(f, chunk); err != nil {
@@ -37,7 +41,7 @@ func WAVDurationSeconds(path string) (float64, error) {
 		size := binary.LittleEndian.Uint32(chunk[4:8])
 		switch string(chunk[0:4]) {
 		case "fmt ":
-			if size < 16 || size > 4096 {
+			if size < wavFmtChunkMinSize || size > wavFmtChunkMaxSize {
 				return 0, fmt.Errorf("invalid wav fmt chunk size %d: %s", size, path)
 			}
 			fmtChunk := make([]byte, size)

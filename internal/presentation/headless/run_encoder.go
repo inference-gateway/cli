@@ -588,7 +588,7 @@ func startupEmitter(notes *startupNotes) func(name, state, message string, done,
 // failure instead of silence.
 func emitAGUIRunError(w io.Writer, err error) {
 	r := agui.NewRun(w)
-	r.Fail(errors.New(render.Truncate(err.Error(), 3500)))
+	r.Fail(errors.New(render.Truncate(err.Error(), render.ErrorMessageLimit)))
 	_ = r.Finish(nil, nil)
 }
 

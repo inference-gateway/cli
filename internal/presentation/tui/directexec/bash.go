@@ -193,7 +193,7 @@ func (s *Service) executeBashCommandAsync(command string, toolCallID string) tea
 
 	go func() {
 		defer func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(eventDrainDelay)
 			close(eventChan)
 			s.setBashEventChannel(nil)
 			s.ClearBashDetachChan()

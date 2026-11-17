@@ -401,6 +401,11 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 		Content: sdk.NewMessageContent(summarySystemPrompt),
 	})
 
+	const (
+		summaryMessageContentLimit = 2000
+		summaryToolContentLimit    = 500
+	)
+
 	for _, msg := range messages {
 		switch msg.Role {
 		case sdk.User, sdk.Assistant:
@@ -408,8 +413,8 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 			if err != nil {
 				contentStr = ""
 			}
-			if len(contentStr) > 2000 {
-				contentStr = contentStr[:2000] + "... [truncated]"
+			if len(contentStr) > summaryMessageContentLimit {
+				contentStr = contentStr[:summaryMessageContentLimit] + "... [truncated]"
 			}
 
 			summaryMessages = append(summaryMessages, sdk.Message{
@@ -421,8 +426,8 @@ func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, mode
 			if err != nil {
 				contentStr = ""
 			}
-			if len(contentStr) > 500 {
-				contentStr = contentStr[:500] + "... [tool output truncated]"
+			if len(contentStr) > summaryToolContentLimit {
+				contentStr = contentStr[:summaryToolContentLimit] + "... [tool output truncated]"
 			}
 			summaryMessages = append(summaryMessages, sdk.Message{
 				Role:    "assistant",

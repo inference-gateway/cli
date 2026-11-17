@@ -891,8 +891,9 @@ func (m *Dispatcher) showSequenceHint(keyStr string) []tea.Cmd {
 		}
 	}
 
+	const statusClearDelay = time.Second
 	clearStatusCmd := func() tea.Msg {
-		time.Sleep(1 * time.Second)
+		time.Sleep(statusClearDelay)
 		return tui.SetStatusEvent{
 			Message: "",
 			Spinner: false,

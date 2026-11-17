@@ -48,7 +48,9 @@ func requestImages(messages []sdk.Message) []sdk.Message {
 
 // compactRequestImage reduces large inline images for model transport only.
 func compactRequestImage(url string) string {
-	if len(url) <= 256*1024 {
+	const maxInlineImageBytes = 256 * 1024
+	const maxImageLongEdge = 1600
+	if len(url) <= maxInlineImageBytes {
 		return url
 	}
 	header, data, ok := strings.Cut(url, ",")
@@ -67,8 +69,8 @@ func compactRequestImage(url string) string {
 	if err != nil {
 		return url
 	}
-	if longest := max(cfg.Width, cfg.Height); longest > 1600 {
-		resized := image.NewRGBA(image.Rect(0, 0, max(1, cfg.Width*1600/longest), max(1, cfg.Height*1600/longest)))
+	if longest := max(cfg.Width, cfg.Height); longest > maxImageLongEdge {
+		resized := image.NewRGBA(image.Rect(0, 0, max(1, cfg.Width*maxImageLongEdge/longest), max(1, cfg.Height*maxImageLongEdge/longest)))
 		draw.CatmullRom.Scale(resized, resized.Bounds(), img, img.Bounds(), draw.Src, nil)
 		img = resized
 	}

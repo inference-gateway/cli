@@ -58,8 +58,9 @@ func CreateTitleFromMessage(content string) string {
 
 	title := strings.Join(words[:maxWords], " ")
 
-	if len(title) > 80 {
-		title = title[:77] + "..."
+	const maxTitleLength = 80
+	if len(title) > maxTitleLength {
+		title = title[:maxTitleLength-len("...")] + "..."
 	}
 
 	return title

@@ -329,8 +329,9 @@ func (s *ScreenshotServer) captureScreenshot() error {
 		height = fitH
 	}
 
+	const maxJPEGQuality = 100
 	quality := s.cfg.ComputerUse.Screenshot.Quality
-	if quality <= 0 || quality > 100 {
+	if quality <= 0 || quality > maxJPEGQuality {
 		quality = 60
 	}
 
@@ -383,10 +384,14 @@ func (s *ScreenshotServer) handleGetRecent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	limit := 30
+	const (
+		defaultRecentScreenshots = 30
+		maxRecentScreenshots     = 100
+	)
+	limit := defaultRecentScreenshots
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
-			if parsedLimit > 0 && parsedLimit <= 100 {
+			if parsedLimit > 0 && parsedLimit <= maxRecentScreenshots {
 				limit = parsedLimit
 			}
 		}

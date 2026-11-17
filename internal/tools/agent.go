@@ -985,8 +985,9 @@ func newSubagentSessionID(parentSession string) string {
 }
 
 func shortSession(id string) string {
-	if len(id) > 16 {
-		return id[:16]
+	const shortSessionIDLength = 16
+	if len(id) > shortSessionIDLength {
+		return id[:shortSessionIDLength]
 	}
 	return id
 }

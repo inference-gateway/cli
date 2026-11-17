@@ -1458,14 +1458,15 @@ func (cv *ConversationView) renderEditToolArgs(args map[string]any) string {
 // renderWriteToolArgs renders the Write tool arguments with content preview
 func (cv *ConversationView) renderWriteToolArgs(args map[string]any) string {
 	var result strings.Builder
+	const toolContentPreviewLimit = 200
 
 	if filePath, ok := args["file_path"].(string); ok {
 		fmt.Fprintf(&result, "  File: %s\n", filePath)
 	}
 	if content, ok := args["content"].(string); ok {
 		preview := content
-		if len(preview) > 200 {
-			preview = preview[:200] + "..."
+		if len(preview) > toolContentPreviewLimit {
+			preview = preview[:toolContentPreviewLimit] + "..."
 		}
 		fmt.Fprintf(&result, "  Content: %s\n", preview)
 	}

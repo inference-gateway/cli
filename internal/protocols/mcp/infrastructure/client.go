@@ -276,9 +276,10 @@ type statusError struct {
 }
 
 func newStatusError(method string, status int, raw []byte) *statusError {
+	const statusLineLimit = 200
 	line, _, _ := bytes.Cut(bytes.TrimSpace(raw), []byte("\n"))
-	if len(line) > 200 {
-		line = line[:200]
+	if len(line) > statusLineLimit {
+		line = line[:statusLineLimit]
 	}
 	return &statusError{method: method, status: status, body: string(line)}
 }

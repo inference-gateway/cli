@@ -421,16 +421,22 @@ func (t *WebFetchTool) extractDomain(url string) string {
 	return url
 }
 
+const (
+	sizeKiB = 1024
+	sizeMiB = sizeKiB * 1024
+	sizeGiB = sizeMiB * 1024
+)
+
 // formatSize formats byte size in human-readable format
 func (t *WebFetchTool) formatSize(size int64) string {
-	if size < 1024 {
+	if size < sizeKiB {
 		return fmt.Sprintf("%d bytes", size)
-	} else if size < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(size)/1024)
-	} else if size < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
+	} else if size < sizeMiB {
+		return fmt.Sprintf("%.1f KB", float64(size)/sizeKiB)
+	} else if size < sizeGiB {
+		return fmt.Sprintf("%.1f MB", float64(size)/sizeMiB)
 	}
-	return fmt.Sprintf("%.1f GB", float64(size)/(1024*1024*1024))
+	return fmt.Sprintf("%.1f GB", float64(size)/sizeGiB)
 }
 
 // saveToFile saves the fetched content to disk in the session's artifacts

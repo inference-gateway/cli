@@ -427,11 +427,12 @@ func (b *bridge) compactElement(element uintptr) (computerdomain.UIElement, bool
 // accessibility tree. WebKit builds it only once a client first asks, so the
 // first walk of a WKWebView app finds the window's content group empty.
 func (b *bridge) awaitWindowContent(root uintptr) {
+	const webContentPollInterval = 100 * time.Millisecond
 	for range 5 {
 		if !b.hasEmptyContentGroup(root) {
 			return
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(webContentPollInterval)
 	}
 }
 

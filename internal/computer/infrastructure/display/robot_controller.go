@@ -215,10 +215,11 @@ func (c *robotController) ClickMouse(ctx context.Context, button MouseButton, cl
 	case 2:
 		return robot.Click(robotButton, true)
 	default:
+		const doubleClickGap = 100 * time.Millisecond
 		if err := robot.Click(robotButton, true); err != nil {
 			return err
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(doubleClickGap)
 		return robot.Click(robotButton, false)
 	}
 }

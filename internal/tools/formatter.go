@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	tree "charm.land/lipgloss/v2/tree"
 
@@ -75,7 +76,7 @@ func (f BaseFormatter) FormatDuration(result *agentdomain.ToolExecutionResult) s
 		return fmt.Sprintf("%ds", int64(d.Seconds()))
 	}
 
-	if d < 3600e9 {
+	if d < time.Hour {
 		minutes := int64(d.Minutes())
 		seconds := int64(d.Seconds()) % 60
 		if seconds == 0 {

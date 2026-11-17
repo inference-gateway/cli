@@ -293,7 +293,7 @@ func (t *GetLatestFrameTool) regionResult(ctx context.Context, args map[string]a
 	}
 
 	quality := t.config.ComputerUse.Screenshot.Quality
-	if quality <= 0 || quality > 100 {
+	if quality <= 0 || quality > maxJPEGQuality {
 		quality = 85
 	}
 	var buf bytes.Buffer

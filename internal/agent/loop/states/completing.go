@@ -47,8 +47,9 @@ func (s *CompletingState) complete() error {
 	logger.Debug("completing state: finalizing agent execution",
 		"queue_empty", s.ctx.AgentCtx.MessageQueue.IsEmpty())
 
+	const queueSettleDelay = 20 * time.Millisecond
 	logger.Debug("sleeping 20ms for final queue check")
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(queueSettleDelay)
 
 	if !s.ctx.AgentCtx.MessageQueue.IsEmpty() {
 		logger.Debug("messages queued after completion, restarting agent")
