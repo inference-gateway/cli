@@ -30,6 +30,8 @@ tasks:
 
   jobs:
     desc: Print the job files and run records written under the demo HOME's ~/.infer/schedules
+    deps:
+      - home
     cmds:
       - find {{.HOME_DIR}}/.infer/schedules -name '*.yaml' -print -exec cat {} ;
 
@@ -94,5 +96,7 @@ tasks:
 
   headless:
     internal: true
+    deps:
+      - home
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} headless --no-save --mode auto "{{.PROMPT}}" | grep '"role":"tool"'

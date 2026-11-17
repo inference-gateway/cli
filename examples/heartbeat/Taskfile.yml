@@ -37,11 +37,15 @@ tasks:
 
   wakes:
     desc: List the conversations the wake-ups recorded
+    deps:
+      - home
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} conversations list
 
   show:
     desc: Show one wake-up, paste the ID from `task wakes` (task show ID=<id>)
+    deps:
+      - home
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} conversations show --no-trunc {{.ID}}
 
@@ -49,6 +53,7 @@ tasks:
     desc: One tick without the daemon - infer headless runs with the heartbeat system prompt
     deps:
       - build
+      - home
     cmds:
       - HOME={{.HOME_DIR}} {{.INFER}} headless --no-save --heartbeat "Heartbeat tick - check pending work and act on what is next."
 

@@ -18,7 +18,8 @@ The Taskfile sets four environment variables for every task:
   [Scheduling](../../docs/scheduling.md#1-enable-the-tool))
 - `INFER_GATEWAY_MOCK`, `INFER_GATEWAY_MOCK_SCENARIOS`, `INFER_AGENT_MODEL` - the mock model
 
-Every `infer` call runs with `HOME` pointed at `.home`, a demo HOME seeded by `task home`. Under it the jsonl
+Every `infer` call runs with `HOME` pointed at `.home`, a demo HOME the tasks keep seeded - `task home`
+drops the hand-written job into it by hand. Under it the jsonl
 storage backend keeps jobs in `~/.infer/schedules/<job id>.yaml` - one file per job, hot-reloaded by the
 daemon - and run records next to them under `.infer/schedules/runs/`.
 
@@ -81,6 +82,7 @@ task clean    # Ctrl+C the daemon first: removes the demo HOME
 | `task list` | The mock model calls `Schedule` with `operation: list` |
 | `task delete` | The mock model calls `Schedule` with `operation: delete` on the seeded job's ID |
 | `task jobs` | Prints the job files and any run records under `~/.infer/schedules/` |
+| `task home` | Seeds the demo HOME, re-copying the hand-written job into `~/.infer/schedules/` |
 | `task daemon` | Runs `infer daemon`; jobs only fire while it runs |
 | `task runs` / `task show ID=...` | `infer conversations list` / `infer conversations show`, the recorded fires |
 | `task all` | Runs the four headless scenarios above |
