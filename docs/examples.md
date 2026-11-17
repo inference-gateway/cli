@@ -16,6 +16,8 @@ Most examples ship a Docker Compose file:
 | [a2a](../examples/a2a/) | Agent-to-Agent: multiple agents, a demo site, and a VNC container |
 | [mcp](../examples/mcp/) | MCP server integration with a sample server and config |
 | [tools](../examples/tools/) | Custom tools in Python and shell, run offline against a scripted mock model |
+| [scheduling](../examples/scheduling/) | The Schedule tool: the mock model creates a recurring and a one-off cron job, `infer daemon` fires them and records every run, offline against the mock model |
+| [heartbeat](../examples/heartbeat/) | The heartbeat: a daemon waking the agent on a short interval and recording each wake-up, plus a single `infer headless --heartbeat` run |
 | [session-artifacts](../examples/session-artifacts/) | Browsing and saving a session's artifacts from the chat TUI, offline against a scripted mock model |
 | [daemon-session-artifacts](../examples/daemon-session-artifacts/) | Two daemons: a session teleported to the second one generates an artifact there, and the chat pulls it home |
 | [media-audio](../examples/media-audio/) | Spoken WAV, a composed music loop and a sound effect from the mock gateway's Audio API, offline with no API key |
