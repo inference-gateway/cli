@@ -97,17 +97,17 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-                goos: linux
-                goarch: amd64
+            goos: linux
+            goarch: amd64
           - os: ubuntu-24.04
-                goos: darwin
-                goarch: amd64
+            goos: darwin
+            goarch: amd64
           - os: ubuntu-24.04
-                goos: darwin
-                goarch: arm64
+            goos: darwin
+            goarch: arm64
           - os: windows-2025
-                goos: windows
-                goarch: amd64
+            goos: windows
+            goarch: amd64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
