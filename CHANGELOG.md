@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.264.1](https://github.com/inference-gateway/cli/compare/v0.264.0...v0.264.1) (2026-11-18)
+
+### 📚 Documentation
+
+* **agents:** move architecture and security gotchas into internal/AGENTS.md ([#1909](https://github.com/inference-gateway/cli/issues/1909)) ([77712f4](https://github.com/inference-gateway/cli/commit/77712f47b03fbe1d8abdbdc0b5883c51f6b079b0))
+
 ## [0.264.0](https://github.com/inference-gateway/cli/compare/v0.263.0...v0.264.0) (2026-11-18)
 
 ### 🚀 Features
