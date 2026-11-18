@@ -3,6 +3,7 @@ package headless
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	computerdomain "github.com/inference-gateway/cli/internal/computer/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
@@ -30,12 +31,14 @@ const handBackMessage = "I took over the screen and handed it back, continue fro
 
 // screenResultFrame answers one screen_control or screen_input with what the
 // worker's screen control did: the screen's held state after the call and
-// what failed, if it came to that.
+// what failed, if it came to that, with the stable code a refusal carries
+// beside its error.
 type screenResultFrame struct {
 	Type  string `json:"type"`
 	ID    string `json:"id"`
 	Held  bool   `json:"held"`
 	Error string `json:"error,omitempty"`
+	Code  string `json:"code,omitempty"`
 }
 
 // screenUnit answers the Screen view's control and input frames on the
@@ -140,8 +143,18 @@ func (s *screenUnit) input(id string, line []byte) {
 		return
 	}
 	if err := s.control.Drive(context.Background(), frame.Input); err != nil {
-		s.write(screenResultFrame{Type: outboundScreenResult, ID: id, Held: s.held(), Error: err.Error()})
+		s.write(screenResultFrame{Type: outboundScreenResult, ID: id, Held: s.held(), Error: err.Error(), Code: refusalCode(err)})
 		return
 	}
 	s.write(screenResultFrame{Type: outboundScreenResult, ID: id, Held: true})
+}
+
+// refusalCode names the stable code the drive error's refusal carries, empty
+// when it is not one.
+func refusalCode(err error) string {
+	var refusal computerdomain.UnsupportedInputRefusal
+	if errors.As(err, &refusal) {
+		return refusal.Code()
+	}
+	return ""
 }

@@ -13,6 +13,28 @@ import (
 // tab cannot drive what it handed back.
 var ErrScreenNotHeld = errors.New("the screen is not held")
 
+// ScreenRefusalUnsupportedInput is the stable code beside the refusal of an
+// input kind the screen does not drive, so a caller matches the refusal
+// without matching its wording.
+const ScreenRefusalUnsupportedInput = "unsupported_input"
+
+// UnsupportedInputRefusal refuses the input kind the screen does not drive.
+// Its wording stays what older displays match, and its code rides beside it
+// for the ones that match the refusal itself.
+type UnsupportedInputRefusal struct {
+	Kind ActionKind
+}
+
+// Error is the message the refusal carries.
+func (r UnsupportedInputRefusal) Error() string {
+	return fmt.Sprintf("unsupported screen input %q", r.Kind)
+}
+
+// Code is the stable code a caller matches the refusal on.
+func (r UnsupportedInputRefusal) Code() string {
+	return ScreenRefusalUnsupportedInput
+}
+
 // screenInputKinds are the kinds a person drives a held screen with: the
 // pointer, wheel and keyboard. Observations stay out, and so does the
 // accessibility press, which the person's own click replaces.
@@ -53,7 +75,7 @@ type ScreenInput struct {
 // dispatch stays one code path with the Computer tool's and validates both.
 func (s ScreenInput) Action() (Action, error) {
 	if !slices.Contains(screenInputKinds, s.Kind) {
-		return Action{}, fmt.Errorf("unsupported screen input %q", s.Kind)
+		return Action{}, UnsupportedInputRefusal{Kind: s.Kind}
 	}
 	a := Action{
 		Kind:      s.Kind,
