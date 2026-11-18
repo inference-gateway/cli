@@ -24,11 +24,7 @@ Single test: `go test ./internal/tools -run TestBashTool`. **Run `task precommit
 
 ## Architecture
 
-The codebase is **bounded contexts (DDD)** under `internal/`. Each context owns its contracts in a `domain/` subpackage that imports nothing internal except `agent/domain`, the shared kernel (tool results, agent mode, chat events). Tool contracts stay in the shared kernel because the a2a, browser, computer and MCP tools implement them. Adapters sit in `<context>/infrastructure/`, the protocol integrations (`a2a`, `mcp`, `agui`) under `internal/protocols/`, and `platform/` is shared infrastructure. A few contexts keep neither: `tools` and `protocols/agui` have no `domain/`, and `conversation` has no `infrastructure/`. `protocols/agui` is general purpose: a writer for the events of one run and a WebSocket binding with both of its ends. It names no client and no context, and its only internal import is the logger. Everything else imports it: `presentation/headless` maps agent chat events onto a run and owns the panel units the serve worker answers with, `presentation/tui/runview` reduces a run back into chat events for every chat, a local chat's in-process runs reaching it through `presentation/tui/loopback` (`chat.agui_loopback`), `browser` owns the extension relay and client on top of the binding, and `computer` returns the CUSTOM events it publishes. `cmd/daemon` hosts the binding and puts the browser relay and `sessions`, the thread registry that supervises one `headless --serve` worker per thread, behind it.
-
-Contexts: `agent`, `binaries`, `browser`, `compute`, `computer`, `conversation`, `gateway`, `sandbox`, `scheduler`, `sessions`, `tools`, `protocols/{a2a,mcp,agui}`. Capabilities, which have no `domain/`: `audio`, `channels`, `github`, `plugins`, `skills`. `avatars`, `daemon`, `insights` and `projects` are single-package support code.
-
-**Before changing a context or capability, read its `internal/<name>/README.md`.** It covers what it is, why it exists, and how it plugs in.
+The Go code is **bounded contexts (DDD)** under `internal/`. `internal/AGENTS.md` maps the contexts and holds the security gotchas (Bash allow-list, sandbox path policy, tool approval). Read it before changing code there.
 
 Repo-wide invariants:
 
@@ -37,7 +33,7 @@ Repo-wide invariants:
 
 ## Package AGENTS files
 
-`internal/tools/AGENTS.md` and `internal/presentation/AGENTS.md` hold package-only rules and take precedence for their directory. `infer` injects the `AGENTS.md` in its working directory and only points at the nested ones, so read the nested one before editing there.
+`internal/AGENTS.md`, `internal/tools/AGENTS.md` and `internal/presentation/AGENTS.md` hold directory-scoped rules and take precedence for their directory. `infer` injects the `AGENTS.md` in its working directory, capped at 8000 chars, and only points at the nested ones, so read the nested one before editing there.
 
 ## Import Style
 
@@ -77,15 +73,8 @@ Repo-wide invariants:
 - YAML uses block style: one `- item` per line for sequences and one `key: value` per line for mappings. Never
   flow style (`[a, b]`, `{ key: value }`), in manifests, scenarios and config alike.
 
-## Security Gotchas
-
-- **Bash allow-list is default-deny**, per agent mode (`tools.bash.mode.{all,plan,standard,auto}.allow`, effective list = `mode.all.allow` ∪ the mode's own). Only `auto` is unrestricted - standard/plan are read-only, and an allowed command still asks when a path it names leaves the sandbox (`internal/sandbox/bash_paths.go`). `auto-with-judge` maps to the `standard` bucket — the judge gates calls, it never widens the list.
-- **The path policy is `sandbox.yaml`** (`filesystem.allowed:` with optional `access: read`, `filesystem.denied:` with optional `on_violation: approval`, denied wins, a blocking denied entry over one that asks, outside allowed asks, config dirs ask by default). Userspace only: a project `.infer/sandbox.yaml` is ignored. It is never agent-writable and `infer config set` cannot reach it. `filesystem.enforce` (default true) confines in the kernel (Landlock on Linux, Seatbelt on macOS, nothing on Windows) every Bash command the allow-list runs unattended, which in auto mode is every command: a write outside `sandbox.WritePaths` fails with EACCES, on macOS a read, rename or delete of a file a blocking denied entry names fails too while directory entries such as `.git/` stay with the argv path check, denied entries match case-insensitively, and a command the user approved runs unconfined, as approved.
-- Tool approval is two-layer: `tools.safety.require_approval` (whether) + `approval_behaviour` `prompt|ipc|judge|block` (how). `judge` routes gated calls to an LLM judge (config `judge.yaml`, forced by the `auto-with-judge` agent mode — see docs/judge-mode.md). Headless blocks when no approver is reachable.
-- Project custom tools (`.infer/tools/`, `.agents/tools/`) always need approval outside auto mode, whatever their manifest says.
-- Never commit secrets. Credentials live in `.env` (never committed).
-- `infer init --overwrite` wipes `~/.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) in the userspace config dir. None of them is ever in the repository.
-
 ## Config
 
 - Split YAML under `.infer/` (project) and `~/.infer/` (user): `config.yaml`, `sandbox.yaml`, `prompts.yaml`, `agents.yaml`, `keybindings.yaml`, `mcp.yaml`, `shortcuts/*.yaml`, … Env overrides use `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
+- Never commit secrets. Credentials live in `.env` (never committed).
+- `infer init --overwrite` wipes `~/.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) in the userspace config dir. None of them is ever in the repository.
