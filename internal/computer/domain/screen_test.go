@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"slices"
 	"testing"
 )
@@ -75,6 +76,20 @@ func TestScreenInputBuildsTheActionsItDrives(t *testing.T) {
 				t.Fatalf("Action() target = %+v, want %+v", *got.Target, *tt.want.Target)
 			}
 		})
+	}
+}
+
+func TestUnsupportedInputRefusalKeepsItsWordingAndCarriesAStableCode(t *testing.T) {
+	var refusal UnsupportedInputRefusal
+	_, err := ScreenInput{Kind: ActionScreenshot}.Action()
+	if !errors.As(err, &refusal) {
+		t.Fatalf("Action() = %v, want an UnsupportedInputRefusal", err)
+	}
+	if refusal.Error() != `unsupported screen input "screenshot"` {
+		t.Fatalf("refusal = %q, want the wording older displays match", refusal.Error())
+	}
+	if refusal.Code() != ScreenRefusalUnsupportedInput {
+		t.Fatalf("refusal code = %q, want %q", refusal.Code(), ScreenRefusalUnsupportedInput)
 	}
 }
 

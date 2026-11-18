@@ -148,6 +148,22 @@ func TestPanelScreenInputRefusedWhenNotHeld(t *testing.T) {
 	}
 }
 
+func TestPanelScreenInputRefusalCarriesTheStableCode(t *testing.T) {
+	control := &computermocks.FakeScreenControl{}
+	control.HeldReturns(true)
+	control.DriveReturns(computerdomain.UnsupportedInputRefusal{Kind: computerdomain.ActionPress})
+	panel, sink := startPanel(screenDeps(control, nil))
+
+	if !handle(t, panel, map[string]any{"type": "screen_input", "id": "ireq", "input": map[string]any{"kind": "press"}}) {
+		t.Fatal("the screen_input frame was left to the caller")
+	}
+
+	frame := readFrame(t, sink, "screen_result")
+	if frame["code"] != computerdomain.ScreenRefusalUnsupportedInput || errorText(frame) != `unsupported screen input "press"` {
+		t.Fatalf("screen_result = %v, want the refusal with its stable code", frame)
+	}
+}
+
 func TestPanelScreenWithoutAScreenControl(t *testing.T) {
 	panel, sink := startPanel(panelDeps())
 

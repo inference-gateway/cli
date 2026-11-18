@@ -480,6 +480,12 @@ CLI → client, one reply per request id:
 {"type": "screen_result", "id": "<request id>", "held": true}
 ```
 
+A refusal carries its `error` and, when a caller matches the refusal itself, its stable `code`:
+
+```json
+{"type": "screen_result", "id": "<request id>", "held": true, "error": "unsupported screen input \"press\"", "code": "unsupported_input"}
+```
+
 - `take_over` claims the screen for the person - the second claim while it is
   held, from another tab or viewer, errors - and resolves as rejected the
   approval box the worker's `Computer` call parks on, so the person decides.
