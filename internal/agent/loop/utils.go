@@ -558,6 +558,10 @@ func (s *Agent) buildLoadedSkillsInfo(messages []sdk.Message) string {
 		strings.Join(names, ", "))
 }
 
+// agentsMDTruncationNotice is appended below the truncation marker so the
+// model knows the injected instructions are incomplete.
+const agentsMDTruncationNotice = "This excerpt of AGENTS.md is incomplete and the rules cut off here still apply. Read the rest of AGENTS.md with the Read tool before making any changes."
+
 // agentsMDMaxDepth bounds nested AGENTS.md discovery so a large monorepo
 // cannot slow prompt assembly.
 const agentsMDMaxDepth = 4
@@ -640,11 +644,14 @@ func (s *Agent) rootAgentsMD() string {
 		return ""
 	}
 
-	content, marker := formatting.CapInstructions(content, s.config.Agent.AgentsMD.MaxLines, s.config.Agent.AgentsMD.MaxChars)
+	capped, marker := formatting.CapInstructions(content, s.config.Agent.AgentsMD.MaxLines, s.config.Agent.AgentsMD.MaxChars)
 	if marker != "" {
-		content += "\n" + marker
+		logger.Warn("AGENTS.md exceeds the prompt-injection limits and was truncated",
+			"file", "AGENTS.md", "chars", len(content),
+			"max_lines", s.config.Agent.AgentsMD.MaxLines, "max_chars", s.config.Agent.AgentsMD.MaxChars)
+		capped += "\n" + marker + "\n" + agentsMDTruncationNotice
 	}
-	return content
+	return capped
 }
 
 // buildAgentsMDInfo injects the project-root AGENTS.md into the system prompt,

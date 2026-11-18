@@ -735,6 +735,13 @@ func TestBuildAgentsMDInfo(t *testing.T) {
 		require.Contains(t, got, strings.Repeat("x", 10))
 		require.NotContains(t, got, strings.Repeat("x", 11))
 		require.Contains(t, got, "[truncated at 10 chars]")
+		require.Contains(t, got, agentsMDTruncationNotice)
+	})
+
+	t.Run("uncapped content carries no notice", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		require.NoError(t, os.WriteFile("AGENTS.md", []byte("small rules"), 0o644))
+		require.NotContains(t, newSvc(true, 0).buildAgentsMDInfo(), agentsMDTruncationNotice)
 	})
 
 	manyBriefs := map[string]string{}

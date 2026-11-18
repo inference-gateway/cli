@@ -31,7 +31,7 @@ const (
 	DefaultMemoryMaxEntryChars  = 2000
 	DefaultSkillsMaxChars       = 4000
 	DefaultSkillsRepository     = "inference-gateway/skills"
-	DefaultInstructionsMaxChars = 8000
+	DefaultInstructionsMaxChars = 32768
 	DefaultInstructionsMaxLines = 399
 )
 

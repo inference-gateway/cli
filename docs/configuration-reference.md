@@ -638,7 +638,9 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
   `xhigh`, `max`). Unset leaves the provider default in place. Env: `INFER_AGENT_REASONING_EFFORT`.
 - **agent.agents_md** (config.yaml): Injects the working directory's `AGENTS.md` into the system prompt as a
   `PROJECT INSTRUCTIONS (AGENTS.md)` section. Sub-keys: `enabled` (default true), `max_lines` (default 399)
-  and `max_chars` (default 8000) cap that file. Env: `INFER_AGENT_AGENTS_MD_ENABLED`,
+  and `max_chars` (default 32768) cap that file. When the file is still cut, the section ends with the
+  marker plus a note telling the model to read the rest of `AGENTS.md` with the Read tool, and the cut is
+  logged as a warning that names the file, its size and the limits. Env: `INFER_AGENT_AGENTS_MD_ENABLED`,
   `INFER_AGENT_AGENTS_MD_MAX_LINES`, `INFER_AGENT_AGENTS_MD_MAX_CHARS`.
 - Nested AGENTS.md files: following the [agents.md](https://agents.md) standard, an `AGENTS.md` in a
   subdirectory takes precedence over the root file for that directory. `infer` points the model at them

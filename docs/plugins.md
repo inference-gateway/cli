@@ -74,7 +74,7 @@ seeded or overwritten by `infer init`).
   enabled plugin's `AGENTS.md`, in registry order.
 - Instruction files are read verbatim (no environment-variable expansion) and
   capped at `max_instructions_lines` (default 399, per the AGENTS.md standard)
-  with a `max_instructions_chars` backstop (default 8000). Truncation is
+  with a `max_instructions_chars` backstop (default 32768). Truncation is
   always explicitly marked.
 
 ## Configuration
@@ -86,7 +86,7 @@ seeded or overwritten by `infer init`).
 enabled: true                  # master switch (INFER_PLUGINS_ENABLED)
 # dir: /custom/path            # storage override (INFER_PLUGINS_DIR)
 # max_instructions_lines: 399
-# max_instructions_chars: 8000
+# max_instructions_chars: 32768
 plugins:
   - name: ponytail
     source: DietrichGebert/ponytail
