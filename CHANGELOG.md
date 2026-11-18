@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.264.0](https://github.com/inference-gateway/cli/compare/v0.263.0...v0.264.0) (2026-11-18)
+
+### 🚀 Features
+
+* **computer:** give the refused screen input a stable code in screen_result ([#1906](https://github.com/inference-gateway/cli/issues/1906)) ([d730e0d](https://github.com/inference-gateway/cli/commit/d730e0d60e4581f60f840af75836a885633e0de3)), closes [#1903](https://github.com/inference-gateway/cli/issues/1903)
+
+### 👷 CI/CD
+
+* **workflows:** cross-compile darwin on ubuntu runners ([#1905](https://github.com/inference-gateway/cli/issues/1905)) ([7380e28](https://github.com/inference-gateway/cli/commit/7380e28ea94fd2f98718298581dddc1c9217f0f8)), closes [#1904](https://github.com/inference-gateway/cli/issues/1904)
+
 ## [0.263.0](https://github.com/inference-gateway/cli/compare/v0.262.1...v0.263.0) (2026-11-17)
 
 ### 🚀 Features
