@@ -385,6 +385,54 @@ func (s *JsonlStorage) conversationDirs(project string) []string {
 	return dirs
 }
 
+// MoveConversation moves a conversation into the store of the project at dir
+// and records dir as its project, so a listing across projects names the store
+// that holds it. A store with a configured path keeps every project's
+// conversations, so there only the recorded project changes.
+func (s *JsonlStorage) MoveConversation(ctx context.Context, conversationID, dir string) error {
+	entries, metadata, err := s.LoadConversation(ctx, conversationID)
+	if err != nil {
+		return err
+	}
+	metadata.Project = dir
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	source := s.existingConversationFile(conversationID)
+	targetDir := s.projectConversationsDir(dir)
+	target := s.conversationFilePathIn(targetDir, conversationID)
+	moving := target != source
+	if moving {
+		if _, err := os.Stat(target); err == nil {
+			return fmt.Errorf("conversation %s is already in %s", conversationID, dir)
+		}
+		if err := os.MkdirAll(targetDir, 0755); err != nil {
+			return fmt.Errorf("failed to create the project's conversations directory: %w", err)
+		}
+	}
+	if err := s.writeFullFileV2(target, entries, metadata); err != nil {
+		return err
+	}
+	if moving {
+		if err := os.Remove(source); err != nil {
+			return fmt.Errorf("failed to remove the conversation's old file: %w", err)
+		}
+		s.listedIn.Store(conversationID, targetDir)
+	}
+	s.setPersistedCount(conversationID, len(entries))
+	return nil
+}
+
+// projectConversationsDir is the conversations directory of the project at
+// dir: its own store under the default per-project layout, else this store's.
+func (s *JsonlStorage) projectConversationsDir(dir string) string {
+	if s.projectsPath == "" {
+		return s.basePath
+	}
+	return filepath.Join(s.projectsPath, config.ProjectSlug(dir), "conversations")
+}
+
 // ListConversationsNeedingTitles returns conversations that need title
 // generation, scoped to the current project's store (basePath). The title
 // worker can only load and update conversations under that directory, so an

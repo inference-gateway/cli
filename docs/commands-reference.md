@@ -764,6 +764,10 @@ rather than reading files directly).
 - `show <session-id>`: Print a single conversation's entries in chronological order
   (first 10 entries by default: see the `show` flags below).
 - `delete <session-id>`: Delete a saved conversation.
+- `move <session-id> --to <dir>`: Move a saved conversation to the project at `<dir>`. Run it from
+  the project the conversation is in. Listing across projects then names the new project, and
+  `show` and `delete` find it from there. With the default JSONL storage its file moves to that
+  project's conversations directory.
 
 **`list` flags:**
 
@@ -796,6 +800,9 @@ group's current session id (registering the group if it is new).
 ```bash
 # List conversations to find a session id
 infer conversations list
+
+# Move a conversation to the project in ~/src/other
+infer conversations move <session-id> --to ~/src/other
 
 # Show a conversation's entries (hidden entries omitted)
 infer conversations show 12345678-1234-1234-1234-123456789abc
