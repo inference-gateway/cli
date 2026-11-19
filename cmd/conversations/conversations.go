@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,6 +18,8 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
@@ -81,6 +85,28 @@ Examples:
 		},
 	}
 
+	moveCommand := &cobra.Command{
+		Use:   "move <session-id> --to <dir>",
+		Short: "Move a saved conversation to another project",
+		Long: `Move a saved conversation to the project at another directory.
+
+Run it from the project the conversation is in, the same as delete. The
+conversation then records the new project, so a listing across projects names
+it, and show and delete find it when run from there. With the default JSONL
+storage its file also moves to that project's conversations directory.
+
+Examples:
+  # Move a conversation to the project in ~/src/other
+  infer conversations move 12345678-1234-1234-1234-123456789abc --to ~/src/other`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			to, _ := cmd.Flags().GetString("to")
+			return moveConversation(state, cmd.OutOrStdout(), args[0], to)
+		},
+	}
+	moveCommand.Flags().String("to", "", "Directory of the project to move the conversation to")
+	_ = moveCommand.MarkFlagRequired("to")
+
 	showCommand := &cobra.Command{
 		Use:   "show <session-id>",
 		Short: "Show the entries of a single conversation",
@@ -132,7 +158,7 @@ Examples:
 	showCommand.Flags().Bool("no-trunc", false, "Print every entry instead of the default first-10 window")
 	showCommand.Flags().BoolP("append", "a", false, "Print the entries after the default first-10 window instead of the window itself")
 
-	command.AddCommand(listCommand, deleteCommand, showCommand)
+	command.AddCommand(listCommand, deleteCommand, moveCommand, showCommand)
 	return command
 }
 
@@ -237,6 +263,42 @@ func deleteConversation(state *runtime.State, w io.Writer, rawID string) error {
 
 	fmt.Fprintf(w, "Deleted conversation: %s\n", sessionID)
 	return nil
+}
+
+func moveConversation(state *runtime.State, w io.Writer, rawID, to string) error {
+	dir, err := projectDir(to)
+	if err != nil {
+		return err
+	}
+
+	services := container.NewServiceContainer(state.Config())
+
+	store := services.GetStorage()
+	if store == nil {
+		return fmt.Errorf("storage is not configured")
+	}
+
+	sessionID := resolveConversationSessionID(services, rawID)
+
+	if err := storage.MoveConversation(context.Background(), store, sessionID, dir); err != nil {
+		return fmt.Errorf("failed to move conversation: %w", err)
+	}
+
+	fmt.Fprintf(w, "Moved conversation %s to %s\n", sessionID, dir)
+	return nil
+}
+
+// projectDir resolves --to to the absolute directory a conversation records as
+// its project, refusing a path that is not an existing directory.
+func projectDir(to string) (string, error) {
+	dir, err := filepath.Abs(utils.ExpandHome(to))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve %s: %w", to, err)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", dir)
+	}
+	return dir, nil
 }
 
 func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) error {

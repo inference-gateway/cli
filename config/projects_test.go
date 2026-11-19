@@ -86,6 +86,12 @@ func TestProjectRuntimeDir(t *testing.T) {
 	})
 }
 
+func TestProjectSlug(t *testing.T) {
+	if got := config.ProjectSlug("/home/alice/.work/repo"); got != "-home-alice-work-repo" {
+		t.Fatalf("ProjectSlug() = %q, want -home-alice-work-repo", got)
+	}
+}
+
 func TestMediaDir(t *testing.T) {
 	home := t.TempDir()
 	project := t.TempDir()

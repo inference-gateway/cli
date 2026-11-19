@@ -43,18 +43,25 @@ func ConfigLookupDirs() []string {
 	return append(dirs, ConfigDirName)
 }
 
-// projectRuntimeSlug maps the absolute working directory to a flat directory
-// name, the scheme the conversation store uses: /home/alice/repo becomes
-// -home-alice-repo. "default" is used when the cwd cannot be resolved.
+// projectRuntimeSlug is the ProjectSlug of the working directory, or "default"
+// when the cwd cannot be resolved.
 func projectRuntimeSlug() string {
 	cwd, err := os.Getwd()
 	if err != nil || strings.TrimSpace(cwd) == "" {
 		return "default"
 	}
-	if rel, err := filepath.Rel(UserSpaceConfigDir(), cwd); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+	return ProjectSlug(cwd)
+}
+
+// ProjectSlug maps a project's absolute directory to the flat directory name
+// its runtime and conversation store use: /home/alice/repo becomes
+// -home-alice-repo. A directory inside the userspace config dir is named by its
+// path relative to it.
+func ProjectSlug(dir string) string {
+	if rel, err := filepath.Rel(UserSpaceConfigDir(), dir); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
 		return slugOfPath(rel)
 	}
-	return slugOfPath(cwd)
+	return slugOfPath(dir)
 }
 
 // slugOfPath joins the path's segments with "-", dropping the dot a hidden
