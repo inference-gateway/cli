@@ -221,7 +221,7 @@ func restoreConfigFile(path string, previous []byte, existed bool) error {
 	return os.WriteFile(path, previous, 0o600)
 }
 
-// resolveConfigKeyKind walks the Config struct by mapstructure tag to find the
+// resolveConfigKeyKind walks the Config struct by config key name to find the
 // kind of the field a dotted key points at. Returns false for unknown keys and
 // for keys whose section lives in a split file rather than config.yaml.
 func resolveConfigKeyKind(key string) (reflect.Kind, bool) {
@@ -239,7 +239,7 @@ func resolveConfigKeyKind(key string) (reflect.Kind, bool) {
 			return reflect.Invalid, false
 		}
 
-		field, ok := fieldByConfigTag(t, part)
+		field, ok := config.FieldForKey(t, part)
 		if !ok {
 			return reflect.Invalid, false
 		}
@@ -254,28 +254,6 @@ func resolveConfigKeyKind(key string) (reflect.Kind, bool) {
 		t = ft
 	}
 	return reflect.Invalid, false
-}
-
-// fieldByConfigTag finds the struct field whose mapstructure tag matches name.
-// Falls back to the lowercased field name when no tag is present.
-func fieldByConfigTag(t reflect.Type, name string) (reflect.StructField, bool) {
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		tag := f.Tag.Get("mapstructure")
-		if tag == "" {
-			tag = strings.ToLower(f.Name)
-		}
-		if comma := strings.Index(tag, ","); comma >= 0 {
-			tag = tag[:comma]
-		}
-		if tag == "-" {
-			continue
-		}
-		if tag == name {
-			return f, true
-		}
-	}
-	return reflect.StructField{}, false
 }
 
 func parseConfigValue(raw string, kind reflect.Kind) (any, error) {
