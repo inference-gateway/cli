@@ -77,4 +77,4 @@ Repo-wide invariants:
 
 - Split YAML under `.infer/` (project) and `~/.infer/` (user): `config.yaml`, `sandbox.yaml`, `prompts.yaml`, `agents.yaml`, `keybindings.yaml`, `mcp.yaml`, `shortcuts/*.yaml`, … Env overrides use `INFER_<PATH_WITH_UNDERSCORES>` (e.g. `INFER_AGENT_MODEL`).
 - Never commit secrets. Credentials live in `.env` (never committed).
-- `infer init --overwrite` wipes `~/.infer/agents.yaml` (and `mcp.yaml`, `channels.yaml`, `computer_use.yaml`, `heartbeat.yaml`, `judge.yaml`) in the userspace config dir. None of them is ever in the repository.
+- `infer init --overwrite` regenerates every seeded userspace file (`config.yaml`, `agents.yaml`, `mcp.yaml`, `prompts.yaml`, `hooks.yaml`, `keybindings.yaml`, `channels.yaml`, `sandbox.yaml`, every `shortcuts/*.yaml`, and the rest of the seed list in `cmd/init/init.go`). Only `memory.yaml` survives - it is deliberately never clobbered by a re-init. None of them is ever in the repository.
