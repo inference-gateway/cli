@@ -104,13 +104,14 @@ func TestConfigSetRollsBackRejectedValue(t *testing.T) {
 }
 
 // A userspace write keeps the keys Config does not declare, such as the desktop
-// app's projects.root, and never brings back a declared key it omits as empty.
+// app's projects.root, never brings back a declared key it omits as empty, and
+// matches keys case-insensitively as Viper does.
 func TestConfigSetKeepsKeysConfigDoesNotDeclare(t *testing.T) {
 	homeDir, _ := splitHomeProjectEnv(t)
 	homeConfig := filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(homeConfig), 0o755))
 	existing := "gateway:\n  oci: ghcr.io/example/old:1\n  desktop_only: kept-nested\n" +
-		"projects:\n  root: /home/x/repos\ncomputer_use:\n  enabled: true\n"
+		"projects:\n  root: /home/x/repos\ncomputer_use:\n  enabled: true\nLogging:\n  debug: true\n"
 	require.NoError(t, os.WriteFile(homeConfig, []byte(existing), 0o644))
 
 	require.NoError(t, setConfigValue(newProjectFlagCommand(false), []string{"gateway.oci", ""}, acceptConfig))
@@ -122,6 +123,8 @@ func TestConfigSetKeepsKeysConfigDoesNotDeclare(t *testing.T) {
 	require.Contains(t, content, "desktop_only: kept-nested")
 	require.NotContains(t, content, "ghcr.io/example/old:1")
 	require.NotContains(t, content, "computer_use:")
+	require.NotContains(t, content, "Logging:")
+	require.Contains(t, content, "logging:\n  debug: true")
 }
 
 func newConfigTestCommand(t *testing.T) *cobra.Command {

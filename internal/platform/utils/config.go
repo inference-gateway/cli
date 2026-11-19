@@ -96,7 +96,7 @@ func addUndeclaredKeys(dst, src *yaml.Node, t reflect.Type) {
 	}
 	for i := 0; i+1 < len(src.Content); i += 2 {
 		key, value := src.Content[i], src.Content[i+1]
-		field, declared := fieldForKey(t, key.Value)
+		field, declared := config.FieldForKey(t, key.Value)
 		if !declared {
 			dst.Content = append(dst.Content, key, value)
 			continue
@@ -107,29 +107,11 @@ func addUndeclaredKeys(dst, src *yaml.Node, t reflect.Type) {
 	}
 }
 
-// fieldForKey finds the field of the struct type t that a config key names: its
-// yaml tag, or its mapstructure tag for a field kept out of config.yaml.
-func fieldForKey(t reflect.Type, key string) (reflect.StructField, bool) {
-	for i := range t.NumField() {
-		field := t.Field(i)
-		name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
-		if name == "-" {
-			name, _, _ = strings.Cut(field.Tag.Get("mapstructure"), ",")
-		}
-		if name == "" {
-			name = strings.ToLower(field.Name)
-		}
-		if name == key {
-			return field, true
-		}
-	}
-	return reflect.StructField{}, false
-}
-
 // mappingValue returns the value node of key in the mapping node, or nil.
+// Case is ignored, as Viper ignores it.
 func mappingValue(mapping *yaml.Node, key string) *yaml.Node {
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
-		if mapping.Content[i].Value == key {
+		if strings.EqualFold(mapping.Content[i].Value, key) {
 			return mapping.Content[i+1]
 		}
 	}

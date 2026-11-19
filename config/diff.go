@@ -35,6 +35,18 @@ func collectChangedKeys(before, after reflect.Value, prefix string, keys *[]stri
 	}
 }
 
+// FieldForKey finds the exported field of the struct type t that a config key
+// names, by the names ChangedKeys uses. Case is ignored, as Viper ignores it.
+func FieldForKey(t reflect.Type, key string) (reflect.StructField, bool) {
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if field.IsExported() && strings.EqualFold(configKeyName(field), key) {
+			return field, true
+		}
+	}
+	return reflect.StructField{}, false
+}
+
 func configKeyName(field reflect.StructField) string {
 	if name, _, _ := strings.Cut(field.Tag.Get("yaml"), ","); name != "" && name != "-" {
 		return name
