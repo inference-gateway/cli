@@ -228,6 +228,7 @@ func newServiceContainer(cfg *config.Config, daemonOpts *daemonthread.Options, l
 	}
 
 	cfg.SetConfigDir(config.ResolveConfigDir())
+	useMainAgentPrompt(cfg)
 
 	container.gatewayTransport = gateway.Transport(cfg.Gateway.TLS)
 	a2ainfra.UseGatewayCredential(cfg.Gateway.URL, cfg.Gateway.APIKey, container.gatewayTransport)
@@ -397,6 +398,15 @@ func (c *ServiceContainer) initializeA2A() {
 		c.backgroundTaskService = a2a.NewBackgroundTaskService(c.a2aTaskTracker, c.jobSupervisor)
 	}
 	c.toolRegistry.RegisterTools(a2a.NewTools(c.config, c.a2aTaskTracker, c.backgroundTaskRegistry, c.taskRetentionService))
+}
+
+// useMainAgentPrompt starts a chat as the main agent: an empty
+// prompts.agent.system_prompt takes the body of the main agent the project
+// resolves, while a set one (prompts.yaml, a worker's env) overrides it.
+func useMainAgentPrompt(cfg *config.Config) {
+	if cfg.Prompts.Agent.SystemPrompt == "" {
+		cfg.Prompts.Agent.SystemPrompt = tools.MainAgentPrompt("")
+	}
 }
 
 // registerCustomTools registers the user's custom tools from tools.custom_dir.

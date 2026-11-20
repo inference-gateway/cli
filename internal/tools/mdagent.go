@@ -123,7 +123,12 @@ func loadMarkdownAgent(path string, knownTools map[string]bool) (*markdownAgent,
 	if err != nil {
 		return nil, fmt.Sprintf("read failed: %v", err)
 	}
+	return parseMarkdownAgent(data, path, knownTools)
+}
 
+// parseMarkdownAgent parses the content of one Markdown agent, found at path,
+// returning (agent, "") on success or (nil, reason) when it must be skipped.
+func parseMarkdownAgent(data []byte, path string, knownTools map[string]bool) (*markdownAgent, string) {
 	fmBlock, body, err := skills.SplitFrontmatter(data)
 	if err != nil {
 		return nil, err.Error()
@@ -180,12 +185,12 @@ func findMarkdownAgent(agents []markdownAgent, name string) (markdownAgent, erro
 }
 
 // ResolveThreadAgent overlays the Markdown agent a daemon thread names, from
-// projectDir's .infer/agents then ~/.infer/agents, onto the thread's options.
+// projectDir's .infer/agents, ~/.infer/agents, then the built-ins, onto the thread's options.
 // As for a named subagent, the body is the system prompt and a frontmatter model
 // wins over the thread's. The tool lists and MCP servers stay unresolved for the
 // worker, which checks them against what its computer has.
 func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (sessionsdomain.ThreadOptions, error) {
-	agent, err := findMarkdownAgent(loadMarkdownAgents(markdownAgentDirs(projectDir), nil), opts.Agent)
+	agent, err := findMarkdownAgent(loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil), opts.Agent)
 	if err != nil {
 		return sessionsdomain.ThreadOptions{}, err
 	}

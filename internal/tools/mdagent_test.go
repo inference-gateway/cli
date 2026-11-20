@@ -382,7 +382,7 @@ Offline.`)
 		{
 			name:    "an unknown agent names the available ones",
 			agent:   "ghost",
-			wantErr: `unknown agent "ghost"; available agents: aliased, helper, mailer, offline, reviewer`,
+			wantErr: `unknown agent "ghost"; available agents: aliased, explore, general-purpose, helper, mailer, main, offline, plan, reviewer`,
 		},
 		{
 			name:    "an empty allowlist is invalid instead of granting every tool",

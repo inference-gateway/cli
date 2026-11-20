@@ -88,12 +88,13 @@ func (r *Registry) LoadMarkdownAgents() {
 	for name := range r.tools {
 		known[name] = true
 	}
-	r.mdAgents = loadMarkdownAgents(nil, known)
+	r.mdAgents = loadMarkdownAgentsWithBuiltins(nil, known)
 	agentTool.setMarkdownAgents(r.mdAgents, r)
 }
 
 // MarkdownSubagents returns the Markdown-defined subagent presets loaded this
-// session (.infer/agents/*.md, project then user home), for the /agents listing.
+// session (.infer/agents/*.md, project then user home, then the built-ins), for
+// the /agents listing.
 func (r *Registry) MarkdownSubagents() []agentdomain.SubagentInfo {
 	if len(r.mdAgents) == 0 {
 		return nil

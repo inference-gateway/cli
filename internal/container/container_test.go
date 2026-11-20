@@ -47,3 +47,21 @@ func TestCreateRetryConfigSetsRetryStatus(t *testing.T) {
 		t.Fatalf("retry status = %+v, want attempt 2 of 4", got)
 	}
 }
+
+func TestUseMainAgentPrompt(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	fresh := config.DefaultConfig()
+	useMainAgentPrompt(fresh)
+	if !strings.HasPrefix(fresh.Prompts.Agent.SystemPrompt, "Autonomous software engineering agent.") {
+		t.Fatalf("an empty system_prompt must take the main agent's body, got %q", fresh.Prompts.Agent.SystemPrompt)
+	}
+
+	overridden := config.DefaultConfig()
+	overridden.Prompts.Agent.SystemPrompt = "From prompts.yaml."
+	useMainAgentPrompt(overridden)
+	if overridden.Prompts.Agent.SystemPrompt != "From prompts.yaml." {
+		t.Fatalf("a set system_prompt must override the main agent, got %q", overridden.Prompts.Agent.SystemPrompt)
+	}
+}

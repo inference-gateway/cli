@@ -21,6 +21,7 @@ does the same in one view.
 
 - [Format](#format)
 - [Locations and Precedence](#locations-and-precedence)
+- [Built-in Agents](#built-in-agents)
 - [Tools Allowlist](#tools-allowlist)
 - [MCP Servers](#mcp-servers)
 - [Model](#model)
@@ -77,6 +78,36 @@ This is the layout skills and custom tools use. A project can therefore
 override a personal agent with the same name, the same way project skills
 override user skills. Commit `.infer/agents/` or `.agents/agents/` with your
 project to share its agents - the home dirs stay personal.
+
+## Built-in Agents
+
+The CLI ships four agents embedded in the binary. They are the last place a
+name is looked up, after the four directories above, so a file of the same
+name in any of them shadows a built-in. On `infer init` they are also seeded
+into `~/.infer/agents/` - only if absent - so you edit them like an agent you
+wrote yourself. `infer agents list` and `/agents` show an agent with the
+source `built-in` until it is seeded, and `user` after that.
+
+- **`main`** - the default main agent. Every chat runs as it unless you pick
+  another, and its body is the default system prompt.
+- **`explore`** - a read-only search agent (`Read`, `Grep`, `Tree`,
+  `WebFetch`, `WebSearch`). It answers a question by reading and reports
+  what it found with file:line references. In plan mode the main agent fans
+  out `explore` agents instead of reading serially.
+- **`plan`** - a read-only planning agent. It studies the code a change
+  touches and returns a step-by-step plan with the files to touch, the risks
+  and how to verify it.
+- **`general-purpose`** - a read-write agent for multi-step tasks that carry
+  a well-scoped change end to end.
+
+To change the default system prompt, edit `~/.infer/agents/main.md`, or add a
+project `.infer/agents/main.md` for one repository. A non-empty
+`prompts.agent.system_prompt` in `prompts.yaml` (or
+`INFER_PROMPTS_AGENT_SYSTEM_PROMPT`) still overrides the main agent. A
+`prompts.yaml` that `infer init` seeded before built-in agents existed holds
+the previous default text there - delete that key, or run
+`infer init --overwrite`, to use `main.md`. `infer init --overwrite` also
+resets every built-in agent to the shipped version.
 
 ## Tools Allowlist
 

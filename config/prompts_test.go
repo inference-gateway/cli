@@ -17,7 +17,6 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 	cfg := config.DefaultPromptsConfig()
 
 	cases := map[string]string{
-		"agent.system_prompt":                         cfg.Agent.SystemPrompt,
 		"agent.system_prompt_remote":                  cfg.Agent.SystemPromptRemote,
 		"agent.system_prompt_heartbeat":               cfg.Agent.SystemPromptHeartbeat,
 		"git.commit_message.system_prompt":            cfg.Git.CommitMessage.SystemPrompt,
@@ -33,12 +32,17 @@ func TestDefaultPromptsConfig_AllPromptsPopulated(t *testing.T) {
 	}
 }
 
-// custom_instructions and the per-mode adjustment overrides are intentionally
-// empty - they're user-supplied opt-ins whose built-in texts live in the
+// system_prompt, custom_instructions and the per-mode adjustment overrides are
+// intentionally empty - they're user-supplied opt-ins. The default system prompt
+// is the body of the built-in main agent, and the per-mode texts live in the
 // mode-change reminder guidance (reminders.go). This guards them in the
 // opposite direction so a future "fill in a default" change is intentional.
 func TestDefaultPromptsConfig_OptionalPromptsBlank(t *testing.T) {
 	cfg := config.DefaultPromptsConfig()
+
+	if cfg.Agent.SystemPrompt != "" {
+		t.Errorf("agent.system_prompt should ship empty (the default is the main agent's body), got %q", cfg.Agent.SystemPrompt)
+	}
 
 	if cfg.Agent.CustomInstructions != "" {
 		t.Errorf("agent.custom_instructions should ship empty, got %q", cfg.Agent.CustomInstructions)
@@ -80,8 +84,8 @@ func TestLoadPrompts(t *testing.T) {
 		{
 			name: "non-existent file returns populated defaults",
 			check: func(t *testing.T, cfg *config.PromptsConfig) {
-				if cfg.Agent.SystemPrompt == "" {
-					t.Error("Default prompts config should populate agent.system_prompt")
+				if cfg.Agent.SystemPromptRemote == "" {
+					t.Error("Default prompts config should populate agent.system_prompt_remote")
 				}
 				if cfg.Git.CommitMessage.SystemPrompt == "" {
 					t.Error("Default prompts config should populate git.commit_message.system_prompt")
