@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.265.3](https://github.com/inference-gateway/cli/compare/v0.265.2...v0.265.3) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* **agent:** close an idle subagent without re-sending its answer ([#1916](https://github.com/inference-gateway/cli/issues/1916)) ([307472d](https://github.com/inference-gateway/cli/commit/307472da66cf6b01aeb60c479093dbaa86a7ade7))
+* **conversation:** record the parent of a session started by id ([#1918](https://github.com/inference-gateway/cli/issues/1918)) ([5f3f829](https://github.com/inference-gateway/cli/commit/5f3f829b0d77758f4304fe58ea82ce80022c6518))
+* **agent:** tell a subagent only its final message is returned ([#1917](https://github.com/inference-gateway/cli/issues/1917)) ([17ee172](https://github.com/inference-gateway/cli/commit/17ee172a36e6a927dc5677fab0c4c3a9e4900d98))
+
 ## [0.265.2](https://github.com/inference-gateway/cli/compare/v0.265.1...v0.265.2) (2026-11-20)
 
 ### 🐛 Bug Fixes
