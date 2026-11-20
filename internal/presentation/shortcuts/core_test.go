@@ -47,7 +47,8 @@ func TestContextShortcut_Execute_UsesProviderUsageWhenAvailable(t *testing.T) {
 	})
 	repo.GetMessageCountReturns(8)
 
-	model := &mockModelService{currentModel: "deepseek/deepseek-v4-flash"}
+	model := &convmocks.FakeModelService{}
+	model.GetCurrentModelReturns("deepseek/deepseek-v4-flash")
 	tokenizer := &stubTokenEstimator{estimate: 999_999}
 
 	sc := NewContextShortcut(repo, model, tokenizer)
@@ -84,7 +85,8 @@ func TestContextShortcut_Execute_FallsBackToTokenizerWhenProviderSilent(t *testi
 		{Message: sdk.Message{Role: sdk.Assistant}},
 	})
 
-	model := &mockModelService{currentModel: "deepseek/deepseek-v4-flash"}
+	model := &convmocks.FakeModelService{}
+	model.GetCurrentModelReturns("deepseek/deepseek-v4-flash")
 	tokenizer := &stubTokenEstimator{estimate: 6643}
 
 	sc := NewContextShortcut(repo, model, tokenizer)
@@ -107,7 +109,8 @@ func TestContextShortcut_Execute_NoUsageNoEstimateOmitsPercent(t *testing.T) {
 	repo.GetMessageCountReturns(0)
 	repo.GetMessagesReturns(nil)
 
-	model := &mockModelService{currentModel: "deepseek/deepseek-v4-flash"}
+	model := &convmocks.FakeModelService{}
+	model.GetCurrentModelReturns("deepseek/deepseek-v4-flash")
 	tokenizer := &stubTokenEstimator{estimate: 0}
 
 	sc := NewContextShortcut(repo, model, tokenizer)

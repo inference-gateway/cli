@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -14,33 +15,6 @@ import (
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
-
-// stubModeState is the three-method agent-mode surface the indicator reads.
-type stubModeState struct{ mode agentdomain.AgentMode }
-
-func (s stubModeState) GetAgentMode() agentdomain.AgentMode   { return s.mode }
-func (s stubModeState) SetAgentMode(_ agentdomain.AgentMode)  {}
-func (s stubModeState) CycleAgentMode() agentdomain.AgentMode { return s.mode }
-
-// stubStatusView is the status surface the row builder reads. The rest of the
-// interface is unused by it.
-type stubStatusView struct {
-	tui.StatusComponent
-	rendered string
-}
-
-func (s stubStatusView) Render() string { return s.rendered }
-
-// stubInputView is the single-method input surface the component assembler reads.
-type stubInputView struct{ tui.InputComponent }
-
-func (stubInputView) GetInput() string { return "" }
-
-// stubHelpBar keeps the help-bar slot empty without wiring the real bar.
-type stubHelpBar struct{ tui.HelpBarComponent }
-
-func (stubHelpBar) SetWidth(int)   {}
-func (stubHelpBar) Render() string { return "" }
 
 var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
@@ -52,7 +26,9 @@ func visibleWidth(s string) int { return len([]rune(plain(s))) }
 
 func modeIndicatorFor(mode agentdomain.AgentMode) *ModeIndicator {
 	indicator := NewModeIndicator(styles.NewProvider(styles.NewThemeProvider()))
-	indicator.SetStateManager(stubModeState{mode: mode})
+	state := &agentdomainmocks.FakeAgentModeState{}
+	state.GetAgentModeReturns(mode)
+	indicator.SetStateManager(state)
 	return indicator
 }
 
@@ -117,7 +93,9 @@ func TestStatusRowSharesOneLineWithMode(t *testing.T) {
 			if tt.judgeModel != "" {
 				indicator.SetJudgeModelFn(func() string { return tt.judgeModel })
 			}
-			rows := renderer.appendStatusRow(nil, stubStatusView{rendered: tt.status}, indicator, width, 1)
+			status := &tuimocks.FakeStatusComponent{}
+			status.RenderReturns(tt.status)
+			rows := renderer.appendStatusRow(nil, status, indicator, width, 1)
 			if len(rows) != 1 {
 				t.Fatalf("expected exactly one row, got %d", len(rows))
 			}
@@ -178,8 +156,8 @@ func TestSubagentRowsRenderBelowTheStatusBar(t *testing.T) {
 	rows := renderer.assembleComponents(
 		ChatInterfaceData{Width: width, Height: 24},
 		"", "", "> ",
-		nil, stubStatusView{}, nil, stubInputView{}, statusBar, list,
-		nil, stubHelpBar{}, nil, nil, nil, nil, nil, nil,
+		nil, &tuimocks.FakeStatusComponent{}, nil, &tuimocks.FakeInputComponent{}, statusBar, list,
+		nil, &tuimocks.FakeHelpBarComponent{}, nil, nil, nil, nil, nil, nil,
 		width, 0,
 	)
 
