@@ -292,6 +292,52 @@ func TestParseAgentTasks(t *testing.T) {
 	}
 }
 
+func TestParseAgentTasks_PromptFollowsDescription(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{
+			name: "prompt only",
+			args: map[string]any{"prompt": "Read cmd/ and report"},
+			want: "Read cmd/ and report",
+		},
+		{
+			name: "description and prompt",
+			args: map[string]any{"description": "Map the CLI", "prompt": "Read cmd/ and report"},
+			want: "Map the CLI\n\nRead cmd/ and report",
+		},
+		{
+			name: "description and prompt inside tasks",
+			args: map[string]any{"tasks": []any{
+				map[string]any{"description": "Map the CLI", "prompt": "Read cmd/ and report", "label": "cmd"},
+			}},
+			want: "Map the CLI\n\nRead cmd/ and report",
+		},
+		{
+			name: "blank prompt is ignored",
+			args: map[string]any{"description": "Map the CLI", "prompt": "  "},
+			want: "Map the CLI",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			specs, err := parseAgentTasks(tt.args)
+			if err != nil || len(specs) != 1 {
+				t.Fatalf("parse failed: specs=%+v err=%v", specs, err)
+			}
+			if specs[0].Description != tt.want {
+				t.Fatalf("task = %q, want %q", specs[0].Description, tt.want)
+			}
+		})
+	}
+
+	if _, err := parseAgentTasks(map[string]any{"tasks": []any{map[string]any{"label": "x"}}}); err == nil {
+		t.Fatalf("expected error for a task with neither description nor prompt")
+	}
+}
+
 func TestBuildChatPaneCommand_EmitsSubagentMode(t *testing.T) {
 	tool := newTestAgentTool(t)
 

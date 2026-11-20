@@ -879,8 +879,8 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 			if !ok {
 				return nil, fmt.Errorf("tasks[%d] must be an object", i)
 			}
-			desc, _ := m["description"].(string)
-			if strings.TrimSpace(desc) == "" {
+			desc := subagentTask(m)
+			if desc == "" {
 				return nil, fmt.Errorf("tasks[%d].description is required and must be a non-empty string", i)
 			}
 			specs = append(specs, AgentTaskSpec{
@@ -896,7 +896,7 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 		return specs, nil
 	}
 
-	if desc, ok := args["description"].(string); ok && strings.TrimSpace(desc) != "" {
+	if desc := subagentTask(args); desc != "" {
 		return []AgentTaskSpec{{
 			Label:        optionalString(args, "label"),
 			Description:  desc,
@@ -909,6 +909,19 @@ func parseAgentTasks(args map[string]any) ([]AgentTaskSpec, error) {
 	}
 
 	return nil, fmt.Errorf("provide either 'tasks' (a non-empty array) or 'description' (a single task)")
+}
+
+// subagentTask is the text a subagent starts on. Models trained on other agent
+// tools send the short title as description and the full instructions as
+// prompt, so a prompt follows the description instead of being dropped.
+func subagentTask(m map[string]any) string {
+	parts := make([]string, 0, 2)
+	for _, key := range []string{"description", "prompt"} {
+		if text := strings.TrimSpace(optionalString(m, key)); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // resolveSubagentType maps the Agent tool's `type` argument to a subagent
