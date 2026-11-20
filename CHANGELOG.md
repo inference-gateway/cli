@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.265.4](https://github.com/inference-gateway/cli/compare/v0.265.3...v0.265.4) (2026-11-20)
+
+### ♻️ Code Refactoring
+
+* **storage:** decode conversation columns through shared helpers ([#1923](https://github.com/inference-gateway/cli/issues/1923)) ([b65d3e2](https://github.com/inference-gateway/cli/commit/b65d3e276f818f3a3ab00457bd00c708244b0fe7)), closes [#1919](https://github.com/inference-gateway/cli/issues/1919)
+* **tui:** remove unreachable view checks and stale ponytail markers ([#1922](https://github.com/inference-gateway/cli/issues/1922)) ([1562192](https://github.com/inference-gateway/cli/commit/15621929a498337dbbd03c7f0cc3a0fd99cb8be5)), closes [#1921](https://github.com/inference-gateway/cli/issues/1921)
+
+### ✅ Tests
+
+* **presentation:** swap hand-written test stubs for committed counterfeiter fakes ([#1924](https://github.com/inference-gateway/cli/issues/1924)) ([e0ff79b](https://github.com/inference-gateway/cli/commit/e0ff79b5ca68f36b6e15565345d8ceac3371ca8e)), closes [#1920](https://github.com/inference-gateway/cli/issues/1920)
+
 ## [0.265.3](https://github.com/inference-gateway/cli/compare/v0.265.2...v0.265.3) (2026-11-20)
 
 ### 🐛 Bug Fixes
