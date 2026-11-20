@@ -19,6 +19,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
@@ -202,6 +203,27 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 
 	metadata := repo.GetCurrentConversationMetadata()
 	assert.Equal(t, "Hi can you read a file?", metadata.Title)
+}
+
+func TestPersistentConversationRepository_PreassignedSubagentSessionRecordsItsParent(t *testing.T) {
+	t.Setenv(scheddomain.EnvSubagentParentSession, "parent-1")
+	t.Setenv(scheddomain.EnvSubagentInvokedBy, scheddomain.SubagentInvokedByAgent)
+	store, err := storage.NewJsonlStorage(storage.JsonlStorageConfig{Path: t.TempDir()})
+	require.NoError(t, err)
+	repo := NewPersistentConversationRepository(nil, nil, store)
+	defer func() { _ = repo.Close() }()
+
+	repo.SetAutoSave(true)
+	repo.SetConversationID("subagent-parent-1-child-1")
+	require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+		Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Map the CLI")},
+		Time:    time.Now(),
+	}))
+
+	require.NoError(t, repo.LoadConversation(t.Context(), "subagent-parent-1-child-1"))
+	metadata := repo.GetCurrentConversationMetadata()
+	assert.Equal(t, "parent-1", metadata.ParentSessionID)
+	assert.Equal(t, scheddomain.SubagentInvokedByAgent, metadata.InvokedBy)
 }
 
 func TestPersistentConversationRepository_HiddenMessagesDoNotSeedTitles(t *testing.T) {

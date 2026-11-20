@@ -214,12 +214,14 @@ func (r *PersistentConversationRepository) SetConversationTags(tags []string) {
 
 // SetConversationID pre-sets the conversation ID so that subsequent AddMessage
 // calls use this ID instead of generating a random one. This is used when
-// resuming a session by ID that doesn't exist yet in storage.
+// resuming a session by ID that doesn't exist yet in storage, so the session
+// records its parent and starter the way a freshly started one does.
 func (r *PersistentConversationRepository) SetConversationID(id string) {
 	r.metadataMutex.Lock()
 	defer r.metadataMutex.Unlock()
 	r.conversationID = id
 	r.metadata.ID = id
+	r.metadata = subagentMetadataFromEnv(r.metadata)
 	if r.metadata.CreatedAt.IsZero() {
 		now := time.Now()
 		r.metadata.CreatedAt = now
