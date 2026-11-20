@@ -702,7 +702,9 @@ func (app *ChatApplication) dispatchViewMessage(currentView tui.ViewState, msg t
 	}
 }
 
-// ponytail: extracted to reduce cyclomatic complexity of handleViewSpecificMessages
+// isInputBlocked reports whether user input is disabled: a non-chat view,
+// a pending approval, plan approval or user question, a retry, a teleport,
+// or message-history mode.
 func (app *ChatApplication) isInputBlocked(currentView tui.ViewState) bool {
 	inHistoryMode := false
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
@@ -715,10 +717,7 @@ func (app *ChatApplication) isInputBlocked(currentView tui.ViewState) bool {
 		app.stateManager.GetUserQuestionUIState() != nil ||
 		app.stateManager.GetRetryStatus() != nil ||
 		app.teleporting() ||
-		inHistoryMode ||
-		currentView == tui.ViewStateDiffViewer ||
-		currentView == tui.ViewStateExplorer ||
-		currentView == tui.ViewStateHelp
+		inHistoryMode
 }
 
 func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
