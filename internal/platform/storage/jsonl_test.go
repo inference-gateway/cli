@@ -83,6 +83,7 @@ func TestNewJsonlStorage(t *testing.T) {
 	})
 
 	t.Run("expands tilde in path", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
 
