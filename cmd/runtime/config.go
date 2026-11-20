@@ -19,8 +19,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
+
+// subagentParentSessionKey is the Viper key bound to the parent session the
+// Agent tool hands a subagent it spawns.
+const subagentParentSessionKey = "subagent.parent_session_id"
 
 // subagentFinalMessageRule follows a subagent's base system prompt. The parent
 // receives only the subagent's last assistant message, so a report written
@@ -389,7 +392,7 @@ func postProcess(cfg *config.Config, v *viper.Viper, root *cobra.Command) {
 	if prompt := v.GetString("subagent.system_prompt"); prompt != "" {
 		cfg.Prompts.Agent.SystemPrompt = prompt
 	}
-	if os.Getenv(scheddomain.EnvSubagentParentSession) != "" {
+	if v.GetString(subagentParentSessionKey) != "" {
 		cfg.Prompts.Agent.SystemPrompt += "\n\n" + subagentFinalMessageRule
 	}
 	if override := resolveFlagEnvOverride(v, root, "tools-bash-allow-append", "tools.bash.allow_append"); override != "" {
