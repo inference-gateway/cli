@@ -38,6 +38,8 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 		"INFER_GATEWAY_TLS_CERT_FILE":                           "~/gateway-client.crt",
 		"INFER_GATEWAY_TLS_KEY_FILE":                            "~/gateway-client.key",
 		"INFER_GATEWAY_VERSION":                                 "v0.65.0",
+		"INFER_PARENT_SESSION_ID":                               "parent-1",
+		"INFER_INVOKED_BY":                                      "agent",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -64,6 +66,8 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 	assert.Equal(t, []string{"ctrl+h", "f1"}, cfg.Chat.Keybindings.Bindings["help_toggle_help"].Keys)
 	assert.Equal(t, config.PeerTLSConfig{CAFile: "~/gateway-ca.crt", CertFile: "~/gateway-client.crt", KeyFile: "~/gateway-client.key"}, cfg.Gateway.TLS)
 	assert.Equal(t, "v0.65.0", cfg.Gateway.Version)
+	assert.Equal(t, config.SubagentConfig{ParentSessionID: "parent-1", InvokedBy: "agent"}, cfg.Subagent,
+		"the Agent tool's variables reach the subagent section although they skip the INFER_<key> scheme")
 }
 
 // A set-but-empty variable is the zero value, a value that does not parse

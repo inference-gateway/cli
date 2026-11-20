@@ -639,7 +639,9 @@ func (c *ServiceContainer) initializeConversationRepository(
 	}
 	daemonStorage := daemonthread.NewStorage(c.daemonThread)
 	c.storage = daemonStorage
-	c.conversationRepo = conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), daemonStorage)
+	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), daemonStorage)
+	persistentRepo.SetOrigin(c.config.Subagent.ParentSessionID, c.config.Subagent.InvokedBy)
+	c.conversationRepo = persistentRepo
 	return storage.NewMemorySessionGroupStorage()
 }
 
@@ -661,6 +663,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 
 	c.storage = stores.Conversations
 	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
+	persistentRepo.SetOrigin(c.config.Subagent.ParentSessionID, c.config.Subagent.InvokedBy)
 	c.conversationRepo = persistentRepo
 	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
