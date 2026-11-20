@@ -11,6 +11,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // State owns configuration and logging initialized for one Cobra command tree.
@@ -76,6 +77,9 @@ func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 	v.AllowEmptyEnv(true)
+	if err := v.BindEnv(subagentParentSessionKey, scheddomain.EnvSubagentParentSession); err != nil {
+		return nil, nil, fmt.Errorf("binding %s: %w", scheddomain.EnvSubagentParentSession, err)
+	}
 	if err := v.BindPFlags(root.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("binding flags: %w", err)
 	}

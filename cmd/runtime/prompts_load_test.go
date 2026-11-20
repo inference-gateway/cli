@@ -3,12 +3,29 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 
 	config "github.com/inference-gateway/cli/config"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
+
+// TestLoadConfigFromViper_SubagentPromptCarriesFinalMessageRule checks that
+// only a process spawned by a parent session learns that its final message is
+// all the parent receives.
+func TestLoadConfigFromViper_SubagentPromptCarriesFinalMessageRule(t *testing.T) {
+	withHermeticEnv(t)
+	t.Setenv(scheddomain.EnvSubagentParentSession, "")
+	initConfig()
+	require.NotContains(t, Cfg.Prompts.Agent.SystemPrompt, subagentFinalMessageRule)
+
+	t.Setenv(scheddomain.EnvSubagentParentSession, "parent-1")
+	initConfig()
+	require.True(t, strings.HasSuffix(Cfg.Prompts.Agent.SystemPrompt, "\n\n"+subagentFinalMessageRule),
+		"a subagent's base prompt must end with the final-message rule, got %q", Cfg.Prompts.Agent.SystemPrompt)
+}
 
 // TestLoadConfigFromViper_PromptsDefaultsWhenFileAbsent confirms cfg.Prompts
 // falls back to in-code defaults when no prompts.yaml exists, so
