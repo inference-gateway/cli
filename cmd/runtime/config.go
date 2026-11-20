@@ -21,10 +21,6 @@ import (
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
 )
 
-// subagentParentSessionKey is the Viper key bound to the parent session the
-// Agent tool hands a subagent it spawns.
-const subagentParentSessionKey = "subagent.parent_session_id"
-
 // subagentFinalMessageRule follows a subagent's base system prompt. The parent
 // receives only the subagent's last assistant message, so a report written
 // earlier and pointed back at from the last message never reaches it.
@@ -392,7 +388,7 @@ func postProcess(cfg *config.Config, v *viper.Viper, root *cobra.Command) {
 	if prompt := v.GetString("subagent.system_prompt"); prompt != "" {
 		cfg.Prompts.Agent.SystemPrompt = prompt
 	}
-	if v.GetString(subagentParentSessionKey) != "" {
+	if cfg.Subagent.ParentSessionID != "" {
 		cfg.Prompts.Agent.SystemPrompt += "\n\n" + subagentFinalMessageRule
 	}
 	if override := resolveFlagEnvOverride(v, root, "tools-bash-allow-append", "tools.bash.allow_append"); override != "" {

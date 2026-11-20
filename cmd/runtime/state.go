@@ -67,6 +67,21 @@ func (s *State) LoadConfig() (*config.Config, error) {
 	return cfg, err
 }
 
+// bindSubagentEnv binds the subagent keys to the variables the Agent tool sets
+// on a subagent it spawns, whose names do not follow the INFER_<key> scheme.
+func bindSubagentEnv(v *viper.Viper) error {
+	bindings := []struct{ key, env string }{
+		{"subagent.parent_session_id", scheddomain.EnvSubagentParentSession},
+		{"subagent.invoked_by", scheddomain.EnvSubagentInvokedBy},
+	}
+	for _, b := range bindings {
+		if err := v.BindEnv(b.key, b.env); err != nil {
+			return fmt.Errorf("binding %s: %w", b.env, err)
+		}
+	}
+	return nil
+}
+
 // loadConfig builds the one Viper every setting flows through and unmarshals it
 // once. Precedence, lowest to highest: defaults, ~/.infer/<file>,
 // ./.infer/<file>, INFER_* env, flags. Lists replace wholesale between layers.
@@ -77,8 +92,8 @@ func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 	v.AllowEmptyEnv(true)
-	if err := v.BindEnv(subagentParentSessionKey, scheddomain.EnvSubagentParentSession); err != nil {
-		return nil, nil, fmt.Errorf("binding %s: %w", scheddomain.EnvSubagentParentSession, err)
+	if err := bindSubagentEnv(v); err != nil {
+		return nil, nil, err
 	}
 	if err := v.BindPFlags(root.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("binding flags: %w", err)

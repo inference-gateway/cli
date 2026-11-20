@@ -3,7 +3,6 @@ package conversation
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,21 +16,23 @@ import (
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
 	projects "github.com/inference-gateway/cli/internal/projects"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
-	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository
-// and adds persistence capabilities using a storage backend
+// and adds persistence capabilities using a storage backend. Every session it
+// starts records the parentSessionID and invokedBy set through SetOrigin.
 type PersistentConversationRepository struct {
 	*InMemoryConversationRepository
-	storage        storage.ConversationStorage
-	conversationID string
-	metadata       convdomain.ConversationMetadata
-	metadataMutex  sync.RWMutex
-	autoSave       bool
-	titleGenerator *ConversationTitleGenerator
-	autoSaveMutex  sync.Mutex
-	taskTracker    a2adomain.Clearer
+	storage         storage.ConversationStorage
+	conversationID  string
+	metadata        convdomain.ConversationMetadata
+	metadataMutex   sync.RWMutex
+	autoSave        bool
+	titleGenerator  *ConversationTitleGenerator
+	autoSaveMutex   sync.Mutex
+	taskTracker     a2adomain.Clearer
+	parentSessionID string
+	invokedBy       string
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -66,6 +67,15 @@ func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker a2adoma
 	r.taskTracker = taskTracker
 }
 
+// SetOrigin sets who started this process's sessions: the session that spawned
+// it as a subagent and the starter it names. Both empty mean a human.
+func (r *PersistentConversationRepository) SetOrigin(parentSessionID, invokedBy string) {
+	r.metadataMutex.Lock()
+	defer r.metadataMutex.Unlock()
+	r.parentSessionID = parentSessionID
+	r.invokedBy = invokedBy
+}
+
 // StartNewConversation saves the current conversation (if any), then begins a new conversation with a unique ID
 func (r *PersistentConversationRepository) StartNewConversation(title string) error {
 	r.metadataMutex.RLock()
@@ -89,7 +99,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 
 	r.metadataMutex.Lock()
 	r.conversationID = conversationID
-	r.metadata = subagentMetadataFromEnv(convdomain.ConversationMetadata{
+	r.metadata = r.stampOrigin(convdomain.ConversationMetadata{
 		ID:               conversationID,
 		Title:            title,
 		CreatedAt:        now,
@@ -214,12 +224,14 @@ func (r *PersistentConversationRepository) SetConversationTags(tags []string) {
 
 // SetConversationID pre-sets the conversation ID so that subsequent AddMessage
 // calls use this ID instead of generating a random one. This is used when
-// resuming a session by ID that doesn't exist yet in storage.
+// resuming a session by ID that doesn't exist yet in storage, so the session
+// records its parent and starter the way a freshly started one does.
 func (r *PersistentConversationRepository) SetConversationID(id string) {
 	r.metadataMutex.Lock()
 	defer r.metadataMutex.Unlock()
 	r.conversationID = id
 	r.metadata.ID = id
+	r.metadata = r.stampOrigin(r.metadata)
 	if r.metadata.CreatedAt.IsZero() {
 		now := time.Now()
 		r.metadata.CreatedAt = now
@@ -272,7 +284,7 @@ func (r *PersistentConversationRepository) AddMessage(msg convdomain.Conversatio
 
 		r.metadataMutex.Lock()
 		r.conversationID = conversationID
-		r.metadata = subagentMetadataFromEnv(convdomain.ConversationMetadata{
+		r.metadata = r.stampOrigin(convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
@@ -395,7 +407,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 
 		r.metadataMutex.Lock()
 		r.conversationID = conversationID
-		r.metadata = subagentMetadataFromEnv(convdomain.ConversationMetadata{
+		r.metadata = r.stampOrigin(convdomain.ConversationMetadata{
 			ID:           conversationID,
 			Title:        title,
 			CreatedAt:    now,
@@ -452,15 +464,15 @@ func (r *PersistentConversationRepository) GetCurrentConversationTitle() string 
 	return r.metadata.Title
 }
 
-// subagentMetadataFromEnv reads INFER_PARENT_SESSION_ID and INFER_INVOKED_BY
-// environment variables and applies them to the metadata. This is how the
-// Agent tool tells a spawned subagent process who its parent is.
-func subagentMetadataFromEnv(m convdomain.ConversationMetadata) convdomain.ConversationMetadata {
-	if parentID := os.Getenv(scheddomain.EnvSubagentParentSession); parentID != "" {
-		m.ParentSessionID = parentID
+// stampOrigin applies the origin set through SetOrigin to a session's metadata,
+// so a subagent's session names the session that spawned it. Callers hold
+// metadataMutex.
+func (r *PersistentConversationRepository) stampOrigin(m convdomain.ConversationMetadata) convdomain.ConversationMetadata {
+	if r.parentSessionID != "" {
+		m.ParentSessionID = r.parentSessionID
 	}
-	if invokedBy := os.Getenv(scheddomain.EnvSubagentInvokedBy); invokedBy != "" {
-		m.InvokedBy = invokedBy
+	if r.invokedBy != "" {
+		m.InvokedBy = r.invokedBy
 	} else if m.InvokedBy == "" {
 		m.InvokedBy = "human"
 	}

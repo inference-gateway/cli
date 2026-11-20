@@ -76,6 +76,7 @@ type Config struct {
 	Hooks            HooksConfig            `yaml:"-" mapstructure:"hooks"`
 	Judge            JudgeConfig            `yaml:"-" mapstructure:"judge"`
 	Plugins          PluginsConfig          `yaml:"-" mapstructure:"plugins"`
+	Subagent         SubagentConfig         `yaml:"-" mapstructure:"subagent"`
 	configDir        string
 }
 
@@ -604,6 +605,15 @@ type AgentToolConfig struct {
 	IdleTimeout        int                      `yaml:"idle_timeout" mapstructure:"idle_timeout"`
 	WrapUpMessage      string                   `yaml:"wrap_up_message" mapstructure:"wrap_up_message"`
 	CompletedRetention int                      `yaml:"completed_retention" mapstructure:"completed_retention"`
+}
+
+// SubagentConfig is what the Agent tool hands a subagent process it spawns:
+// the session that spawned it and who started it. Both arrive through the
+// scheduler's EnvSubagentParentSession and EnvSubagentInvokedBy variables,
+// never through a file.
+type SubagentConfig struct {
+	ParentSessionID string `yaml:"-" mapstructure:"parent_session_id"`
+	InvokedBy       string `yaml:"-" mapstructure:"invoked_by"`
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings

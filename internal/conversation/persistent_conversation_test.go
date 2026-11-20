@@ -19,6 +19,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	constants "github.com/inference-gateway/cli/internal/platform/constants"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
 func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
@@ -202,6 +203,49 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 
 	metadata := repo.GetCurrentConversationMetadata()
 	assert.Equal(t, "Hi can you read a file?", metadata.Title)
+}
+
+func TestPersistentConversationRepository_PreassignedSessionRecordsItsOrigin(t *testing.T) {
+	tests := []struct {
+		name          string
+		parent        string
+		invokedBy     string
+		wantParent    string
+		wantInvokedBy string
+	}{
+		{
+			name:          "subagent",
+			parent:        "parent-1",
+			invokedBy:     scheddomain.SubagentInvokedByAgent,
+			wantParent:    "parent-1",
+			wantInvokedBy: scheddomain.SubagentInvokedByAgent,
+		},
+		{
+			name:          "human",
+			wantInvokedBy: "human",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, err := storage.NewJsonlStorage(storage.JsonlStorageConfig{Path: t.TempDir()})
+			require.NoError(t, err)
+			repo := NewPersistentConversationRepository(nil, nil, store)
+			defer func() { _ = repo.Close() }()
+
+			repo.SetOrigin(tt.parent, tt.invokedBy)
+			repo.SetAutoSave(true)
+			repo.SetConversationID("session-1")
+			require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
+				Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("Map the CLI")},
+				Time:    time.Now(),
+			}))
+
+			require.NoError(t, repo.LoadConversation(t.Context(), "session-1"))
+			metadata := repo.GetCurrentConversationMetadata()
+			assert.Equal(t, tt.wantParent, metadata.ParentSessionID)
+			assert.Equal(t, tt.wantInvokedBy, metadata.InvokedBy)
+		})
+	}
 }
 
 func TestPersistentConversationRepository_HiddenMessagesDoNotSeedTitles(t *testing.T) {
