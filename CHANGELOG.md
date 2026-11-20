@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.265.2](https://github.com/inference-gateway/cli/compare/v0.265.1...v0.265.2) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* **agent:** give a subagent the prompt the model passed, not only its description ([#1915](https://github.com/inference-gateway/cli/issues/1915)) ([192f119](https://github.com/inference-gateway/cli/commit/192f119e61f84b2fdafab8a3e819f1b93440028a))
+
 ## [0.265.1](https://github.com/inference-gateway/cli/compare/v0.265.0...v0.265.1) (2026-11-19)
 
 ### 🐛 Bug Fixes
