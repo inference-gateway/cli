@@ -19,7 +19,14 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	sandboxdomain "github.com/inference-gateway/cli/internal/sandbox/domain"
+	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
+
+// subagentFinalMessageRule follows a subagent's base system prompt. The parent
+// receives only the subagent's last assistant message, so a report written
+// earlier and pointed back at from the last message never reaches it.
+const subagentFinalMessageRule = "You are a subagent. Only your final message is returned to the agent that spawned you, " +
+	"so end with your complete result in it. Do not point back at an earlier message - the agent that spawned you never sees it."
 
 // sidecar is one split config file. Its contents are merged into the main
 // Viper under key, so a block with the same key in config.yaml never reaches
@@ -381,6 +388,9 @@ func remindersFileOverride(root *cobra.Command) string {
 func postProcess(cfg *config.Config, v *viper.Viper, root *cobra.Command) {
 	if prompt := v.GetString("subagent.system_prompt"); prompt != "" {
 		cfg.Prompts.Agent.SystemPrompt = prompt
+	}
+	if os.Getenv(scheddomain.EnvSubagentParentSession) != "" {
+		cfg.Prompts.Agent.SystemPrompt += "\n\n" + subagentFinalMessageRule
 	}
 	if override := resolveFlagEnvOverride(v, root, "tools-bash-allow-append", "tools.bash.allow_append"); override != "" {
 		cfg.Tools.Bash.Mode.All.Allow = append(cfg.Tools.Bash.Mode.All.Allow, ParseDelimitedList(override)...)
