@@ -9,12 +9,13 @@ import (
 	require "github.com/stretchr/testify/require"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	conversationmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
 func TestEffortShortcut_ShowCurrent(t *testing.T) {
 	agent := &agentdomainmocks.FakeAgentService{}
 	agent.GetReasoningEffortReturns("xhigh")
-	shortcut := NewEffortShortcut(agent, &mockModelService{currentModel: "anthropic/claude-opus-4-8"})
+	shortcut := NewEffortShortcut(agent, &conversationmocks.FakeModelService{})
 
 	result, err := shortcut.Execute(context.Background(), nil)
 
@@ -25,7 +26,7 @@ func TestEffortShortcut_ShowCurrent(t *testing.T) {
 }
 
 func TestEffortShortcut_ShowDefault(t *testing.T) {
-	shortcut := NewEffortShortcut(&agentdomainmocks.FakeAgentService{}, &mockModelService{})
+	shortcut := NewEffortShortcut(&agentdomainmocks.FakeAgentService{}, &conversationmocks.FakeModelService{})
 
 	result, err := shortcut.Execute(context.Background(), nil)
 
@@ -36,7 +37,9 @@ func TestEffortShortcut_ShowDefault(t *testing.T) {
 
 func TestEffortShortcut_SetOnAnthropicModel(t *testing.T) {
 	agent := &agentdomainmocks.FakeAgentService{}
-	shortcut := NewEffortShortcut(agent, &mockModelService{currentModel: "anthropic/claude-opus-4-8"})
+	models := &conversationmocks.FakeModelService{}
+	models.GetCurrentModelReturns("anthropic/claude-opus-4-8")
+	shortcut := NewEffortShortcut(agent, models)
 
 	result, err := shortcut.Execute(context.Background(), []string{"MAX"})
 
@@ -49,7 +52,9 @@ func TestEffortShortcut_SetOnAnthropicModel(t *testing.T) {
 
 func TestEffortShortcut_RejectsNonAnthropicModel(t *testing.T) {
 	agent := &agentdomainmocks.FakeAgentService{}
-	shortcut := NewEffortShortcut(agent, &mockModelService{currentModel: "openai/gpt-5"})
+	models := &conversationmocks.FakeModelService{}
+	models.GetCurrentModelReturns("openai/gpt-5")
+	shortcut := NewEffortShortcut(agent, models)
 
 	result, err := shortcut.Execute(context.Background(), []string{"high"})
 
@@ -62,7 +67,9 @@ func TestEffortShortcut_RejectsNonAnthropicModel(t *testing.T) {
 func TestEffortShortcut_InvalidLevel(t *testing.T) {
 	agent := &agentdomainmocks.FakeAgentService{}
 	agent.SetReasoningEffortReturns(errors.New(`invalid reasoning effort "bogus"`))
-	shortcut := NewEffortShortcut(agent, &mockModelService{currentModel: "anthropic/claude-opus-4-8"})
+	models := &conversationmocks.FakeModelService{}
+	models.GetCurrentModelReturns("anthropic/claude-opus-4-8")
+	shortcut := NewEffortShortcut(agent, models)
 
 	result, err := shortcut.Execute(context.Background(), []string{"bogus"})
 
@@ -72,7 +79,7 @@ func TestEffortShortcut_InvalidLevel(t *testing.T) {
 }
 
 func TestEffortShortcut_CanExecute(t *testing.T) {
-	shortcut := NewEffortShortcut(&agentdomainmocks.FakeAgentService{}, &mockModelService{})
+	shortcut := NewEffortShortcut(&agentdomainmocks.FakeAgentService{}, &conversationmocks.FakeModelService{})
 
 	assert.True(t, shortcut.CanExecute(nil))
 	assert.True(t, shortcut.CanExecute([]string{"high"}))

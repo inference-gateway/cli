@@ -5,49 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	conversationmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 )
 
-// MockModelService for testing
-type mockModelService struct {
-	currentModel    string
-	availableModels []string
-	validateErr     error
-}
-
-func (m *mockModelService) ListModels(ctx context.Context) ([]string, error) {
-	return m.availableModels, nil
-}
-
-func (m *mockModelService) SelectModel(modelID string) error {
-	m.currentModel = modelID
-	return nil
-}
-
-func (m *mockModelService) GetCurrentModel() string {
-	return m.currentModel
-}
-
-func (m *mockModelService) IsModelAvailable(modelID string) bool {
-	for _, model := range m.availableModels {
-		if model == modelID {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *mockModelService) ValidateModel(modelID string) error {
-	if m.validateErr != nil {
-		return m.validateErr
-	}
-	if !m.IsModelAvailable(modelID) {
-		return fmt.Errorf("model '%s' not available", modelID)
-	}
-	return nil
-}
-
 func TestSwitchShortcut_GetName(t *testing.T) {
-	modelService := &mockModelService{}
+	modelService := &conversationmocks.FakeModelService{}
 	shortcut := NewSwitchShortcut(modelService)
 
 	if shortcut.GetName() != "model" {
@@ -56,7 +19,7 @@ func TestSwitchShortcut_GetName(t *testing.T) {
 }
 
 func TestSwitchShortcut_GetUsage(t *testing.T) {
-	modelService := &mockModelService{}
+	modelService := &conversationmocks.FakeModelService{}
 	shortcut := NewSwitchShortcut(modelService)
 
 	expected := "/model [model-name] [prompt]"
@@ -66,7 +29,7 @@ func TestSwitchShortcut_GetUsage(t *testing.T) {
 }
 
 func TestSwitchShortcut_CanExecute(t *testing.T) {
-	modelService := &mockModelService{}
+	modelService := &conversationmocks.FakeModelService{}
 	shortcut := NewSwitchShortcut(modelService)
 
 	tests := []struct {
@@ -90,10 +53,7 @@ func TestSwitchShortcut_CanExecute(t *testing.T) {
 }
 
 func TestSwitchShortcut_Execute_NoArgs(t *testing.T) {
-	modelService := &mockModelService{
-		currentModel:    "claude-sonnet-4",
-		availableModels: []string{"claude-sonnet-4"},
-	}
+	modelService := &conversationmocks.FakeModelService{}
 	shortcut := NewSwitchShortcut(modelService)
 
 	ctx := context.Background()
@@ -117,10 +77,7 @@ func TestSwitchShortcut_Execute_NoArgs(t *testing.T) {
 }
 
 func TestSwitchShortcut_Execute_PermanentSwitch(t *testing.T) {
-	modelService := &mockModelService{
-		currentModel:    "claude-sonnet-4",
-		availableModels: []string{"claude-sonnet-4", "claude-opus-4"},
-	}
+	modelService := &conversationmocks.FakeModelService{}
 	shortcut := NewSwitchShortcut(modelService)
 
 	ctx := context.Background()
@@ -142,8 +99,11 @@ func TestSwitchShortcut_Execute_PermanentSwitch(t *testing.T) {
 		t.Errorf("Execute() output = %q, want it to mention claude-opus-4", result.Output)
 	}
 
-	if modelService.currentModel != "claude-opus-4" {
-		t.Errorf("currentModel = %q, want %q", modelService.currentModel, "claude-opus-4")
+	if modelService.SelectModelCallCount() != 1 {
+		t.Fatalf("SelectModel called %d times, want 1", modelService.SelectModelCallCount())
+	}
+	if got := modelService.SelectModelArgsForCall(0); got != "claude-opus-4" {
+		t.Errorf("SelectModel(%q), want %q", got, "claude-opus-4")
 	}
 }
 
@@ -194,11 +154,9 @@ func TestSwitchShortcut_Execute_WithPrompt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modelService := &mockModelService{
-				currentModel:    tt.currentModel,
-				availableModels: []string{"claude-opus-4", "claude-sonnet-4"},
-				validateErr:     tt.validateErr,
-			}
+			modelService := &conversationmocks.FakeModelService{}
+			modelService.GetCurrentModelReturns(tt.currentModel)
+			modelService.ValidateModelReturns(tt.validateErr)
 			shortcut := NewSwitchShortcut(modelService)
 
 			ctx := context.Background()
