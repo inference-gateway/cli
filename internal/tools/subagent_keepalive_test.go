@@ -151,8 +151,8 @@ func TestHeadlessSubagentJob_KeepAliveTurns(t *testing.T) {
 	if len(notes) != 3 || !strings.HasPrefix(notes[0], "[Subagent Completed: keeper]") || !strings.Contains(notes[1], "re:more") || !strings.HasPrefix(notes[2], "[Subagent Closed: keeper]") {
 		t.Fatalf("notes = %q, want two Completed then one Closed", notes)
 	}
-	if !strings.Contains(notes[2], "re:more") {
-		t.Fatalf("the Closed note should carry the last answer, got %q", notes[2])
+	if strings.Contains(notes[2], "re:more") {
+		t.Fatalf("the Closed note must not repeat the answer its Completed note delivered, got %q", notes[2])
 	}
 	if err := job.state.Input("late"); err == nil {
 		t.Fatal("a closed subagent must refuse messages")

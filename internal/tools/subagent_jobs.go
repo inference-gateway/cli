@@ -296,6 +296,8 @@ func (j *headlessSubagentJob) closeIdle() {
 	time.AfterFunc(idleKillGrace, j.cancelRun)
 }
 
+// markIdleClosing returns the Closed note without the last answer: the timer
+// only runs after a done turn, whose Completed note already delivered it.
 func (j *headlessSubagentJob) markIdleClosing() string {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -304,7 +306,7 @@ func (j *headlessSubagentJob) markIdleClosing() string {
 	}
 	j.closing = true
 	logger.Debug("keep-alive headless subagent idle, hanging up", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "idle_timeout", j.idleTimeout)
-	return closedMessage(j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout), j.output)
+	return subagentNote("Closed", j.label(), fmt.Sprintf("closed after %s of inactivity", j.idleTimeout))
 }
 
 // send writes one follow-up user message to the child as its next turn and
