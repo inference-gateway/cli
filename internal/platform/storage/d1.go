@@ -408,34 +408,10 @@ func (s *D1Storage) loadConversationMetadata(ctx context.Context, conversationID
 	metadata.UpdatedAt = asTime(r["updated_at"])
 	metadata.ActiveDuration = time.Duration(asInt(r["active_duration_ms"])) * time.Millisecond
 
-	totalInputTokens := asInt(r["total_input_tokens"])
-	totalOutputTokens := asInt(r["total_output_tokens"])
-	metadata.TokenStats = convdomain.SessionTokenStats{
-		TotalInputTokens:  totalInputTokens,
-		TotalOutputTokens: totalOutputTokens,
-		TotalTokens:       totalInputTokens + totalOutputTokens,
-		RequestCount:      asInt(r["request_count"]),
-	}
-
-	costStatsJSON := asString(r["cost_stats"])
-	if costStatsJSON != "" && costStatsJSON != "{}" {
-		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
-			metadata.CostStats = convdomain.SessionCostStats{}
-		}
-	}
-
-	modelsJSON := asString(r["models"])
-	if modelsJSON != "" && modelsJSON != "[]" {
-		var models []string
-		if err := json.Unmarshal([]byte(modelsJSON), &models); err == nil && len(models) > 0 {
-			metadata.Model = models[0]
-		}
-	}
-
-	tagsJSON := asString(r["tags"])
-	if tagsJSON != "" && tagsJSON != "[]" {
-		_ = json.Unmarshal([]byte(tagsJSON), &metadata.Tags)
-	}
+	metadata.TokenStats = tokenStats(asInt(r["total_input_tokens"]), asInt(r["total_output_tokens"]), asInt(r["request_count"]))
+	metadata.CostStats = decodeCostStats(asString(r["cost_stats"]))
+	metadata.Model = firstModel(asString(r["models"]))
+	metadata.Tags = decodeTags(asString(r["tags"]))
 
 	return metadata, asString(r["messages"]), nil
 }
@@ -463,21 +439,8 @@ func (s *D1Storage) ListConversations(ctx context.Context, project string, limit
 		summary.UpdatedAt = asTime(r["updated_at"])
 		summary.MessageCount = asInt(r["count"])
 
-		totalInputTokens := asInt(r["total_input_tokens"])
-		totalOutputTokens := asInt(r["total_output_tokens"])
-		summary.TokenStats = convdomain.SessionTokenStats{
-			TotalInputTokens:  totalInputTokens,
-			TotalOutputTokens: totalOutputTokens,
-			TotalTokens:       totalInputTokens + totalOutputTokens,
-			RequestCount:      asInt(r["request_count"]),
-		}
-
-		costStatsJSON := asString(r["cost_stats"])
-		if costStatsJSON != "" && costStatsJSON != "{}" {
-			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
-				summary.CostStats = convdomain.SessionCostStats{}
-			}
-		}
+		summary.TokenStats = tokenStats(asInt(r["total_input_tokens"]), asInt(r["total_output_tokens"]), asInt(r["request_count"]))
+		summary.CostStats = decodeCostStats(asString(r["cost_stats"]))
 
 		summaries = append(summaries, summary)
 	}
@@ -524,27 +487,9 @@ func mapTitleSummaryRow(r map[string]any) convdomain.ConversationSummary {
 	summary.TitleInvalidated = asBool(r["title_invalidated"])
 	summary.TitleGenerationTime = asNullableTime(r["title_generation_time"])
 
-	totalInputTokens := asInt(r["total_input_tokens"])
-	totalOutputTokens := asInt(r["total_output_tokens"])
-	summary.TokenStats = convdomain.SessionTokenStats{
-		TotalInputTokens:  totalInputTokens,
-		TotalOutputTokens: totalOutputTokens,
-		TotalTokens:       totalInputTokens + totalOutputTokens,
-		RequestCount:      summary.MessageCount / 2,
-	}
-
-	modelsJSON := asString(r["models"])
-	if modelsJSON != "" && modelsJSON != "[]" {
-		var models []string
-		if err := json.Unmarshal([]byte(modelsJSON), &models); err == nil && len(models) > 0 {
-			summary.Model = models[0]
-		}
-	}
-
-	tagsJSON := asString(r["tags"])
-	if tagsJSON != "" && tagsJSON != "[]" {
-		_ = json.Unmarshal([]byte(tagsJSON), &summary.Tags)
-	}
+	summary.TokenStats = tokenStats(asInt(r["total_input_tokens"]), asInt(r["total_output_tokens"]), summary.MessageCount/2)
+	summary.Model = firstModel(asString(r["models"]))
+	summary.Tags = decodeTags(asString(r["tags"]))
 
 	return summary
 }
