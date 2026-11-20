@@ -161,31 +161,13 @@ func (s *sqlStore) loadConversationMetadata(ctx context.Context, conversationID 
 		return metadata, "", fmt.Errorf("failed to load conversation: %w", err)
 	}
 
-	metadata.TokenStats = convdomain.SessionTokenStats{
-		TotalInputTokens:  totalInputTokens,
-		TotalOutputTokens: totalOutputTokens,
-		TotalTokens:       totalInputTokens + totalOutputTokens,
-		RequestCount:      requestCount,
-	}
+	metadata.TokenStats = tokenStats(totalInputTokens, totalOutputTokens, requestCount)
 
 	metadata.ActiveDuration = time.Duration(activeDurationMS) * time.Millisecond
 
-	if costStatsJSON != "" && costStatsJSON != "{}" {
-		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
-			metadata.CostStats = convdomain.SessionCostStats{}
-		}
-	}
-
-	var models []string
-	if modelsJSON != "" && modelsJSON != "[]" {
-		if err := json.Unmarshal([]byte(modelsJSON), &models); err == nil && len(models) > 0 {
-			metadata.Model = models[0]
-		}
-	}
-
-	if tagsJSON != "" && tagsJSON != "[]" {
-		_ = json.Unmarshal([]byte(tagsJSON), &metadata.Tags)
-	}
+	metadata.CostStats = decodeCostStats(costStatsJSON)
+	metadata.Model = firstModel(modelsJSON)
+	metadata.Tags = decodeTags(tagsJSON)
 
 	if titleGenerationTime.Valid {
 		metadata.TitleGenerationTime = &titleGenerationTime.Time
@@ -222,18 +204,8 @@ func (s *sqlStore) ListConversations(ctx context.Context, project string, limit,
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
 		}
 
-		summary.TokenStats = convdomain.SessionTokenStats{
-			TotalInputTokens:  totalInputTokens,
-			TotalOutputTokens: totalOutputTokens,
-			TotalTokens:       totalInputTokens + totalOutputTokens,
-			RequestCount:      requestCount,
-		}
-
-		if costStatsJSON != "" && costStatsJSON != "{}" {
-			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
-				summary.CostStats = convdomain.SessionCostStats{}
-			}
-		}
+		summary.TokenStats = tokenStats(totalInputTokens, totalOutputTokens, requestCount)
+		summary.CostStats = decodeCostStats(costStatsJSON)
 
 		summaries = append(summaries, summary)
 	}
@@ -274,23 +246,9 @@ func (s *sqlStore) ListConversationsNeedingTitles(ctx context.Context, limit int
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
 		}
 
-		summary.TokenStats = convdomain.SessionTokenStats{
-			TotalInputTokens:  totalInputTokens,
-			TotalOutputTokens: totalOutputTokens,
-			TotalTokens:       totalInputTokens + totalOutputTokens,
-			RequestCount:      requestCount,
-		}
-
-		var models []string
-		if modelsJSON != "" && modelsJSON != "[]" {
-			if err := json.Unmarshal([]byte(modelsJSON), &models); err == nil && len(models) > 0 {
-				summary.Model = models[0]
-			}
-		}
-
-		if tagsJSON != "" && tagsJSON != "[]" {
-			_ = json.Unmarshal([]byte(tagsJSON), &summary.Tags)
-		}
+		summary.TokenStats = tokenStats(totalInputTokens, totalOutputTokens, requestCount)
+		summary.Model = firstModel(modelsJSON)
+		summary.Tags = decodeTags(tagsJSON)
 
 		if titleGenerationTime.Valid {
 			summary.TitleGenerationTime = &titleGenerationTime.Time
