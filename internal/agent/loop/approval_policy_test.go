@@ -258,3 +258,18 @@ func TestApprovalPolicy_PriorityOrder(t *testing.T) {
 		}
 	})
 }
+
+func TestStandardApprovalPolicy_SkipsWhatTheMainAgentMayNotCall(t *testing.T) {
+	cfg := createTestConfig()
+	stateManager := statemanager.NewStore(false)
+	stateManager.SetAgentMode(agentdomain.AgentModeStandard)
+	policy := newTestPolicy(cfg, stateManager)
+	explore := agentdomain.WithMainAgent(context.Background(), agentdomain.MainAgent{Name: "explore", Tools: []string{tools.ToolRead}})
+
+	if policy.ShouldRequireApproval(explore, createToolCall(tools.ToolWrite, "{}"), true) {
+		t.Error("a Write the main agent may not call is refused when it runs, so it must not ask for approval first")
+	}
+	if !policy.ShouldRequireApproval(context.Background(), createToolCall(tools.ToolWrite, "{}"), true) {
+		t.Error("without a switched main agent, Write still asks for approval")
+	}
+}

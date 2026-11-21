@@ -505,7 +505,7 @@ A refusal carries its `error` and, when a caller matches the refusal itself, its
 
 `list_conversations`, `list_history`, `list_skills`, `list_shortcuts`,
 `list_issues`, `list_files`, `list_tasks`, `cancel_task`, `list_models`,
-`select_model`, `set_mode`, `tool_request`, `completion_request`,
+`select_model`, `set_mode`, `select_agent`, `tool_request`, `completion_request`,
 `list_artifacts`, `read_artifact` and `read_frame` carry an optional `project_dir`.
 They run on the connection's thread when it is in that project, else on the
 live thread of the session `id` names, else on any running worker there, else
@@ -716,6 +716,32 @@ A thread whose `agent` pins a model keeps it, and `current` still reports it:
 ```json
 {"type": "select_model", "model": "openai/gpt-4o"}
 ```
+
+## Main agent
+
+Client → CLI, switch the Markdown agent the thread runs as for its next
+turns, keeping its conversation (the agent dropdown under the chat TUI's
+input). The daemon resolves the agent from the thread's project and the user's
+agent dirs, then the built-ins, and hands the worker its instructions, model
+and tool policy, so a worker on another workspace needs no agent file:
+
+```json
+{"type": "select_agent", "agent": "explore", "project_dir": "/abs/path/to/project"}
+```
+
+CLI → client, the agent the thread runs as afterwards and its model:
+
+```json
+{"type": "agent", "agent": "explore", "model": "openai/gpt-4o"}
+```
+
+- `error != ""` means the thread kept its agent: an unknown agent, a missing
+  `agent`, or a turn still running. `agent` then names the one it runs as.
+- The worker keeps its system prompt and tool definitions, so the prompt cache
+  holds. The agent's instructions are appended to the conversation once, and a
+  call to a tool it may not use is refused when it runs.
+- Selecting the agent the conversation already runs as appends nothing, so a
+  client may send it again after it reconnects.
 
 ## Completions
 

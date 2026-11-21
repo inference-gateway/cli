@@ -65,13 +65,14 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 				"INFER_SUBAGENT_TOOLS=Read,Grep",
 				"INFER_DISALLOWED_TOOLS=Bash",
 				"INFER_AGENT_MCP_SERVERS=agentmail,github",
+				"INFER_MAIN_AGENT=reviewer",
 			},
 		},
 		{
 			name:     "an agent with an empty MCP server list brings up none",
 			opts:     sessionsdomain.ThreadOptions{Agent: "offline", MCPServers: []string{}},
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
-			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true", "INFER_AGENT_MCP_SERVERS="},
+			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true", "INFER_AGENT_MCP_SERVERS=", "INFER_MAIN_AGENT=offline"},
 		},
 	}
 	for _, tt := range tests {

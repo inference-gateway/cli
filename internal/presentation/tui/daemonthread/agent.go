@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -36,18 +37,28 @@ type Agent struct {
 	modes  agentdomain.AgentModeState
 	models convdomain.ModelService
 
-	mu       sync.Mutex
-	synced   workerState
-	stopPump context.CancelFunc
-	notes    map[string][]string
+	mu        sync.Mutex
+	synced    workerState
+	stopPump  context.CancelFunc
+	notes     map[string][]string
+	mainAgent string
 }
 
-// workerState is what the TUI last told the followed thread's worker.
+// workerState is what the TUI last told the followed thread's worker. An empty
+// mainAgent leaves the worker's agent as the conversation has it.
 type workerState struct {
 	id         string
 	generation int
 	mode       agentdomain.AgentMode
 	model      string
+	mainAgent  string
+}
+
+// agentReply is the worker's answer to select_agent, or the daemon's refusal.
+type agentReply struct {
+	Agent string `json:"agent"`
+	Model string `json:"model"`
+	Error string `json:"error"`
 }
 
 // NewAgent builds the daemon-mode agent over thread, mirroring into repo.
@@ -162,14 +173,14 @@ func (a *Agent) prepare(ctx context.Context) (bool, error) {
 
 // threadOptions are the options a thread the TUI opens starts its worker with.
 func (a *Agent) threadOptions() sessionsdomain.ThreadOptions {
-	return sessionsdomain.ThreadOptions{Model: a.models.GetCurrentModel(), Mode: a.modes.GetAgentMode().ModeKey()}
+	return sessionsdomain.ThreadOptions{Model: a.models.GetCurrentModel(), Mode: a.modes.GetAgentMode().ModeKey(), Agent: a.pickedMainAgent()}
 }
 
 // syncWorker tells the followed thread's worker the TUI's agent mode and
 // model when either changed, the thread did or the connection came back,
 // since a daemon that restarted meanwhile runs a fresh worker on its defaults.
 func (a *Agent) syncWorker(ctx context.Context) error {
-	want := workerState{id: a.thread.Live(), generation: a.thread.Generation(), mode: a.modes.GetAgentMode(), model: a.models.GetCurrentModel()}
+	want := workerState{id: a.thread.Live(), generation: a.thread.Generation(), mode: a.modes.GetAgentMode(), model: a.models.GetCurrentModel(), mainAgent: a.pickedMainAgent()}
 	a.mu.Lock()
 	synced := a.synced == want
 	a.mu.Unlock()
@@ -177,6 +188,11 @@ func (a *Agent) syncWorker(ctx context.Context) error {
 		return nil
 	}
 	project := a.thread.projectDir()
+	if want.mainAgent != "" {
+		if err := a.selectWorkerAgent(ctx, want.mainAgent, project); err != nil {
+			return err
+		}
+	}
 	if _, err := a.thread.Request(ctx, map[string]string{"type": "set_mode", "mode": want.mode.ModeKey(), "project_dir": project}, "mode"); err != nil {
 		return err
 	}
@@ -517,3 +533,44 @@ func (a *Agent) BuildSystemPrompt() string { return "" }
 func (a *Agent) SetReasoningEffort(string) error { return errNoEffort }
 
 func (a *Agent) GetReasoningEffort() string { return "" }
+
+// SelectMainAgent picks the agent the followed thread runs as from the next
+// turn, which tells the worker before it sends. The daemon resolves the name.
+func (a *Agent) SelectMainAgent(agent agentdomain.MainAgent) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mainAgent = agent.Name
+	return nil
+}
+
+// MainAgent is the agent picked for the thread, the default main agent until
+// one is.
+func (a *Agent) MainAgent() agentdomain.MainAgent {
+	if name := a.pickedMainAgent(); name != "" {
+		return agentdomain.MainAgent{Name: name}
+	}
+	return agentdomain.MainAgent{Name: agentdomain.DefaultMainAgentName}
+}
+
+func (a *Agent) pickedMainAgent() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mainAgent
+}
+
+// selectWorkerAgent asks the daemon to switch the thread's main agent and
+// returns its refusal as an error.
+func (a *Agent) selectWorkerAgent(ctx context.Context, name, project string) error {
+	frame, err := a.thread.Request(ctx, map[string]string{"type": "select_agent", "agent": name, "project_dir": project}, "agent")
+	if err != nil {
+		return err
+	}
+	var reply agentReply
+	if err := json.Unmarshal(frame, &reply); err != nil {
+		return fmt.Errorf("reading the daemon's answer to switching to agent %s: %w", name, err)
+	}
+	if reply.Error != "" {
+		return fmt.Errorf("switching to agent %s: %s", name, reply.Error)
+	}
+	return nil
+}

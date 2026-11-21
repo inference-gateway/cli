@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"path"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
@@ -19,9 +20,6 @@ var builtinAgents embed.FS
 const (
 	builtinAgentsRoot = "builtin_agents"
 	builtinSource     = "built-in"
-	// MainAgentName is the built-in agent every chat runs as unless another is
-	// picked. Its body is the default system prompt.
-	MainAgentName = "main"
 )
 
 // SeedBuiltinAgents writes each built-in agent into destDir, the user-scope
@@ -76,7 +74,7 @@ func loadBuiltinAgents(knownTools map[string]bool) []markdownAgent {
 // project or user main.md, else the built-in one. It is the system prompt a
 // chat starts with when prompts.agent.system_prompt does not override it.
 func MainAgentPrompt(projectDir string) string {
-	agent, err := findMarkdownAgent(loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil), MainAgentName)
+	agent, err := findMarkdownAgent(loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil), agentdomain.DefaultMainAgentName)
 	if err != nil {
 		logger.Warn("no main agent to take the system prompt from", "error", err)
 		return ""

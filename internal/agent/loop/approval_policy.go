@@ -65,6 +65,10 @@ func (p *StandardApprovalPolicy) ShouldRequireApproval(
 		return false
 	}
 
+	if agent, ok := agentdomain.MainAgentFromContext(ctx); ok && !tools.MainAgentAllows(agent, toolCall.Function.Name) {
+		return false
+	}
+
 	if toolCall.Function.Name == tools.ToolBash {
 		return !p.isBashCommandAllowed(toolCall)
 	}

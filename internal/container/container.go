@@ -313,6 +313,7 @@ func (c *ServiceContainer) NewPanel(out io.Writer) *headless.Panel {
 		Frames:        c.toolRegistry.FrameSource,
 		Screen:        c.screenControl,
 		Queue:         c.messageQueue,
+		MainAgents:    c.agent,
 	}, out)
 }
 
@@ -627,6 +628,10 @@ func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 	agentImpl.SetMemoryBackend(c.memoryBackend)
 	agentImpl.SetTelemetryRecorder(c.telemetryRecorder)
 	agentImpl.SetCurrentModelFn(c.modelService.GetCurrentModel)
+	agentImpl.SetSelectModelFn(c.modelService.SelectModel)
+	agentImpl.SetMainAgentResolver(os.Getenv(scheddomain.EnvMainAgent), func(name string) (agentdomain.MainAgent, error) {
+		return tools.ResolveMainAgent("", name)
+	})
 	c.agent = agentImpl
 	if c.loopbackChat {
 		c.agent = loopback.New(agentImpl, c.conversationRepo, c.backgroundTaskRegistry.Snapshot)

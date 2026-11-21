@@ -1132,6 +1132,9 @@ func (s *Agent) dispatchHooks(agentCtx *states.AgentContext, hook agentdomain.Ho
 		_ = s.memoryBackend.SyncIn(agentCtx.Ctx)
 	}
 
+	if hook == agentdomain.HookPreStream {
+		s.injectMainAgentChange(agentCtx)
+	}
 	s.injectDueReminders(agentCtx, hook)
 
 	mode := agentdomain.AgentModeStandard
