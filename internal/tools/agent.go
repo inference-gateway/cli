@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -36,7 +37,8 @@ const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 // AgentTaskSpec is one delegated unit of work within an Agent tool call. Agent
 // names a Markdown agent whose settings replace the per-task overrides. Tools
 // and MCPServers are passed to the subagent, nil to inherit. Mode is ReadOnly
-// without approval or Standard with it, from the `type` argument.
+// without approval or Standard with it, from the `type` argument. Workspace is
+// the computer the agent runs on, and Team the note that names its teammates.
 type AgentTaskSpec struct {
 	Label        string
 	Description  string
@@ -47,6 +49,16 @@ type AgentTaskSpec struct {
 	Tools        []string
 	MCPServers   []string
 	Mode         agentdomain.AgentMode
+	Workspace    string
+	Team         string
+}
+
+// task is what the subagent starts on: the task itself, then its team note.
+func (s AgentTaskSpec) task() string {
+	if s.Team == "" {
+		return s.Description
+	}
+	return s.Description + "\n\n" + s.Team
 }
 
 // AgentSubResult is the per-subagent outcome reported back to the LLM.
@@ -69,10 +81,11 @@ type AgentToolResult struct {
 	Message    string                   `json:"message,omitempty"`
 }
 
-// AgentTool spawns local subagents in parallel and folds their results back
-// into the main context, the lightweight complement to the A2A tools. mdAgents
-// are the session's Markdown agents, toolManifests tells read-only tools, and
-// the func fields are test injection points.
+// AgentTool spawns subagents in parallel and folds their results back into the
+// main context, the lightweight complement to the A2A tools. It also sends
+// messages between the agents of a team, and relayed counts what it relayed for
+// its teammates. mdAgents are the session's Markdown agents, toolManifests
+// tells read-only tools, and the func fields are test injection points.
 type AgentTool struct {
 	config    *config.Config
 	tracker   scheddomain.SubagentTracker
@@ -82,12 +95,15 @@ type AgentTool struct {
 
 	mdAgents      []markdownAgent
 	toolManifests agentdomain.ToolManifestLookup
+	relayed       atomic.Int64
 
 	dialDaemon           func(ctx context.Context) (agui.DialConfig, error)
 	runHeadless          func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error)
 	interactiveAvailable func() bool
 	launchPane           func(ctx context.Context, title, command string) (string, error)
 	sendTask             func(ctx context.Context, paneID, task string) error
+	sendKeys             func(ctx context.Context, paneID, text string, keys []string) error
+	paneState            func(ctx context.Context, paneID string) paneState
 }
 
 // NewAgentTool creates the Agent tool. tracker is the session's SubagentTracker
@@ -106,6 +122,8 @@ func NewAgentTool(cfg *config.Config, tracker scheddomain.SubagentTracker, submi
 	t.interactiveAvailable = tmuxAvailable
 	t.launchPane = t.launchTmuxPane
 	t.sendTask = t.sendTaskToPane
+	t.sendKeys = tmuxSendKeys
+	t.paneState = tmuxPaneState
 	return t
 }
 
@@ -114,10 +132,11 @@ func (t *AgentTool) Manifest() agentdomain.ToolManifest {
 	return toolManifests.MustGet(ToolAgent).WithRequireApproval(t.config.Tools.Agent.RequireApproval)
 }
 
-// Definition returns the tool definition for the LLM.
+// Definition returns the tool definition for the LLM. An agent at the depth
+// limit can only send messages, so it gets no catalog of agents to spawn.
 func (t *AgentTool) Definition() sdk.ChatCompletionTool {
 	def := t.Manifest().Definition()
-	if list := t.markdownAgentCatalog(); list != "" {
+	if list := t.markdownAgentCatalog(); list != "" && currentSubagentDepth() < t.maxDepth() {
 		description := *def.Function.Description + "\n\n" + list
 		def.Function.Description = &description
 	}
@@ -132,6 +151,9 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 
 	if !t.IsEnabled() {
 		return t.errorResult(args, start, "Agent tool is disabled in configuration"), nil
+	}
+	if isMessage(args) {
+		return t.sendMessage(ctx, args, start), nil
 	}
 	if currentSubagentDepth() >= t.maxDepth() {
 		return t.errorResult(args, start, fmt.Sprintf("subagent depth limit reached (max_depth=%d); a subagent cannot spawn more subagents", t.maxDepth())), nil
@@ -164,9 +186,13 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 		if err := t.applyNamedAgent(&specs[i]); err != nil {
 			return t.errorResult(args, start, err.Error()), nil
 		}
+		if err := t.checkPlacement(specs[i], mode); err != nil {
+			return t.errorResult(args, start, err.Error()), nil
+		}
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
 	}
-	forceReadOnlyInPlanMode(ctx, specs)
+	forceReadOnlySpawns(ctx, specs)
+	t.formTeam(specs, mode)
 
 	if mode == scheddomain.SubagentModeInteractive {
 		return t.runInteractive(ctx, args, start, specs, parentSession, notes), nil
@@ -302,7 +328,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
 	}
 
-	msg := fmt.Sprintf("Dispatched %d subagent(s) in %s mode. END YOUR TURN NOW - you will be notified automatically when each completes; do NOT poll with ListSubagents/GetSubagentResult. To hurry or redirect one, SendSubagentInput it.", len(dispatched), mode)
+	msg := fmt.Sprintf("Dispatched %d subagent(s) in %s mode. END YOUR TURN NOW - you will be notified automatically when each completes; do NOT poll with ListSubagents/GetSubagentResult. To hurry or redirect one, message it with Agent(to: \"<label>\", message: \"...\").", len(dispatched), mode)
 	if len(notes) > 0 {
 		msg += " (" + strings.Join(notes, "; ") + ")"
 	}
@@ -337,8 +363,9 @@ func (t *AgentTool) dialDaemonBinding(ctx context.Context) (agui.DialConfig, err
 }
 
 // openThread opens the subagent's thread on the daemon in the parent's project
-// dir, the same dir a subprocess would run in.
-func (t *AgentTool) openThread(ctx context.Context, spec AgentTaskSpec, sessionID string, onTurn func(scheddomain.SubagentResultFile), onFrame func([]byte)) (*subagentThread, error) {
+// dir, the same dir a subprocess would run in, and moves it to its agent's
+// workspace before its first turn when the agent runs on its own computer.
+func (t *AgentTool) openThread(ctx context.Context, spec AgentTaskSpec, sessionID string, onTurn func(scheddomain.SubagentResultFile), onFrame func([]byte), onMessage func(scheddomain.TeamMessage)) (*subagentThread, error) {
 	dial, err := t.dialDaemon(ctx)
 	if err != nil {
 		return nil, err
@@ -347,7 +374,24 @@ func (t *AgentTool) openThread(ctx context.Context, spec AgentTaskSpec, sessionI
 	if err != nil {
 		return nil, fmt.Errorf("resolving the project dir: %w", err)
 	}
-	return openSubagentThread(ctx, dial, projectDir, sessionID, t.threadOptions(ctx, spec), onTurn, onFrame)
+	thread, err := openSubagentThread(ctx, dial, projectDir, sessionID, t.threadOptions(ctx, spec), onTurn, onFrame, onMessage)
+	if err != nil || spec.Workspace == "" {
+		return thread, err
+	}
+	if err := thread.place(ctx, projectDir, spec.Workspace); err != nil {
+		thread.stop()
+		return nil, err
+	}
+	return thread, nil
+}
+
+// checkPlacement refuses a subagent whose agent runs on its own computer where
+// only the daemon could put it there: without the binding, or in a tmux pane.
+func (t *AgentTool) checkPlacement(spec AgentTaskSpec, mode scheddomain.SubagentMode) error {
+	if spec.Workspace == "" || (mode == scheddomain.SubagentModeHeadless && t.threadRouted()) {
+		return nil
+	}
+	return fmt.Errorf("agent %s runs on workspace %s, which only a headless subagent on the daemon can reach - enable the daemon binding or remove its workspace", spec.Agent, spec.Workspace)
 }
 
 // threadOptions are the subagent's thread options: the task's model, mode and
@@ -382,7 +426,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 	res, err := t.runHeadless(ctx, agentheadless.Options{
 		BinaryPath: t.binary,
 		SessionID:  sessionID,
-		Prompt:     spec.Description,
+		Prompt:     spec.task(),
 		Model:      spec.Model,
 		Files:      spec.Files,
 		ResultFile: resultFile,
@@ -413,7 +457,7 @@ func (t *AgentTool) executeOne(ctx context.Context, spec AgentTaskSpec, sessionI
 // types in the task, and tracks it as a running interactive subagent. This is
 // fire-and-track: it returns once the panes are launched. The supervisor then
 // monitors them. A done or failed result turn and the idle timeout each close
-// the pane, and SendSubagentInput re-prompts a live one.
+// the pane, and an Agent message re-prompts a live one.
 func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
 	logger.Debug("launching interactive subagents", "tasks", len(specs), "parent_session", parentSession)
 	launched := make([]AgentSubResult, 0, len(specs))
@@ -663,13 +707,26 @@ func readSubagentResultMessage(sessionID string) string {
 
 // Validate checks the tool arguments.
 func (t *AgentTool) Validate(args map[string]any) error {
+	if isMessage(args) {
+		return validateMessage(args)
+	}
 	_, err := parseAgentTasks(args)
 	return err
 }
 
-// IsEnabled reports whether the tool is enabled (and below the depth limit).
+// IsEnabled reports whether the tool is enabled. Past the depth limit it stays
+// on, so a teammate can message its team, and only spawning is refused.
 func (t *AgentTool) IsEnabled() bool {
-	return t.config.IsAgentToolEnabled() && currentSubagentDepth() < t.maxDepth()
+	return t.config.IsAgentToolEnabled()
+}
+
+// RequiresApproval lets a message through, since it changes nothing, and gates
+// a spawn by tools.agent.require_approval outside auto-accept and read-only runs.
+func (t *AgentTool) RequiresApproval(args map[string]any, mode agentdomain.AgentMode) bool {
+	if isMessage(args) || mode == agentdomain.AgentModeAutoAccept || mode == agentdomain.AgentModeReadOnly {
+		return false
+	}
+	return t.Manifest().RequiresApproval(t.config.Tools.Safety.RequireApproval)
 }
 
 func (t *AgentTool) maxDepth() int {
@@ -735,7 +792,8 @@ func (t *AgentTool) markdownAgentCatalog() string {
 // applyNamedAgent overlays a Markdown agent preset onto the task spec. The body
 // becomes the system prompt and a frontmatter model wins unless it is inherit.
 // The mode is ReadOnly when every allowed tool is read-only and ReadWrite
-// otherwise, including with no allowlist, where the parent's tools are kept.
+// otherwise, including with no allowlist, where the parent's tools are kept. An
+// allowlist always keeps Agent, so the subagent can message its team.
 func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	if spec.Agent == "" {
 		return nil
@@ -749,9 +807,13 @@ func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 		spec.Model = agent.model
 	}
 	spec.MCPServers = agent.mcpServers
+	spec.Workspace = agent.workspace
 	if len(agent.tools) > 0 {
-		spec.Tools = agent.tools
 		spec.Mode = deriveSubagentMode(agent.tools, t.toolManifests)
+		spec.Tools = agent.tools
+		if !slices.Contains(agent.tools, ToolAgent) && !slices.Contains(agent.disallowedTools, ToolAgent) {
+			spec.Tools = append(slices.Clone(agent.tools), ToolAgent)
+		}
 	} else {
 		spec.Mode = agentdomain.AgentModeStandard
 	}
@@ -793,6 +855,9 @@ func (t *AgentTool) FormatPreview(result *agentdomain.ToolExecutionResult) strin
 	if result == nil {
 		return "Agent result unavailable"
 	}
+	if sent, ok := result.Data.(AgentMessageResult); ok {
+		return "Messaged " + sent.To
+	}
 	data, ok := result.Data.(AgentToolResult)
 	if !ok {
 		if result.Success {
@@ -831,6 +896,9 @@ func (t *AgentTool) formatAgentData(data any) string {
 	if !ok {
 		if sub, okSub := data.(AgentSubResult); okSub {
 			return formatSubResult(sub)
+		}
+		if sent, okSent := data.(AgentMessageResult); okSent {
+			return sent.Message
 		}
 		return t.formatter.FormatAsJSON(data)
 	}
@@ -935,12 +1003,13 @@ func resolveSubagentType(t string) agentdomain.AgentMode {
 	return agentdomain.AgentModeReadOnly
 }
 
-// forceReadOnlyInPlanMode coerces every spec to ReadOnly while the parent run is
-// in plan mode, so a subagent can only explore whatever capability the call
-// asked for or a named agent derived. It runs after applyNamedAgent, the last
-// place a spec's mode is set.
-func forceReadOnlyInPlanMode(ctx context.Context, specs []AgentTaskSpec) {
-	if mode, ok := agentdomain.AgentModeFromContext(ctx); !ok || mode != agentdomain.AgentModePlan {
+// forceReadOnlySpawns coerces every spec to ReadOnly while the parent run is in
+// plan or read-only mode, so a subagent can only explore whatever capability
+// the call asked for or a named agent derived. It runs after applyNamedAgent,
+// the last place a spec's mode is set.
+func forceReadOnlySpawns(ctx context.Context, specs []AgentTaskSpec) {
+	mode, ok := agentdomain.AgentModeFromContext(ctx)
+	if !ok || (mode != agentdomain.AgentModePlan && mode != agentdomain.AgentModeReadOnly) {
 		return
 	}
 	for i := range specs {

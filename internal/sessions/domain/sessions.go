@@ -35,8 +35,10 @@ type ThreadOptions struct {
 }
 
 // Portable is what of the options follows a session to another workspace: the
-// agent's model, mode, prompts, tools, MCP servers and turn limit. The agent name, placement,
-// sandbox paths, the spawn and Env belong to the daemon the thread was opened on.
+// agent's model, mode, prompts, tools, MCP servers, turn limit and the spawn, so a
+// teammate placed remotely still reports to its lead under the depth guard. The
+// agent name, placement, sandbox paths and Env belong to the daemon the thread
+// was opened on.
 func (o ThreadOptions) Portable() ThreadOptions {
 	return ThreadOptions{
 		Model:              o.Model,
@@ -47,6 +49,7 @@ func (o ThreadOptions) Portable() ThreadOptions {
 		Tools:              o.Tools,
 		DisallowedTools:    o.DisallowedTools,
 		MCPServers:         o.MCPServers,
+		Subagent:           o.Subagent,
 	}
 }
 

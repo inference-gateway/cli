@@ -264,3 +264,28 @@ func TestHeadlessSubagentJob_WindWrapUp(t *testing.T) {
 		t.Fatalf("a one-shot subagent must ignore the wrap-up, got %v", err)
 	}
 }
+
+// A subprocess subagent posts team messages as agent_message lines on its
+// stdout. The lead relays one to a teammate as that teammate's next turn.
+func TestHeadlessSubagentJob_KeepAliveRelaysTeamMessages(t *testing.T) {
+	job, tool := newKeepAliveTestJob(t, time.Hour)
+	var reviewer []string
+	_ = tool.tracker.AddSubagent(&scheddomain.SubagentState{ID: "r1", Label: "reviewer", SessionID: "sess-r", Mode: scheddomain.SubagentModeHeadless, Input: func(text string) error {
+		reviewer = append(reviewer, text)
+		return nil
+	}})
+	turns := make(chan string, 4)
+	child := fakeKeepAliveChild(t, turns)
+	tool.runHeadless = func(ctx context.Context, opts agentheadless.Options) (agentheadless.Result, error) {
+		line, _ := json.Marshal(scheddomain.TeamMessageLine{Type: scheddomain.TeamMessageType, TeamMessage: scheddomain.TeamMessage{To: "reviewer", Text: "check main.go"}})
+		opts.OnLine(line)
+		return child(ctx, opts)
+	}
+
+	go job.Run(t.Context(), func(scheddomain.JobSignal) {})
+
+	waitTurn(t, turns, "task")
+	if len(reviewer) != 1 || !strings.HasPrefix(reviewer[0], "[Message from keeper]\n\ncheck main.go") {
+		t.Fatalf("reviewer got %q, want keeper's message", reviewer)
+	}
+}

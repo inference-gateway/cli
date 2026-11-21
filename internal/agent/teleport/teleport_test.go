@@ -90,6 +90,43 @@ func TestHandOverAnnouncesATeleportItWon(t *testing.T) {
 	}
 }
 
+// A client may run the thread the moment it hears the teleport landed, so the
+// thread is settled before the announcement: that run reaches a new worker,
+// not the refusal of a session still moving.
+func TestHandOverSettlesTheThreadBeforeAnnouncingIt(t *testing.T) {
+	leases := &agentdomainmocks.FakeLeaseStore{}
+	leases.ClaimLeaseReturns(agentdomain.Lease{}, true, nil)
+	s := New(Config{Identity: "laptop", ProjectsRoot: t.TempDir()}, Deps{Leases: leases})
+	var workers []*sessionsmocks.FakeWorker
+	registry := sessions.NewRegistry(func(sessionsdomain.ThreadKey, sessionsdomain.ThreadOptions) (sessionsdomain.Worker, error) {
+		lines := make(chan []byte)
+		worker := &sessionsmocks.FakeWorker{}
+		worker.LinesReturns(lines)
+		worker.StopCalls(func() { close(lines) })
+		workers = append(workers, worker)
+		return worker, nil
+	}, time.Minute)
+	s.AttachRegistry(registry)
+	client := &sessionsmocks.FakeClient{}
+	registry.Handle(client, []byte(`{"type":"resume_conversation","project_dir":"/proj","id":"conv-1"}`))
+	if _, err := registry.Quiesce(t.Context(), sessionsdomain.ThreadKey{ProjectDir: "/proj", ConversationID: "conv-1"}); err != nil {
+		t.Fatal(err)
+	}
+	run := []byte(`{"type":"run_agent_input","input":{"messages":[{"id":"m1","role":"user","content":"go"}]}}`)
+	client.DeliverCalls(func(frame []byte) {
+		if strings.Contains(string(frame), frameSessionTeleported) {
+			registry.Handle(client, run)
+		}
+	})
+	req, lease := handOverRequest()
+
+	s.handOver(t.Context(), nil, client, req, lease, "remote:1", nil)
+
+	if len(workers) != 2 || workers[1].SendCallCount() == 0 || string(workers[1].SendArgsForCall(0)) != string(run) {
+		t.Fatalf("the run sent on the announcement must reach a new worker, got %d workers", len(workers))
+	}
+}
+
 func TestTeleportFailingAfterProvisioningDiscardsTheTarget(t *testing.T) {
 	peer := startPeer(t, "k8s-desktop", nil)
 	target := fakeWorkspace("k8s-dev", agentdomain.WorkspaceKindKubernetes)

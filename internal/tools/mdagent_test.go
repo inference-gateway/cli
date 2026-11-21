@@ -36,6 +36,7 @@ func TestLoadMarkdownAgents(t *testing.T) {
 name: code-reviewer
 description: Reviews a diff for correctness bugs.
 model: deepseek/deepseek-v4-pro
+workspace: gpu-box
 tools: Read, Grep
 color: blue
 ---
@@ -115,7 +116,7 @@ User body.`)
 	}
 
 	a := byName["code-reviewer"]
-	if a.description != "Reviews a diff for correctness bugs." || a.model != "deepseek/deepseek-v4-pro" {
+	if a.description != "Reviews a diff for correctness bugs." || a.model != "deepseek/deepseek-v4-pro" || a.workspace != "gpu-box" {
 		t.Fatalf("code-reviewer not parsed: %+v", a)
 	}
 	if !slices.Equal(a.tools, []string{ToolGrep, ToolRead}) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestPortableKeepsTheAgentAndDropsWhatBelongsToTheDaemon(t *testing.T) {
+func TestPortableKeepsTheAgentAndItsSpawnAndDropsWhatBelongsToTheDaemon(t *testing.T) {
 	opened := ThreadOptions{
 		Model:              "provider/model",
 		Mode:               "auto",
@@ -32,6 +32,7 @@ func TestPortableKeepsTheAgentAndDropsWhatBelongsToTheDaemon(t *testing.T) {
 		Tools:              []string{"Read", "Grep"},
 		DisallowedTools:    []string{"Bash"},
 		MCPServers:         []string{"agentmail"},
+		Subagent:           &Subagent{Parent: "parent", Depth: 1},
 	}
 	if got := opened.Portable(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Portable() = %+v, want %+v", got, want)

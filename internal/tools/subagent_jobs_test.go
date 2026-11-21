@@ -335,7 +335,7 @@ func TestInteractiveSubagentJob_ApprovalPausesIdleTimeout(t *testing.T) {
 }
 
 // TestInteractiveSubagentJob_InputKeepsPaneAlive checks the other reset path:
-// typing into the pane (SendSubagentInput) changes the screen tail on every
+// typing into the pane (an Agent message) changes the screen tail on every
 // poll, which keeps the idle clock pushed out, so the pane never hits the close.
 func TestInteractiveSubagentJob_InputKeepsPaneAlive(t *testing.T) {
 	var calls int

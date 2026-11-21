@@ -58,11 +58,18 @@ func TestAgentTool_Validate(t *testing.T) {
 	}
 }
 
-func TestAgentTool_DepthCapDisables(t *testing.T) {
+func TestAgentTool_AtTheDepthCapOnlyMessages(t *testing.T) {
 	t.Setenv("INFER_SUBAGENT_DEPTH", "1")
 	tool := NewAgentTool(config.DefaultConfig(), schedinfra.NewSubagentTracker(), nil)
-	if tool.IsEnabled() {
-		t.Fatalf("Agent tool must disable itself at depth >= max_depth")
+	if !tool.IsEnabled() {
+		t.Fatal("a teammate at the depth cap keeps the Agent tool to message its team")
+	}
+	res, err := tool.Execute(context.Background(), map[string]any{"description": "spawn more"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Success || !strings.Contains(res.Error, "depth limit") {
+		t.Fatalf("a spawn at the depth cap must be refused, got %+v", res)
 	}
 }
 

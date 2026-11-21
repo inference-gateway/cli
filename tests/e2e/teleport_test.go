@@ -101,19 +101,19 @@ func peersOver(t *testing.T, protocol string) (a, b *daemonProc, projectsRoot st
 	return peersIn(t, t.TempDir(), t.TempDir(), entry)
 }
 
-// peersIn is peers with a home of the caller's choosing for each daemon, and
-// entry as further lines of A's workspace entry for B.
-func peersIn(t *testing.T, homeA, homeB, entry string) (a, b *daemonProc, projectsRoot string) {
+// peersIn is peers with a home of the caller's choosing for each daemon, entry
+// as further lines of A's workspace entry for B, and env for both daemons.
+func peersIn(t *testing.T, homeA, homeB, entry string, env ...string) (a, b *daemonProc, projectsRoot string) {
 	t.Helper()
 	certFile, keyFile, caFile, clientTLS := peerCA(t, homeB)
 	projectsRoot = filepath.Join(homeB, "projects")
-	b = startDaemonWithTLS(t, homeB, clientTLS,
+	b = startDaemonWithTLS(t, homeB, clientTLS, append([]string{
 		"INFER_DAEMON_WORKSPACE=b",
-		"INFER_DAEMON_PROJECTS_ROOT="+projectsRoot,
+		"INFER_DAEMON_PROJECTS_ROOT=" + projectsRoot,
 		"INFER_DAEMON_BINDING_TLS_MODE=files",
-		"INFER_DAEMON_BINDING_TLS_CERT_FILE="+certFile,
-		"INFER_DAEMON_BINDING_TLS_KEY_FILE="+keyFile,
-	)
+		"INFER_DAEMON_BINDING_TLS_CERT_FILE=" + certFile,
+		"INFER_DAEMON_BINDING_TLS_KEY_FILE=" + keyFile,
+	}, env...)...)
 	daemonYAML := fmt.Sprintf(`workspace: a
 workspaces:
   - name: b
@@ -126,7 +126,7 @@ workspaces:
 `, entry, b.port, daemonToken, caFile)
 	require.NoError(t, os.MkdirAll(filepath.Join(homeA, ".infer"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(homeA, ".infer", "daemon.yaml"), []byte(daemonYAML), 0644))
-	a = startDaemon(t, homeA)
+	a = startDaemon(t, homeA, env...)
 	return a, b, projectsRoot
 }
 

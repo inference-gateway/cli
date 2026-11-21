@@ -185,7 +185,6 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 		r.register(NewGetSubagentResultTool(cfg, r.deps.BackgroundTasks))
 		r.register(NewCloseSubagentTool(cfg, r.deps.BackgroundTasks, r.deps.BackgroundTasks))
 		r.register(NewReadSubagentScreenTool(cfg, r.deps.BackgroundTasks))
-		r.register(NewSendSubagentInputTool(cfg, r.deps.BackgroundTasks))
 		r.register(NewApproveSubagentTool(cfg, r.deps.BackgroundTasks))
 	}
 

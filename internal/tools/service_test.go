@@ -65,7 +65,7 @@ func TestListToolsForMode_AskUserQuestionModes(t *testing.T) {
 
 // TestListToolsForMode_PlanOffersAgent: plan mode's read-only exploration
 // subagents are the research path for a large area, so the Agent tool must be
-// advertised there - and only there, not in read-only subagent mode.
+// advertised there, and a read-only subagent keeps it to message its team.
 func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 	cfg := config.DefaultConfig()
 	registry := NewRegistry(cfg, RegistryDeps{BackgroundTasks: &schedmocks.FakeBackgroundTaskRegistry{}})
@@ -74,8 +74,8 @@ func TestListToolsForMode_PlanOffersAgent(t *testing.T) {
 	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModePlan), ToolAgent) {
 		t.Error("plan mode must advertise the Agent tool")
 	}
-	if slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeReadOnly), ToolAgent) {
-		t.Error("read-only mode must not advertise the Agent tool (subagents cannot spawn subagents)")
+	if !slices.Contains(toolNamesForMode(svc, agentdomain.AgentModeReadOnly), ToolAgent) {
+		t.Error("read-only mode must advertise the Agent tool, so a read-only teammate can message its team")
 	}
 }
 

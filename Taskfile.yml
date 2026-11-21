@@ -396,6 +396,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/agui internal/protocols/agui Handler
       - mkdir -p tests/mocks/conversation tests/mocks/agentdomain tests/mocks/states
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TitleGenerator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/scheduler internal/scheduler/domain TeamChannel
       - mkdir -p tests/mocks/shortcuts
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/presentation/shortcuts Shortcut
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/conversation internal/conversation/domain PersistentConversationRepository

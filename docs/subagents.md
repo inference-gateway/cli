@@ -27,6 +27,7 @@ does the same in one view.
 - [MCP Servers](#mcp-servers)
 - [Model](#model)
 - [Headless Subagents](#headless-subagents)
+- [Teams](#teams)
 - [Interactive Subagents](#interactive-subagents)
 - [Run Stats](#run-stats)
 - [Compatibility Notes](#compatibility-notes)
@@ -55,6 +56,8 @@ numbered list ordered by severity.
 - `tools` (optional): tools the subagent may use. See [Tools Allowlist](#tools-allowlist).
 - `disallowedTools` (optional): tools removed from the resolved list. Same format as `tools`.
 - `mcpServers` (optional): names of the MCP servers the subagent brings up. See [MCP Servers](#mcp-servers).
+- `workspace` (optional): the computer the agent runs on, a workspace from `daemon.yaml`. See
+  [Teammates on Other Computers](#teammates-on-other-computers).
 
 Any other frontmatter key (`color`, `temperature`, `max_turns`, `maxTurns`,
 `permissionMode`, ...) is accepted and ignored, so agent files written for
@@ -153,8 +156,10 @@ The resolved allowlist is passed to the spawned subagent through the
 `INFER_SUBAGENT_TOOLS` environment variable (works in both headless and
 tmux-interactive mode) and is enforced there in one place: a disallowed tool
 is neither offered to the model nor executable by naming it. The `Agent` tool
-itself can be listed to let a named agent spawn subagents - the usual
-`tools.agent.max_depth` recursion guard still applies.
+is always added to an allowlist, so the subagent can message its team (see
+[Teams](#teams)). It spawns subagents of its own only under the usual
+`tools.agent.max_depth` recursion guard. Listing `Agent` in `disallowedTools`
+takes it away.
 
 The subagent's capability (`type`) is derived from the resolved allowlist:
 ReadOnly when every allowed tool is read-only, otherwise ReadWrite (mutations
@@ -236,7 +241,7 @@ it so the parent can talk to it without respawning and losing its context:
 - The parent receives one `[Subagent Completed: <label>]` note per finished turn,
   carrying that turn's final message and the run stats. A turn that ended in an
   error arrives as `[Subagent Failed: <label>]` with the error.
-- `SendSubagentInput` with `text` sends the subagent a follow-up message - new
+- `Agent` with `to` and `message` sends the subagent a follow-up message - new
   information, a correction, a question about its result - which it runs as its
   next turn in the same session, and the parent is notified again when that turn
   ends. A message sent while the subagent is mid-turn reaches it right after
@@ -259,6 +264,61 @@ it so the parent can talk to it without respawning and losing its context:
   `infer headless` run that delegated work exits once its own turn is done.
 - `tools.agent.wait: true` (blocking fan-in) is unchanged: a blocking subagent
   returns its first turn and is not kept alive.
+
+## Teams
+
+The agent that calls `Agent` and the subagents it spawns form a team: the caller is the lead and each
+subagent is a teammate. Teammates talk to each other and to the lead while they work, to share what they
+found, ask a question or split the work, the way a group of agents compares notes before answering.
+
+```json
+{ "to": "reviewer", "message": "The bug is in parseConfig - check its callers." }
+```
+
+- `to` names the recipient: a teammate's label, `lead` for the agent that spawned it, or, for a lead, any
+  subagent it spawned. `message` is the text. A call with `to` sends a message and spawns nothing.
+- Each teammate is named after its `label`, else its agent, else `agent`, and the names are unique on the
+  team: a second `explore` becomes `explore-2`. The Agent result lists them.
+- A headless teammate's task ends with a `[Team]` note naming it, its lead and its teammates. A subagent
+  spawned alone gets no note, and reaches its lead with `to: "lead"`.
+- A message arrives as `[Message from <name>]` followed by the text. A running agent reads it right after its
+  current tool call, and an idle one runs it as its next turn. The lead gets the message as a note in its own
+  chat, which starts a turn when it is idle.
+- Every message travels through the lead, which knows each teammate's stream. It stamps the sender from the
+  stream the message came in on, so a teammate cannot speak for another. A message to a name nobody has, or
+  to a teammate that already finished, comes back to the sender as
+  `[Message to <name> not delivered: <why>. Your team: ...]`.
+- A message never needs approval, since it changes nothing. A teammate's own tool calls are approved as
+  before.
+- A lead relays at most 100 messages between its teammates, so two of them cannot keep each other talking
+  forever. Past that, every message bounces and the lead is told once.
+
+A blocking subagent (`tools.agent.wait: true`) can still message the lead, but teammates cannot message it,
+since it is not kept alive. An interactive teammate in a tmux pane receives messages, typed into its pane, but
+cannot send them.
+
+### Teammates on Other Computers
+
+A Markdown agent with a `workspace` in its frontmatter runs on that computer, a workspace registered in
+`daemon.yaml` (see [Workspaces and teleports](daemon.md#workspaces-and-teleports)):
+
+```markdown
+---
+name: researcher
+description: Researches on the GPU box.
+workspace: gpu-box
+---
+
+You research the question you are given.
+```
+
+`Agent` with `agent: researcher` opens the teammate's thread on the lead's daemon, then teleports it to
+`gpu-box` before its first turn, the same move the desktop makes when a chat changes computer. The teammate
+works on a copy of the lead's project there. Its turns and messages come back through the lead's daemon, so
+it is a teammate like any other. A workspace the daemon cannot reach fails that teammate, not the lead.
+
+Placing a teammate needs the daemon. Without the binding, or with `tools.agent.mode: interactive`, a spawn of
+an agent with a `workspace` is refused.
 
 ## Asking a Job to Wrap Up
 
@@ -301,7 +361,7 @@ question is a completed turn too, so write self-contained task descriptions.
   `INFER_TOOLS_AGENT_IDLE_TIMEOUT` overrides it.
 - `[Subagent Idle: <label>]` warns early in the idle window - instead of the
   old `[Subagent Completed]` masquerade it names the pending auto-close, so
-  the parent can re-prompt with `SendSubagentInput` (which resets the clock)
+  the parent can re-prompt it with an `Agent` message (which resets the clock)
   or answer the prompt via `ApproveSubagent`.
 - `CloseSubagent` is only for stopping a subagent early. In the normal case
   the parent never needs to close anything: one completion note per task,

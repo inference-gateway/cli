@@ -1,6 +1,8 @@
 name: Agent
 description: |-
-  Spawn local subagents - each an autonomous "infer headless" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
+  Spawn local subagents - each an autonomous "infer headless" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation, and message the agents of your team. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.
+
+  Messages: set 'to' and 'message' (and nothing that spawns) to message another agent. You and the subagents you spawn form a team: you are its lead, and each subagent is a teammate named by its label (unique on the team, shown in the Agent result). A lead messages its subagents. A teammate messages the lead with to: "lead", or another teammate by name, and the lead relays it. Messages arrive as [Message from <name>], mid-turn for a running agent and as the next turn for an idle one. A message never needs approval. Use them to share findings, ask a question, split the work, or steer a running subagent - when the user asks you to wrap up, message each running subagent to stop exploring and report now, then end your turn.
 
   Provide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).
 
@@ -9,10 +11,10 @@ description: |-
   The subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.
 
   In EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.
-  - Headless subagents honor tools.agent.wait: async (default) returns immediately and notifies you as each completes; blocking (tools.agent.wait: true) waits until all finish and returns their aggregated results (fan-out / fan-in). An async headless subagent stays alive idle after its '[Subagent Completed: ...]' note until tools.agent.idle_timeout closes it with a '[Subagent Closed: ...]' note: use SendSubagentInput to hand it new information, a correction or a follow-up as its next turn in the same session, and you are notified again when that turn finishes.
-  - Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live. There is no mode parameter. Each pane closes itself automatically once the subagent finishes its turn, fails, or sits idle past the configured timeout (tools.agent.idle_timeout, pauses while awaiting approval). A finished turn closes the pane even when it ends with a question, so make each task self-contained - SendSubagentInput only reaches a pane that is still working or stuck, and restarts the timeout. Use CloseSubagent only to stop one early.
+  - Headless subagents honor tools.agent.wait: async (default) returns immediately and notifies you as each completes; blocking (tools.agent.wait: true) waits until all finish and returns their aggregated results (fan-out / fan-in). An async headless subagent stays alive idle after its '[Subagent Completed: ...]' note until tools.agent.idle_timeout closes it with a '[Subagent Closed: ...]' note: message it with Agent(to, message) to hand it new information, a correction or a follow-up as its next turn in the same session, and you are notified again when that turn finishes.
+  - Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live. There is no mode parameter. Each pane closes itself automatically once the subagent finishes its turn, fails, or sits idle past the configured timeout (tools.agent.idle_timeout, pauses while awaiting approval). A finished turn closes the pane even when it ends with a question, so make each task self-contained - a message only reaches a pane that is still working or stuck, and restarts the timeout. Use CloseSubagent only to stop one early.
 
-  Each subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.
+  Each subagent has its own session and cannot itself spawn further subagents, but it can message its team. A Markdown agent with a workspace runs on that computer, as a teammate like any other. Prefer narrow, self-contained task descriptions.
 parameters:
   type: object
   properties:
@@ -22,6 +24,17 @@ parameters:
     description:
       type: string
       description: Shorthand for a single subagent task (alternative to tasks)
+    keys:
+      type: array
+      description: 'With to, for a subagent you spawned in an interactive pane only. Named keys to press after the message. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown'
+      items:
+        type: string
+    message:
+      type: string
+      description: With to, the message to send - new information, a question, a correction or a follow-up. Typed literally into an interactive pane.
+    submit:
+      type: boolean
+      description: With to, for a subagent you spawned in an interactive pane only. Press Enter to submit the message (default true). Set false to only press keys for TUI navigation, then inspect with ReadSubagentScreen.
     system_prompt:
       type: string
       description: Optional system prompt for the single-task (description) form, giving the subagent a specialized role
@@ -54,6 +67,9 @@ parameters:
               - ReadWrite
         required:
           - description
+    to:
+      type: string
+      description: 'Send a message instead of spawning: the name or id of a subagent you spawned or of a teammate, or "lead" for the agent that spawned you'
     type:
       type: string
       description: 'Capability for the single-task form. ReadOnly (default) is Explore-like: read/search only, never needs approval. ReadWrite can modify files and run commands; mutations require approval.'
@@ -65,3 +81,4 @@ modes:
   - auto
   - auto-with-judge
   - plan
+  - readonly
