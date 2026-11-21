@@ -441,11 +441,17 @@ select models and have conversations.
 - **shift+tab**: Cycle agent mode (Standard → Plan → Auto-Accept → Auto+Judge)
 - **↓** (when not navigating input history): Select the status indicators below the input.
   `←`/`→` (or `tab`/`shift+tab`) move between the actionable indicators, **enter** opens the
-  matching view (model indicator → model selection, theme indicator → theme selection,
+  matching view (`Agent:` indicator → the agent dropdown, model indicator → model selection, theme indicator → theme selection,
   `A2A:` indicator → agents view, `Tools:` indicator → available tools,
   workspace indicator of a daemon chat → `/workspaces`, `⬇ artifacts` → the session's artifacts, like `/artifacts`),
   **↑**/**esc** return to the input, and
   typing any other key lands back in the input seamlessly
+- **Agent dropdown** (enter on the `Agent:` indicator, the first one): Switch the chat's main agent.
+  It lists the [Markdown agents](subagents.md), `main` first, with a check on the one the chat runs as and
+  whether each is read-only. **↑**/**↓** pick one, **enter** switches to it and **esc** closes the dropdown.
+  The conversation stays: the agent answers your next message, follows its own instructions from then on
+  and may call only the tools its file allows. A call to any other tool is refused without an approval
+  prompt. See [Switching the Main Agent](subagents.md#switching-the-main-agent)
 - **↓** (on the status indicators, while background jobs are listed below them): Select the job list.
   **↑**/**↓** pick a job, **enter** shows that job's transcript in place of the chat's, **esc** goes back to
   the chat's transcript and then to the input. On a sub-agent or A2A row, **c** asks the job to wrap up and

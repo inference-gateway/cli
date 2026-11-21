@@ -45,6 +45,15 @@ type FakeAgentService struct {
 	getReasoningEffortReturnsOnCall map[int]struct {
 		result1 string
 	}
+	MainAgentStub        func() domain.MainAgent
+	mainAgentMutex       sync.RWMutex
+	mainAgentArgsForCall []struct{}
+	mainAgentReturns     struct {
+		result1 domain.MainAgent
+	}
+	mainAgentReturnsOnCall map[int]struct {
+		result1 domain.MainAgent
+	}
 	RunWithStreamStub        func(context.Context, *domain.AgentRequest) (<-chan domain.ChatEvent, error)
 	runWithStreamMutex       sync.RWMutex
 	runWithStreamArgsForCall []FakeAgentServiceRunWithStreamArgs
@@ -55,6 +64,15 @@ type FakeAgentService struct {
 	runWithStreamReturnsOnCall map[int]struct {
 		result1 <-chan domain.ChatEvent
 		result2 error
+	}
+	SelectMainAgentStub        func(domain.MainAgent) error
+	selectMainAgentMutex       sync.RWMutex
+	selectMainAgentArgsForCall []FakeAgentServiceSelectMainAgentArgs
+	selectMainAgentReturns     struct {
+		result1 error
+	}
+	selectMainAgentReturnsOnCall map[int]struct {
+		result1 error
 	}
 	SetReasoningEffortStub        func(string) error
 	setReasoningEffortMutex       sync.RWMutex
@@ -84,6 +102,11 @@ type FakeAgentServiceGetMetricsArgs struct {
 type FakeAgentServiceRunWithStreamArgs struct {
 	Arg1 context.Context
 	Arg2 *domain.AgentRequest
+}
+
+// FakeAgentServiceSelectMainAgentArgs holds the arguments of one call to SelectMainAgent.
+type FakeAgentServiceSelectMainAgentArgs struct {
+	Arg1 domain.MainAgent
 }
 
 // FakeAgentServiceSetReasoningEffortArgs holds the arguments of one call to SetReasoningEffort.
@@ -329,6 +352,58 @@ func (fake *FakeAgentService) GetReasoningEffortReturnsOnCall(i int, result1 str
 	}{result1}
 }
 
+func (fake *FakeAgentService) MainAgent() domain.MainAgent {
+	fake.mainAgentMutex.Lock()
+	ret, specificReturn := fake.mainAgentReturnsOnCall[len(fake.mainAgentArgsForCall)]
+	fake.mainAgentArgsForCall = append(fake.mainAgentArgsForCall, struct{}{})
+	stub := fake.MainAgentStub
+	fakeReturns := fake.mainAgentReturns
+	fake.recordInvocation("MainAgent", []interface{}{})
+	fake.mainAgentMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAgentService) MainAgentCallCount() int {
+	fake.mainAgentMutex.RLock()
+	defer fake.mainAgentMutex.RUnlock()
+	return len(fake.mainAgentArgsForCall)
+}
+
+func (fake *FakeAgentService) MainAgentCalls(stub func() domain.MainAgent) {
+	fake.mainAgentMutex.Lock()
+	defer fake.mainAgentMutex.Unlock()
+	fake.MainAgentStub = stub
+}
+
+func (fake *FakeAgentService) MainAgentReturns(result1 domain.MainAgent) {
+	fake.mainAgentMutex.Lock()
+	defer fake.mainAgentMutex.Unlock()
+	fake.MainAgentStub = nil
+	fake.mainAgentReturns = struct {
+		result1 domain.MainAgent
+	}{result1}
+}
+
+func (fake *FakeAgentService) MainAgentReturnsOnCall(i int, result1 domain.MainAgent) {
+	fake.mainAgentMutex.Lock()
+	defer fake.mainAgentMutex.Unlock()
+	fake.MainAgentStub = nil
+	if fake.mainAgentReturnsOnCall == nil {
+		fake.mainAgentReturnsOnCall = make(map[int]struct {
+			result1 domain.MainAgent
+		})
+	}
+	fake.mainAgentReturnsOnCall[i] = struct {
+		result1 domain.MainAgent
+	}{result1}
+}
+
 func (fake *FakeAgentService) RunWithStream(arg1 context.Context, arg2 *domain.AgentRequest) (<-chan domain.ChatEvent, error) {
 	fake.runWithStreamMutex.Lock()
 	ret, specificReturn := fake.runWithStreamReturnsOnCall[len(fake.runWithStreamArgsForCall)]
@@ -397,6 +472,73 @@ func (fake *FakeAgentService) RunWithStreamReturnsOnCall(i int, result1 <-chan d
 		result1 <-chan domain.ChatEvent
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeAgentService) SelectMainAgent(arg1 domain.MainAgent) error {
+	fake.selectMainAgentMutex.Lock()
+	ret, specificReturn := fake.selectMainAgentReturnsOnCall[len(fake.selectMainAgentArgsForCall)]
+	fake.selectMainAgentArgsForCall = append(fake.selectMainAgentArgsForCall, FakeAgentServiceSelectMainAgentArgs{arg1})
+	stub := fake.SelectMainAgentStub
+	fakeReturns := fake.selectMainAgentReturns
+	fake.recordInvocation("SelectMainAgent", []interface{}{arg1})
+	fake.selectMainAgentMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAgentService) SelectMainAgentCallCount() int {
+	fake.selectMainAgentMutex.RLock()
+	defer fake.selectMainAgentMutex.RUnlock()
+	return len(fake.selectMainAgentArgsForCall)
+}
+
+func (fake *FakeAgentService) SelectMainAgentCalls(stub func(domain.MainAgent) error) {
+	fake.selectMainAgentMutex.Lock()
+	defer fake.selectMainAgentMutex.Unlock()
+	fake.SelectMainAgentStub = stub
+}
+
+func (fake *FakeAgentService) SelectMainAgentArgsForCall(i int) domain.MainAgent {
+	fake.selectMainAgentMutex.RLock()
+	defer fake.selectMainAgentMutex.RUnlock()
+	argsForCall := fake.selectMainAgentArgsForCall[i]
+	return argsForCall.Arg1
+}
+
+func (fake *FakeAgentService) SelectMainAgentArgs() []FakeAgentServiceSelectMainAgentArgs {
+	fake.selectMainAgentMutex.RLock()
+	defer fake.selectMainAgentMutex.RUnlock()
+	args := make([]FakeAgentServiceSelectMainAgentArgs, len(fake.selectMainAgentArgsForCall))
+	copy(args, fake.selectMainAgentArgsForCall)
+	return args
+}
+
+func (fake *FakeAgentService) SelectMainAgentReturns(result1 error) {
+	fake.selectMainAgentMutex.Lock()
+	defer fake.selectMainAgentMutex.Unlock()
+	fake.SelectMainAgentStub = nil
+	fake.selectMainAgentReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeAgentService) SelectMainAgentReturnsOnCall(i int, result1 error) {
+	fake.selectMainAgentMutex.Lock()
+	defer fake.selectMainAgentMutex.Unlock()
+	fake.SelectMainAgentStub = nil
+	if fake.selectMainAgentReturnsOnCall == nil {
+		fake.selectMainAgentReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.selectMainAgentReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeAgentService) SetReasoningEffort(arg1 string) error {

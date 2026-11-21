@@ -826,6 +826,8 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
 - **chat.status_bar.indicators**: Configuration for individual status bar indicators
   - All indicators are enabled by default except `max_output` to maintain current behavior
   - Available indicators:
+    - **agent**: The main agent the chat runs as, `main` by default (default: `true`). Enter on it opens the
+      dropdown that switches it - see [Switching the Main Agent](subagents.md#switching-the-main-agent)
     - **model**: Current AI model name (default: `true`)
     - **effort**: The active model's reasoning effort, when it exposes one (default: `true`)
     - **theme**: Current theme name (default: `true`)

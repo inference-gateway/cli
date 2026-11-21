@@ -168,6 +168,9 @@ func (s *Service) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMe
 	if mode, ok := agentdomain.AgentModeFromContext(ctx); ok && !s.registry.Manifest(toolCall.Name).AvailableIn(mode) {
 		return nil, toolUnavailableError(toolCall.Name, mode, s.toolsAvailableIn(mode))
 	}
+	if agent, ok := agentdomain.MainAgentFromContext(ctx); ok && !MainAgentAllows(agent, toolCall.Name) {
+		return nil, mainAgentToolError(agent, toolCall.Name)
+	}
 
 	if !s.isToolEnabled(toolCall.Name) {
 		return nil, fmt.Errorf("tool %s is not enabled", toolCall.Name)

@@ -49,4 +49,6 @@ type AgentService interface {
 	// GetReasoningEffort returns the effort level currently applied to
 	// requests ("" = provider default).
 	GetReasoningEffort() string
+
+	MainAgentSelector
 }
