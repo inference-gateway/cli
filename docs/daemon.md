@@ -582,6 +582,11 @@ project's `.infer/` config, storage, skills and sandbox apply. Thread options a 
 `new_session` or `resume_conversation` (model, mode, system prompt, custom instructions, sandbox
 directories, max turns) become the worker's flags and `INFER_` env.
 
+Those options stay for the worker's life. A client switches the thread's
+[main agent](subagents.md#switching-the-main-agent) with `select_agent` instead: the daemon resolves
+the agent and the running worker applies it from the next turn, keeping its system prompt and tool
+definitions so the prompt cache holds.
+
 Workers speak the binding's vocabulary on stdio, so the daemon relays frames without translating
 them. A client that deletes a conversation sends `stop_thread`, which stops its worker at once and
 deletes the session's runtime on the remote workspace that owns it. A worker

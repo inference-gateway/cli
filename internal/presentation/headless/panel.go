@@ -200,6 +200,7 @@ type PanelDeps struct {
 	Queue         convdomain.MessageQueue
 	Jobs          scheddomain.BackgroundTaskRegistry
 	A2ATasks      a2adomain.BackgroundTaskService
+	MainAgents    agentdomain.MainAgentSelector
 }
 
 // Panel answers the panel frames a session worker reads on stdin: listings,
@@ -224,6 +225,7 @@ type Panel struct {
 	frames        *frames
 	screen        *screenUnit
 	tasks         *tasks
+	mainAgents    *mainAgents
 }
 
 // NewPanel builds the panel units, one per frame family, each holding only the
@@ -246,6 +248,7 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 	p.frames = &frames{write: p.write, sources: deps.Frames}
 	p.screen = newScreenUnit(p.write, deps)
 	p.tasks = &tasks{write: p.write, jobs: deps.Jobs, a2a: deps.A2ATasks}
+	p.mainAgents = &mainAgents{write: p.write, selector: deps.MainAgents, models: deps.Models}
 	return p
 }
 
@@ -288,6 +291,8 @@ func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case p
 		p.modes.send()
 	case inboundSetMode:
 		p.modes.set(msg.Mode)
+	case inboundSelectAgent:
+		p.mainAgents.selectAgent(line)
 	case inboundToolRequest:
 		go p.tools.run(msg)
 	case inboundCompletionRequest:

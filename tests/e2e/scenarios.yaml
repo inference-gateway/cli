@@ -538,6 +538,16 @@ scenarios:
               content: "b\n"
       - content: "AUTO-APPROVE-DONE"
 
+  - name: main-agent-write
+    match: '(?i)main agent write probe'
+    turns:
+      - tool_calls:
+          - name: Write
+            args:
+              file_path: main-agent-probe.txt
+              content: "probe\n"
+      - content: "MAIN-AGENT-PROBE-DONE"
+
   - name: sandbox-access
     match: '(?i)sandbox access probe'
     turns:

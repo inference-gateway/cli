@@ -55,6 +55,8 @@ type InputStatusBar struct {
 	versionInfo            tui.VersionInfo
 	styleProvider          *styles.Provider
 	currentInputText       string
+	mainAgentSource        mainAgentSource
+	agentPicker            *AgentPicker
 
 	focused  bool
 	selected int
@@ -86,6 +88,21 @@ func (isb *InputStatusBar) SetModelService(modelService convdomain.ModelService)
 // the runtime reasoning effort level.
 type effortSource interface {
 	GetReasoningEffort() string
+}
+
+type mainAgentSource interface {
+	MainAgent() agentdomain.MainAgent
+}
+
+// SetMainAgentSource sets the source of the agent the chat runs as.
+func (isb *InputStatusBar) SetMainAgentSource(src mainAgentSource) {
+	isb.mainAgentSource = src
+}
+
+// SetAgentPicker sets the dropdown the agent indicator opens, drawn under the
+// status row while it is open.
+func (isb *InputStatusBar) SetAgentPicker(picker *AgentPicker) {
+	isb.agentPicker = picker
 }
 
 // SetEffortSource sets the source of the runtime reasoning effort level.
@@ -258,6 +275,10 @@ func (isb *InputStatusBar) Render() string {
 	lines := isb.buildStatusLines()
 	if right := isb.renderRightSegment(lipgloss.Width(lines[0])); right != "" {
 		lines[0] += right
+	}
+	if isb.agentPicker != nil && isb.agentPicker.IsOpen() {
+		isb.agentPicker.SetWidth(isb.width)
+		lines = append(lines, isb.agentPicker.Render())
 	}
 	return strings.Join(lines, "\n")
 }
@@ -471,6 +492,10 @@ func (isb *InputStatusBar) getAllIndicatorParts() []indicatorPart {
 //nolint:gocyclo,cyclop // one gated block per indicator, in build order
 func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorPart {
 	parts := []indicatorPart{}
+
+	if isb.shouldShowIndicator("agent") && isb.mainAgentSource != nil {
+		parts = append(parts, indicatorPart{text: "Agent: " + isb.mainAgentSource.MainAgent().Name, action: tui.StatusIndicatorActionAgentSelection})
+	}
 
 	if isb.shouldShowIndicator("model") {
 		parts = append(parts, indicatorPart{text: currentModel, action: tui.StatusIndicatorActionModelSelection})
@@ -704,6 +729,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 
 	indicators := isb.config.Chat.StatusBar.Indicators
 	switch indicator {
+	case "agent":
+		return indicators.Agent
 	case "model":
 		return indicators.Model
 	case "effort":

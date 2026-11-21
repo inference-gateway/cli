@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
@@ -58,7 +59,7 @@ func TestAnAgentFileShadowsTheBuiltinOfItsName(t *testing.T) {
 
 	var main []markdownAgent
 	for _, agent := range loadMarkdownAgentsWithBuiltins(nil, nil) {
-		if agent.name == MainAgentName {
+		if agent.name == agentdomain.DefaultMainAgentName {
 			main = append(main, agent)
 		}
 	}

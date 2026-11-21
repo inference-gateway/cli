@@ -187,6 +187,24 @@ func findMarkdownAgent(agents []markdownAgent, name string) (markdownAgent, erro
 	return markdownAgent{}, fmt.Errorf("unknown agent %q; available agents: %s", name, strings.Join(names, ", "))
 }
 
+// ResolveMainAgent resolves the named Markdown agent, from projectDir's agent
+// dirs, the user's, then the built-ins, into the main agent a chat switches to.
+// The tool lists and MCP servers stay unresolved, as for a thread's agent.
+func ResolveMainAgent(projectDir, name string) (agentdomain.MainAgent, error) {
+	agent, err := findMarkdownAgent(loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil), name)
+	if err != nil {
+		return agentdomain.MainAgent{}, err
+	}
+	return agentdomain.MainAgent{
+		Name:            agent.name,
+		Instructions:    agent.systemPrompt,
+		Model:           agent.model,
+		Tools:           agent.tools,
+		DisallowedTools: agent.disallowedTools,
+		MCPServers:      agent.mcpServers,
+	}, nil
+}
+
 // ResolveThreadAgent overlays the Markdown agent a daemon thread names, from
 // projectDir's .infer/agents, ~/.infer/agents, then the built-ins, onto the thread's options.
 // As for a named subagent, the body is the system prompt and a frontmatter model

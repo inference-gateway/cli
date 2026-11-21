@@ -45,6 +45,10 @@ const EnvDisallowedTools = "INFER_DISALLOWED_TOOLS"
 // and an empty value brings up none.
 const EnvMCPServers = "INFER_AGENT_MCP_SERVERS"
 
+// EnvMainAgent names the Markdown agent a thread's worker was launched as, so
+// the worker tells a switch back to it apart from the default main agent.
+const EnvMainAgent = "INFER_MAIN_AGENT"
+
 // EnvSubagentParentSession names the session whose Agent tool spawned this
 // one, recorded in the conversation's metadata and reported each turn to.
 const EnvSubagentParentSession = "INFER_PARENT_SESSION_ID"

@@ -53,6 +53,10 @@ const directExecutionKey contextKey = "direct_execution"
 // it as standard mode.
 const agentModeKey contextKey = "agent_mode"
 
+// mainAgentKey is the context key for the main agent a chat switched to. The
+// tool service refuses a call the agent may not make.
+const mainAgentKey contextKey = "main_agent"
+
 // modelKey is the context key for the model in effect for the current agent
 // turn. The Agent tool reads it so spawned subagents inherit the parent's model
 // by default (otherwise the subagent process would fail with "no model specified").

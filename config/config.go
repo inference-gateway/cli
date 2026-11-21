@@ -938,6 +938,7 @@ type StatusBarConfig struct {
 // StatusBarIndicators contains individual enable/disable toggles for each indicator
 // All indicators are enabled by default to maintain current behavior
 type StatusBarIndicators struct {
+	Agent         bool `yaml:"agent" mapstructure:"agent"`
 	Model         bool `yaml:"model" mapstructure:"model"`
 	Effort        bool `yaml:"effort" mapstructure:"effort"`
 	Theme         bool `yaml:"theme" mapstructure:"theme"`
@@ -1204,6 +1205,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 		Enabled:               true,
 		SubagentLingerSeconds: 5,
 		Indicators: StatusBarIndicators{
+			Agent:         true,
 			Model:         true,
 			Effort:        true,
 			Theme:         true,

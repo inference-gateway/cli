@@ -132,6 +132,7 @@ const (
 	StatusIndicatorActionA2AAgents
 	StatusIndicatorActionWorkspaces
 	StatusIndicatorActionArtifacts
+	StatusIndicatorActionAgentSelection
 )
 
 // InputStatusBarComponent interface for input status bar

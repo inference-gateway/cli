@@ -128,6 +128,7 @@ type ChatApplication struct {
 	transcriptStore  TranscriptStore
 
 	historySearchView    *components.HistorySearchView
+	agentPicker          *components.AgentPicker
 	historySearchFocused bool
 
 	keyBindingManager *keybinding.Dispatcher
@@ -295,6 +296,11 @@ func NewChatApplication(
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
 	app.historySearchView = components.NewHistorySearchView(styleProvider)
+	app.agentPicker = components.NewAgentPicker(styleProvider)
+	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
+		isb.SetMainAgentSource(app.agentService)
+		isb.SetAgentPicker(app.agentPicker)
+	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
@@ -990,6 +996,8 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 		return []tea.Cmd{app.openWorkspaces()}
 	case tui.StatusIndicatorActionArtifacts:
 		return []tea.Cmd{app.openArtifacts()}
+	case tui.StatusIndicatorActionAgentSelection:
+		return []tea.Cmd{app.openAgentPicker()}
 	case tui.StatusIndicatorActionA2AAgents:
 		_ = app.stateManager.TransitionToView(tui.ViewStateAgents)
 		return []tea.Cmd{func() tea.Msg {

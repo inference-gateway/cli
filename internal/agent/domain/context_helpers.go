@@ -83,6 +83,19 @@ func AgentModeFromContext(ctx context.Context) (AgentMode, bool) {
 	return mode, ok
 }
 
+// WithMainAgent returns a new context carrying the main agent a chat switched
+// to, for a tool execution to check what that agent may call.
+func WithMainAgent(ctx context.Context, agent MainAgent) context.Context {
+	return context.WithValue(ctx, mainAgentKey, agent)
+}
+
+// MainAgentFromContext returns the main agent stored in ctx and whether a chat
+// switched to one.
+func MainAgentFromContext(ctx context.Context) (MainAgent, bool) {
+	agent, ok := ctx.Value(mainAgentKey).(MainAgent)
+	return agent, ok
+}
+
 // ========================================
 // Bash Output Callback
 // ========================================

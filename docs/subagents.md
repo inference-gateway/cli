@@ -22,6 +22,7 @@ does the same in one view.
 - [Format](#format)
 - [Locations and Precedence](#locations-and-precedence)
 - [Built-in Agents](#built-in-agents)
+- [Switching the Main Agent](#switching-the-main-agent)
 - [Tools Allowlist](#tools-allowlist)
 - [MCP Servers](#mcp-servers)
 - [Model](#model)
@@ -111,6 +112,32 @@ project `.infer/agents/main.md` for one repository. A non-empty
 the previous default text there - delete that key, or run
 `infer init --overwrite`, to use `main.md`. `infer init --overwrite` also
 resets every built-in agent to the shipped version.
+
+## Switching the Main Agent
+
+Every chat runs as a main agent - the orchestrator that answers you and
+delegates to subagents. A chat starts as `main`, and the first status
+indicator under the input shows the one it runs as (`Agent: main`). Press
+**↓** to select the indicators and **enter** on `Agent:` to open the agent
+dropdown, then pick any agent above and press **enter**. It works in a local
+chat and in a daemon chat (`infer chat --daemon`) alike.
+
+The conversation stays as it is. From your next message on:
+
+- The agent's instructions apply - they are added to the conversation once,
+  as a reminder after your message, and it follows them instead of the ones
+  it started with.
+- It may call only the tools its `tools`, `disallowedTools` and `mcpServers`
+  allow. A call to any other tool is refused with the list of the ones it may
+  call, and never asks for an approval first.
+- A frontmatter `model` replaces the chat's model, and an agent without one
+  keeps it.
+
+A switch never rewrites the system prompt or the tool definitions, so the
+prompt cache survives it - only a switch to an agent with a different model
+starts a new cache. Picking the agent a chat already runs as adds nothing,
+and a resumed conversation runs as the agent it last switched to. A switch
+waits for the running turn to end.
 
 ## Tools Allowlist
 

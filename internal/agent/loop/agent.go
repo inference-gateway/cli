@@ -87,6 +87,11 @@ type Agent struct {
 	lastStreamedMode   agentdomain.AgentMode
 	modeInitialized    bool
 	modeMux            sync.Mutex
+	selectModel        func(model string) error
+	launchAgent        string
+	resolveMainAgent   func(name string) (agentdomain.MainAgent, error)
+	mainAgentState     mainAgentState
+	mainAgentMu        sync.Mutex
 }
 
 // sessionCancel bundles the two cancellation primitives for a single
@@ -676,6 +681,7 @@ func (s *Agent) RunWithStream(ctx context.Context, req *agentdomain.AgentRequest
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents, sc.cancelChan)
 	s.registerSession(req.RequestID, sc)
 	context.AfterFunc(sessionCtx, sc.Cancel)
+	sessionCtx = agentdomain.WithMainAgent(sessionCtx, s.MainAgent())
 
 	conversation := s.addSystemPrompt(req.Messages)
 

@@ -85,6 +85,7 @@ var replyTypes = map[string][]string{
 	frameScreenControl:      {frameScreenResult},
 	frameToolRequest:        {frameToolResult},
 	frameCompletionRequest:  {frameCompletionResult},
+	frameSelectAgent:        {frameAgent},
 }
 
 var errNoThread = errors.New("open a thread with new_session or resume_conversation first")
@@ -247,6 +248,14 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 	if f.Type == frameStopThread {
 		r.stopThread(f)
 		return
+	}
+	if f.Type == frameSelectAgent {
+		resolved, err := r.resolveSelectAgent(c, f)
+		if err != nil {
+			c.Deliver(agentRefusal(f.Agent, err))
+			return
+		}
+		frame = resolved
 	}
 	t, w, err := r.route(c, f, frame)
 	if err != nil {
