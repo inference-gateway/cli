@@ -431,14 +431,18 @@ func snapshotDigest(frame []byte) string {
 
 // announce tells the requester and the thread's followers where the session
 // lives now and which interrupts the teleport cancelled, and frees the thread's
-// last run here from holding back this daemon's Sandbox retention.
+// last run here from holding back this daemon's Sandbox retention. The thread
+// settles first, so a client that runs it on the announcement reaches it there.
 func (s *Service) announce(to requester, key sessionsdomain.ThreadKey, req agentdomain.TeleportRequest, lease agentdomain.Lease, addr string, interrupts json.RawMessage) {
 	teleported := encode(sessionTeleportedFrame{Type: frameSessionTeleported, SessionTeleported: agentdomain.SessionTeleported{
 		Session: req.Session, Workspace: lease.Workspace, Addr: addr, WorkspaceDir: lease.WorkspaceDir, CancelledInterrupts: interrupts,
 	}})
-	to.Deliver(teleported)
 	if s.registry != nil {
 		s.registry.TeleportedAway(key)
+		s.registry.Settle(key)
+	}
+	to.Deliver(teleported)
+	if s.registry != nil {
 		s.registry.Deliver(key, teleported)
 	}
 }

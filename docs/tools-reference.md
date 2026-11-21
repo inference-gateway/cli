@@ -97,11 +97,10 @@ See the [Plan Mode Guide](plan-mode.md) for the scratchpad's behavior.
 
 | Tool | Purpose | Approval |
 | ------ | --------- | ---------- |
-| **Agent** | Spawn an `infer headless` subprocess to run work in parallel | Yes |
+| **Agent** | Spawn `infer headless` subagents to run work in parallel, or message its team (`to`, `message`) | To spawn |
 | **ListSubagents** | List spawned subagents and their status | No |
 | **GetSubagentResult** | Re-read a finished subagent's last message | No |
 | **ReadSubagentScreen** | Capture an interactive subagent's terminal screen | No |
-| **SendSubagentInput** | Send a subagent a follow-up message as its next turn (text for both modes, keys for interactive) | Yes |
 | **CloseSubagent** | Stop a subagent, idle or running | Yes |
 | **ApproveSubagent** | Relay an approval decision to a waiting subagent | Yes |
 

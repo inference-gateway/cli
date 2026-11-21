@@ -126,7 +126,7 @@ func tmuxCapturePane(ctx context.Context, paneID string) string {
 // is sent with -l so shell metacharacters are typed verbatim (never interpreted
 // as tmux key names). Named keys (Enter, Up, Escape, ...) are sent without -l so
 // tmux resolves them. A blank paneID is a no-op. Shared by sendTaskToPane (launch
-// task), SendSubagentInput (re-prompt / TUI drive) and ApproveSubagent.
+// task), the Agent tool's messages (re-prompt / TUI drive) and ApproveSubagent.
 func tmuxSendKeys(ctx context.Context, paneID, text string, keys []string) error {
 	if paneID == "" {
 		return nil

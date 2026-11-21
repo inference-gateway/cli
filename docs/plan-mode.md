@@ -7,8 +7,8 @@ Plan Mode is a read-only operating mode for the agent. The model can use
 research is allowed. Fetches saved to disk land in the scratchpad), `Agent`
 (read-only exploration
 subagents only) with its companion subagent tools (`ListSubagents`,
-`GetSubagentResult`, `ReadSubagentScreen`, `SendSubagentInput`,
-`CloseSubagent`, `ApproveSubagent`), `TodoWrite`, `Memory` (its facts and
+`GetSubagentResult`, `ReadSubagentScreen`, `CloseSubagent`,
+`ApproveSubagent`), `TodoWrite`, `Memory` (its facts and
 index live in the userspace memory directory, never the project),
 `AskUserQuestion`, `Wait`, and `RequestPlanApproval` to investigate the
 codebase. `Write`, `Edit`,

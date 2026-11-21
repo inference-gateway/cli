@@ -27,7 +27,7 @@ import (
 
 var updateGolden = flag.Bool("update", false, "rewrite the golden files in testdata/")
 
-const builtinToolCount = 52
+const builtinToolCount = 51
 
 // toolDefinitionsSnapshot is what the built-in tools expose: the definitions
 // sent to the model, the tools offered per agent mode, and whether a call

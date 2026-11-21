@@ -92,6 +92,7 @@ func (s *Service) teleportBack(ctx context.Context, to requester, req agentdomai
 	teleported := encode(sessionTeleportedFrame{Type: frameSessionTeleported, SessionTeleported: agentdomain.SessionTeleported{
 		Session: req.Session, Workspace: s.me, WorkspaceDir: req.Session.ProjectDir, CancelledInterrupts: checkpoint.Interrupts,
 	}})
+	s.registry.Settle(key)
 	to.Deliver(teleported)
 	s.registry.Deliver(key, teleported)
 }

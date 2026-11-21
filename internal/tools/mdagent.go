@@ -30,12 +30,13 @@ var markdownAgentNameRegex = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
 // markdownAgent is a subagent preset defined as a Markdown file with YAML
 // frontmatter: the body is the system prompt. disallowedTools is applied by the
-// worker, mcpServers nil means the enabled ones, and source is "project" or
-// "user" for listings.
+// worker, mcpServers nil means the enabled ones, workspace is the computer a
+// teammate spawned from it runs on, and source is "project" or "user" for listings.
 type markdownAgent struct {
 	name            string
 	description     string
 	model           string
+	workspace       string
 	tools           []string
 	disallowedTools []string
 	mcpServers      []string
@@ -51,6 +52,7 @@ type markdownAgentFrontmatter struct {
 	Name            string `yaml:"name"`
 	Description     string `yaml:"description"`
 	Model           string `yaml:"model"`
+	Workspace       string `yaml:"workspace"`
 	Tools           any    `yaml:"tools"`
 	DisallowedTools any    `yaml:"disallowedTools"`
 	MCPServers      any    `yaml:"mcpServers"`
@@ -162,6 +164,7 @@ func parseMarkdownAgent(data []byte, path string, knownTools map[string]bool) (*
 		name:            fm.Name,
 		description:     strings.TrimSpace(fm.Description),
 		model:           resolveMarkdownAgentModel(fm.Model, path),
+		workspace:       strings.TrimSpace(fm.Workspace),
 		tools:           tools,
 		disallowedTools: flexStringList(fm.DisallowedTools),
 		mcpServers:      resolveMarkdownAgentMCPServers(fm.MCPServers, path),

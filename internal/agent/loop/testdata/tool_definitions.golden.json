@@ -82,7 +82,7 @@
     },
     {
       "function": {
-        "description": "Spawn local subagents - each an autonomous \"infer headless\" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.\n\nProvide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).\n\nChoose each subagent's capability with 'type': ReadOnly (DEFAULT) is Explore-like - read/search tools only, never needs approval - use it for investigation, research, and reading code. ReadWrite can modify files and run commands; its mutations require approval. Prefer ReadOnly unless the task must change something.\n\nThe subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.\n\nIn EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.\n- Headless subagents honor tools.agent.wait: async (default) returns immediately and notifies you as each completes; blocking (tools.agent.wait: true) waits until all finish and returns their aggregated results (fan-out / fan-in). An async headless subagent stays alive idle after its '[Subagent Completed: ...]' note until tools.agent.idle_timeout closes it with a '[Subagent Closed: ...]' note: use SendSubagentInput to hand it new information, a correction or a follow-up as its next turn in the same session, and you are notified again when that turn finishes.\n- Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live. There is no mode parameter. Each pane closes itself automatically once the subagent finishes its turn, fails, or sits idle past the configured timeout (tools.agent.idle_timeout, pauses while awaiting approval). A finished turn closes the pane even when it ends with a question, so make each task self-contained - SendSubagentInput only reaches a pane that is still working or stuck, and restarts the timeout. Use CloseSubagent only to stop one early.\n\nEach subagent is independent and cannot itself spawn further subagents. Prefer narrow, self-contained task descriptions.",
+        "description": "Spawn local subagents - each an autonomous \"infer headless\" subprocess with its own isolated session - to run work in parallel and fold their results back into this conversation, and message the agents of your team. Use this to fan out independent tasks (research, edits across separate areas, parallel investigations) without standing up an A2A agent server.\n\nMessages: set 'to' and 'message' (and nothing that spawns) to message another agent. You and the subagents you spawn form a team: you are its lead, and each subagent is a teammate named by its label (unique on the team, shown in the Agent result). A lead messages its subagents. A teammate messages the lead with to: \"lead\", or another teammate by name, and the lead relays it. Messages arrive as [Message from \u003cname\u003e], mid-turn for a running agent and as the next turn for an idle one. A message never needs approval. Use them to share findings, ask a question, split the work, or steer a running subagent - when the user asks you to wrap up, message each running subagent to stop exploring and report now, then end your turn.\n\nProvide either 'tasks' (an array of {description, label?, model?, system_prompt?, type?} objects) to run several subagents at once, or 'description' for a single subagent. Give a subagent a specialized role/persona by setting its system_prompt (each subagent can have its own).\n\nChoose each subagent's capability with 'type': ReadOnly (DEFAULT) is Explore-like - read/search tools only, never needs approval - use it for investigation, research, and reading code. ReadWrite can modify files and run commands; its mutations require approval. Prefer ReadOnly unless the task must change something.\n\nThe subagent surface (headless background vs. an interactive tmux pane you can watch) is set by the operator via config (tools.agent.mode) - you do NOT choose it and there is no mode parameter; just describe the task.\n\nIn EVERY mode you are AUTOMATICALLY NOTIFIED when each subagent finishes (its result is folded into this conversation). After dispatching, END YOUR TURN and wait: do NOT poll with ListSubagents/GetSubagentResult and do NOT CloseSubagent to fetch a result (closing only stops one early). The '[Subagent Completed: ...]' message arrives on its own - act on it then.\n- Headless subagents honor tools.agent.wait: async (default) returns immediately and notifies you as each completes; blocking (tools.agent.wait: true) waits until all finish and returns their aggregated results (fan-out / fan-in). An async headless subagent stays alive idle after its '[Subagent Completed: ...]' note until tools.agent.idle_timeout closes it with a '[Subagent Closed: ...]' note: message it with Agent(to, message) to hand it new information, a correction or a follow-up as its next turn in the same session, and you are notified again when that turn finishes.\n- Interactive subagents are fire-and-watch: the call returns once their tmux panes launch; you watch them live. There is no mode parameter. Each pane closes itself automatically once the subagent finishes its turn, fails, or sits idle past the configured timeout (tools.agent.idle_timeout, pauses while awaiting approval). A finished turn closes the pane even when it ends with a question, so make each task self-contained - a message only reaches a pane that is still working or stuck, and restarts the timeout. Use CloseSubagent only to stop one early.\n\nEach subagent has its own session and cannot itself spawn further subagents, but it can message its team. A Markdown agent with a workspace runs on that computer, as a teammate like any other. Prefer narrow, self-contained task descriptions.",
         "name": "Agent",
         "parameters": {
           "properties": {
@@ -93,6 +93,21 @@
             "description": {
               "description": "Shorthand for a single subagent task (alternative to tasks)",
               "type": "string"
+            },
+            "keys": {
+              "description": "With to, for a subagent you spawned in an interactive pane only. Named keys to press after the message. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "message": {
+              "description": "With to, the message to send - new information, a question, a correction or a follow-up. Typed literally into an interactive pane.",
+              "type": "string"
+            },
+            "submit": {
+              "description": "With to, for a subagent you spawned in an interactive pane only. Press Enter to submit the message (default true). Set false to only press keys for TUI navigation, then inspect with ReadSubagentScreen.",
+              "type": "boolean"
             },
             "system_prompt": {
               "description": "Optional system prompt for the single-task (description) form, giving the subagent a specialized role",
@@ -137,6 +152,10 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "to": {
+              "description": "Send a message instead of spawning: the name or id of a subagent you spawned or of a teammate, or \"lead\" for the agent that spawned you",
+              "type": "string"
             },
             "type": {
               "description": "Capability for the single-task form. ReadOnly (default) is Explore-like: read/search only, never needs approval. ReadWrite can modify files and run commands; mutations require approval.",
@@ -426,7 +445,7 @@
     },
     {
       "function": {
-        "description": "Stop a subagent early. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes, and interactive subagent panes close themselves once they report done, fail, or idle out. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification or use SendSubagentInput to keep a pane alive. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it stops the subprocess, idle or running. Pass the subagent_id from ListSubagents.",
+        "description": "Stop a subagent early. You do NOT need to close a subagent to receive its result - results arrive automatically when it finishes, and interactive subagent panes close themselves once they report done, fail, or idle out. Never CloseSubagent just to fetch a result or because its output looks empty; wait for the automatic notification or message it with the Agent tool to keep a pane alive. For an interactive subagent this folds in its last assistant message and kills the pane; for a headless one it stops the subprocess, idle or running. Pass the subagent_id from ListSubagents.",
         "name": "CloseSubagent",
         "parameters": {
           "additionalProperties": false,
@@ -1367,41 +1386,6 @@
     },
     {
       "function": {
-        "description": "Send a follow-up message to a subagent you spawned, headless or interactive - to hand it new information, correct its course or ask a follow-up on its result without respawning it. 'text' is the message. A running subagent reads it right after its current tool call, mid-turn, and an idle one runs it as its next turn. This is how you steer a running subagent: when the user asks you to wrap up or hurry the fan-in, send each running subagent a message to stop exploring and report its findings now, then end your turn. You are AUTOMATICALLY NOTIFIED with a [Subagent Completed: ...] note when that turn finishes - do not poll. A headless subagent stays alive idle between turns until tools.agent.idle_timeout or CloseSubagent. 'keys' (named keys: Enter, Escape, Up, Down, Left, Right, Tab, BSpace, Space, Home, End, PageUp, PageDown) and submit=false drive an interactive pane's TUI and fail for a headless subagent. With submit=true (default) an interactive pane presses Enter to send the prompt. With submit=false it only sends the keys (TUI navigation/testing); observe the effect with ReadSubagentScreen. Pass the subagent_id from ListSubagents or the Agent result. To drive an interactive terminal program that is NOT a subagent, use the `tmux` skill (raw tmux via Bash) instead of this tool.",
-        "name": "SendSubagentInput",
-        "parameters": {
-          "additionalProperties": false,
-          "properties": {
-            "keys": {
-              "description": "Interactive subagents only. Named keys to send after the text. Allowed: Enter, Escape, Tab, Space, BSpace, Up, Down, Left, Right, Home, End, PageUp, PageDown",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "subagent_id": {
-              "description": "The subagent id from ListSubagents or the Agent result",
-              "type": "string"
-            },
-            "submit": {
-              "description": "Interactive subagents only. Press Enter to submit the prompt (default true). Set false to only send keys for TUI navigation - then inspect with ReadSubagentScreen.",
-              "type": "boolean"
-            },
-            "text": {
-              "description": "The message to send (a follow-up prompt, new information, a correction). Typed literally into an interactive pane.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "subagent_id"
-          ],
-          "type": "object"
-        }
-      },
-      "type": "function"
-    },
-    {
-      "function": {
         "description": "Loads a skill's full instructions (its SKILL.md) into the conversation by name. Use it when the task matches a skill's description in AVAILABLE SKILLS, or when the user invokes a skill explicitly. A SKILL.md is only ever loaded with this tool, never with Read - Read is for the skill's other resource files.\nA skill that is already loaded in this conversation is not sent again - the result says so, and the earlier instructions stay in effect.",
         "name": "Skill",
         "parameters": {
@@ -1878,7 +1862,6 @@
       "Read",
       "ReadSubagentScreen",
       "RequestPlanApproval",
-      "SendSubagentInput",
       "Skill",
       "TodoWrite",
       "Tree",
@@ -1888,6 +1871,7 @@
       "Write"
     ],
     "readonly": [
+      "Agent",
       "Grep",
       "Memory",
       "Read",
@@ -1935,7 +1919,6 @@
       "RecordStop",
       "RequestApproval",
       "Schedule",
-      "SendSubagentInput",
       "Skill",
       "TextToMusic",
       "TextToSFX",
@@ -1991,7 +1974,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": false,
-      "SendSubagentInput": false,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2045,7 +2027,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": false,
-      "SendSubagentInput": true,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2099,7 +2080,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": true,
-      "SendSubagentInput": false,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2153,7 +2133,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": true,
-      "SendSubagentInput": true,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2207,7 +2186,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": false,
-      "SendSubagentInput": false,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2261,7 +2239,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": false,
-      "SendSubagentInput": true,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2315,7 +2292,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": false,
-      "SendSubagentInput": false,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,
@@ -2369,7 +2345,6 @@
       "RequestApproval": false,
       "RequestPlanApproval": false,
       "Schedule": true,
-      "SendSubagentInput": true,
       "Skill": false,
       "TextToMusic": false,
       "TextToSFX": false,

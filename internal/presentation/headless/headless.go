@@ -213,7 +213,7 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 		}()
 	}
 
-	ctx := context.Background()
+	ctx := withTeamChannel(context.Background(), os.Stdout, opts.Serve)
 
 	resumedEntries := prepareConversation(ctx, conversationRepo, sessionID, opts.SessionID != "", opts.NoSave)
 	history := convdomain.BuildAgentMessagesFromEntries(resumedEntries)

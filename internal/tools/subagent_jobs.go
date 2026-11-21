@@ -122,7 +122,8 @@ func (j *headlessSubagentJob) Run(ctx context.Context, emit func(scheddomain.Job
 
 	defer j.signalDone()
 
-	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID, j.tally, nil)
+	j.emit = emit
+	answer, stats, err := j.tool.executeOne(runCtx, j.spec, j.state.SessionID, j.onLine, nil)
 	sub := toSubResult(j.spec, j.state.SessionID, answer, err)
 	sub.Stats = stats
 	j.mu.Lock()
@@ -167,14 +168,14 @@ func (j *headlessSubagentJob) runThread(ctx context.Context, emit func(scheddoma
 	}
 	logger.Debug("subagent thread starting", "subagent_id", j.state.ID, "session_id", j.state.SessionID, "keep_alive", j.keepAlive)
 
-	thread, err := j.tool.openThread(j.runCtx, j.spec, j.state.SessionID, j.threadTurn, j.tallyFrame)
+	thread, err := j.tool.openThread(j.runCtx, j.spec, j.state.SessionID, j.threadTurn, j.tallyFrame, j.relay)
 	if err != nil {
 		return j.threadExit(fmt.Errorf("opening the subagent's thread: %w", err))
 	}
 	j.mu.Lock()
 	j.thread = thread
 	j.mu.Unlock()
-	if err := thread.run(j.spec.Description); err != nil {
+	if err := thread.run(j.spec.task()); err != nil {
 		thread.stop()
 		return j.threadExit(err)
 	}
@@ -236,14 +237,37 @@ func (j *headlessSubagentJob) runKeepAlive(ctx context.Context, emit func(schedd
 	return j.exitResult(answer, stats, err)
 }
 
-// onLine tallies one line the child printed and reports the turn it ends.
+// onLine tallies one line the child printed, and reports the turn it ends or
+// relays the team message it posts. A one-shot child prints no turn lines.
 func (j *headlessSubagentJob) onLine(line []byte) {
 	j.tally(line)
-	var turn scheddomain.SubagentTurnLine
-	if json.Unmarshal(line, &turn) != nil || turn.Type != scheddomain.SubagentTurnLineType {
+	var head struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(line, &head) != nil {
 		return
 	}
-	j.completeTurn(turn.SubagentResultFile)
+	switch head.Type {
+	case scheddomain.SubagentTurnLineType:
+		var turn scheddomain.SubagentTurnLine
+		if json.Unmarshal(line, &turn) == nil {
+			j.completeTurn(turn.SubagentResultFile)
+		}
+	case scheddomain.TeamMessageType:
+		var msg scheddomain.TeamMessageLine
+		if json.Unmarshal(line, &msg) == nil {
+			j.relay(msg.TeamMessage)
+		}
+	}
+}
+
+// relay hands the lead a message this subagent posted to its team.
+func (j *headlessSubagentJob) relay(msg scheddomain.TeamMessage) {
+	if j.emit == nil {
+		logger.Warn("a team message arrived before the subagent was supervised", "subagent_id", j.state.ID)
+		return
+	}
+	j.tool.relayTeamMessage(j.state, msg, j.emit)
 }
 
 // completeTurn records a finished turn and emits its note. A done turn leaves
@@ -888,9 +912,9 @@ func (j *interactiveSubagentJob) idleTimedOut(lastActivity time.Time) bool {
 
 // idleMessage is the no-output fallback for a frozen, never-harvested pane. It
 // warns instead of masquerading as a completion, and names the pending auto-close
-// so the parent can intercede with SendSubagentInput first.
+// so the parent can intercede with an Agent message first.
 func (j *interactiveSubagentJob) idleMessage(idleFor time.Duration) string {
-	content := fmt.Sprintf("[Subagent Idle: %s]\n\nThe subagent ended its turn without output or is waiting for input. Do not assume it failed or produced nothing: use ReadSubagentScreen to inspect it or SendSubagentInput to re-prompt it.",
+	content := fmt.Sprintf("[Subagent Idle: %s]\n\nThe subagent ended its turn without output or is waiting for input. Do not assume it failed or produced nothing: use ReadSubagentScreen to inspect it or message it with Agent(to, message) to re-prompt it.",
 		labelOrSession(j.state.Label, j.state.SessionID))
 	if j.idleTimeout > 0 {
 		remaining := max(j.idleTimeout-idleFor, 0)

@@ -7,7 +7,7 @@ description: >
   task needs you to launch, type into, read the live screen of, or tear down an
   interactive terminal program - e2e-testing a TUI, stepping a debugger, or
   answering a prompt a plain command would block on. Not for subagents you
-  spawned with the Agent tool (use ReadSubagentScreen / SendSubagentInput for
+  spawned with the Agent tool (use ReadSubagentScreen and Agent messages for
   those).
 license: Apache-2.0
 ---
@@ -100,7 +100,7 @@ sessions behind.
 ## Not for subagents
 
 To drive a subagent you spawned with the Agent tool, use `ReadSubagentScreen`
-and `SendSubagentInput` - the CLI already manages those panes for you. Reach for
+and the Agent tool's `to`/`message` - the CLI already manages those panes for you. Reach for
 raw tmux only for programs you launch yourself.
 
 ## Approval

@@ -19,17 +19,22 @@ import (
 
 const testBindingToken = "test-token"
 
+// unreachableWorkspace is the workspace the test daemon fails every teleport to.
+const unreachableWorkspace = "nowhere"
+
 // startDaemonBinding hosts a binding behind the counterfeiter handler, which
-// plays the daemon: a resume_conversation opens the thread with a snapshot and
-// each run_agent_input goes to answer. The handler's recorded calls are the
-// frames the parent sent.
+// plays the daemon: a resume_conversation opens the thread with a snapshot,
+// each run_agent_input goes to answer, and a teleport_session lands unless it
+// targets unreachableWorkspace. The handler's recorded calls are the frames the
+// parent sent.
 func startDaemonBinding(t *testing.T, answer func(conn *agui.Conn, input agui.RunAgentInput)) (agui.DialConfig, *aguimocks.FakeHandler) {
 	t.Helper()
 	handler := &aguimocks.FakeHandler{}
 	handler.HandleCalls(func(conn *agui.Conn, frame []byte) {
 		var f struct {
-			Type  string             `json:"type"`
-			Input agui.RunAgentInput `json:"input"`
+			Type   string             `json:"type"`
+			Target string             `json:"target"`
+			Input  agui.RunAgentInput `json:"input"`
 		}
 		if err := json.Unmarshal(frame, &f); err != nil {
 			t.Errorf("undecodable client frame %q", frame)
@@ -40,6 +45,13 @@ func startDaemonBinding(t *testing.T, answer func(conn *agui.Conn, input agui.Ru
 			conn.Deliver([]byte(`{"type":"MESSAGES_SNAPSHOT","messages":[]}`))
 		case "run_agent_input":
 			answer(conn, f.Input)
+		case "teleport_session":
+			if f.Target == unreachableWorkspace {
+				conn.Deliver([]byte(`{"type":"teleport_progress","stage":"failed","message":"workspace nowhere is not registered in daemon.yaml"}`))
+				return
+			}
+			conn.Deliver([]byte(`{"type":"teleport_progress","stage":"ready"}`))
+			conn.Deliver([]byte(`{"type":"session_teleported","workspace":"` + f.Target + `"}`))
 		}
 	})
 	binding := agui.NewBinding(agui.BindingConfig{Port: 0, Token: testBindingToken, Handshake: browserinfra.BindingHandshake}, handler)
@@ -52,13 +64,14 @@ func startDaemonBinding(t *testing.T, answer func(conn *agui.Conn, input agui.Ru
 
 // echoTurn answers one run as the daemon's worker would: the message echoed
 // back as a done turn whose tool count is the answer's length, then the text
-// on turns.
+// on turns. A first turn echoes its task without the team note it ends with.
 func echoTurn(turns chan<- string) func(conn *agui.Conn, input agui.RunAgentInput) {
 	return func(conn *agui.Conn, input agui.RunAgentInput) {
 		text := "resumed"
 		if len(input.Messages) == 1 {
 			text, _ = input.Messages[0].Content.(string)
 		}
+		text, _, _ = strings.Cut(text, "\n\n[Team]")
 		conn.Deliver([]byte(`{"type":"RUN_STARTED","threadId":"` + input.ThreadID + `","runId":"` + input.RunID + `"}`))
 		conn.Deliver([]byte(`{"type":"TOOL_CALL_RESULT","toolCallId":"c1","content":"ok"}`))
 		deliverTurn(conn, scheddomain.SubagentResultFile{FinalAssistant: text, Success: true, Done: true, Stats: &scheddomain.SubagentRunStats{ToolsSucceeded: len(text)}})
@@ -313,5 +326,101 @@ func TestAgentTool_ThreadAsyncCarriesParentSession(t *testing.T) {
 	sub, _ := opens[0]["subagent"].(map[string]any)
 	if sub["parent"] != "parent-session" {
 		t.Fatalf("the thread must name the parent session, got %v", sub)
+	}
+}
+
+// A subagent's thread posts team messages as CUSTOM agent_message events, and
+// the lead keeps one addressed to it as a note in its own chat.
+func TestHeadlessSubagentJob_ThreadRelaysTeamMessages(t *testing.T) {
+	turns := make(chan string, 8)
+	echo := echoTurn(turns)
+	dial, _ := startDaemonBinding(t, func(conn *agui.Conn, input agui.RunAgentInput) {
+		conn.Deliver([]byte(`{"type":"CUSTOM","name":"agent_message","value":{"to":"lead","text":"halfway there"}}`))
+		echo(conn, input)
+	})
+	job, _ := newThreadTestJob(t, dial, time.Hour)
+	reported := make(chan string, 8)
+	go job.Run(t.Context(), func(sig scheddomain.JobSignal) {
+		if sig.Note != "" {
+			reported <- sig.Note
+		}
+	})
+
+	waitTurn(t, turns, "task")
+	waitNote(t, reported, "[Message from keeper]\n\nhalfway there")
+}
+
+// A named agent with a workspace runs on that computer: its thread opens at
+// home and teleports there before the first turn, which the daemon relays.
+func TestAgentTool_ThreadPlacesASubagentOnItsAgentsWorkspace(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	turns := make(chan string, 8)
+	dial, handler := startDaemonBinding(t, echoTurn(turns))
+	tool, _ := newSupervisedAgentTool(t, threadConfig())
+	tool.dialDaemon = func(context.Context) (agui.DialConfig, error) { return dial, nil }
+	tool.setMarkdownAgents([]markdownAgent{{name: "researcher", description: "Researches", workspace: "gpu-box"}}, nil)
+
+	res, err := tool.Execute(t.Context(), map[string]any{"description": "look around", "agent": "researcher"})
+	if err != nil || res == nil || !res.Success {
+		t.Fatalf("Execute: res=%+v err=%v", res, err)
+	}
+	waitTurn(t, turns, "look around")
+
+	var sent []string
+	for i := range handler.HandleCallCount() {
+		_, frame := handler.HandleArgsForCall(i)
+		var f map[string]any
+		_ = json.Unmarshal(frame, &f)
+		sent = append(sent, f["type"].(string))
+	}
+	if want := "resume_conversation teleport_session run_agent_input"; strings.Join(sent, " ") != want {
+		t.Fatalf("frames = %v, want %s", sent, want)
+	}
+	teleport := clientFrames(handler, "teleport_session")[0]
+	opens := clientFrames(handler, "resume_conversation")
+	if teleport["target"] != "gpu-box" || teleport["id"] != opens[0]["id"] || teleport["project_dir"] != opens[0]["project_dir"] {
+		t.Fatalf("the teleport must move the subagent's own thread to its workspace, got %v after %v", teleport, opens[0])
+	}
+}
+
+// A workspace the daemon cannot reach fails the subagent, not the lead.
+func TestAgentTool_ThreadPlacementFailureFailsTheSubagent(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	dial, handler := startDaemonBinding(t, echoTurn(make(chan string, 8)))
+	cfg := threadConfig()
+	cfg.Tools.Agent.Wait = true
+	tool, _ := newSupervisedAgentTool(t, cfg)
+	tool.dialDaemon = func(context.Context) (agui.DialConfig, error) { return dial, nil }
+	tool.setMarkdownAgents([]markdownAgent{{name: "researcher", description: "Researches", workspace: unreachableWorkspace}}, nil)
+
+	res, err := tool.Execute(t.Context(), map[string]any{"description": "look around", "agent": "researcher"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := res.Data.(AgentToolResult)
+	if res.Success || len(data.Subagents) != 1 || !strings.Contains(data.Subagents[0].Error, "placing the subagent on workspace nowhere: workspace nowhere is not registered") {
+		t.Fatalf("res = %+v, want the subagent failed with why it could not be placed", res)
+	}
+	if runs := clientFrames(handler, "run_agent_input"); len(runs) != 0 {
+		t.Fatalf("a subagent that was not placed must not run, got %v", runs)
+	}
+}
+
+// Without the daemon only this computer is reachable, so an agent with a
+// workspace is refused before anything is spawned.
+func TestAgentTool_AWorkspaceNeedsTheDaemon(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	tool, registry := newSupervisedAgentTool(t, config.DefaultConfig())
+	tool.setMarkdownAgents([]markdownAgent{{name: "researcher", description: "Researches", workspace: "gpu-box"}}, nil)
+
+	res, err := tool.Execute(t.Context(), map[string]any{"description": "look around", "agent": "researcher"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Success || !strings.Contains(res.Error, "agent researcher runs on workspace gpu-box") {
+		t.Fatalf("res = %+v, want the spawn refused", res)
+	}
+	if jobs := registry.Snapshot(); len(jobs) != 0 {
+		t.Fatalf("nothing may be spawned, got %v", jobs)
 	}
 }

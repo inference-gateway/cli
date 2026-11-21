@@ -166,8 +166,8 @@ func TestAgentTool_NamedAgentInteractivePaneCommand(t *testing.T) {
 	if _, err := tool.Execute(context.Background(), map[string]any{"description": "d", "agent": "code-reviewer"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(cmd, "INFER_SUBAGENT_TOOLS='Grep,Read'") {
-		t.Fatalf("pane command must carry the allowlist; cmd = %q", cmd)
+	if !strings.Contains(cmd, "INFER_SUBAGENT_TOOLS='Grep,Read,Agent'") {
+		t.Fatalf("pane command must carry the allowlist, with Agent to message the team; cmd = %q", cmd)
 	}
 	if !strings.Contains(cmd, "INFER_AGENT_MODEL='deepseek/deepseek-v4-pro'") {
 		t.Fatalf("pane command must carry the frontmatter model; cmd = %q", cmd)

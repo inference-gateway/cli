@@ -242,6 +242,64 @@ scenarios:
       - content: "hello-from-subagent-probe"
       - content: "hello-from-subagent-probe"
 
+  - name: team-lead
+    match: '(?i)assemble a team'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              tasks:
+                - label: scout
+                  description: "team-scout task"
+                - label: keeper
+                  description: "team-keeper task"
+      - content: "The team is working."
+
+  - name: team-scout
+    match: 'team-scout task'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              to: keeper
+              message: "team-secret-42"
+      - content: "The scout passed the secret on."
+
+  - name: team-keeper
+    match: 'team-keeper task'
+    turns:
+      - content: "The keeper is listening."
+
+  - name: team-keeper-relay
+    match: 'Message from scout\]\s+team-secret-42'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              to: lead
+              message: "the keeper heard the secret"
+      - content: "The keeper told the lead."
+
+  - name: team-remote-lead
+    match: '(?i)assemble a remote team'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              agent: e2e-researcher
+              description: "team-researcher task"
+      - content: "The researcher is on its way."
+
+  - name: team-researcher
+    match: 'team-researcher task'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              to: lead
+              message: "the researcher reports from its own computer"
+      - content: "The researcher reported."
+
   - name: todo-stall
     match: '(?i)^implement the vision feature'
     turns:
