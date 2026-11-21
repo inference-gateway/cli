@@ -26,8 +26,8 @@ import (
 )
 
 // TaskInfo extends TaskPollingState for the background work view. A2A rows use
-// the embedded state. Shell and subagent rows fill Kind, Label and Detail so one
-// flat list renders a table per kind. Output feeds the detail panel, and
+// the embedded state. Shell and subagent rows fill Kind, Type, Label and Detail
+// so one flat list renders a table per kind. Output feeds the detail panel, and
 // SessionID and Stats are a subagent's stored conversation and run stats.
 type TaskInfo struct {
 	a2adomain.TaskPollingState
@@ -35,6 +35,7 @@ type TaskInfo struct {
 	ElapsedTime time.Duration
 	TaskRef     *a2adomain.TaskInfo
 	Kind        scheddomain.JobKind
+	Type        string
 	Label       string
 	Detail      string
 	Output      string
@@ -302,6 +303,7 @@ func jobToTaskInfo(job scheddomain.TrackedJob) TaskInfo {
 		Status:      jobStatusLabel(job.Status),
 		ElapsedTime: end.Sub(job.Meta.StartedAt),
 		Kind:        job.Meta.Kind,
+		Type:        job.Meta.Type,
 		Label:       label,
 		Detail:      job.Meta.Detail,
 		Output:      job.Output,
@@ -762,6 +764,9 @@ func (t *TaskView) renderTaskInfo() string {
 	fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("ID:"), task.TaskID)
 	if task.AgentURL != "" {
 		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Agent URL:"), task.AgentURL)
+	}
+	if task.Type != "" {
+		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Type:"), task.Type)
 	}
 	if task.Detail != "" {
 		fmt.Fprintf(&content, "%-12s %s\n", t.styleProvider.RenderDimText("Detail:"), task.Detail)

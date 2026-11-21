@@ -59,6 +59,7 @@ When viewing task details (`i` key), you can see:
 - Current status
 - Start time and elapsed duration
 - Context ID (if available)
+- For a subagent, its type: the [Markdown agent](subagents.md) it runs as, else `read-only` or `read-write`
 - For a subagent, its [run stats](subagents.md#run-stats): tool calls succeeded and failed, input and output tokens.
   They count up while a headless subagent runs
 - For a subagent, its transcript: the task, each assistant turn with the tools it called, and every tool result

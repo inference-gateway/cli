@@ -344,6 +344,7 @@ func TestSubagentDetailPanel(t *testing.T) {
 	tests := []struct {
 		name      string
 		sessionID string
+		typ       string
 		stats     *scheddomain.SubagentRunStats
 		want      []string
 		notWant   []string
@@ -352,7 +353,13 @@ func TestSubagentDetailPanel(t *testing.T) {
 			name:      "stored conversation",
 			sessionID: "subagent-stored",
 			want:      []string{"Transcript", "User:", "review the diff", `→ Read {"file_path":"main.go"}`, "Tool Read ✓:", "package main", "looks good"},
-			notWant:   []string{"Output", "system prompt", "Tools:"},
+			notWant:   []string{"Output", "system prompt", "Tools:", "Type:"},
+		},
+		{
+			name:    "the agent it runs as",
+			typ:     "explore",
+			want:    []string{"Type:", "explore", "Detail:", "headless"},
+			notWant: []string{"Transcript"},
 		},
 		{
 			name:      "no stored conversation",
@@ -378,7 +385,7 @@ func TestSubagentDetailPanel(t *testing.T) {
 			})
 			tm.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
 			tm.Update(tui.TasksLoadedEvent{CompletedTasks: []any{jobToTaskInfo(scheddomain.TrackedJob{
-				Meta:   scheddomain.JobMeta{ID: "sub-1", SessionID: tt.sessionID, Kind: scheddomain.JobKindSubagent, Detail: "headless"},
+				Meta:   scheddomain.JobMeta{ID: "sub-1", SessionID: tt.sessionID, Kind: scheddomain.JobKindSubagent, Type: tt.typ, Detail: "headless"},
 				Status: scheddomain.JobCompleted,
 				Output: "the final answer",
 				Stats:  tt.stats,
