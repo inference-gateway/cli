@@ -615,7 +615,9 @@ See [Telemetry](telemetry.md) for the baggage keys and mixed CLI/ADK deployment 
 - **agent.model**: Default model for agent operations
 - System prompts and custom instructions are not `config.yaml` `agent.*` keys: they live in `prompts.yaml` under
   `prompts.agent.system_prompt` and `prompts.agent.custom_instructions` (env: `INFER_PROMPTS_AGENT_SYSTEM_PROMPT`,
-  `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`). The system prompt stays byte-stable for the whole session - including
+  `INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS`). `prompts.agent.system_prompt` ships empty: the default system prompt is
+  the body of the built-in `main` agent (`~/.infer/agents/main.md`, see [Built-in Agents](subagents.md#built-in-agents)),
+  and a non-empty value overrides it. The system prompt stays byte-stable for the whole session - including
   across agent-mode switches (Shift+Tab) - so local LLM servers keep KV-cache prefix hits.
 - **prompts.agent.mode_adjustment_plan** (prompts.yaml): Optional per-mode instructions (NOT a system prompt) delivered as the `{guidance}` of the mode-change
   reminder when the agent enters Plan Mode. Ships empty. The built-ins live in the mode-change-reminder guidance in reminders.yaml.

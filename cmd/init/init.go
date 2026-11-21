@@ -16,6 +16,7 @@ import (
 	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	icons "github.com/inference-gateway/cli/internal/presentation/tui/styles/icons"
 	skills "github.com/inference-gateway/cli/internal/skills"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 func NewCommand(state *runtime.State) *cobra.Command {
@@ -68,6 +69,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	hooksPath := filepath.Join(homeCfgDir, config.HooksFileName)
 	agentsPath := filepath.Join(homeCfgDir, config.AgentsFileName)
 	skillsDirPath := filepath.Join(homeCfgDir, "skills")
+	agentsDirPath := filepath.Join(homeCfgDir, "agents")
 	keybindingsPath := filepath.Join(homeCfgDir, config.KeybindingsFileName)
 	remindersPath := filepath.Join(homeCfgDir, config.RemindersFileName)
 	channelsPath := filepath.Join(homeCfgDir, config.ChannelsFileName)
@@ -153,6 +155,10 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 
 	if err := skills.SeedBuiltins(skillsDirPath, overwrite); err != nil {
 		return fmt.Errorf("failed to seed built-in skills: %w", err)
+	}
+
+	if err := tools.SeedBuiltinAgents(agentsDirPath, overwrite); err != nil {
+		return fmt.Errorf("failed to seed built-in agents: %w", err)
 	}
 
 	kbCreated, err := createFileIfAbsent(keybindingsPath, overwrite, func(p string) error {
@@ -263,6 +269,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	fmt.Printf("   Created: %s\n", agentsPath)
 	fmt.Printf("   Created: %s/\n", skillsDirPath)
+	fmt.Printf("   Created: %s/\n", agentsDirPath)
 	if memoryCreated {
 		fmt.Printf("   Created: %s\n", memoryConfigPath)
 	}
