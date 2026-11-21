@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.266.0](https://github.com/inference-gateway/cli/compare/v0.265.4...v0.266.0) (2026-11-21)
+
+### 🚀 Features
+
+* **agents:** let a team of agents message each other through the Agent tool ([#1927](https://github.com/inference-gateway/cli/issues/1927)) ([52d1bb8](https://github.com/inference-gateway/cli/commit/52d1bb85e528bf5befeb3331f75a085592ed601c))
+* **agents:** ship built-in agents, with main as the default agent ([#1925](https://github.com/inference-gateway/cli/issues/1925)) ([c54a032](https://github.com/inference-gateway/cli/commit/c54a032683f0cab050a0b4e0bb5a9bef48ebbe43))
+* **chat:** switch the main agent from the status bar ([#1926](https://github.com/inference-gateway/cli/issues/1926)) ([cb1f129](https://github.com/inference-gateway/cli/commit/cb1f12905387932ed300fe5d6ae25167dcdcc259)), references [#1925](https://github.com/inference-gateway/cli/issues/1925)
+
 ## [0.265.4](https://github.com/inference-gateway/cli/compare/v0.265.3...v0.265.4) (2026-11-20)
 
 ### ♻️ Code Refactoring
