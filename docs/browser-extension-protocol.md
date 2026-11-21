@@ -667,6 +667,7 @@ CLI → client, the running and recently finished jobs:
 ```
 
 - `status` is `running`, `completed` or `failed`.
+- A subagent's `type` is the Markdown agent it runs as, else `read-only` or `read-write`. Other jobs have none.
 - A finished job also has `completed_at` and `output`. A subagent has its
   `session_id`, and `stats` once it ends.
 

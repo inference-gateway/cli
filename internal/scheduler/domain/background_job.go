@@ -34,13 +34,15 @@ func (s JobStatus) IsTerminal() bool { return s == JobCompleted || s == JobFaile
 // JobMeta is the identity/display snapshot a background job exposes. The
 // supervisor reads it once at submit (and surfaces it in the task view). It is
 // not on any hot path. Origin says where the work runs for a kind that has more
-// than one place, and is empty otherwise. SessionID names the stored
+// than one place, and is empty otherwise. Type says which sort of its kind the
+// job is, such as the agent a sub-agent runs as. SessionID names the stored
 // conversation of a job that keeps one, so it outlives the job's tracker entry.
 type JobMeta struct {
 	ID           string
 	SessionID    string
 	Kind         JobKind
 	Origin       string
+	Type         string
 	Label        string
 	Description  string
 	Detail       string

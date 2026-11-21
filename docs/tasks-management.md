@@ -17,7 +17,9 @@ system with better visibility into task status and history.
       slack and the elapsed counter stays on the right edge. Each row carries its label, a kind
   tag (`subagent`, `a2a local`, `a2a external`, `shell`, `recording`) and a live elapsed counter. A finished job
   lingers with a green `✓` or a red `✗` and its total duration, then drops
-  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A subagent also shows its
+  (`chat.status_bar.subagent_linger_seconds`). `chat.status_bar.indicators.subagents` hides the list. A subagent's tag
+  also names its type, the [Markdown agent](subagents.md) it runs as or else its capability, as in
+  `subagent · explore` or `subagent · read-only`. A subagent also shows its
   [run stats](subagents.md#run-stats) on a child line under its row, live while a headless one runs. An A2A task
   shows the same line once its agent reports usage on the task
 - The list is selectable. Press `↓` on the status indicators to move into it, `↑`/`↓` to pick a row and

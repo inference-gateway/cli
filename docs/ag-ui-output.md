@@ -93,8 +93,9 @@ client keeps one action entry per tool call.
 Agent boot progress observed before the first run opens is held and written right after that run's
 `RUN_STARTED`, so no run-scoped event precedes a run.
 
-`backgroundTasks.jobs` entries carry `id`, `kind`, `label`, `description`, `detail`, `status` and
-`started_at`.
+`backgroundTasks.jobs` entries carry `id`, `kind`, `type`, `label`, `description`, `detail`, `status` and
+`started_at`. A subagent's `type` is the Markdown agent it runs as, else `read-only` or `read-write`, and
+other jobs leave it empty.
 
 ## State
 

@@ -321,6 +321,37 @@ func TestSubagentListStretchesWithinWidth(t *testing.T) {
 	}
 }
 
+// TestSubagentListShowsEachSubagentsType: a sub-agent row names its type beside
+// its kind - the agent it runs as, or its capability - and rows with and
+// without a type keep one width.
+func TestSubagentListShowsEachSubagentsType(t *testing.T) {
+	now := time.Now()
+	scout := subagentJob("scout", scheddomain.JobRunning, now.Add(-time.Second), nil)
+	scout.Meta.Type = "explore"
+	helper := subagentJob("helper", scheddomain.JobRunning, now.Add(-2*time.Second), nil)
+	helper.Meta.Type = "read-write"
+	list := newList(listOpts{linger: 5, indicator: true, jobs: []scheddomain.TrackedJob{
+		scout, helper, shellJob("shell-1", "go build ./...", scheddomain.JobRunning, now.Add(-3*time.Second)),
+	}})
+	list.SetWidth(80)
+
+	lines := strings.Split(plain(list.Render()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 rows, got %q", lines)
+	}
+	for i, want := range []string{"subagent · explore", "subagent · read-write", "shell "} {
+		if !strings.Contains(lines[i], want) {
+			t.Errorf("row %d = %q, want it to show %q", i, lines[i], want)
+		}
+		if w := visibleWidth(lines[i]); w != visibleWidth(lines[0]) {
+			t.Errorf("row %d width %d must equal row 0 width %d: %q", i, w, visibleWidth(lines[0]), lines[i])
+		}
+	}
+	if strings.Contains(lines[2], "·") {
+		t.Errorf("a job without a type shows its kind alone, got %q", lines[2])
+	}
+}
+
 func TestSubagentListRowsAlignInColumns(t *testing.T) {
 	now := time.Now()
 	auditorDone := now.Add(-time.Second)

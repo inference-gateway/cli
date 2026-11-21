@@ -106,11 +106,13 @@ type SubagentApprovalFile struct {
 
 // SubagentState is the data record for one local subagent (an `infer headless`
 // subprocess or tmux pane spawned by the Agent tool) that the subagent control
-// tools (ListSubagents, CloseSubagent, ...) read. Monitoring is owned by the job
-// supervisor (headlessSubagentJob / interactiveSubagentJob), not this struct.
+// tools (ListSubagents, CloseSubagent, ...) read. Type is the agent it runs as,
+// else its capability. Monitoring is owned by the job supervisor
+// (headlessSubagentJob / interactiveSubagentJob), not this struct.
 type SubagentState struct {
 	ID          string
 	Label       string
+	Type        string
 	Description string
 	Model       string
 	Mode        SubagentMode

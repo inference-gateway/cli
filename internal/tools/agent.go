@@ -34,6 +34,12 @@ import (
 // subagent (read in initConfig), so each subagent can run with its own role.
 const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 
+// The capabilities a subagent spawned without a Markdown agent goes by.
+const (
+	readOnlySubagent  = "read-only"
+	readWriteSubagent = "read-write"
+)
+
 // AgentTaskSpec is one delegated unit of work within an Agent tool call. Agent
 // names a Markdown agent whose settings replace the per-task overrides. Tools
 // and MCPServers are passed to the subagent, nil to inherit. Mode is ReadOnly
@@ -256,6 +262,7 @@ func (t *AgentTool) dispatchWaitJobs(ctx context.Context, specs []AgentTaskSpec,
 		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
+			Type:        subagentType(spec),
 			Description: spec.Description,
 			Model:       spec.Model,
 			Mode:        mode,
@@ -310,6 +317,7 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
+			Type:        subagentType(spec),
 			Description: spec.Description,
 			Model:       spec.Model,
 			Mode:        mode,
@@ -483,6 +491,7 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 		state := &scheddomain.SubagentState{
 			ID:          uuid.New().String(),
 			Label:       spec.Label,
+			Type:        subagentType(spec),
 			Description: spec.Description,
 			Model:       spec.Model,
 			Mode:        scheddomain.SubagentModeInteractive,
@@ -526,6 +535,19 @@ func (t *AgentTool) runInteractive(ctx context.Context, args map[string]any, sta
 			Subagents:  launched,
 			Message:    msg,
 		},
+	}
+}
+
+// subagentType is which sort of subagent a spec spawns, for the job list: the
+// Markdown agent it runs as, else its capability.
+func subagentType(spec AgentTaskSpec) string {
+	switch {
+	case spec.Agent != "":
+		return spec.Agent
+	case spec.Mode == agentdomain.AgentModeReadOnly:
+		return readOnlySubagent
+	default:
+		return readWriteSubagent
 	}
 }
 

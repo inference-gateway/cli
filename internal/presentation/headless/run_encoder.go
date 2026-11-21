@@ -213,7 +213,7 @@ func (r *RunEncoder) emitBackgroundTasks(jobs []scheddomain.TrackedJob) {
 			running++
 		}
 		list = append(list, map[string]any{
-			"id": j.Meta.ID, "kind": string(j.Meta.Kind), "label": j.Meta.Label, "description": j.Meta.Description,
+			"id": j.Meta.ID, "kind": string(j.Meta.Kind), "type": j.Meta.Type, "label": j.Meta.Label, "description": j.Meta.Description,
 			"detail": j.Meta.Detail, "status": string(j.Status), "started_at": j.Meta.StartedAt,
 		})
 	}

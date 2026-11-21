@@ -596,3 +596,36 @@ func TestTurnResultBodyCarriesRunStats(t *testing.T) {
 		t.Fatalf("turnResultBody = %q, want %q", got, want)
 	}
 }
+
+// The job list tells subagents apart by type: the Markdown agent a subagent
+// runs as, else the capability its call asked for.
+func TestAgentTool_EachSubagentJobCarriesItsType(t *testing.T) {
+	tests := []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"a named agent", map[string]any{"description": "d", "agent": "explore"}, "explore"},
+		{"read-only by default", map[string]any{"description": "d"}, "read-only"},
+		{"read-write on request", map[string]any{"description": "d", "type": "ReadWrite"}, "read-write"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("INFER_SUBAGENT_DEPTH", "")
+			tool, registry := newSupervisedAgentTool(t, config.DefaultConfig())
+			tool.setMarkdownAgents([]markdownAgent{{name: "explore", description: "Explores"}}, nil)
+			tool.runHeadless = func(context.Context, agentheadless.Options) (agentheadless.Result, error) {
+				return agentheadless.Result{FinalAssistant: "ok"}, nil
+			}
+
+			if res, err := tool.Execute(context.Background(), tt.args); err != nil || !res.Success {
+				t.Fatalf("Execute: res=%+v err=%v", res, err)
+			}
+
+			jobs := registry.Snapshot()
+			if len(jobs) != 1 || jobs[0].Meta.Type != tt.want {
+				t.Fatalf("jobs = %+v, want one of type %q", jobs, tt.want)
+			}
+		})
+	}
+}

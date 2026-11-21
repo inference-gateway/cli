@@ -32,6 +32,7 @@ func (t *Tasks) List(ctx context.Context) ([]scheddomain.TrackedJob, error) {
 			ID          string                        `json:"id"`
 			SessionID   string                        `json:"session_id"`
 			Kind        scheddomain.JobKind           `json:"kind"`
+			Type        string                        `json:"type"`
 			Label       string                        `json:"label"`
 			Description string                        `json:"description"`
 			Detail      string                        `json:"detail"`
@@ -49,7 +50,7 @@ func (t *Tasks) List(ctx context.Context) ([]scheddomain.TrackedJob, error) {
 	for _, task := range listed.Tasks {
 		jobs = append(jobs, scheddomain.TrackedJob{
 			Meta: scheddomain.JobMeta{
-				ID: task.ID, SessionID: task.SessionID, Kind: task.Kind, Label: task.Label,
+				ID: task.ID, SessionID: task.SessionID, Kind: task.Kind, Type: task.Type, Label: task.Label,
 				Description: task.Description, Detail: task.Detail, StartedAt: task.StartedAt,
 			},
 			Status: task.Status, CompletedAt: task.CompletedAt, Output: task.Output, Stats: task.Stats,

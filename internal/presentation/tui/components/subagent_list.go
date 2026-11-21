@@ -31,6 +31,10 @@ const subagentLabelMinWidth = 13
 // gutters around the status cell.
 const rowFixedColumns = 5
 
+// rowTypeSeparator sits between a row's kind and its type, as in
+// "subagent · explore".
+const rowTypeSeparator = " · "
+
 // SubagentList renders the stacked list below the composer stretched across its
 // width: one row per background job (sub-agent, A2A task, shell, recording)
 // with its label, its kind and a live elapsed counter. Finished jobs linger
@@ -73,11 +77,13 @@ func (l *SubagentList) HasRows() bool {
 	return len(l.snapshotRows()) > 0
 }
 
-// subagentRow carries one row's render inputs derived from the registry.
+// subagentRow carries one row's render inputs derived from the registry. typ
+// is which sort of its kind the job is, such as a sub-agent's agent.
 type subagentRow struct {
 	id      string
 	label   string
 	kind    string
+	typ     string
 	running bool
 	elapsed time.Duration
 	failed  bool
@@ -101,7 +107,7 @@ func (l *SubagentList) measureRows(rows []subagentRow, blockWidth int) rowWidths
 	widths := rowWidths{label: subagentLabelMinWidth}
 	for _, row := range rows {
 		widths.label = max(widths.label, l.styleProvider.GetWidth(rowLabel(row)))
-		widths.kind = max(widths.kind, l.styleProvider.GetWidth(row.kind))
+		widths.kind = max(widths.kind, l.styleProvider.GetWidth(kindText(row)))
 		if w := l.styleProvider.GetWidth(formatDuration(row.elapsed)); w > widths.duration {
 			widths.duration = w
 		}
@@ -114,6 +120,14 @@ func (l *SubagentList) measureRows(rows []subagentRow, blockWidth int) rowWidths
 			blockWidth-widths.kind-widths.state-widths.duration-rowFixedColumns)
 	}
 	return widths
+}
+
+// kindText is a row's kind cell as plain text: the kind, then its type.
+func kindText(row subagentRow) string {
+	if row.typ == "" {
+		return row.kind
+	}
+	return row.kind + rowTypeSeparator + row.typ
 }
 
 // rowLabel is a row's label on one line, or its kind when it has none.
@@ -140,6 +154,7 @@ func (l *SubagentList) snapshotRows() []subagentRow {
 			id:      job.Meta.ID,
 			label:   jobRowLabel(job),
 			kind:    jobRowKind(job),
+			typ:     job.Meta.Type,
 			elapsed: end.Sub(job.Meta.StartedAt),
 			running: job.Status == scheddomain.JobRunning,
 			failed:  job.Status == scheddomain.JobFailed,
@@ -402,6 +417,16 @@ func (l *SubagentList) Render() string {
 	return strings.Join(lines, "\n")
 }
 
+// kindCell draws the kind in the accent color and its type beside it, padded
+// to the kind column.
+func (l *SubagentList) kindCell(row subagentRow, width int, dim string) string {
+	cell := l.styleProvider.RenderWithColor(row.kind, l.styleProvider.GetThemeColor("accent"))
+	if row.typ != "" {
+		cell += l.styleProvider.RenderWithColor(rowTypeSeparator, dim) + row.typ
+	}
+	return cell + strings.Repeat(" ", max(0, width-l.styleProvider.GetWidth(kindText(row))))
+}
+
 // statsView draws a sub-agent's run stats as a child line under its row: tool
 // calls succeeded and failed, then the tokens used, live while it runs. It is
 // padded to the shared row width so the block stays aligned. An icon takes its
@@ -475,9 +500,8 @@ func (l *SubagentList) rowView(row subagentRow, index, count int, widths rowWidt
 	if selected {
 		connector = l.styleProvider.RenderWithColor(selectedRowMarker, l.styleProvider.GetThemeColor("accent"))
 	}
-	label := formatting.PadText(rowLabel(row), widths.label) + " " +
-		l.styleProvider.RenderWithColor(formatting.PadText(row.kind, widths.kind), l.styleProvider.GetThemeColor("accent"))
 	dim := l.styleProvider.GetThemeColor("dim")
+	label := formatting.PadText(rowLabel(row), widths.label) + " " + l.kindCell(row, widths.kind, dim)
 	elapsed := formatDuration(row.elapsed)
 	elapsedCol := strings.Repeat(" ", widths.duration-l.styleProvider.GetWidth(elapsed)) +
 		l.styleProvider.RenderWithColor(elapsed, dim)

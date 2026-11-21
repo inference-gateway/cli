@@ -24,6 +24,7 @@ type taskEntry struct {
 	ID          string                        `json:"id"`
 	SessionID   string                        `json:"session_id,omitempty"`
 	Kind        string                        `json:"kind"`
+	Type        string                        `json:"type,omitempty"`
 	Label       string                        `json:"label"`
 	Description string                        `json:"description,omitempty"`
 	Detail      string                        `json:"detail,omitempty"`
@@ -59,7 +60,7 @@ func (t *tasks) list() {
 	if t.jobs != nil {
 		for _, job := range t.jobs.Snapshot() {
 			entries = append(entries, taskEntry{
-				ID: job.Meta.ID, SessionID: job.Meta.SessionID, Kind: string(job.Meta.Kind), Label: job.Meta.Label,
+				ID: job.Meta.ID, SessionID: job.Meta.SessionID, Kind: string(job.Meta.Kind), Type: job.Meta.Type, Label: job.Meta.Label,
 				Description: job.Meta.Description, Detail: job.Meta.Detail, Status: string(job.Status),
 				StartedAt: job.Meta.StartedAt, CompletedAt: job.CompletedAt, Output: job.Output, Stats: job.Stats,
 			})
