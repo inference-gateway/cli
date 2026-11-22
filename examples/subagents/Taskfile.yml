@@ -1,13 +1,12 @@
 version: '3'
 
 vars:
-  INFER: infer
-
-env:
-  INFER_GATEWAY_MOCK: 'true'
-  INFER_GATEWAY_MOCK_SCENARIOS: '{{.TASKFILE_DIR}}/scenarios.yaml'
-  INFER_AGENT_MODEL: mock/openai/gpt-4o
-  INFER_TOOLS_AGENT_WAIT: 'true'
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+  # Inline on every command, not in an env block: an unquoted env block does
+  # not win when the calling shell already exports the same variable, which
+  # any CI runner driving infer does with INFER_AGENT_MODEL.
+  MOCK_ENV: 'INFER_GATEWAY_MOCK=true INFER_GATEWAY_MOCK_SCENARIOS="{{.TASKFILE_DIR}}/scenarios.yaml" INFER_AGENT_MODEL=mock/openai/gpt-4o INFER_TOOLS_AGENT_WAIT=true'
 
 tasks:
   default:
@@ -16,13 +15,43 @@ tasks:
     cmds:
       - task --list
 
-  list:
-    desc: Show the Markdown agent with infer agents list
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
     cmds:
-      - '{{.INFER}} agents list'
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  clean:
+    desc: Remove the demo HOME the tasks run in
+    cmds:
+      - rm -rf {{.HOME_DIR}}
+
+  home:
+    internal: true
+    cmds:
+      - mkdir -p {{.HOME_DIR}}
+
+  list:
+    desc: Show the agent presets the session can delegate to - the example researcher and the four built-ins
+    deps:
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} agents list
+
+  builtins:
+    desc: Show the four built-ins, the prompt sourced from main.md, and a project explore.md shadowing the built-in
+    deps:
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} agents list
+      - HOME={{.HOME_DIR}} env -u INFER_PROMPTS_AGENT_SYSTEM_PROMPT -u INFER_CUSTOM_INSTRUCTIONS {{.MOCK_ENV}} {{.INFER}} debug agent system_prompt | head -n 6
+      - cp explore-shadow.md .agents/agents/explore.md
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} agents list
+      - rm .agents/agents/explore.md
 
   fanout:
     desc: The model calls the Agent tool with two tasks and folds both results back
+    deps:
+      - home
     cmds:
       - task: headless
         vars:
@@ -31,25 +60,37 @@ tasks:
 
   fanout:name:
     desc: The model dispatches one subagent through its Markdown agent name
+    deps:
+      - home
     cmds:
       - task: headless
         vars:
           PROMPT: research the README with the researcher agent
           MODE: auto
 
+  team:
+    desc: The lead forms a team of two, beta messages the lead mid-run and the note shows as a user message
+    deps:
+      - home
+    cmds:
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} headless --no-save --mode auto "run a team of two teammates, one of them messages you" | grep -E '"role":"tool"|\[Message from|"Note read'
+
   all:
-    desc: Run both fan-out scenarios
+    desc: Run every scripted scenario
     cmds:
       - task: fanout
       - task: fanout:name
+      - task: team
 
   chat:
-    desc: Chat with the mock model and fan out subagents from the TUI
+    desc: Chat with the mock model - fan out subagents, watch agent switching under the composer
     interactive: true
+    deps:
+      - home
     cmds:
-      - '{{.INFER}} chat'
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} chat
 
   headless:
     internal: true
     cmds:
-      - "{{.INFER}} headless --no-save --mode {{.MODE | default \"standard\"}} \"{{.PROMPT}}\" | grep '\"role\":\"tool\"'"
+      - HOME={{.HOME_DIR}} {{.MOCK_ENV}} {{.INFER}} headless --no-save --mode {{.MODE | default "standard"}} "{{.PROMPT}}" | grep '"role":"tool"'

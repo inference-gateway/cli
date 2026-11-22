@@ -1,5 +1,5 @@
 fallback:
-  content: 'Try "research the repository with two subagents" or "research the README with the researcher agent".'
+  content: 'Try "research the repository with two subagents", "research the README with the researcher agent", "write a note to explore-notes.txt" or "run a team of two teammates, one messages you".'
 scenarios:
   - name: fanout
     match: '(?i)^research the repository with two subagents'
@@ -36,3 +36,46 @@ scenarios:
     turns:
       - content: 'Counter: docs/ holds the reference guides of this repository, one document per feature.'
       - content: 'Counter: docs/ holds the reference guides of this repository, one document per feature.'
+  - name: team
+    match: '(?i)^run a team of two teammates, one of them messages you'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              tasks:
+                - label: alpha
+                  description: Scan docs/ for the guide that covers subagents and hold your finding for your lead
+                - label: beta
+                  description: Scan README.md and message your lead what the Quick Start covers
+      - content: The team reported back - the fan-in carries alpha's docs answer and beta's README answer, and beta's mid-run message reached me as a note from a teammate.
+      - content: The team reported back - the fan-in carries alpha's docs answer and beta's README answer, and beta's mid-run message reached me as a note from a teammate.
+  - name: alpha-task
+    match: '(?i)^Scan docs/ for the guide that covers subagents and hold your finding for your lead'
+    turns:
+      - content: 'Alpha: docs/subagents.md is the guide that covers subagents - Markdown presets, built-ins and teams.'
+      - content: 'Alpha: docs/subagents.md is the guide that covers subagents - Markdown presets, built-ins and teams.'
+  - name: beta-task
+    match: '(?i)^Scan README.md and message your lead what the Quick Start covers'
+    turns:
+      - tool_calls:
+          - name: Agent
+            args:
+              to: lead
+              message: 'Beta: the README Quick Start covers three commands - install infer, set the gateway URL and open the chat TUI.'
+      - content: 'Beta: the README Quick Start summary went to the lead. A reply arrives as a note from the lead.'
+      - content: 'Beta: the README Quick Start summary went to the lead. A reply arrives as a note from the lead.'
+  - name: explore-write
+    match: '(?i)^write a note to explore-notes.txt'
+    turns:
+      - tool_calls:
+          - name: Write
+            args:
+              file_path: /tmp/explore-notes.txt
+              content: 'Notes from the explore agent - this call should be refused while the chat runs as explore.'
+      - content: 'The Write call was refused - the read-only agent answered your message and may call Read, Grep, Tree, WebFetch and WebSearch only.'
+      - content: 'The Write call was refused - the read-only agent answered your message and may call Read, Grep, Tree, WebFetch and WebSearch only.'
+  - name: lead-note
+    match: '\[Message from beta\]'
+    turns:
+      - content: 'Note read - the message from beta says the README Quick Start covers three commands: install infer, set the gateway URL and open the chat TUI.'
+      - content: 'Note read - the message from beta says the README Quick Start covers three commands: install infer, set the gateway URL and open the chat TUI.'
