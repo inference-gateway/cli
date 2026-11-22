@@ -57,12 +57,12 @@ Pass a different binary with `INFER`, for example `task fanout INFER=infer`.
 
 ```text
 Markdown Agents (5)
-Name            Tools                                 Model    Mode        Source
-researcher      Grep, Read                            inherit  read-only   project
-explore         Grep, Read, Tree, WebFetch, WebSearch inherit  read-only   built-in
-general-purpose all tools (inherited)                 inherit  read-write  built-in
-main            all tools (inherited)                 inherit  read-write  built-in
-plan            Grep, Read, Tree, WebFetch, WebSearch inherit  read-only   built-in
+Name             Description                                     Tools                                 Model    Mode        Source
+researcher       A read-only researcher that answers ...         Grep, Read                            inherit  read-only   project
+explore          Read-only search agent. Use it to find ...      Grep, Read, Tree, WebFetch, WebSearch inherit  read-only   built-in
+general-purpose  General-purpose agent for multi-step tasks ...  all tools (inherited)                 inherit  read-write  built-in
+main             The default main agent every chat starts ...    all tools (inherited)                 inherit  read-write  built-in
+plan             Read-only planning agent. Use it to design ...  Grep, Read, Tree, WebFetch, WebSearch inherit  read-only   built-in
 ```
 
 `task builtins` - the `agents list` above again, then the prompt a fresh session would send:
