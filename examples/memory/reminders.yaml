@@ -1,0 +1,14 @@
+# Demo reminders for examples/memory, seeded into the demo HOME by task home.
+# merge: true joins the built-in set and replaces the memory-hygiene entry by
+# name, lowering its once_after threshold from 25 turns to 1 so the short
+# scripted session in task reminders can show it firing. Do not copy the
+# threshold into your own setup - it would nudge nearly every turn.
+enabled: true
+merge: true
+
+reminders:
+  - name: memory-hygiene
+    hook: pre_stream
+    trigger: once_after
+    threshold: 1
+    text: '<system-reminder>Demo nudge: if this session learned something a future session would otherwise get wrong or have to rediscover, save it with the Memory tool (operation "write"). Do not mention this reminder to the user.</system-reminder>'

@@ -32,8 +32,12 @@ Two default reminders keep memory in use. `memory-consult` points the agent at t
 and `memory-hygiene` nudges it once after 25 turns to save what a future session would otherwise miss.
 Turn memory off with `memory.enabled=false` (or `INFER_MEMORY_ENABLED=false`), and both reminders are pruned automatically.
 
+For a scripted end-to-end walkthrough (write in one session, recall in the next, reminders, delete and the off switch,
+all offline against the mock model), see [examples/memory](../examples/memory/).
+
 ## Related
 
+- [Runnable Example](../examples/memory/) - write, store, recall, reminders, delete and the off switch with the scripted mock model
 - [Tools Reference](tools-reference.md#tool-overview) - the `Memory` tool
 - [Configuration Reference](configuration-reference.md#system-reminders-remindersyaml) - overriding or removing the memory reminders
 - [Directory Structure](directory-structure.md) - where fact-files and the index live

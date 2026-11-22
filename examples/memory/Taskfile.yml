@@ -1,0 +1,110 @@
+version: '3'
+
+vars:
+  HOME_DIR: '{{.TASKFILE_DIR}}/.home'
+  STORE_DIR: '{{.TASKFILE_DIR}}/.memory'
+  INFER: '{{default (print .TASKFILE_DIR "/../../infer") .INFER}}'
+  # Set inline on every command, not in an env block: an unquoted env block does
+  # not win when the calling shell already exports the same variable, which any
+  # CI runner driving infer does with INFER_AGENT_MODEL.
+  MOCK_ENV: 'INFER_GATEWAY_MOCK=true INFER_GATEWAY_MOCK_SCENARIOS="{{.TASKFILE_DIR}}/scenarios.yaml" INFER_AGENT_MODEL=mock/openai/gpt-4o INFER_STORAGE_ENABLED=false'
+  # HOME gives every run a hermetic userspace (the reminders demo seeds its
+  # reminders.yaml there) and INFER_MEMORY_DIR points memory.dir into this
+  # directory. INFER_MEMORY_BACKEND_TYPE=local keeps the store plain on the
+  # example's own terms; the snippet in README.md shows how to turn the git
+  # backend on for real.
+  MEMORY_ENV: 'HOME={{.HOME_DIR}} INFER_MEMORY_DIR={{.STORE_DIR}} INFER_MEMORY_BACKEND_TYPE=local'
+
+tasks:
+  default:
+    desc: List the tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the infer binary the tasks run from this checkout (a no-op while it is up to date)
+    cmds:
+      - task -d {{.TASKFILE_DIR}}/../.. build
+
+  home:
+    desc: Seed the demo HOME with reminders.yaml, which lowers the memory-hygiene nudge to once after 1 turn
+    cmds:
+      - mkdir -p {{.HOME_DIR}}/.infer
+      - cp reminders.yaml {{.HOME_DIR}}/.infer/reminders.yaml
+
+  write:
+    desc: One headless session where the mock model calls Memory write - a global fact-file plus its MEMORY.md entry land in the demo store
+    deps:
+      - build
+      - home
+    cmds:
+      - "{{.MEMORY_ENV}} {{.MOCK_ENV}} {{.INFER}} headless --no-save 'remember how to build this project' | grep '\"role\":\"tool\"'"
+
+  store:
+    desc: Print the demo store - where the fact-file and the MEMORY.md index landed
+    cmds:
+      - find {{.STORE_DIR}} -type f -print -exec cat {} \;
+
+  recall:
+    desc: A new session sees the fact in its injected PERSISTENT MEMORY INDEX and reads it back with the Memory tool
+    deps:
+      - build
+      - home
+    cmds:
+      - "{{.MEMORY_ENV}} {{.INFER}} debug agent system_prompt | grep -A6 'PERSISTENT MEMORY INDEX'"
+      - "{{.MEMORY_ENV}} {{.MOCK_ENV}} {{.INFER}} headless --no-save 'what does your memory say about building it' | grep '\"role\":\"tool\"'"
+
+  reminders:
+    desc: With memory on, memory-consult fires at session start and memory-hygiene (threshold lowered to 1) fires in this session
+    deps:
+      - build
+      - home
+    cmds:
+      - "{{.MEMORY_ENV}} INFER_REMINDERS_CONFIG= {{.MOCK_ENV}} {{.INFER}} headless --no-save --verbose 'say hello' | grep '\"name\":\"memory-consult\"'"
+      - "{{.MEMORY_ENV}} INFER_REMINDERS_CONFIG= {{.MOCK_ENV}} {{.INFER}} headless --no-save --verbose 'say hello' | grep '\"name\":\"memory-hygiene\"'"
+
+  delete:
+    desc: The mock model calls Memory delete - the fact-file and its index entry disappear
+    deps:
+      - build
+      - home
+    cmds:
+      - "{{.MEMORY_ENV}} {{.MOCK_ENV}} {{.INFER}} headless --no-save 'forget the build-commands memory' | grep '\"role\":\"tool\"'"
+      - find {{.STORE_DIR}} -type f -print
+      - "cat {{.STORE_DIR}}/MEMORY.md"
+
+  disabled:
+    desc: INFER_MEMORY_ENABLED=false - the index leaves the prompt context and the memory reminders are pruned from the set
+    deps:
+      - build
+      - home
+    cmds:
+      - "{{.MEMORY_ENV}} INFER_MEMORY_ENABLED=false {{.INFER}} debug agent system_prompt | grep 'PERSISTENT MEMORY INDEX' || echo 'no PERSISTENT MEMORY INDEX - the index only injects with memory enabled'"
+      - "{{.MEMORY_ENV}} INFER_REMINDERS_CONFIG= {{.MOCK_ENV}} INFER_MEMORY_ENABLED=false {{.INFER}} headless --no-save --verbose 'say hello' | grep '\"name\":\"memory-consult\"' || echo 'memory-consult is pruned - the reminder set no longer mentions memory'"
+      - "{{.MEMORY_ENV}} INFER_REMINDERS_CONFIG= {{.MOCK_ENV}} INFER_MEMORY_ENABLED=false {{.INFER}} headless --no-save --verbose 'say hello' | grep '\"name\":\"memory-hygiene\"' || echo 'memory-hygiene is pruned - the reminder set no longer mentions memory'"
+
+  all:
+    desc: Run the whole story end to end - clean store, write, inspect, recall, reminders, delete, switch off
+    cmds:
+      - task: clean
+      - task: write
+      - task: store
+      - task: recall
+      - task: reminders
+      - task: delete
+      - task: disabled
+
+  chat:
+    desc: Chat with the mock model against the demo store - say "remember ..." and reopen to see the fact
+    interactive: true
+    deps:
+      - build
+      - home
+    cmds:
+      - "{{.MEMORY_ENV}} {{.MOCK_ENV}} {{.INFER}} chat"
+
+  clean:
+    desc: Remove the demo HOME, the memory store and the git backend's sibling sync lock
+    cmds:
+      - rm -rf {{.HOME_DIR}} {{.STORE_DIR}} ..memory.sync.lock
