@@ -16,7 +16,7 @@ Most examples ship a Docker Compose file:
 | [a2a](../examples/a2a/) | Agent-to-Agent: multiple agents, a demo site, and a VNC container |
 | [mcp](../examples/mcp/) | MCP server integration with a sample server and config |
 | [tools](../examples/tools/) | Custom tools in Python and shell, run offline against a scripted mock model |
-| [subagents](../examples/subagents/) | Local subagents: a Markdown agent preset, `infer agents list`, a two-task fan-out with results folded back |
+| [subagents](../examples/subagents/) | Local subagents: the four built-in agents (`builtins`) with a project `explore.md` shadowing one, a two-task fan-out folded back into one result, and a team whose beta teammate messages its lead mid-run |
 | [ag-ui](../examples/ag-ui/) | Consuming the AG-UI event stream with a small Go program, plus a `--serve` worker fed `run_agent_input` frames |
 | [scheduling](../examples/scheduling/) | The Schedule tool: the mock model creates a recurring and a one-off cron job, `infer daemon` fires them and records every run, offline against the mock model |
 | [heartbeat](../examples/heartbeat/) | The heartbeat: a daemon waking the agent on a short interval and recording each wake-up, plus a single `infer headless --heartbeat` run |
