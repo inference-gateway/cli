@@ -2,6 +2,7 @@ package conversations
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,8 +20,10 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	storage "github.com/inference-gateway/cli/internal/platform/storage"
 )
 
 func TestRenderConversationsJSON(t *testing.T) {
@@ -600,10 +603,9 @@ func TestConversationsListCmd_AllProjectsFlag(t *testing.T) {
 	}
 }
 
-// runConversations executes `infer conversations` with args against an isolated
-// HOME and the default jsonl store, capturing output through SetOut - the seam
-// everything the command prints must route through.
-func runConversations(t *testing.T, args ...string) string {
+// isolatedState initializes the command's state against an isolated HOME and
+// the default jsonl store.
+func isolatedState(t *testing.T) *runtime.State {
 	t.Helper()
 	for _, env := range os.Environ() {
 		key, _, ok := strings.Cut(env, "=")
@@ -618,7 +620,19 @@ func runConversations(t *testing.T, args ...string) string {
 	if err := state.Initialize(&cobra.Command{}); err != nil {
 		t.Fatalf("initialize state: %v", err)
 	}
+	return state
+}
 
+// runConversations executes `infer conversations` with args against an isolated
+// HOME and the default jsonl store, capturing output through SetOut - the seam
+// everything the command prints must route through.
+func runConversations(t *testing.T, args ...string) string {
+	t.Helper()
+	return runConversationsOn(t, isolatedState(t), args...)
+}
+
+func runConversationsOn(t *testing.T, state *runtime.State, args ...string) string {
+	t.Helper()
 	command := NewCommand(state, output.NewRenderer())
 	var stdout bytes.Buffer
 	command.SetOut(&stdout)
@@ -815,5 +829,73 @@ func TestBuildConversationShowJSON_FlagsTruncation(t *testing.T) {
 	}
 	if !decoded.Truncated {
 		t.Errorf("expected truncated to be flagged: %s", out)
+	}
+}
+
+// seededStore opens the store the command runs on, with each conversation
+// saved under its id and each session group pointing at its current session.
+func seededStore(t *testing.T, state *runtime.State, conversations []string, groups map[string]string) storage.ConversationStorage {
+	t.Helper()
+	services := container.NewServiceContainer(state.Config())
+	t.Cleanup(func() { _ = services.Shutdown(context.Background()) })
+	store := services.GetStorage()
+	groupStore, ok := store.(storage.SessionGroupStorage)
+	if !ok {
+		t.Fatalf("store %T keeps no session groups", store)
+	}
+	ctx := context.Background()
+	for _, id := range conversations {
+		entries := []convdomain.ConversationEntry{{Message: sdk.Message{Role: sdk.User, Content: sdk.NewMessageContent("hi")}, Time: time.Now()}}
+		if err := store.SaveConversation(ctx, id, entries, convdomain.ConversationMetadata{ID: id, Title: id}); err != nil {
+			t.Fatalf("save %s: %v", id, err)
+		}
+	}
+	for key, current := range groups {
+		if err := groupStore.PutSessionGroup(ctx, key, storage.SessionGroupEntry{CurrentSessionID: current, UpdatedAt: time.Now()}); err != nil {
+			t.Fatalf("put group %s: %v", key, err)
+		}
+	}
+	return store
+}
+
+func TestConversationsDeleteResolvesTheId(t *testing.T) {
+	const subagent = "subagent-11111111-1111-1111-1111-111111111111-22222222-2222-2222-2222-222222222222"
+	const rolledOver = "33333333-3333-3333-3333-333333333333"
+	tests := []struct {
+		name          string
+		conversations []string
+		groups        map[string]string
+		deleteID      string
+		gone          string
+	}{
+		{
+			name:          "a listed subagent whose group rolled over to an unsaved session",
+			conversations: []string{subagent},
+			groups:        map[string]string{subagent: rolledOver},
+			deleteID:      subagent,
+			gone:          subagent,
+		},
+		{
+			name:          "a group key with no conversation of its own",
+			conversations: []string{rolledOver},
+			groups:        map[string]string{"channel-telegram-12345": rolledOver},
+			deleteID:      "channel-telegram-12345",
+			gone:          rolledOver,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := isolatedState(t)
+			store := seededStore(t, state, tt.conversations, tt.groups)
+
+			out := runConversationsOn(t, state, "delete", tt.deleteID)
+
+			if !strings.Contains(out, "Deleted conversation: "+tt.gone) {
+				t.Errorf("expected %s deleted, got:\n%s", tt.gone, out)
+			}
+			if _, _, err := store.LoadConversation(context.Background(), tt.gone); err == nil {
+				t.Errorf("expected %s gone from the store", tt.gone)
+			}
+		})
 	}
 }

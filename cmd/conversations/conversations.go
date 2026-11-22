@@ -254,7 +254,7 @@ func deleteConversation(state *runtime.State, w io.Writer, rawID string) error {
 		return fmt.Errorf("storage is not configured")
 	}
 
-	sessionID := resolveConversationSessionID(services, rawID)
+	sessionID := resolveConversationSessionID(services, store, rawID)
 
 	ctx := context.Background()
 	if err := store.DeleteConversation(ctx, sessionID); err != nil {
@@ -278,7 +278,7 @@ func moveConversation(state *runtime.State, w io.Writer, rawID, to string) error
 		return fmt.Errorf("storage is not configured")
 	}
 
-	sessionID := resolveConversationSessionID(services, rawID)
+	sessionID := resolveConversationSessionID(services, store, rawID)
 
 	if err := storage.MoveConversation(context.Background(), store, sessionID, dir); err != nil {
 		return fmt.Errorf("failed to move conversation: %w", err)
@@ -315,7 +315,7 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 	noTrunc, _ := cmd.Flags().GetBool("no-trunc")
 	showRest, _ := cmd.Flags().GetBool("append")
 
-	sessionID := resolveConversationSessionID(services, rawID)
+	sessionID := resolveConversationSessionID(services, store, rawID)
 
 	ctx := context.Background()
 	entries, metadata, err := store.LoadConversation(ctx, sessionID)
@@ -333,11 +333,15 @@ func showConversation(state *runtime.State, cmd *cobra.Command, rawID string) er
 	return printConversationShowText(cmd.OutOrStdout(), window, sessionID, start, total)
 }
 
-// resolveConversationSessionID mirrors 'infer headless --session-id' resolution:
-// a literal UUID is passed through unchanged, while any other value is resolved
-// via the rollover manager's session-group lookup. Falls back to the raw id when
-// no rollover manager is configured.
-func resolveConversationSessionID(services *container.ServiceContainer, rawID string) string {
+// resolveConversationSessionID returns rawID when the store holds a conversation
+// by that id, as list prints it - a subagent's id is no UUID, and its group may
+// have rolled over to a session that was never saved. Any other id resolves the
+// way 'infer headless --session-id' does, through the rollover manager's
+// session-group lookup, falling back to rawID when no manager is configured.
+func resolveConversationSessionID(services *container.ServiceContainer, store storage.ConversationStorage, rawID string) string {
+	if _, _, err := store.LoadConversation(context.Background(), rawID); err == nil {
+		return rawID
+	}
 	mgr := services.GetSessionRollover()
 	if mgr == nil {
 		return rawID
