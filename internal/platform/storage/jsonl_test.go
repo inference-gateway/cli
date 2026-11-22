@@ -864,7 +864,7 @@ func TestJsonlStorage_SessionGroups_AtomicWrite(t *testing.T) {
 	dirEntries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	for _, e := range dirEntries {
-		if strings.HasPrefix(e.Name(), filepath.Base(indexPath)+".tmp-") {
+		if strings.Contains(e.Name(), ".tmp-") {
 			t.Errorf("temp file leaked: %s", e.Name())
 		}
 	}

@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 )
 
 // leasesFileName holds the session leases of this machine. JSONL conversations
@@ -53,20 +54,10 @@ func (s *JsonlStorage) saveLeasesLocked(leases map[string]agentdomain.Lease) err
 	if err != nil {
 		return fmt.Errorf("encoding the session leases: %w", err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), leasesFileName+".tmp-*")
-	if err != nil {
+	if err := utils.WriteFileAtomic(path, data, 0o600); err != nil {
 		return fmt.Errorf("writing the session leases: %w", err)
 	}
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmp.Name())
-		return fmt.Errorf("writing the session leases: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmp.Name())
-		return fmt.Errorf("writing the session leases: %w", err)
-	}
-	return os.Rename(tmp.Name(), path)
+	return nil
 }
 
 func (s *JsonlStorage) GetLease(_ context.Context, conversationID string) (agentdomain.Lease, bool, error) {
