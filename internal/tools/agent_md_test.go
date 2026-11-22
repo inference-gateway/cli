@@ -2,10 +2,13 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -24,6 +27,7 @@ func namedAgentTool(t *testing.T) *AgentTool {
 		tools:        []string{ToolGrep, ToolRead},
 		mcpServers:   []string{"agentmail"},
 		systemPrompt: "You are a senior reviewer.",
+		path:         "/home/dev/.infer/agents/code-reviewer.md",
 	}, {
 		name:        "offline",
 		description: "Brings up no MCP server.",
@@ -89,6 +93,94 @@ func TestAgentTool_NamedAgentModelPrecedence(t *testing.T) {
 	}
 	if model != "per-task-model" {
 		t.Fatalf("no frontmatter model must fall through to the per-task model, got %q", model)
+	}
+}
+
+func TestAgentTool_NamedAgentModelOverrideIsReported(t *testing.T) {
+	tool := namedAgentTool(t)
+	tool.runHeadless = func(ctx context.Context, o agentheadless.Options) (agentheadless.Result, error) {
+		return agentheadless.Result{FinalAssistant: "ok"}, nil
+	}
+
+	res, err := tool.Execute(context.Background(), map[string]any{"description": "d", "agent": "code-reviewer", "model": "per-task-model"})
+	if err != nil || !res.Success {
+		t.Fatalf("Execute failed: err=%v res=%+v", err, res)
+	}
+	note := res.Data.(AgentToolResult).Message
+	if !strings.Contains(note, `model "per-task-model" not used for agent code-reviewer`) || !strings.Contains(note, `pins "deepseek/deepseek-v4-pro"`) {
+		t.Fatalf("an overridden task model must be reported, got %q", note)
+	}
+}
+
+func TestAgentTool_UnservedModelFailsBeforeDispatch(t *testing.T) {
+	tests := []struct {
+		name       string
+		served     []string
+		listErr    error
+		args       map[string]any
+		wantErr    []string
+		dispatched bool
+	}{
+		{
+			name:    "an agent file pinning an unserved model names the file",
+			served:  []string{"openai/gpt-4o"},
+			args:    map[string]any{"description": "d", "agent": "code-reviewer", "model": "openai/gpt-4o"},
+			wantErr: []string{"agent code-reviewer cannot run", "/home/dev/.infer/agents/code-reviewer.md", `pins model "deepseek/deepseek-v4-pro"`, "cannot override"},
+		},
+		{
+			name:    "an unserved task model suggests the chat's model",
+			served:  []string{"openai/gpt-4o"},
+			args:    map[string]any{"description": "d", "model": "mock/openai/gpt-4o"},
+			wantErr: []string{`model "mock/openai/gpt-4o" is not served`, `such as "openai/gpt-4o"`},
+		},
+		{
+			name:       "a served pinned model runs",
+			served:     []string{"deepseek/deepseek-v4-pro"},
+			args:       map[string]any{"description": "d", "agent": "code-reviewer"},
+			dispatched: true,
+		},
+		{
+			name:       "an unknown model list never blocks a spawn",
+			listErr:    errors.New("gateway down"),
+			args:       map[string]any{"description": "d", "agent": "code-reviewer"},
+			dispatched: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := namedAgentTool(t)
+			models := &convmocks.FakeModelService{}
+			models.ListModelsReturns(tt.served, tt.listErr)
+			tool.models = models
+			dispatched := false
+			tool.runHeadless = func(ctx context.Context, o agentheadless.Options) (agentheadless.Result, error) {
+				dispatched = true
+				return agentheadless.Result{FinalAssistant: "ok"}, nil
+			}
+
+			ctx := agentdomain.WithModel(context.Background(), "openai/gpt-4o")
+			res, err := tool.Execute(ctx, tt.args)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if dispatched != tt.dispatched {
+				t.Fatalf("dispatched = %v, want %v (res %+v)", dispatched, tt.dispatched, res)
+			}
+			if tt.dispatched {
+				if !res.Success {
+					t.Fatalf("a served model must run, got %+v", res)
+				}
+				return
+			}
+			if res.Success {
+				t.Fatalf("an unserved model must fail the call, got %+v", res)
+			}
+			for _, want := range tt.wantErr {
+				if !strings.Contains(res.Error, want) {
+					t.Fatalf("error %q must contain %q", res.Error, want)
+				}
+			}
+		})
 	}
 }
 

@@ -218,9 +218,15 @@ none.
 
 A value without a provider prefix - Claude aliases like `sonnet`, or bare
 model IDs - logs a warning and falls back to `inherit`, so Claude Code files
-still load. The file's model wins over a per-task `model` argument. When the
-file sets none, the normal resolution order applies (per-task model,
-`tools.agent.model`, then the parent turn's model).
+still load. The file's model wins over a per-task `model` argument, and the
+tool result says so when it replaces one. When the file sets none, the normal
+resolution order applies (per-task model, `tools.agent.model`, then the parent
+turn's model).
+
+A task whose model the gateway does not serve fails the `Agent` call before
+anything is dispatched. When the model is the one an agent file pins, the error
+names that file, because a per-task `model` cannot override it - change or
+remove the file's `model` to run the agent again.
 
 ## Headless Subagents
 

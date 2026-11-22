@@ -15,6 +15,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
 	storage "github.com/inference-gateway/cli/internal/platform/storage"
@@ -42,9 +43,9 @@ type Registry struct {
 
 // RegistryDeps carries the optional collaborators NewRegistry wires into the
 // tools it registers. The zero value is valid: a nil collaborator leaves out or
-// degrades the tools that need it. BackgroundTasks is the container's registry,
-// shared with the agent's wait loop, and nil Stores fail Schedule and
-// RequestPlanApproval at execution.
+// degrades the tools that need it - nil Stores fail Schedule and
+// RequestPlanApproval, and nil Models skips the Agent tool's served-model check.
+// BackgroundTasks is the container's registry, shared with the agent's wait loop.
 type RegistryDeps struct {
 	Image             agentdomain.ImageService
 	Speech            agentdomain.SpeechService
@@ -56,6 +57,7 @@ type RegistryDeps struct {
 	ImageAnnotator    agentdomain.ImageAnnotator
 	BackgroundTasks   scheddomain.BackgroundTaskRegistry
 	Stores            *storage.Stores
+	Models            convdomain.ModelService
 }
 
 // NewRegistry creates a new tool registry with self-contained tools.
@@ -180,7 +182,9 @@ func (r *Registry) registerTools() { // nolint:gocyclo,cyclop
 	}
 
 	if cfg.IsAgentToolEnabled() && r.deps.BackgroundTasks != nil {
-		r.register(NewAgentTool(cfg, r.deps.BackgroundTasks, r.deps.BackgroundTasks))
+		agentTool := NewAgentTool(cfg, r.deps.BackgroundTasks, r.deps.BackgroundTasks)
+		agentTool.models = r.deps.Models
+		r.register(agentTool)
 		r.register(NewListSubagentsTool(cfg, r.deps.BackgroundTasks))
 		r.register(NewGetSubagentResultTool(cfg, r.deps.BackgroundTasks))
 		r.register(NewCloseSubagentTool(cfg, r.deps.BackgroundTasks, r.deps.BackgroundTasks))
