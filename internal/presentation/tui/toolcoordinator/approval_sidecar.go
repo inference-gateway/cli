@@ -1,12 +1,12 @@
 package toolcoordinator
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 
 	sdk "github.com/inference-gateway/sdk"
 
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -20,18 +20,13 @@ func writeSubagentApprovalSidecar(toolCall sdk.ChatCompletionMessageToolCall) {
 	if path == "" {
 		return
 	}
-	data, err := json.Marshal(scheddomain.SubagentApprovalFile{
+	approval := scheddomain.SubagentApprovalFile{
 		Awaiting: true,
 		Summary:  subagentApprovalSummary(toolCall),
-	})
-	if err != nil {
-		return
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return
+	if err := scheddomain.WriteSubagentApprovalFile(path, approval); err != nil {
+		logger.Warn("failed to write the subagent approval file", "path", path, "error", err)
 	}
-	_ = os.Rename(tmp, path)
 }
 
 // clearSubagentApprovalSidecar removes the approval sidecar once the prompt

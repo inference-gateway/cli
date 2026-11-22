@@ -1,7 +1,6 @@
 package toolcoordinator
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,13 +19,9 @@ func TestSubagentApprovalSidecar_WriteAndClear(t *testing.T) {
 		Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Bash", Arguments: `{"command":"rm -rf x"}`},
 	})
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("expected sidecar to be written: %v", err)
-	}
-	var af scheddomain.SubagentApprovalFile
-	if err := json.Unmarshal(data, &af); err != nil {
-		t.Fatalf("unmarshal sidecar: %v", err)
+	af, ok := scheddomain.ReadSubagentApprovalFile(path)
+	if !ok {
+		t.Fatalf("expected sidecar to be written to %s", path)
 	}
 	if !af.Awaiting {
 		t.Fatalf("Awaiting should be true")

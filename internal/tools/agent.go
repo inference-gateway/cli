@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -682,12 +681,8 @@ func subagentApprovalFilePath(sessionID string) string {
 // (summary, true) when the subagent is currently blocked on a tool-approval
 // prompt, or ("", false) when it is not (file absent, malformed, or not awaiting).
 func readSubagentApproval(sessionID string) (string, bool) {
-	data, err := os.ReadFile(subagentApprovalFilePath(sessionID))
-	if err != nil {
-		return "", false
-	}
-	var af scheddomain.SubagentApprovalFile
-	if err := json.Unmarshal(data, &af); err != nil || !af.Awaiting {
+	af, ok := scheddomain.ReadSubagentApprovalFile(subagentApprovalFilePath(sessionID))
+	if !ok || !af.Awaiting {
 		return "", false
 	}
 	return strings.TrimSpace(af.Summary), true

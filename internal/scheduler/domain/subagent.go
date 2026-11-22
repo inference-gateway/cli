@@ -173,7 +173,32 @@ func (s SubagentRunStats) String() string {
 // WriteSubagentResultFile writes rf to path through a temp file and rename, so
 // a polling parent never reads a half-written file.
 func WriteSubagentResultFile(path string, rf SubagentResultFile) error {
-	data, err := json.Marshal(rf)
+	return writeSidecarJSON(path, rf)
+}
+
+// ReadSubagentResultFile reads and parses a subagent result file without
+// waiting. Returns ok=false when the file is absent or malformed.
+func ReadSubagentResultFile(path string) (SubagentResultFile, bool) {
+	return readSidecarJSON[SubagentResultFile](path)
+}
+
+// WriteSubagentApprovalFile writes af to path through a temp file and rename,
+// so a parent polling for a pending approval never reads a half-written file.
+func WriteSubagentApprovalFile(path string, af SubagentApprovalFile) error {
+	return writeSidecarJSON(path, af)
+}
+
+// ReadSubagentApprovalFile reads and parses a subagent approval file without
+// waiting. Returns ok=false when the file is absent or malformed.
+func ReadSubagentApprovalFile(path string) (SubagentApprovalFile, bool) {
+	return readSidecarJSON[SubagentApprovalFile](path)
+}
+
+// writeSidecarJSON writes v as JSON to path through path+".tmp" and a rename,
+// so a polling reader sees the old file or the whole new one. A failed rename
+// removes the temp file rather than leaving it behind.
+func writeSidecarJSON(path string, v any) error {
+	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
@@ -181,21 +206,26 @@ func WriteSubagentResultFile(path string, rf SubagentResultFile) error {
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
-// ReadSubagentResultFile reads and parses a subagent result file without
-// waiting. Returns ok=false when the file is absent or malformed.
-func ReadSubagentResultFile(path string) (SubagentResultFile, bool) {
+// readSidecarJSON reads and parses the JSON file at path without waiting.
+// Returns ok=false when the file is absent or malformed.
+func readSidecarJSON[T any](path string) (T, bool) {
+	var v T
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return SubagentResultFile{}, false
+		return v, false
 	}
-	var rf SubagentResultFile
-	if err := json.Unmarshal(data, &rf); err != nil {
-		return SubagentResultFile{}, false
+	if err := json.Unmarshal(data, &v); err != nil {
+		var zero T
+		return zero, false
 	}
-	return rf, true
+	return v, true
 }
 
 // PaneObservation is one probe of an interactive subagent's pane for

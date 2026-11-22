@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"testing"
 
@@ -13,11 +12,8 @@ import (
 
 func writeTestApprovalFile(t *testing.T, sessionID, summary string) {
 	t.Helper()
-	data, err := json.Marshal(scheddomain.SubagentApprovalFile{Awaiting: true, Summary: summary})
-	if err != nil {
-		t.Fatalf("marshal approval file: %v", err)
-	}
-	if err := os.WriteFile(subagentApprovalFilePath(sessionID), data, 0o600); err != nil {
+	approval := scheddomain.SubagentApprovalFile{Awaiting: true, Summary: summary}
+	if err := scheddomain.WriteSubagentApprovalFile(subagentApprovalFilePath(sessionID), approval); err != nil {
 		t.Fatalf("write approval file: %v", err)
 	}
 }
