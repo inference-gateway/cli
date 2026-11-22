@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.266.3](https://github.com/inference-gateway/cli/compare/v0.266.2...v0.266.3) (2026-11-22)
+
+### 🐛 Bug Fixes
+
+* **conversations:** act on the conversation listed under an id ([#1941](https://github.com/inference-gateway/cli/issues/1941)) ([b4aa314](https://github.com/inference-gateway/cli/commit/b4aa3141e6f688492877a4b1f2a1524620545898))
+
 ## [0.266.2](https://github.com/inference-gateway/cli/compare/v0.266.1...v0.266.2) (2026-11-22)
 
 ### 🐛 Bug Fixes
