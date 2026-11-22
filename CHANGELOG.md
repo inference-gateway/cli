@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.266.2](https://github.com/inference-gateway/cli/compare/v0.266.1...v0.266.2) (2026-11-22)
+
+### 🐛 Bug Fixes
+
+* **tools:** refuse an unserved subagent model up front and report an overridden one ([#1940](https://github.com/inference-gateway/cli/issues/1940)) ([f177e14](https://github.com/inference-gateway/cli/commit/f177e143f54df979eaa384db2f3340099a22c1e3)), closes [#1939](https://github.com/inference-gateway/cli/issues/1939)
+
+### 📚 Documentation
+
+* **examples:** add a runnable persistent memory example ([#1938](https://github.com/inference-gateway/cli/issues/1938)) ([d18c354](https://github.com/inference-gateway/cli/commit/d18c354ed8402cd2faba0ad60597ac18017e43ed)), closes [#1935](https://github.com/inference-gateway/cli/issues/1935)
+* **subagents:** demo built-in agents, agent switching and agent teams ([#1937](https://github.com/inference-gateway/cli/issues/1937)) ([f3837ff](https://github.com/inference-gateway/cli/commit/f3837ff087276bc769901e12eaf942fab5d875cb)), closes [#1934](https://github.com/inference-gateway/cli/issues/1934)
+* **examples:** show the built-in agents in the subagents list output ([#1936](https://github.com/inference-gateway/cli/issues/1936)) ([78d4f85](https://github.com/inference-gateway/cli/commit/78d4f858cf93c5f516e528a9f70f8202a15090e5)), closes [#1933](https://github.com/inference-gateway/cli/issues/1933)
+
 ## [0.266.1](https://github.com/inference-gateway/cli/compare/v0.266.0...v0.266.1) (2026-11-22)
 
 ### ♻️ Code Refactoring
