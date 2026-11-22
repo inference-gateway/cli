@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.266.1](https://github.com/inference-gateway/cli/compare/v0.266.0...v0.266.1) (2026-11-22)
+
+### ♻️ Code Refactoring
+
+* **scheduler:** own the subagent approval file's I/O in scheddomain ([#1931](https://github.com/inference-gateway/cli/issues/1931)) ([a9471a9](https://github.com/inference-gateway/cli/commit/a9471a9effa0d608ee9645056124b994ff02dc96)), closes [#1929](https://github.com/inference-gateway/cli/issues/1929)
+* **utils:** replace hand-rolled atomic file writes with one WriteFileAtomic ([#1932](https://github.com/inference-gateway/cli/issues/1932)) ([684f6d3](https://github.com/inference-gateway/cli/commit/684f6d3a6c8845a7c9439a4d3a19507cb2a2f037)), closes [#1930](https://github.com/inference-gateway/cli/issues/1930)
+
 ## [0.266.0](https://github.com/inference-gateway/cli/compare/v0.265.4...v0.266.0) (2026-11-21)
 
 ### 🚀 Features
