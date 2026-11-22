@@ -17,7 +17,7 @@ tasks:
       - task --list
 
   list:
-    desc: Show the Markdown agent with infer agents list
+    desc: Show researcher and the four built-in agents with infer agents list
     cmds:
       - '{{.INFER}} agents list'
 

@@ -34,7 +34,7 @@ subagent's answer.
 
 | Task | What happens |
 | --- | --- |
-| `task list` | Runs `infer agents list`, which shows `researcher` in the Markdown Agents table with tools, model, mode and source |
+| `task list` | Runs `infer agents list`, which lists `researcher` next to the four built-in agents with tools, model, mode and source |
 | `task fanout` | The mock model calls `Agent` with two `tasks` - one naming `researcher` through `agent`, one plain - and reads both results back |
 | `task fanout:name` | The single-task shorthand: one `Agent` call with `agent: researcher` plus a `description`, no `tasks` array |
 | `task all` | Runs both fan-out scenarios |
@@ -48,10 +48,18 @@ pass it in, for example `task fanout INFER=../../infer`.
 `task list`:
 
 ```text
-Markdown Agents (1)
-Name        Description                                  Tools       Model    Mode        Source
-researcher  A read-only researcher that answers ...      Grep, Read  inherit  read-only   project
+Markdown Agents (5)
+Name             Description                                     Tools                                 Model    Mode        Source
+researcher       A read-only researcher that answers ...         Grep, Read                            inherit  read-only   project
+explore          Read-only search agent. Use it to find ...      Grep, Read, Tree, WebFetch, WebSearch inherit  read-only   built-in
+general-purpose  General-purpose agent for multi-step tasks ...  all tools (inherited)                 inherit  read-write  built-in
+main             The default main agent every chat starts ...    all tools (inherited)                 inherit  read-write  built-in
+plan             Read-only planning agent. Use it to design ...  Grep, Read, Tree, WebFetch, WebSearch inherit  read-only   built-in
 ```
+
+Besides the example's `researcher`, which lists with source `project`, the four built-in agents that ship with the binary -
+`main`, `explore`, `plan` and `general-purpose` - are appended with source `built-in`. `infer init` seeds them into
+`~/.infer/agents/`, after which their source reads `user` - a Markdown file of the same name shadows a built-in in either case.
 
 `task fanout` - the one `"role":"tool"` line, abbreviated:
 
