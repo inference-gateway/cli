@@ -940,24 +940,7 @@ func (s *JsonlStorage) saveSessionGroupsLocked(groups map[string]SessionGroupEnt
 		return fmt.Errorf("marshal session groups index: %w", err)
 	}
 
-	tmp, err := os.CreateTemp(filepath.Dir(indexPath), sessionGroupsFileName+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temp index file: %w", err)
-	}
-	tmpName := tmp.Name()
-	cleanup := func() { _ = os.Remove(tmpName) }
-
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		cleanup()
-		return fmt.Errorf("write temp index file: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		cleanup()
-		return fmt.Errorf("close temp index file: %w", err)
-	}
-	if err := os.Rename(tmpName, indexPath); err != nil {
-		cleanup()
+	if err := utils.WriteFileAtomic(indexPath, data, 0o600); err != nil {
 		return fmt.Errorf("replace session groups index: %w", err)
 	}
 	return nil

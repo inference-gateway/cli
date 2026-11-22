@@ -17,6 +17,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	memory "github.com/inference-gateway/cli/internal/platform/memory"
+	utils "github.com/inference-gateway/cli/internal/platform/utils"
 	projects "github.com/inference-gateway/cli/internal/projects"
 )
 
@@ -35,7 +36,9 @@ const (
 
 // MemoryTool implements persistent, cross-session agent memory as a directory of
 // individual fact-files catalogued by an index (MEMORY.md). Each fact is one
-// Markdown file with YAML frontmatter. The tool keeps the index in sync.
+// Markdown file with YAML frontmatter. The tool keeps the index in sync. It
+// writes past the sandboxed file writer, whose guard rejects ~/.infer/, which
+// is safe because every path is built from a sanitized slug.
 type MemoryTool struct {
 	config    *config.Config
 	enabled   bool
@@ -196,7 +199,10 @@ func (t *MemoryTool) execWrite(ctx context.Context, args map[string]any, start t
 	}
 
 	filePath := filepath.Join(dir, projectSlug, slug+".md")
-	if err := writeFileAtomic(filePath, fileBody); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		return t.errResult(args, start, fmt.Sprintf("failed to create memory dir: %v", err)), nil
+	}
+	if err := utils.WriteFileAtomic(filePath, []byte(fileBody), 0o644); err != nil {
 		return t.errResult(args, start, fmt.Sprintf("failed to write memory file: %v", err)), nil
 	}
 
@@ -542,7 +548,10 @@ func writeIndexEntries(indexPath string, entries []string) error {
 		b.WriteString(e)
 		b.WriteString("\n")
 	}
-	return writeFileAtomic(indexPath, b.String())
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0o755); err != nil {
+		return err
+	}
+	return utils.WriteFileAtomic(indexPath, []byte(b.String()), 0o644)
 }
 
 // indexMu serializes the read-modify-write of the shared MEMORY.md index.
@@ -591,41 +600,6 @@ func removeIndexEntry(dir, relKey string) error {
 		kept = append(kept, e)
 	}
 	return writeIndexEntries(indexPath, kept)
-}
-
-// writeFileAtomic writes content to path via a temp file + rename, creating the
-// parent dir if needed. It deliberately bypasses the sandboxed file writer
-// because the memory dir lives under ~/.infer/, which that writer's protected-
-// path guard rejects. The path is built entirely from a sanitized slug, so there
-// is no traversal risk.
-func writeFileAtomic(path, content string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-
-	tmp, err := os.CreateTemp(dir, ".tmp-memory-*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-
-	if _, err := tmp.WriteString(content); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmpName, path)
 }
 
 func (t *MemoryTool) errResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {

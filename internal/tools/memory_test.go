@@ -475,7 +475,7 @@ func TestMemoryTool_NoTempLeftovers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".tmp-memory") {
+		if strings.Contains(e.Name(), ".tmp-") {
 			t.Errorf("leftover temp file: %s", e.Name())
 		}
 	}
