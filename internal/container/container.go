@@ -495,6 +495,12 @@ func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 	c.stores = stores
 	c.openDaemonThread(stores)
 
+	if c.daemonThread != nil {
+		c.modelService = daemonthread.NewModels(c.daemonThread)
+	} else {
+		c.modelService = conversation.NewHTTPModelService(c.createRawSDKClient())
+	}
+
 	c.imageAnnotator = c.createImageAnnotator()
 	c.toolRegistry = tools.NewRegistry(c.config, tools.RegistryDeps{
 		Image:             c.imageService,
@@ -507,6 +513,7 @@ func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 		ImageAnnotator:    c.imageAnnotator,
 		BackgroundTasks:   c.backgroundTaskRegistry,
 		Stores:            stores,
+		Models:            c.modelService,
 	})
 	c.initializeA2A()
 	c.registerCustomTools()
@@ -538,12 +545,6 @@ func (c *ServiceContainer) initializeDomainServices() { // nolint:funlen
 	}
 	c.skillsService = skillsSvc
 	c.toolRegistry.SetSkillsService(skillsSvc)
-
-	if c.daemonThread != nil {
-		c.modelService = daemonthread.NewModels(c.daemonThread)
-	} else {
-		c.modelService = conversation.NewHTTPModelService(c.createRawSDKClient())
-	}
 
 	c.telemetryRecorder = telemetry.New(telemetry.Options{
 		Enabled:           c.config.Telemetry.Enabled,

@@ -20,6 +20,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
+	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	daemon "github.com/inference-gateway/cli/internal/daemon"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
@@ -94,6 +95,7 @@ type AgentTool struct {
 
 	mdAgents      []markdownAgent
 	toolManifests agentdomain.ToolManifestLookup
+	models        convdomain.ModelService
 	relayed       atomic.Int64
 
 	dialDaemon           func(ctx context.Context) (agui.DialConfig, error)
@@ -181,14 +183,22 @@ func (t *AgentTool) Execute(ctx context.Context, args map[string]any) (*agentdom
 	parentSession := agentdomain.GetSessionID(ctx)
 	parentModel := agentdomain.GetModel(ctx)
 	logger.Debug("agent tool invoked", "mode", mode, "wait", wait, "tasks", len(specs), "parent_session", parentSession)
+	served := t.servedModels(ctx)
 	for i := range specs {
+		requested := specs[i].Model
 		if err := t.applyNamedAgent(&specs[i]); err != nil {
 			return t.errorResult(args, start, err.Error()), nil
 		}
 		if err := t.checkPlacement(specs[i], mode); err != nil {
 			return t.errorResult(args, start, err.Error()), nil
 		}
+		if requested != "" && specs[i].Model != requested {
+			notes = append(notes, overriddenModelNote(specs[i], requested))
+		}
 		specs[i].Model = t.resolveModel(specs[i].Model, parentModel)
+		if err := unservedModelError(specs[i], served, t.mdAgents, parentModel); err != nil {
+			return t.errorResult(args, start, err.Error()), nil
+		}
 	}
 	forceReadOnlySpawns(ctx, specs)
 	t.formTeam(specs, mode)
@@ -815,10 +825,10 @@ func (t *AgentTool) applyNamedAgent(spec *AgentTaskSpec) error {
 	return nil
 }
 
-// resolveModel picks the subagent model: explicit per-task override, else the
-// configured tools.agent.model, else the parent turn's model (so subagents
-// inherit the model the user is already using). An empty result would make the
-// subagent process fail with "no model specified".
+// resolveModel picks the subagent model: the task's model, which a named agent's
+// file model has already replaced, else the configured tools.agent.model, else
+// the parent turn's model (so subagents inherit the model the user is already
+// using). An empty result would make the subagent fail with "no model specified".
 func (t *AgentTool) resolveModel(taskModel, parentModel string) string {
 	if taskModel != "" {
 		return taskModel
@@ -827,6 +837,43 @@ func (t *AgentTool) resolveModel(taskModel, parentModel string) string {
 		return t.config.Tools.Agent.Model
 	}
 	return parentModel
+}
+
+// servedModels lists the models the gateway serves, or nil when it cannot tell,
+// so an unknown list never blocks a spawn.
+func (t *AgentTool) servedModels(ctx context.Context) []string {
+	if t.models == nil {
+		return nil
+	}
+	served, err := t.models.ListModels(ctx)
+	if err != nil {
+		logger.Debug("agent tool could not list the served models", "error", err)
+		return nil
+	}
+	return served
+}
+
+// overriddenModelNote tells the caller a task's model was not used because the
+// named agent's file pins another one, which wins as docs/subagents.md says.
+func overriddenModelNote(spec AgentTaskSpec, requested string) string {
+	return fmt.Sprintf("model %q not used for agent %s - its file pins %q, and an agent file's model wins over a task's", requested, spec.Agent, spec.Model)
+}
+
+// unservedModelError refuses a task whose model the gateway does not serve,
+// before anything is dispatched. When the model is pinned by the named agent's
+// file it names that file, since a task's model cannot override it. Nil when
+// the model is served or the served list is unknown.
+func unservedModelError(spec AgentTaskSpec, served []string, agents []markdownAgent, parentModel string) error {
+	if len(served) == 0 || spec.Model == "" || slices.Contains(served, spec.Model) {
+		return nil
+	}
+	if agent, err := findMarkdownAgent(agents, spec.Agent); err == nil && agent.model == spec.Model {
+		return fmt.Errorf("agent %s cannot run: its file %s pins model %q, which the gateway does not serve. A task's model cannot override an agent file's model - change or remove the model line in that file", spec.Agent, agent.path, spec.Model)
+	}
+	if parentModel == "" {
+		return fmt.Errorf("model %q is not served by the gateway", spec.Model)
+	}
+	return fmt.Errorf("model %q is not served by the gateway - pass one it serves, such as %q, the model this chat runs on", spec.Model, parentModel)
 }
 
 func (t *AgentTool) errorResult(args map[string]any, start time.Time, msg string) *agentdomain.ToolExecutionResult {
