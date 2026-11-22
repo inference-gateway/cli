@@ -797,9 +797,11 @@ rather than reading files directly).
   the window itself, so a long session can be read in chunks. `--no-trunc` wins
   when both are passed.
 
-The `<session-id>` is resolved the same way as `infer headless --session-id`: a literal UUID is
-used as-is, while any other value is treated as a session group key and resolved to that
-group's current session id (registering the group if it is new).
+The `<session-id>` names the conversation `list` prints with that id, such as a subagent's
+`subagent-...` id. An id no conversation has is resolved the same way as
+`infer headless --session-id`: a literal UUID is used as-is, while any other value is treated as a
+session group key and resolved to that group's current session id (registering the group if it
+is new).
 
 **Examples:**
 
