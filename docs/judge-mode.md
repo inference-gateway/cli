@@ -194,7 +194,8 @@ working. Failed calls honour `on_error` exactly as the LLM backend does, and the
 generate no text.
 
 The gateway serves `/v1/decisions` only when started with `DECISIONS_ENABLED=true`.
-The cli-managed local gateway sets it whenever `backend: decisions` is configured. An
+The cli-managed local gateway sets it whenever `backend: decisions` is configured, or
+a rooms router model (`rooms.router.model`) is set. An
 externally managed gateway needs the variable in its own environment, and the model
 must list `decisions` among its output modalities (`GET /v1/models?include=modalities`),
 otherwise the gateway answers `400` and the judge fails closed.

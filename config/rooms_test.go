@@ -80,6 +80,8 @@ func TestRoomsConfigValidate(t *testing.T) {
 		{"unknown fallback fails", RoomsConfig{Router: RoomsRouterConfig{Fallback: "first"}}, "rooms.router.fallback"},
 		{"confidence above one fails", RoomsConfig{Router: RoomsRouterConfig{MinConfidence: 1.1}}, "min_confidence"},
 		{"negative context posts fails", RoomsConfig{ContextPosts: -1}, "context_posts"},
+		{"a provider/model router model is valid", RoomsConfig{Router: RoomsRouterConfig{Model: "anthropic/claude-haiku-5-5"}}, ""},
+		{"a router model without a provider fails", RoomsConfig{Router: RoomsRouterConfig{Model: "claude-haiku-5-5"}}, "rooms.router.model"},
 		{"a name that escapes the rooms dir fails", RoomsConfig{Rooms: []RoomConfig{{Name: "../evil"}}}, "name"},
 		{"a duplicate name fails", RoomsConfig{Rooms: []RoomConfig{{Name: "public"}, {Name: "public"}}}, "defined twice"},
 	}
@@ -109,4 +111,23 @@ func TestSaveRoomsBlockStyle(t *testing.T) {
 	require.Contains(t, content, "- '*'", "the agent list is block style")
 	require.NotContains(t, content, "['*']", "no flow-style sequences")
 	require.NotContains(t, content, "{name:", "no flow-style mappings")
+}
+
+func TestNeedsGatewayDecisions(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   bool
+	}{
+		{"defaults need no decisions", func(*Config) {}, false},
+		{"the judge's decisions backend needs them", func(c *Config) { c.Judge.Backend = JudgeBackendDecisions }, true},
+		{"a rooms router model needs them", func(c *Config) { c.Rooms.Router.Model = "anthropic/claude-haiku-5-5" }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			tt.mutate(cfg)
+			require.Equal(t, tt.want, cfg.NeedsGatewayDecisions())
+		})
+	}
 }

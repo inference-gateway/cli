@@ -1,0 +1,183 @@
+package rooms
+
+import (
+	"errors"
+	"testing"
+
+	require "github.com/stretchr/testify/require"
+
+	decisionmocks "github.com/inference-gateway/cli/tests/mocks/decision"
+
+	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	decisiondomain "github.com/inference-gateway/cli/internal/decision/domain"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
+)
+
+const testRouterModel = "anthropic/claude-haiku-5-5"
+
+var (
+	testRoom   = roomsdomain.Room{Name: "release", Agents: []string{"tester", "writer"}}
+	testAgents = []agentdomain.SubagentInfo{
+		{Name: "tester", Description: "Runs and fixes the test suite"},
+		{Name: "writer", Description: "Writes release notes"},
+		{Name: "reviewer", Description: "Reviews pull requests"},
+	}
+)
+
+func probabilities(byMember map[string]float64) decisiondomain.Decisions {
+	var decisions decisiondomain.Decisions
+	for member, probability := range byMember {
+		decisions.Answers = append(decisions.Answers, decisiondomain.Answer{
+			Name: member, Type: decisiondomain.Predicate, Probability: probability,
+		})
+	}
+	return decisions
+}
+
+func TestRouterRoute(t *testing.T) {
+	tests := []struct {
+		name        string
+		model       string
+		fallback    string
+		text        string
+		decisions   decisiondomain.Decisions
+		decideErr   error
+		wantRoutes  []roomsdomain.Route
+		wantNotice  string
+		wantDecides int
+		wantErr     string
+	}{
+		{
+			name:       "a mention of a member routes to it alone without asking the model",
+			model:      testRouterModel,
+			text:       "@tester run the suite",
+			wantRoutes: []roomsdomain.Route{{Member: "tester", Probability: 1}},
+		},
+		{
+			name:       "mentions of two members route to both",
+			text:       "@writer and @tester, sync up",
+			wantRoutes: []roomsdomain.Route{{Member: "writer", Probability: 1}, {Member: "tester", Probability: 1}},
+		},
+		{
+			name:        "an agent outside the room gets a notice and the post is routed as unmentioned",
+			model:       testRouterModel,
+			text:        "@reviewer look at this",
+			decisions:   probabilities(map[string]float64{"tester": 0.2, "writer": 0.8}),
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.8}},
+			wantNotice:  "@reviewer is not in room release",
+			wantDecides: 1,
+		},
+		{
+			name:        "a file reference is left alone and the model routes the post",
+			model:       testRouterModel,
+			text:        "summarise @README.md",
+			decisions:   probabilities(map[string]float64{"tester": 0.1, "writer": 0.9}),
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.9}},
+			wantDecides: 1,
+		},
+		{
+			name:        "a dot-slash path names the file of a member's name, not the member",
+			model:       testRouterModel,
+			text:        "what does @./tester do",
+			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.6}),
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.6}},
+			wantDecides: 1,
+		},
+		{
+			name:        "every member at or above min_confidence gets the post",
+			model:       testRouterModel,
+			text:        "cut the release",
+			decisions:   probabilities(map[string]float64{"tester": 0.5, "writer": 0.7}),
+			wantRoutes:  []roomsdomain.Route{{Member: "tester", Probability: 0.5}, {Member: "writer", Probability: 0.7}},
+			wantDecides: 1,
+		},
+		{
+			name:        "fallback top sends a post nobody passed to the most relevant member",
+			model:       testRouterModel,
+			fallback:    config.RoomsFallbackTop,
+			text:        "hello",
+			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.4}),
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.4}},
+			wantDecides: 1,
+		},
+		{
+			name:        "fallback none routes a post nobody passed to nobody and asks for a mention",
+			model:       testRouterModel,
+			fallback:    config.RoomsFallbackNone,
+			text:        "hello",
+			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.4}),
+			wantNotice:  "Mention one: @tester, @writer",
+			wantDecides: 1,
+		},
+		{
+			name:       "without a model an unmentioned post routes nowhere and asks for a mention",
+			text:       "hello",
+			wantNotice: "Mention one: @tester, @writer",
+		},
+		{
+			name:        "a failed decision request fails the routing",
+			model:       testRouterModel,
+			text:        "hello",
+			decideErr:   errors.New("the Decisions API is not enabled"),
+			wantDecides: 1,
+			wantErr:     "Decisions API is not enabled",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decider := &decisionmocks.FakeDecider{}
+			decider.DecideReturns(tt.decisions, tt.decideErr)
+			cfg := *config.DefaultRoomsConfig()
+			cfg.Router.Model = tt.model
+			if tt.fallback != "" {
+				cfg.Router.Fallback = tt.fallback
+			}
+
+			routing, err := NewRouter(decider, cfg).Route(t.Context(), testRoom, testAgents, nil, roomsdomain.Post{Author: "user", Text: tt.text})
+			require.Equal(t, tt.wantDecides, decider.DecideCallCount(), "decision requests")
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantRoutes, routing.Routes)
+			if tt.wantNotice == "" {
+				require.Empty(t, routing.Notices)
+				return
+			}
+			require.Len(t, routing.Notices, 1)
+			require.Contains(t, routing.Notices[0], tt.wantNotice)
+		})
+	}
+}
+
+// TestRouterAsksOnePredicatePerMember pins the decision request: one call on
+// the router model, one predicate per member named by the agent and carrying
+// its description, and only the last context_posts posts as evidence.
+func TestRouterAsksOnePredicatePerMember(t *testing.T) {
+	decider := &decisionmocks.FakeDecider{}
+	decider.DecideReturns(probabilities(map[string]float64{"tester": 0.9}), nil)
+	cfg := *config.DefaultRoomsConfig()
+	cfg.Router.Model = testRouterModel
+	cfg.ContextPosts = 1
+	history := []roomsdomain.Post{
+		{Author: "user", Text: "an old post the router no longer shows"},
+		{Author: "writer", Text: "the notes are drafted"},
+	}
+
+	_, err := NewRouter(decider, cfg).Route(t.Context(), testRoom, testAgents, history, roomsdomain.Post{Author: "user", Text: "now run the tests"})
+	require.NoError(t, err)
+
+	_, model, evidence, questions := decider.DecideArgsForCall(0)
+	require.Equal(t, testRouterModel, model)
+	require.Len(t, questions, len(testRoom.Agents))
+	for i, member := range testRoom.Agents {
+		require.Equal(t, member, questions[i].Name)
+		require.Equal(t, decisiondomain.Predicate, questions[i].Type)
+	}
+	require.Contains(t, questions[0].Instructions, "Runs and fixes the test suite")
+	require.Contains(t, evidence, "writer: the notes are drafted")
+	require.Contains(t, evidence, "user: now run the tests")
+	require.NotContains(t, evidence, "an old post", "only the last context_posts posts are evidence")
+}

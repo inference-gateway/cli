@@ -511,7 +511,7 @@ func (gm *Supervisor) runContainer(ctx context.Context) error {
 		args = append(args, "-e", "VIDEOS_ENABLED=true")
 	}
 
-	if gm.config.Judge.UsesDecisions() {
+	if gm.config.NeedsGatewayDecisions() {
 		args = append(args, "-e", "DECISIONS_ENABLED=true")
 	}
 
@@ -764,7 +764,7 @@ func (gm *Supervisor) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "VIDEOS_ENABLED=true")
 	}
 
-	if gm.config.Judge.UsesDecisions() {
+	if gm.config.NeedsGatewayDecisions() {
 		cmd.Env = append(cmd.Env, "DECISIONS_ENABLED=true")
 	}
 

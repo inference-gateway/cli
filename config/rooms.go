@@ -85,13 +85,17 @@ func SaveRooms(path string, cfg *RoomsConfig) error {
 	return configutils.SaveYAML(path, "rooms", cfg)
 }
 
-// Validate checks the rooms config: the fallback is a known one, the confidence
-// bar is a probability, and every room has a unique, filesystem-safe name.
+// Validate checks the rooms config: the fallback is a known one, a router
+// model is provider/model, the confidence bar is a probability, and every room
+// has a unique, filesystem-safe name.
 func (c RoomsConfig) Validate() error {
 	switch c.Router.Fallback {
 	case "", RoomsFallbackTop, RoomsFallbackNone:
 	default:
 		return fmt.Errorf("rooms.router.fallback %q: must be %q or %q", c.Router.Fallback, RoomsFallbackTop, RoomsFallbackNone)
+	}
+	if provider, _ := ParseModel(c.Router.Model); c.Router.Model != "" && provider == "" {
+		return fmt.Errorf("rooms.router.model %q: must be provider/model", c.Router.Model)
 	}
 	if c.Router.MinConfidence < 0 || c.Router.MinConfidence > 1 {
 		return fmt.Errorf("rooms.router.min_confidence %v: must be between 0 and 1", c.Router.MinConfidence)
