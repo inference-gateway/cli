@@ -22,7 +22,7 @@ import (
 
 const (
 	frameNewSession         = "new_session"
-	frameResumeConversation = "resume_conversation"
+	frameResumeConversation = sessionsdomain.FrameResumeConversation
 	frameApprovalResponse   = "approval_response"
 	frameStopThread         = "stop_thread"
 	frameRunAgentInput      = "run_agent_input"

@@ -35,6 +35,24 @@ type ThreadOptions struct {
 	Env                []string  `json:"-"`
 }
 
+// FrameResumeConversation is the frame type that makes a client follow the
+// thread of a conversation, creating it when it does not exist yet.
+const FrameResumeConversation = "resume_conversation"
+
+// ResumeFrame is the resume_conversation frame: the conversation to follow,
+// the project dir its worker runs in, and the options it launches with.
+type ResumeFrame struct {
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	ProjectDir string `json:"project_dir"`
+	ThreadOptions
+}
+
+// NewResumeFrame returns the frame that follows conversation id in projectDir.
+func NewResumeFrame(id, projectDir string, opts ThreadOptions) ResumeFrame {
+	return ResumeFrame{Type: FrameResumeConversation, ID: id, ProjectDir: projectDir, ThreadOptions: opts}
+}
+
 // Portable is what of the options follows a session to another workspace: the
 // agent's model, mode, prompts, tools, MCP servers, turn limit, the spawn and the
 // origin, so a teammate placed remotely still reports to its lead under the depth

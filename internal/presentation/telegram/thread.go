@@ -73,27 +73,6 @@ func (cm *ChannelManagerService) threadChatFor(ctx context.Context, senderKey st
 	return t
 }
 
-// threadFrame is the resume_conversation frame that makes the chat follow
-// its sender's thread. The thread options apply when the worker launches.
-type threadFrame struct {
-	Type       string `json:"type"`
-	ID         string `json:"id,omitempty"`
-	ProjectDir string `json:"project_dir,omitempty"`
-	sessionsdomain.ThreadOptions
-}
-
-// runInputFrame starts the chat's next run with its new message, or answers
-// the interrupts a suspended run waits on with resume entries.
-type runInputFrame struct {
-	Type  string             `json:"type"`
-	Input agui.RunAgentInput `json:"input"`
-}
-
-const (
-	frameResume   = "resume_conversation"
-	frameRunInput = "run_agent_input"
-)
-
 // frameBuffer is how many undelivered worker frames a busy chat's render
 // loop may owe before further frames drop. ponytail: resolveApproval blocks
 // the render loop while the user decides and the continuation run's frames
@@ -119,7 +98,7 @@ func (t *threadChat) Deliver(frame []byte) {
 // per message.
 func (t *threadChat) deliverUserMessage(ctx context.Context, msg chn.InboundMessage, projectDir string, opts sessionsdomain.ThreadOptions) error {
 	frames := [][]byte{
-		encodeThreadFrame(t, threadFrame{Type: frameResume, ID: t.sessionID, ProjectDir: projectDir, ThreadOptions: opts}),
+		encodeThreadFrame(t, sessionsdomain.NewResumeFrame(t.sessionID, projectDir, opts)),
 		encodeThreadFrame(t, t.runInput([]agui.Message{userMessage(msg)}, nil)),
 	}
 	for _, frame := range frames {
@@ -130,11 +109,12 @@ func (t *threadChat) deliverUserMessage(ctx context.Context, msg chn.InboundMess
 	return nil
 }
 
-// runInput builds the run_agent_input frame of one run on the chat's thread.
-func (t *threadChat) runInput(messages []agui.Message, resume []agui.ResumeEntry) runInputFrame {
-	return runInputFrame{Type: frameRunInput, Input: agui.RunAgentInput{
+// runInput builds the run_agent_input frame of one run on the chat's thread:
+// its new message, or the resume entries answering a suspended run.
+func (t *threadChat) runInput(messages []agui.Message, resume []agui.ResumeEntry) agui.RunInputFrame {
+	return agui.NewRunInputFrame(agui.RunAgentInput{
 		ThreadID: t.sessionID, RunID: uuid.NewString(), Messages: messages, Resume: resume,
-	}}
+	})
 }
 
 // userMessage renders one inbound chat message as the run input's user

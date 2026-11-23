@@ -14,6 +14,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
@@ -147,12 +148,12 @@ func TestPostReachesTheMemberAndLogsItsReply(t *testing.T) {
 
 		sent := f.sent(t)
 		require.Len(t, sent, 2, "one resume_conversation and one run_agent_input")
-		require.Equal(t, frameResume, sent[0]["type"])
+		require.Equal(t, sessionsdomain.FrameResumeConversation, sent[0]["type"])
 		require.Equal(t, "room-release-tester", sent[0]["id"])
 		require.Equal(t, f.room.Project, sent[0]["project_dir"])
 		require.Equal(t, "tester", sent[0]["agent"])
 		require.Equal(t, map[string]any{"agent": "tester", "label": "release", "invoked_by": "room"}, sent[0]["origin"])
-		require.Equal(t, frameRunInput, sent[1]["type"])
+		require.Equal(t, agui.FrameRunAgentInput, sent[1]["type"])
 		require.Contains(t, turnText(t, sent[1]), "The post for you:\nuser: tester run the suite", "a member's name reaches it without the @ file expansion reads")
 
 		reply(t, f.seat(t, "tester"), "all green")
@@ -171,7 +172,7 @@ func TestMembersRoutedTheSamePostRunInParallel(t *testing.T) {
 
 		turns := map[string]bool{}
 		for _, frame := range f.sent(t) {
-			if frame["type"] == frameResume {
+			if frame["type"] == sessionsdomain.FrameResumeConversation {
 				turns[frame["agent"].(string)] = true
 			}
 		}

@@ -14,7 +14,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -369,10 +368,10 @@ func (j *headlessSubagentJob) writeTurnLocked(text string) error {
 	if j.thread != nil {
 		return j.thread.run(text)
 	}
-	frame := runInputFrame{Type: ipc.RunAgentInputFrameType, Input: agui.RunAgentInput{
+	frame := agui.NewRunInputFrame(agui.RunAgentInput{
 		ThreadID: j.state.SessionID, RunID: uuid.NewString(),
 		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: text}},
-	}}
+	})
 	data, err := json.Marshal(frame)
 	if err != nil {
 		return err
@@ -388,12 +387,6 @@ func (j *headlessSubagentJob) openLocked() bool {
 		return j.thread.alive()
 	}
 	return j.stdinWrite != nil
-}
-
-// runInputFrame is the frame that runs a message as the child's next turn.
-type runInputFrame struct {
-	Type  string             `json:"type"`
-	Input agui.RunAgentInput `json:"input"`
 }
 
 // exitResult turns the child's exit into the job's outcome. An idle close or a

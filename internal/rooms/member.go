@@ -20,27 +20,8 @@ import (
 // further frames drop, as for the channels' chats.
 const frameBuffer = 64
 
-const (
-	frameResume   = "resume_conversation"
-	frameRunInput = "run_agent_input"
-)
-
 // turnIntro tells a member where a turn comes from and where its reply goes.
 const turnIntro = "You are %s in room %s, whose members are %s. Your reply to the post for you is posted to the room, so answer it directly.\n"
-
-// threadFrame is the resume_conversation frame that opens or follows the
-// member's session, with its agent and its room as the origin.
-type threadFrame struct {
-	Type       string `json:"type"`
-	ID         string `json:"id"`
-	ProjectDir string `json:"project_dir"`
-	sessionsdomain.ThreadOptions
-}
-
-type runInputFrame struct {
-	Type  string             `json:"type"`
-	Input agui.RunAgentInput `json:"input"`
-}
 
 // workerEvent is the part of a worker's AG-UI event a member reads.
 type workerEvent struct {
@@ -185,19 +166,21 @@ func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post) s
 	return b.String()
 }
 
-func (m *member) resumeFrame() threadFrame {
-	return threadFrame{Type: frameResume, ID: m.sessionID, ProjectDir: m.room.Project, ThreadOptions: sessionsdomain.ThreadOptions{
+// resumeFrame opens or follows the member's session, with its agent and its
+// room as the origin.
+func (m *member) resumeFrame() sessionsdomain.ResumeFrame {
+	return sessionsdomain.NewResumeFrame(m.sessionID, m.room.Project, sessionsdomain.ThreadOptions{
 		Agent:  m.agent,
 		Origin: sessionsdomain.Origin{Agent: m.agent, Label: m.room.Name, InvokedBy: roomsdomain.InvokedByRoom},
-	}}
+	})
 }
 
-func (m *member) runInput(prompt string) runInputFrame {
-	return runInputFrame{Type: frameRunInput, Input: agui.RunAgentInput{
+func (m *member) runInput(prompt string) agui.RunInputFrame {
+	return agui.NewRunInputFrame(agui.RunAgentInput{
 		ThreadID: m.sessionID,
 		RunID:    uuid.NewString(),
 		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: prompt}},
-	}}
+	})
 }
 
 // handle reads one worker event: it keeps the run's last assistant message,

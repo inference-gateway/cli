@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agentheadless "github.com/inference-gateway/cli/internal/agent/headless"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
 )
@@ -36,7 +37,7 @@ func fakeKeepAliveChild(t *testing.T, turns chan<- string) func(context.Context,
 		turn(opts.Prompt)
 		scanner := bufio.NewScanner(opts.Stdin)
 		for scanner.Scan() {
-			var frame runInputFrame
+			var frame agui.RunInputFrame
 			if err := json.Unmarshal(scanner.Bytes(), &frame); err != nil || frame.Type != "run_agent_input" || len(frame.Input.Messages) != 1 {
 				t.Errorf("child read a frame it does not understand: %s", scanner.Text())
 				continue
