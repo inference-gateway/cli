@@ -29,6 +29,7 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | GitHub artifact poller | `scheduler.backend: github` and `artifacts.enabled` | Pulls finished workflow runs back into conversations |
 | AG-UI binding | `daemon.binding.enabled`, else `browser_use.enabled` + `backend: extension` | Clients, peers, the HTTP routes |
 | Workspaces | `daemon.workspaces` | Where sessions can be teleported to, see [Workspaces and teleports](#workspaces-and-teleports) |
+| Rooms | The AG-UI binding | Groups of agents that answer posts in their own sessions, see [Rooms](#rooms) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
 Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then
@@ -573,6 +574,15 @@ pod's hostname as its DNS name, so set `address` to the name your NetBird setup 
 
 A policy on the overlay decides which machines reach the binding port. `infer daemon workspaces` still reports
 the workspace through the kube API, and a teleport fails if the overlay name does not resolve.
+
+## Rooms
+
+The daemon hosts the rooms of `rooms.yaml` behind the binding. It routes each post, delivers it to every
+member it reaches as that member's next turn on the member's own session, logs the answers, and streams the
+room to the clients that follow it. Each member is a client of its session's thread, the way a channel chat
+is, so the thread registry, the lease relay and the idle reaping apply unchanged. A member that waits on an
+approval waits in its own session, which any client can follow to decide it. See [Rooms](rooms.md) and the
+[room frames](browser-extension-protocol.md#rooms).
 
 ## Session workers
 

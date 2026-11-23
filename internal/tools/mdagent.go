@@ -226,6 +226,18 @@ func ResolveThreadAgent(projectDir string, opts sessionsdomain.ThreadOptions) (s
 	return opts, nil
 }
 
+// ProjectAgents lists the agents a thread in projectDir can run as, found the
+// way ResolveThreadAgent finds them: the project's and the user's Markdown
+// agents and the built-ins.
+func ProjectAgents(projectDir string) []agentdomain.SubagentInfo {
+	agents := loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil)
+	infos := make([]agentdomain.SubagentInfo, 0, len(agents))
+	for _, agent := range agents {
+		infos = append(infos, agentdomain.SubagentInfo{Name: agent.name, Description: agent.description, Model: agent.model, Source: agent.source})
+	}
+	return infos
+}
+
 // resolveMarkdownAgentMCPServers reads mcpServers as names of servers in the
 // mcp.yaml of the computer a thread runs on. An inline definition, which Claude
 // Code also accepts, is ignored with a warning, since agent files travel and

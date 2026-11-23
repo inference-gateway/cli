@@ -1,0 +1,319 @@
+package rooms
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	uuid "github.com/google/uuid"
+
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
+)
+
+// frameBuffer is how many worker frames a member may owe its handling before
+// further frames drop, as for the channels' chats.
+const frameBuffer = 64
+
+const (
+	frameResume   = "resume_conversation"
+	frameRunInput = "run_agent_input"
+)
+
+// turnIntro tells a member where a turn comes from and where its reply goes.
+const turnIntro = "You are %s in room %s, whose members are %s. Your reply to the post for you is posted to the room, so answer it directly.\n"
+
+// threadFrame is the resume_conversation frame that opens or follows the
+// member's session, with its agent and its room as the origin.
+type threadFrame struct {
+	Type       string `json:"type"`
+	ID         string `json:"id"`
+	ProjectDir string `json:"project_dir"`
+	sessionsdomain.ThreadOptions
+}
+
+type runInputFrame struct {
+	Type  string             `json:"type"`
+	Input agui.RunAgentInput `json:"input"`
+}
+
+// workerEvent is the part of a worker's AG-UI event a member reads.
+type workerEvent struct {
+	Type    string `json:"type"`
+	Role    string `json:"role"`
+	Delta   string `json:"delta"`
+	Message string `json:"message"`
+	Outcome struct {
+		Type string `json:"type"`
+	} `json:"outcome"`
+}
+
+// member drives one agent's seat in a room as that session's client on the
+// thread registry. It holds the posts routed to it while the member runs or
+// waits on an approval, delivers them one turn at a time, logs each run's last
+// assistant message as the member's post, and detaches after idling so the
+// registry can reap the worker. The frame fields belong to run.
+type member struct {
+	host      *Host
+	room      roomsdomain.Room
+	agent     string
+	sessionID string
+	frames    chan []byte
+
+	mu       sync.Mutex
+	activity roomsdomain.Activity
+	pending  []roomsdomain.Post
+	seen     int
+	detach   *time.Timer
+
+	role    string
+	message strings.Builder
+	answer  string
+}
+
+func newMember(h *Host, room roomsdomain.Room, agent string) *member {
+	return &member{
+		host:      h,
+		room:      room,
+		agent:     agent,
+		sessionID: room.SessionID(agent),
+		frames:    make(chan []byte, frameBuffer),
+		activity:  roomsdomain.ActivityIdle,
+		seen:      roomsdomain.UnknownSeen,
+	}
+}
+
+// Deliver accepts one frame from the thread registry. A full buffer drops it
+// rather than freeze the registry's pump for every follower of the thread.
+func (m *member) Deliver(frame []byte) {
+	select {
+	case m.frames <- frame:
+	default:
+		logger.Warn("rooms dropped a worker frame of a busy member", m.tags()...)
+	}
+}
+
+// run handles the member's worker frames until the daemon stops.
+func (m *member) run() {
+	for {
+		select {
+		case <-m.host.ctx.Done():
+			return
+		case frame := <-m.frames:
+			m.handle(frame)
+		}
+	}
+}
+
+func (m *member) currentActivity() roomsdomain.Activity {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.activity
+}
+
+// enqueue holds post for the member and starts its turn when it is idle.
+func (m *member) enqueue(post roomsdomain.Post) {
+	m.mu.Lock()
+	m.pending = append(m.pending, post)
+	m.mu.Unlock()
+	m.startNext()
+}
+
+// startNext delivers the oldest held post as the member's next turn, unless
+// the member still runs or waits on an approval. The turn's frames go out
+// under the lock, so an idle detach can never land between them.
+func (m *member) startNext() {
+	m.mu.Lock()
+	if m.activity != roomsdomain.ActivityIdle || len(m.pending) == 0 {
+		m.mu.Unlock()
+		return
+	}
+	post := m.pending[0]
+	m.pending = m.pending[1:]
+	prompt, err := m.turnPromptLocked(post)
+	if err != nil {
+		m.mu.Unlock()
+		m.host.note(m.room, fmt.Sprintf("%s missed a post: %v", m.agent, err))
+		m.startNext()
+		return
+	}
+	m.activity = roomsdomain.ActivityRunning
+	if m.detach != nil {
+		m.detach.Stop()
+	}
+	m.host.threads.Handle(m, encode(m.resumeFrame()))
+	m.host.threads.Handle(m, encode(m.runInput(prompt)))
+	m.mu.Unlock()
+	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
+}
+
+// turnPromptLocked renders the turn of the addressed post: the room's posts
+// the member has not seen since its last turn, then the post itself.
+func (m *member) turnPromptLocked(addressed roomsdomain.Post) (string, error) {
+	history, err := m.host.log.Read(m.room)
+	if err != nil {
+		return "", err
+	}
+	unseen := roomsdomain.Unseen(history, m.agent, m.seen, addressed.ID, m.host.cfg.ContextPosts)
+	m.seen = len(history)
+	return m.render(unseen, addressed), nil
+}
+
+// render writes the turn with every agent's mention as a plain name, so the
+// member's file expansion never inlines a file named like a member.
+func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post) string {
+	known := agentNames(m.host.agents(m.room.Project))
+	var b strings.Builder
+	fmt.Fprintf(&b, turnIntro, m.agent, m.room.Name, strings.Join(m.room.Agents, ", "))
+	if len(unseen) > 0 {
+		b.WriteString("\nPosts since your last turn:\n")
+		for _, post := range unseen {
+			fmt.Fprintf(&b, "%s: %s\n", post.Author, roomsdomain.PlainMentions(post.Text, known))
+		}
+	}
+	fmt.Fprintf(&b, "\nThe post for you:\n%s: %s\n", addressed.Author, roomsdomain.PlainMentions(addressed.Text, known))
+	return b.String()
+}
+
+func (m *member) resumeFrame() threadFrame {
+	return threadFrame{Type: frameResume, ID: m.sessionID, ProjectDir: m.room.Project, ThreadOptions: sessionsdomain.ThreadOptions{
+		Agent:  m.agent,
+		Origin: sessionsdomain.Origin{Agent: m.agent, Label: m.room.Name, InvokedBy: roomsdomain.InvokedByRoom},
+	}}
+}
+
+func (m *member) runInput(prompt string) runInputFrame {
+	return runInputFrame{Type: frameRunInput, Input: agui.RunAgentInput{
+		ThreadID: m.sessionID,
+		RunID:    uuid.NewString(),
+		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: prompt}},
+	}}
+}
+
+// handle reads one worker event: it keeps the run's last assistant message,
+// notes a run that suspends on an approval, and ends the turn when the run
+// finishes or fails.
+func (m *member) handle(frame []byte) {
+	var ev workerEvent
+	if json.Unmarshal(frame, &ev) != nil {
+		return
+	}
+	switch ev.Type {
+	case "RUN_STARTED":
+		m.resumeAfterApproval()
+	case "TEXT_MESSAGE_START":
+		m.role = ev.Role
+		m.message.Reset()
+	case "TEXT_MESSAGE_CONTENT":
+		if m.role == "assistant" {
+			m.message.WriteString(ev.Delta)
+		}
+	case "TEXT_MESSAGE_END":
+		if m.role == "assistant" {
+			m.answer = m.message.String()
+		}
+		m.role = ""
+	case "RUN_FINISHED":
+		if ev.Outcome.Type == "interrupt" {
+			m.waitForApproval()
+			return
+		}
+		answer := m.answer
+		m.answer = ""
+		m.finish(answer, "")
+	case "RUN_ERROR":
+		m.answer = ""
+		m.finish("", ev.Message)
+	}
+}
+
+// waitForApproval leaves the run's approval to the member's own chat, where
+// the user decides it, and notes in the room that the member waits.
+func (m *member) waitForApproval() {
+	m.mu.Lock()
+	if m.activity != roomsdomain.ActivityRunning {
+		m.mu.Unlock()
+		return
+	}
+	m.activity = roomsdomain.ActivityWaiting
+	m.mu.Unlock()
+	m.host.note(m.room, fmt.Sprintf("%s waits for approval in its own chat, session %s.", m.agent, m.sessionID))
+	m.host.announce(m.room, m.agent, roomsdomain.ActivityWaiting)
+}
+
+// resumeAfterApproval marks a waiting member running again once the run its
+// approval continues starts.
+func (m *member) resumeAfterApproval() {
+	m.mu.Lock()
+	if m.activity != roomsdomain.ActivityWaiting {
+		m.mu.Unlock()
+		return
+	}
+	m.activity = roomsdomain.ActivityRunning
+	m.mu.Unlock()
+	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
+}
+
+// finish ends the member's turn: it logs the answer as the member's post, or
+// a note when the run failed, and starts the next held post. A run the room
+// did not start, such as the user chatting with the member directly, is left
+// out of the room.
+func (m *member) finish(answer, failure string) {
+	m.mu.Lock()
+	if m.activity == roomsdomain.ActivityIdle {
+		m.mu.Unlock()
+		return
+	}
+	m.activity = roomsdomain.ActivityIdle
+	m.armDetachLocked()
+	m.mu.Unlock()
+
+	switch {
+	case failure != "":
+		m.host.note(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure))
+	case answer != "":
+		if err := m.host.append(m.room, newPost(m.agent, answer)); err != nil {
+			logger.Warn("rooms could not log a member's answer", append(m.tags(), "error", err)...)
+		}
+	}
+	m.host.announce(m.room, m.agent, roomsdomain.ActivityIdle)
+	m.startNext()
+}
+
+// armDetachLocked starts the grace after which an idle member stops following
+// its thread, so a reply minutes later still lands on a warm worker.
+func (m *member) armDetachLocked() {
+	if m.detach == nil {
+		m.detach = time.AfterFunc(sessionsdomain.ChannelFollowTimeout, m.detachIdle)
+		return
+	}
+	m.detach.Reset(sessionsdomain.ChannelFollowTimeout)
+}
+
+// detachIdle stops following the thread of a member still idle, letting the
+// registry reap its worker. A member busy again keeps following.
+func (m *member) detachIdle() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.activity == roomsdomain.ActivityIdle {
+		m.host.threads.Detach(m)
+	}
+}
+
+// stop stops the idle grace and the following when the daemon stops.
+func (m *member) stop() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.detach != nil {
+		m.detach.Stop()
+	}
+	m.host.threads.Detach(m)
+}
+
+func (m *member) tags() []any {
+	return []any{"room", m.room.Name, "member", m.agent, "conversation_id", m.sessionID}
+}

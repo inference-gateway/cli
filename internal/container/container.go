@@ -1160,13 +1160,18 @@ func (c *ServiceContainer) createRawSDKClient() sdk.Client {
 	return c.newSDKClient(c.createRetryConfig(), c.clientTimeout())
 }
 
-// gatewayBaseURL resolves the absolute URL every gateway HTTP client uses:
-// the configured gateway URL, the running gateway's actual URL when the CLI
-// started it, or localhost - always with a "/v1" suffix.
+// gatewayBaseURL resolves the absolute URL every gateway HTTP client uses.
 func (c *ServiceContainer) gatewayBaseURL() string {
-	baseURL := c.config.Gateway.URL
-	if c.gatewayManager != nil && c.config.Gateway.Run {
-		actualURL := c.gatewayManager.GetGatewayURL()
+	return gatewayBaseURL(c.config, c.gatewayManager)
+}
+
+// gatewayBaseURL resolves the configured gateway URL, the running gateway's
+// actual URL when supervisor started it, or localhost - always with a "/v1"
+// suffix.
+func gatewayBaseURL(cfg *config.Config, supervisor *gateway.Supervisor) string {
+	baseURL := cfg.Gateway.URL
+	if supervisor != nil && cfg.Gateway.Run {
+		actualURL := supervisor.GetGatewayURL()
 		if actualURL != "" {
 			baseURL = actualURL
 		}

@@ -28,3 +28,17 @@ func Mentions(text string, known []string) []string {
 	}
 	return mentions
 }
+
+// PlainMentions drops the @ of every mention of known, so a member's own file
+// expansion reads a member's name as a name and never inlines a file of the
+// same name. File references keep their @.
+func PlainMentions(text string, known []string) string {
+	return mentionPattern.ReplaceAllStringFunc(text, func(match string) string {
+		at := strings.Index(match, "@")
+		token := match[at+1:]
+		if !slices.Contains(known, strings.TrimRight(token, mentionTrailing)) {
+			return match
+		}
+		return match[:at] + token
+	})
+}

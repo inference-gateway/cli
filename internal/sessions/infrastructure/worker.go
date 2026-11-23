@@ -3,6 +3,7 @@ package infrastructure
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -148,7 +149,8 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 }
 
 // originEnv hands the worker how its session started, for its metadata. A
-// session another agent's message started was invoked by an agent.
+// session another agent's message started was invoked by an agent, unless the
+// origin names who invoked it, such as a room.
 func originEnv(origin sessionsdomain.Origin) []string {
 	var env []string
 	if origin.Agent != "" {
@@ -157,11 +159,13 @@ func originEnv(origin sessionsdomain.Origin) []string {
 	if origin.Label != "" {
 		env = append(env, scheddomain.EnvSessionLabel+"="+origin.Label)
 	}
+	invokedBy := origin.InvokedBy
 	if origin.SentBy != "" {
-		env = append(env,
-			scheddomain.EnvSentBy+"="+origin.SentBy,
-			scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent,
-		)
+		env = append(env, scheddomain.EnvSentBy+"="+origin.SentBy)
+		invokedBy = cmp.Or(invokedBy, scheddomain.SubagentInvokedByAgent)
+	}
+	if invokedBy != "" {
+		env = append(env, scheddomain.EnvSubagentInvokedBy+"="+invokedBy)
 	}
 	return env
 }

@@ -93,6 +93,7 @@ One line per feature, each linking to its full guide:
 
 - **Web terminal** - the chat TUI in browser tabs, served by the daemon - [Web Terminal](docs/web-terminal.md)
 - **Remote messaging channels** - drive the agent from Telegram - [Channels](docs/channels.md)
+- **Rooms** - post to a group of agents, routed by ping or by a decision model - [Rooms](docs/rooms.md)
 - **Scheduled tasks** - cron prompts that deliver back through the channel - [Scheduling](docs/scheduling.md)
 - **Heartbeat** - periodic wake-up to check pending work - [Heartbeat](docs/heartbeat.md)
 - **A2A agents and server** - delegate to Agent-to-Agent servers - [A2A Agents Configuration](docs/agents-configuration.md) · [A2A Connections](docs/a2a-connections.md)

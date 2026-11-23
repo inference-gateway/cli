@@ -95,6 +95,19 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			},
 		},
 		{
+			name:     "a room member records its agent and room and was invoked by the room",
+			opts:     sessionsdomain.ThreadOptions{Agent: "tester", Origin: sessionsdomain.Origin{Agent: "tester", Label: "release", InvokedBy: "room"}},
+			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
+			wantEnv: []string{
+				"PWD=/work/proj",
+				"INFER_LOG_STDERR_JSON=true",
+				"INFER_MAIN_AGENT=tester",
+				"INFER_SESSION_AGENT=tester",
+				"INFER_SESSION_LABEL=release",
+				"INFER_INVOKED_BY=room",
+			},
+		},
+		{
 			name:     "an agent with an empty MCP server list brings up none",
 			opts:     sessionsdomain.ThreadOptions{Agent: "offline", MCPServers: []string{}},
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},

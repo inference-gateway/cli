@@ -11,11 +11,11 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	roomscontext "github.com/inference-gateway/cli/internal/rooms"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
+	tools "github.com/inference-gateway/cli/internal/tools"
 )
 
 // postTextWidth is how many columns of a post's text the log table shows.
@@ -31,8 +31,9 @@ func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command 
 	cmd := &command{state: state, renderer: renderer}
 	roomsCmd := &cobra.Command{
 		Use:   "rooms",
-		Short: "Inspect rooms: named groups of agents sharing one room log",
-		Long: `Inspect the rooms defined in rooms.yaml and their logs.
+		Short: "Inspect and post to rooms: named groups of agents sharing one room log",
+		Long: `Inspect the rooms defined in rooms.yaml and their logs, and post to them
+through the daemon.
 
 A room is a named group of agents the user talks to in one project. Every
 agent in a room keeps its own session with the deterministic id
@@ -53,10 +54,20 @@ JSONL log per room.`,
 		Args:  cobra.ExactArgs(1),
 		RunE:  cmd.showRoom,
 	}
-	roomsCmd.AddCommand(listCmd, showCmd)
+	postCmd := &cobra.Command{
+		Use:   "post <room> <text>",
+		Short: "Post to a room through the daemon and print where the post went",
+		Long: `Post to a room as the user. The daemon routes the post to the members it
+pings, or asks the router model about a post that pings nobody, logs it, and
+delivers it to every routed member as that member's next turn.`,
+		Args: cobra.ExactArgs(2),
+		RunE: cmd.postRoom,
+	}
+	roomsCmd.AddCommand(listCmd, showCmd, postCmd)
 
 	output.AddFormatFlag(listCmd, "text", "json")
 	output.AddFormatFlag(showCmd, "text", "json")
+	output.AddFormatFlag(postCmd, "text", "json")
 	return roomsCmd
 }
 
@@ -82,21 +93,10 @@ type showView struct {
 	Posts  []roomsdomain.Post       `json:"posts"`
 }
 
-// resolvedRooms resolves the configured rooms against every agent the tool
-// registry knows, the same list `infer agents list` prints.
+// resolvedRooms resolves the configured rooms, each against the agents a
+// thread in its project can run as.
 func (c *command) resolvedRooms() []roomsdomain.Room {
-	return roomscontext.Resolve(c.state.Config().Rooms, c.agentNames())
-}
-
-// agentNames lists the Markdown agents the tool registry holds: the built-ins
-// and the agent files of the agent dirs.
-func (c *command) agentNames() []string {
-	infos := container.NewServiceContainer(c.state.Config()).GetToolRegistry().MarkdownSubagents()
-	names := make([]string, 0, len(infos))
-	for _, info := range infos {
-		names = append(names, info.Name)
-	}
-	return names
+	return roomscontext.Resolve(c.state.Config().Rooms, tools.ProjectAgents)
 }
 
 func (c *command) listRooms(cmd *cobra.Command, _ []string) error {

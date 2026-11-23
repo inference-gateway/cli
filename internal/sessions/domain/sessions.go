@@ -56,12 +56,14 @@ func (o ThreadOptions) Portable() ThreadOptions {
 }
 
 // Origin is what a thread's session records about how it started: the Markdown
-// agent it runs as, the label its orchestrator named it by, and the session
-// whose message to that agent started it, which it then reports to.
+// agent it runs as, the label its orchestrator named it by, the session whose
+// message to that agent started it, which it then reports to, and who invoked
+// it when that is neither a human nor a sending agent, such as a room.
 type Origin struct {
-	Agent  string `json:"agent,omitempty"`
-	Label  string `json:"label,omitempty"`
-	SentBy string `json:"sent_by,omitempty"`
+	Agent     string `json:"agent,omitempty"`
+	Label     string `json:"label,omitempty"`
+	SentBy    string `json:"sent_by,omitempty"`
+	InvokedBy string `json:"invoked_by,omitempty"`
 }
 
 // Subagent is what a spawned thread knows about its spawn: the parent it
