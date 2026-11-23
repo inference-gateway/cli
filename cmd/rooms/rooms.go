@@ -2,7 +2,9 @@ package rooms
 
 import (
 	"cmp"
+	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,7 +13,9 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
+	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	roomscontext "github.com/inference-gateway/cli/internal/rooms"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
@@ -20,6 +24,10 @@ import (
 
 // postTextWidth is how many columns of a post's text the log table shows.
 const postTextWidth = 72
+
+// daemonTimeout bounds asking the daemon for its rooms, after which they
+// resolve here.
+const daemonTimeout = 5 * time.Second
 
 type command struct {
 	state    *runtime.State
@@ -44,15 +52,18 @@ JSONL log per room.`,
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the rooms with their resolved members",
-		Long:  `List every room in rooms.yaml with the members resolved now: "*" becomes every agent that exists, built-ins included.`,
-		RunE:  cmd.listRooms,
+		Long: `List every room in rooms.yaml with the members resolved now: "*" becomes every agent that exists, built-ins included.
+A running daemon answers with the rooms it hosts, so the rooms, projects and
+logs match what infer rooms post reaches.`,
+		RunE: cmd.listRooms,
 	}
 	showCmd := &cobra.Command{
 		Use:   "show <room>",
 		Short: "Show one room and its log",
-		Long:  `Show one room's members, its routing settings and the posts of its log.`,
-		Args:  cobra.ExactArgs(1),
-		RunE:  cmd.showRoom,
+		Long: `Show one room's members, its routing settings and the posts of its log.
+A running daemon resolves the room, so the log is the one it writes.`,
+		Args: cobra.ExactArgs(1),
+		RunE: cmd.showRoom,
 	}
 	postCmd := &cobra.Command{
 		Use:   "post <room> <text>",
@@ -93,14 +104,41 @@ type showView struct {
 	Posts  []roomsdomain.Post       `json:"posts"`
 }
 
-// resolvedRooms resolves the configured rooms, each against the agents a
-// thread in its project can run as.
-func (c *command) resolvedRooms() []roomsdomain.Room {
-	return roomscontext.Resolve(c.state.Config().Rooms, tools.ProjectAgents)
+// rooms lists the rooms as the running daemon resolves them, since it hosts
+// them and writes their logs, and as this process resolves them when no daemon
+// answers.
+func (c *command) rooms(ctx context.Context) []roomView {
+	views, err := c.daemonRooms(ctx)
+	if err != nil {
+		logger.Debug("rooms resolve here, the daemon did not answer", "error", err)
+		return roomViews(roomscontext.Resolve(c.state.Config().Rooms, tools.ProjectAgents))
+	}
+	return views
+}
+
+func (c *command) daemonRooms(ctx context.Context) ([]roomView, error) {
+	ctx, cancel := context.WithTimeout(ctx, daemonTimeout)
+	defer cancel()
+	client, err := daemonhost.DialLocal(ctx, c.state.Config(), clientKind)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	if err := client.Send(map[string]string{"type": "list_rooms"}); err != nil {
+		return nil, err
+	}
+	frame, err := client.Next(ctx, "rooms")
+	if err != nil {
+		return nil, err
+	}
+	var answer struct {
+		Rooms []roomView `json:"rooms"`
+	}
+	return answer.Rooms, decodeFrame(frame, &answer)
 }
 
 func (c *command) listRooms(cmd *cobra.Command, _ []string) error {
-	views := roomViews(c.resolvedRooms())
+	views := c.rooms(cmd.Context())
 
 	if format, _ := cmd.Flags().GetString("format"); format == "json" {
 		return output.PrintJSON(cmd.OutOrStdout(), views)
@@ -128,19 +166,19 @@ func (c *command) listRooms(cmd *cobra.Command, _ []string) error {
 
 func (c *command) showRoom(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	resolved := c.resolvedRooms()
-	room, found := roomscontext.Find(resolved, name)
-	if !found {
-		return fmt.Errorf("room %q not found, known rooms: %s", name, strings.Join(roomNames(resolved), ", "))
+	views := c.rooms(cmd.Context())
+	i := slices.IndexFunc(views, func(view roomView) bool { return view.Name == name })
+	if i < 0 {
+		return fmt.Errorf("room %q not found, known rooms: %s", name, strings.Join(roomNames(views), ", "))
 	}
 
-	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	posts, err := roomsinfra.NewJSONLLog().Read(roomsdomain.Room{Name: views[i].Name, Project: views[i].Project})
 	if err != nil {
 		return err
 	}
 
 	view := showView{
-		Room:   roomViewOf(room),
+		Room:   views[i],
 		Router: c.state.Config().Rooms.Router,
 		Posts:  posts,
 	}
@@ -197,10 +235,10 @@ func roomViewOf(room roomsdomain.Room) roomView {
 	return roomView{Name: room.Name, Project: room.Project, Members: views}
 }
 
-func roomNames(resolved []roomsdomain.Room) []string {
-	names := make([]string, 0, len(resolved))
-	for _, room := range resolved {
-		names = append(names, room.Name)
+func roomNames(views []roomView) []string {
+	names := make([]string, 0, len(views))
+	for _, view := range views {
+		names = append(names, view.Name)
 	}
 	return names
 }

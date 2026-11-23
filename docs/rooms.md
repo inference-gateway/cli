@@ -101,7 +101,9 @@ object per line: `id`, `author` (`user`, a member, or `room` for the room's own 
 | `infer rooms show <room>` | One room's members, router settings and log |
 | `infer rooms post <room> "<text>"` | Post through the daemon and print where the post went |
 
-All three take `--format json`.
+All three take `--format json`. While the daemon runs, `list` and `show` take the rooms from it, so a room
+without a `project` shows the log the daemon writes in its working directory. Without a daemon they resolve
+the rooms where you run them.
 
 ## Clients
 

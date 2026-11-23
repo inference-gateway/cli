@@ -46,8 +46,8 @@ func (c *command) postRoom(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	posted, err := decodePosted(frame)
-	if err != nil {
+	var posted postedView
+	if err := decodeFrame(frame, &posted); err != nil {
 		return err
 	}
 	if format, _ := cmd.Flags().GetString("format"); format == "json" {
@@ -57,13 +57,13 @@ func (c *command) postRoom(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func decodePosted(frame map[string]any) (postedView, error) {
+// decodeFrame decodes one daemon frame into v.
+func decodeFrame(frame map[string]any, v any) error {
 	data, err := json.Marshal(frame)
 	if err != nil {
-		return postedView{}, err
+		return err
 	}
-	var posted postedView
-	return posted, json.Unmarshal(data, &posted)
+	return json.Unmarshal(data, v)
 }
 
 // printPosted prints where a post went: every member it was routed to, as
