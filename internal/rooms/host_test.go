@@ -13,6 +13,8 @@ import (
 	decisionmocks "github.com/inference-gateway/cli/tests/mocks/decision"
 	sessionsmocks "github.com/inference-gateway/cli/tests/mocks/sessions"
 
+	uuid "github.com/google/uuid"
+
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
@@ -82,15 +84,17 @@ func (f hostFixture) seat(t *testing.T, agent string) sessionsdomain.Client {
 	return nil
 }
 
-// reply plays a worker's run that answers text.
+// reply plays a worker's run that answers text, under a run id of the
+// worker's own, as the serve worker names its runs.
 func reply(t *testing.T, seat sessionsdomain.Client, text string) {
 	t.Helper()
+	runID := uuid.NewString()
 	for _, frame := range [][]byte{
-		[]byte(`{"type":"RUN_STARTED"}`),
+		encode(map[string]string{"type": "RUN_STARTED", "runId": runID}),
 		[]byte(`{"type":"TEXT_MESSAGE_START","role":"assistant"}`),
 		encode(map[string]string{"type": "TEXT_MESSAGE_CONTENT", "delta": text}),
 		[]byte(`{"type":"TEXT_MESSAGE_END"}`),
-		[]byte(`{"type":"RUN_FINISHED"}`),
+		encode(map[string]string{"type": "RUN_FINISHED", "runId": runID}),
 	} {
 		seat.Deliver(frame)
 	}

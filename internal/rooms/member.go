@@ -49,9 +49,10 @@ type workerEvent struct {
 // thread registry. It holds the posts routed to it while the member runs or
 // waits on an approval, delivers them one turn at a time, logs each run's last
 // assistant message as the member's post, and detaches after idling so the
-// registry can reap the worker. runID is the run the open turn waits on, the
-// frame fields belong to run, and sendMu keeps each turn's frames together
-// without holding mu, so a stuck worker pipe never stalls the room's view.
+// registry can reap the worker. inputID is the run input the open turn sent,
+// runID the run the worker started for it, which names its own runs. sendMu
+// keeps each turn's frames together without holding mu, so a stuck worker
+// pipe never stalls the room's view.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -64,6 +65,7 @@ type member struct {
 	activity roomsdomain.Activity
 	pending  []roomsdomain.Post
 	seen     int
+	inputID  string
 	runID    string
 	detach   *time.Timer
 
@@ -158,7 +160,7 @@ func (m *member) startNext() {
 		m.detach.Stop()
 	}
 	input := m.runInput(prompt)
-	m.runID = input.Input.RunID
+	m.inputID, m.runID = input.Input.RunID, ""
 	m.mu.Unlock()
 	m.sendMu.Lock()
 	m.host.threads.Handle(m, encode(m.resumeFrame()))
@@ -228,7 +230,7 @@ func (m *member) handle(ev workerEvent) {
 	}
 	switch ev.Type {
 	case "RUN_STARTED":
-		m.resumeAfterApproval(ev.RunID)
+		m.runStarted(ev.RunID)
 	case "TEXT_MESSAGE_START":
 		m.role = ev.Role
 		m.message.Reset()
@@ -269,26 +271,32 @@ func (m *member) waitForApproval() {
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityWaiting)
 }
 
-// isCurrentRun reports whether an event of runID ends the open turn. A
-// registry error that names no run, such as a refused resume, ends it too.
+// isCurrentRun reports whether an event of runID ends the open turn: its run,
+// or a registry refusal of its input. One that names no run, such as a
+// refused resume, ends it too.
 func (m *member) isCurrentRun(runID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return runID == "" || runID == m.runID
+	return runID == "" || runID == m.inputID || runID == m.runID
 }
 
-// resumeAfterApproval marks a waiting member running again once the run its
-// approval continues starts, and makes that run the one the turn waits on.
-func (m *member) resumeAfterApproval(runID string) {
+// runStarted makes the first run that starts while the turn waits for its own
+// the turn's run. A run that continues an approval marks a waiting member
+// running again and becomes the run the turn waits on.
+func (m *member) runStarted(runID string) {
 	m.mu.Lock()
-	if m.activity != roomsdomain.ActivityWaiting {
+	switch m.activity {
+	case roomsdomain.ActivityRunning:
+		m.runID = cmp.Or(m.runID, runID)
 		m.mu.Unlock()
-		return
+	case roomsdomain.ActivityWaiting:
+		m.activity = roomsdomain.ActivityRunning
+		m.runID = cmp.Or(runID, m.runID)
+		m.mu.Unlock()
+		m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
+	default:
+		m.mu.Unlock()
 	}
-	m.activity = roomsdomain.ActivityRunning
-	m.runID = cmp.Or(runID, m.runID)
-	m.mu.Unlock()
-	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
 }
 
 // finish ends the member's turn: it logs the answer as the member's post, or
