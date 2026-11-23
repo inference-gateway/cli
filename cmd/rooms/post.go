@@ -23,14 +23,6 @@ const clientKind = "cli"
 // decision model first.
 const postTimeout = 2 * time.Minute
 
-// postedView is the daemon's answer to a post: the logged post with its
-// routes, and the notices for its author.
-type postedView struct {
-	Room    string           `json:"room"`
-	Post    roomsdomain.Post `json:"post"`
-	Notices []string         `json:"notices"`
-}
-
 func (c *command) postRoom(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(cmd.Context(), postTimeout)
 	defer cancel()
@@ -46,7 +38,7 @@ func (c *command) postRoom(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	var posted postedView
+	var posted roomsdomain.Posted
 	if err := decodeFrame(frame, &posted); err != nil {
 		return err
 	}
@@ -68,7 +60,7 @@ func decodeFrame(frame map[string]any, v any) error {
 
 // printPosted prints where a post went: every member it was routed to, as
 // pinged or with the router's probability, then the notices for its author.
-func printPosted(w io.Writer, posted postedView) {
+func printPosted(w io.Writer, posted roomsdomain.Posted) {
 	_, _ = fmt.Fprintf(w, "Posted to %s.\n", posted.Room)
 	routes := make([]string, 0, len(posted.Post.Routes))
 	for _, route := range posted.Post.Routes {

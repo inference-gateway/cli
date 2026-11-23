@@ -93,6 +93,14 @@ type Post struct {
 	Time     time.Time `json:"time"`
 }
 
+// Posted is the daemon's answer to a post: the logged post with its routes,
+// and the notices for its author.
+type Posted struct {
+	Room    string   `json:"room"`
+	Post    Post     `json:"post"`
+	Notices []string `json:"notices"`
+}
+
 // Route records one member a post was routed to and the router's probability
 // for that member.
 type Route struct {

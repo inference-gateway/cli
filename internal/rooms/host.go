@@ -115,13 +115,10 @@ type activityFrame struct {
 	Activity roomsdomain.Activity `json:"activity"`
 }
 
-// postedFrame answers post_room to its poster: the logged post with its
-// routes, and the notices for its author.
+// postedFrame answers post_room to its poster.
 type postedFrame struct {
-	Type    string           `json:"type"`
-	Room    string           `json:"room"`
-	Post    roomsdomain.Post `json:"post"`
-	Notices []string         `json:"notices"`
+	Type string `json:"type"`
+	roomsdomain.Posted
 }
 
 // Handle claims the rooms frames of one client and reports false for any

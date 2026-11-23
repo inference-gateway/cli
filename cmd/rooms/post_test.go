@@ -12,12 +12,12 @@ import (
 func TestPrintPosted(t *testing.T) {
 	tests := []struct {
 		name   string
-		posted postedView
+		posted roomsdomain.Posted
 		want   string
 	}{
 		{
 			name: "pinged and routed members with a notice",
-			posted: postedView{
+			posted: roomsdomain.Posted{
 				Room: "release",
 				Post: roomsdomain.Post{
 					Mentions: []string{"tester"},
@@ -29,7 +29,7 @@ func TestPrintPosted(t *testing.T) {
 		},
 		{
 			name:   "routed to nobody",
-			posted: postedView{Room: "release", Notices: []string{"No member of room release was addressed. Mention one: @tester, @writer"}},
+			posted: roomsdomain.Posted{Room: "release", Notices: []string{"No member of room release was addressed. Mention one: @tester, @writer"}},
 			want:   "Posted to release.\nRouted to nobody.\nNo member of room release was addressed. Mention one: @tester, @writer\n",
 		},
 	}
