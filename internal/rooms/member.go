@@ -16,9 +16,13 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// frameBuffer is how many worker frames a member may owe its handling before
-// further frames drop, as for the channels' chats.
-const frameBuffer = 64
+// frameBuffer is how many worker frames a member may owe its handling, as for
+// the channels' chats. Streaming frames drop once all but runEdgeSlots of it
+// are taken, so the frames that start and end a run always find room.
+const (
+	frameBuffer  = 64
+	runEdgeSlots = 8
+)
 
 // turnIntro tells a member where a turn comes from and where its reply goes.
 const turnIntro = "You are %s in room %s, whose members are %s. Your reply to the post for you is posted to the room, so answer it directly.\n"
@@ -39,14 +43,16 @@ type workerEvent struct {
 // thread registry. It holds the posts routed to it while the member runs or
 // waits on an approval, delivers them one turn at a time, logs each run's last
 // assistant message as the member's post, and detaches after idling so the
-// registry can reap the worker. runID is the run the open turn waits on, and
-// the frame fields belong to run.
+// registry can reap the worker. runID is the run the open turn waits on, the
+// frame fields belong to run, and sendMu keeps each turn's frames together
+// without holding mu, so a stuck worker pipe never stalls the room's view.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
 	agent     string
 	sessionID string
-	frames    chan []byte
+	events    chan workerEvent
+	sendMu    sync.Mutex
 
 	mu       sync.Mutex
 	activity roomsdomain.Activity
@@ -66,20 +72,35 @@ func newMember(h *Host, room roomsdomain.Room, agent string) *member {
 		room:      room,
 		agent:     agent,
 		sessionID: room.SessionID(agent),
-		frames:    make(chan []byte, frameBuffer),
+		events:    make(chan workerEvent, frameBuffer),
 		activity:  roomsdomain.ActivityIdle,
 		seen:      roomsdomain.UnknownSeen,
 	}
 }
 
-// Deliver accepts one frame from the thread registry. A full buffer drops it
-// rather than freeze the registry's pump for every follower of the thread.
+// Deliver accepts one frame from the thread registry without ever blocking
+// its pump for the thread's other followers. A busy member drops streaming
+// frames first, which can cost the answer but never strands the turn.
 func (m *member) Deliver(frame []byte) {
-	select {
-	case m.frames <- frame:
-	default:
-		logger.Warn("rooms dropped a worker frame of a busy member", m.tags()...)
+	var ev workerEvent
+	if json.Unmarshal(frame, &ev) != nil {
+		return
 	}
+	if len(m.events) >= frameBuffer-runEdgeSlots && !ev.isRunEdge() {
+		logger.Warn("rooms dropped a streaming frame of a busy member", m.tags()...)
+		return
+	}
+	select {
+	case m.events <- ev:
+	default:
+		logger.Warn("rooms dropped a run's start or end of a busy member", m.tags()...)
+	}
+}
+
+// isRunEdge reports whether ev starts or ends a run, the frames a turn cannot
+// end without.
+func (ev workerEvent) isRunEdge() bool {
+	return ev.Type == "RUN_STARTED" || ev.Type == "RUN_FINISHED" || ev.Type == "RUN_ERROR"
 }
 
 // run handles the member's worker frames until the daemon stops.
@@ -88,8 +109,8 @@ func (m *member) run() {
 		select {
 		case <-m.host.ctx.Done():
 			return
-		case frame := <-m.frames:
-			m.handle(frame)
+		case ev := <-m.events:
+			m.handle(ev)
 		}
 	}
 }
@@ -109,8 +130,8 @@ func (m *member) enqueue(post roomsdomain.Post) {
 }
 
 // startNext delivers the oldest held post as the member's next turn, unless
-// the member still runs or waits on an approval. The turn's frames go out
-// under the lock, so an idle detach can never land between them.
+// the member still runs or waits on an approval. The member runs before its
+// frames go out, so an idle detach can never land between them.
 func (m *member) startNext() {
 	m.mu.Lock()
 	if m.activity != roomsdomain.ActivityIdle || len(m.pending) == 0 {
@@ -132,9 +153,11 @@ func (m *member) startNext() {
 	}
 	input := m.runInput(prompt)
 	m.runID = input.Input.RunID
+	m.mu.Unlock()
+	m.sendMu.Lock()
 	m.host.threads.Handle(m, encode(m.resumeFrame()))
 	m.host.threads.Handle(m, encode(input))
-	m.mu.Unlock()
+	m.sendMu.Unlock()
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
 }
 
@@ -187,11 +210,7 @@ func (m *member) runInput(prompt string) agui.RunInputFrame {
 // notes a run that suspends on an approval, and ends the turn when its run
 // finishes or fails. The end of another run, such as the second refusal of a
 // turn whose resume was refused, leaves the open turn alone.
-func (m *member) handle(frame []byte) {
-	var ev workerEvent
-	if json.Unmarshal(frame, &ev) != nil {
-		return
-	}
+func (m *member) handle(ev workerEvent) {
 	if (ev.Type == "RUN_FINISHED" || ev.Type == "RUN_ERROR") && !m.isCurrentRun(ev.RunID) {
 		m.answer = ""
 		return

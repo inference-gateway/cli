@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	require "github.com/stretchr/testify/require"
 
@@ -265,6 +266,50 @@ func TestARefusedTurnEndsOnlyItself(t *testing.T) {
 			}
 		}
 		require.Equal(t, 1, notes, "only the refused turn is noted as failed")
+	})
+}
+
+// TestAnIdleMemberDetachesAfterTheGrace pins that a member stops following
+// its thread only once it idled through the whole grace, never mid-turn.
+func TestAnIdleMemberDetachesAfterTheGrace(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		poster := &sessionsmocks.FakeClient{}
+		f.post(t, poster, "@tester run the suite")
+		seat := f.seat(t, "tester")
+		reply(t, seat, "unit tests pass")
+
+		time.Sleep(sessionsdomain.ChannelFollowTimeout / 2)
+		f.post(t, poster, "@tester and the e2e suite")
+		time.Sleep(sessionsdomain.ChannelFollowTimeout)
+		synctest.Wait()
+		require.Zero(t, f.threads.DetachCallCount(), "a member mid-turn keeps following")
+
+		reply(t, seat, "e2e green")
+		time.Sleep(sessionsdomain.ChannelFollowTimeout)
+		synctest.Wait()
+		require.Equal(t, 1, f.threads.DetachCallCount())
+		require.Equal(t, seat, f.threads.DetachArgsForCall(0))
+	})
+}
+
+// TestAFullBufferStillEndsTheTurn pins that a member whose frames back up
+// drops streaming frames, never the end of its run, so the turn still ends.
+func TestAFullBufferStillEndsTheTurn(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		seat := newMember(f.host, f.room, "tester")
+		seat.enqueue(newPost(roomsdomain.UserAuthor, "tester run the suite"))
+
+		for range frameBuffer {
+			seat.Deliver(encode(map[string]string{"type": "TEXT_MESSAGE_CONTENT", "delta": "."}))
+		}
+		seat.Deliver([]byte(`{"type":"RUN_FINISHED"}`))
+		go seat.run()
+		synctest.Wait()
+		require.Equal(t, roomsdomain.ActivityIdle, seat.currentActivity())
 	})
 }
 
