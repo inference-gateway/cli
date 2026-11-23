@@ -104,14 +104,14 @@ type Posted struct {
 }
 
 // RouteSummary says where the post went: every member it was routed to, as
-// pinged or with the router's probability, or nobody.
+// pinged, by name or by @all, or with the router's probability, or nobody.
 func (p Posted) RouteSummary() string {
 	if len(p.Post.Routes) == 0 {
 		return "Routed to nobody."
 	}
 	routes := make([]string, 0, len(p.Post.Routes))
 	for _, route := range p.Post.Routes {
-		if slices.Contains(p.Post.Mentions, route.Member) {
+		if slices.Contains(p.Post.Mentions, route.Member) || slices.Contains(p.Post.Mentions, EveryoneMention) {
 			routes = append(routes, route.Member+" (pinged)")
 			continue
 		}

@@ -134,6 +134,14 @@ func TestPostedRouteSummary(t *testing.T) {
 			}},
 			want: "Routed to tester (pinged), writer (0.80).",
 		},
+		{
+			name: "@all pings every member",
+			posted: Posted{Post: Post{
+				Mentions: []string{EveryoneMention},
+				Routes:   []Route{{Member: "tester", Probability: 1}, {Member: "writer", Probability: 1}},
+			}},
+			want: "Routed to tester (pinged), writer (pinged).",
+		},
 		{name: "routed to nobody", want: "Routed to nobody."},
 	}
 	for _, tt := range tests {

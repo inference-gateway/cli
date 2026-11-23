@@ -27,6 +27,15 @@ const maxEvidencePostWidth = 2000
 const memberInstructions = "Should the agent %q act on the new post? Its role: %s. " +
 	"Answer true when the post asks for or clearly needs this role, false otherwise."
 
+// everyoneInstructions asks whether the new post is for the whole room, which
+// every member then answers, as people in a channel do with a greeting.
+const everyoneInstructions = "Is the new post addressed to everyone in the room, such as a greeting, a farewell " +
+	"or a question for all? Answer false when it asks for one kind of help."
+
+// everyoneQuestion names the room-wide predicate after the agents wildcard,
+// which no agent can be named, so its answer never collides with a member's.
+const everyoneQuestion = roomsdomain.AgentsWildcard
+
 // Routing is where one post goes: the agents it mentions, the members it is
 // routed to with the router's probability, and notices for its author.
 type Routing struct {
@@ -36,8 +45,9 @@ type Routing struct {
 }
 
 // Router decides which members of a room get a post. A post that pings agents
-// asks no model: the pinged members get it and a pinged outsider a notice. A
-// post that pings nobody asks the decision model one predicate per member, and
+// asks no model: the pinged members get it, an @all every member, and a pinged
+// outsider a notice. A post that pings nobody asks the decision model whether
+// it is for the whole room and one predicate per member, and
 // rooms.router.fallback handles a post nobody passed.
 type Router struct {
 	decider decisiondomain.Decider
@@ -53,13 +63,21 @@ func NewRouter(decider decisiondomain.Decider, cfg config.RoomsConfig) *Router {
 // Route routes post in room. agents are the agents the CLI knows, with the
 // descriptions the decision model reads, and history the room's earlier posts.
 func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
-	routing := Routing{Mentions: roomsdomain.Mentions(post.Text, agentNames(agents))}
+	known := agentNames(agents)
+	routing := Routing{Mentions: roomsdomain.Mentions(post.Text, known)}
+	everyone := roomsdomain.MentionsEveryone(post.Text, known)
 	for _, agent := range routing.Mentions {
 		if !slices.Contains(room.Agents, agent) {
 			routing.Notices = append(routing.Notices, fmt.Sprintf("@%s is not in room %s.", agent, room.Name))
 			continue
 		}
-		routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
+		if !everyone {
+			routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
+		}
+	}
+	if everyone {
+		routing.Mentions = append(routing.Mentions, roomsdomain.EveryoneMention)
+		routing.Routes = everyMember(room, mentionProbability)
 	}
 	if len(routing.Mentions) > 0 {
 		return routing, nil
@@ -67,10 +85,10 @@ func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agen
 	return r.routeUnmentioned(ctx, room, agents, history, post)
 }
 
-// routeUnmentioned asks the decision model about a post that pings no agent
-// and routes it to the max_members most relevant members at or above
-// min_confidence, else by the fallback. Without a model only pings route, so
-// the author gets a notice.
+// routeUnmentioned asks the decision model about a post that pings no agent.
+// A post for the whole room goes to every member, any other to the
+// max_members most relevant members at or above min_confidence, else by the
+// fallback. Without a model only pings route, so the author gets a notice.
 func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
 	var routing Routing
 	if len(room.Agents) == 0 {
@@ -81,9 +99,14 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 		routing.Notices = append(routing.Notices, mentionNotice(room))
 		return routing, nil
 	}
-	decisions, err := r.decider.Decide(ctx, r.config.Router.Model, r.evidence(history, post), memberQuestions(room, agents))
+	questions := append(memberQuestions(room, agents), roomWideQuestion())
+	decisions, err := r.decider.Decide(ctx, r.config.Router.Model, r.evidence(history, post), questions)
 	if err != nil {
 		return routing, fmt.Errorf("routing a post in room %s: %w", room.Name, err)
+	}
+	if forEveryone, ok := decisions.ByName(everyoneQuestion); ok && forEveryone.Probability >= r.config.Router.MinConfidence {
+		routing.Routes = everyMember(room, forEveryone.Probability)
+		return routing, nil
 	}
 	ranked := rankedMembers(room, decisions)
 	maxMembers := cmp.Or(r.config.Router.MaxMembers, config.DefaultRoomsMaxMembers)
@@ -137,6 +160,20 @@ func memberQuestions(room roomsdomain.Room, agents []agentdomain.SubagentInfo) [
 		})
 	}
 	return questions
+}
+
+// roomWideQuestion asks whether the new post is for every member at once.
+func roomWideQuestion() decisiondomain.Question {
+	return decisiondomain.Question{Name: everyoneQuestion, Type: decisiondomain.Predicate, Instructions: everyoneInstructions}
+}
+
+// everyMember routes a post to every member of room with probability.
+func everyMember(room roomsdomain.Room, probability float64) []roomsdomain.Route {
+	routes := make([]roomsdomain.Route, 0, len(room.Agents))
+	for _, member := range room.Agents {
+		routes = append(routes, roomsdomain.Route{Member: member, Probability: probability})
+	}
+	return routes
 }
 
 // rankedMembers scores every member, the most relevant first and room order on

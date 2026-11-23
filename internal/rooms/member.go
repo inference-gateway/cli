@@ -179,7 +179,7 @@ func (m *member) turnPromptLocked(addressed roomsdomain.Post) (string, error) {
 // render writes the turn with every agent's mention as a plain name, so the
 // member's file expansion never inlines a file named like a member.
 func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post) string {
-	known := agentNames(m.host.agents(m.room.Project))
+	known := append(agentNames(m.host.agents(m.room.Project)), roomsdomain.EveryoneMention)
 	var b strings.Builder
 	fmt.Fprintf(&b, turnIntro, m.agent, m.room.Name, strings.Join(m.room.Agents, ", "))
 	if len(unseen) > 0 {

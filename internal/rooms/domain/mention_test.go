@@ -52,3 +52,22 @@ func TestPlainMentions(t *testing.T) {
 		})
 	}
 }
+
+func TestMentionsEveryone(t *testing.T) {
+	tests := []struct {
+		name  string
+		text  string
+		known []string
+		want  bool
+	}{
+		{"@all addresses the room", "hi @all!", []string{"tester"}, true},
+		{"all without an @ does not", "hi all", []string{"tester"}, false},
+		{"@all inside a word does not", "mail@all.example", []string{"tester"}, false},
+		{"an agent named all is mentioned instead", "hi @all", []string{"all"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, MentionsEveryone(tt.text, tt.known))
+		})
+	}
+}

@@ -60,6 +60,28 @@ func TestRouterRoute(t *testing.T) {
 			wantRoutes: []roomsdomain.Route{{Member: "writer", Probability: 1}, {Member: "tester", Probability: 1}},
 		},
 		{
+			name:       "@all routes to every member without asking the model",
+			model:      testRouterModel,
+			text:       "hi @all!",
+			wantRoutes: []roomsdomain.Route{{Member: "tester", Probability: 1}, {Member: "writer", Probability: 1}},
+		},
+		{
+			name:        "a post for the whole room reaches every member",
+			model:       testRouterModel,
+			text:        "Hi all",
+			decisions:   probabilities(map[string]float64{"*": 0.9, "tester": 0.1, "writer": 0.2}),
+			wantRoutes:  []roomsdomain.Route{{Member: "tester", Probability: 0.9}, {Member: "writer", Probability: 0.9}},
+			wantDecides: 1,
+		},
+		{
+			name:        "a post unlikely for the whole room is ranked per member",
+			model:       testRouterModel,
+			text:        "cut the release",
+			decisions:   probabilities(map[string]float64{"*": 0.2, "tester": 0.3, "writer": 0.6}),
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.6}},
+			wantDecides: 1,
+		},
+		{
 			name:       "a ping of an agent outside the room gets a notice and asks no model",
 			model:      testRouterModel,
 			text:       "@reviewer look at this",
@@ -175,11 +197,13 @@ func TestRouterAsksOnePredicatePerMember(t *testing.T) {
 
 	_, model, evidence, questions := decider.DecideArgsForCall(0)
 	require.Equal(t, testRouterModel, model)
-	require.Len(t, questions, len(testRoom.Agents))
+	require.Len(t, questions, len(testRoom.Agents)+1, "one predicate per member and one for the whole room")
 	for i, member := range testRoom.Agents {
 		require.Equal(t, member, questions[i].Name)
 		require.Equal(t, decisiondomain.Predicate, questions[i].Type)
 	}
+	require.Equal(t, roomsdomain.AgentsWildcard, questions[len(testRoom.Agents)].Name)
+	require.Contains(t, questions[len(testRoom.Agents)].Instructions, "addressed to everyone in the room")
 	require.Contains(t, questions[0].Instructions, "Runs and fixes the test suite")
 	require.Contains(t, evidence, "writer: the notes are drafted")
 	require.Contains(t, evidence, "user: now run the tests")
@@ -198,20 +222,25 @@ func TestRouterCapsUnmentionedPosts(t *testing.T) {
 	}
 	everyonePasses := probabilities(map[string]float64{"a": 0.6, "b": 0.9, "c": 0.7, "d": 0.55, "e": 0.8})
 
+	forTheRoom := probabilities(map[string]float64{"*": 0.95, "a": 0.6, "b": 0.9})
+
 	tests := []struct {
 		name        string
 		maxMembers  int
 		text        string
+		decisions   decisiondomain.Decisions
 		wantMembers []string
 	}{
-		{"the default sends it to the two most relevant", 0, "ship it", []string{"b", "e"}},
-		{"a higher cap sends it to more", 3, "ship it", []string{"b", "e", "c"}},
-		{"mentions are never capped", 1, "@a @c @d ship it", []string{"a", "c", "d"}},
+		{"the default sends it to the two most relevant", 0, "ship it", everyonePasses, []string{"b", "e"}},
+		{"a higher cap sends it to more", 3, "ship it", everyonePasses, []string{"b", "e", "c"}},
+		{"mentions are never capped", 1, "@a @c @d ship it", everyonePasses, []string{"a", "c", "d"}},
+		{"@all is never capped", 1, "@all ship it", everyonePasses, members},
+		{"a post for the whole room is never capped", 1, "morning team", forTheRoom, members},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decider := &decisionmocks.FakeDecider{}
-			decider.DecideReturns(everyonePasses, nil)
+			decider.DecideReturns(tt.decisions, nil)
 			cfg := *config.DefaultRoomsConfig()
 			cfg.Router.Model = testRouterModel
 			cfg.Router.MaxMembers = tt.maxMembers
