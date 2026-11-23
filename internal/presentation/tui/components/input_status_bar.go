@@ -438,6 +438,9 @@ func indicatorHits(lineGroups [][]indicatorPart, padding, separatorWidth int) []
 		x := padding
 		for _, part := range parts {
 			width := lipgloss.Width(part.text)
+			if part.selected {
+				width += selectedIndicatorPadding
+			}
 			if part.action != tui.StatusIndicatorActionNone {
 				hits = append(hits, indicatorHit{from: x, to: x + width, action: part.action})
 			}

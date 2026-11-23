@@ -1430,14 +1430,21 @@ func TestInputStatusBar_RoomIndicator(t *testing.T) {
 }
 
 // TestInputStatusBar_ActionAtFindsTheClickedIndicator pins the hit test on both
-// rows of a wrapped bar: a click on an indicator's text is its action, and a
-// click on a separator or past the row is none.
+// rows of a wrapped bar and past a focused row's wider pill: a click on an
+// indicator's text is its action, a click on the padding or below is none.
 func TestInputStatusBar_ActionAtFindsTheClickedIndicator(t *testing.T) {
-	for _, width := range []int{100, 34} {
+	for _, layout := range []struct {
+		width   int
+		focused bool
+	}{{100, false}, {34, false}, {100, true}} {
+		width := layout.width
 		statusBar := newSelectableStatusBar()
 		statusBar.width = width
 		statusBar.styleProvider = styles.NewProvider(styles.NewThemeProvider())
 		statusBar.EnableRooms()
+		if layout.focused && !statusBar.Focus() {
+			t.Fatal("the bar has actionable indicators to focus")
+		}
 		lines := strings.Split(ansi.Strip(statusBar.Render()), "\n")
 
 		for text, want := range map[string]tui.StatusIndicatorAction{
