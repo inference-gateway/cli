@@ -77,29 +77,14 @@ type clientFrame struct {
 	Text string `json:"text"`
 }
 
-// roomView is one room as the frames carry it: its members, the session each
-// keeps and what each is doing.
-type roomView struct {
-	Name    string       `json:"name"`
-	Project string       `json:"project"`
-	Members []memberView `json:"members"`
-}
-
-type memberView struct {
-	Agent     string               `json:"agent"`
-	SessionID string               `json:"session_id"`
-	Activity  roomsdomain.Activity `json:"activity"`
-}
-
 type roomsFrame struct {
-	Type  string     `json:"type"`
-	Rooms []roomView `json:"rooms"`
+	Type  string                   `json:"type"`
+	Rooms []roomsdomain.RoomStatus `json:"rooms"`
 }
 
 type snapshotFrame struct {
-	Type  string             `json:"type"`
-	Room  roomView           `json:"room"`
-	Posts []roomsdomain.Post `json:"posts"`
+	Type string `json:"type"`
+	roomsdomain.Snapshot
 }
 
 type postFrame struct {
@@ -164,7 +149,7 @@ func (h *Host) Close() {
 
 func (h *Host) listRooms(c sessionsdomain.Client) {
 	resolved := Resolve(h.cfg, h.agents)
-	views := make([]roomView, 0, len(resolved))
+	views := make([]roomsdomain.RoomStatus, 0, len(resolved))
 	h.mu.Lock()
 	for _, room := range resolved {
 		views = append(views, h.viewLocked(room))
@@ -300,16 +285,16 @@ func (h *Host) findRoom(name string) (roomsdomain.Room, bool) {
 }
 
 // viewLocked renders room with what each of its members is doing.
-func (h *Host) viewLocked(room roomsdomain.Room) roomView {
-	members := make([]memberView, 0, len(room.Agents))
+func (h *Host) viewLocked(room roomsdomain.Room) roomsdomain.RoomStatus {
+	members := make([]roomsdomain.MemberStatus, 0, len(room.Agents))
 	for _, seat := range room.Members() {
 		activity := roomsdomain.ActivityIdle
 		if m, ok := h.members[seat.SessionID]; ok {
 			activity = m.currentActivity()
 		}
-		members = append(members, memberView{Agent: seat.Agent, SessionID: seat.SessionID, Activity: activity})
+		members = append(members, roomsdomain.MemberStatus{Agent: seat.Agent, SessionID: seat.SessionID, Activity: activity})
 	}
-	return roomView{Name: room.Name, Project: room.Project, Members: members}
+	return roomsdomain.RoomStatus{Name: room.Name, Project: room.Project, Members: members}
 }
 
 // newPost stamps a new post with the id a member's turn finds it by in the

@@ -1,8 +1,10 @@
 package domain
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -99,6 +101,45 @@ type Posted struct {
 	Room    string   `json:"room"`
 	Post    Post     `json:"post"`
 	Notices []string `json:"notices"`
+}
+
+// RouteSummary says where the post went: every member it was routed to, as
+// pinged or with the router's probability, or nobody.
+func (p Posted) RouteSummary() string {
+	if len(p.Post.Routes) == 0 {
+		return "Routed to nobody."
+	}
+	routes := make([]string, 0, len(p.Post.Routes))
+	for _, route := range p.Post.Routes {
+		if slices.Contains(p.Post.Mentions, route.Member) {
+			routes = append(routes, route.Member+" (pinged)")
+			continue
+		}
+		routes = append(routes, fmt.Sprintf("%s (%.2f)", route.Member, route.Probability))
+	}
+	return "Routed to " + strings.Join(routes, ", ") + "."
+}
+
+// RoomStatus is a room as the daemon reports it to its clients: its members,
+// the session each keeps and what each is doing.
+type RoomStatus struct {
+	Name    string         `json:"name"`
+	Project string         `json:"project"`
+	Members []MemberStatus `json:"members"`
+}
+
+// MemberStatus is one member of a RoomStatus.
+type MemberStatus struct {
+	Agent     string   `json:"agent"`
+	SessionID string   `json:"session_id"`
+	Activity  Activity `json:"activity"`
+}
+
+// Snapshot is what a client following a room gets first: the room and its
+// log so far.
+type Snapshot struct {
+	Room  RoomStatus `json:"room"`
+	Posts []Post     `json:"posts"`
 }
 
 // Route records one member a post was routed to and the router's probability

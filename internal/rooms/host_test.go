@@ -356,7 +356,7 @@ func TestListRoomsAnswersEveryRoomWithItsMembers(t *testing.T) {
 			names = append(names, room.Name)
 		}
 		require.Equal(t, []string{"release"}, names)
-		require.Equal(t, memberView{Agent: "tester", SessionID: "room-release-tester", Activity: roomsdomain.ActivityIdle}, frames[0].Rooms[0].Members[0])
+		require.Equal(t, roomsdomain.MemberStatus{Agent: "tester", SessionID: "room-release-tester", Activity: roomsdomain.ActivityIdle}, frames[0].Rooms[0].Members[0])
 	})
 }
 

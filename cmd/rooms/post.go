@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"slices"
-	"strings"
 	"time"
 
 	cobra "github.com/spf13/cobra"
@@ -58,23 +56,10 @@ func decodeFrame(frame map[string]any, v any) error {
 	return json.Unmarshal(data, v)
 }
 
-// printPosted prints where a post went: every member it was routed to, as
-// pinged or with the router's probability, then the notices for its author.
+// printPosted prints where a post went, then the notices for its author.
 func printPosted(w io.Writer, posted roomsdomain.Posted) {
 	_, _ = fmt.Fprintf(w, "Posted to %s.\n", posted.Room)
-	routes := make([]string, 0, len(posted.Post.Routes))
-	for _, route := range posted.Post.Routes {
-		if slices.Contains(posted.Post.Mentions, route.Member) {
-			routes = append(routes, route.Member+" (pinged)")
-			continue
-		}
-		routes = append(routes, fmt.Sprintf("%s (%.2f)", route.Member, route.Probability))
-	}
-	if len(routes) == 0 {
-		_, _ = fmt.Fprintln(w, "Routed to nobody.")
-	} else {
-		_, _ = fmt.Fprintf(w, "Routed to %s.\n", strings.Join(routes, ", "))
-	}
+	_, _ = fmt.Fprintln(w, posted.RouteSummary())
 	for _, notice := range posted.Notices {
 		_, _ = fmt.Fprintln(w, notice)
 	}

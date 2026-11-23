@@ -119,3 +119,26 @@ func TestValidName(t *testing.T) {
 		})
 	}
 }
+
+func TestPostedRouteSummary(t *testing.T) {
+	tests := []struct {
+		name   string
+		posted Posted
+		want   string
+	}{
+		{
+			name: "pinged and routed members",
+			posted: Posted{Post: Post{
+				Mentions: []string{"tester"},
+				Routes:   []Route{{Member: "tester", Probability: 1}, {Member: "writer", Probability: 0.8}},
+			}},
+			want: "Routed to tester (pinged), writer (0.80).",
+		},
+		{name: "routed to nobody", want: "Routed to nobody."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.posted.RouteSummary())
+		})
+	}
+}
