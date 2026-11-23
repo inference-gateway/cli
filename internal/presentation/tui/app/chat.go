@@ -804,6 +804,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return append(cmds, transcriptCmds...)
 	}
 
+	if click, ok := msg.(tea.MouseClickMsg); ok {
+		return app.clickIndicator(click)
+	}
+
 	if _, ok := msg.(tui.HistorySearchOpenEvent); ok {
 		return app.handleHistorySearchOpen()
 	}
@@ -961,10 +965,26 @@ func (app *ChatApplication) blurStatusBar() {
 	app.inputStatusBar.Blur()
 }
 
-// activateSelectedIndicator opens the view behind the selected indicator,
-// mirroring the matching shortcut's side effect.
+// activateSelectedIndicator opens the view behind the selected indicator.
 func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
-	action := app.inputStatusBar.SelectedAction()
+	return app.activateIndicator(app.inputStatusBar.SelectedAction())
+}
+
+// clickIndicator activates the status-bar indicator a left click lands on.
+func (app *ChatApplication) clickIndicator(click tea.MouseClickMsg) []tea.Cmd {
+	if click.Button != tea.MouseLeft {
+		return nil
+	}
+	action, ok := app.inputStatusBar.ActionAt(click.X, click.Y-app.applicationViewRenderer.StatusBarTop())
+	if !ok {
+		return nil
+	}
+	return app.activateIndicator(action)
+}
+
+// activateIndicator opens the view behind an indicator's action, mirroring the
+// matching shortcut's side effect, whether a key or a click activated it.
+func (app *ChatApplication) activateIndicator(action tui.StatusIndicatorAction) []tea.Cmd {
 	app.blurStatusBar()
 
 	switch action {

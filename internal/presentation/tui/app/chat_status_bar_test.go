@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -8,6 +9,7 @@ import (
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
+	ansi "github.com/charmbracelet/x/ansi"
 
 	sdk "github.com/inference-gateway/sdk"
 
@@ -17,6 +19,7 @@ import (
 	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 	keybinding "github.com/inference-gateway/cli/internal/presentation/tui/keybinding"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
+	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 )
 
@@ -250,5 +253,33 @@ func TestStatusBarNavigationAndExitKeys(t *testing.T) {
 
 	if got := stateManager.GetCurrentView(); got != tui.ViewStateChat {
 		t.Errorf("navigation and exit keys must not transition views, got %v", got)
+	}
+}
+
+// TestClickingAnIndicatorActivatesIt pins the mouse path: a left click on an
+// indicator opens its view like Enter on the focused one, and a click beside
+// the indicators or with another button does nothing.
+func TestClickingAnIndicatorActivatesIt(t *testing.T) {
+	app, stateManager := newStatusBarTestApp(t, false)
+	statusBar := components.NewInputStatusBar(styles.NewProvider(styles.NewThemeProvider()))
+	modelService := &convmocks.FakeModelService{}
+	modelService.GetCurrentModelReturns("test-model")
+	statusBar.SetModelService(modelService)
+	statusBar.SetConfig(config.DefaultConfig())
+	statusBar.SetWidth(100)
+	app.inputStatusBar = statusBar
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(nil)
+	line := ansi.Strip(strings.Split(statusBar.Render(), "\n")[0])
+	model := ansi.StringWidth(line[:strings.Index(line, "test-model")])
+
+	app.handleChatView(tea.MouseClickMsg{X: 0, Y: 0, Button: tea.MouseLeft})
+	app.handleChatView(tea.MouseClickMsg{X: model, Y: 0, Button: tea.MouseRight})
+	if got := stateManager.GetCurrentView(); got != tui.ViewStateChat {
+		t.Fatalf("a click beside the indicators or with the right button moved to %v", got)
+	}
+
+	app.handleChatView(tea.MouseClickMsg{X: model, Y: 0, Button: tea.MouseLeft})
+	if got := stateManager.GetCurrentView(); got != tui.ViewStateModelSelection {
+		t.Errorf("a click on the model indicator moved to %v, want model selection", got)
 	}
 }

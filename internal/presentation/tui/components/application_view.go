@@ -11,8 +11,10 @@ import (
 
 // ApplicationViewRenderer handles rendering of different application views
 type ApplicationViewRenderer struct {
-	styleProvider *styles.Provider
-	heights       componentHeights
+	styleProvider  *styles.Provider
+	heights        componentHeights
+	statusBarIndex int
+	statusBarTop   int
 }
 
 // NewApplicationViewRenderer creates a new application view renderer
@@ -101,8 +103,22 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
 		inputView, inputStatusBar, subagentList, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, width, r.heights.statusHeight)
+	r.statusBarTop = lineCount(components[:r.statusBarIndex])
 
 	return strings.Join(components, "\n")
+}
+
+// StatusBarTop is the screen row the input status bar starts on, as last
+// rendered, so a click can be mapped onto its rows.
+func (r *ApplicationViewRenderer) StatusBarTop() int {
+	return r.statusBarTop
+}
+
+func lineCount(components []string) int {
+	if len(components) == 0 {
+		return 0
+	}
+	return strings.Count(strings.Join(components, "\n"), "\n") + 1
 }
 
 const minConversationHeight = 3
@@ -365,6 +381,7 @@ func (r *ApplicationViewRenderer) appendInputStatusBar(
 	inputStatusBar tui.InputStatusBarComponent,
 ) []string {
 	inputStatusBar.SetInputText(inputView.GetInput())
+	r.statusBarIndex = len(components)
 	if inputStatusBarContent := inputStatusBar.Render(); inputStatusBarContent != "" {
 		components = append(components, inputStatusBarContent)
 	}

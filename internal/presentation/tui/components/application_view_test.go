@@ -3,13 +3,18 @@ package components
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
+	convmocks "github.com/inference-gateway/cli/tests/mocks/conversation"
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
+	lipgloss "charm.land/lipgloss/v2"
+
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -223,5 +228,40 @@ func TestLayoutFillsTheTerminalHeight(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestStatusBarTopIsTheStatusBarsRow pins the row a click is mapped from: the
+// rendered frame's line holding the indicators is the one StatusBarTop names.
+func TestStatusBarTopIsTheStatusBarsRow(t *testing.T) {
+	const width, height = 120, 30
+	styleProvider := styles.NewProvider(styles.NewThemeProvider())
+	renderer := NewApplicationViewRenderer(styleProvider)
+	data := ChatInterfaceData{Width: width, Height: height}
+	conversation := &tuimocks.FakeConversationRenderer{}
+	conversation.SetHeightCalls(func(h int) { conversation.RenderReturns(strings.Repeat("\n", h-1)) })
+	input := &tuimocks.FakeInputComponent{}
+	input.RenderReturns("╭──╮\n│ > │\n╰──╯")
+	modelService := &convmocks.FakeModelService{}
+	modelService.GetCurrentModelReturns("test-model")
+	statusBar := NewInputStatusBar(styleProvider)
+	statusBar.SetModelService(modelService)
+	statusBar.SetConfig(config.DefaultConfig())
+	statusBar.EnableRooms()
+	status := &tuimocks.FakeStatusComponent{}
+	helpBar := &tuimocks.FakeHelpBarComponent{}
+
+	renderer.Layout(data, conversation, input, nil, statusBar, status, nil, helpBar, nil, nil, nil, nil, nil, nil, nil)
+	frame := plain(renderer.RenderChatInterface(data, conversation, input, nil, statusBar, nil, status, nil, helpBar, nil, nil, nil, nil, nil, nil))
+
+	lines := strings.Split(frame, "\n")
+	row := slices.IndexFunc(lines, func(line string) bool { return strings.Contains(line, "Room: -") })
+	if row < 0 || row != renderer.StatusBarTop() {
+		t.Fatalf("the indicators are on row %d, StatusBarTop says %d:\n%s", row, renderer.StatusBarTop(), frame)
+	}
+	column := lipgloss.Width(lines[row][:strings.Index(lines[row], "Room: -")])
+	action, ok := statusBar.ActionAt(column, row-renderer.StatusBarTop())
+	if !ok || action != tui.StatusIndicatorActionRoomSelection {
+		t.Fatalf("a click on the room indicator hit %v (%t), want the room selection", action, ok)
 	}
 }

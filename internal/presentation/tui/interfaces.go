@@ -133,6 +133,7 @@ const (
 	StatusIndicatorActionWorkspaces
 	StatusIndicatorActionArtifacts
 	StatusIndicatorActionAgentSelection
+	StatusIndicatorActionRoomSelection
 )
 
 // InputStatusBarComponent interface for input status bar
@@ -149,6 +150,7 @@ type InputStatusBarComponent interface {
 	SelectNext()
 	SelectPrev()
 	SelectedAction() StatusIndicatorAction
+	ActionAt(x, line int) (StatusIndicatorAction, bool)
 	Render() string
 }
 

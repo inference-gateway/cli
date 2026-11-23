@@ -80,6 +80,10 @@ func (t *teaInputStatusBarComponent) SelectedAction() tui.StatusIndicatorAction 
 	return tui.StatusIndicatorActionNone
 }
 
+func (t *teaInputStatusBarComponent) ActionAt(int, int) (tui.StatusIndicatorAction, bool) {
+	return tui.StatusIndicatorActionNone, false
+}
+
 func (t *teaInputStatusBarComponent) Render() string { return "" }
 
 func newInputRoutingTestApp(t *testing.T, view tui.ViewState, draft string) (*ChatApplication, *components.InputView) {

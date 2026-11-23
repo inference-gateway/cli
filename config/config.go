@@ -967,6 +967,7 @@ type StatusBarIndicators struct {
 	Subagents     bool `yaml:"subagents" mapstructure:"subagents"`
 	Workspace     bool `yaml:"workspace" mapstructure:"workspace"`
 	Artifacts     bool `yaml:"artifacts" mapstructure:"artifacts"`
+	Room          bool `yaml:"room" mapstructure:"room"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -1234,6 +1235,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			Subagents:     true,
 			Workspace:     true,
 			Artifacts:     true,
+			Room:          true,
 		},
 	}
 }
