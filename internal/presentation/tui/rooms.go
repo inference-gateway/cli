@@ -1,0 +1,36 @@
+package tui
+
+import (
+	"context"
+
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
+)
+
+// Rooms reaches the rooms the local daemon hosts, whichever way the chat runs.
+// Join follows a room and, on the user's first visit, has its members welcome
+// them. The room's posts and member activity then arrive as UI events.
+type Rooms interface {
+	List(ctx context.Context) ([]roomsdomain.RoomStatus, error)
+	Join(ctx context.Context, room string) (roomsdomain.Snapshot, error)
+	Post(ctx context.Context, room, text string) (roomsdomain.Posted, error)
+	Leave(room string) error
+}
+
+// RoomSnapshotEvent carries a followed room and its log so far, again after the
+// daemon connection came back.
+type RoomSnapshotEvent struct {
+	Snapshot roomsdomain.Snapshot
+}
+
+// RoomPostEvent carries one new post of a followed room.
+type RoomPostEvent struct {
+	Room string
+	Post roomsdomain.Post
+}
+
+// RoomActivityEvent carries what a member of a followed room does now.
+type RoomActivityEvent struct {
+	Room     string
+	Member   string
+	Activity roomsdomain.Activity
+}
