@@ -57,6 +57,7 @@ type Config struct {
 	Telemetry        TelemetryConfig        `yaml:"telemetry" mapstructure:"telemetry"`
 	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
+	Composer         ComposerConfig         `yaml:"-" mapstructure:"composer"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
 	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
@@ -871,7 +872,6 @@ type ConversationTitleConfig struct {
 type ChatConfig struct {
 	Theme         string                `yaml:"theme" mapstructure:"theme"`
 	Keybindings   KeybindingsConfig     `yaml:"-" mapstructure:"keybindings"`
-	StatusBar     StatusBarConfig       `yaml:"status_bar" mapstructure:"status_bar"`
 	InputMaxLines int                   `yaml:"input_max_lines" mapstructure:"input_max_lines"`
 	Suggestions   ChatSuggestionsConfig `yaml:"suggestions" mapstructure:"suggestions"`
 	// Daemon runs every turn through the local daemon's thread instead of an
@@ -1406,7 +1406,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:  true,
 				Bindings: GetDefaultKeybindings(),
 			},
-			StatusBar:     GetDefaultStatusBarConfig(),
 			InputMaxLines: 20,
 			AGUILoopback:  true,
 			Suggestions: ChatSuggestionsConfig{
@@ -1423,6 +1422,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			Daemon: false,
 		},
+		Composer: *DefaultComposerConfig(),
 		A2A: A2AConfig{
 			Enabled:               true,
 			LivenessProbeEnabled:  true,
@@ -1576,11 +1576,8 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 		)
 	}
 
-	if c.Chat.StatusBar.SubagentLingerSeconds < 0 {
-		return fmt.Errorf(
-			"invalid chat.status_bar.subagent_linger_seconds %d: must be >= 0",
-			c.Chat.StatusBar.SubagentLingerSeconds,
-		)
+	if err := c.Composer.Validate(); err != nil {
+		return err
 	}
 
 	if c.TextToSpeech.Enabled {

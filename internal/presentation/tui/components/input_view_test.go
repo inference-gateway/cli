@@ -656,10 +656,10 @@ func TestInputView_BuildGitBranchLabel(t *testing.T) {
 			iv := newInputViewWithPR(t, tt.branch, tt.pr)
 			cfg := config.DefaultConfig()
 			if tt.disableBR {
-				cfg.Chat.StatusBar.Indicators.GitBranch = false
+				cfg.Composer.StatusBar.Indicators.GitBranch = false
 			}
 			if tt.disablePR {
-				cfg.Chat.StatusBar.Indicators.GitPR = false
+				cfg.Composer.StatusBar.Indicators.GitPR = false
 			}
 			iv.config = cfg
 			require.Equal(t, tt.want, iv.buildGitBranchLabel())
@@ -711,7 +711,7 @@ func TestInputView_RenderBranchInTopBorder(t *testing.T) {
 			iv := newInputViewWithBranch(t, tt.branch)
 			if tt.disabled {
 				cfg := config.DefaultConfig()
-				cfg.Chat.StatusBar.Indicators.GitBranch = false
+				cfg.Composer.StatusBar.Indicators.GitBranch = false
 				iv.config = cfg
 			}
 			iv.SetWidth(tt.width)
@@ -802,7 +802,7 @@ func TestInputView_RenderEmbedsBranchAndPRInTopBorder(t *testing.T) {
 func TestInputView_RenderOmitsPRWhenDisabled(t *testing.T) {
 	iv := newInputViewWithPR(t, "fix/issue-785", "792")
 	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitPR = false
+	cfg.Composer.StatusBar.Indicators.GitPR = false
 	iv.config = cfg
 	iv.SetWidth(80)
 
@@ -862,7 +862,7 @@ func TestInputView_HeartbeatRefetchesGitStatus(t *testing.T) {
 	require.NotNil(t, cmd, "the app heartbeat must trigger the async git status refetch")
 
 	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.GitBranch = false
+	cfg.Composer.StatusBar.Indicators.GitBranch = false
 	iv.config = cfg
 	require.Nil(t, iv.gitStatusCmd(), "no git process when the branch indicator is disabled")
 }
@@ -950,7 +950,7 @@ func TestInputView_ShouldShowIndicator_GitPR(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.DefaultConfig()
-			cfg.Chat.StatusBar.Indicators.GitPR = tt.configEnabled
+			cfg.Composer.StatusBar.Indicators.GitPR = tt.configEnabled
 
 			statusBar := &InputStatusBar{
 				config: cfg,

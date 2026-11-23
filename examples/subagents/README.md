@@ -117,7 +117,7 @@ message to that teammate instead.
 `Agent: main` - the chat runs as the built-in `main` agent. Switch it:
 
 1. Press `down` twice to walk from the input to the indicators, then `enter` on `Agent: main` to open the agent
-   dropdown (enabled by `chat.status_bar.indicators.agent`).
+   dropdown (enabled by `composer.status_bar.indicators.agent`).
 2. Pick `explore` and press `enter`. The conversation survives; the status indicator now reads `Agent: explore`.
 3. Tell it `write a note to explore-notes.txt`. The mock model calls `Write`, and the call is refused at execution
    time because the read-only agent's allowlist is `Read, Grep, Tree, WebFetch, WebSearch`:

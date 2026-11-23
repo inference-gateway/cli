@@ -351,13 +351,13 @@ func (l *SubagentList) lingerDelay() time.Duration {
 	if l.config == nil {
 		return 5 * time.Second
 	}
-	return time.Duration(l.config.Chat.StatusBar.SubagentLingerSeconds) * time.Second
+	return time.Duration(l.config.Composer.StatusBar.SubagentLingerSeconds) * time.Second
 }
 
-// enabled honors the chat.status_bar.indicators.subagents toggle so the
+// enabled honors the composer.status_bar.indicators.subagents toggle so the
 // list can be switched off like every other status-bar element.
 func (l *SubagentList) enabled() bool {
-	return l.config == nil || l.config.Chat.StatusBar.Indicators.Subagents
+	return l.config == nil || l.config.Composer.StatusBar.Indicators.Subagents
 }
 
 // Render draws the rows stretched across the composer's width, flush with the

@@ -268,7 +268,7 @@ func (isb *InputStatusBar) clampSelection(count int) {
 }
 
 func (isb *InputStatusBar) Render() string {
-	if isb.config != nil && !isb.config.Chat.StatusBar.Enabled {
+	if isb.config != nil && !isb.config.Composer.StatusBar.Enabled {
 		return ""
 	}
 
@@ -727,7 +727,7 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return true
 	}
 
-	indicators := isb.config.Chat.StatusBar.Indicators
+	indicators := isb.config.Composer.StatusBar.Indicators
 	switch indicator {
 	case "agent":
 		return indicators.Agent

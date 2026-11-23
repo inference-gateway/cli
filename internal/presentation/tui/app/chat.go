@@ -255,6 +255,9 @@ func NewChatApplication(
 	if ac, ok := app.autocomplete.(*autocomplete.Autocomplete); ok {
 		ac.SetStateManager(app.stateManager)
 		ac.SetFileService(localFiles(app.fileService, app.stateManager.GetSessionPlacement))
+		if app.config != nil {
+			ac.SetTriggerSources(app.config.Composer.Triggers[config.ComposerContextChat])
+		}
 	}
 
 	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)

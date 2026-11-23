@@ -155,7 +155,7 @@ agent reports tool counts but no usage. A failed task shows the cross icon in pl
 the check mark and no further detail, with the error available through
 `A2A_QueryTask`.
 
-A row lingers for `chat.status_bar.subagent_linger_seconds` (default 5) after the
+A row lingers for `composer.status_bar.subagent_linger_seconds` (default 5) after the
 task reaches a terminal state (`completed`, `failed`, or `cancelled`), keeping the
 list tidy while still giving you time to glance at the outcome.
 
@@ -169,7 +169,7 @@ Notes:
 - The rows are purely a UI element - they are not persisted with the
   conversation. Reloading a session will not bring back rows for
   tasks that have already completed.
-- The list follows `chat.status_bar.indicators.subagents`, so it can be switched
+- The list follows `composer.status_bar.indicators.subagents`, so it can be switched
   off like every other status-bar element.
 - The error text of a failed task is not shown in the row. Use
   `A2A_QueryTask` or the logs for the reason.

@@ -44,8 +44,8 @@ func TestIdleSubagentJobFreezesElapsedAndLingersOut(t *testing.T) {
 
 	list := NewSubagentList(createMockStyleProviderForStatus())
 	cfg := &config.Config{}
-	cfg.Chat.StatusBar.Indicators.Subagents = true
-	cfg.Chat.StatusBar.SubagentLingerSeconds = 1
+	cfg.Composer.StatusBar.Indicators.Subagents = true
+	cfg.Composer.StatusBar.SubagentLingerSeconds = 1
 	list.SetConfig(cfg)
 	list.SetRegistry(scheduler.NewBackgroundTaskRegistry(0, sup))
 	list.SetWidth(80)

@@ -80,6 +80,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
 	browserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	memoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
+	composerPath := filepath.Join(homeCfgDir, config.ComposerFileName)
 
 	if !overwrite {
 		pathsToCheck := []string{
@@ -196,6 +197,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create tools config file: %w", err)
 	}
 
+	composerCreated, err := createFileIfAbsent(composerPath, overwrite, func(p string) error {
+		return config.SaveComposer(p, config.DefaultComposerConfig())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create composer config file: %w", err)
+	}
+
 	hbCreated, err := createFileIfAbsent(heartbeatPath, overwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
@@ -257,6 +265,9 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	if toolsCreated {
 		fmt.Printf("   Created: %s\n", toolsPath)
+	}
+	if composerCreated {
+		fmt.Printf("   Created: %s\n", composerPath)
 	}
 	if hbCreated {
 		fmt.Printf("   Created: %s\n", heartbeatPath)

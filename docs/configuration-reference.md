@@ -811,6 +811,57 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
 - **tools.web_search.engines**: List of available search engines
 - **tools.web_search.timeout**: Search timeout in seconds (default: 10)
 
+### Composer Settings
+
+The composer, the input box of the chat TUI and the desktop, reads `composer.yaml`
+as a sidecar under `composer`, merging the userspace `~/.infer/composer.yaml`
+baseline with the project `./.infer/composer.yaml`. It holds the trigger table
+per context and the status bar toggles, and `infer config get composer --format
+json` prints the resolved and validated file, so both clients read one source.
+
+```yaml
+triggers:
+  chat:
+    "@":
+      - files
+      - agents
+    "#":
+      - issues
+  room:
+    "@":
+      - agents
+      - files
+    "#":
+      - issues
+status_bar:
+  enabled: true
+  subagent_linger_seconds: 5
+  indicators:
+    model: true
+    context_usage: true
+    cost: true
+```
+
+- **triggers**: context (`chat` or `room`) to trigger to the menu sources in
+  section order. A trigger is any one special character, such as `@`, `#`, `^`
+  or `§`. Sources are `files` (project files), `agents` (every Markdown agent
+  and built-in, or the room's members in a room) and `issues` (open GitHub
+  issues). A trigger only picks which menu opens and the order of its sections:
+  a file row still inserts `@<path>`, an agent row `@<agent>` and an issue row
+  `#<number>`
+- **Replacing a trigger**: a context set in `composer.yaml` replaces that
+  context's default table, so mapping `issues` to `^` in `chat` and leaving `#`
+  out turns `#` off there. A context the file leaves out keeps its defaults
+- **Reserved triggers**: `/`, `!` and `!!` always open the slash menu or run bash
+  and tools directly. Mapping one, a letter, a digit or more than one character,
+  or naming an unknown source or context, fails the load naming `composer.yaml`
+  and the key
+- **status_bar**: the status bar settings moved here from `chat.status_bar` in
+  config.yaml, with no fallback. A `chat.status_bar` block left in config.yaml
+  is ignored, so move it into `composer.yaml` by hand. The env overrides moved
+  with it, from `INFER_CHAT_STATUS_BAR_*` to `INFER_COMPOSER_STATUS_BAR_*`. The
+  indicators are listed under **composer.status_bar** below
+
 ### Chat Interface Settings
 
 - **chat.theme**: Chat interface theme name. The config default is the empty string, and the TUI
@@ -819,11 +870,11 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
   - Can be changed during chat using `/theme [theme-name]` shortcut
   - Affects colors and styling of the chat interface
 
-- **chat.status_bar.enabled**: Enable/disable the entire status bar (default: `true`)
+- **composer.status_bar.enabled**: Enable/disable the entire status bar (default: `true`)
   - When disabled, no status indicators will be shown
   - When enabled, individual indicators can be configured
 
-- **chat.status_bar.indicators**: Configuration for individual status bar indicators
+- **composer.status_bar.indicators**: Configuration for individual status bar indicators
   - All indicators are enabled by default except `max_output` to maintain current behavior
   - Available indicators:
     - **agent**: The main agent the chat runs as, `main` by default (default: `true`). Enter on it opens the
@@ -855,7 +906,7 @@ Environment overrides (env wins over the file): `INFER_JUDGE_BACKEND`, `INFER_JU
       It is saved with the session, so a resumed session continues its count and a new one starts from zero
     - **git_pr**: The pull request attached to the current branch, when there is one (default: `true`)
     - **subagents**: The stacked list of background jobs, one row per subagent, A2A task, shell or
-      recording (default: `true`). `chat.status_bar.subagent_linger_seconds` (default 5) controls
+      recording (default: `true`). `composer.status_bar.subagent_linger_seconds` (default 5) controls
       how long a finished row lingers before it drops off
     - **workspace**: Where a daemon chat's session runs (default: `true`): `⌂ laptop` on this machine's
       daemon, `⇄ k8s-dev` on another workspace, `⇢ k8s-dev` while it teleports and `· offline` while the

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	viper "github.com/spf13/viper"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // registerConfigDefaults walks cfg via mapstructure tags and calls v.SetDefault
@@ -14,6 +16,17 @@ func registerConfigDefaults(v *viper.Viper, cfg any) {
 	walkConfigLeaves(reflect.ValueOf(cfg), "", func(path string, val reflect.Value) {
 		v.SetDefault(path, val.Interface())
 	})
+	registerComposerTriggerDefaults(v)
+}
+
+// registerComposerTriggerDefaults registers the default trigger table per
+// context. Viper replaces a typed map default wholesale, so a context that
+// composer.yaml sets replaces that context's defaults, dropping any trigger it
+// leaves out, while a context it does not set keeps them.
+func registerComposerTriggerDefaults(v *viper.Viper) {
+	for context, table := range config.DefaultComposerConfig().Triggers {
+		v.SetDefault("composer.triggers."+context, table)
+	}
 }
 
 // walkConfigLeaves traverses a struct (or pointer to struct) using mapstructure

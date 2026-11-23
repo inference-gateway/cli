@@ -42,6 +42,7 @@ type sidecar struct {
 var sidecars = []sidecar{
 	{key: "mcp", file: config.MCPFileName, fixup: keepMCPEnvCase},
 	{key: "chat.keybindings", file: config.KeybindingsFileName},
+	{key: "composer", file: config.ComposerFileName, fatal: true, fixup: validateComposerTriggers},
 	{key: "prompts", file: config.PromptsFileName, fixup: dropBlankPrompts},
 	{key: "reminders", file: config.RemindersFileName},
 	{key: "hooks", file: config.HooksFileName},
@@ -110,6 +111,26 @@ func mergeConfigLayers(v *viper.Viper) error {
 		}
 	}
 	return nil
+}
+
+// validateComposerTriggers checks composer.yaml's trigger table before the
+// merge, so a reserved trigger or an unknown source or context fails the load
+// naming the file and key. The status_bar block is not checked here: its keys
+// are leaves with defaults, validated after the merge.
+func validateComposerTriggers(m map[string]any) error {
+	triggers, ok := m["triggers"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	data, err := yaml.Marshal(triggers)
+	if err != nil {
+		return err
+	}
+	var table map[string]map[string][]string
+	if err := yaml.Unmarshal(data, &table); err != nil {
+		return fmt.Errorf("triggers: %w", err)
+	}
+	return (config.ComposerConfig{Triggers: table}).Validate()
 }
 
 // mergeSidecar merges each existing layer of sc under its key. A broken

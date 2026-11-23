@@ -65,8 +65,8 @@ func shellJob(shellID, command string, status scheddomain.JobStatus, started tim
 func newList(opts listOpts) *SubagentList {
 	list := NewSubagentList(createMockStyleProviderForStatus())
 	cfg := &config.Config{}
-	cfg.Chat.StatusBar.Indicators.Subagents = opts.indicator
-	cfg.Chat.StatusBar.SubagentLingerSeconds = opts.linger
+	cfg.Composer.StatusBar.Indicators.Subagents = opts.indicator
+	cfg.Composer.StatusBar.SubagentLingerSeconds = opts.linger
 	cfg.Tools.Agent.WrapUpMessage = "wrap up"
 	list.SetConfig(cfg)
 	list.SetRegistry(&fakeRegistry{jobs: opts.jobs})
@@ -127,7 +127,7 @@ func TestSubagentListTagsEveryJobKind(t *testing.T) {
 		t.Errorf("expected the sixth job behind the overflow row, got %q", got)
 	}
 
-	list.config.Chat.StatusBar.SubagentLingerSeconds = 1
+	list.config.Composer.StatusBar.SubagentLingerSeconds = 1
 	if rows := list.snapshotRows(); len(rows) != len(want)-1 {
 		t.Errorf("a finished A2A row must drop once the linger window passed, got %+v", rows)
 	}

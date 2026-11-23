@@ -686,11 +686,11 @@ func writeViperConfigForTest(v *viper.Viper, indent int) error {
 func TestDefaultStatusBarConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if !cfg.Chat.StatusBar.Enabled {
+	if !cfg.Composer.StatusBar.Enabled {
 		t.Error("Expected status bar to be enabled by default")
 	}
 
-	indicators := cfg.Chat.StatusBar.Indicators
+	indicators := cfg.Composer.StatusBar.Indicators
 	if !indicators.Model {
 		t.Error("Expected model indicator to be enabled by default")
 	}
