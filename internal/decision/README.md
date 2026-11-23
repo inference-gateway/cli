@@ -16,6 +16,9 @@ decided by the `provider/model` prefix, exactly as for chat completions.
 - `agent/loop` builds a `DecisionJudge` (judge.yaml `backend: decisions`) that implements the
   `JudgeApprover` port with one `predicate` per gated tool call and a `risk` choice, and thresholds
   `p(approve)` against `judge.min_confidence`.
-- The composition root in `agent/loop` picks the judge backend. Nothing else imports this context.
+- The composition root in `agent/loop` picks the judge backend.
+- The `rooms` router asks one `predicate` per member of a room whether it should act on a post that
+  mentions no member, and routes to the members at or above `rooms.router.min_confidence`.
 - The gateway only serves `POST /v1/decisions` when started with `DECISIONS_ENABLED=true`. The supervisor
-  sets it whenever the judge backend is `decisions`.
+  sets it whenever `config.NeedsGatewayDecisions()` holds: the judge backend is `decisions` or
+  `rooms.router.model` is set.

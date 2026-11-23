@@ -22,6 +22,7 @@ const (
 	DefaultRoomName           = "public"
 	DefaultRoomsContextPosts  = 20
 	DefaultRoomsMinConfidence = 0.5
+	DefaultRoomsMaxMembers    = 2
 )
 
 // RoomsConfig is the content of rooms.yaml: the router that decides who a post
@@ -34,10 +35,13 @@ type RoomsConfig struct {
 
 // RoomsRouterConfig decides who a post is addressed to. An empty model routes
 // @mentions only, and a set model is the "provider/model" decision model asked
-// with the room's members.
+// with the room's members. MaxMembers caps how many of them answer a post that
+// mentions nobody, the most relevant first, so a busy room stays quiet. 0 means
+// DefaultRoomsMaxMembers.
 type RoomsRouterConfig struct {
 	Model         string  `yaml:"model" mapstructure:"model"`
 	MinConfidence float64 `yaml:"min_confidence" mapstructure:"min_confidence"`
+	MaxMembers    int     `yaml:"max_members" mapstructure:"max_members"`
 	Fallback      string  `yaml:"fallback" mapstructure:"fallback"`
 }
 
@@ -58,6 +62,7 @@ func DefaultRoomsConfig() *RoomsConfig {
 		Router: RoomsRouterConfig{
 			Model:         "",
 			MinConfidence: DefaultRoomsMinConfidence,
+			MaxMembers:    DefaultRoomsMaxMembers,
 			Fallback:      RoomsFallbackTop,
 		},
 		ContextPosts: DefaultRoomsContextPosts,
@@ -85,16 +90,23 @@ func SaveRooms(path string, cfg *RoomsConfig) error {
 	return configutils.SaveYAML(path, "rooms", cfg)
 }
 
-// Validate checks the rooms config: the fallback is a known one, the confidence
-// bar is a probability, and every room has a unique, filesystem-safe name.
+// Validate checks the rooms config: the fallback is a known one, a router
+// model is provider/model, the confidence bar is a probability, the member cap
+// is not negative, and every room has a unique, filesystem-safe name.
 func (c RoomsConfig) Validate() error {
 	switch c.Router.Fallback {
 	case "", RoomsFallbackTop, RoomsFallbackNone:
 	default:
 		return fmt.Errorf("rooms.router.fallback %q: must be %q or %q", c.Router.Fallback, RoomsFallbackTop, RoomsFallbackNone)
 	}
+	if provider, _ := ParseModel(c.Router.Model); c.Router.Model != "" && provider == "" {
+		return fmt.Errorf("rooms.router.model %q: must be provider/model", c.Router.Model)
+	}
 	if c.Router.MinConfidence < 0 || c.Router.MinConfidence > 1 {
 		return fmt.Errorf("rooms.router.min_confidence %v: must be between 0 and 1", c.Router.MinConfidence)
+	}
+	if c.Router.MaxMembers < 0 {
+		return fmt.Errorf("rooms.router.max_members %d: must be >= 0", c.Router.MaxMembers)
 	}
 	if c.ContextPosts < 0 {
 		return fmt.Errorf("rooms.context_posts %d: must be >= 0", c.ContextPosts)

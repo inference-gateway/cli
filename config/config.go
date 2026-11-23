@@ -304,6 +304,13 @@ func (c *Config) NeedsGatewayVideos() bool {
 	return c.TextToVideo.Enabled || c.VideoToSFX.DubEnabled()
 }
 
+// NeedsGatewayDecisions reports whether the gateway must serve its Decisions
+// API (DECISIONS_ENABLED=true): the judge's decisions backend or a rooms
+// router model, which asks it whom an unmentioned post is for.
+func (c *Config) NeedsGatewayDecisions() bool {
+	return c.Judge.UsesDecisions() || c.Rooms.Router.Model != ""
+}
+
 // NeedsGatewayAudio reports whether the gateway must serve its Audio API
 // (AUDIO_ENABLED=true): speech synthesis, music composition, sound-effect
 // generation or video scoring.
