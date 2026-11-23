@@ -85,6 +85,9 @@ func gitCurrentBranch() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
+// DefaultInputPlaceholder is what the composer shows while empty in a chat.
+const DefaultInputPlaceholder = "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"
+
 func NewInputView(modelService convdomain.ModelService) *InputView {
 	return NewInputViewWithName(modelService, "", nil)
 }
@@ -98,7 +101,7 @@ func NewInputViewWithName(modelService convdomain.ModelService, name string, sto
 		historyManager = history.NewStore(store)
 	}
 
-	placeholder := "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)"
+	placeholder := DefaultInputPlaceholder
 	ta := newInputTextarea(placeholder)
 
 	return &InputView{

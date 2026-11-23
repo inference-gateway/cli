@@ -129,6 +129,10 @@ type ChatApplication struct {
 
 	historySearchView    *components.HistorySearchView
 	agentPicker          *components.Picker
+	roomPicker           *components.Picker
+	roomView             *components.RoomView
+	rooms                tui.Rooms
+	room                 string
 	historySearchFocused bool
 
 	keyBindingManager *keybinding.Dispatcher
@@ -300,9 +304,11 @@ func NewChatApplication(
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
 	app.historySearchView = components.NewHistorySearchView(styleProvider)
 	app.agentPicker = components.NewPicker(styleProvider)
+	app.roomPicker = components.NewPicker(styleProvider)
+	app.roomView = components.NewRoomView(styleProvider)
 	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
 		isb.SetMainAgentSource(app.agentService)
-		isb.SetPickers(app.agentPicker)
+		isb.SetPickers(app.agentPicker, app.roomPicker)
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
@@ -597,6 +603,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	}
 
 	if cmd := app.handleArtifactsEvents(msg); cmd != nil {
+		return cmd
+	}
+	if cmd := app.handleRoomEvents(msg); cmd != nil {
 		return cmd
 	}
 	return app.handleSessionPlacementEvents(msg)
@@ -1021,6 +1030,8 @@ func (app *ChatApplication) activateIndicator(action tui.StatusIndicatorAction) 
 		return []tea.Cmd{app.openArtifacts()}
 	case tui.StatusIndicatorActionAgentSelection:
 		return []tea.Cmd{app.openAgentPicker()}
+	case tui.StatusIndicatorActionRoomSelection:
+		return []tea.Cmd{app.openRoomPicker()}
 	case tui.StatusIndicatorActionA2AAgents:
 		_ = app.stateManager.TransitionToView(tui.ViewStateAgents)
 		return []tea.Cmd{func() tea.Msg {
@@ -1720,7 +1731,7 @@ func (app *ChatApplication) layoutChatInterface() {
 
 	app.applicationViewRenderer.Layout(
 		app.chatInterfaceData(),
-		app.conversationView,
+		app.conversationArea(),
 		app.inputView,
 		app.autocomplete,
 		app.inputStatusBar,
@@ -1742,7 +1753,7 @@ func (app *ChatApplication) renderChatInterface() string {
 
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		app.chatInterfaceData(),
-		app.conversationView,
+		app.conversationArea(),
 		app.inputView,
 		app.autocomplete,
 		app.inputStatusBar,
@@ -1871,7 +1882,9 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 
 // updateMainUIComponents updates the main UI components (conversation, status, input, help bar)
 func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView tui.ViewState, cmds *[]tea.Cmd) {
-	if model, cmd := app.conversationView.(tea.Model).Update(app.keepViewedTranscript(msg)); cmd != nil {
+	if app.scrollsRoom(msg) {
+		app.roomView.Update(msg)
+	} else if model, cmd := app.conversationView.(tea.Model).Update(app.keepViewedTranscript(msg)); cmd != nil {
 		*cmds = append(*cmds, cmd)
 		if convModel, ok := model.(tui.ConversationRenderer); ok {
 			app.conversationView = convModel
@@ -2115,6 +2128,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	input := strings.TrimSpace(app.inputView.GetInput())
+	if app.room != noRoom && !strings.HasPrefix(input, "/") {
+		return app.postToRoom(input)
+	}
 	images := app.inputView.GetImageAttachments()
 	editing := app.stateManager.IsEditingMessage()
 

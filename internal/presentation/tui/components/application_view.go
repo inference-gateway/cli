@@ -37,7 +37,7 @@ type ChatInterfaceData struct {
 // chrome leaves, so the frame always fills the terminal.
 func (r *ApplicationViewRenderer) Layout(
 	data ChatInterfaceData,
-	conversationView tui.ConversationRenderer,
+	conversationView tui.ConversationArea,
 	inputView tui.InputComponent,
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
@@ -80,7 +80,7 @@ func (r *ApplicationViewRenderer) ConversationHeight() int {
 // the last Layout call.
 func (r *ApplicationViewRenderer) RenderChatInterface(
 	data ChatInterfaceData,
-	conversationView tui.ConversationRenderer,
+	conversationView tui.ConversationArea,
 	inputView tui.InputComponent,
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
@@ -134,7 +134,7 @@ type componentHeights struct {
 // that are known before the chrome is measured
 func (r *ApplicationViewRenderer) setComponentDimensions(
 	data ChatInterfaceData,
-	conversationView tui.ConversationRenderer,
+	conversationView tui.ConversationArea,
 	inputView tui.InputComponent,
 	autocomplete tui.AutocompleteComponent,
 	inputStatusBar tui.InputStatusBarComponent,
@@ -196,7 +196,7 @@ func (r *ApplicationViewRenderer) renderHeader(_ ChatInterfaceData, width int) s
 func (r *ApplicationViewRenderer) assembleComponents(
 	data ChatInterfaceData,
 	header, conversationArea, inputArea string,
-	conversationView tui.ConversationRenderer,
+	conversationView tui.ConversationArea,
 	statusView tui.StatusComponent,
 	modeIndicator *ModeIndicator,
 	inputView tui.InputComponent,

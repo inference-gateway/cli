@@ -199,10 +199,12 @@ func (a *Autocomplete) appendAgentRows() {
 
 // SetTriggerSources installs the composer trigger table of the current
 // context: each trigger's sources list its menu's sections in order. A nil
-// table keeps the chat context's defaults.
+// table keeps the chat context's defaults. A new table forgets the menu last
+// loaded, so the next trigger lists its rows in the new order.
 func (a *Autocomplete) SetTriggerSources(sources map[string][]string) {
 	if sources != nil {
 		a.triggerSources = sources
+		a.completionMode = ""
 	}
 }
 

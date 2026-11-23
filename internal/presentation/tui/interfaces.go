@@ -59,8 +59,17 @@ type Theme interface {
 	GetDiffRemoveColor() string
 }
 
+// ConversationArea is what the chat layout sizes and draws between the header
+// and the composer: the conversation, or the room the chat is in.
+type ConversationArea interface {
+	SetWidth(width int)
+	SetHeight(height int)
+	Render() string
+}
+
 // ConversationRenderer interface for conversation display
 type ConversationRenderer interface {
+	ConversationArea
 	SetConversation([]convdomain.ConversationEntry)
 	IsStreaming() bool
 	GetScrollOffset() int
@@ -74,9 +83,6 @@ type ConversationRenderer interface {
 	ToggleRawFormat()
 	IsRawFormat() bool
 	ResetUserScroll()
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
 }
 
 // InputComponent interface for input handling
