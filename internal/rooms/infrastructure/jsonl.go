@@ -25,11 +25,15 @@ func NewJSONLLog() *JSONLLog {
 }
 
 // Append adds post to the room's log, stamping a post that carries no time.
-// The log is append-only: the file is always opened for appending.
+// The log is append-only: the file is always opened for appending, and the
+// rooms dir is created on the way.
 func (l *JSONLLog) Append(room roomsdomain.Room, post roomsdomain.Post) error {
 	path, err := l.path(room)
 	if err != nil {
 		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating room log directory: %w", err)
 	}
 	if post.Time.IsZero() {
 		post.Time = time.Now()
