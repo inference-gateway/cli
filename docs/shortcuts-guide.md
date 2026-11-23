@@ -68,7 +68,7 @@ These shortcuts are available out of the box:
 - `/cost` - Show session cost breakdown with per-model details
 - `/effort [level]` - Show or set the reasoning effort level applied to Anthropic models
 - `/reload` - Re-read the config files and `INFER_*` env and apply what a running chat can pick up: `gateway.timeout`, `agent.model`,
-  `agent.max_turns`, `agent.max_tokens`, `agent.reasoning_effort` and the whole `chat.status_bar` section. The status line names the
+  `agent.max_turns`, `agent.max_tokens`, `agent.reasoning_effort` and the whole `status_bar` block in composer.yaml. The status line names the
   applied keys and every other changed key, which takes effect on the next `infer chat`, so tools, sandbox and approval policy never change
   mid-session. It also re-reads `agents.yaml`: new A2A agents start, removed ones stop and edited ones restart, shown as
   `agents +added -removed ~restarted`. Refused while the agent is busy.
