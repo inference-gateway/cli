@@ -33,10 +33,22 @@ var activityPhrases = map[roomsdomain.Activity]string{
 	roomsdomain.ActivityWaiting: "is waiting for approval",
 }
 
+// presence is how the header shows what a member does: a dot in a theme color
+// and a word, as a Slack sidebar shows who is around.
+type presence struct {
+	dot, label, color string
+}
+
+var presences = map[roomsdomain.Activity]presence{
+	roomsdomain.ActivityIdle:    {dot: "○", label: "idle", color: "dim"},
+	roomsdomain.ActivityRunning: {dot: "●", label: "working", color: "success"},
+	roomsdomain.ActivityWaiting: {dot: "◐", label: "waiting for approval", color: "warning"},
+}
+
 // RoomView is the chat's conversation area inside a room, drawn like a Slack
-// channel: a header naming the room and its members, each message under its
-// author and time, joins and room notes as quiet lines, and who is busy below
-// the posts. It stays on the newest post unless the user scrolled up.
+// channel: a header naming the room and what each member does, each message
+// under its author and time, joins and room notes as quiet lines, and who is
+// busy below the posts. It stays on the newest post unless the user scrolled up.
 type RoomView struct {
 	styleProvider *styles.Provider
 	markdown      *markdown.Renderer
@@ -45,6 +57,8 @@ type RoomView struct {
 	posts         []roomsdomain.Post
 	activity      map[string]roomsdomain.Activity
 	width         int
+	height        int
+	banner        string
 }
 
 // NewRoomView creates an empty room view.
@@ -99,15 +113,30 @@ func (v *RoomView) SetWidth(width int) {
 
 // SetHeight sets the height of the conversation area.
 func (v *RoomView) SetHeight(height int) {
+	v.height = height
+	v.fitViewport()
+}
+
+// Render draws the pinned header and the visible part of the posts.
+func (v *RoomView) Render() string {
+	if v.banner == "" {
+		return v.viewport.View()
+	}
+	return v.banner + "\n" + v.viewport.View()
+}
+
+// fitViewport gives the posts every row the pinned header leaves.
+func (v *RoomView) fitViewport() {
 	atBottom := v.viewport.AtBottom()
-	v.viewport.SetHeight(height)
+	chrome := 0
+	if v.banner != "" {
+		chrome = lipgloss.Height(v.banner)
+	}
+	v.viewport.SetHeight(max(v.height-chrome, 1))
 	if atBottom {
 		v.viewport.GotoBottom()
 	}
 }
-
-// Render draws the visible part of the room.
-func (v *RoomView) Render() string { return v.viewport.View() }
 
 // Update scrolls the room on the chat's scroll keys and the mouse wheel.
 func (v *RoomView) Update(msg tea.Msg) (*RoomView, tea.Cmd) {
@@ -138,8 +167,13 @@ func (v *RoomView) scroll(request tui.ScrollRequestEvent) {
 
 // refresh redraws the room, staying on the newest post when the user was.
 func (v *RoomView) refresh() {
+	v.banner = ""
+	if v.room.Name != "" {
+		v.banner = v.header() + "\n" + v.styleProvider.RenderSeparator(v.width, "─")
+	}
 	atBottom := v.viewport.AtBottom()
 	v.viewport.SetContent(v.content())
+	v.fitViewport()
 	if atBottom {
 		v.viewport.GotoBottom()
 	}
@@ -149,7 +183,7 @@ func (v *RoomView) content() string {
 	if v.room.Name == "" {
 		return ""
 	}
-	lines := []string{v.header(), v.styleProvider.RenderSeparator(v.width, "─")}
+	var lines []string
 	var previous *roomsdomain.Post
 	for i := range v.posts {
 		post := v.posts[i]
@@ -169,11 +203,22 @@ func (v *RoomView) content() string {
 func (v *RoomView) header() string {
 	members := make([]string, 0, len(v.room.Members))
 	for _, member := range v.room.Members {
-		members = append(members, member.Agent)
+		members = append(members, v.memberPresence(member.Agent))
 	}
 	accent := v.styleProvider.GetThemeColor("accent")
 	name := v.styleProvider.RenderStyledText("# "+v.room.Name, styles.StyleOptions{Foreground: accent, Bold: true})
-	return name + v.styleProvider.RenderDimText(" · "+MemberCount(len(members))+" · "+strings.Join(members, ", "))
+	line := name + v.styleProvider.RenderDimText(" · "+MemberCount(len(members))) + "  " + strings.Join(members, v.styleProvider.RenderDimText(" · "))
+	return lipgloss.NewStyle().Width(max(v.width, 1)).Render(line)
+}
+
+// memberPresence is a member's name after its presence dot, then what it does.
+func (v *RoomView) memberPresence(agent string) string {
+	p, ok := presences[v.activity[agent]]
+	if !ok {
+		p = presences[roomsdomain.ActivityIdle]
+	}
+	dot := v.styleProvider.RenderWithColor(p.dot, v.styleProvider.GetThemeColor(p.color))
+	return dot + " " + agent + " " + v.styleProvider.RenderDimText(p.label)
 }
 
 // MemberCount says how many members a room has, as "1 member" or "3 members".

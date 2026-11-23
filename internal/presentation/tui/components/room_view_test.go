@@ -56,7 +56,7 @@ func TestRoomViewDrawsTheChannelLikeSlack(t *testing.T) {
 
 	out := roomScreen(view)
 	for _, want := range []string{
-		"# release · 2 members · tester, writer",
+		"# release · 2 members  ○ tester idle · ● writer working",
 		"→ you joined #release",
 		"you  10:01\nhi @tester",
 		"tester  10:02",
@@ -86,7 +86,7 @@ func TestRoomViewGroupsAnAuthorsMessages(t *testing.T) {
 
 func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 	view := newTestRoomView()
-	view.SetHeight(4)
+	view.SetHeight(6)
 	for i := range 10 {
 		view.AddPost(roomPost("tester", time.Duration(i)*groupWindow*2, "post "+string(rune('a'+i))))
 	}
@@ -94,8 +94,10 @@ func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 
 	view.SetActivity("writer", roomsdomain.ActivityWaiting)
 	require.Contains(t, roomScreen(view), "writer is waiting for approval")
+	require.Contains(t, roomScreen(view), "◐ writer waiting for approval", "the pinned header shows each member's presence")
 
 	view.Update(tui.ScrollRequestEvent{ComponentID: "conversation", Direction: tui.ScrollToTop})
 	view.AddPost(roomPost("tester", time.Hour*3, "newest"))
 	require.NotContains(t, roomScreen(view), "newest", "a user who scrolled up keeps their place")
+	require.Equal(t, 6, strings.Count(view.Render(), "\n")+1, "the room fills exactly its height")
 }
