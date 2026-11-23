@@ -103,6 +103,7 @@ func NewAutocomplete(theme tui.Theme, shortcutRegistry ShortcutRegistry) *Autoco
 		maxVisible:       5,
 		shortcutRegistry: shortcutRegistry,
 		toolService:      nil,
+		triggerSources:   config.DefaultComposerConfig().Triggers[config.ComposerContextChat],
 	}
 }
 
@@ -197,34 +198,23 @@ func (a *Autocomplete) appendAgentRows() {
 }
 
 // SetTriggerSources installs the composer trigger table of the current
-// context: each trigger's sources list its menu's sections in order.
+// context: each trigger's sources list its menu's sections in order. A nil
+// table keeps the chat context's defaults.
 func (a *Autocomplete) SetTriggerSources(sources map[string][]string) {
-	a.triggerSources = sources
+	if sources != nil {
+		a.triggerSources = sources
+	}
 }
 
 // triggerModePrefix marks a completion mode opened by a composer trigger, the
 // trigger character following it.
 const triggerModePrefix = "trigger:"
 
-// triggerTable returns the composer trigger table of the current context. With
-// no table set the chat context's defaults apply.
-func (a *Autocomplete) triggerTable() map[string][]string {
-	if a.triggerSources == nil {
-		return config.DefaultComposerConfig().Triggers[config.ComposerContextChat]
-	}
-	return a.triggerSources
-}
-
-// composerSources returns the trigger's source order, nil for an unmapped one.
-func (a *Autocomplete) composerSources(trigger string) []string {
-	return a.triggerTable()[trigger]
-}
-
 // triggerMenuListsFiles reports whether the open menu is a trigger's whose
 // sources include files, whose long paths take the full row width.
 func (a *Autocomplete) triggerMenuListsFiles() bool {
 	trigger, ok := strings.CutPrefix(a.completionMode, triggerModePrefix)
-	return ok && slices.Contains(a.composerSources(trigger), config.ComposerSourceFiles)
+	return ok && slices.Contains(a.triggerSources[trigger], config.ComposerSourceFiles)
 }
 
 // loadTriggerRows rebuilds the suggestions with one section per source in the
@@ -232,7 +222,7 @@ func (a *Autocomplete) triggerMenuListsFiles() bool {
 // what order the sections appear: every row keeps its own sigil.
 func (a *Autocomplete) loadTriggerRows(trigger string) {
 	a.suggestions = []ShortcutOption{}
-	for _, source := range a.composerSources(trigger) {
+	for _, source := range a.triggerSources[trigger] {
 		switch source {
 		case config.ComposerSourceFiles:
 			a.appendFileRows()
@@ -247,7 +237,7 @@ func (a *Autocomplete) loadTriggerRows(trigger string) {
 // filterForTrigger picks the menu's filter: the digit-aware issue filter when
 // every source is issues, the fuzzy row-text filter otherwise.
 func (a *Autocomplete) filterForTrigger(trigger string) func() {
-	for _, source := range a.composerSources(trigger) {
+	for _, source := range a.triggerSources[trigger] {
 		if source != config.ComposerSourceIssues {
 			return a.filterFileSuggestions
 		}
@@ -636,7 +626,7 @@ func (a *Autocomplete) applyMidTextMode(
 
 // Update handles autocomplete logic
 func (a *Autocomplete) Update(inputText string, cursorPos int) {
-	for trigger := range a.triggerTable() {
+	for trigger := range a.triggerSources {
 		if triggerStart := findSigilTriggerStart(inputText, cursorPos, trigger); triggerStart >= 0 {
 			a.applyMidTextMode(inputText, cursorPos, triggerStart, triggerModePrefix+trigger,
 				func() { a.loadTriggerRows(trigger) }, a.filterForTrigger(trigger))
@@ -759,8 +749,9 @@ func (a *Autocomplete) filterIssueSuggestions() {
 	}
 }
 
-// filterFileSuggestions fuzzy-matches the query against "@<path>" entries,
-// best score first, recording matched offsets for highlighting.
+// filterFileSuggestions fuzzy-matches the query against each row's shortcut,
+// best score first, keeping the row's description and recording matched
+// offsets for highlighting.
 func (a *Autocomplete) filterFileSuggestions() {
 	if a.query == "" {
 		a.filtered = a.suggestions
@@ -773,7 +764,9 @@ func (a *Autocomplete) filterFileSuggestions() {
 	matches := fuzzy.Find(a.query, names)
 	a.filtered = make([]ShortcutOption, 0, len(matches))
 	for _, m := range matches {
-		a.filtered = append(a.filtered, ShortcutOption{Shortcut: m.Str, Matches: m.MatchedIndexes})
+		row := a.suggestions[m.Index]
+		row.Matches = m.MatchedIndexes
+		a.filtered = append(a.filtered, row)
 	}
 }
 
@@ -996,6 +989,9 @@ func (a *Autocomplete) Render() string {
 	maxShortcutWidth := a.calculateMaxShortcutWidth()
 	kindWidth := a.calculateKindWidth()
 	descWidth := a.calculateDescriptionWidth(maxShortcutWidth, kindWidth)
+	if a.triggerMenuListsFiles() {
+		descWidth = 0
+	}
 
 	a.renderItems(&b, start, end, maxShortcutWidth, kindWidth, descWidth)
 	a.renderHelpText(&b)
@@ -1104,7 +1100,7 @@ func (a *Autocomplete) renderItems(b *strings.Builder, start, end, maxShortcutWi
 		displayText = strings.TrimPrefix(displayText, "!!")
 		paddedShortcut := HighlightMatches(displayText, formatting.PadText(displayText, maxShortcutWidth), cmd.Matches)
 		paddedDescription := ""
-		if cmd.Description != "" {
+		if cmd.Description != "" && descWidth > 0 {
 			paddedDescription = " │ " + formatting.PadText(cmd.Description, descWidth)
 		}
 

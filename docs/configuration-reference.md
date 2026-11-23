@@ -851,7 +851,9 @@ status_bar:
   `#<number>`
 - **Replacing a trigger**: a context set in `composer.yaml` replaces that
   context's default table, so mapping `issues` to `^` in `chat` and leaving `#`
-  out turns `#` off there. A context the file leaves out keeps its defaults
+  out turns `#` off there. A context the file leaves out keeps its defaults.
+  The home and project files merge per trigger, so a project file can add or
+  remap a trigger but cannot remove one the home file sets
 - **Reserved triggers**: `/`, `!` and `!!` always open the slash menu or run bash
   and tools directly. Mapping one, a letter, a digit or more than one character,
   or naming an unknown source or context, fails the load naming `composer.yaml`
