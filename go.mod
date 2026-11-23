@@ -6,33 +6,33 @@ tool github.com/maxbrunsfeld/counterfeiter/v6
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.1
+	charm.land/bubbletea/v2 v2.1.2
 	charm.land/fang/v2 v2.0.1
 	charm.land/glamour/v2 v2.0.1
 	charm.land/huh/v2 v2.0.3
-	charm.land/lipgloss/v2 v2.1.0
+	charm.land/lipgloss/v2 v2.1.1
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20261106160222-37b4da90c8df
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/aymanbagabas/go-udiff v0.4.1
+	github.com/aymanbagabas/go-udiff v0.4.2
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20261023060817-a45b7c86333f
-	github.com/charmbracelet/x/ansi v0.11.9
+	github.com/charmbracelet/x/ansi v0.11.10
 	github.com/charmbracelet/x/exp/charmtone v0.1.1
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
 	github.com/ebitengine/purego v0.11.3
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-telegram/bot v1.28.0
-	github.com/go-vgo/robotgo v1.3.7
+	github.com/go-telegram/bot v1.30.0
+	github.com/go-vgo/robotgo v1.3.8
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/inference-gateway/adk v0.34.2
-	github.com/inference-gateway/operator v0.37.0
-	github.com/inference-gateway/sdk v1.47.1
-	github.com/inference-gateway/tokenless v0.14.0
+	github.com/inference-gateway/operator v0.37.1
+	github.com/inference-gateway/sdk v1.48.0
+	github.com/inference-gateway/tokenless v0.15.0
 	github.com/jezek/xgb v1.3.1
 	github.com/jezek/xgbutil v0.0.0-20260124183602-9fd151d6a51a
 	github.com/landlock-lsm/go-landlock v0.11.2
@@ -182,7 +182,7 @@ require (
 	github.com/vcaesar/gops v0.43.0 // indirect
 	github.com/vcaesar/imgo v0.44.0 // indirect
 	github.com/vcaesar/keycode v0.20.0 // indirect
-	github.com/vcaesar/screenshot v0.40.0 // indirect
+	github.com/vcaesar/screenshot v0.40.1 // indirect
 	github.com/vcaesar/tt v0.40.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xo/terminfo v1.3.1 // indirect
@@ -202,7 +202,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/arch v0.32.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/exp v0.0.0-20261106192419-47ce03d25ef0 // indirect
+	golang.org/x/exp v0.0.0-20261109185158-a52e3aef5920 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
