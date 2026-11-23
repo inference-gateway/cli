@@ -24,8 +24,11 @@ const (
 	runEdgeSlots = 8
 )
 
-// turnIntro tells a member where a turn comes from and where its reply goes.
-const turnIntro = "You are %s in room %s, whose members are %s. Your reply to the post for you is posted to the room, so answer it directly.\n"
+// turnIntro tells a member where a turn comes from, where its reply goes, and
+// to talk like a teammate in a channel rather than an assistant.
+const turnIntro = "You are %s, chatting in #%s with the user and the room's members (%s), like coworkers in a Slack channel. " +
+	"Your reply to the post for you is posted to the room. Reply as a teammate would: answer what the post asks, " +
+	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for.\n"
 
 // workerEvent is the part of a worker's AG-UI event a member reads.
 type workerEvent struct {
