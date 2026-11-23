@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.267.0](https://github.com/inference-gateway/cli/compare/v0.266.3...v0.267.0) (2026-11-23)
+
+### 🚀 Features
+
+* **composer:** add composer.yaml with per-context triggers and the moved status bar settings ([#1948](https://github.com/inference-gateway/cli/issues/1948)) ([3a6b53b](https://github.com/inference-gateway/cli/commit/3a6b53b41a42c2e04221bf47fc1c36a3eb6e7c1e)), closes [#1947](https://github.com/inference-gateway/cli/issues/1947)
+* **agent:** message another agent's orchestrator through the daemon ([#1942](https://github.com/inference-gateway/cli/issues/1942)) ([10d0605](https://github.com/inference-gateway/cli/commit/10d06057e0347737f587ec1f300c6af8bfe75388))
+
+### 🔧 Build System
+
+* **deps:** bump the github-actions group with 2 updates ([#1950](https://github.com/inference-gateway/cli/issues/1950)) ([37a397c](https://github.com/inference-gateway/cli/commit/37a397c9860a16cde2067b18f68df211b01d8c5d))
+* **deps:** bump the gomod group with 9 updates ([#1949](https://github.com/inference-gateway/cli/issues/1949)) ([7c3b1ed](https://github.com/inference-gateway/cli/commit/7c3b1eda732420b1d185b1517d0011dde21b94bb))
+
 ## [0.266.3](https://github.com/inference-gateway/cli/compare/v0.266.2...v0.266.3) (2026-11-22)
 
 ### 🐛 Bug Fixes
