@@ -11,16 +11,14 @@ import (
 // rooms.yaml edit.
 const AgentsWildcard = "*"
 
-// InvokedByRoom is the session Origin.InvokedBy value of a room member
-// session: the room started it, not a human or a delegating agent.
-const InvokedByRoom = "room"
-
 // roomNamePattern is the filesystem-safe name a room must keep: it names the
-// room's log file and lands inside member session ids.
-var roomNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
+// room's log file and lands inside member session ids. It has no dash, so the
+// room part of room-<room>-<agent> ends at the first one and no two seats share
+// an id.
+var roomNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_]*$`)
 
-// ValidName reports whether name can be a room name: letters, digits, dashes
-// and underscores, starting with a letter or digit.
+// ValidName reports whether name can be a room name: letters, digits and
+// underscores, starting with a letter or digit.
 func ValidName(name string) bool {
 	return roomNamePattern.MatchString(name)
 }
@@ -54,19 +52,14 @@ func (r Room) Members() []Member {
 // SessionID is the deterministic session id one member agent keeps in this
 // room, room-<room>-<agent>, like the channels' channel-<ch>-<sender>.
 func (r Room) SessionID(agent string) string {
-	return MemberSessionID(r.Name, agent)
-}
-
-// MemberSessionID is the session id a member keeps for one room:
-// room-<room>-<agent>.
-func MemberSessionID(roomName, agent string) string {
-	return "room-" + roomName + "-" + agent
+	return "room-" + r.Name + "-" + agent
 }
 
 // ResolveMemberAgents expands the room's agent entries into the members that
 // exist: "*" becomes every known agent sorted, so the resolution follows each
-// read rather than the file's moment, a name stands for itself, and duplicates
-// collapse keeping their first position.
+// read rather than the file's moment, a known name stands for itself, a name no
+// agent carries takes no seat, and duplicates collapse keeping their first
+// position.
 func ResolveMemberAgents(patterns, known []string) []string {
 	raw := make([]string, 0, len(patterns)+len(known))
 	for _, pattern := range patterns {
@@ -74,7 +67,9 @@ func ResolveMemberAgents(patterns, known []string) []string {
 			raw = append(raw, slices.Sorted(slices.Values(known))...)
 			continue
 		}
-		raw = append(raw, pattern)
+		if slices.Contains(known, pattern) {
+			raw = append(raw, pattern)
+		}
 	}
 	members := make([]string, 0, len(raw))
 	for _, agent := range raw {

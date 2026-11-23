@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"time"
@@ -11,10 +12,14 @@ import (
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	roomscontext "github.com/inference-gateway/cli/internal/rooms"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
 )
+
+// postTextWidth is how many columns of a post's text the log table shows.
+const postTextWidth = 72
 
 type command struct {
 	state    *runtime.State
@@ -108,7 +113,7 @@ func (c *command) listRooms(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Rooms (%d)", len(views))))
 	fmt.Fprintln(w)
-	table := c.renderer.NewAgentsListTable("Name", "Project", "Members")
+	table := c.renderer.NewListTable("Name", "Project", "Members")
 	for _, view := range views {
 		members := make([]string, 0, len(view.Members))
 		for _, member := range view.Members {
@@ -126,7 +131,7 @@ func (c *command) showRoom(cmd *cobra.Command, args []string) error {
 	resolved := c.resolvedRooms()
 	room, found := roomscontext.Find(resolved, name)
 	if !found {
-		return fmt.Errorf("room %q not found; known rooms: %v", name, roomNames(resolved))
+		return fmt.Errorf("room %q not found, known rooms: %s", name, strings.Join(roomNames(resolved), ", "))
 	}
 
 	posts, err := roomsinfra.NewJSONLLog().Read(room)
@@ -148,13 +153,13 @@ func (c *command) showRoom(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(w, c.renderer.Title("Room: "+view.Room.Name))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, c.renderer.Field("Project", view.Room.Project))
-	fmt.Fprintln(w, c.renderer.Field("Model", valueOr(view.Router.Model)))
+	fmt.Fprintln(w, c.renderer.Field("Model", cmp.Or(view.Router.Model, "-")))
 	fmt.Fprintln(w, c.renderer.Field("Min confidence", fmt.Sprintf("%g", view.Router.MinConfidence)))
-	fmt.Fprintln(w, c.renderer.Field("Fallback", valueOr(view.Router.Fallback)))
+	fmt.Fprintln(w, c.renderer.Field("Fallback", cmp.Or(view.Router.Fallback, "-")))
 	fmt.Fprintln(w)
 
 	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Members (%d)", len(view.Room.Members))))
-	memberTable := c.renderer.NewAgentsListTable("Agent", "Session ID")
+	memberTable := c.renderer.NewListTable("Agent", "Session ID")
 	for _, member := range view.Room.Members {
 		memberTable.Row(member.Agent, member.SessionID)
 	}
@@ -212,18 +217,8 @@ func routingOf(post roomsdomain.Post) string {
 	return strings.Join(routes, ", ")
 }
 
-// oneLine keeps a post's text to one table row line.
+// oneLine keeps a post's text to one table row line, cut on a character
+// boundary.
 func oneLine(text string) string {
-	text = strings.ReplaceAll(text, "\n", " ")
-	if len(text) > 72 {
-		return text[:72] + "..."
-	}
-	return text
-}
-
-func valueOr(value string) string {
-	if value == "" {
-		return "-"
-	}
-	return value
+	return formatting.TruncateText(strings.ReplaceAll(text, "\n", " "), postTextWidth)
 }

@@ -94,3 +94,12 @@ func TestRoomsSidecarLoading(t *testing.T) {
 		})
 	}
 }
+
+func TestBrokenRoomsYAMLFailsTheLoad(t *testing.T) {
+	splitHomeProjectEnv(t)
+	path := writeHomeFile(t, config.RoomsFileName, "---\nrooms:\n  - name: \"release\n    agents:\n      - writer\n")
+
+	_, _, err := loadConfig(rootCmd)
+	require.Error(t, err, "a broken rooms.yaml must fail the load instead of silently dropping its rooms")
+	require.Contains(t, err.Error(), path, "the error must name the broken rooms.yaml")
+}

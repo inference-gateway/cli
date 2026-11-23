@@ -50,7 +50,7 @@ var sidecars = []sidecar{
 	{key: "tools", file: config.ToolsFileName, homeOnly: true, fatal: true, fixup: flattenToolsLayout},
 	{key: "tools.sandbox", file: config.SandboxFileName, homeOnly: true, fatal: true, fixup: typeSandboxEntries},
 	{key: "channels", file: config.ChannelsFileName},
-	{key: "rooms", file: config.RoomsFileName},
+	{key: "rooms", file: config.RoomsFileName, fatal: true},
 	{key: "heartbeat", file: config.HeartbeatFileName},
 	{key: "computer_use", file: config.ComputerUseFileName},
 	{key: "browser_use", file: config.BrowserUseFileName},

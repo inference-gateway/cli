@@ -6,7 +6,7 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-func TestMemberSessionID(t *testing.T) {
+func TestRoomSessionID(t *testing.T) {
 	tests := []struct {
 		name    string
 		room    string
@@ -19,7 +19,6 @@ func TestMemberSessionID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.session, MemberSessionID(tt.room, tt.agent))
 			room := Room{Name: tt.room}
 			require.Equal(t, tt.session, room.SessionID(tt.agent))
 		})
@@ -66,6 +65,12 @@ func TestResolveMemberAgents(t *testing.T) {
 			want:     []string{"researcher", "tester"},
 		},
 		{
+			name:     "a name no agent carries takes no seat",
+			patterns: []string{"reviwer", "tester"},
+			known:    []string{"reviewer", "tester"},
+			want:     []string{"tester"},
+		},
+		{
 			name:     "duplicates collapse keeping their first position",
 			patterns: []string{"tester", "tester"},
 			known:    []string{"tester"},
@@ -98,8 +103,9 @@ func TestValidName(t *testing.T) {
 		valid bool
 	}{
 		{"public", true},
-		{"release-1", true},
-		{"My_room-2", true},
+		{"release_1", true},
+		{"My_room_2", true},
+		{"dev-ops", false},
 		{"9room", true},
 		{"", false},
 		{"../evil", false},

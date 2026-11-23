@@ -28,13 +28,13 @@ func TestDefaultRoomsConfig(t *testing.T) {
 // defines public itself replaces the default room, and one without it keeps the
 // default.
 func TestRoomsConfigWithDefaultRoom(t *testing.T) {
-	redefined := RoomsRoomConfig{Name: "public", Project: "/repo/app", Agents: []string{"tester"}}
-	release := RoomsRoomConfig{Name: "release", Agents: []string{"writer"}}
+	redefined := RoomConfig{Name: "public", Project: "/repo/app", Agents: []string{"tester"}}
+	release := RoomConfig{Name: "release", Agents: []string{"writer"}}
 
 	tests := []struct {
 		name      string
 		config    RoomsConfig
-		wantRooms []RoomsRoomConfig
+		wantRooms []RoomConfig
 	}{
 		{
 			name:      "a file without a rooms list keeps the default",
@@ -43,17 +43,17 @@ func TestRoomsConfigWithDefaultRoom(t *testing.T) {
 		},
 		{
 			name:      "a rooms list without public keeps the default too",
-			config:    RoomsConfig{Rooms: []RoomsRoomConfig{release}},
-			wantRooms: []RoomsRoomConfig{release, DefaultRoomsConfig().Rooms[0]},
+			config:    RoomsConfig{Rooms: []RoomConfig{release}},
+			wantRooms: []RoomConfig{release, DefaultRoomsConfig().Rooms[0]},
 		},
 		{
 			name:      "a public room the file defines replaces the default",
-			config:    RoomsConfig{Rooms: []RoomsRoomConfig{redefined}},
-			wantRooms: []RoomsRoomConfig{redefined},
+			config:    RoomsConfig{Rooms: []RoomConfig{redefined}},
+			wantRooms: []RoomConfig{redefined},
 		},
 		{
 			name:      "an empty rooms list keeps the default",
-			config:    RoomsConfig{Rooms: []RoomsRoomConfig{}},
+			config:    RoomsConfig{Rooms: []RoomConfig{}},
 			wantRooms: DefaultRoomsConfig().Rooms,
 		},
 	}
@@ -80,8 +80,8 @@ func TestRoomsConfigValidate(t *testing.T) {
 		{"unknown fallback fails", RoomsConfig{Router: RoomsRouterConfig{Fallback: "first"}}, "rooms.router.fallback"},
 		{"confidence above one fails", RoomsConfig{Router: RoomsRouterConfig{MinConfidence: 1.1}}, "min_confidence"},
 		{"negative context posts fails", RoomsConfig{ContextPosts: -1}, "context_posts"},
-		{"a name that escapes the rooms dir fails", RoomsConfig{Rooms: []RoomsRoomConfig{{Name: "../evil"}}}, "name"},
-		{"a duplicate name fails", RoomsConfig{Rooms: []RoomsRoomConfig{{Name: "public"}, {Name: "public"}}}, "defined twice"},
+		{"a name that escapes the rooms dir fails", RoomsConfig{Rooms: []RoomConfig{{Name: "../evil"}}}, "name"},
+		{"a duplicate name fails", RoomsConfig{Rooms: []RoomConfig{{Name: "public"}, {Name: "public"}}}, "defined twice"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -72,4 +73,40 @@ func TestJSONLLogRejectsUnsafeRoomName(t *testing.T) {
 	_, err := log.Read(room)
 	require.ErrorContains(t, err, "invalid room name")
 	require.ErrorContains(t, log.Append(room, roomsdomain.Post{Author: "user"}), "invalid room name")
+}
+
+func TestJSONLLogReadsAnUnwrittenLogAsNoPosts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	posts, err := NewJSONLLog().Read(testRoom(t.TempDir()))
+	require.NoError(t, err)
+	require.NotNil(t, posts, "an unwritten log reads as an empty list, so its JSON is [] and not null")
+	require.Empty(t, posts)
+}
+
+// TestJSONLLogSurvivesATornLine pins that a write cut short by a crash costs
+// only the line it tore, never the rest of the room's log.
+func TestJSONLLogSurvivesATornLine(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	log := NewJSONLLog()
+	room := testRoom(t.TempDir())
+
+	require.NoError(t, log.Append(room, roomsdomain.Post{Author: "user", Text: "before"}))
+	path, err := log.path(room)
+	require.NoError(t, err)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
+	_, err = file.WriteString(`{"author":"user","text":"torn`)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+	require.NoError(t, log.Append(room, roomsdomain.Post{Author: "user", Text: "glued to the torn line"}))
+	require.NoError(t, log.Append(room, roomsdomain.Post{Author: "user", Text: "after"}))
+
+	posts, err := log.Read(room)
+	require.NoError(t, err)
+	texts := make([]string, 0, len(posts))
+	for _, post := range posts {
+		texts = append(texts, post.Text)
+	}
+	require.Equal(t, []string{"before", "after"}, texts)
 }

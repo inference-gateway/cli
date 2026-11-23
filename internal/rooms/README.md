@@ -14,8 +14,10 @@ expands the configured rooms against the agents the registry currently knows.
 ## How it plugs in
 
 - `rooms.yaml` (a split sidecar like judge.yaml, merged under the `rooms` key) holds the router and
-  the rooms; `config.DefaultRoomsConfig()` holds the `public` room with `agents: ["*"]`, and a
+  the rooms. `config.DefaultRoomsConfig()` holds the `public` room with `agents: ["*"]`, and a
   rooms.yaml that defines `public` itself replaces it (`RoomsConfig.WithDefaultRoom`).
 - `infer rooms list` and `infer rooms show` read the resolved rooms and the log through this context.
 - Later steps route a post into the log (`JSONLLog.Append`), then start member sessions with
-  `room-<room>-<agent>` ids and `Origin.InvokedBy = domain.InvokedByRoom` in the room's project dir.
+  `room-<room>-<agent>` ids, the session `Origin` recording `room`, in the room's project dir.
+- Room names have no dash, so the room part of a member id ends at the first one and no two seats
+  in different rooms share a session.

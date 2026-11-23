@@ -8,10 +8,7 @@ import (
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
-const (
-	RoomsFileName    = "rooms.yaml"
-	DefaultRoomsPath = ConfigDirName + "/" + RoomsFileName
-)
+const RoomsFileName = "rooms.yaml"
 
 // Router fallbacks for RoomsRouterConfig.Fallback: what happens to a post the
 // router could not confidently address. Top hands it to the room's top match,
@@ -32,22 +29,22 @@ const (
 type RoomsConfig struct {
 	Router       RoomsRouterConfig `yaml:"router" mapstructure:"router"`
 	ContextPosts int               `yaml:"context_posts" mapstructure:"context_posts"`
-	Rooms        []RoomsRoomConfig `yaml:"rooms" mapstructure:"rooms"`
+	Rooms        []RoomConfig      `yaml:"rooms" mapstructure:"rooms"`
 }
 
 // RoomsRouterConfig decides who a post is addressed to. An empty model routes
-// @mentions only; a set model is the "provider/model" decision model asked with
-// the room's members.
+// @mentions only, and a set model is the "provider/model" decision model asked
+// with the room's members.
 type RoomsRouterConfig struct {
 	Model         string  `yaml:"model" mapstructure:"model"`
 	MinConfidence float64 `yaml:"min_confidence" mapstructure:"min_confidence"`
 	Fallback      string  `yaml:"fallback" mapstructure:"fallback"`
 }
 
-// RoomsRoomConfig is one room. "*" as an agent reserves a seat for every agent
+// RoomConfig is one room. "*" as an agent reserves a seat for every agent
 // that exists when the room is read, built-ins included. An empty project runs
 // the members in the daemon's default project dir.
-type RoomsRoomConfig struct {
+type RoomConfig struct {
 	Name    string   `yaml:"name" mapstructure:"name"`
 	Project string   `yaml:"project" mapstructure:"project"`
 	Agents  []string `yaml:"agents" mapstructure:"agents"`
@@ -64,7 +61,7 @@ func DefaultRoomsConfig() *RoomsConfig {
 			Fallback:      RoomsFallbackTop,
 		},
 		ContextPosts: DefaultRoomsContextPosts,
-		Rooms: []RoomsRoomConfig{
+		Rooms: []RoomConfig{
 			{Name: DefaultRoomName, Agents: []string{roomsdomain.AgentsWildcard}},
 		},
 	}
@@ -75,16 +72,11 @@ func DefaultRoomsConfig() *RoomsConfig {
 // replaces the default, and one without any rooms list keeps the defaults
 // Viper registered.
 func (c RoomsConfig) WithDefaultRoom() RoomsConfig {
-	for _, room := range c.Rooms {
-		if room.Name == DefaultRoomName {
-			return c
-		}
+	if slices.ContainsFunc(c.Rooms, func(room RoomConfig) bool { return room.Name == DefaultRoomName }) {
+		return c
 	}
-	return RoomsConfig{
-		Router:       c.Router,
-		ContextPosts: c.ContextPosts,
-		Rooms:        append(slices.Clone(c.Rooms), DefaultRoomsConfig().Rooms...),
-	}
+	c.Rooms = append(slices.Clone(c.Rooms), DefaultRoomsConfig().Rooms...)
+	return c
 }
 
 // SaveRooms writes the rooms configuration to disk, creating any missing
@@ -110,7 +102,7 @@ func (c RoomsConfig) Validate() error {
 	seen := make(map[string]bool, len(c.Rooms))
 	for _, room := range c.Rooms {
 		if !roomsdomain.ValidName(room.Name) {
-			return fmt.Errorf("rooms.rooms name %q: must start with a letter or digit and keep to letters, digits, dashes and underscores", room.Name)
+			return fmt.Errorf("rooms.rooms name %q: must start with a letter or digit and keep to letters, digits and underscores", room.Name)
 		}
 		if seen[room.Name] {
 			return fmt.Errorf("rooms.rooms: room %q is defined twice", room.Name)

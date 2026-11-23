@@ -18,6 +18,8 @@ import (
 // ~/.infer/projects/<slug of the room's project>/rooms/<room>.jsonl.
 type JSONLLog struct{}
 
+var _ roomsdomain.Log = (*JSONLLog)(nil)
+
 // NewJSONLLog returns the file-backed room log writing under the userspace
 // projects root.
 func NewJSONLLog() *JSONLLog {
@@ -53,28 +55,26 @@ func (l *JSONLLog) Append(room roomsdomain.Room, post roomsdomain.Post) error {
 	return nil
 }
 
-// Read returns the room's posts in the order they were appended. A room whose
-// log was never written has none.
+// Read returns the room's posts in the order they were appended, an empty list
+// for a room whose log was never written. A line that does not decode, such as
+// one a crash tore mid-write, is skipped so it costs only itself.
 func (l *JSONLLog) Read(room roomsdomain.Room) ([]roomsdomain.Post, error) {
 	path, err := l.path(room)
 	if err != nil {
 		return nil, err
 	}
+	posts := []roomsdomain.Post{}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return posts, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("reading room log %s: %w", path, err)
 	}
-	var posts []roomsdomain.Post
-	for line := range strings.SplitSeq(strings.TrimRight(string(data), "\n"), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
+	for line := range strings.SplitSeq(string(data), "\n") {
 		var post roomsdomain.Post
-		if err := json.Unmarshal([]byte(line), &post); err != nil {
-			return nil, fmt.Errorf("decoding room log %s: %w", path, err)
+		if json.Unmarshal([]byte(line), &post) != nil {
+			continue
 		}
 		posts = append(posts, post)
 	}
@@ -87,7 +87,7 @@ func (l *JSONLLog) Read(room roomsdomain.Room) ([]roomsdomain.Post, error) {
 // a caller that skipped config validation.
 func (l *JSONLLog) path(room roomsdomain.Room) (string, error) {
 	if !roomsdomain.ValidName(room.Name) {
-		return "", fmt.Errorf("invalid room name %q: must keep to letters, digits, dashes and underscores", room.Name)
+		return "", fmt.Errorf("invalid room name %q: must keep to letters, digits and underscores", room.Name)
 	}
 	return filepath.Join(config.UserSpaceConfigDir(), config.ProjectsDirName, config.ProjectSlug(room.Project), "rooms", room.Name+".jsonl"), nil
 }
