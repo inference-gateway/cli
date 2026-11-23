@@ -937,6 +937,18 @@ Client → CLI, answered with the room's `room_snapshot`, after which the client
 {"type": "room_activity", "room": "release", "member": "tester", "activity": "waiting"}
 ```
 
+Client → CLI, entering a room as the user. `join_room` follows the room exactly like `follow_room`. The first
+time the user ever enters it, the daemon also logs a join, which the room's first `max_members` members answer
+with a welcome. A reconnect sends `follow_room`, which never welcomes:
+
+```json
+{"type": "join_room", "room": "release"}
+```
+
+```json
+{"type": "room_post", "room": "release", "post": {"id": "9a2e...", "author": "user", "kind": "join", "text": "joined #release", "time": "2026-11-23T10:29:00Z"}}
+```
+
 Client → CLI, posting as the user. The daemon routes and logs the post, streams it to the followers, and
 answers the poster with `room_posted`, the logged post plus the notices for its author:
 
@@ -963,8 +975,9 @@ Client → CLI, stopping the follow. Nothing answers it:
   own notes, such as a member waiting for approval in its own chat.
 - `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval in its own
   session, and `idle` otherwise.
-- `routes` is empty for a post that reached nobody. `probability` is `1` for a pinged member and the decision
-  model's answer otherwise.
+- `kind` is `join` for the user's first entry into a room and absent for a message.
+- `routes` is empty for a post that reached nobody. `probability` is `1` for a pinged member, every member of
+  an `@all` post included, and the decision model's answer otherwise.
 - An unknown room, an empty post or a log that cannot be read answers `RUN_ERROR` with a `message`.
 - A member's session is an ordinary thread: follow `room-<room>-<agent>` with `resume_conversation` to watch
   the member work or decide its approval.

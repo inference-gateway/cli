@@ -66,10 +66,12 @@ rooms:
 1. `@name` pings an agent when `name` is an agent the project knows. A pinged member gets the post with no
    model asked. A pinged agent outside the room gets a notice instead. `@README.md` and `@./tester` stay file
    references, so a member's name wins over a file of the same name, and `@./<name>` reaches the file.
-2. A post that pings nobody asks the decision model one question per member: should this member, given its
-   description and the recent posts, act on the post? The post goes to at most `max_members` members at or
-   above `min_confidence`.
-3. When nobody passes, `fallback` decides. Without a router model, an unpinged post reaches nobody and you get
+2. `@all` pings every member, also without a router model.
+3. A post that pings nobody asks the decision model whether it is for the whole room, such as "Hi all", and one
+   question per member: should this member, given its description and the recent posts, act on the post? A
+   post for the whole room goes to every member. Any other goes to at most `max_members` members at or above
+   `min_confidence`.
+4. When nobody passes, `fallback` decides. Without a router model, an unpinged post reaches nobody and you get
    a notice naming the members to ping.
 
 The log records whom each post was routed to and with what probability, so a client can show why a member
@@ -80,19 +82,22 @@ answered. A decision request that fails still logs the post, routed to nobody, w
 Every member keeps its own session, `room-<room>-<agent>`, running as its agent in the room's project. The
 session records the room as what invoked it. A routed post becomes the member's next turn and carries the
 room's posts the member has not seen since its last turn, up to `context_posts`. The member's answer, the last
-assistant message of its run, is logged as its post.
+assistant message of its run, is logged as its post. Members talk like teammates in a channel: they answer
+what a post asks and keep greetings and small talk to one short line.
 
 - Members routed the same post run in parallel.
 - A post for a member that is still running waits and becomes its next turn.
 - A member that needs a tool approved waits in its own chat. The room logs that it waits, and its answer lands
   once you decided there.
 - A member on another workspace is reached through the lease relay like any session.
+- The first time you enter a room from the chat or the desktop, the room logs your join and its first
+  `max_members` members welcome you.
 
 ## The room log
 
 Each room appends its posts to `~/.infer/projects/<slug of the room's project>/rooms/<room>.jsonl`, one JSON
-object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `text`, `mentions`,
-`routes` and `time`.
+object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `kind` (`join` for
+your first entry), `text`, `mentions`, `routes` and `time`.
 
 ## Commands
 
@@ -108,6 +113,7 @@ the rooms where you run them.
 
 ## Clients
 
-The desktop and other clients list, follow and post to rooms over the daemon binding with `list_rooms`,
-`follow_room`, `post_room` and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in the binding
-protocol.
+The chat TUI enters rooms from its status bar, see [Rooms in the chat](shortcuts-guide.md#rooms-in-the-chat).
+The desktop and other clients list, join, follow and post to rooms over the daemon binding with `list_rooms`,
+`join_room`, `follow_room`, `post_room` and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in
+the binding protocol.
