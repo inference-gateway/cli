@@ -35,9 +35,11 @@ var errThreadClosed = errors.New("the daemon closed the subagent's thread")
 // its binding, the way the desktop does, so the daemon owns the worker and
 // every other client of the thread sees the same turns. It runs each message
 // as a turn, hands the turns the worker reports to onTurn and the team
-// messages the subagent posts to onMessage.
+// messages the subagent posts to onMessage. A peer's thread is a chat of its own
+// that a human may open, so its approvals wait for them.
 type subagentThread struct {
 	sessionID string
+	peer      bool
 	onTurn    func(scheddomain.SubagentResultFile)
 	onFrame   func([]byte)
 	onMessage func(scheddomain.TeamMessage)
@@ -58,7 +60,7 @@ type subagentThread struct {
 // answered with its history. A nil onFrame or onMessage ignores what it would get.
 func openSubagentThread(ctx context.Context, dial agui.DialConfig, projectDir, sessionID string, opts sessionsdomain.ThreadOptions, onTurn func(scheddomain.SubagentResultFile), onFrame func([]byte), onMessage func(scheddomain.TeamMessage)) (*subagentThread, error) {
 	t := &subagentThread{
-		sessionID: sessionID, onTurn: onTurn, onFrame: onFrame, onMessage: onMessage,
+		sessionID: sessionID, peer: opts.Origin.SentBy != "", onTurn: onTurn, onFrame: onFrame, onMessage: onMessage,
 		opened: make(chan error, 1), placed: make(chan error, 1), closed: make(chan struct{}),
 	}
 	conn, err := agui.Dial(ctx, dial, t)
@@ -204,7 +206,8 @@ type threadFrame struct {
 // Handle reads one frame of the thread: the snapshot that opens it, the run
 // boundaries, the turns the worker reports and the failures. An interrupted
 // run resumes with every interrupt cancelled, as a headless subagent has no
-// approver. ponytail: leave it open once a desktop follower may approve.
+// approver, while a peer's stay open for whoever opens its chat.
+// ponytail: leave a subagent's open too once a desktop follower may approve.
 func (t *subagentThread) Handle(_ *agui.Conn, frame []byte) {
 	if t.onFrame != nil {
 		t.onFrame(frame)
@@ -220,7 +223,7 @@ func (t *subagentThread) Handle(_ *agui.Conn, frame []byte) {
 		t.setRunning(true)
 	case "RUN_FINISHED":
 		t.setRunning(false)
-		if f.Outcome.Type == "interrupt" {
+		if f.Outcome.Type == "interrupt" && !t.peer {
 			t.cancelInterrupts(f.Outcome.Interrupts)
 		}
 	case "RUN_ERROR":

@@ -434,12 +434,11 @@ func TestBuildConversationShowText_Empty(t *testing.T) {
 func TestBuildConversationShowJSON_MetadataAndEntries(t *testing.T) {
 	entries := makeShowEntries()
 	metadata := convdomain.ConversationMetadata{
-		ID:              "sess-1",
-		Title:           "hello",
-		ParentSessionID: "parent-1",
-		InvokedBy:       "agent",
-		TokenStats:      convdomain.SessionTokenStats{TotalInputTokens: 120, TotalOutputTokens: 30, TotalCachedTokens: 100, LastInputTokens: 80},
-		CostStats:       convdomain.SessionCostStats{TotalCost: 0.42},
+		ID:         "sess-1",
+		Title:      "hello",
+		Origin:     convdomain.Origin{ParentSessionID: "parent-1", InvokedBy: "agent", Label: "survey"},
+		TokenStats: convdomain.SessionTokenStats{TotalInputTokens: 120, TotalOutputTokens: 30, TotalCachedTokens: 100, LastInputTokens: 80},
+		CostStats:  convdomain.SessionCostStats{TotalCost: 0.42},
 	}
 	out, err := buildConversationShowJSON(entries, metadata, false)
 	if err != nil {
@@ -450,7 +449,7 @@ func TestBuildConversationShowJSON_MetadataAndEntries(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &decodedOut); err != nil {
 		t.Fatalf("output not valid JSON: %v (%q)", err, out)
 	}
-	if decodedOut.Metadata.ID != "sess-1" || decodedOut.Metadata.ParentSessionID != "parent-1" || decodedOut.Metadata.InvokedBy != "agent" {
+	if decodedOut.Metadata.ID != "sess-1" || decodedOut.Metadata.ParentSessionID != "parent-1" || decodedOut.Metadata.InvokedBy != "agent" || decodedOut.Metadata.Label != "survey" {
 		t.Errorf("unexpected metadata: %+v", decodedOut.Metadata)
 	}
 	if decodedOut.Metadata.TokenStats != metadata.TokenStats || decodedOut.Metadata.TotalCost != 0.42 {

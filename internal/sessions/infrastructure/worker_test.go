@@ -69,6 +69,32 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			},
 		},
 		{
+			name:     "a subagent records its label",
+			opts:     sessionsdomain.ThreadOptions{Subagent: &sessionsdomain.Subagent{Parent: "parent-1", Depth: 1}, Origin: sessionsdomain.Origin{Label: "survey"}},
+			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
+			wantEnv: []string{
+				"PWD=/work/proj",
+				"INFER_LOG_STDERR_JSON=true",
+				"INFER_SESSION_LABEL=survey",
+				"INFER_PARENT_SESSION_ID=parent-1",
+				"INFER_INVOKED_BY=agent",
+				"INFER_SUBAGENT_DEPTH=1",
+			},
+		},
+		{
+			name:     "an agent another agent messaged records both and was invoked by an agent",
+			opts:     sessionsdomain.ThreadOptions{Origin: sessionsdomain.Origin{Agent: "tester", Label: "tester", SentBy: "sender-1"}},
+			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
+			wantEnv: []string{
+				"PWD=/work/proj",
+				"INFER_LOG_STDERR_JSON=true",
+				"INFER_SESSION_AGENT=tester",
+				"INFER_SESSION_LABEL=tester",
+				"INFER_SENT_BY=sender-1",
+				"INFER_INVOKED_BY=agent",
+			},
+		},
+		{
 			name:     "an agent with an empty MCP server list brings up none",
 			opts:     sessionsdomain.ThreadOptions{Agent: "offline", MCPServers: []string{}},
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},

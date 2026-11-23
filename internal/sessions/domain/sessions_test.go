@@ -21,6 +21,7 @@ func TestPortableKeepsTheAgentAndItsSpawnAndDropsWhatBelongsToTheDaemon(t *testi
 		MCPServers:         []string{"agentmail"},
 		Workspace:          "remote",
 		WorkspaceDir:       "/workspace/project",
+		Origin:             Origin{Agent: "reviewer", Label: "reviewer", SentBy: "sender"},
 		Env:                []string{"TOKEN=secret"},
 	}
 	want := ThreadOptions{
@@ -33,6 +34,7 @@ func TestPortableKeepsTheAgentAndItsSpawnAndDropsWhatBelongsToTheDaemon(t *testi
 		DisallowedTools:    []string{"Bash"},
 		MCPServers:         []string{"agentmail"},
 		Subagent:           &Subagent{Parent: "parent", Depth: 1},
+		Origin:             Origin{Agent: "reviewer", Label: "reviewer", SentBy: "sender"},
 	}
 	if got := opened.Portable(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("Portable() = %+v, want %+v", got, want)

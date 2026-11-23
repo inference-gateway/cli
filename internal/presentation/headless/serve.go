@@ -124,11 +124,11 @@ func liveThreadID(repo convdomain.ConversationRepository, sessionID string) stri
 	return cmp.Or(repo.GetCurrentConversationID(), sessionID)
 }
 
-// reportSubagentTurn tells the parent Agent tool following this thread that a
+// reportSubagentTurn tells the lead's Agent tool following this thread that a
 // turn ended, as the CUSTOM subagent_turn event carrying what the keep-alive
-// turn line carries. A worker no parent spawned reports nothing.
+// turn line carries. A worker with no lead reports nothing.
 func reportSubagentTurn(w io.Writer, repo convdomain.ConversationRepository, queue convdomain.MessageQueue, sessionID string, runErr error) {
-	if os.Getenv(scheddomain.EnvSubagentParentSession) == "" {
+	if !hasLead() {
 		return
 	}
 	line := scheddomain.SubagentTurnLine{Type: scheddomain.SubagentTurnLineType, SubagentResultFile: turnResult(repo, sessionID, runErr)}

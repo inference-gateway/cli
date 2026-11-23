@@ -346,7 +346,7 @@ Offline.`)
 			name:  "a project agent's model wins and it keeps its tools for the worker",
 			agent: "reviewer",
 			want: sessionsdomain.ThreadOptions{
-				Agent: "reviewer", Model: "deepseek/deepseek-v4-pro",
+				Agent: "reviewer", Origin: sessionsdomain.Origin{Agent: "reviewer"}, Model: "deepseek/deepseek-v4-pro",
 				SystemPrompt: "You review diffs.", CustomInstructions: "siblings",
 				Tools: []string{ToolGrep, ToolRead, "project_tool"}, DisallowedTools: []string{ToolBash},
 			},
@@ -355,20 +355,20 @@ Offline.`)
 			name:  "an inherit agent keeps the thread's model and leaves disallowedTools to the worker",
 			agent: "helper",
 			want: sessionsdomain.ThreadOptions{
-				Agent: "helper", Model: "provider/thread", SystemPrompt: "You help.", CustomInstructions: "siblings",
+				Agent: "helper", Origin: sessionsdomain.Origin{Agent: "helper"}, Model: "provider/thread", SystemPrompt: "You help.", CustomInstructions: "siblings",
 				DisallowedTools: []string{ToolBash},
 			},
 		},
 		{
 			name:  "a bare alias model inherits",
 			agent: "aliased",
-			want:  sessionsdomain.ThreadOptions{Agent: "aliased", Model: "provider/thread", SystemPrompt: "Aliased.", CustomInstructions: "siblings"},
+			want:  sessionsdomain.ThreadOptions{Agent: "aliased", Origin: sessionsdomain.Origin{Agent: "aliased"}, Model: "provider/thread", SystemPrompt: "Aliased.", CustomInstructions: "siblings"},
 		},
 		{
 			name:  "named MCP servers follow the agent and an inline definition is ignored",
 			agent: "mailer",
 			want: sessionsdomain.ThreadOptions{
-				Agent: "mailer", Model: "provider/thread", SystemPrompt: "You mail.", CustomInstructions: "siblings",
+				Agent: "mailer", Origin: sessionsdomain.Origin{Agent: "mailer"}, Model: "provider/thread", SystemPrompt: "You mail.", CustomInstructions: "siblings",
 				MCPServers: []string{"agentmail"},
 			},
 		},
@@ -376,7 +376,7 @@ Offline.`)
 			name:  "an empty mcpServers list brings up no server",
 			agent: "offline",
 			want: sessionsdomain.ThreadOptions{
-				Agent: "offline", Model: "provider/thread", SystemPrompt: "Offline.", CustomInstructions: "siblings",
+				Agent: "offline", Origin: sessionsdomain.Origin{Agent: "offline"}, Model: "provider/thread", SystemPrompt: "Offline.", CustomInstructions: "siblings",
 				MCPServers: []string{},
 			},
 		},

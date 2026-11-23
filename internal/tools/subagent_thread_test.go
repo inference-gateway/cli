@@ -15,6 +15,7 @@ import (
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	schedinfra "github.com/inference-gateway/cli/internal/scheduler/infrastructure"
+	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
 const testBindingToken = "test-token"
@@ -330,24 +331,154 @@ func TestAgentTool_ThreadAsyncCarriesParentSession(t *testing.T) {
 }
 
 // A subagent's thread posts team messages as CUSTOM agent_message events, and
-// the lead keeps one addressed to it as a note in its own chat.
+// the lead keeps one addressed to it, as "lead" or by the agent it runs as, as
+// a note in its own chat.
 func TestHeadlessSubagentJob_ThreadRelaysTeamMessages(t *testing.T) {
-	turns := make(chan string, 8)
-	echo := echoTurn(turns)
-	dial, _ := startDaemonBinding(t, func(conn *agui.Conn, input agui.RunAgentInput) {
-		conn.Deliver([]byte(`{"type":"CUSTOM","name":"agent_message","value":{"to":"lead","text":"halfway there"}}`))
-		echo(conn, input)
-	})
-	job, _ := newThreadTestJob(t, dial, time.Hour)
-	reported := make(chan string, 8)
-	go job.Run(t.Context(), func(sig scheddomain.JobSignal) {
-		if sig.Note != "" {
-			reported <- sig.Note
-		}
-	})
+	for _, to := range []string{"lead", "researcher"} {
+		t.Run(to, func(t *testing.T) {
+			turns := make(chan string, 8)
+			echo := echoTurn(turns)
+			dial, _ := startDaemonBinding(t, func(conn *agui.Conn, input agui.RunAgentInput) {
+				conn.Deliver([]byte(`{"type":"CUSTOM","name":"agent_message","value":{"to":"` + to + `","text":"halfway there"}}`))
+				echo(conn, input)
+			})
+			job, tool := newThreadTestJob(t, dial, time.Hour)
+			tool.config.Subagent.Agent = "researcher"
+			reported := make(chan string, 8)
+			go job.Run(t.Context(), func(sig scheddomain.JobSignal) {
+				if sig.Note != "" {
+					reported <- sig.Note
+				}
+			})
 
-	waitTurn(t, turns, "task")
-	waitNote(t, reported, "[Message from keeper]\n\nhalfway there")
+			waitTurn(t, turns, "task")
+			waitNote(t, reported, "[Message from keeper]\n\nhalfway there")
+		})
+	}
+}
+
+// An agent with no lead messaging another agent starts it in a session of its
+// own: a top-level thread that runs as that agent, names the sender and opens
+// on the message. The next message continues that session.
+func TestAgentMessage_AnotherAgentStartsInASessionOfItsOwn(t *testing.T) {
+	t.Setenv("INFER_SUBAGENT_DEPTH", "")
+	turns := make(chan string, 8)
+	dial, handler := startDaemonBinding(t, echoTurn(turns))
+	cfg := threadConfig()
+	cfg.Subagent.Agent = "researcher"
+	tool, _ := newSupervisedAgentTool(t, cfg)
+	tool.dialDaemon = func(context.Context) (agui.DialConfig, error) { return dial, nil }
+	tool.setMarkdownAgents([]markdownAgent{{name: "tester", description: "Tests web pages"}}, nil)
+	ctx := agentdomain.WithSessionID(t.Context(), "researcher-session")
+
+	res, err := tool.Execute(ctx, map[string]any{"to": "tester", "message": "test example.org"})
+	if err != nil || res == nil || !res.Success {
+		t.Fatalf("Execute: res=%+v err=%v", res, err)
+	}
+	waitTurn(t, turns, teamNote("researcher", "test example.org"))
+
+	opens := clientFrames(handler, "resume_conversation")
+	if len(opens) != 1 {
+		t.Fatalf("the agent opens one thread, got %v", opens)
+	}
+	open := opens[0]
+	id, _ := open["id"].(string)
+	origin, _ := open["origin"].(map[string]any)
+	if open["subagent"] != nil || open["agent"] != "tester" || strings.HasPrefix(id, "subagent-") {
+		t.Fatalf("the thread must run as the agent at the top level, got %v", open)
+	}
+	if origin["label"] != "tester" || origin["sent_by"] != "researcher-session" {
+		t.Fatalf("the thread must record its label and sender, got %v", origin)
+	}
+
+	res, err = tool.Execute(ctx, map[string]any{"to": "tester", "message": "and example.com"})
+	if err != nil || res == nil || !res.Success {
+		t.Fatalf("second message: res=%+v err=%v", res, err)
+	}
+	waitTurn(t, turns, teamNote("researcher", "and example.com"))
+	if opens := clientFrames(handler, "resume_conversation"); len(opens) != 1 {
+		t.Fatalf("the next message must continue the same session, got %v", opens)
+	}
+}
+
+// Another agent runs only on the daemon, which a session without the binding
+// cannot reach.
+func TestAgentMessage_AnotherAgentNeedsTheDaemon(t *testing.T) {
+	tool := newMessagingAgentTool(schedinfra.NewSubagentTracker())
+	tool.setMarkdownAgents([]markdownAgent{{name: "tester", description: "Tests web pages"}}, nil)
+
+	res, err := tool.Execute(t.Context(), map[string]any{"to": "tester", "message": "hi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Success || !strings.Contains(res.Error, "Messaging agent tester starts it in a session of its own on the daemon") {
+		t.Fatalf("res = %+v, want a refusal naming the daemon", res)
+	}
+}
+
+// A subagent's interrupted run resumes with its interrupts cancelled, as it has
+// no approver, while a peer's stay open for whoever opens its chat.
+func TestSubagentThread_OnlyAPeerLeavesItsInterruptsOpen(t *testing.T) {
+	tests := []struct {
+		name       string
+		opts       sessionsdomain.ThreadOptions
+		wantCancel bool
+	}{
+		{"a subagent", sessionsdomain.ThreadOptions{Subagent: &sessionsdomain.Subagent{Parent: "p", Depth: 1}}, true},
+		{"a peer", sessionsdomain.ThreadOptions{Agent: "tester", Origin: sessionsdomain.Origin{SentBy: "p"}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			probed := make(chan struct{}, 1)
+			dial, handler := startDaemonBinding(t, func(conn *agui.Conn, input agui.RunAgentInput) {
+				switch {
+				case len(input.Resume) > 0:
+				case len(input.Messages) == 1 && input.Messages[0].Content == "probe":
+					probed <- struct{}{}
+				default:
+					conn.Deliver([]byte(`{"type":"RUN_STARTED","threadId":"` + input.ThreadID + `","runId":"` + input.RunID + `"}`))
+					conn.Deliver([]byte(`{"type":"RUN_FINISHED","threadId":"` + input.ThreadID + `","runId":"` + input.RunID + `","outcome":{"type":"interrupt","interrupts":[{"id":"i1","reason":"tool_call"}]}}`))
+					deliverTurn(conn, scheddomain.SubagentResultFile{Done: true})
+				}
+			})
+			turned := make(chan struct{}, 1)
+			thread, err := openSubagentThread(t.Context(), dial, t.TempDir(), "s1", tt.opts, func(scheddomain.SubagentResultFile) { turned <- struct{}{} }, nil, nil)
+			if err != nil {
+				t.Fatalf("openSubagentThread: %v", err)
+			}
+			t.Cleanup(thread.stop)
+
+			if err := thread.run("task"); err != nil {
+				t.Fatal(err)
+			}
+			waitSignal(t, turned, "the interrupted turn")
+			if err := thread.run("probe"); err != nil {
+				t.Fatal(err)
+			}
+			waitSignal(t, probed, "the probe turn")
+
+			cancels := 0
+			for _, run := range clientFrames(handler, "run_agent_input") {
+				input, _ := run["input"].(map[string]any)
+				if input["resume"] != nil {
+					cancels++
+				}
+			}
+			if got := cancels == 1; got != tt.wantCancel {
+				t.Fatalf("cancelled %d interrupt resumes, want a cancel %v", cancels, tt.wantCancel)
+			}
+		})
+	}
+}
+
+// waitSignal waits for one value on ch, failing with what did not happen.
+func waitSignal(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("no %s within 5s", what)
+	}
 }
 
 // A named agent with a workspace runs on that computer: its thread opens at

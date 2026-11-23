@@ -607,13 +607,16 @@ type AgentToolConfig struct {
 	CompletedRetention int                      `yaml:"completed_retention" mapstructure:"completed_retention"`
 }
 
-// SubagentConfig is what the Agent tool hands a subagent process it spawns:
-// the session that spawned it and who started it. Both arrive through the
-// scheduler's EnvSubagentParentSession and EnvSubagentInvokedBy variables,
-// never through a file.
+// SubagentConfig is how a session worker started, as the Agent tool or the
+// daemon hands it over: the session that spawned it, who started it, the agent
+// it runs as, its label and the session whose message started it. All arrive
+// through the scheduler's Env* variables, never through a file.
 type SubagentConfig struct {
 	ParentSessionID string `yaml:"-" mapstructure:"parent_session_id"`
 	InvokedBy       string `yaml:"-" mapstructure:"invoked_by"`
+	Agent           string `yaml:"-" mapstructure:"agent"`
+	Label           string `yaml:"-" mapstructure:"label"`
+	SentBy          string `yaml:"-" mapstructure:"sent_by"`
 }
 
 // QueryAgentToolConfig contains Query-specific tool settings

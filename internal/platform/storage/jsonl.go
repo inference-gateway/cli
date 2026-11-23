@@ -339,8 +339,7 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, project string, li
 				TitleGenerated:      metadata.TitleGenerated,
 				TitleInvalidated:    metadata.TitleInvalidated,
 				TitleGenerationTime: metadata.TitleGenerationTime,
-				ParentSessionID:     metadata.ParentSessionID,
-				InvokedBy:           metadata.InvokedBy,
+				Origin:              metadata.Origin,
 				Project:             metadata.Project,
 			})
 		}

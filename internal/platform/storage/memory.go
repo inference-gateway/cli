@@ -106,8 +106,7 @@ func (m *MemoryStorage) ListConversations(ctx context.Context, project string, l
 			TitleGenerated:      data.metadata.TitleGenerated,
 			TitleInvalidated:    data.metadata.TitleInvalidated,
 			TitleGenerationTime: data.metadata.TitleGenerationTime,
-			ParentSessionID:     data.metadata.ParentSessionID,
-			InvokedBy:           data.metadata.InvokedBy,
+			Origin:              data.metadata.Origin,
 		}
 		summaries = append(summaries, summary)
 	}
