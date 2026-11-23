@@ -323,31 +323,40 @@ func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = gateway.NewSupervisor(c.sessionID, c.config, c.containerRuntime)
 }
 
-// startMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
-// on an ephemeral localhost port, rewriting Gateway.URL to it and forcing
-// Gateway.Run off. INFER_GATEWAY_MOCK_SCENARIOS overrides the embedded library
-// with an app-owned scenarios YAML file, so non-Go apps that spawn infer can
-// ship their own test scenarios.
+// startMockGateway serves the mock gateway, rewriting Gateway.URL to it and
+// forcing Gateway.Run off.
 func (c *ServiceContainer) startMockGateway() {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	server, url, err := serveMockGateway()
 	if err != nil {
-		panic(fmt.Sprintf("mock gateway mode: failed to listen: %v", err))
+		panic(fmt.Sprintf("mock gateway mode: %v", err))
 	}
-
-	defs := mockgateway.Default()
-	if path := os.Getenv("INFER_GATEWAY_MOCK_SCENARIOS"); path != "" {
-		defs, err = mockgateway.LoadFile(path)
-		if err != nil {
-			panic(fmt.Sprintf("mock gateway mode: INFER_GATEWAY_MOCK_SCENARIOS: %v", err))
-		}
-	}
-
-	c.mockGateway = &http.Server{Handler: mockgateway.New(defs)}
-	go func() { _ = c.mockGateway.Serve(ln) }()
-
-	c.config.Gateway.URL = "http://" + ln.Addr().String()
+	c.mockGateway = server
+	c.config.Gateway.URL = url
 	c.config.Gateway.Run = false
 	logger.Info("mock gateway mode enabled", "url", c.config.Gateway.URL)
+}
+
+// serveMockGateway serves a scenario library (github.com/inference-gateway/tokenless)
+// on an ephemeral localhost port and returns the server and its URL.
+// INFER_GATEWAY_MOCK_SCENARIOS overrides the embedded library with an
+// app-owned scenarios YAML file, so non-Go apps that spawn infer can ship
+// their own test scenarios.
+func serveMockGateway() (*http.Server, string, error) {
+	defs := mockgateway.Default()
+	if path := os.Getenv("INFER_GATEWAY_MOCK_SCENARIOS"); path != "" {
+		loaded, err := mockgateway.LoadFile(path)
+		if err != nil {
+			return nil, "", fmt.Errorf("INFER_GATEWAY_MOCK_SCENARIOS: %w", err)
+		}
+		defs = loaded
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to listen: %w", err)
+	}
+	server := &http.Server{Handler: mockgateway.New(defs)}
+	go func() { _ = server.Serve(ln) }()
+	return server, "http://" + ln.Addr().String(), nil
 }
 
 // initializeAgentSupervisor creates the A2A agent supervisor if A2A is enabled
