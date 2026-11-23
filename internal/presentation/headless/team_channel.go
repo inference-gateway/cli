@@ -33,10 +33,17 @@ func (c stdoutTeamChannel) Post(msg scheddomain.TeamMessage) error {
 }
 
 // withTeamChannel gives the runs of a subagent a channel to the lead that
-// spawned it. A run no lead spawned gets none.
+// spawned it, and those of an agent another agent messaged a channel to that
+// sender. Any other run gets none.
 func withTeamChannel(ctx context.Context, out io.Writer, serve bool) context.Context {
-	if os.Getenv(scheddomain.EnvSubagentParentSession) == "" {
+	if !hasLead() {
 		return ctx
 	}
 	return scheddomain.WithTeamChannel(ctx, stdoutTeamChannel{out: out, custom: serve})
+}
+
+// hasLead reports whether another session follows this worker as its lead: the
+// orchestrator that spawned it as a subagent, or the agent whose message started it.
+func hasLead() bool {
+	return os.Getenv(scheddomain.EnvSubagentParentSession) != "" || os.Getenv(scheddomain.EnvSentBy) != ""
 }

@@ -73,6 +73,9 @@ func bindSubagentEnv(v *viper.Viper) error {
 	bindings := []struct{ key, env string }{
 		{"subagent.parent_session_id", scheddomain.EnvSubagentParentSession},
 		{"subagent.invoked_by", scheddomain.EnvSubagentInvokedBy},
+		{"subagent.agent", scheddomain.EnvSessionAgent},
+		{"subagent.label", scheddomain.EnvSessionLabel},
+		{"subagent.sent_by", scheddomain.EnvSentBy},
 	}
 	for _, b := range bindings {
 		if err := v.BindEnv(b.key, b.env); err != nil {

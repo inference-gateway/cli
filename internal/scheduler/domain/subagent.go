@@ -61,6 +61,18 @@ const EnvSubagentInvokedBy = "INFER_INVOKED_BY"
 // Agent tool started.
 const SubagentInvokedByAgent = "agent"
 
+// EnvSessionAgent names the Markdown agent a session runs as, recorded in its
+// metadata. Unlike EnvMainAgent it follows the session to another workspace.
+const EnvSessionAgent = "INFER_SESSION_AGENT"
+
+// EnvSessionLabel is the name an orchestrator gave the session it spawned,
+// recorded in the session's metadata.
+const EnvSessionLabel = "INFER_SESSION_LABEL"
+
+// EnvSentBy names the session whose message to another agent started this
+// one. The session reports to it the way a subagent reports to its parent.
+const EnvSentBy = "INFER_SENT_BY"
+
 // EnvSubagentAgentMode names the environment variable the Agent tool sets to
 // carry the parent chat's coding mode (the AgentMode.ModeKey form -
 // "standard"/"plan"/"auto"/"auto-with-judge") to a spawned subagent, so it starts in the same
@@ -108,6 +120,8 @@ type SubagentApprovalFile struct {
 // subprocess or tmux pane spawned by the Agent tool) that the subagent control
 // tools (ListSubagents, CloseSubagent, ...) read. Monitoring is owned by the job
 // supervisor (headlessSubagentJob / interactiveSubagentJob), not this struct.
+// Peer marks another agent this one messaged, which runs in a session of its own
+// and reads every message with who sent it.
 type SubagentState struct {
 	ID          string
 	Label       string
@@ -121,6 +135,7 @@ type SubagentState struct {
 	CancelFunc  context.CancelFunc
 	Silent      bool
 	Input       func(text string) error
+	Peer        bool
 }
 
 // SubagentResultFile is the JSON written by `infer headless --result-file` on exit

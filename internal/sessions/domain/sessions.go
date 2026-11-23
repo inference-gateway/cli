@@ -14,9 +14,9 @@ type ThreadKey struct {
 
 // ThreadOptions override the project's config for one thread's worker at
 // launch, and zero values keep it. Agent names a Markdown agent the opening
-// daemon resolves into the other fields. MCPServers nil keeps the enabled
-// servers and empty brings none. Workspace places an unleased thread, and Env
-// never travels on the wire.
+// daemon resolves into the other fields, and Origin is what the session
+// records about how it started. MCPServers nil keeps the enabled servers and
+// empty brings none. Workspace places an unleased thread, and Env never travels.
 type ThreadOptions struct {
 	Model              string    `json:"model,omitempty"`
 	Mode               string    `json:"mode,omitempty"`
@@ -31,14 +31,15 @@ type ThreadOptions struct {
 	MCPServers         []string  `json:"mcp_servers,omitzero"`
 	Workspace          string    `json:"workspace,omitempty"`
 	WorkspaceDir       string    `json:"workspace_dir,omitempty"`
+	Origin             Origin    `json:"origin,omitzero"`
 	Env                []string  `json:"-"`
 }
 
 // Portable is what of the options follows a session to another workspace: the
-// agent's model, mode, prompts, tools, MCP servers, turn limit and the spawn, so a
-// teammate placed remotely still reports to its lead under the depth guard. The
-// agent name, placement, sandbox paths and Env belong to the daemon the thread
-// was opened on.
+// agent's model, mode, prompts, tools, MCP servers, turn limit, the spawn and the
+// origin, so a teammate placed remotely still reports to its lead under the depth
+// guard. The agent name, placement, sandbox paths and Env belong to the daemon the
+// thread was opened on.
 func (o ThreadOptions) Portable() ThreadOptions {
 	return ThreadOptions{
 		Model:              o.Model,
@@ -50,7 +51,17 @@ func (o ThreadOptions) Portable() ThreadOptions {
 		DisallowedTools:    o.DisallowedTools,
 		MCPServers:         o.MCPServers,
 		Subagent:           o.Subagent,
+		Origin:             o.Origin,
 	}
+}
+
+// Origin is what a thread's session records about how it started: the Markdown
+// agent it runs as, the label its orchestrator named it by, and the session
+// whose message to that agent started it, which it then reports to.
+type Origin struct {
+	Agent  string `json:"agent,omitempty"`
+	Label  string `json:"label,omitempty"`
+	SentBy string `json:"sent_by,omitempty"`
 }
 
 // Subagent is what a spawned thread knows about its spawn: the parent it

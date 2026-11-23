@@ -15,10 +15,12 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   thread at a time, because bare AG-UI events carry no thread id. The thread options on these frames
   (`model`, `mode`, `system_prompt`, `custom_instructions`, `sandbox_directories`, `max_turns`, `subagent`)
   apply when the worker launches. `subagent` names the parent thread that spawned this one, its depth and its
-  tool allowlist, which the worker gets as its subagent env. `agent` names a Markdown agent, which the
+  tool allowlist, which the worker gets as its subagent env. `origin` is what the session records about how it
+  started - the agent it runs as, its label and the session whose message started it - and follows it to
+  another workspace. `agent` names a Markdown agent, which the
   `ResolveAgent` port the daemon wires (`tools.ResolveThreadAgent`) overlays when the thread is created, from
   the frame's `project_dir` and the home dir (`.infer/agents`, then `.agents/agents`). The thread keeps what it resolved to (`model`, `system_prompt`,
-  `tools`, `disallowed_tools`), so relaunches, relays and teleports carry those and never the name,
+  `tools`, `disallowed_tools`), so relaunches, relays and teleports carry those and never the name, which only `origin.agent` records,
   and an unknown agent fails the open with `RUN_ERROR`. `workspace` and `workspace_dir` place a thread no lease places on a
   remote workspace, which the launch seam relays it to.
 - **Forwarded frames** - `run_agent_input`, `add_note`, `interrupt` and `user_question_response` go to the
@@ -79,7 +81,9 @@ go to the worker's stdin, and worker stdout lines go to the thread's clients, on
   binding as `subagent-<parent id>-<child id>`, runs with `run_agent_input` and leaves when it is done, so the
   daemon owns the subagent's worker and the desktop follows the same thread live. The subagent worker reports
   each finished turn to its parent as a CUSTOM `subagent_turn` event. Without a configured binding the tool
-  falls back to spawning `infer headless --keep-alive` itself.
+  falls back to spawning `infer headless --keep-alive` itself. A message to another agent opens a top-level
+  thread the same way, named by a plain id and opened with that `agent` and `origin.sent_by`, and its worker
+  reports to the sender as a subagent's does to its parent.
 - `Quiesce`, `Settle`, `Deliver`, `Request`, `TeleportedHere`, `TeleportedAway`, `AllTeleportedAway` and `Idle` are the hooks a
   session teleport uses: end a thread's run and stop its worker while keeping its clients, let the thread launch a
   worker again once the teleport handed the session over or gave up, tell a thread's followers

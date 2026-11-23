@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -20,19 +21,18 @@ import (
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository
 // and adds persistence capabilities using a storage backend. Every session it
-// starts records the parentSessionID and invokedBy set through SetOrigin.
+// starts records the origin set through SetOrigin.
 type PersistentConversationRepository struct {
 	*InMemoryConversationRepository
-	storage         storage.ConversationStorage
-	conversationID  string
-	metadata        convdomain.ConversationMetadata
-	metadataMutex   sync.RWMutex
-	autoSave        bool
-	titleGenerator  *ConversationTitleGenerator
-	autoSaveMutex   sync.Mutex
-	taskTracker     a2adomain.Clearer
-	parentSessionID string
-	invokedBy       string
+	storage        storage.ConversationStorage
+	conversationID string
+	metadata       convdomain.ConversationMetadata
+	metadataMutex  sync.RWMutex
+	autoSave       bool
+	titleGenerator *ConversationTitleGenerator
+	autoSaveMutex  sync.Mutex
+	taskTracker    a2adomain.Clearer
+	origin         convdomain.Origin
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -67,13 +67,13 @@ func (r *PersistentConversationRepository) SetA2ATaskTracker(taskTracker a2adoma
 	r.taskTracker = taskTracker
 }
 
-// SetOrigin sets who started this process's sessions: the session that spawned
-// it as a subagent and the starter it names. Both empty mean a human.
-func (r *PersistentConversationRepository) SetOrigin(parentSessionID, invokedBy string) {
+// SetOrigin sets how this process's sessions started: the session that spawned
+// it as a subagent, the starter it names, the agent it runs as, its label and
+// the session whose message started it. A zero origin means a human's chat.
+func (r *PersistentConversationRepository) SetOrigin(origin convdomain.Origin) {
 	r.metadataMutex.Lock()
 	defer r.metadataMutex.Unlock()
-	r.parentSessionID = parentSessionID
-	r.invokedBy = invokedBy
+	r.origin = origin
 }
 
 // StartNewConversation saves the current conversation (if any), then begins a new conversation with a unique ID
@@ -468,13 +468,10 @@ func (r *PersistentConversationRepository) GetCurrentConversationTitle() string 
 // so a subagent's session names the session that spawned it. Callers hold
 // metadataMutex.
 func (r *PersistentConversationRepository) stampOrigin(m convdomain.ConversationMetadata) convdomain.ConversationMetadata {
-	if r.parentSessionID != "" {
-		m.ParentSessionID = r.parentSessionID
-	}
-	if r.invokedBy != "" {
-		m.InvokedBy = r.invokedBy
-	} else if m.InvokedBy == "" {
-		m.InvokedBy = "human"
-	}
+	m.ParentSessionID = cmp.Or(r.origin.ParentSessionID, m.ParentSessionID)
+	m.InvokedBy = cmp.Or(r.origin.InvokedBy, m.InvokedBy, "human")
+	m.Agent = cmp.Or(r.origin.Agent, m.Agent)
+	m.Label = cmp.Or(r.origin.Label, m.Label)
+	m.SentBy = cmp.Or(r.origin.SentBy, m.SentBy)
 	return m
 }

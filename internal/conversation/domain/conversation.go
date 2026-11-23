@@ -66,10 +66,22 @@ func CreateTitleFromMessage(content string) string {
 	return title
 }
 
+// Origin is how a session started: the orchestrator session that spawned it as
+// a subagent, who started it ("human" or "agent"), the Markdown agent it runs
+// as, the label its orchestrator named it by, and the session whose message to
+// that agent started it.
+type Origin struct {
+	ParentSessionID string `json:"parent_session_id"`
+	InvokedBy       string `json:"invoked_by"`
+	Agent           string `json:"agent,omitempty"`
+	Label           string `json:"label,omitempty"`
+	SentBy          string `json:"sent_by,omitempty"`
+}
+
 // ConversationMetadata contains metadata about a conversation. ActiveDuration
-// sums the time the agent worked across runs, ParentSessionID names the
-// spawning orchestrator session, InvokedBy is "human" or "agent", and Project
-// is the absolute working directory backends group conversations by.
+// sums the time the agent worked across runs, Origin records how the session
+// started, and Project is the absolute working directory backends group
+// conversations by.
 type ConversationMetadata struct {
 	ID                  string            `json:"id"`
 	Title               string            `json:"title"`
@@ -87,15 +99,13 @@ type ConversationMetadata struct {
 
 	ActiveDuration time.Duration `json:"active_duration,omitempty"`
 
-	ParentSessionID string `json:"parent_session_id"`
-
-	InvokedBy string `json:"invoked_by"`
+	Origin
 
 	Project string `json:"project"`
 }
 
 // ConversationSummary contains summary information about a conversation, with
-// the same ParentSessionID, InvokedBy and Project as ConversationMetadata.
+// the same Origin and Project as ConversationMetadata.
 // Project is empty for legacy records, and Workspace names where a daemon chat
 // runs.
 type ConversationSummary struct {
@@ -113,9 +123,7 @@ type ConversationSummary struct {
 	TitleInvalidated    bool              `json:"title_invalidated,omitempty"`
 	TitleGenerationTime *time.Time        `json:"title_generation_time,omitempty"`
 
-	ParentSessionID string `json:"parent_session_id"`
-
-	InvokedBy string `json:"invoked_by"`
+	Origin
 
 	Project string `json:"project,omitempty"`
 

@@ -1,10 +1,13 @@
 package tools
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
 	"time"
+
+	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -51,9 +54,9 @@ func validateMessage(args map[string]any) error {
 	return nil
 }
 
-// sendMessage delivers a message to one of this agent's own subagents, or
-// hands it to this agent's lead, which keeps it or relays it to the teammate
-// it names.
+// sendMessage delivers a message to one of this agent's own subagents or the
+// agents it messaged, hands it to this agent's lead, which keeps it or relays it
+// to the teammate it names, or, with no lead, starts the agent it names.
 func (t *AgentTool) sendMessage(ctx context.Context, args map[string]any, start time.Time) *agentdomain.ToolExecutionResult {
 	if err := validateMessage(args); err != nil {
 		return t.errorResult(args, start, err.Error())
@@ -67,6 +70,9 @@ func (t *AgentTool) sendMessage(ctx context.Context, args map[string]any, start 
 	}
 
 	if s := t.findSubagent(to, ""); s != nil {
+		if s.Peer {
+			text = teamNote(t.selfName(), text)
+		}
 		msg, err := t.deliver(ctx, s, text, keys, submit)
 		if err != nil {
 			return t.errorResult(args, start, err.Error())
@@ -74,17 +80,54 @@ func (t *AgentTool) sendMessage(ctx context.Context, args map[string]any, start 
 		return t.messageResult(args, start, to, msg)
 	}
 
+	if len(keys) > 0 || !submit {
+		return t.errorResult(args, start, "'keys' and submit=false drive the pane of a subagent you spawned. Send a teammate, your lead or another agent a 'message' instead.")
+	}
 	lead := scheddomain.TeamChannelFrom(ctx)
 	if lead == nil {
-		return t.errorResult(args, start, t.unknownRecipient(to))
-	}
-	if len(keys) > 0 || !submit {
-		return t.errorResult(args, start, "'keys' and submit=false drive the pane of a subagent you spawned. Send a teammate or your lead a 'message' instead.")
+		agent, err := findMarkdownAgent(t.mdAgents, to)
+		if err != nil {
+			return t.errorResult(args, start, t.unknownRecipient(to))
+		}
+		return t.messagePeer(ctx, args, start, agent, text)
 	}
 	if err := lead.Post(scheddomain.TeamMessage{To: to, Text: text}); err != nil {
 		return t.errorResult(args, start, fmt.Sprintf("Failed to send the message to %s: %v", to, err))
 	}
 	return t.messageResult(args, start, to, fmt.Sprintf("Sent the message to %s. A reply arrives as [Message from %s] - carry on with your task meanwhile, or end your turn if you need the reply first.", to, to))
+}
+
+// messagePeer starts the agent `to` named in a session of its own on the
+// daemon, as a chat opened as that agent would run, with the message as its
+// first turn. It is followed like a teammate: its turns and replies come back
+// here, and the next message to it continues the same session.
+func (t *AgentTool) messagePeer(ctx context.Context, args map[string]any, start time.Time, agent markdownAgent, text string) *agentdomain.ToolExecutionResult {
+	if !t.threadRouted() {
+		return t.errorResult(args, start, fmt.Sprintf("Messaging agent %s starts it in a session of its own on the daemon - enable the daemon binding.", agent.name))
+	}
+	parentModel := agentdomain.GetModel(ctx)
+	spec := AgentTaskSpec{
+		Label:       agent.name,
+		Description: teamNote(t.selfName(), text),
+		Model:       cmp.Or(agent.model, t.resolveModel("", parentModel)),
+		Agent:       agent.name,
+		Workspace:   agent.workspace,
+		Peer:        true,
+	}
+	if err := unservedModelError(spec, t.servedModels(ctx), t.mdAgents, parentModel); err != nil {
+		return t.errorResult(args, start, err.Error())
+	}
+	sessionID := uuid.NewString()
+	if !t.dispatchKeepAlive(spec, scheddomain.SubagentModeHeadless, sessionID, agentdomain.GetSessionID(ctx)) {
+		return t.errorResult(args, start, fmt.Sprintf("Failed to start agent %s: no job supervisor is wired.", agent.name))
+	}
+	return t.messageResult(args, start, agent.name, fmt.Sprintf("Started agent %s in a session of its own (%s) with your message. Its replies arrive as [Message from %s] - carry on with your task meanwhile, or end your turn if you need the reply first.", agent.name, sessionID, agent.name))
+}
+
+// selfName is the name this agent's messages carry: the agent its session runs
+// as, else "lead".
+func (t *AgentTool) selfName() string {
+	return cmp.Or(t.config.Subagent.Agent, scheddomain.TeamLead)
 }
 
 // unknownRecipient explains that `to` names nobody this agent can reach.

@@ -282,7 +282,8 @@ found, ask a question or split the work, the way a group of agents compares note
 ```
 
 - `to` names the recipient: a teammate's label, `lead` for the agent that spawned it, or, for a lead, any
-  subagent it spawned. `message` is the text. A call with `to` sends a message and spawns nothing.
+  subagent it spawned or [another agent](#messaging-another-agent). `message` is the text. A call with `to`
+  to a teammate sends a message and spawns nothing.
 - Each teammate is named after its `label`, else its agent, else `agent`, and the names are unique on the
   team: a second `explore` becomes `explore-2`. The Agent result lists them.
 - A headless teammate's task ends with a `[Team]` note naming it, its lead and its teammates. A subagent
@@ -325,6 +326,27 @@ it is a teammate like any other. A workspace the daemon cannot reach fails that 
 
 Placing a teammate needs the daemon. Without the binding, or with `tools.agent.mode: interactive`, a spawn of
 an agent with a `workspace` is refused.
+
+### Messaging Another Agent
+
+An agent with no lead, such as a chat opened as `researcher`, can message another Markdown agent by its name:
+
+```json
+{ "to": "tester", "message": "Test example.org and tell me whether it renders." }
+```
+
+When no teammate has that name, the daemon starts `tester` in a session of its own, the way a chat opened as
+`tester` runs, on its `workspace` if it has one. Its first turn is `[Message from researcher]` with the text.
+It is not a subagent: it has no parent, its own tools and no depth limit, and a human can open its chat.
+
+- It answers like a teammate, with `Agent(to: "researcher", ...)`, and its turns come back to the sender too.
+- The sender's next message to `tester` continues the same session instead of starting another.
+- Its approvals wait for whoever opens its chat instead of being cancelled.
+- Starting another agent needs the daemon binding. Without it the message is refused.
+
+Every session records how it started, which `infer conversations list --format json` shows: `agent` is the
+Markdown agent it runs as, `label` is the name its orchestrator gave it, and `sent_by` is the session whose
+message started it. A subagent also keeps its `parent_session_id`.
 
 ## Asking a Job to Wrap Up
 

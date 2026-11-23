@@ -132,6 +132,7 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 	if opts.Agent != "" {
 		env = append(env, scheddomain.EnvMainAgent+"="+opts.Agent)
 	}
+	env = append(env, originEnv(opts.Origin)...)
 	env = append(env, opts.Env...)
 	if sub := opts.Subagent; sub != nil {
 		env = append(env,
@@ -142,6 +143,25 @@ func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) 
 		if len(sub.Tools) > 0 {
 			env = append(env, scheddomain.EnvSubagentTools+"="+strings.Join(sub.Tools, ","))
 		}
+	}
+	return env
+}
+
+// originEnv hands the worker how its session started, for its metadata. A
+// session another agent's message started was invoked by an agent.
+func originEnv(origin sessionsdomain.Origin) []string {
+	var env []string
+	if origin.Agent != "" {
+		env = append(env, scheddomain.EnvSessionAgent+"="+origin.Agent)
+	}
+	if origin.Label != "" {
+		env = append(env, scheddomain.EnvSessionLabel+"="+origin.Label)
+	}
+	if origin.SentBy != "" {
+		env = append(env,
+			scheddomain.EnvSentBy+"="+origin.SentBy,
+			scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent,
+		)
 	}
 	return env
 }

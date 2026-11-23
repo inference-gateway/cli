@@ -39,6 +39,8 @@ const subagentSystemPromptEnv = "INFER_SUBAGENT_SYSTEM_PROMPT"
 // and MCPServers are passed to the subagent, nil to inherit. Mode is ReadOnly
 // without approval or Standard with it, from the `type` argument. Workspace is
 // the computer the agent runs on, and Team the note that names its teammates.
+// Peer marks a message to another agent, which runs as that agent in a session
+// of its own instead of as a subagent.
 type AgentTaskSpec struct {
 	Label        string
 	Description  string
@@ -51,6 +53,7 @@ type AgentTaskSpec struct {
 	Mode         agentdomain.AgentMode
 	Workspace    string
 	Team         string
+	Peer         bool
 }
 
 // task is what the subagent starts on: the task itself, then its team note.
@@ -307,6 +310,32 @@ func (t *AgentTool) dispatchHeadless(job *headlessSubagentJob) bool {
 	return true
 }
 
+// dispatchKeepAlive hands one keep-alive headless subagent, running as session
+// sessionID for the session parentSession, to the supervisor. It reports
+// whether the job was handed over.
+func (t *AgentTool) dispatchKeepAlive(spec AgentTaskSpec, mode scheddomain.SubagentMode, sessionID, parentSession string) bool {
+	runCtx, cancel := context.WithCancel(agentdomain.WithSessionID(context.Background(), parentSession))
+	state := &scheddomain.SubagentState{
+		ID:          uuid.New().String(),
+		Label:       spec.Label,
+		Description: spec.Description,
+		Model:       spec.Model,
+		Mode:        mode,
+		SessionID:   sessionID,
+		Status:      scheddomain.SubagentRunning,
+		StartedAt:   time.Now(),
+		CancelFunc:  cancel,
+		Peer:        spec.Peer,
+	}
+	job := newKeepAliveSubagentJob(t, spec, state, runCtx, cancel)
+	if !t.dispatchHeadless(job) {
+		cancel()
+		job.release()
+		return false
+	}
+	return true
+}
+
 // runAsync dispatches subagents and returns immediately. Each subagent's
 // outcome is delivered later by the supervisor monitoring its headlessSubagentJob.
 func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.Time, specs []AgentTaskSpec, mode scheddomain.SubagentMode, parentSession string, notes []string) *agentdomain.ToolExecutionResult {
@@ -314,26 +343,9 @@ func (t *AgentTool) runAsync(_ context.Context, args map[string]any, start time.
 	dispatched := make([]AgentSubResult, 0, len(specs))
 	for _, spec := range specs {
 		sessionID := newSubagentSessionID(parentSession)
-
-		runCtx, cancel := context.WithCancel(agentdomain.WithSessionID(context.Background(), parentSession))
-		state := &scheddomain.SubagentState{
-			ID:          uuid.New().String(),
-			Label:       spec.Label,
-			Description: spec.Description,
-			Model:       spec.Model,
-			Mode:        mode,
-			SessionID:   sessionID,
-			Status:      scheddomain.SubagentRunning,
-			StartedAt:   time.Now(),
-			CancelFunc:  cancel,
-		}
-		job := newKeepAliveSubagentJob(t, spec, state, runCtx, cancel)
-		if !t.dispatchHeadless(job) {
-			cancel()
-			job.release()
+		if !t.dispatchKeepAlive(spec, mode, sessionID, parentSession) {
 			continue
 		}
-
 		dispatched = append(dispatched, AgentSubResult{Label: spec.Label, SessionID: sessionID, Success: true})
 	}
 
@@ -404,9 +416,18 @@ func (t *AgentTool) checkPlacement(spec AgentTaskSpec, mode scheddomain.Subagent
 }
 
 // threadOptions are the subagent's thread options: the task's model, mode and
-// system prompt, and who spawned it with what tools. The daemon's worker
-// inherits the rest, the gateway mock switch included, from the daemon itself.
+// system prompt, who spawned it with what tools, and its label and agent. A peer
+// names its agent for the daemon to resolve, like a chat opened as that agent,
+// and the session that sent it. The daemon's worker inherits the rest, the
+// gateway mock switch included, from the daemon itself.
 func (t *AgentTool) threadOptions(ctx context.Context, spec AgentTaskSpec) sessionsdomain.ThreadOptions {
+	if spec.Peer {
+		return sessionsdomain.ThreadOptions{
+			Model:  spec.Model,
+			Agent:  spec.Agent,
+			Origin: sessionsdomain.Origin{Label: spec.Label, SentBy: agentdomain.GetSessionID(ctx)},
+		}
+	}
 	opts := sessionsdomain.ThreadOptions{
 		Model:        spec.Model,
 		SystemPrompt: spec.SystemPrompt,
@@ -416,6 +437,7 @@ func (t *AgentTool) threadOptions(ctx context.Context, spec AgentTaskSpec) sessi
 			Depth:  currentSubagentDepth() + 1,
 			Tools:  spec.Tools,
 		},
+		Origin: sessionsdomain.Origin{Agent: spec.Agent, Label: spec.Label},
 	}
 	if spec.Mode != agentdomain.AgentModeStandard {
 		opts.Mode = spec.Mode.ModeKey()
@@ -565,6 +587,12 @@ func (t *AgentTool) buildChatPaneCommand(spec AgentTaskSpec, parentSession, sess
 		parts = append(parts, scheddomain.EnvSubagentParentSession+"="+shellQuote(parentSession))
 	}
 	parts = append(parts, scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent)
+	if spec.Label != "" {
+		parts = append(parts, scheddomain.EnvSessionLabel+"="+shellQuote(spec.Label))
+	}
+	if spec.Agent != "" {
+		parts = append(parts, scheddomain.EnvSessionAgent+"="+shellQuote(spec.Agent))
+	}
 	if spec.SystemPrompt != "" {
 		parts = append(parts, subagentSystemPromptEnv+"="+shellQuote(spec.SystemPrompt))
 	}
@@ -606,6 +634,12 @@ func (t *AgentTool) subagentExtraEnv(ctx context.Context, spec AgentTaskSpec) []
 		env = append(env, scheddomain.EnvSubagentParentSession+"="+parentSession)
 	}
 	env = append(env, scheddomain.EnvSubagentInvokedBy+"="+scheddomain.SubagentInvokedByAgent)
+	if spec.Label != "" {
+		env = append(env, scheddomain.EnvSessionLabel+"="+spec.Label)
+	}
+	if spec.Agent != "" {
+		env = append(env, scheddomain.EnvSessionAgent+"="+spec.Agent)
+	}
 	if spec.SystemPrompt != "" {
 		env = append(env, subagentSystemPromptEnv+"="+spec.SystemPrompt)
 	}

@@ -40,6 +40,9 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 		"INFER_GATEWAY_VERSION":                                 "v0.65.0",
 		"INFER_PARENT_SESSION_ID":                               "parent-1",
 		"INFER_INVOKED_BY":                                      "agent",
+		"INFER_SESSION_AGENT":                                   "tester",
+		"INFER_SESSION_LABEL":                                   "tester-2",
+		"INFER_SENT_BY":                                         "sender-1",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -66,7 +69,7 @@ func TestEnvOverridesReachEverySection(t *testing.T) {
 	assert.Equal(t, []string{"ctrl+h", "f1"}, cfg.Chat.Keybindings.Bindings["help_toggle_help"].Keys)
 	assert.Equal(t, config.PeerTLSConfig{CAFile: "~/gateway-ca.crt", CertFile: "~/gateway-client.crt", KeyFile: "~/gateway-client.key"}, cfg.Gateway.TLS)
 	assert.Equal(t, "v0.65.0", cfg.Gateway.Version)
-	assert.Equal(t, config.SubagentConfig{ParentSessionID: "parent-1", InvokedBy: "agent"}, cfg.Subagent,
+	assert.Equal(t, config.SubagentConfig{ParentSessionID: "parent-1", InvokedBy: "agent", Agent: "tester", Label: "tester-2", SentBy: "sender-1"}, cfg.Subagent,
 		"the Agent tool's variables reach the subagent section although they skip the INFER_<key> scheme")
 }
 

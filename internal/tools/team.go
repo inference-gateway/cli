@@ -19,8 +19,9 @@ const maxTeamMessages = 100
 const defaultTeammateName = "agent"
 
 // relayTeamMessage handles a message a teammate posted: the lead keeps one
-// addressed to it as a note in its own chat, and delivers any other to the
-// teammate it names. The sender hears back when a message cannot arrive.
+// addressed to it, as "lead" or by its own name, as a note in its own chat, and
+// delivers any other to the teammate it names. The sender hears back when a
+// message cannot arrive.
 func (t *AgentTool) relayTeamMessage(from *scheddomain.SubagentState, msg scheddomain.TeamMessage, emit func(scheddomain.JobSignal)) {
 	if n := t.relayed.Add(1); n > maxTeamMessages {
 		if n == maxTeamMessages+1 {
@@ -30,7 +31,7 @@ func (t *AgentTool) relayTeamMessage(from *scheddomain.SubagentState, msg schedd
 		return
 	}
 	note := teamNote(teammateName(from), msg.Text)
-	if msg.To == scheddomain.TeamLead {
+	if msg.To == scheddomain.TeamLead || msg.To == t.selfName() {
 		emit(scheddomain.JobSignal{Note: note, Enqueue: true})
 		return
 	}

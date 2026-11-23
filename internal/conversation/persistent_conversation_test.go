@@ -207,22 +207,23 @@ func TestPersistentConversationRepository_TitleWithPreassignedSessionID(t *testi
 
 func TestPersistentConversationRepository_PreassignedSessionRecordsItsOrigin(t *testing.T) {
 	tests := []struct {
-		name          string
-		parent        string
-		invokedBy     string
-		wantParent    string
-		wantInvokedBy string
+		name   string
+		origin convdomain.Origin
+		want   convdomain.Origin
 	}{
 		{
-			name:          "subagent",
-			parent:        "parent-1",
-			invokedBy:     scheddomain.SubagentInvokedByAgent,
-			wantParent:    "parent-1",
-			wantInvokedBy: scheddomain.SubagentInvokedByAgent,
+			name:   "subagent",
+			origin: convdomain.Origin{ParentSessionID: "parent-1", InvokedBy: scheddomain.SubagentInvokedByAgent, Label: "survey"},
+			want:   convdomain.Origin{ParentSessionID: "parent-1", InvokedBy: scheddomain.SubagentInvokedByAgent, Label: "survey"},
 		},
 		{
-			name:          "human",
-			wantInvokedBy: "human",
+			name:   "agent messaged by another agent",
+			origin: convdomain.Origin{InvokedBy: scheddomain.SubagentInvokedByAgent, Agent: "tester", Label: "tester", SentBy: "sender-1"},
+			want:   convdomain.Origin{InvokedBy: scheddomain.SubagentInvokedByAgent, Agent: "tester", Label: "tester", SentBy: "sender-1"},
+		},
+		{
+			name: "human",
+			want: convdomain.Origin{InvokedBy: "human"},
 		},
 	}
 	for _, tt := range tests {
@@ -232,7 +233,7 @@ func TestPersistentConversationRepository_PreassignedSessionRecordsItsOrigin(t *
 			repo := NewPersistentConversationRepository(nil, nil, store)
 			defer func() { _ = repo.Close() }()
 
-			repo.SetOrigin(tt.parent, tt.invokedBy)
+			repo.SetOrigin(tt.origin)
 			repo.SetAutoSave(true)
 			repo.SetConversationID("session-1")
 			require.NoError(t, repo.AddMessage(convdomain.ConversationEntry{
@@ -241,9 +242,12 @@ func TestPersistentConversationRepository_PreassignedSessionRecordsItsOrigin(t *
 			}))
 
 			require.NoError(t, repo.LoadConversation(t.Context(), "session-1"))
-			metadata := repo.GetCurrentConversationMetadata()
-			assert.Equal(t, tt.wantParent, metadata.ParentSessionID)
-			assert.Equal(t, tt.wantInvokedBy, metadata.InvokedBy)
+			assert.Equal(t, tt.want, repo.GetCurrentConversationMetadata().Origin)
+
+			summaries, err := store.ListConversations(t.Context(), "", 10, 0)
+			require.NoError(t, err)
+			require.Len(t, summaries, 1)
+			assert.Equal(t, tt.want, summaries[0].Origin, "the listing carries the whole origin")
 		})
 	}
 }

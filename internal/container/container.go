@@ -656,7 +656,7 @@ func (c *ServiceContainer) initializeConversationRepository(
 	daemonStorage := daemonthread.NewStorage(c.daemonThread)
 	c.storage = daemonStorage
 	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), daemonStorage)
-	persistentRepo.SetOrigin(c.config.Subagent.ParentSessionID, c.config.Subagent.InvokedBy)
+	persistentRepo.SetOrigin(sessionOrigin(c.config.Subagent))
 	c.conversationRepo = persistentRepo
 	return storage.NewMemorySessionGroupStorage()
 }
@@ -679,7 +679,7 @@ func (c *ServiceContainer) initializeStorageBackend(
 
 	c.storage = stores.Conversations
 	persistentRepo := conversation.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), stores.Conversations)
-	persistentRepo.SetOrigin(c.config.Subagent.ParentSessionID, c.config.Subagent.InvokedBy)
+	persistentRepo.SetOrigin(sessionOrigin(c.config.Subagent))
 	c.conversationRepo = persistentRepo
 	logger.Info("initialized conversation storage", "type", storageConfig.Type)
 
@@ -1409,4 +1409,16 @@ func mediaRoot() string {
 		return ""
 	}
 	return dir
+}
+
+// sessionOrigin is how this process's sessions started, as the Agent tool or
+// the daemon handed it over in the subagent config.
+func sessionOrigin(sub config.SubagentConfig) convdomain.Origin {
+	return convdomain.Origin{
+		ParentSessionID: sub.ParentSessionID,
+		InvokedBy:       sub.InvokedBy,
+		Agent:           sub.Agent,
+		Label:           sub.Label,
+		SentBy:          sub.SentBy,
+	}
 }
