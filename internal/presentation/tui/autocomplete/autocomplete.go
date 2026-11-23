@@ -14,6 +14,7 @@ import (
 
 	sdk "github.com/inference-gateway/sdk"
 
+	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
@@ -85,6 +86,7 @@ type Autocomplete struct {
 	splicePrefix         string
 	spliceSuffix         string
 	lastCompletionCursor int
+	triggerSources       map[string][]string
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -141,10 +143,10 @@ func (a *Autocomplete) SetFileService(s agentdomain.FileService) {
 	a.fileService = s
 }
 
-// loadFiles populates the suggestion list with "@<path>" entries for every
-// project file the file service accepts for @-expansion.
-func (a *Autocomplete) loadFiles() {
-	a.suggestions = []ShortcutOption{}
+// appendFileRows appends "@<path>" entries for every project file the file
+// service accepts for @-expansion. It only appends, so a trigger's menu can
+// compose sections in its configured order.
+func (a *Autocomplete) appendFileRows() {
 	if a.fileService == nil {
 		return
 	}
@@ -152,17 +154,15 @@ func (a *Autocomplete) loadFiles() {
 	if err != nil {
 		return
 	}
-	a.suggestions = make([]ShortcutOption, 0, len(files))
 	for _, f := range files {
 		a.suggestions = append(a.suggestions, ShortcutOption{Shortcut: "@" + f})
 	}
 }
 
-// loadGitHubIssues populates the suggestion list with open issues from the
-// current repo. Bounded to a 2-second shell-out timeout so the Bubble Tea
-// Update goroutine doesn't stall on a slow gh call.
-func (a *Autocomplete) loadGitHubIssues() {
-	a.suggestions = []ShortcutOption{}
+// appendIssueRows appends "#<number>" entries for the repo's open issues.
+// Bounded to a 2-second shell-out timeout so the Bubble Tea Update goroutine
+// doesn't stall on a slow gh call.
+func (a *Autocomplete) appendIssueRows() {
 	if a.githubIssueService == nil || !a.githubIssueService.IsAvailable() {
 		return
 	}
@@ -172,14 +172,70 @@ func (a *Autocomplete) loadGitHubIssues() {
 	if err != nil {
 		return
 	}
-	a.suggestions = make([]ShortcutOption, 0, len(issues))
 	for _, iss := range issues {
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    fmt.Sprintf("#%d", iss.Number),
 			Description: iss.Title,
-			Usage:       "",
 		})
 	}
+}
+
+// appendAgentRows appends "@<name>" rows for every Markdown agent and
+// built-in, described like the /agents listing. No tool service or an empty
+// list leaves the section out.
+func (a *Autocomplete) appendAgentRows() {
+	if a.toolService == nil {
+		return
+	}
+	for _, agent := range a.toolService.ListMarkdownSubagents() {
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "@" + agent.Name,
+			Description: agent.Description,
+		})
+	}
+}
+
+// SetTriggerSources installs the composer trigger table of the current
+// context: each trigger's sources list its menu's sections in order.
+func (a *Autocomplete) SetTriggerSources(sources map[string][]string) {
+	a.triggerSources = sources
+}
+
+// composerSources returns the trigger's source order. With no table set the
+// chat context's defaults apply.
+func (a *Autocomplete) composerSources(trigger string) []string {
+	if a.triggerSources == nil {
+		return config.DefaultComposerConfig().TriggerSources(config.ComposerContextChat, trigger)
+	}
+	return a.triggerSources[trigger]
+}
+
+// loadTriggerRows rebuilds the suggestions with one section per source in the
+// trigger's composer table. The trigger only picks which menu opens and in
+// what order the sections appear: every row keeps its own sigil.
+func (a *Autocomplete) loadTriggerRows(trigger string) {
+	a.suggestions = []ShortcutOption{}
+	for _, source := range a.composerSources(trigger) {
+		switch source {
+		case config.ComposerSourceFiles:
+			a.appendFileRows()
+		case config.ComposerSourceAgents:
+			a.appendAgentRows()
+		case config.ComposerSourceIssues:
+			a.appendIssueRows()
+		}
+	}
+}
+
+// filterForTrigger picks the menu's filter: the digit-aware issue filter when
+// every source is issues, the fuzzy row-text filter otherwise.
+func (a *Autocomplete) filterForTrigger(trigger string) func() {
+	for _, source := range a.composerSources(trigger) {
+		if source != config.ComposerSourceIssues {
+			return a.filterFileSuggestions
+		}
+	}
+	return a.filterIssueSuggestions
 }
 
 // loadModels loads available models from the model service
@@ -583,11 +639,11 @@ func (a *Autocomplete) applyMidTextMode(
 // Update handles autocomplete logic
 func (a *Autocomplete) Update(inputText string, cursorPos int) {
 	if triggerStart := findSigilTriggerStart(inputText, cursorPos, '@'); triggerStart >= 0 {
-		a.applyMidTextMode(inputText, cursorPos, triggerStart, "files", a.loadFiles, a.filterFileSuggestions)
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "files", func() { a.loadTriggerRows("@") }, a.filterForTrigger("@"))
 		return
 	}
 	if triggerStart := findIssueTriggerStart(inputText, cursorPos); triggerStart >= 0 {
-		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", a.loadGitHubIssues, a.filterIssueSuggestions)
+		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", func() { a.loadTriggerRows("#") }, a.filterForTrigger("#"))
 		return
 	}
 	if triggerStart := findSlashTriggerStart(inputText, cursorPos); triggerStart > 0 {

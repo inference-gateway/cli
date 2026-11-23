@@ -92,6 +92,9 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 	if err := injectTools(root, cfg.Tools); err != nil {
 		return err
 	}
+	if err := injectComposer(root, cfg.Composer); err != nil {
+		return err
+	}
 
 	var value any = root
 	if len(args) == 1 {
@@ -122,6 +125,23 @@ func injectTools(root map[string]any, tools config.ToolsConfig) error {
 		maps.Copy(section, sections)
 	}
 	root["tools"] = section
+	return nil
+}
+
+// injectComposer merges the composer config into the get dump under composer,
+// so `infer config get composer` prints the resolved and validated file that
+// the TUI and the desktop read alike. Config.Composer is tagged yaml:"-", so
+// yaml.Marshal(cfg) drops it.
+func injectComposer(root map[string]any, composer config.ComposerConfig) error {
+	data, err := yaml.Marshal(composer)
+	if err != nil {
+		return fmt.Errorf("failed to serialize composer config: %w", err)
+	}
+	section := map[string]any{}
+	if err := yaml.Unmarshal(data, &section); err != nil {
+		return fmt.Errorf("failed to build composer config map: %w", err)
+	}
+	root["composer"] = section
 	return nil
 }
 

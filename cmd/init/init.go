@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	cobra "github.com/spf13/cobra"
+	yaml "gopkg.in/yaml.v3"
 
 	migrate "github.com/inference-gateway/cli/cmd/migrate"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
@@ -80,6 +81,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	computerUsePath := filepath.Join(homeCfgDir, config.ComputerUseFileName)
 	browserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	memoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
+	composerPath := filepath.Join(homeCfgDir, config.ComposerFileName)
 
 	if !overwrite {
 		pathsToCheck := []string{
@@ -92,6 +94,8 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 			return err
 		}
 	}
+
+	legacyStatusBar := legacyStatusBar(configPath)
 
 	if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
@@ -196,6 +200,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create tools config file: %w", err)
 	}
 
+	composerCreated, err := createFileIfAbsent(composerPath, overwrite, func(p string) error {
+		return createComposerConfigFile(p, legacyStatusBar)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create composer config file: %w", err)
+	}
+
 	hbCreated, err := createFileIfAbsent(heartbeatPath, overwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
@@ -257,6 +268,9 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	if toolsCreated {
 		fmt.Printf("   Created: %s\n", toolsPath)
+	}
+	if composerCreated {
+		fmt.Printf("   Created: %s\n", composerPath)
 	}
 	if hbCreated {
 		fmt.Printf("   Created: %s\n", heartbeatPath)
@@ -451,6 +465,46 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(gitShortcutsContent), 0644)
+}
+
+// legacyStatusBar reads the deprecated chat.status_bar block an existing
+// config.yaml carries, or nil when it does not.
+func legacyStatusBar(path string) map[string]any {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var root map[string]any
+	if err := yaml.Unmarshal(raw, &root); err != nil {
+		return nil
+	}
+	chat, ok := root["chat"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	sb, _ := chat["status_bar"].(map[string]any)
+	return sb
+}
+
+// createComposerConfigFile writes a fresh composer.yaml seeded from the
+// in-code defaults. A config.yaml that still carried the deprecated
+// chat.status_bar block has it moved into the file's status_bar section, so
+// init applies the move on every userspace re-seed.
+func createComposerConfigFile(path string, legacyStatusBar map[string]any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	cfg := config.DefaultComposerConfig()
+	if legacyStatusBar != nil {
+		data, err := yaml.Marshal(legacyStatusBar)
+		if err != nil {
+			return fmt.Errorf("failed to decode legacy chat.status_bar: %w", err)
+		}
+		if err := yaml.Unmarshal(data, &cfg.StatusBar); err != nil {
+			return fmt.Errorf("failed to decode legacy chat.status_bar: %w", err)
+		}
+	}
+	return config.SaveComposer(path, cfg)
 }
 
 // createKeybindingsConfigFile writes a fresh keybindings.yaml seeded from the

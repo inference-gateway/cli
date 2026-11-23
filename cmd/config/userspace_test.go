@@ -42,6 +42,23 @@ func newProjectFlagCommand(project bool) *cobra.Command {
 	return command
 }
 
+func TestConfigGetComposerSection(t *testing.T) {
+	root := map[string]any{}
+	require.NoError(t, injectComposer(root, *config.DefaultComposerConfig()))
+
+	value, err := lookupConfigKey(root, "composer.triggers.chat.@")
+	require.NoError(t, err, "config get composer resolves the trigger table the files merged into")
+	require.Equal(t, []any{"files", "agents"}, value, "the chat @ section order survives the dump roundtrip")
+
+	value, err = lookupConfigKey(root, "composer.triggers.room.@")
+	require.NoError(t, err)
+	require.Equal(t, []any{"agents", "files"}, value, "the room @ section order survives the dump roundtrip")
+
+	section, err := lookupConfigKey(root, "composer.status_bar.enabled")
+	require.NoError(t, err)
+	require.Equal(t, true, section, "the moved status bar settings print under composer")
+}
+
 func TestConfigSetDefaultWritesUserspace(t *testing.T) {
 	homeDir, projectDir := splitHomeProjectEnv(t)
 	require.NoError(t, setConfigValue(newProjectFlagCommand(false), []string{"agent.model", "home-set-model"}, acceptConfig))

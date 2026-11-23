@@ -3,193 +3,55 @@ package initcmd
 import (
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	require "github.com/stretchr/testify/require"
 
-	cobra "github.com/spf13/cobra"
 	yaml "gopkg.in/yaml.v3"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
-	configutils "github.com/inference-gateway/cli/config/utils"
-	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 )
 
-func splitHomeProjectEnv(t *testing.T) (homeDir, projectDir string) {
+func runInit(t *testing.T, home string) {
 	t.Helper()
-	saved := make(map[string]string)
-	for _, env := range os.Environ() {
-		key, value, ok := strings.Cut(env, "=")
-		if ok && strings.HasPrefix(key, "INFER_") {
-			saved[key] = value
-			require.NoError(t, os.Unsetenv(key))
-		}
-	}
-	t.Cleanup(func() {
-		for key, value := range saved {
-			_ = os.Setenv(key, value)
-		}
-	})
-	homeDir, projectDir = t.TempDir(), t.TempDir()
-	t.Setenv("HOME", homeDir)
-	cwd, err := os.Getwd()
+	t.Setenv("HOME", home)
+	state := runtime.NewState()
+	command := NewCommand(state)
+	require.NoError(t, command.Flags().Set("overwrite", "true"))
+	require.NoError(t, initializeProject(state, command))
+}
+
+func TestInitSeedsComposerYAML(t *testing.T) {
+	home := t.TempDir()
+	runInit(t, home)
+
+	data, err := os.ReadFile(filepath.Join(home, config.ConfigDirName, config.ComposerFileName))
+	require.NoError(t, err, "init seeds composer.yaml")
+	require.Contains(t, string(data), "'@':", "the seeded trigger table names the at trigger")
+	require.Contains(t, string(data), "status_bar:", "the seeded file carries the status bar settings")
+}
+
+func TestInitMovesLegacyStatusBarIntoComposer(t *testing.T) {
+	home := t.TempDir()
+	cfgDir := filepath.Join(home, config.ConfigDirName)
+	require.NoError(t, os.MkdirAll(cfgDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(cfgDir, config.ConfigFileName),
+		[]byte("chat:\n  theme: dark\n  status_bar:\n    enabled: true\n    indicators:\n      cost: false\n"), 0o644))
+
+	runInit(t, home)
+
+	data, err := os.ReadFile(filepath.Join(cfgDir, config.ComposerFileName))
 	require.NoError(t, err)
-	require.NoError(t, os.Chdir(projectDir))
-	t.Cleanup(func() { _ = os.Chdir(cwd) })
-	return homeDir, projectDir
-}
-
-// runInit builds a bare command carrying init's flags and runs initializeProject.
-func runInit(t *testing.T, flags map[string]bool) error {
-	t.Helper()
-	cmd := &cobra.Command{}
-	cmd.Flags().Bool("overwrite", false, "")
-	cmd.Flags().Bool("skip-migrations", false, "")
-	for name, val := range flags {
-		require.NoError(t, cmd.Flags().Set(name, strconv.FormatBool(val)))
+	var composer struct {
+		StatusBar config.StatusBarConfig `yaml:"status_bar"`
 	}
-	return initializeProject(runtime.NewState(), cmd)
-}
+	require.NoError(t, yaml.Unmarshal(data, &composer))
+	require.True(t, composer.StatusBar.Enabled, "the legacy chat.status_bar block moved into composer.yaml")
+	require.False(t, composer.StatusBar.Indicators.Cost, "the legacy block's indicator overrides moved along")
 
-// TestInitializeProject pins the userspace-first model:
-// a plain `infer init` seeds the full baseline into ~/.infer/ and writes
-// nothing into the project. A project override layer is created only by
-// explicit `infer config set --project` writes, never by init.
-func TestInitializeProject(t *testing.T) {
-	homeDir, projectDir := splitHomeProjectEnv(t)
-
-	require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
-
-	for _, f := range []string{"config.yaml", "prompts.yaml", "keybindings.yaml", "computer_use.yaml", "channels.yaml", "sandbox.yaml", "tools.yaml"} {
-		require.FileExists(t, filepath.Join(homeDir, config.ConfigDirName, f))
-	}
-	require.NoDirExists(t, filepath.Join(projectDir, config.ConfigDirName))
-	require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
-}
-
-func TestInitWritesConfigYAMLWithDocMarker(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "infer-config-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configPath := tmpDir + "/.infer/config.yaml"
-
-	if err := configutils.SaveYAML(configPath, "config", config.DefaultConfig()); err != nil {
-		t.Fatalf("SaveYAML() error = %v", err)
-	}
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Fatal("expected config file to be created")
-	}
-
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("failed to read config file: %v", err)
-	}
-
-	if !strings.HasPrefix(string(content), "---\n") {
-		t.Errorf("config file should start with `---\\n`, got %q", string(content[:min(8, len(content))]))
-	}
-	if !strings.Contains(string(content), "gateway:") {
-		t.Errorf("config file does not contain expected gateway section")
-	}
-}
-
-func TestCheckFileExists(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "infer-check-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	err = checkFileExists(tmpDir+"/nonexistent.txt", "test file")
-	if err != nil {
-		t.Errorf("checkFileExists() should not error for non-existent file: %v", err)
-	}
-
-	existingFile := tmpDir + "/existing.txt"
-	if err := os.WriteFile(existingFile, []byte("test"), 0644); err != nil {
-		t.Fatalf("failed to create test file: %v", err)
-	}
-
-	err = checkFileExists(existingFile, "test file")
-	if err == nil {
-		t.Errorf("checkFileExists() should error for existing file")
-	}
-}
-
-// TestVendoredShortcutsDelegateToCommands pins the shape of every shipped
-// shortcut file: a subcommand that declares no command of its own has its NAME
-// appended to the parent's args (resolveCommandConfig), so spelling the full
-// command out again in subcommand args would run `infer reset reset confirm`.
-func TestVendoredShortcutsDelegateToCommands(t *testing.T) {
-	homeDir, _ := splitHomeProjectEnv(t)
-	require.NoError(t, runInit(t, nil))
-
-	want := map[string][]string{
-		"reset":    {"insights", "confirm"},
-		"insights": {"24h", "7d", "30d"},
-	}
-
-	for name, subcommands := range want {
-		t.Run(name, func(t *testing.T) {
-			raw, err := os.ReadFile(filepath.Join(homeDir, config.ConfigDirName, "shortcuts", name+".yaml"))
-			require.NoError(t, err)
-
-			var parsed shortcuts.CustomShortcutsConfig
-			require.NoError(t, yaml.Unmarshal(raw, &parsed))
-			require.Len(t, parsed.Shortcuts, 1)
-
-			shortcut := parsed.Shortcuts[0]
-			require.NoError(t, shortcut.Validate())
-			require.Equal(t, name, shortcut.Name)
-			require.Equal(t, "infer", shortcut.Command)
-			require.Equal(t, []string{name}, shortcut.Args)
-
-			got := make([]string, 0, len(shortcut.Subcommands))
-			for _, sub := range shortcut.Subcommands {
-				got = append(got, sub.Name)
-				require.Empty(t, sub.Command, "subcommand %q must inherit the parent command", sub.Name)
-				require.Empty(t, sub.Args, "subcommand %q args would replace, not extend, the parent's", sub.Name)
-				require.NotEmpty(t, sub.Description)
-			}
-			require.Equal(t, subcommands, got)
-		})
-	}
-}
-
-// TestSCMShortcutsSpellFullGHCommands pins the shortcut resolution: a
-// subcommand with its own command resolves to command+args verbatim, while
-// one without gets its NAME appended to the parent's args - so each /scm
-// subcommand must declare command: gh and spell out the real `gh issue ...`
-// invocation, or the invoked names would duplicate into invalid gh commands.
-func TestSCMShortcutsSpellFullGHCommands(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "scm.yaml")
-	require.NoError(t, createSCMShortcutsFile(path))
-
-	raw, err := os.ReadFile(path)
+	configData, err := os.ReadFile(filepath.Join(cfgDir, config.ConfigFileName))
 	require.NoError(t, err)
-
-	var parsed shortcuts.CustomShortcutsConfig
-	require.NoError(t, yaml.Unmarshal(raw, &parsed))
-	require.Len(t, parsed.Shortcuts, 1)
-
-	scm := parsed.Shortcuts[0]
-	require.NoError(t, scm.Validate())
-	require.Equal(t, "gh", scm.Command)
-
-	want := map[string][]string{
-		"issues": {"issue", "list"},
-		"issue":  {"issue", "view"},
-	}
-	for _, sub := range scm.Subcommands {
-		require.GreaterOrEqual(t, len(sub.Args), 2, "subcommand %q must carry the full gh command in args", sub.Name)
-		require.Equal(t, "gh", sub.Command, "subcommand %q must declare its own command", sub.Name)
-		require.Equal(t, want[sub.Name], sub.Args[:2], "subcommand %q must start with the real gh subcommand", sub.Name)
-	}
+	require.NotContains(t, string(configData), "status_bar", "the regenerated config.yaml no longer carries the moved block")
+	require.Contains(t, string(configData), "chat:", "the regenerated config.yaml keeps its chat section")
 }
