@@ -81,6 +81,7 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	browserUsePath := filepath.Join(homeCfgDir, config.BrowserUseFileName)
 	memoryConfigPath := filepath.Join(homeCfgDir, config.MemoryConfigFileName)
 	composerPath := filepath.Join(homeCfgDir, config.ComposerFileName)
+	roomsPath := filepath.Join(homeCfgDir, config.RoomsFileName)
 
 	if !overwrite {
 		pathsToCheck := []string{
@@ -204,6 +205,13 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 		return fmt.Errorf("failed to create composer config file: %w", err)
 	}
 
+	roomsCreated, err := createFileIfAbsent(roomsPath, overwrite, func(p string) error {
+		return config.SaveRooms(p, config.DefaultRoomsConfig())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create rooms config file: %w", err)
+	}
+
 	hbCreated, err := createFileIfAbsent(heartbeatPath, overwrite, func(p string) error {
 		return createHeartbeatConfigFile(p)
 	})
@@ -268,6 +276,9 @@ func initializeProject(state *runtime.State, cmd *cobra.Command) error { //nolin
 	}
 	if composerCreated {
 		fmt.Printf("   Created: %s\n", composerPath)
+	}
+	if roomsCreated {
+		fmt.Printf("   Created: %s\n", roomsPath)
 	}
 	if hbCreated {
 		fmt.Printf("   Created: %s\n", heartbeatPath)

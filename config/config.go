@@ -77,6 +77,7 @@ type Config struct {
 	Hooks            HooksConfig            `yaml:"-" mapstructure:"hooks"`
 	Judge            JudgeConfig            `yaml:"-" mapstructure:"judge"`
 	Plugins          PluginsConfig          `yaml:"-" mapstructure:"plugins"`
+	Rooms            RoomsConfig            `yaml:"-" mapstructure:"rooms"`
 	Subagent         SubagentConfig         `yaml:"-" mapstructure:"subagent"`
 	configDir        string
 }
@@ -1471,6 +1472,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Hooks:       *DefaultHooksConfig(),
 		Judge:       *DefaultJudgeConfig(),
 		Plugins:     *DefaultPluginsConfig(),
+		Rooms:       *DefaultRoomsConfig(),
 		Compact: CompactConfig{
 			Enabled:               true,
 			AutoAt:                80,
@@ -1649,6 +1651,10 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	}
 	if err := c.Hooks.Validate(); err != nil {
 		return fmt.Errorf("invalid hooks: %w", err)
+	}
+
+	if err := c.Rooms.Validate(); err != nil {
+		return fmt.Errorf("invalid rooms: %w", err)
 	}
 
 	return c.Queue.validate()
