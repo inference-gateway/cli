@@ -693,7 +693,7 @@ func (t *streamTranslator) translateDelta(ev sdk.MessagesStreamEvent) []sdk.SSEv
 		if d.Text == nil || *d.Text == "" {
 			return nil
 		}
-		return t.chunk(sdk.ChatCompletionStreamResponseDelta{Content: *d.Text})
+		return t.chunk(sdk.ChatCompletionStreamResponseDelta{Content: d.Text})
 	case "thinking_delta":
 		if d.Thinking == nil || *d.Thinking == "" {
 			return nil
@@ -761,15 +761,15 @@ func chatChunk(resp sdk.CreateChatCompletionStreamResponse) sdk.SSEvent {
 	return sdk.SSEvent{Event: &event, Data: &data}
 }
 
-func mapStopReason(reason string) sdk.FinishReason {
+func mapStopReason(reason string) *sdk.FinishReason {
+	finishReason := sdk.Stop
 	switch reason {
 	case string(sdk.MessagesResponseStopReasonToolUse):
-		return sdk.ToolCalls
+		finishReason = sdk.ToolCalls
 	case string(sdk.MessagesResponseStopReasonMaxTokens):
-		return sdk.Length
-	default:
-		return sdk.Stop
+		finishReason = sdk.Length
 	}
+	return &finishReason
 }
 
 // blockType reads the discriminating type field of a response content block;

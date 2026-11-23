@@ -218,8 +218,8 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/inference-gateway/adk v0.34.2 h1:UUtGti0OZPaSqcz+TQQ2+Q8CNmjNwt0PXxqsY6d1v3Q=
-github.com/inference-gateway/adk v0.34.2/go.mod h1:FRZ0DeJQ4TD/oKkKHVhSNztgKSs6B05cgqIZVcKweYk=
+github.com/inference-gateway/adk v0.35.0 h1:BUOr2rKOjay+qY2ybP3Kf/RcsCFyEgIKwwC3sOLZ51Q=
+github.com/inference-gateway/adk v0.35.0/go.mod h1:7oz/edw4ZmW5EZqZmBi09MxS5eqkE5xvApY6rKI7VOg=
 github.com/inference-gateway/operator v0.37.1 h1:q8XqPd3prt+pYonS66UiI93uJ3vw8z60FoDxlCzksIU=
 github.com/inference-gateway/operator v0.37.1/go.mod h1:AHFljM/8ht80kA5DBqyK0lMGLMQO3RE/IOi+1MofH04=
 github.com/inference-gateway/sdk v1.48.0 h1:yB+/RlPdiTnIItDgG32HO738ftjHsM8KA8Ta0IudesQ=

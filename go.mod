@@ -29,7 +29,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/inference-gateway/adk v0.34.2
+	github.com/inference-gateway/adk v0.35.0
 	github.com/inference-gateway/operator v0.37.1
 	github.com/inference-gateway/sdk v1.48.0
 	github.com/inference-gateway/tokenless v0.15.0
