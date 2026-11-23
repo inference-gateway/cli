@@ -9,6 +9,7 @@ import (
 	tuimocks "github.com/inference-gateway/cli/tests/mocks/tui"
 
 	tea "charm.land/bubbletea/v2"
+	ansi "github.com/charmbracelet/x/ansi"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
@@ -106,7 +107,7 @@ func TestNonASCIITriggerSplicesTheRow(t *testing.T) {
 }
 
 // The trigger picks only which menu opens: a row from a composed menu keeps
-// the sigil the CLI parses, and the filter still finds file rows under #.
+// the sigil the CLI parses, and the filter still finds file rows among them.
 func TestComposedMenuRowsKeepTheirSigil(t *testing.T) {
 	ac := newTriggerTestAutocomplete(map[string][]string{"@": {"files", "agents", "issues"}})
 	ac.Update("@", 1)
@@ -117,5 +118,26 @@ func TestComposedMenuRowsKeepTheirSigil(t *testing.T) {
 	ac.Update("@cmd/ru", 7)
 	if got := ac.GetSelectedShortcut(); got != "@cmd/run.sh" {
 		t.Errorf("fuzzy filter on a composed menu lost the file row, got %q", got)
+	}
+}
+
+func TestTriggerMenuFitsItsWidth(t *testing.T) {
+	const width = 80
+	ac := newTriggerTestAutocomplete(nil)
+	ac.SetWidth(width)
+	ac.Update("@", 1)
+	for line := range strings.SplitSeq(ac.Render(), "\n") {
+		if got := ansi.StringWidth(line); got > width {
+			t.Errorf("row %q is %d columns wide, want at most %d", ansi.Strip(line), got, width)
+		}
+	}
+}
+
+func TestComposedMenuKeepsDescriptionsWhileFiltering(t *testing.T) {
+	ac := newTriggerTestAutocomplete(map[string][]string{"^": {"agents", "issues"}})
+	ac.SetWidth(80)
+	ac.Update("^ru", 3)
+	if got := ansi.Strip(ac.Render()); !strings.Contains(got, "Runs tests") {
+		t.Errorf("filtered menu dropped the agent description:\n%s", got)
 	}
 }

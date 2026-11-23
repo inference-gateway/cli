@@ -122,15 +122,11 @@ func validateComposerTriggers(m map[string]any) error {
 	if !ok {
 		return nil
 	}
-	data, err := yaml.Marshal(triggers)
-	if err != nil {
-		return err
-	}
 	var table map[string]map[string][]string
-	if err := yaml.Unmarshal(data, &table); err != nil {
+	if err := mapstructure.Decode(triggers, &table); err != nil {
 		return fmt.Errorf("triggers: %w", err)
 	}
-	return (config.ComposerConfig{Triggers: table}).Validate()
+	return config.ValidateComposerTriggers(table)
 }
 
 // mergeSidecar merges each existing layer of sc under its key. A broken

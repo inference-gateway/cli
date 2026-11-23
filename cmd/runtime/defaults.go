@@ -24,8 +24,8 @@ func registerConfigDefaults(v *viper.Viper, cfg any) {
 // composer.yaml sets replaces that context's defaults, dropping any trigger it
 // leaves out, while a context it does not set keeps them.
 func registerComposerTriggerDefaults(v *viper.Viper) {
-	for context, table := range config.DefaultComposerConfig().Triggers {
-		v.SetDefault("composer.triggers."+context, table)
+	for scope, table := range config.DefaultComposerConfig().Triggers {
+		v.SetDefault("composer.triggers."+scope, table)
 	}
 }
 

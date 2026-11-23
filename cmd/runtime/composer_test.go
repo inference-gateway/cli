@@ -10,26 +10,18 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-func writeTestHomeFile(t *testing.T, homeDir string, name string, content string) string {
-	t.Helper()
-	path := filepath.Join(homeDir, config.ConfigDirName, name)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	return path
-}
-
 func TestComposerSidecarLayers(t *testing.T) {
-	homeDir, projectDir := splitHomeProjectEnv(t)
+	_, projectDir := splitHomeProjectEnv(t)
 
-	writeTestHomeFile(t, homeDir, config.ComposerFileName, "triggers:\n  chat:\n    \"@\":\n      - agents\nstatus_bar:\n  enabled: false\n  indicators:\n    cost: false\n")
+	writeHomeFile(t, config.ComposerFileName, "triggers:\n  chat:\n    \"@\":\n      - agents\nstatus_bar:\n  enabled: false\n  indicators:\n    cost: false\n")
 
 	cfg := loadTestConfig(t)
-	require.Equal(t, []string{config.ComposerSourceAgents}, cfg.Composer.TriggerSources(config.ComposerContextChat, "@"),
+	require.Equal(t, []string{config.ComposerSourceAgents}, cfg.Composer.Triggers[config.ComposerContextChat]["@"],
 		"the composer.yaml home layer sets the chat @ sources")
 	require.False(t, cfg.Composer.StatusBar.Enabled, "the composer.yaml home layer sets the status bar")
 	require.False(t, cfg.Composer.StatusBar.Indicators.Cost, "a partial status_bar block sets the indicator it names")
 	require.True(t, cfg.Composer.StatusBar.Indicators.Model, "a partial status_bar block keeps the indicator defaults it does not set")
-	require.Equal(t, []string{config.ComposerSourceAgents, config.ComposerSourceFiles}, cfg.Composer.TriggerSources(config.ComposerContextRoom, "@"),
+	require.Equal(t, []string{config.ComposerSourceAgents, config.ComposerSourceFiles}, cfg.Composer.Triggers[config.ComposerContextRoom]["@"],
 		"a context the composer.yaml does not set keeps the default table")
 
 	projComposer := filepath.Join(projectDir, config.ConfigDirName, config.ComposerFileName)
@@ -37,23 +29,23 @@ func TestComposerSidecarLayers(t *testing.T) {
 	require.NoError(t, os.WriteFile(projComposer, []byte("triggers:\n  chat:\n    \"@\":\n      - files\n      - agents\n"), 0o644))
 
 	cfg = loadTestConfig(t)
-	require.Equal(t, []string{config.ComposerSourceFiles, config.ComposerSourceAgents}, cfg.Composer.TriggerSources(config.ComposerContextChat, "@"),
+	require.Equal(t, []string{config.ComposerSourceFiles, config.ComposerSourceAgents}, cfg.Composer.Triggers[config.ComposerContextChat]["@"],
 		"the project composer.yaml layer overrides the home layer's trigger sources")
 	require.False(t, cfg.Composer.StatusBar.Enabled,
 		"a project layer without status_bar leaves the home layer's status bar in place")
 }
 
 func TestComposerContextReplacesItsDefaultTable(t *testing.T) {
-	homeDir, _ := splitHomeProjectEnv(t)
+	splitHomeProjectEnv(t)
 
-	writeTestHomeFile(t, homeDir, config.ComposerFileName, "triggers:\n  chat:\n    \"^\":\n      - issues\n    \"@\":\n      - files\n      - agents\n")
+	writeHomeFile(t, config.ComposerFileName, "triggers:\n  chat:\n    \"^\":\n      - issues\n    \"@\":\n      - files\n      - agents\n")
 
 	cfg := loadTestConfig(t)
-	require.Equal(t, []string{config.ComposerSourceIssues}, cfg.Composer.TriggerSources(config.ComposerContextChat, "^"),
+	require.Equal(t, []string{config.ComposerSourceIssues}, cfg.Composer.Triggers[config.ComposerContextChat]["^"],
 		"a special character the file maps opens its sources")
-	require.Nil(t, cfg.Composer.TriggerSources(config.ComposerContextChat, "#"),
+	require.Nil(t, cfg.Composer.Triggers[config.ComposerContextChat]["#"],
 		"a default trigger the file's chat table leaves out opens nothing in chat")
-	require.Equal(t, []string{config.ComposerSourceIssues}, cfg.Composer.TriggerSources(config.ComposerContextRoom, "#"),
+	require.Equal(t, []string{config.ComposerSourceIssues}, cfg.Composer.Triggers[config.ComposerContextRoom]["#"],
 		"the room context the file does not set keeps its default #")
 }
 
@@ -72,8 +64,8 @@ func TestComposerReservedAndUnknownKeysFailTheLoad(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			homeDir, _ := splitHomeProjectEnv(t)
-			composer := writeTestHomeFile(t, homeDir, config.ComposerFileName, tt.yaml)
+			splitHomeProjectEnv(t)
+			composer := writeHomeFile(t, config.ComposerFileName, tt.yaml)
 
 			_, _, err := loadConfig(rootCmd)
 			require.Error(t, err, "an invalid composer.yaml must fail the load")

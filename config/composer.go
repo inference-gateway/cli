@@ -29,9 +29,13 @@ const (
 	ComposerSourceIssues = "issues"
 )
 
-// reservedComposerTriggers are the sigils the composer parses itself. Mapping
-// one in composer.yaml fails the load.
-var reservedComposerTriggers = []string{"/", "!", "!!"}
+// The known contexts and sources, and the sigils the composer parses itself.
+// Mapping a reserved sigil or naming anything unknown fails the load.
+var (
+	composerContexts         = []string{ComposerContextChat, ComposerContextRoom}
+	composerSources          = []string{ComposerSourceFiles, ComposerSourceAgents, ComposerSourceIssues}
+	reservedComposerTriggers = []string{"/", "!", "!!"}
+)
 
 // ComposerConfig holds the composer's trigger table per context and the status
 // bar toggles that used to live in chat.status_bar. It is composer.yaml, the
@@ -42,9 +46,8 @@ type ComposerConfig struct {
 }
 
 // DefaultComposerConfig returns the default composer config. The chat context
-// reproduces today's behavior (@ opens files with agents after them, # opens
-// issues) and the room context puts agents first, since a room's @ reaches the
-// room's members.
+// opens files with agents after them on @ and issues on #, and the room context
+// puts agents first, since a room's @ reaches the room's members.
 func DefaultComposerConfig() *ComposerConfig {
 	return &ComposerConfig{
 		Triggers: map[string]map[string][]string{
@@ -61,38 +64,10 @@ func DefaultComposerConfig() *ComposerConfig {
 	}
 }
 
-// TriggerSources returns the configured source order for a trigger in a
-// context: the order is the menu's section order. An unset trigger returns
-// nil, so nothing opens.
-func (c ComposerConfig) TriggerSources(context, trigger string) []string {
-	table, ok := c.Triggers[context]
-	if !ok {
-		return nil
-	}
-	return table[trigger]
-}
-
-// Validate checks the trigger table: contexts, triggers and sources must all
-// be known, with /, ! and !! reserved. The key is named so the load error
-// points at the line to fix.
+// Validate checks the trigger table and the status bar's subagent linger.
 func (c ComposerConfig) Validate() error {
-	for _, context := range slices.Sorted(maps.Keys(c.Triggers)) {
-		if context != ComposerContextChat && context != ComposerContextRoom {
-			return fmt.Errorf("invalid %s triggers.%s: unknown context: contexts are %s and %s",
-				ComposerFileName, context, ComposerContextChat, ComposerContextRoom)
-		}
-		for _, trigger := range slices.Sorted(maps.Keys(c.Triggers[context])) {
-			if err := validateComposerTrigger(context, trigger); err != nil {
-				return err
-			}
-			for _, source := range c.Triggers[context][trigger] {
-				if source != ComposerSourceFiles && source != ComposerSourceAgents && source != ComposerSourceIssues {
-					return fmt.Errorf("invalid %s triggers.%s.%q: unknown source %q: sources are %s, %s and %s",
-						ComposerFileName, context, trigger, source,
-						ComposerSourceFiles, ComposerSourceAgents, ComposerSourceIssues)
-				}
-			}
-		}
+	if err := ValidateComposerTriggers(c.Triggers); err != nil {
+		return err
 	}
 	if c.StatusBar.SubagentLingerSeconds < 0 {
 		return fmt.Errorf("invalid %s status_bar.subagent_linger_seconds %d: must be >= 0",
@@ -101,14 +76,38 @@ func (c ComposerConfig) Validate() error {
 	return nil
 }
 
-func validateComposerTrigger(context, trigger string) error {
+// ValidateComposerTriggers checks a trigger table: contexts, triggers and
+// sources must all be known, with /, ! and !! reserved. The key is named so
+// the load error points at the line to fix.
+func ValidateComposerTriggers(triggers map[string]map[string][]string) error {
+	for _, scope := range slices.Sorted(maps.Keys(triggers)) {
+		if !slices.Contains(composerContexts, scope) {
+			return fmt.Errorf("invalid %s triggers.%s: unknown context: contexts are %s",
+				ComposerFileName, scope, strings.Join(composerContexts, ", "))
+		}
+		for _, trigger := range slices.Sorted(maps.Keys(triggers[scope])) {
+			if err := validateComposerTrigger(scope, trigger); err != nil {
+				return err
+			}
+			for _, source := range triggers[scope][trigger] {
+				if !slices.Contains(composerSources, source) {
+					return fmt.Errorf("invalid %s triggers.%s.%q: unknown source %q: sources are %s",
+						ComposerFileName, scope, trigger, source, strings.Join(composerSources, ", "))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validateComposerTrigger(scope, trigger string) error {
 	if slices.Contains(reservedComposerTriggers, trigger) {
 		return fmt.Errorf("invalid %s triggers.%s.%q: %s is reserved: %s always open the slash menu or run bash and tools directly and cannot be mapped",
-			ComposerFileName, context, trigger, trigger, strings.Join(reservedComposerTriggers, ", "))
+			ComposerFileName, scope, trigger, trigger, strings.Join(reservedComposerTriggers, ", "))
 	}
 	if !isTriggerCharacter(trigger) {
 		return fmt.Errorf("invalid %s triggers.%s.%q: a trigger is one special character such as @, #, ^ or §",
-			ComposerFileName, context, trigger)
+			ComposerFileName, scope, trigger)
 	}
 	return nil
 }

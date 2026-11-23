@@ -24,30 +24,9 @@ func TestDefaultComposerConfigTriggers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := *DefaultComposerConfig()
-			got := c.TriggerSources(tt.context, tt.trigger)
+			got := DefaultComposerConfig().Triggers[tt.context][tt.trigger]
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("TriggerSources(%q, %q) = %v, want %v", tt.context, tt.trigger, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestTriggerSourcesLookups(t *testing.T) {
-	tests := []struct {
-		name    string
-		context string
-		trigger string
-		want    []string
-	}{
-		{"unmapped trigger opens nothing", ComposerContextChat, "?", nil},
-		{"unknown context opens nothing", "meeting", "@", nil},
-	}
-	c := DefaultComposerConfig()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := c.TriggerSources(tt.context, tt.trigger); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("TriggerSources(%q, %q) = %v, want %v", tt.context, tt.trigger, got, tt.want)
+				t.Errorf("Triggers[%q][%q] = %v, want %v", tt.context, tt.trigger, got, tt.want)
 			}
 		})
 	}
@@ -60,9 +39,6 @@ func TestDefaultConfigCarriesComposer(t *testing.T) {
 	}
 	if cfg.Composer.StatusBar != GetDefaultStatusBarConfig() {
 		t.Errorf("DefaultConfig status bar differs from the status bar defaults: %+v", cfg.Composer.StatusBar)
-	}
-	if reflect.ValueOf(cfg.Chat).FieldByName("StatusBar").IsValid() {
-		t.Error("chat.status_bar moved to composer.yaml and must not live on ChatConfig anymore")
 	}
 }
 

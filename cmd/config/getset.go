@@ -81,12 +81,8 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 		return fmt.Errorf("configuration is not loaded")
 	}
 
-	data, err := yaml.Marshal(cfg)
+	root, err := yamlMap(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to serialize config: %w", err)
-	}
-	root := map[string]any{}
-	if err := yaml.Unmarshal(data, &root); err != nil {
 		return fmt.Errorf("failed to build config map: %w", err)
 	}
 	if err := injectTools(root, cfg.Tools); err != nil {
@@ -112,12 +108,8 @@ func getConfigValue(state *runtime.State, cmd *cobra.Command, args []string) err
 // INFER_TOOLS_* overrides use, tools.<key> for the policy keys and the tool
 // sections alike. Config.Tools is tagged yaml:"-", so yaml.Marshal(cfg) drops it.
 func injectTools(root map[string]any, tools config.ToolsConfig) error {
-	data, err := yaml.Marshal(tools)
+	section, err := yamlMap(tools)
 	if err != nil {
-		return fmt.Errorf("failed to serialize tools config: %w", err)
-	}
-	section := map[string]any{}
-	if err := yaml.Unmarshal(data, &section); err != nil {
 		return fmt.Errorf("failed to build tools config map: %w", err)
 	}
 	if sections, ok := section["tools"].(map[string]any); ok {
@@ -133,16 +125,26 @@ func injectTools(root map[string]any, tools config.ToolsConfig) error {
 // the TUI and the desktop read alike. Config.Composer is tagged yaml:"-", so
 // yaml.Marshal(cfg) drops it.
 func injectComposer(root map[string]any, composer config.ComposerConfig) error {
-	data, err := yaml.Marshal(composer)
+	section, err := yamlMap(composer)
 	if err != nil {
-		return fmt.Errorf("failed to serialize composer config: %w", err)
-	}
-	section := map[string]any{}
-	if err := yaml.Unmarshal(data, &section); err != nil {
 		return fmt.Errorf("failed to build composer config map: %w", err)
 	}
 	root["composer"] = section
 	return nil
+}
+
+// yamlMap converts v to the generic map its YAML tags describe, the shape
+// lookupConfigKey walks.
+func yamlMap(v any) (map[string]any, error) {
+	data, err := yaml.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{}
+	if err := yaml.Unmarshal(data, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // lookupConfigKey walks a dotted key into the generic config map.
