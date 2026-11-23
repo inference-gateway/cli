@@ -24,7 +24,7 @@ infer rooms show public
 ## rooms.yaml
 
 `~/.infer/rooms.yaml` and a project's `.infer/rooms.yaml` hold the router and the rooms. `infer init` seeds
-the home file. By default there is one room, `public`, with every agent:
+the home file. By default there is one room, `public`, with every agent of yours:
 
 ```yaml
 router:
@@ -45,9 +45,10 @@ rooms:
       - writer
 ```
 
-- **agents**: `"*"` stands for every agent a session in the room's project can run as, the Markdown agents
-  of its agent dirs and the built-ins (`main`, `explore`, `general-purpose`, `plan`). It resolves each time
-  the room is read, so a new agent file joins `public` on its own. A name no agent carries takes no seat.
+- **agents**: `"*"` stands for every agent of yours a session in the room's project can run as, the Markdown
+  agents of its agent dirs. The built-ins (`main`, `explore`, `general-purpose`, `plan`) stay out, also once
+  `infer init` seeded their files, and join a room only by name. `"*"` resolves each time the room is read,
+  so a new agent file joins `public` on its own. A name no agent carries takes no seat.
 - **project**: where the members' sessions run. Empty means the daemon's working directory.
 - **name**: letters, digits and underscores. A file defining `public` replaces the default room, and one
   that leaves it out keeps it.

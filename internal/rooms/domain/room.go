@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 // AgentsWildcard is the room.agents entry meaning "every agent that exists
@@ -57,19 +59,18 @@ func (r Room) SessionID(agent string) string {
 	return "room-" + r.Name + "-" + agent
 }
 
-// ResolveMemberAgents expands the room's agent entries into the members that
-// exist: "*" becomes every known agent sorted, so the resolution follows each
-// read rather than the file's moment, a known name stands for itself, a name no
-// agent carries takes no seat, and duplicates collapse keeping their first
-// position.
-func ResolveMemberAgents(patterns, known []string) []string {
-	raw := make([]string, 0, len(patterns)+len(known))
+// ResolveMemberAgents expands the room's agent entries into the members of
+// agents: "*" becomes every agent of the user's own, sorted, the built-ins left
+// out, and follows each read. A known name stands for itself, built-in or not,
+// a name no agent carries takes no seat, and duplicates keep their first spot.
+func ResolveMemberAgents(patterns []string, agents []agentdomain.SubagentInfo) []string {
+	raw := make([]string, 0, len(patterns)+len(agents))
 	for _, pattern := range patterns {
 		if pattern == AgentsWildcard {
-			raw = append(raw, slices.Sorted(slices.Values(known))...)
+			raw = append(raw, ownAgents(agents)...)
 			continue
 		}
-		if slices.Contains(known, pattern) {
+		if slices.ContainsFunc(agents, func(agent agentdomain.SubagentInfo) bool { return agent.Name == pattern }) {
 			raw = append(raw, pattern)
 		}
 	}
@@ -81,6 +82,18 @@ func ResolveMemberAgents(patterns, known []string) []string {
 		members = append(members, agent)
 	}
 	return members
+}
+
+// ownAgents names the agents that are not built in, sorted.
+func ownAgents(agents []agentdomain.SubagentInfo) []string {
+	var names []string
+	for _, agent := range agents {
+		if !agent.BuiltIn {
+			names = append(names, agent.Name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // Post is one entry of a room's log, written by the user or a member: its id,

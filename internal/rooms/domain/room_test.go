@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 )
 
 func TestRoomSessionID(t *testing.T) {
@@ -36,63 +38,77 @@ func TestRoomMembers(t *testing.T) {
 }
 
 // TestResolveMemberAgents covers the room's agent entries: the wildcard follows
-// the agents that exist at resolution time, so a newly added agent joins the
-// room without a rooms.yaml edit, names stand for themselves and duplicates
-// collapse.
+// the user's own agents at resolution time, so a newly added agent joins the
+// room without a rooms.yaml edit, the built-ins join only by name, names stand
+// for themselves and duplicates collapse.
 func TestResolveMemberAgents(t *testing.T) {
+	own := func(names ...string) []agentdomain.SubagentInfo {
+		agents := make([]agentdomain.SubagentInfo, 0, len(names))
+		for _, name := range names {
+			agents = append(agents, agentdomain.SubagentInfo{Name: name})
+		}
+		return agents
+	}
+	builtIn := func(names ...string) []agentdomain.SubagentInfo {
+		agents := own(names...)
+		for i := range agents {
+			agents[i].BuiltIn = true
+		}
+		return agents
+	}
 	tests := []struct {
 		name     string
 		patterns []string
-		known    []string
+		agents   []agentdomain.SubagentInfo
 		want     []string
 	}{
 		{
-			name:     "wildcard resolves to every known agent, sorted",
+			name:     "wildcard resolves to every agent of the user's own, sorted",
 			patterns: []string{AgentsWildcard},
-			known:    []string{"zeta", "main", "explore"},
-			want:     []string{"explore", "main", "zeta"},
+			agents:   own("zeta", "writer", "tester"),
+			want:     []string{"tester", "writer", "zeta"},
 		},
 		{
-			name:     "a newly added agent joins on the next resolution",
+			name:     "wildcard leaves the built-ins out",
 			patterns: []string{AgentsWildcard},
-			known:    []string{"main", "writer"},
-			want:     []string{"main", "writer"},
+			agents:   append(own("writer"), builtIn("main", "explore")...),
+			want:     []string{"writer"},
+		},
+		{
+			name:     "a built-in joins by name",
+			patterns: []string{AgentsWildcard, "main"},
+			agents:   append(own("writer"), builtIn("main", "explore")...),
+			want:     []string{"writer", "main"},
 		},
 		{
 			name:     "explicit names stand for themselves",
 			patterns: []string{"researcher", "tester"},
-			known:    []string{"researcher", "tester", "writer"},
+			agents:   own("researcher", "tester", "writer"),
 			want:     []string{"researcher", "tester"},
 		},
 		{
 			name:     "a name no agent carries takes no seat",
 			patterns: []string{"reviwer", "tester"},
-			known:    []string{"reviewer", "tester"},
+			agents:   own("reviewer", "tester"),
 			want:     []string{"tester"},
 		},
 		{
 			name:     "duplicates collapse keeping their first position",
-			patterns: []string{"tester", "tester"},
-			known:    []string{"tester"},
-			want:     []string{"tester"},
-		},
-		{
-			name:     "an explicit name under the wildcard is not repeated",
-			patterns: []string{AgentsWildcard, "main"},
-			known:    []string{"main", "explore"},
-			want:     []string{"explore", "main"},
+			patterns: []string{"tester", AgentsWildcard, "tester"},
+			agents:   own("tester", "writer"),
+			want:     []string{"tester", "writer"},
 		},
 		{
 			name:     "no patterns resolve to nobody",
 			patterns: nil,
-			known:    []string{"main"},
+			agents:   own("writer"),
 			want:     []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ResolveMemberAgents(tt.patterns, tt.known))
+			require.Equal(t, tt.want, ResolveMemberAgents(tt.patterns, tt.agents))
 		})
 	}
 }

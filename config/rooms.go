@@ -45,9 +45,9 @@ type RoomsRouterConfig struct {
 	Fallback      string  `yaml:"fallback" mapstructure:"fallback"`
 }
 
-// RoomConfig is one room. "*" as an agent reserves a seat for every agent
-// that exists when the room is read, built-ins included. An empty project runs
-// the members in the daemon's default project dir.
+// RoomConfig is one room. "*" as an agent reserves a seat for every agent of
+// the user's own that exists when the room is read, the built-ins left out. An
+// empty project runs the members in the daemon's default project dir.
 type RoomConfig struct {
 	Name    string   `yaml:"name" mapstructure:"name"`
 	Project string   `yaml:"project" mapstructure:"project"`
@@ -56,7 +56,7 @@ type RoomConfig struct {
 
 // DefaultRoomsConfig returns the in-code default rooms configuration used when
 // no rooms.yaml exists and the file `infer init` seeds: the public room with
-// every agent, @mentions-only routing and 20 context posts.
+// every agent of the user's own, @mentions-only routing and 20 context posts.
 func DefaultRoomsConfig() *RoomsConfig {
 	return &RoomsConfig{
 		Router: RoomsRouterConfig{

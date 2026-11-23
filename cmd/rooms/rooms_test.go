@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -53,6 +54,9 @@ func runInfer(t *testing.T, args ...string) string {
 
 func TestShowRoomPrintsItsMembersAndLog(t *testing.T) {
 	project := isolate(t)
+	agents := filepath.Join(project, ".infer", "agents")
+	require.NoError(t, os.MkdirAll(agents, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(agents, "tester.md"), []byte("---\nname: tester\ndescription: Runs the tests.\n---\n\nRun the tests.\n"), 0o600))
 
 	var view struct {
 		Room struct {
@@ -66,10 +70,10 @@ func TestShowRoomPrintsItsMembersAndLog(t *testing.T) {
 	out := runInfer(t, "rooms", "show", "public", "--format", "json")
 	require.NoError(t, json.Unmarshal([]byte(out), &view), out)
 	require.NotNil(t, view.Posts, "an unwritten log prints as [] for the desktop, not null")
-	require.Contains(t, view.Room.Members, struct {
+	require.Equal(t, []struct {
 		Agent     string `json:"agent"`
 		SessionID string `json:"session_id"`
-	}{Agent: "main", SessionID: "room-public-main"}, "the public room seats every agent, built-ins included")
+	}{{Agent: "tester", SessionID: "room-public-tester"}}, view.Room.Members, "the public room seats every agent of yours, the built-ins left out")
 
 	longPost := strings.Repeat("a", 71) + "über the limit of one table row"
 	room := roomsdomain.Room{Name: "public", Project: project}
