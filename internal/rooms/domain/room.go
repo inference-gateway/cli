@@ -81,15 +81,24 @@ func ResolveMemberAgents(patterns, known []string) []string {
 	return members
 }
 
-// Post is one entry of a room's log, written by the user or a member: who
-// wrote it, what it says, which agents it mentions, who it was routed to with
-// the router's probability, and when.
+// Post is one entry of a room's log, written by the user or a member: its id,
+// who wrote it, what it says, which agents it mentions, who it was routed to
+// with the router's probability, and when.
 type Post struct {
+	ID       string    `json:"id,omitempty"`
 	Author   string    `json:"author"`
 	Text     string    `json:"text"`
 	Mentions []string  `json:"mentions,omitempty"`
 	Routes   []Route   `json:"routes,omitempty"`
 	Time     time.Time `json:"time"`
+}
+
+// Posted is the daemon's answer to a post: the logged post with its routes,
+// and the notices for its author.
+type Posted struct {
+	Room    string   `json:"room"`
+	Post    Post     `json:"post"`
+	Notices []string `json:"notices"`
 }
 
 // Route records one member a post was routed to and the router's probability

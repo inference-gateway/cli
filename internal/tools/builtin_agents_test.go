@@ -130,3 +130,26 @@ func TestSeedBuiltinAgents(t *testing.T) {
 		t.Fatal("an overwrite must reset the edit to the shipped agent")
 	}
 }
+
+func TestProjectAgentsListsTheProjectsAgentsAndTheBuiltins(t *testing.T) {
+	_, project := isolateAgentDirs(t)
+	writeAgentFile(t, filepath.Join(project, config.ConfigDirName, agentsSubdir), "tester.md", "---\nname: tester\ndescription: Runs the suite.\n---\n\nRun the tests.")
+
+	descriptions := map[string]string{}
+	for _, agent := range ProjectAgents(project) {
+		descriptions[agent.Name] = agent.Description
+	}
+	if descriptions["tester"] != "Runs the suite." {
+		t.Errorf("tester description = %q, want the project agent's", descriptions["tester"])
+	}
+	for _, builtin := range []string{"main", "explore"} {
+		if _, ok := descriptions[builtin]; !ok {
+			t.Errorf("ProjectAgents lacks the built-in %q", builtin)
+		}
+	}
+	for _, agent := range ProjectAgents(t.TempDir()) {
+		if agent.Name == "tester" {
+			t.Error("another project lists this project's agent")
+		}
+	}
+}

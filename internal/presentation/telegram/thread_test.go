@@ -75,7 +75,7 @@ func TestThreadChat_DeliverUserMessage(t *testing.T) {
 	}
 
 	_, frame = router.HandleArgsForCall(1)
-	var input runInputFrame
+	var input agui.RunInputFrame
 	if err := json.Unmarshal(frame, &input); err != nil {
 		t.Fatalf("undecodable frame %s: %v", frame, err)
 	}
@@ -120,7 +120,7 @@ func TestThreadChat_AnswersInterrupts(t *testing.T) {
 		t.Fatalf("expected one resume frame, got %d", router.HandleCallCount())
 	}
 	_, frame := router.HandleArgsForCall(0)
-	var input runInputFrame
+	var input agui.RunInputFrame
 	if err := json.Unmarshal(frame, &input); err != nil {
 		t.Fatalf("undecodable frame %s: %v", frame, err)
 	}

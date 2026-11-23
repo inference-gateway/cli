@@ -11,7 +11,6 @@ import (
 	uuid "github.com/google/uuid"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
-	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
@@ -124,10 +123,10 @@ type teleportFrame struct {
 
 // run sends text as the thread's next turn.
 func (t *subagentThread) run(text string) error {
-	frame := runInputFrame{Type: ipc.RunAgentInputFrameType, Input: agui.RunAgentInput{
+	frame := agui.NewRunInputFrame(agui.RunAgentInput{
 		ThreadID: t.sessionID, RunID: uuid.NewString(),
 		Messages: []agui.Message{{ID: uuid.NewString(), Role: "user", Content: text}},
-	}}
+	})
 	return t.send(frame)
 }
 
@@ -274,7 +273,7 @@ func (t *subagentThread) cancelInterrupts(interrupts []agui.Interrupt) {
 	for _, in := range interrupts {
 		resume = append(resume, agui.ResumeEntry{InterruptID: in.ID, Status: agui.ResumeStatusCancelled})
 	}
-	frame := runInputFrame{Type: ipc.RunAgentInputFrameType, Input: agui.RunAgentInput{ThreadID: t.sessionID, RunID: uuid.NewString(), Resume: resume}}
+	frame := agui.NewRunInputFrame(agui.RunAgentInput{ThreadID: t.sessionID, RunID: uuid.NewString(), Resume: resume})
 	if err := t.send(frame); err != nil {
 		logger.Warn("subagent interrupt could not be cancelled", "session_id", t.sessionID, "error", err)
 	}
@@ -324,12 +323,6 @@ func (t *subagentThread) Detach(conn *agui.Conn) {
 // resumeFrame is the resume_conversation frame that opens (or creates) the
 // subagent's thread with its options.
 func resumeFrame(projectDir, sessionID string, opts sessionsdomain.ThreadOptions) []byte {
-	frame := struct {
-		Type       string `json:"type"`
-		ID         string `json:"id"`
-		ProjectDir string `json:"project_dir"`
-		sessionsdomain.ThreadOptions
-	}{Type: "resume_conversation", ID: sessionID, ProjectDir: projectDir, ThreadOptions: opts}
-	data, _ := json.Marshal(frame)
+	data, _ := json.Marshal(sessionsdomain.NewResumeFrame(sessionID, projectDir, opts))
 	return data
 }

@@ -30,6 +30,7 @@ import (
 	audio "github.com/inference-gateway/cli/internal/audio"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	channels "github.com/inference-gateway/cli/internal/channels"
+	container "github.com/inference-gateway/cli/internal/container"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	githubsetup "github.com/inference-gateway/cli/internal/github/setup"
@@ -42,6 +43,8 @@ import (
 	web "github.com/inference-gateway/cli/internal/presentation/web"
 	a2ainfra "github.com/inference-gateway/cli/internal/protocols/a2a/infrastructure"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	rooms "github.com/inference-gateway/cli/internal/rooms"
+	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
 	sandbox "github.com/inference-gateway/cli/internal/sandbox"
 	scheduler "github.com/inference-gateway/cli/internal/scheduler"
 	githubscheduler "github.com/inference-gateway/cli/internal/scheduler/githubscheduler"
@@ -282,10 +285,12 @@ func threadsEnabled(cfg *config.Config) bool {
 
 // bindingHandler puts the binding's consumers behind its one handler. The
 // extension relay claims the browser frames, the teleport service the
-// workspaces and teleport frames, and the thread registry gets the rest.
+// workspaces and teleport frames, the rooms their room frames, and the thread
+// registry gets the rest.
 type bindingHandler struct {
 	relay     *browserinfra.ExtensionRelay
 	teleports *agentteleport.Service
+	rooms     *rooms.Host
 	registry  *sessions.Registry
 }
 
@@ -301,6 +306,9 @@ func (h bindingHandler) Handle(conn *agui.Conn, frame []byte) {
 		return
 	}
 	if h.teleports.Handle(conn, frame) {
+		return
+	}
+	if h.rooms.Handle(conn, frame) {
 		return
 	}
 	if key, ok := stoppedThread(frame); ok {
@@ -335,6 +343,7 @@ func (h bindingHandler) Detach(conn *agui.Conn) {
 	if h.relay != nil {
 		h.relay.Detach(conn)
 	}
+	h.rooms.Detach(conn)
 	h.registry.Detach(conn)
 }
 
@@ -380,7 +389,8 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		})
 	}
 
-	handler := bindingHandler{relay: relay, teleports: teleports, registry: registry}
+	roomHost := rooms.NewHost(ctx, cfg.Rooms, registry, roomsinfra.NewJSONLLog(), container.NewRoomsDecider(cfg), tools.ProjectAgents)
+	handler := bindingHandler{relay: relay, teleports: teleports, rooms: roomHost, registry: registry}
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {
 		if !b.Dialable() {
@@ -429,6 +439,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 	idle := watchIdle(ctx, cfg.Daemon, registry, k8sworkspace.ReportIdle)
 	return threadHost{
 		stop: func() {
+			roomHost.Close()
 			if binding != nil {
 				binding.Close()
 			}

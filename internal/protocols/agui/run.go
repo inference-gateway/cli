@@ -28,6 +28,21 @@ type (
 	TokenUsage    = aguievents.TokenUsage
 )
 
+// FrameRunAgentInput is the frame type that starts or continues a run with a
+// RunAgentInput.
+const FrameRunAgentInput = "run_agent_input"
+
+// RunInputFrame is the frame that carries one RunAgentInput to a run.
+type RunInputFrame struct {
+	Type  string        `json:"type"`
+	Input RunAgentInput `json:"input"`
+}
+
+// NewRunInputFrame wraps input in the frame that sends it.
+func NewRunInputFrame(input RunAgentInput) RunInputFrame {
+	return RunInputFrame{Type: FrameRunAgentInput, Input: input}
+}
+
 // TokenCount returns a pointer to a count, for populating a TokenUsage.
 func TokenCount(count int64) *int64 { return aguievents.TokenCount(count) }
 

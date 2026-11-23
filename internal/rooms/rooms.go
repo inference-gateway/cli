@@ -4,21 +4,27 @@ import (
 	"cmp"
 
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	projects "github.com/inference-gateway/cli/internal/projects"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
+// AgentCatalog lists the agents a thread in projectDir can run as, with the
+// descriptions the router reads.
+type AgentCatalog func(projectDir string) []agentdomain.SubagentInfo
+
 // Resolve expands the configured rooms into the rooms that exist: "*" becomes
-// every agent the registry knows, a room without a project runs in the default
-// project dir (the working directory of the process that reads it), and the
-// agents resolve each time the rooms are read rather than once at load.
-func Resolve(cfg config.RoomsConfig, known []string) []roomsdomain.Room {
+// every agent a thread in the room's project can run as, a room without a
+// project runs in the default project dir (the working directory of the
+// process that reads it), and the agents resolve each time the rooms are read.
+func Resolve(cfg config.RoomsConfig, agents AgentCatalog) []roomsdomain.Room {
 	resolved := make([]roomsdomain.Room, 0, len(cfg.Rooms))
 	for _, room := range cfg.Rooms {
+		project := cmp.Or(room.Project, projects.Path())
 		resolved = append(resolved, roomsdomain.Room{
 			Name:    room.Name,
-			Project: cmp.Or(room.Project, projects.Path()),
-			Agents:  roomsdomain.ResolveMemberAgents(room.Agents, known),
+			Project: project,
+			Agents:  roomsdomain.ResolveMemberAgents(room.Agents, agentNames(agents(project))),
 		})
 	}
 	return resolved

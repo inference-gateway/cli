@@ -172,7 +172,7 @@ func (t *Thread) Follow(ctx context.Context, id string, opts sessionsdomain.Thre
 	if placement.Remote() {
 		opts.Workspace, opts.WorkspaceDir = placement.Workspace, placement.WorkspaceDir
 	}
-	frame := followFrame{Type: "resume_conversation", ProjectDir: t.projectDir(), ID: id, ThreadOptions: opts}
+	frame := sessionsdomain.NewResumeFrame(id, t.projectDir(), opts)
 	if _, err := t.Request(ctx, frame, "MESSAGES_SNAPSHOT"); err != nil {
 		return err
 	}
@@ -214,14 +214,6 @@ func (t *Thread) MoveTo(projectDir string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.opts.ProjectDir = projectDir
-}
-
-// followFrame opens or resumes the thread of one conversation.
-type followFrame struct {
-	Type       string `json:"type"`
-	ProjectDir string `json:"project_dir"`
-	ID         string `json:"id"`
-	sessionsdomain.ThreadOptions
 }
 
 // locate reads where the session of id runs from its lease, so a session

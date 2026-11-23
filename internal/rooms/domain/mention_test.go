@@ -31,3 +31,24 @@ func TestMentions(t *testing.T) {
 		})
 	}
 }
+
+func TestPlainMentions(t *testing.T) {
+	known := []string{"tester", "general-purpose"}
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{"a mention loses its @", "@tester run the suite", "tester run the suite"},
+		{"punctuation after a mention stays", "thanks @tester, done", "thanks tester, done"},
+		{"a dashed agent name", "ask @general-purpose", "ask general-purpose"},
+		{"a file reference keeps its @", "read @README.md and @./tester", "read @README.md and @./tester"},
+		{"an unknown name keeps its @", "@reviewer look", "@reviewer look"},
+		{"an email address is left alone", "mail tester@example.com", "mail tester@example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, PlainMentions(tt.text, known))
+		})
+	}
+}

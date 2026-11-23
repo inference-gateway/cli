@@ -880,6 +880,95 @@ CLI → client, exactly one result per request id:
   `gh api` in the CLI's bash-allow configuration avoids an approval prompt per
   call.
 
+## Rooms
+
+A room is a named group of agents in one project. The daemon routes each post, delivers it to the members it
+reaches, logs their answers, and streams the room to its followers. See [Rooms](rooms.md).
+
+Client → CLI, answered with `rooms` to the requesting client only:
+
+```json
+{"type": "list_rooms"}
+```
+
+```json
+{
+  "type": "rooms",
+  "rooms": [
+    {
+      "name": "release",
+      "project": "/Users/me/Repositories/app",
+      "members": [
+        {"agent": "tester", "session_id": "room-release-tester", "activity": "idle"},
+        {"agent": "writer", "session_id": "room-release-writer", "activity": "running"}
+      ]
+    }
+  ]
+}
+```
+
+Client → CLI, answered with the room's `room_snapshot`, after which the client gets every `room_post` and
+`room_activity` of the room until it sends `leave_room` or disconnects:
+
+```json
+{"type": "follow_room", "room": "release"}
+```
+
+```json
+{"type": "room_snapshot", "room": {"name": "release", "project": "/Users/me/Repositories/app", "members": []}, "posts": []}
+```
+
+```json
+{
+  "type": "room_post",
+  "room": "release",
+  "post": {
+    "id": "6f1c...",
+    "author": "user",
+    "text": "@tester run the suite",
+    "mentions": ["tester"],
+    "routes": [{"member": "tester", "probability": 1}],
+    "time": "2026-11-23T10:30:00Z"
+  }
+}
+```
+
+```json
+{"type": "room_activity", "room": "release", "member": "tester", "activity": "waiting"}
+```
+
+Client → CLI, posting as the user. The daemon routes and logs the post, streams it to the followers, and
+answers the poster with `room_posted`, the logged post plus the notices for its author:
+
+```json
+{"type": "post_room", "room": "release", "text": "@tester run the suite"}
+```
+
+```json
+{
+  "type": "room_posted",
+  "room": "release",
+  "post": {"id": "6f1c...", "author": "user", "text": "@tester run the suite", "routes": [{"member": "tester", "probability": 1}]},
+  "notices": []
+}
+```
+
+Client → CLI, stopping the follow. Nothing answers it:
+
+```json
+{"type": "leave_room", "room": "release"}
+```
+
+- `author` is `user` for a post a client wrote, the member's agent for its answer, and `room` for the room's
+  own notes, such as a member waiting for approval in its own chat.
+- `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval in its own
+  session, and `idle` otherwise.
+- `routes` is empty for a post that reached nobody. `probability` is `1` for a pinged member and the decision
+  model's answer otherwise.
+- An unknown room, an empty post or a log that cannot be read answers `RUN_ERROR` with a `message`.
+- A member's session is an ordinary thread: follow `room-<room>-<agent>` with `resume_conversation` to watch
+  the member work or decide its approval.
+
 ## Workspaces
 
 A workspace is where a session's agent runs: this daemon, a standalone daemon reachable over TLS, or a
