@@ -1338,7 +1338,7 @@ func TestInputStatusBar_ShouldShowIndicator_Duration(t *testing.T) {
 	}
 	cfg.Composer.StatusBar.Indicators.Duration = false
 	if isb.shouldShowIndicator("duration") {
-		t.Error("chat.status_bar.indicators.duration=false must hide the indicator")
+		t.Error("composer.status_bar.indicators.duration=false must hide the indicator")
 	}
 }
 

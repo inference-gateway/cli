@@ -27,13 +27,13 @@ const (
 	ComposerSourceIssues = "issues"
 )
 
-// ComposerTriggers are the trigger characters a table may map. The others are
+// composerTriggers are the trigger characters a table may map. The others are
 // reserved: / opens the slash menu and ! and !! run bash or a tool directly.
-var ComposerTriggers = []string{"@", "#"}
+var composerTriggers = []string{"@", "#"}
 
-// ReservedComposerTriggers are the sigils the composer parses itself. Mapping
+// reservedComposerTriggers are the sigils the composer parses itself. Mapping
 // one in composer.yaml fails the load.
-var ReservedComposerTriggers = []string{"/", "!", "!!"}
+var reservedComposerTriggers = []string{"/", "!", "!!"}
 
 // ComposerConfig holds the composer's trigger table per context and the status
 // bar toggles that used to live in chat.status_bar. It is composer.yaml, the
@@ -104,13 +104,13 @@ func (c ComposerConfig) Validate() error {
 }
 
 func validateComposerTrigger(context, trigger string) error {
-	if slices.Contains(ReservedComposerTriggers, trigger) {
+	if slices.Contains(reservedComposerTriggers, trigger) {
 		return fmt.Errorf("invalid %s triggers.%s.%q: %s is reserved: %s always open the slash menu or run bash and tools directly and cannot be mapped",
-			ComposerFileName, context, trigger, trigger, strings.Join(ReservedComposerTriggers, ", "))
+			ComposerFileName, context, trigger, trigger, strings.Join(reservedComposerTriggers, ", "))
 	}
-	if !slices.Contains(ComposerTriggers, trigger) {
+	if !slices.Contains(composerTriggers, trigger) {
 		return fmt.Errorf("invalid %s triggers.%s.%q: unknown trigger: the configurable triggers are %s",
-			ComposerFileName, context, trigger, strings.Join(ComposerTriggers, " and "))
+			ComposerFileName, context, trigger, strings.Join(composerTriggers, " and "))
 	}
 	return nil
 }

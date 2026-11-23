@@ -852,10 +852,10 @@ status_bar:
   and tools directly. Mapping one, or naming an unknown source or context, fails
   the load naming `composer.yaml` and the key
 - **status_bar**: the status bar settings moved here from `chat.status_bar` in
-  config.yaml. A config.yaml that still carries `chat.status_bar` keeps working
-  with a deprecation warning while `composer.yaml` sets no `status_bar`, and
-  `infer init` moves the block into `composer.yaml`. The indicators are listed
-  under **composer.status_bar** below
+  config.yaml, with no fallback. A `chat.status_bar` block left in config.yaml
+  is ignored, so move it into `composer.yaml` by hand. The env overrides moved
+  with it, from `INFER_CHAT_STATUS_BAR_*` to `INFER_COMPOSER_STATUS_BAR_*`. The
+  indicators are listed under **composer.status_bar** below
 
 ### Chat Interface Settings
 

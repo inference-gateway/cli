@@ -101,8 +101,7 @@ func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 	if err := v.BindPFlags(root.PersistentFlags()); err != nil {
 		return nil, nil, fmt.Errorf("binding flags: %w", err)
 	}
-	legacyStatusBar, err := mergeConfigLayers(v)
-	if err != nil {
+	if err := mergeConfigLayers(v); err != nil {
 		return nil, nil, err
 	}
 	for _, sc := range sidecars {
@@ -114,11 +113,6 @@ func loadConfig(root *cobra.Command) (*viper.Viper, *config.Config, error) {
 		}
 		if err != nil {
 			return nil, nil, err
-		}
-		if sc.key == "composer" {
-			if err := migrateStatusBar(v, legacyStatusBar, sc); err != nil {
-				return nil, nil, err
-			}
 		}
 	}
 	cfg := &config.Config{}

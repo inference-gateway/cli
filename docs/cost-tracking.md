@@ -79,7 +79,7 @@ pricing:
 export INFER_PRICING_ENABLED=false
 
 # Hide cost from status bar
-export INFER_CHAT_STATUS_BAR_INDICATORS_COST=false
+export INFER_COMPOSER_STATUS_BAR_INDICATORS_COST=false
 ```
 
 > **Note:** `pricing.custom_prices` is a map keyed by `provider/model`, so its entries
@@ -89,12 +89,11 @@ export INFER_CHAT_STATUS_BAR_INDICATORS_COST=false
 **Status Bar Configuration:**
 
 ```yaml
-# .infer/config.yaml
-chat:
-  status_bar:
-    enabled: true
-    indicators:
-      cost: true  # Show/hide cost indicator
+# ~/.infer/composer.yaml
+status_bar:
+  enabled: true
+  indicators:
+    cost: true  # Show/hide cost indicator
 ```
 
 ## Cost Calculation

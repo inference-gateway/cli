@@ -75,7 +75,7 @@ func (c *ServiceContainer) ReloadConfig() (applied, restart []string, err error)
 }
 
 // hotConfigKey returns the hot entry that covers key: the key itself or a
-// section it lives in, such as chat.status_bar.
+// section it lives in, such as composer.status_bar.
 func hotConfigKey(hot map[string]func() error, key string) (string, bool) {
 	for {
 		if _, ok := hot[key]; ok {

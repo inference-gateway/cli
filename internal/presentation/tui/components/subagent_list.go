@@ -354,7 +354,7 @@ func (l *SubagentList) lingerDelay() time.Duration {
 	return time.Duration(l.config.Composer.StatusBar.SubagentLingerSeconds) * time.Second
 }
 
-// enabled honors the chat.status_bar.indicators.subagents toggle so the
+// enabled honors the composer.status_bar.indicators.subagents toggle so the
 // list can be switched off like every other status-bar element.
 func (l *SubagentList) enabled() bool {
 	return l.config == nil || l.config.Composer.StatusBar.Indicators.Subagents

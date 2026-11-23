@@ -256,10 +256,7 @@ func NewChatApplication(
 		ac.SetStateManager(app.stateManager)
 		ac.SetFileService(localFiles(app.fileService, app.stateManager.GetSessionPlacement))
 		if app.config != nil {
-			ac.SetTriggerSources(map[string][]string{
-				"@": app.config.Composer.TriggerSources(config.ComposerContextChat, "@"),
-				"#": app.config.Composer.TriggerSources(config.ComposerContextChat, "#"),
-			})
+			ac.SetTriggerSources(app.config.Composer.Triggers[config.ComposerContextChat])
 		}
 	}
 

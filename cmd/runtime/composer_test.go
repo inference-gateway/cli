@@ -68,25 +68,3 @@ func TestComposerReservedAndUnknownKeysFailTheLoad(t *testing.T) {
 		})
 	}
 }
-
-func TestLegacyStatusBarMigratesIntoComposer(t *testing.T) {
-	homeDir, _ := splitHomeProjectEnv(t)
-
-	writeTestHomeFile(t, homeDir, config.ConfigFileName, "chat:\n  status_bar:\n    enabled: true\n    indicators:\n      cost: false\n")
-
-	cfg := loadTestConfig(t)
-	require.True(t, cfg.Composer.StatusBar.Enabled, "the legacy chat.status_bar block keeps working")
-	require.False(t, cfg.Composer.StatusBar.Indicators.Cost, "the legacy block's indicator overrides apply")
-	require.Equal(t, config.GetDefaultStatusBarConfig().SubagentLingerSeconds, cfg.Composer.StatusBar.SubagentLingerSeconds,
-		"the legacy block inherits the defaults for keys it does not set")
-}
-
-func TestComposerStatusBarBeatsLegacyBlock(t *testing.T) {
-	homeDir, _ := splitHomeProjectEnv(t)
-
-	writeTestHomeFile(t, homeDir, config.ConfigFileName, "chat:\n  status_bar:\n    enabled: false\n")
-	writeTestHomeFile(t, homeDir, config.ComposerFileName, "status_bar:\n  enabled: true\n")
-
-	cfg := loadTestConfig(t)
-	require.True(t, cfg.Composer.StatusBar.Enabled, "composer.yaml status_bar wins over the deprecated chat.status_bar block")
-}

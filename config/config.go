@@ -1506,7 +1506,7 @@ func (c *Config) JudgeRequired() bool {
 // Validate checks cross-cutting config invariants after load so a typo fails fast
 // instead of silently falling back. It currently validates
 // tools.safety.approval_behaviour. Extend it as new validated settings are added.
-func (c *Config) Validate() error { // nolint:gocyclo,cyclop,funlen
+func (c *Config) Validate() error { // nolint:gocyclo,cyclop
 	switch c.Tools.Safety.ApprovalBehaviour {
 	case "", ApprovalBehaviourPrompt, ApprovalBehaviourIPC, ApprovalBehaviourBlock, ApprovalBehaviourJudge:
 	default:
@@ -1573,13 +1573,6 @@ func (c *Config) Validate() error { // nolint:gocyclo,cyclop,funlen
 		return fmt.Errorf(
 			"invalid speech_to_text.retain_recordings %d: must be >= 0",
 			c.SpeechToText.RetainRecordings,
-		)
-	}
-
-	if c.Composer.StatusBar.SubagentLingerSeconds < 0 {
-		return fmt.Errorf(
-			"invalid composer.status_bar.subagent_linger_seconds %d: must be >= 0",
-			c.Composer.StatusBar.SubagentLingerSeconds,
 		)
 	}
 
