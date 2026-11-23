@@ -4,23 +4,12 @@ A README for coding agents on the **Inference Gateway CLI** — an agentic CLI (
 
 ## Stack
 
-- Go 1.27, module `github.com/inference-gateway/cli`. Entry: `cmd/infer/main.go` → `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
+- Entry: `cmd/infer/main.go` → `root.Execute()` (Cobra). `internal/container/container.go` is the DI composition root.
 - Dev env pinned by **flox** (`.flox/env/manifest.toml`). Run everything through `flox activate --`.
 
 ## Build / Test / Lint
 
-```bash
-task build              # → ./infer binary
-task run -- <args>      # go run ./cmd/infer <args>
-task test               # go test ./.... Variants: test:verbose, test:coverage, test:race, test:e2e
-task fmt                # gofmt + gci
-task vet                # go vet
-task lint               # lint:imports → golangci-lint → markdownlint
-task mocks:generate     # counterfeiter fakes → tests/mocks/
-task precommit:run      # .githooks/pre-commit: mod:tidy → mocks → fmt → lint
-```
-
-Single test: `go test ./internal/tools -run TestBashTool`. **Run `task precommit:run` before every push** — it's the CI gate, and it aborts if `task fmt` reformats your staged files (re-`git add` and retry).
+`task --list` shows the build, test, lint and mock tasks. **Run `task precommit:run` before every push** — it's the CI gate, and it aborts if `task fmt` reformats your staged files (re-`git add` and retry).
 
 ## Architecture
 
@@ -37,7 +26,6 @@ Repo-wide invariants:
 
 ## Import Style
 
-- Import blocks have **six groups** (stdlib / external test libs / testing mocks / external / inference-gateway libs / project), one blank line apart.
 - **Every non-stdlib import carries an explicit alias** (enforced by `task lint:imports` + gci). Canonical aliases: `agentdomain`, `agentloop`, `convdomain`, `scheddomain`, `a2adomain`, `browserdomain`, `computedomain`, `computerdomain`, `mcpdomain`, `agentinfra`, `a2ainfra`, `mcpinfra`, `schedinfra`, `sandbox`, `sandboxdomain`, `sandboxinfra`, `agui`, `containerruntime`, `githubissues`, `githubsetup`, `agentheadless`, `agentteleport`, `k8sworkspace`, `k8sdynamic`, `k8sclientcmd`, `operatorv1alpha1`, `tools`, `customtools`, `adk`, `mockgateway`, `tea` (bubbletea v2), `tests/mocks/<x>` → `<x>mocks`.
 
 ## Testing
@@ -47,7 +35,7 @@ Repo-wide invariants:
 
 ## Style & Commits
 
-- Linter caps: gocyclo/cyclop 25, funlen 150 lines/80 statements, gocognit 45. Prefer `//nolint:funlen,gocyclo` over splitting cohesive functions.
+- Prefer `//nolint:funlen,gocyclo` over splitting cohesive functions (limits in `.golangci.yml`).
 - Write self-explanatory code: clear names and small, single-purpose functions carry the intent.
   If a block needs a comment to be understood, extract it into a well-named function or variable.
 - No inline comments inside function bodies.
@@ -69,7 +57,7 @@ Repo-wide invariants:
   example that does not run.
 - Tool directives are not comments and stay where the tool needs them (lint suppressions, build
   tags, compiler pragmas, code generation markers). Here: `//nolint:...`, `//go:...` (incl. `//go:build`, `//go:generate`), `#nosec`.
-- Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`, … `.editorconfig`: two-space indent (tabs in Go), UTF-8, LF, final newline.
+- Conventional Commits (`.commitlintrc.json`): `feat:`, `fix:`, `docs:`, `chore:`, …
 - YAML uses block style: one `- item` per line for sequences and one `key: value` per line for mappings. Never
   flow style (`[a, b]`, `{ key: value }`), in manifests, scenarios and config alike.
 
