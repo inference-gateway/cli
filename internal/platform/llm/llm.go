@@ -149,10 +149,12 @@ func collect(events <-chan sdk.SSEvent, progress io.Writer) (Response, sdk.Finis
 			usage = chunk.Usage
 		}
 		for _, choice := range chunk.Choices {
-			content.WriteString(choice.Delta.Content)
+			if choice.Delta.Content != nil {
+				content.WriteString(*choice.Delta.Content)
+			}
 			reasoning.WriteString(reasoningOf(choice.Delta))
-			if choice.FinishReason != "" {
-				finish = choice.FinishReason
+			if choice.FinishReason != nil {
+				finish = *choice.FinishReason
 			}
 		}
 		if time.Since(lastReport) >= progressInterval {

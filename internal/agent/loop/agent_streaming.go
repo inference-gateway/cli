@@ -380,8 +380,8 @@ func (a *eventDrivenAgent) processChoiceDelta(
 	message *sdk.Message,
 	allToolCallDeltas *[]sdk.ChatCompletionMessageToolCallChunk,
 ) {
-	if choice.FinishReason != "" {
-		a.finishReason = string(choice.FinishReason)
+	if choice.FinishReason != nil {
+		a.finishReason = string(*choice.FinishReason)
 	}
 
 	a.accumulateReasoning(choice.Delta, message)
@@ -428,14 +428,15 @@ func (a *eventDrivenAgent) accumulateContent(
 	delta sdk.ChatCompletionStreamResponseDelta,
 	message *sdk.Message,
 ) string {
-	deltaContent := delta.Content
-	if deltaContent != "" {
-		currentContent, err := message.Content.AsMessageContent0()
-		if err != nil {
-			currentContent = ""
-		}
-		message.Content = sdk.NewMessageContent(currentContent + deltaContent)
+	if delta.Content == nil || *delta.Content == "" {
+		return ""
 	}
+	deltaContent := *delta.Content
+	currentContent, err := message.Content.AsMessageContent0()
+	if err != nil {
+		currentContent = ""
+	}
+	message.Content = sdk.NewMessageContent(currentContent + deltaContent)
 	return deltaContent
 }
 

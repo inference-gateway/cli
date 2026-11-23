@@ -16,8 +16,8 @@ type chunk = sdk.CreateChatCompletionStreamResponse
 
 func content(text string, finish sdk.FinishReason) chunk {
 	return chunk{Choices: []sdk.ChatCompletionStreamChoice{{
-		FinishReason: finish,
-		Delta:        sdk.ChatCompletionStreamResponseDelta{Content: text},
+		FinishReason: &finish,
+		Delta:        sdk.ChatCompletionStreamResponseDelta{Content: &text},
 	}}}
 }
 

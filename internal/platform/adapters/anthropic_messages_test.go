@@ -238,7 +238,7 @@ func TestGenerateContentStreamTranslation(t *testing.T) {
 	require.NotNil(t, chunks[0].Choices[0].Delta.ReasoningContent)
 	assert.Equal(t, "hmm", *chunks[0].Choices[0].Delta.ReasoningContent)
 
-	assert.Equal(t, "Hello", chunks[1].Choices[0].Delta.Content)
+	assert.Equal(t, "Hello", *chunks[1].Choices[0].Delta.Content)
 
 	firstTool := (*chunks[2].Choices[0].Delta.ToolCalls)[0]
 	assert.Equal(t, 0, firstTool.Index)
@@ -256,7 +256,7 @@ func TestGenerateContentStreamTranslation(t *testing.T) {
 
 	finish := chunks[7]
 	require.Len(t, finish.Choices, 1)
-	assert.Equal(t, sdk.ToolCalls, finish.Choices[0].FinishReason)
+	assert.Equal(t, sdk.ToolCalls, *finish.Choices[0].FinishReason)
 
 	usageChunk := chunks[8]
 	assert.Empty(t, usageChunk.Choices)
