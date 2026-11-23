@@ -128,7 +128,7 @@ type ChatApplication struct {
 	transcriptStore  TranscriptStore
 
 	historySearchView    *components.HistorySearchView
-	agentPicker          *components.AgentPicker
+	agentPicker          *components.Picker
 	historySearchFocused bool
 
 	keyBindingManager *keybinding.Dispatcher
@@ -299,10 +299,10 @@ func NewChatApplication(
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
 	app.historySearchView = components.NewHistorySearchView(styleProvider)
-	app.agentPicker = components.NewAgentPicker(styleProvider)
+	app.agentPicker = components.NewPicker(styleProvider)
 	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
 		isb.SetMainAgentSource(app.agentService)
-		isb.SetAgentPicker(app.agentPicker)
+		isb.SetPickers(app.agentPicker)
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)

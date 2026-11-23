@@ -56,7 +56,7 @@ type InputStatusBar struct {
 	styleProvider          *styles.Provider
 	currentInputText       string
 	mainAgentSource        mainAgentSource
-	agentPicker            *AgentPicker
+	pickers                []*Picker
 
 	focused  bool
 	selected int
@@ -99,10 +99,10 @@ func (isb *InputStatusBar) SetMainAgentSource(src mainAgentSource) {
 	isb.mainAgentSource = src
 }
 
-// SetAgentPicker sets the dropdown the agent indicator opens, drawn under the
-// status row while it is open.
-func (isb *InputStatusBar) SetAgentPicker(picker *AgentPicker) {
-	isb.agentPicker = picker
+// SetPickers sets the dropdowns the indicators open, the open one drawn under
+// the status row.
+func (isb *InputStatusBar) SetPickers(pickers ...*Picker) {
+	isb.pickers = pickers
 }
 
 // SetEffortSource sets the source of the runtime reasoning effort level.
@@ -276,9 +276,12 @@ func (isb *InputStatusBar) Render() string {
 	if right := isb.renderRightSegment(lipgloss.Width(lines[0])); right != "" {
 		lines[0] += right
 	}
-	if isb.agentPicker != nil && isb.agentPicker.IsOpen() {
-		isb.agentPicker.SetWidth(isb.width)
-		lines = append(lines, isb.agentPicker.Render())
+	for _, picker := range isb.pickers {
+		if picker.IsOpen() {
+			picker.SetWidth(isb.width)
+			lines = append(lines, picker.Render())
+			break
+		}
 	}
 	return strings.Join(lines, "\n")
 }
