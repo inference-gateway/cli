@@ -99,6 +99,9 @@ type clientFrame struct {
 	ID         string `json:"id"`
 	ProjectDir string `json:"project_dir"`
 	ToolCallID string `json:"tool_call_id"`
+	Input      struct {
+		RunID string `json:"runId"`
+	} `json:"input"`
 	sessionsdomain.ThreadOptions
 }
 
@@ -260,7 +263,7 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 	t, w, err := r.route(c, f, frame)
 	if err != nil {
 		logRoutingFailure(f, t, err)
-		c.Deliver(runError("", err.Error()))
+		c.Deliver(runError(f.Input.RunID, err.Error()))
 		return
 	}
 	if w == nil {
@@ -269,7 +272,7 @@ func (r *Registry) Handle(c sessionsdomain.Client, frame []byte) {
 	if err := w.Send(frame); err != nil {
 		logger.Warn("sessions could not deliver a frame to the thread's worker", append(t.tags(), "frame", f.Type, "error", err)...)
 		r.unwait(t, c, f)
-		c.Deliver(runError("", fmt.Sprintf("the session worker did not take the frame: %v", err)))
+		c.Deliver(runError(f.Input.RunID, fmt.Sprintf("the session worker did not take the frame: %v", err)))
 	}
 }
 

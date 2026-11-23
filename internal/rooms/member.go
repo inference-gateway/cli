@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -44,6 +45,7 @@ type runInputFrame struct {
 // workerEvent is the part of a worker's AG-UI event a member reads.
 type workerEvent struct {
 	Type    string `json:"type"`
+	RunID   string `json:"runId"`
 	Role    string `json:"role"`
 	Delta   string `json:"delta"`
 	Message string `json:"message"`
@@ -56,7 +58,8 @@ type workerEvent struct {
 // thread registry. It holds the posts routed to it while the member runs or
 // waits on an approval, delivers them one turn at a time, logs each run's last
 // assistant message as the member's post, and detaches after idling so the
-// registry can reap the worker. The frame fields belong to run.
+// registry can reap the worker. runID is the run the open turn waits on, and
+// the frame fields belong to run.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -68,6 +71,7 @@ type member struct {
 	activity roomsdomain.Activity
 	pending  []roomsdomain.Post
 	seen     int
+	runID    string
 	detach   *time.Timer
 
 	role    string
@@ -145,8 +149,10 @@ func (m *member) startNext() {
 	if m.detach != nil {
 		m.detach.Stop()
 	}
+	input := m.runInput(prompt)
+	m.runID = input.Input.RunID
 	m.host.threads.Handle(m, encode(m.resumeFrame()))
-	m.host.threads.Handle(m, encode(m.runInput(prompt)))
+	m.host.threads.Handle(m, encode(input))
 	m.mu.Unlock()
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
 }
@@ -195,16 +201,21 @@ func (m *member) runInput(prompt string) runInputFrame {
 }
 
 // handle reads one worker event: it keeps the run's last assistant message,
-// notes a run that suspends on an approval, and ends the turn when the run
-// finishes or fails.
+// notes a run that suspends on an approval, and ends the turn when its run
+// finishes or fails. The end of another run, such as the second refusal of a
+// turn whose resume was refused, leaves the open turn alone.
 func (m *member) handle(frame []byte) {
 	var ev workerEvent
 	if json.Unmarshal(frame, &ev) != nil {
 		return
 	}
+	if (ev.Type == "RUN_FINISHED" || ev.Type == "RUN_ERROR") && !m.isCurrentRun(ev.RunID) {
+		m.answer = ""
+		return
+	}
 	switch ev.Type {
 	case "RUN_STARTED":
-		m.resumeAfterApproval()
+		m.resumeAfterApproval(ev.RunID)
 	case "TEXT_MESSAGE_START":
 		m.role = ev.Role
 		m.message.Reset()
@@ -245,15 +256,24 @@ func (m *member) waitForApproval() {
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityWaiting)
 }
 
+// isCurrentRun reports whether an event of runID ends the open turn. A
+// registry error that names no run, such as a refused resume, ends it too.
+func (m *member) isCurrentRun(runID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return runID == "" || runID == m.runID
+}
+
 // resumeAfterApproval marks a waiting member running again once the run its
-// approval continues starts.
-func (m *member) resumeAfterApproval() {
+// approval continues starts, and makes that run the one the turn waits on.
+func (m *member) resumeAfterApproval(runID string) {
 	m.mu.Lock()
 	if m.activity != roomsdomain.ActivityWaiting {
 		m.mu.Unlock()
 		return
 	}
 	m.activity = roomsdomain.ActivityRunning
+	m.runID = cmp.Or(runID, m.runID)
 	m.mu.Unlock()
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
 }

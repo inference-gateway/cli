@@ -235,6 +235,38 @@ func TestAnApprovalWaitsInTheMembersOwnChat(t *testing.T) {
 	})
 }
 
+// TestARefusedTurnEndsOnlyItself pins that the registry's two refusals of a
+// turn whose resume failed end that turn alone: the held post runs next and
+// its answer is logged, not lost to the stale refusal.
+func TestARefusedTurnEndsOnlyItself(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		poster := &sessionsmocks.FakeClient{}
+		f.post(t, poster, "@tester run the suite")
+		f.post(t, poster, "@tester and the e2e suite")
+		refused := f.sent(t)[1]["input"].(map[string]any)["runId"].(string)
+
+		seat := f.seat(t, "tester")
+		seat.Deliver([]byte(`{"type":"RUN_ERROR","message":"no worker"}`))
+		seat.Deliver(encode(map[string]string{"type": "RUN_ERROR", "runId": refused, "message": "no thread"}))
+		synctest.Wait()
+		require.Equal(t, 4, f.threads.HandleCallCount(), "the held post goes out once the refused turn ended")
+
+		reply(t, seat, "e2e green")
+		logged := f.logged(t)
+		require.Equal(t, "tester", logged[len(logged)-1].Author)
+		require.Equal(t, "e2e green", logged[len(logged)-1].Text)
+		notes := 0
+		for _, post := range logged {
+			if post.Author == roomsdomain.RoomAuthor {
+				notes++
+			}
+		}
+		require.Equal(t, 1, notes, "only the refused turn is noted as failed")
+	})
+}
+
 func TestFollowStreamsTheRoomUntilLeave(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	synctest.Test(t, func(t *testing.T) {
