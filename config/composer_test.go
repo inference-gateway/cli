@@ -82,9 +82,24 @@ func TestComposerValidate(t *testing.T) {
 		{"reserved double bang trigger", func(c *ComposerConfig) {
 			c.Triggers[ComposerContextRoom]["!!"] = []string{ComposerSourceIssues}
 		}, `triggers.room."!!"`},
-		{"unknown trigger", func(c *ComposerConfig) {
-			c.Triggers[ComposerContextChat]["?"] = []string{ComposerSourceFiles}
-		}, `triggers.chat."?"`},
+		{"ascii special character trigger", func(c *ComposerConfig) {
+			c.Triggers[ComposerContextChat]["^"] = []string{ComposerSourceIssues}
+		}, ""},
+		{"non-ascii special character trigger", func(c *ComposerConfig) {
+			c.Triggers[ComposerContextChat]["§"] = []string{ComposerSourceFiles}
+		}, ""},
+		{"letter trigger", func(c *ComposerConfig) {
+			c.Triggers[ComposerContextChat]["a"] = []string{ComposerSourceFiles}
+		}, `triggers.chat."a"`},
+		{"digit trigger", func(c *ComposerConfig) {
+			c.Triggers[ComposerContextChat]["1"] = []string{ComposerSourceFiles}
+		}, `triggers.chat."1"`},
+		{"multi-character trigger", func(c *ComposerConfig) {
+			c.Triggers[ComposerContextChat]["@@"] = []string{ComposerSourceFiles}
+		}, `triggers.chat."@@"`},
+		{"empty trigger", func(c *ComposerConfig) {
+			c.Triggers[ComposerContextChat][""] = []string{ComposerSourceFiles}
+		}, `triggers.chat.""`},
 		{"unknown context", func(c *ComposerConfig) {
 			c.Triggers["meeting"] = map[string][]string{"@": {ComposerSourceFiles}}
 		}, "triggers.meeting"},

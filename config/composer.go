@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
 )
@@ -26,10 +28,6 @@ const (
 	ComposerSourceAgents = "agents"
 	ComposerSourceIssues = "issues"
 )
-
-// composerTriggers are the trigger characters a table may map. The others are
-// reserved: / opens the slash menu and ! and !! run bash or a tool directly.
-var composerTriggers = []string{"@", "#"}
 
 // reservedComposerTriggers are the sigils the composer parses itself. Mapping
 // one in composer.yaml fails the load.
@@ -108,11 +106,22 @@ func validateComposerTrigger(context, trigger string) error {
 		return fmt.Errorf("invalid %s triggers.%s.%q: %s is reserved: %s always open the slash menu or run bash and tools directly and cannot be mapped",
 			ComposerFileName, context, trigger, trigger, strings.Join(reservedComposerTriggers, ", "))
 	}
-	if !slices.Contains(composerTriggers, trigger) {
-		return fmt.Errorf("invalid %s triggers.%s.%q: unknown trigger: the configurable triggers are %s",
-			ComposerFileName, context, trigger, strings.Join(composerTriggers, " and "))
+	if !isTriggerCharacter(trigger) {
+		return fmt.Errorf("invalid %s triggers.%s.%q: a trigger is one special character such as @, #, ^ or §",
+			ComposerFileName, context, trigger)
 	}
 	return nil
+}
+
+// isTriggerCharacter reports whether trigger is one punctuation or symbol
+// character, ASCII or not. A letter, digit or space would open a menu on
+// ordinary typing.
+func isTriggerCharacter(trigger string) bool {
+	r, size := utf8.DecodeRuneInString(trigger)
+	if r == utf8.RuneError || size != len(trigger) {
+		return false
+	}
+	return unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
 
 // SaveComposer writes the composer configuration to disk, creating any

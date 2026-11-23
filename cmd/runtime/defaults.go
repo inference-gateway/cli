@@ -1,9 +1,7 @@
 package runtime
 
 import (
-	"maps"
 	"reflect"
-	"slices"
 	"strings"
 
 	viper "github.com/spf13/viper"
@@ -21,16 +19,13 @@ func registerConfigDefaults(v *viper.Viper, cfg any) {
 	registerComposerTriggerDefaults(v)
 }
 
-// registerComposerTriggerDefaults flattens the default trigger table into
-// per-leaf defaults. Viper treats a nested map of non-any type as an opaque
-// leaf and replaces it wholesale, so a composer.yaml overriding one trigger
-// would otherwise drop the rest of the default table.
+// registerComposerTriggerDefaults registers the default trigger table per
+// context. Viper replaces a typed map default wholesale, so a context that
+// composer.yaml sets replaces that context's defaults, dropping any trigger it
+// leaves out, while a context it does not set keeps them.
 func registerComposerTriggerDefaults(v *viper.Viper) {
-	for _, context := range slices.Sorted(maps.Keys(config.DefaultComposerConfig().Triggers)) {
-		table := config.DefaultComposerConfig().Triggers[context]
-		for _, trigger := range slices.Sorted(maps.Keys(table)) {
-			v.SetDefault("composer.triggers."+context+"."+trigger, slices.Clone(table[trigger]))
-		}
+	for context, table := range config.DefaultComposerConfig().Triggers {
+		v.SetDefault("composer.triggers."+context, table)
 	}
 }
 

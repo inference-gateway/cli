@@ -842,15 +842,20 @@ status_bar:
     cost: true
 ```
 
-- **triggers**: context (`chat` or `room`) to trigger (`@` or `#`) to the menu
-  sources in section order. Sources are `files` (project files), `agents`
-  (every Markdown agent and built-in, or the room's members in a room) and
-  `issues` (open GitHub issues). A trigger only picks which menu opens and the
-  order of its sections: a file row still inserts `@<path>`, an agent row
-  `@<agent>` and an issue row `#<number>`
+- **triggers**: context (`chat` or `room`) to trigger to the menu sources in
+  section order. A trigger is any one special character, such as `@`, `#`, `^`
+  or `§`. Sources are `files` (project files), `agents` (every Markdown agent
+  and built-in, or the room's members in a room) and `issues` (open GitHub
+  issues). A trigger only picks which menu opens and the order of its sections:
+  a file row still inserts `@<path>`, an agent row `@<agent>` and an issue row
+  `#<number>`
+- **Replacing a trigger**: a context set in `composer.yaml` replaces that
+  context's default table, so mapping `issues` to `^` in `chat` and leaving `#`
+  out turns `#` off there. A context the file leaves out keeps its defaults
 - **Reserved triggers**: `/`, `!` and `!!` always open the slash menu or run bash
-  and tools directly. Mapping one, or naming an unknown source or context, fails
-  the load naming `composer.yaml` and the key
+  and tools directly. Mapping one, a letter, a digit or more than one character,
+  or naming an unknown source or context, fails the load naming `composer.yaml`
+  and the key
 - **status_bar**: the status bar settings moved here from `chat.status_bar` in
   config.yaml, with no fallback. A `chat.status_bar` block left in config.yaml
   is ignored, so move it into `composer.yaml` by hand. The env overrides moved

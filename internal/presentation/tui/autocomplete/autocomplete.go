@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -201,13 +202,29 @@ func (a *Autocomplete) SetTriggerSources(sources map[string][]string) {
 	a.triggerSources = sources
 }
 
-// composerSources returns the trigger's source order. With no table set the
-// chat context's defaults apply.
-func (a *Autocomplete) composerSources(trigger string) []string {
+// triggerModePrefix marks a completion mode opened by a composer trigger, the
+// trigger character following it.
+const triggerModePrefix = "trigger:"
+
+// triggerTable returns the composer trigger table of the current context. With
+// no table set the chat context's defaults apply.
+func (a *Autocomplete) triggerTable() map[string][]string {
 	if a.triggerSources == nil {
-		return config.DefaultComposerConfig().TriggerSources(config.ComposerContextChat, trigger)
+		return config.DefaultComposerConfig().Triggers[config.ComposerContextChat]
 	}
-	return a.triggerSources[trigger]
+	return a.triggerSources
+}
+
+// composerSources returns the trigger's source order, nil for an unmapped one.
+func (a *Autocomplete) composerSources(trigger string) []string {
+	return a.triggerTable()[trigger]
+}
+
+// triggerMenuListsFiles reports whether the open menu is a trigger's whose
+// sources include files, whose long paths take the full row width.
+func (a *Autocomplete) triggerMenuListsFiles() bool {
+	trigger, ok := strings.CutPrefix(a.completionMode, triggerModePrefix)
+	return ok && slices.Contains(a.composerSources(trigger), config.ComposerSourceFiles)
 }
 
 // loadTriggerRows rebuilds the suggestions with one section per source in the
@@ -570,46 +587,26 @@ func (a *Autocomplete) generateArgumentTemplate(paramName string, properties map
 	return paramName + "=\"\""
 }
 
-// findIssueTriggerStart returns the index of the `#` that starts the token
-// under the cursor, or -1. The `#` must start the text or follow whitespace,
-// with no whitespace before the cursor, so "work on #57|" refines one query.
-func findIssueTriggerStart(text string, cursorPos int) int {
-	return findSigilTriggerStart(text, cursorPos, '#')
-}
-
-// findSlashTriggerStart is the `/` counterpart of findIssueTriggerStart, used
-// to enable mid-text shortcut/skill autocomplete. Returns the index of the `/`
-// sigil at the cursor, or -1.
+// findSlashTriggerStart returns the index of the `/` that starts the token at
+// the cursor, or -1, for mid-text shortcut and skill autocomplete.
 func findSlashTriggerStart(text string, cursorPos int) int {
-	return findSigilTriggerStart(text, cursorPos, '/')
+	return findSigilTriggerStart(text, cursorPos, "/")
 }
 
-// findSigilTriggerStart factors the trigger-detection logic: scan backward
-// from cursorPos for `sigil`, requiring the run between sigil and cursor to be
-// non-whitespace and the character before the sigil to be start-of-string or
-// whitespace. Returns the sigil index or -1.
-func findSigilTriggerStart(text string, cursorPos int, sigil byte) int {
+// findSigilTriggerStart returns the index of the sigil that starts the
+// whitespace-delimited token ending at cursorPos, or -1. The sigil may be any
+// one character and may not recur in the token, so "work on #57|" refines one
+// query while "a@b|" opens nothing.
+func findSigilTriggerStart(text string, cursorPos int, sigil string) int {
 	if cursorPos <= 0 || cursorPos > len(text) {
 		return -1
 	}
-	for k := cursorPos - 1; k >= 0; k-- {
-		c := text[k]
-		if c == ' ' || c == '\t' || c == '\n' {
-			return -1
-		}
-		if c != sigil {
-			continue
-		}
-		if k == 0 {
-			return k
-		}
-		prev := text[k-1]
-		if prev == ' ' || prev == '\t' || prev == '\n' {
-			return k
-		}
+	start := strings.LastIndexAny(text[:cursorPos], " \t\n") + 1
+	token := text[start:cursorPos]
+	if !strings.HasPrefix(token, sigil) || strings.Contains(token[len(sigil):], sigil) {
 		return -1
 	}
-	return -1
+	return start
 }
 
 // applyMidTextMode is the shared body of every mid-text completion case
@@ -626,7 +623,8 @@ func (a *Autocomplete) applyMidTextMode(
 		a.completionMode = mode
 		a.usageHint = ""
 	}
-	a.query = inputText[triggerStart+1 : cursorPos]
+	_, sigilWidth := utf8.DecodeRuneInString(inputText[triggerStart:])
+	a.query = inputText[triggerStart+sigilWidth : cursorPos]
 	a.splicePrefix = inputText[:triggerStart]
 	a.spliceSuffix = inputText[cursorPos:]
 	filter()
@@ -638,13 +636,12 @@ func (a *Autocomplete) applyMidTextMode(
 
 // Update handles autocomplete logic
 func (a *Autocomplete) Update(inputText string, cursorPos int) {
-	if triggerStart := findSigilTriggerStart(inputText, cursorPos, '@'); triggerStart >= 0 {
-		a.applyMidTextMode(inputText, cursorPos, triggerStart, "files", func() { a.loadTriggerRows("@") }, a.filterForTrigger("@"))
-		return
-	}
-	if triggerStart := findIssueTriggerStart(inputText, cursorPos); triggerStart >= 0 {
-		a.applyMidTextMode(inputText, cursorPos, triggerStart, "issues", func() { a.loadTriggerRows("#") }, a.filterForTrigger("#"))
-		return
+	for trigger := range a.triggerTable() {
+		if triggerStart := findSigilTriggerStart(inputText, cursorPos, trigger); triggerStart >= 0 {
+			a.applyMidTextMode(inputText, cursorPos, triggerStart, triggerModePrefix+trigger,
+				func() { a.loadTriggerRows(trigger) }, a.filterForTrigger(trigger))
+			return
+		}
 	}
 	if triggerStart := findSlashTriggerStart(inputText, cursorPos); triggerStart > 0 {
 		a.applyMidTextMode(inputText, cursorPos, triggerStart, "skills-midtext", a.loadSkillsOnly, a.filterSuggestions)
@@ -879,7 +876,7 @@ func (a *Autocomplete) handleSelection(drill bool) (bool, string) {
 	usage := a.filtered[a.selected].Usage
 	a.lastCompletionCursor = 0
 
-	if a.completionMode == "files" || a.completionMode == "issues" || a.completionMode == "skills-midtext" {
+	if strings.HasPrefix(a.completionMode, triggerModePrefix) || a.completionMode == "skills-midtext" {
 		result, caret := a.spliceMidText(selected, a.splicePrefix, a.spliceSuffix)
 		a.lastCompletionCursor = caret
 		a.visible = false
@@ -1027,7 +1024,7 @@ func (a *Autocomplete) calculateVisibleRange() (int, int) {
 
 // calculateMaxShortcutWidth calculates the maximum width for shortcut display
 func (a *Autocomplete) calculateMaxShortcutWidth() int {
-	if a.completionMode == "files" {
+	if a.triggerMenuListsFiles() {
 		return max(10, a.width-4)
 	}
 	maxShortcutWidth := 0

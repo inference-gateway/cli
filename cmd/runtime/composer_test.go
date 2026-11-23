@@ -30,7 +30,7 @@ func TestComposerSidecarLayers(t *testing.T) {
 	require.False(t, cfg.Composer.StatusBar.Indicators.Cost, "a partial status_bar block sets the indicator it names")
 	require.True(t, cfg.Composer.StatusBar.Indicators.Model, "a partial status_bar block keeps the indicator defaults it does not set")
 	require.Equal(t, []string{config.ComposerSourceAgents, config.ComposerSourceFiles}, cfg.Composer.TriggerSources(config.ComposerContextRoom, "@"),
-		"triggers the composer.yaml does not set fall back to the default table")
+		"a context the composer.yaml does not set keeps the default table")
 
 	projComposer := filepath.Join(projectDir, config.ConfigDirName, config.ComposerFileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(projComposer), 0o755))
@@ -43,6 +43,20 @@ func TestComposerSidecarLayers(t *testing.T) {
 		"a project layer without status_bar leaves the home layer's status bar in place")
 }
 
+func TestComposerContextReplacesItsDefaultTable(t *testing.T) {
+	homeDir, _ := splitHomeProjectEnv(t)
+
+	writeTestHomeFile(t, homeDir, config.ComposerFileName, "triggers:\n  chat:\n    \"^\":\n      - issues\n    \"@\":\n      - files\n      - agents\n")
+
+	cfg := loadTestConfig(t)
+	require.Equal(t, []string{config.ComposerSourceIssues}, cfg.Composer.TriggerSources(config.ComposerContextChat, "^"),
+		"a special character the file maps opens its sources")
+	require.Nil(t, cfg.Composer.TriggerSources(config.ComposerContextChat, "#"),
+		"a default trigger the file's chat table leaves out opens nothing in chat")
+	require.Equal(t, []string{config.ComposerSourceIssues}, cfg.Composer.TriggerSources(config.ComposerContextRoom, "#"),
+		"the room context the file does not set keeps its default #")
+}
+
 func TestComposerReservedAndUnknownKeysFailTheLoad(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -52,7 +66,7 @@ func TestComposerReservedAndUnknownKeysFailTheLoad(t *testing.T) {
 		{"reserved slash trigger", "triggers:\n  chat:\n    \"/\":\n      - files\n", `triggers.chat."/"`},
 		{"reserved single bang trigger", "triggers:\n  chat:\n    \"!\":\n      - files\n", `triggers.chat."!"`},
 		{"reserved double bang trigger", "triggers:\n  chat:\n    \"!!\":\n      - files\n", `triggers.chat."!!"`},
-		{"unknown trigger", "triggers:\n  chat:\n    \"?\":\n      - files\n", `triggers.chat."?"`},
+		{"letter trigger", "triggers:\n  chat:\n    \"a\":\n      - files\n", `triggers.chat."a"`},
 		{"unknown context", "triggers:\n  meeting:\n    \"@\":\n      - files\n", "triggers.meeting"},
 		{"unknown source", "triggers:\n  chat:\n    \"@\":\n      - repos\n", `triggers.chat."@"`},
 	}

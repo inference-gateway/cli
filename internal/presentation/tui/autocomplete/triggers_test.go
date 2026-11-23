@@ -2,6 +2,7 @@ package autocomplete_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	agentdomainmocks "github.com/inference-gateway/cli/tests/mocks/agentdomain"
@@ -56,11 +57,13 @@ func TestTriggerTableBuildsSectionsInOrder(t *testing.T) {
 		{"chat hash opens issues", nil, "#", []string{"#12"}},
 		{"a room table puts agents before files", map[string][]string{"@": {"agents", "files"}}, "@", []string{"@runner", "@cmd/run.sh"}},
 		{"a menus source order is its section order", map[string][]string{"#": {"files", "issues"}}, "#", []string{"@cmd/run.sh", "#12"}},
+		{"a special character opens its menu", map[string][]string{"^": {"issues"}}, "^", []string{"#12"}},
+		{"a non-ascii special character opens its menu", map[string][]string{"§": {"files"}}, "§", []string{"@cmd/run.sh"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ac := newTriggerTestAutocomplete(tt.sources)
-			ac.Update(tt.input, 1)
+			ac.Update(tt.input, len(tt.input))
 			if !ac.IsVisible() {
 				t.Fatalf("Update(%q) opened nothing, want %v", tt.input, tt.want)
 			}
@@ -76,6 +79,29 @@ func TestEmptyTriggerTableOpensNothing(t *testing.T) {
 	ac.Update("@", 1)
 	if ac.IsVisible() {
 		t.Error("an empty trigger table must open no menu")
+	}
+}
+
+func TestTriggerLeftOutOfTheTableOpensNothing(t *testing.T) {
+	ac := newTriggerTestAutocomplete(map[string][]string{"^": {"issues"}})
+	ac.Update("#", 1)
+	if ac.IsVisible() {
+		t.Error("# must open no menu once the table maps issues to ^ instead")
+	}
+}
+
+// A multi-byte trigger refines its query after the whole character, and the
+// accepted row replaces the trigger and query with the row's own sigil.
+func TestNonASCIITriggerSplicesTheRow(t *testing.T) {
+	ac := newTriggerTestAutocomplete(map[string][]string{"§": {"files"}})
+	input := "see §cmd"
+	ac.Update(input, len(input))
+	if got := ac.GetSelectedShortcut(); got != "@cmd/run.sh" {
+		t.Fatalf("query after § selected %q, want @cmd/run.sh", got)
+	}
+	_, result := ac.HandleKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	if !strings.HasPrefix(result, "see @cmd/run.sh") {
+		t.Errorf("accepted row = %q, want it to replace §cmd with @cmd/run.sh", result)
 	}
 }
 
