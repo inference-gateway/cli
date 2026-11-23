@@ -66,8 +66,8 @@ func TestFocusStatusBarEventNoopsWithoutActionableIndicator(t *testing.T) {
 	app, _ := newStatusBarTestApp(t, false)
 	statusBar := app.inputStatusBar.(*components.InputStatusBar)
 	cfg := config.DefaultConfig()
-	cfg.Chat.StatusBar.Indicators.Model = false
-	cfg.Chat.StatusBar.Indicators.Artifacts = false
+	cfg.Composer.StatusBar.Indicators.Model = false
+	cfg.Composer.StatusBar.Indicators.Artifacts = false
 	statusBar.SetConfig(cfg)
 
 	app.handleChatView(tui.FocusStatusBarEvent{})

@@ -42,6 +42,7 @@ type sidecar struct {
 var sidecars = []sidecar{
 	{key: "mcp", file: config.MCPFileName, fixup: keepMCPEnvCase},
 	{key: "chat.keybindings", file: config.KeybindingsFileName},
+	{key: "composer", file: config.ComposerFileName, fatal: true, fixup: validateComposerTriggers},
 	{key: "prompts", file: config.PromptsFileName, fixup: dropBlankPrompts},
 	{key: "reminders", file: config.RemindersFileName},
 	{key: "hooks", file: config.HooksFileName},
@@ -88,28 +89,105 @@ func userConfigPath(file string) string {
 // mergeConfigLayers merges ~/.infer/config.yaml then ./.infer/config.yaml
 // into v with every sidecar key stripped, so legacy blocks cannot leak into
 // the split sections. Viper deep-merges maps and replaces lists wholesale.
-func mergeConfigLayers(v *viper.Viper) error {
+// It returns the deprecated chat.status_bar block when a layer still carried
+// one, for migrateStatusBar to apply once the composer layers are in.
+func mergeConfigLayers(v *viper.Viper) (map[string]any, error) {
 	home := userConfigPath(config.ConfigFileName)
 	project := resolveProjectConfigPath()
 	if sameConfigFile(project, home) {
 		project = ""
 	}
+	var legacyStatusBar map[string]any
 	for _, path := range []string{home, project} {
 		if path == "" {
 			continue
 		}
 		settings, err := readYAMLMap(path, false)
 		if err != nil {
-			return fmt.Errorf("reading config %s: %w", path, err)
+			return nil, fmt.Errorf("reading config %s: %w", path, err)
+		}
+		if sb := legacyStatusBarFrom(settings); sb != nil {
+			legacyStatusBar = sb
 		}
 		for _, sc := range sidecars {
 			deletePath(settings, sc.key)
 		}
 		if err := v.MergeConfigMap(settings); err != nil {
-			return fmt.Errorf("merging config %s: %w", path, err)
+			return nil, fmt.Errorf("merging config %s: %w", path, err)
 		}
 	}
-	return nil
+	return legacyStatusBar, nil
+}
+
+// legacyStatusBarFrom reads the deprecated chat.status_bar block out of a raw
+// config.yaml map, later layers winning over earlier ones.
+func legacyStatusBarFrom(settings map[string]any) map[string]any {
+	chat, ok := settings["chat"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	block, ok := chat["status_bar"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return block
+}
+
+// migrateStatusBar applies the deprecated chat.status_bar block as
+// composer.status_bar while composer.yaml sets no status_bar of its own, and
+// warns that the block has moved.
+func migrateStatusBar(v *viper.Viper, legacy map[string]any, sc sidecar) error {
+	if len(legacy) == 0 {
+		return nil
+	}
+	if composerStatusBarSet(sc.paths()) {
+		return nil
+	}
+	logger.Warn("chat.status_bar is deprecated: the status bar settings live in composer.yaml under status_bar",
+		"legacy_key", "chat.status_bar", "new_file", config.ComposerFileName)
+	return mergeUnderKey(v, sc.key+".status_bar", legacy)
+}
+
+// composerStatusBarSet reports whether any composer.yaml layer defines a
+// status_bar block. The raw maps are checked, since the registered defaults
+// would make every key of the merged config look set.
+func composerStatusBarSet(paths []string) bool {
+	for _, path := range paths {
+		settings, err := readYAMLMap(path, true)
+		if err != nil {
+			continue
+		}
+		if _, ok := settings["status_bar"]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// validateComposerTriggers checks composer.yaml's trigger table before the
+// merge, so a reserved trigger or an unknown source or context fails the load
+// naming the file and key. The status_bar block is not checked here: its keys
+// are leaves with defaults, validated after the merge.
+func validateComposerTriggers(m map[string]any) error {
+	triggers, ok := m["triggers"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	data, err := yaml.Marshal(triggers)
+	if err != nil {
+		return err
+	}
+	var table map[string]map[string][]string
+	if err := yaml.Unmarshal(data, &table); err != nil {
+		return tableKeysError(err)
+	}
+	return (config.ComposerConfig{Triggers: table}).Validate()
+}
+
+// tableKeysError names the composer key a decode failed at, which yaml alone
+// reports as a bare line number.
+func tableKeysError(err error) error {
+	return fmt.Errorf("composer.triggers: %w", err)
 }
 
 // mergeSidecar merges each existing layer of sc under its key. A broken

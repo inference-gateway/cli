@@ -105,7 +105,9 @@ func TestMergeConfigLayersProjectOverridesHome(t *testing.T) {
 
 	v := viper.New()
 	registerConfigDefaults(v, config.DefaultConfig())
-	require.NoError(t, mergeConfigLayers(v))
+	legacy, err := mergeConfigLayers(v)
+	require.NoError(t, err)
+	require.Empty(t, legacy, "no deprecated chat.status_bar block is present")
 
 	require.Equal(t, "project-model", v.GetString("agent.model"), "project config.yaml must override the home key")
 	require.Equal(t, 7, v.GetInt("agent.max_turns"), "keys absent from the project layer are inherited from home")

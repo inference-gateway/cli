@@ -33,14 +33,33 @@ func TestViperDefaultsCoverConfigLeaves(t *testing.T) {
 
 	var missing []string
 	for _, l := range leaves {
-		if _, ok := allKeys[strings.ToLower(l.path)]; !ok {
-			missing = append(missing, l.path)
+		path := strings.ToLower(l.path)
+		if _, ok := allKeys[path]; ok {
+			continue
 		}
+		if coveredByChildDefaults(path, allKeys) {
+			continue
+		}
+		missing = append(missing, l.path)
 	}
 	sort.Strings(missing)
 	assert.Empty(t, missing,
 		"%d leaf paths from config.DefaultConfig() have no viper default registered after initConfig():\n  %s",
 		len(missing), strings.Join(missing, "\n  "))
+}
+
+// coveredByChildDefaults reports whether any viper default sits below path. A
+// nested map leaf is registered per flattened child, like composer.triggers,
+// because Viper replaces a non-any-typed map default wholesale instead of
+// merging it with the file's map.
+func coveredByChildDefaults(path string, allKeys map[string]struct{}) bool {
+	prefix := path + "."
+	for key := range allKeys {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // TestViperUnmarshalReproducesDefaultConfig verifies that with no config file

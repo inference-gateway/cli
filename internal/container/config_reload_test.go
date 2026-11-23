@@ -63,26 +63,26 @@ func TestReloadConfigKeepsApprovalBehaviourUntilRestart(t *testing.T) {
 	}
 }
 
-// The TUI reads chat.status_bar on every repaint, so hiding indicators must
+// The TUI reads composer.status_bar on every repaint, so hiding indicators must
 // apply live and be reported once for the section, not once per leaf.
 func TestReloadConfigAppliesStatusBarSection(t *testing.T) {
 	c := newReloadContainer(loadWith(func(cfg *config.Config) {
-		cfg.Chat.StatusBar.Indicators.Model = false
-		cfg.Chat.StatusBar.Indicators.Cost = false
-		cfg.Chat.StatusBar.Indicators.Tools = false
+		cfg.Composer.StatusBar.Indicators.Model = false
+		cfg.Composer.StatusBar.Indicators.Cost = false
+		cfg.Composer.StatusBar.Indicators.Tools = false
 	}))
 
 	applied, restart, err := c.ReloadConfig()
 	if err != nil {
 		t.Fatalf("ReloadConfig() error = %v", err)
 	}
-	if !slices.Equal(applied, []string{"chat.status_bar"}) {
-		t.Errorf("applied = %v, want [chat.status_bar]", applied)
+	if !slices.Equal(applied, []string{"composer.status_bar"}) {
+		t.Errorf("applied = %v, want [composer.status_bar]", applied)
 	}
 	if len(restart) != 0 {
 		t.Errorf("restart = %v, want none", restart)
 	}
-	indicators := c.config.Chat.StatusBar.Indicators
+	indicators := c.config.Composer.StatusBar.Indicators
 	if indicators.Model || indicators.Cost || indicators.Tools {
 		t.Errorf("indicators not applied live: %+v", indicators)
 	}

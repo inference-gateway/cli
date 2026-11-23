@@ -91,12 +91,12 @@ func hotConfigKey(hot map[string]func() error, key string) (string, bool) {
 
 // hotConfigKeys maps each key or section a running chat can pick up onto the
 // setter that applies it. The agent reads these per turn and the TUI reads
-// chat.status_bar per repaint. Model and effort go through their services so
+// composer.status_bar per repaint. Model and effort go through their services so
 // the status bar follows.
 func (c *ServiceContainer) hotConfigKeys(fresh *config.Config) map[string]func() error {
 	return map[string]func() error{
-		"chat.status_bar": func() error {
-			c.config.Chat.StatusBar = fresh.Chat.StatusBar
+		"composer.status_bar": func() error {
+			c.config.Composer.StatusBar = fresh.Composer.StatusBar
 			return nil
 		},
 		"gateway.timeout": func() error {

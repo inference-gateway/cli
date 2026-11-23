@@ -1,10 +1,14 @@
 package runtime
 
 import (
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 
 	viper "github.com/spf13/viper"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // registerConfigDefaults walks cfg via mapstructure tags and calls v.SetDefault
@@ -14,6 +18,20 @@ func registerConfigDefaults(v *viper.Viper, cfg any) {
 	walkConfigLeaves(reflect.ValueOf(cfg), "", func(path string, val reflect.Value) {
 		v.SetDefault(path, val.Interface())
 	})
+	registerComposerTriggerDefaults(v)
+}
+
+// registerComposerTriggerDefaults flattens the default trigger table into
+// per-leaf defaults. Viper treats a nested map of non-any type as an opaque
+// leaf and replaces it wholesale, so a composer.yaml overriding one trigger
+// would otherwise drop the rest of the default table.
+func registerComposerTriggerDefaults(v *viper.Viper) {
+	for _, context := range slices.Sorted(maps.Keys(config.DefaultComposerConfig().Triggers)) {
+		table := config.DefaultComposerConfig().Triggers[context]
+		for _, trigger := range slices.Sorted(maps.Keys(table)) {
+			v.SetDefault("composer.triggers."+context+"."+trigger, slices.Clone(table[trigger]))
+		}
+	}
 }
 
 // walkConfigLeaves traverses a struct (or pointer to struct) using mapstructure

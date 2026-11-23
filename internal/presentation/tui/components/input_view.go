@@ -386,7 +386,7 @@ func (iv *InputView) Render() string {
 // session runs on another workspace, whose checkout this one is not. The
 // style provider truncates it to fit the border.
 func (iv *InputView) buildGitBranchLabel() string {
-	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
+	if iv.config != nil && !iv.config.Composer.StatusBar.Indicators.GitBranch {
 		return ""
 	}
 	if iv.stateManager != nil && iv.stateManager.GetSessionPlacement().Remote() {
@@ -400,7 +400,7 @@ func (iv *InputView) buildGitBranchLabel() string {
 
 	label := fmt.Sprintf("%s %s", icons.GitBranch, branch)
 
-	if iv.config == nil || iv.config.Chat.StatusBar.Indicators.GitPR {
+	if iv.config == nil || iv.config.Composer.StatusBar.Indicators.GitPR {
 		if iv.gitPRCache != "" {
 			label += " ─ #" + iv.gitPRCache
 		}
@@ -475,7 +475,7 @@ func fetchGitPRCmd() tea.Cmd {
 // indicator is disabled so no git process is ever spawned for a label that is
 // never rendered.
 func (iv *InputView) gitStatusCmd() tea.Cmd {
-	if iv.config != nil && !iv.config.Chat.StatusBar.Indicators.GitBranch {
+	if iv.config != nil && !iv.config.Composer.StatusBar.Indicators.GitBranch {
 		return nil
 	}
 	return fetchGitStatusCmd()

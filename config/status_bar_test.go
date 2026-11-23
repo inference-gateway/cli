@@ -20,7 +20,7 @@ func TestConfigValidate_SubagentLingerSeconds(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := DefaultConfig()
-			cfg.Chat.StatusBar.SubagentLingerSeconds = tt.linger
+			cfg.Composer.StatusBar.SubagentLingerSeconds = tt.linger
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Validate() with linger %d returned err %v, wantErr %v", tt.linger, err, tt.wantErr)

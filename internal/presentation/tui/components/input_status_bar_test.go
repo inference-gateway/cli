@@ -91,7 +91,7 @@ func TestInputStatusBar_MasterToggle(t *testing.T) {
 			stateManager.SetAgentMode(agentdomain.AgentModeStandard)
 
 			cfg := config.DefaultConfig()
-			cfg.Chat.StatusBar.Enabled = tt.enabled
+			cfg.Composer.StatusBar.Enabled = tt.enabled
 
 			statusBar := &InputStatusBar{
 				width:         100,
@@ -159,19 +159,19 @@ func TestInputStatusBar_ShouldShowIndicator(t *testing.T) {
 
 			switch tt.indicator {
 			case "model":
-				cfg.Chat.StatusBar.Indicators.Model = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.Model = tt.configEnabled
 			case "theme":
-				cfg.Chat.StatusBar.Indicators.Theme = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.Theme = tt.configEnabled
 			case "max_output":
-				cfg.Chat.StatusBar.Indicators.MaxOutput = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.MaxOutput = tt.configEnabled
 			case "a2a_agents":
-				cfg.Chat.StatusBar.Indicators.A2AAgents = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.A2AAgents = tt.configEnabled
 			case "tools":
-				cfg.Chat.StatusBar.Indicators.Tools = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.Tools = tt.configEnabled
 			case "mcp":
-				cfg.Chat.StatusBar.Indicators.MCP = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.MCP = tt.configEnabled
 			case "context_usage":
-				cfg.Chat.StatusBar.Indicators.ContextUsage = tt.configEnabled
+				cfg.Composer.StatusBar.Indicators.ContextUsage = tt.configEnabled
 			}
 
 			statusBar := &InputStatusBar{
@@ -661,7 +661,7 @@ func TestInputStatusBar_ShouldShowIndicator_SessionTokens(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.DefaultConfig()
-			cfg.Chat.StatusBar.Indicators.SessionTokens = tt.configEnabled
+			cfg.Composer.StatusBar.Indicators.SessionTokens = tt.configEnabled
 
 			statusBar := &InputStatusBar{
 				config: cfg,
@@ -697,7 +697,7 @@ func TestInputStatusBar_ShouldShowIndicator_GitBranch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.DefaultConfig()
-			cfg.Chat.StatusBar.Indicators.GitBranch = tt.configEnabled
+			cfg.Composer.StatusBar.Indicators.GitBranch = tt.configEnabled
 
 			statusBar := &InputStatusBar{
 				config: cfg,
@@ -723,15 +723,15 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 			name: "all indicators disabled yields empty",
 			setup: func(t *testing.T) *InputStatusBar {
 				cfg := config.DefaultConfig()
-				cfg.Chat.StatusBar.Indicators.Model = false
-				cfg.Chat.StatusBar.Indicators.Theme = false
-				cfg.Chat.StatusBar.Indicators.MaxOutput = false
-				cfg.Chat.StatusBar.Indicators.A2AAgents = false
-				cfg.Chat.StatusBar.Indicators.Tools = false
-				cfg.Chat.StatusBar.Indicators.MCP = false
-				cfg.Chat.StatusBar.Indicators.ContextUsage = false
-				cfg.Chat.StatusBar.Indicators.SessionTokens = false
-				cfg.Chat.StatusBar.Indicators.GitBranch = false
+				cfg.Composer.StatusBar.Indicators.Model = false
+				cfg.Composer.StatusBar.Indicators.Theme = false
+				cfg.Composer.StatusBar.Indicators.MaxOutput = false
+				cfg.Composer.StatusBar.Indicators.A2AAgents = false
+				cfg.Composer.StatusBar.Indicators.Tools = false
+				cfg.Composer.StatusBar.Indicators.MCP = false
+				cfg.Composer.StatusBar.Indicators.ContextUsage = false
+				cfg.Composer.StatusBar.Indicators.SessionTokens = false
+				cfg.Composer.StatusBar.Indicators.GitBranch = false
 
 				return &InputStatusBar{config: cfg}
 			},
@@ -755,7 +755,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 			setup: func(t *testing.T) *InputStatusBar {
 				cfg := config.DefaultConfig()
 				cfg.Agent.MaxTokens = 8000
-				cfg.Chat.StatusBar.Indicators.SessionTokens = true
+				cfg.Composer.StatusBar.Indicators.SessionTokens = true
 
 				mockRepo := &convmocks.FakeConversationRepository{}
 				mockRepo.GetSessionTokensReturns(convdomain.SessionTokenStats{
@@ -838,9 +838,9 @@ func TestInputStatusBar_FocusRequiresActionableIndicator(t *testing.T) {
 	}
 
 	statusBar = newSelectableStatusBar()
-	statusBar.config.Chat.StatusBar.Indicators.Model = false
-	statusBar.config.Chat.StatusBar.Indicators.Theme = false
-	statusBar.config.Chat.StatusBar.Indicators.Artifacts = false
+	statusBar.config.Composer.StatusBar.Indicators.Model = false
+	statusBar.config.Composer.StatusBar.Indicators.Theme = false
+	statusBar.config.Composer.StatusBar.Indicators.Artifacts = false
 	if statusBar.Focus() {
 		t.Error("Focus should fail when no visible indicator opens a view")
 	}
@@ -920,7 +920,7 @@ func TestInputStatusBar_SelectionClampsWhenIndicatorsDisappear(t *testing.T) {
 	}
 
 	statusBar.themeService = nil
-	statusBar.config.Chat.StatusBar.Indicators.Artifacts = false
+	statusBar.config.Composer.StatusBar.Indicators.Artifacts = false
 
 	if got := statusBar.SelectedAction(); got != tui.StatusIndicatorActionModelSelection {
 		t.Errorf("selection should clamp to the last remaining indicator, got %v", got)
@@ -1223,7 +1223,7 @@ func TestInputStatusBar_QueueIndicator(t *testing.T) {
 			statusBar := newSelectableStatusBar()
 			statusBar.styleProvider = agentStartupProvider()
 			if tt.queueDisabled {
-				statusBar.config.Chat.StatusBar.Indicators.Queue = false
+				statusBar.config.Composer.StatusBar.Indicators.Queue = false
 			}
 			queue := &convmocks.FakeMessageQueue{}
 			queue.BackendNameReturns(tt.backend)
@@ -1336,7 +1336,7 @@ func TestInputStatusBar_ShouldShowIndicator_Duration(t *testing.T) {
 	if !isb.shouldShowIndicator("duration") {
 		t.Error("the duration indicator must be enabled by default")
 	}
-	cfg.Chat.StatusBar.Indicators.Duration = false
+	cfg.Composer.StatusBar.Indicators.Duration = false
 	if isb.shouldShowIndicator("duration") {
 		t.Error("chat.status_bar.indicators.duration=false must hide the indicator")
 	}
@@ -1392,7 +1392,7 @@ func TestInputStatusBar_ArtifactsIndicatorFollowsTools(t *testing.T) {
 	if last.text != icons.SessionArtifacts+" artifacts" || last.action != tui.StatusIndicatorActionArtifacts {
 		t.Fatalf("last indicator = %+v, want the artifacts entry", last)
 	}
-	statusBar.config.Chat.StatusBar.Indicators.Artifacts = false
+	statusBar.config.Composer.StatusBar.Indicators.Artifacts = false
 	for _, part := range statusBar.buildIndicatorParts("mock/openai/gpt-4o") {
 		if part.action == tui.StatusIndicatorActionArtifacts {
 			t.Fatal("the artifacts indicator ignored its switch")
