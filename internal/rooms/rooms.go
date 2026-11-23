@@ -24,6 +24,7 @@ func Resolve(cfg config.RoomsConfig, agents AgentCatalog) []roomsdomain.Room {
 		resolved = append(resolved, roomsdomain.Room{
 			Name:    room.Name,
 			Project: project,
+			Mode:    cmp.Or(room.Mode, config.DefaultRoomsMemberMode),
 			Agents:  roomsdomain.ResolveMemberAgents(room.Agents, agents(project)),
 		})
 	}

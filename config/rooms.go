@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
@@ -47,11 +48,25 @@ type RoomsRouterConfig struct {
 
 // RoomConfig is one room. "*" as an agent reserves a seat for every agent of
 // the user's own that exists when the room is read, the built-ins left out. An
-// empty project runs the members in the daemon's default project dir.
+// empty project runs the members in the daemon's default project dir. Mode is
+// the agent mode the members run in, DefaultRoomsMemberMode when empty.
 type RoomConfig struct {
 	Name    string   `yaml:"name" mapstructure:"name"`
 	Project string   `yaml:"project" mapstructure:"project"`
+	Mode    string   `yaml:"mode" mapstructure:"mode"`
 	Agents  []string `yaml:"agents" mapstructure:"agents"`
+}
+
+// DefaultRoomsMemberMode lets a judge decide a member's gated tool calls, since
+// nobody watches a member's own chat to approve them.
+const DefaultRoomsMemberMode = "auto-with-judge"
+
+// roomMemberModes are the agent modes a room's members can run in.
+var roomMemberModes = []agentdomain.AgentMode{
+	agentdomain.AgentModeStandard,
+	agentdomain.AgentModePlan,
+	agentdomain.AgentModeAutoAccept,
+	agentdomain.AgentModeAutoWithJudge,
 }
 
 // DefaultRoomsConfig returns the in-code default rooms configuration used when
@@ -67,7 +82,7 @@ func DefaultRoomsConfig() *RoomsConfig {
 		},
 		ContextPosts: DefaultRoomsContextPosts,
 		Rooms: []RoomConfig{
-			{Name: DefaultRoomName, Agents: []string{roomsdomain.AgentsWildcard}},
+			{Name: DefaultRoomName, Mode: DefaultRoomsMemberMode, Agents: []string{roomsdomain.AgentsWildcard}},
 		},
 	}
 }
@@ -118,6 +133,9 @@ func (c RoomsConfig) Validate() error {
 		}
 		if seen[room.Name] {
 			return fmt.Errorf("rooms.rooms: room %q is defined twice", room.Name)
+		}
+		if mode, ok := agentdomain.ParseAgentMode(room.Mode); room.Mode != "" && (!ok || !slices.Contains(roomMemberModes, mode)) {
+			return fmt.Errorf("rooms.rooms mode %q of room %q: must be standard, plan, auto or auto-with-judge", room.Mode, room.Name)
 		}
 		seen[room.Name] = true
 	}

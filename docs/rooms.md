@@ -35,10 +35,12 @@ router:
 context_posts: 20
 rooms:
   - name: public
+    mode: auto-with-judge
     agents:
       - "*"
   - name: release
     project: /Users/me/Repositories/app
+    mode: standard
     agents:
       - researcher
       - tester
@@ -50,6 +52,11 @@ rooms:
   `infer init` seeded their files, and join a room only by name. `"*"` resolves each time the room is read,
   so a new agent file joins `public` on its own. A name no agent carries takes no seat.
 - **project**: where the members' sessions run. Empty means the daemon's working directory.
+- **mode**: the agent mode the members run in, `standard`, `plan`, `auto` or `auto-with-judge`. Empty means
+  `auto-with-judge`, since nobody watches a member's own chat: an LLM judge decides its gated tool calls,
+  and only a call it escalates waits for you. It needs `judge.model` in `judge.yaml` or `agent.model`, see
+  [Judge mode](judge-mode.md). `standard` puts you on every approval. A member's worker takes the mode
+  when it starts, so a change reaches a busy member once its idle worker was let go.
 - **name**: letters, digits and underscores. A file defining `public` replaces the default room, and one
   that leaves it out keeps it.
 - **router.model**: the `provider/model` decision model asked about a post that pings nobody. Empty routes
@@ -88,7 +95,10 @@ what a post asks and keep greetings and small talk to one short line.
 - Members routed the same post run in parallel.
 - A post for a member that is still running waits and becomes its next turn.
 - A member that needs a tool approved waits in its own chat. The room logs that it waits, and its answer lands
-  once you decided there.
+  once you decided there. In the default `auto-with-judge` mode only a call the judge rejected and the member
+  escalated waits for you.
+- The posts a member missed are quoted in its turn as context, so neither the member nor its judge reads
+  another member's words as your request.
 - A member on another workspace is reached through the lease relay like any session.
 - The first time you enter a room from the chat or the desktop, the room logs your join and its first
   `max_members` members welcome you.

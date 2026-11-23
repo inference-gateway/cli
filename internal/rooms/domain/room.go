@@ -29,10 +29,11 @@ func ValidName(name string) bool {
 
 // Room is a named group of agents the user talks to in one project. Agents are
 // the resolved members: wildcard entries already expanded by the time a Room
-// is built.
+// is built. Mode is the agent mode the members' sessions run in.
 type Room struct {
 	Name    string
 	Project string
+	Mode    string
 	Agents  []string
 }
 

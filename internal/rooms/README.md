@@ -37,14 +37,16 @@ expands the configured rooms against the agents the registry currently knows.
   `join_room` follows like `follow_room` and, on the user's first visit (`domain.FirstVisit`), logs a
   `kind: join` post routed to the first `max_members` members, whose turn asks for a welcome.
 - `member` (`member.go`) is one seat as a client of its session's thread, the way a Telegram chat is.
-  A turn sends `resume_conversation` with the agent and an `Origin` recording `room`, then
-  `run_agent_input` with the posts the member has not seen (`domain.Unseen`, up to `context_posts`)
-  and the post for it, every agent's mention written without its `@` (`domain.PlainMentions`) so the
-  member's file expansion never inlines a file named like a member. The run's last assistant message
-  is logged as the member's post. The turn tells the member to talk like a teammate in a channel. The
-  serve worker names its runs itself, so the first run that starts while a turn waits becomes the turn's
-  run. A member holds new posts while it runs, and a run that ends on an
-  interrupt leaves the approval to the member's own chat and logs a note. Idle members detach after
+  A turn sends `resume_conversation` with the agent, the room's `mode` (`auto-with-judge` unless the
+  room says otherwise, so a judge decides the gated calls nobody watches) and an `Origin` recording
+  `room`, then `run_agent_input` with the posts the member has not seen (`domain.Unseen`, up to
+  `context_posts`), quoted as context so neither the member nor its judge takes them for the request,
+  and the post for it. Every agent's mention is written without its `@` (`domain.PlainMentions`), so
+  the member's file expansion never inlines a file named like a member. The run's last assistant
+  message is logged as the member's post. The turn tells the member to talk like a teammate in a
+  channel. The serve worker names its runs itself, so the first run that starts while a turn waits
+  becomes the turn's run. A member holds new posts while it runs, and a run that ends on an interrupt
+  leaves the approval to the member's own chat and logs a note. Idle members detach after
   `ChannelFollowTimeout`.
 - Room names have no dash, so the room part of a member id ends at the first one and no two seats
   in different rooms share a session.

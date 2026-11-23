@@ -85,6 +85,9 @@ func TestRoomsConfigValidate(t *testing.T) {
 		{"a negative max_members fails", RoomsConfig{Router: RoomsRouterConfig{MaxMembers: -1}}, "rooms.router.max_members"},
 		{"a name that escapes the rooms dir fails", RoomsConfig{Rooms: []RoomConfig{{Name: "../evil"}}}, "name"},
 		{"a duplicate name fails", RoomsConfig{Rooms: []RoomConfig{{Name: "public"}, {Name: "public"}}}, "defined twice"},
+		{"a human mode for members is valid", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "standard"}}}, ""},
+		{"an unknown member mode fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "yolo"}}}, "mode"},
+		{"the subagent-only readonly mode fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "readonly"}}}, "mode"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
