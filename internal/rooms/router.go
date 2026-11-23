@@ -35,9 +35,10 @@ type Routing struct {
 	Notices  []string
 }
 
-// Router decides which members of a room get a post. Mentions of members win
-// without asking a model. A post that mentions none asks the decision model one
-// predicate per member, and rooms.router.fallback handles a post nobody passed.
+// Router decides which members of a room get a post. A post that pings agents
+// asks no model: the pinged members get it and a pinged outsider a notice. A
+// post that pings nobody asks the decision model one predicate per member, and
+// rooms.router.fallback handles a post nobody passed.
 type Router struct {
 	decider decisiondomain.Decider
 	config  config.RoomsConfig
@@ -60,16 +61,18 @@ func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agen
 		}
 		routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
 	}
-	if len(routing.Routes) > 0 {
+	if len(routing.Mentions) > 0 {
 		return routing, nil
 	}
-	return r.routeUnmentioned(ctx, room, agents, history, post, routing)
+	return r.routeUnmentioned(ctx, room, agents, history, post)
 }
 
-// routeUnmentioned asks the decision model about a post that mentions no
-// member and routes it to every member at or above min_confidence, else by the
-// fallback. Without a model only mentions route, so the author gets a notice.
-func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post, routing Routing) (Routing, error) {
+// routeUnmentioned asks the decision model about a post that pings no agent
+// and routes it to the max_members most relevant members at or above
+// min_confidence, else by the fallback. Without a model only pings route, so
+// the author gets a notice.
+func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
+	var routing Routing
 	if len(room.Agents) == 0 {
 		routing.Notices = append(routing.Notices, fmt.Sprintf("Room %s has no members.", room.Name))
 		return routing, nil
@@ -82,8 +85,9 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 	if err != nil {
 		return routing, fmt.Errorf("routing a post in room %s: %w", room.Name, err)
 	}
-	scored := memberRoutes(room, decisions)
-	for _, route := range scored {
+	ranked := rankedMembers(room, decisions)
+	maxMembers := cmp.Or(r.config.Router.MaxMembers, config.DefaultRoomsMaxMembers)
+	for _, route := range ranked[:min(len(ranked), maxMembers)] {
 		if route.Probability >= r.config.Router.MinConfidence {
 			routing.Routes = append(routing.Routes, route)
 		}
@@ -92,7 +96,7 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 		return routing, nil
 	}
 	if cmp.Or(r.config.Router.Fallback, config.RoomsFallbackTop) == config.RoomsFallbackTop {
-		routing.Routes = append(routing.Routes, topRoute(scored))
+		routing.Routes = append(routing.Routes, ranked[0])
 		return routing, nil
 	}
 	routing.Notices = append(routing.Notices, mentionNotice(room))
@@ -135,22 +139,18 @@ func memberQuestions(room roomsdomain.Room, agents []agentdomain.SubagentInfo) [
 	return questions
 }
 
-// memberRoutes scores every member in room order, a member the model did not
-// answer for at zero.
-func memberRoutes(room roomsdomain.Room, decisions decisiondomain.Decisions) []roomsdomain.Route {
+// rankedMembers scores every member, the most relevant first and room order on
+// a tie. A member the model did not answer for scores zero.
+func rankedMembers(room roomsdomain.Room, decisions decisiondomain.Decisions) []roomsdomain.Route {
 	routes := make([]roomsdomain.Route, 0, len(room.Agents))
 	for _, member := range room.Agents {
 		answer, _ := decisions.ByName(member)
 		routes = append(routes, roomsdomain.Route{Member: member, Probability: answer.Probability})
 	}
-	return routes
-}
-
-// topRoute is the most relevant member, the first in room order on a tie.
-func topRoute(routes []roomsdomain.Route) roomsdomain.Route {
-	return slices.MaxFunc(routes, func(a, b roomsdomain.Route) int {
-		return cmp.Compare(a.Probability, b.Probability)
+	slices.SortStableFunc(routes, func(a, b roomsdomain.Route) int {
+		return cmp.Compare(b.Probability, a.Probability)
 	})
+	return routes
 }
 
 func mentionNotice(room roomsdomain.Room) string {

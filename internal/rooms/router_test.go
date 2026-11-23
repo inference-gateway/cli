@@ -60,13 +60,17 @@ func TestRouterRoute(t *testing.T) {
 			wantRoutes: []roomsdomain.Route{{Member: "writer", Probability: 1}, {Member: "tester", Probability: 1}},
 		},
 		{
-			name:        "an agent outside the room gets a notice and the post is routed as unmentioned",
-			model:       testRouterModel,
-			text:        "@reviewer look at this",
-			decisions:   probabilities(map[string]float64{"tester": 0.2, "writer": 0.8}),
-			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.8}},
-			wantNotice:  "@reviewer is not in room release",
-			wantDecides: 1,
+			name:       "a ping of an agent outside the room gets a notice and asks no model",
+			model:      testRouterModel,
+			text:       "@reviewer look at this",
+			wantNotice: "@reviewer is not in room release",
+		},
+		{
+			name:       "a ping of a member and an outsider routes to the member and notes the outsider",
+			model:      testRouterModel,
+			text:       "@tester and @reviewer look at this",
+			wantRoutes: []roomsdomain.Route{{Member: "tester", Probability: 1}},
+			wantNotice: "@reviewer is not in room release",
 		},
 		{
 			name:        "a file reference is left alone and the model routes the post",
@@ -85,11 +89,11 @@ func TestRouterRoute(t *testing.T) {
 			wantDecides: 1,
 		},
 		{
-			name:        "every member at or above min_confidence gets the post",
+			name:        "every member at or above min_confidence gets the post, the most relevant first",
 			model:       testRouterModel,
 			text:        "cut the release",
 			decisions:   probabilities(map[string]float64{"tester": 0.5, "writer": 0.7}),
-			wantRoutes:  []roomsdomain.Route{{Member: "tester", Probability: 0.5}, {Member: "writer", Probability: 0.7}},
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.7}, {Member: "tester", Probability: 0.5}},
 			wantDecides: 1,
 		},
 		{
@@ -180,4 +184,45 @@ func TestRouterAsksOnePredicatePerMember(t *testing.T) {
 	require.Contains(t, evidence, "writer: the notes are drafted")
 	require.Contains(t, evidence, "user: now run the tests")
 	require.NotContains(t, evidence, "an old post", "only the last context_posts posts are evidence")
+}
+
+// TestRouterCapsUnmentionedPosts pins max_members: in a noisy room an
+// unmentioned post reaches only the most relevant members that passed, while
+// members the author mentions are never capped.
+func TestRouterCapsUnmentionedPosts(t *testing.T) {
+	members := []string{"a", "b", "c", "d", "e"}
+	room := roomsdomain.Room{Name: "busy", Agents: members}
+	agents := make([]agentdomain.SubagentInfo, 0, len(members))
+	for _, member := range members {
+		agents = append(agents, agentdomain.SubagentInfo{Name: member})
+	}
+	everyonePasses := probabilities(map[string]float64{"a": 0.6, "b": 0.9, "c": 0.7, "d": 0.55, "e": 0.8})
+
+	tests := []struct {
+		name        string
+		maxMembers  int
+		text        string
+		wantMembers []string
+	}{
+		{"the default sends it to the two most relevant", 0, "ship it", []string{"b", "e"}},
+		{"a higher cap sends it to more", 3, "ship it", []string{"b", "e", "c"}},
+		{"mentions are never capped", 1, "@a @c @d ship it", []string{"a", "c", "d"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decider := &decisionmocks.FakeDecider{}
+			decider.DecideReturns(everyonePasses, nil)
+			cfg := *config.DefaultRoomsConfig()
+			cfg.Router.Model = testRouterModel
+			cfg.Router.MaxMembers = tt.maxMembers
+
+			routing, err := NewRouter(decider, cfg).Route(t.Context(), room, agents, nil, roomsdomain.Post{Author: "user", Text: tt.text})
+			require.NoError(t, err)
+			got := make([]string, 0, len(routing.Routes))
+			for _, route := range routing.Routes {
+				got = append(got, route.Member)
+			}
+			require.Equal(t, tt.wantMembers, got)
+		})
+	}
 }

@@ -19,11 +19,13 @@ expands the configured rooms against the agents the registry currently knows.
 - `infer rooms list` and `infer rooms show` read the resolved rooms and the log through this context.
 - `Router` (`router.go`) decides which members get a post. An `@x` is a mention only when `x` names
   an agent the CLI knows (`domain.Mentions`), so `@README.md` and `@./tester` stay file references.
-  Mentioned members get the post outright, and a mentioned agent outside the room gets a notice. A
-  post that mentions no member asks the `decision` context one predicate per member on
-  `rooms.router.model`, goes to every member at or above `min_confidence`, and otherwise follows
-  `fallback`: `top` sends it to the most relevant member, `none` asks the author for a mention.
-  Without a model only mentions route. The routes and their probabilities land on the post.
+  A post that pings agents asks no model: pinged members get it outright and a pinged agent
+  outside the room gets a notice. A post that pings nobody asks the `decision` context one
+  predicate per member on `rooms.router.model` and goes to at most `max_members` (default 2) of
+  the most relevant members at or above `min_confidence`, so a busy room stays quiet. When nobody
+  passes, `fallback` decides: `top` sends it to the most relevant member, `none` asks the author
+  for a mention. Without a model only pings route. The routes and their probabilities land on the
+  post.
 - Later steps log a routed post (`JSONLLog.Append`), then start member sessions with
   `room-<room>-<agent>` ids, the session `Origin` recording `room`, in the room's project dir.
 - Room names have no dash, so the room part of a member id ends at the first one and no two seats
