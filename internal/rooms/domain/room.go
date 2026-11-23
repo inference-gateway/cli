@@ -85,15 +85,24 @@ func ResolveMemberAgents(patterns, known []string) []string {
 
 // Post is one entry of a room's log, written by the user or a member: its id,
 // who wrote it, what it says, which agents it mentions, who it was routed to
-// with the router's probability, and when.
+// with the router's probability, and when. Kind marks an event such as a
+// join, and is empty for a message.
 type Post struct {
 	ID       string    `json:"id,omitempty"`
 	Author   string    `json:"author"`
+	Kind     PostKind  `json:"kind,omitempty"`
 	Text     string    `json:"text"`
 	Mentions []string  `json:"mentions,omitempty"`
 	Routes   []Route   `json:"routes,omitempty"`
 	Time     time.Time `json:"time"`
 }
+
+// PostKind tells an event of the room's log from a message.
+type PostKind string
+
+// PostKindJoin is the post logged when the user first enters a room, which the
+// members it is routed to answer with a welcome.
+const PostKindJoin PostKind = "join"
 
 // Posted is the daemon's answer to a post: the logged post with its routes,
 // and the notices for its author.

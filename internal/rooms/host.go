@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,6 +32,7 @@ const (
 	framePostRoom     = "post_room"
 	frameRoomPosted   = "room_posted"
 	frameLeaveRoom    = "leave_room"
+	frameJoinRoom     = "join_room"
 	frameRunError     = "RUN_ERROR"
 )
 
@@ -107,8 +109,8 @@ type postedFrame struct {
 }
 
 // Handle claims the rooms frames of one client and reports false for any
-// other. Listing and posting run off the binding's read loop, while follow
-// and leave stay on it so a quick leave never overtakes its follow.
+// other. Listing, posting and welcomes run off the binding's read loop, while
+// follow, join and leave stay on it so a quick leave never overtakes its follow.
 func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 	var f clientFrame
 	if json.Unmarshal(frame, &f) != nil {
@@ -121,6 +123,8 @@ func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 		h.follow(c, f.Room)
 	case framePostRoom:
 		go h.post(c, f.Room, f.Text)
+	case frameJoinRoom:
+		h.join(c, f.Room)
 	case frameLeaveRoom:
 		h.leave(c, f.Room)
 	default:
@@ -168,15 +172,64 @@ func (h *Host) follow(c sessionsdomain.Client, name string) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	posts, err := h.log.Read(room)
-	if err != nil {
-		c.Deliver(runError(fmt.Sprintf("reading room %s: %v", name, err)))
+	h.followLocked(c, room)
+}
+
+// join answers join_room as follow does and, on the user's first visit to the
+// room, logs their join for the first max_members members to welcome.
+func (h *Host) join(c sessionsdomain.Client, name string) {
+	room, ok := h.findRoom(name)
+	if !ok {
+		c.Deliver(unknownRoom(name))
 		return
 	}
-	if !slices.Contains(h.followers[name], c) {
-		h.followers[name] = append(h.followers[name], c)
+	if joined, firstVisit := h.followFirstVisit(c, room); firstVisit {
+		go h.deliverTurns(room, joined)
+	}
+}
+
+// followFirstVisit follows room for c and logs the user's join when they were
+// never in it, under the one lock, so two joins never welcome twice.
+func (h *Host) followFirstVisit(c sessionsdomain.Client, room roomsdomain.Room) (roomsdomain.Post, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	posts, ok := h.followLocked(c, room)
+	if !ok || !roomsdomain.FirstVisit(posts) {
+		return roomsdomain.Post{}, false
+	}
+	joined := h.joinPost(room)
+	if err := h.appendLocked(room, joined); err != nil {
+		logger.Warn("rooms could not log a join", "room", room.Name, "error", err)
+		return roomsdomain.Post{}, false
+	}
+	return joined, true
+}
+
+// followLocked answers c with the room's snapshot and streams the room to it
+// from then on. It returns the posts so far.
+func (h *Host) followLocked(c sessionsdomain.Client, room roomsdomain.Room) ([]roomsdomain.Post, bool) {
+	posts, err := h.log.Read(room)
+	if err != nil {
+		c.Deliver(runError(fmt.Sprintf("reading room %s: %v", room.Name, err)))
+		return nil, false
+	}
+	if !slices.Contains(h.followers[room.Name], c) {
+		h.followers[room.Name] = append(h.followers[room.Name], c)
 	}
 	c.Deliver(encode(snapshotFrame{Type: frameRoomSnapshot, Room: h.viewLocked(room), Posts: posts}))
+	return posts, true
+}
+
+// joinPost is the user's join of room, routed to the first max_members
+// members, who welcome them.
+func (h *Host) joinPost(room roomsdomain.Room) roomsdomain.Post {
+	post := newPost(roomsdomain.UserAuthor, "joined #"+room.Name)
+	post.Kind = roomsdomain.PostKindJoin
+	welcomers := room.Agents[:min(len(room.Agents), cmp.Or(h.cfg.Router.MaxMembers, config.DefaultRoomsMaxMembers))]
+	for _, member := range welcomers {
+		post.Routes = append(post.Routes, roomsdomain.Route{Member: member, Probability: mentionProbability})
+	}
+	return post
 }
 
 func (h *Host) leave(c sessionsdomain.Client, name string) {
@@ -222,6 +275,11 @@ func (h *Host) post(c sessionsdomain.Client, name, text string) {
 		return
 	}
 	c.Deliver(encode(postedFrame{Type: frameRoomPosted, Room: name, Post: post, Notices: routing.Notices}))
+	h.deliverTurns(room, post)
+}
+
+// deliverTurns hands post to every member it was routed to.
+func (h *Host) deliverTurns(room roomsdomain.Room, post roomsdomain.Post) {
 	for _, route := range post.Routes {
 		h.member(room, route.Member).enqueue(post)
 	}
@@ -237,6 +295,10 @@ func (h *Host) route(room roomsdomain.Room, history []roomsdomain.Post, post roo
 func (h *Host) append(room roomsdomain.Room, post roomsdomain.Post) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.appendLocked(room, post)
+}
+
+func (h *Host) appendLocked(room roomsdomain.Room, post roomsdomain.Post) error {
 	if err := h.log.Append(room, post); err != nil {
 		return err
 	}

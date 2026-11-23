@@ -313,6 +313,37 @@ func TestAFullBufferStillEndsTheTurn(t *testing.T) {
 	})
 }
 
+// TestAFirstJoinIsWelcomed pins the welcome: the user's first join_room logs
+// the join after the snapshot and the first max_members members welcome them,
+// while a later join and a plain follow_room stay quiet.
+func TestAFirstJoinIsWelcomed(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, func(cfg *config.RoomsConfig) { cfg.Router.MaxMembers = 1 })
+		follower := &sessionsmocks.FakeClient{}
+		f.send(t, follower, map[string]string{"type": frameFollowRoom, "room": "release"})
+		require.Empty(t, f.logged(t), "follow_room never welcomes")
+
+		joiner := &sessionsmocks.FakeClient{}
+		f.send(t, joiner, map[string]string{"type": frameJoinRoom, "room": "release"})
+		require.Len(t, delivered[snapshotFrame](t, joiner, frameRoomSnapshot), 1)
+		logged := f.logged(t)
+		require.Len(t, logged, 1)
+		require.Equal(t, roomsdomain.PostKindJoin, logged[0].Kind)
+		require.Equal(t, roomsdomain.UserAuthor, logged[0].Author)
+		require.Len(t, delivered[postFrame](t, follower, frameRoomPost), 1, "the join streams to the room")
+
+		sent := f.sent(t)
+		require.Len(t, sent, 2, "max_members caps the welcomes at one turn")
+		require.Equal(t, "tester", sent[0]["agent"])
+		require.Contains(t, turnText(t, sent[1]), "The user just joined #release for the first time")
+
+		f.send(t, &sessionsmocks.FakeClient{}, map[string]string{"type": frameJoinRoom, "room": "release"})
+		require.Len(t, f.logged(t), 1, "a later join is not a first visit")
+		require.Equal(t, 2, f.threads.HandleCallCount())
+	})
+}
+
 func TestFollowStreamsTheRoomUntilLeave(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	synctest.Test(t, func(t *testing.T) {

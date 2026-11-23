@@ -24,6 +24,9 @@ const (
 	runEdgeSlots = 8
 )
 
+// joinTurn asks a member to welcome the user on their first visit to a room.
+const joinTurn = "\nThe user just joined #%s for the first time. Welcome them in one short line.\n"
+
 // turnIntro tells a member where a turn comes from, where its reply goes, and
 // to talk like a teammate in a channel rather than an assistant.
 const turnIntro = "You are %s, chatting in #%s with the user and the room's members (%s), like coworkers in a Slack channel. " +
@@ -177,7 +180,8 @@ func (m *member) turnPromptLocked(addressed roomsdomain.Post) (string, error) {
 }
 
 // render writes the turn with every agent's mention as a plain name, so the
-// member's file expansion never inlines a file named like a member.
+// member's file expansion never inlines a file named like a member. A join
+// asks for a welcome instead of an answer.
 func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post) string {
 	known := append(agentNames(m.host.agents(m.room.Project)), roomsdomain.EveryoneMention)
 	var b strings.Builder
@@ -187,6 +191,10 @@ func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post) s
 		for _, post := range unseen {
 			fmt.Fprintf(&b, "%s: %s\n", post.Author, roomsdomain.PlainMentions(post.Text, known))
 		}
+	}
+	if addressed.Kind == roomsdomain.PostKindJoin {
+		fmt.Fprintf(&b, joinTurn, m.room.Name)
+		return b.String()
 	}
 	fmt.Fprintf(&b, "\nThe post for you:\n%s: %s\n", addressed.Author, roomsdomain.PlainMentions(addressed.Text, known))
 	return b.String()
