@@ -1,6 +1,7 @@
 package initcmd
 
 import (
+	"cmp"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -541,20 +542,38 @@ func createJudgeConfigFile(path string) error {
 	return config.SaveJudge(path, config.DefaultJudgeConfig())
 }
 
-// createBrowserUseConfigFile writes a fresh browser_use.yaml from the
-// in-code defaults, seeding a random extension bridge token so the user only
-// has to copy it into the opentask extension options (a token generated at
-// runtime could never match the extension's).
+// createBrowserUseConfigFile writes a fresh browser_use.yaml from the in-code
+// defaults with the extension bridge token the file already held, so an
+// overwrite neither unpairs the opentask extension nor locks out a running
+// daemon that authenticates with it. A first init seeds a random token, which
+// the user copies into the extension's options.
 func createBrowserUseConfigFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 	cfg := config.DefaultBrowserUseConfig()
-	tokenBytes := make([]byte, 16)
-	if _, err := rand.Read(tokenBytes); err == nil {
-		cfg.Extension.Token = hex.EncodeToString(tokenBytes)
-	}
+	cfg.Extension.Token = cmp.Or(writtenExtensionToken(path), randomExtensionToken())
 	return config.SaveBrowserUse(path, cfg)
+}
+
+// writtenExtensionToken is the extension token browser_use.yaml at path holds
+// as written, a ${VAR} reference included, and "" when there is none to keep.
+func writtenExtensionToken(path string) string {
+	written, err := configutils.LoadYAMLAsWritten(path, "browser_use", config.DefaultBrowserUseConfig)
+	if err != nil {
+		return ""
+	}
+	return written.Extension.Token
+}
+
+// randomExtensionToken is a fresh token for the extension bridge, "" when the
+// system has no randomness to give.
+func randomExtensionToken() string {
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(tokenBytes)
 }
 
 // createAgentsConfigFile writes a fresh agents.yaml seeded from the in-code

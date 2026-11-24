@@ -64,7 +64,7 @@ enabled: true
 backend: extension
 extension:
   port: 52789
-  token: <shared secret - infer init seeds one>
+  token: <shared secret - infer init seeds one, and init --overwrite keeps it>
 ```
 
 ## Handshake
@@ -81,11 +81,16 @@ Client → CLI, first frame, within 5 seconds of connecting:
   extension's place.
 - Any hello with a valid token is accepted.
 
-CLI → client on success (on failure the socket is closed):
+CLI → client on success:
 
 ```json
 {"type": "browser_hello_ack"}
 ```
+
+On failure the CLI closes the socket with code `1008` (policy violation) and the reason as its text:
+`not authenticated` for a token it does not accept, `no hello frame`, `malformed hello` or
+`unexpected frame type`. A daemon still running with the token it started with refuses a client that read
+a newer one, so `infer chat --daemon` then names the daemon's pid to stop.
 
 The ack carries the host facts the daemon declares, such as `workspace`, `version` and `storage_id`
 (see [Daemon to daemon](#daemon-to-daemon)). The frames are the AG-UI 1.0 ones: interrupts, run

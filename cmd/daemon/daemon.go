@@ -657,18 +657,16 @@ func storageIdentity(cfg storage.StorageConfig) string {
 // win, and a file a crashed daemon left behind is taken over. The returned
 // release removes the file and lets go of the lock.
 func acquireDaemonLock() (func(), error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	if _, err := os.UserHomeDir(); err != nil {
 		return func() {}, nil
 	}
-	pidPath := filepath.Join(home, config.ConfigDirName, "run", "daemon.pid")
+	pidPath := daemonhost.PIDFile()
 	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
 		return nil, err
 	}
 	lock, err := process.LockFile(pidPath)
 	if errors.Is(err, process.ErrLocked) {
-		holder, _ := os.ReadFile(pidPath)
-		return nil, fmt.Errorf("daemon already running (pid %s), stop it first", strings.TrimSpace(string(holder)))
+		return nil, fmt.Errorf("daemon already running (pid %s), stop it first", daemonhost.RunningPID())
 	}
 	if err != nil {
 		return nil, err

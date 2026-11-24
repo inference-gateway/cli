@@ -26,6 +26,7 @@ import (
 	daemonthread "github.com/inference-gateway/cli/internal/presentation/tui/daemonthread"
 	colors "github.com/inference-gateway/cli/internal/presentation/tui/styles/colors"
 	web "github.com/inference-gateway/cli/internal/presentation/web"
+	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
@@ -150,9 +151,24 @@ func openBrowser(url string) error {
 	return exec.Command("xdg-open", url).Start()
 }
 
-// attachError explains why the TUI could not reach its daemon.
+// attachError explains why the TUI could not reach its daemon. A daemon that
+// refused the chat's token runs with another one, such as one from before an
+// infer init --overwrite, so the error names the daemon to stop.
 func attachError(err error) error {
+	var refused *agui.HelloRefusedError
+	if errors.As(err, &refused) && refused.Reason == agui.RefusalNotAuthenticated {
+		return fmt.Errorf("could not reach infer daemon: %w - it runs with another token than this chat, "+
+			"such as one from before infer init --overwrite, so stop it%s and run again", err, pidHint(daemon.RunningPID()))
+	}
 	return fmt.Errorf("could not reach infer daemon: %w (its daemon-<date>.log is in %s)", err, config.DefaultLogsDir())
+}
+
+// pidHint names the daemon's pid in a sentence, nothing when it is unknown.
+func pidHint(pid string) string {
+	if pid == "" {
+		return ""
+	}
+	return " (pid " + pid + ")"
 }
 
 // placementLine says where the session runs as the TUI attaches to it.
