@@ -1706,7 +1706,7 @@ func (s *Agent) recordJudgeUsage(usage *sdk.CompletionUsage) {
 	if usage == nil {
 		return
 	}
-	model := s.config.Judge.ResolveModel(s.config.Agent.Model)
+	model := s.judgeModel()
 	if err := s.conversationRepo.AddTokenUsage(model, int(usage.PromptTokens), int(usage.CompletionTokens), int(usage.TotalTokens), 0, 0); err != nil {
 		logger.Error("failed to add judge token usage to session", "error", err)
 	}

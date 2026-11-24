@@ -54,8 +54,8 @@ rooms:
 - **project**: where the members' sessions run. Empty means the daemon's working directory.
 - **mode**: the agent mode the members run in, `standard`, `plan`, `auto` or `auto-with-judge`. Empty means
   `auto-with-judge`, since nobody watches a member's own chat: an LLM judge decides its gated tool calls,
-  and only a call it escalates waits for you. It needs `judge.model` in `judge.yaml` or `agent.model`, see
-  [Judge mode](judge-mode.md). `standard` puts you on every approval. A member's worker takes the mode
+  and only a call it escalates waits for you. The judge is `judge.model` from `judge.yaml`, else the model
+  the member runs on, see [Judge mode](judge-mode.md). `standard` puts you on every approval. A member's worker takes the mode
   when it starts, so a change reaches a busy member once its idle worker was let go.
 - **name**: letters, digits and underscores. A file defining `public` replaces the default room, and one
   that leaves it out keeps it.
