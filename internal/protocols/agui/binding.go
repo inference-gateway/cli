@@ -294,7 +294,7 @@ func (b *Binding) handleWS(w http.ResponseWriter, r *http.Request) {
 	if refusal != "" {
 		logger.Warn("binding rejected a connection with a bad or missing hello",
 			"reason", refusal, "remote", r.RemoteAddr, "client", hello.Client)
-		_ = ws.Close()
+		refuse(ws, refusal)
 		return
 	}
 	_ = ws.SetReadDeadline(time.Time{})
@@ -321,9 +321,32 @@ func (b *Binding) readHello(ws *websocket.Conn, r *http.Request) (helloFrame, js
 	case hello.Type != b.cfg.Handshake.Hello:
 		return hello, raw, "unexpected frame type"
 	case !b.authenticated(r, hello.Token):
-		return hello, raw, "not authenticated"
+		return hello, raw, RefusalNotAuthenticated
 	}
 	return hello, raw, ""
+}
+
+// RefusalNotAuthenticated is the reason a binding refuses a hello whose token,
+// or client certificate, it does not accept.
+const RefusalNotAuthenticated = "not authenticated"
+
+// HelloRefusedError is a binding's refusal of a client's hello, with the
+// reason the binding named in its close frame, such as RefusalNotAuthenticated.
+type HelloRefusedError struct {
+	Addr   string
+	Reason string
+}
+
+func (e *HelloRefusedError) Error() string {
+	return fmt.Sprintf("the binding on %s refused the hello: %s", e.Addr, e.Reason)
+}
+
+// refuse closes a connection whose hello was refused, naming the reason in the
+// close frame so the client can say why rather than only that no ack came.
+func refuse(ws *websocket.Conn, reason string) {
+	frame := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
+	_ = ws.WriteControl(websocket.CloseMessage, frame, time.Now().Add(handshakeTimeout))
+	_ = ws.Close()
 }
 
 // authenticated accepts the configured token, or a client certificate the TLS
@@ -488,7 +511,12 @@ func sayHello(ws *websocket.Conn, cfg DialConfig) (map[string]string, error) {
 	var ack struct {
 		Type string `json:"type"`
 	}
-	if err := ws.ReadJSON(&ackRaw); err != nil || json.Unmarshal(ackRaw, &ack) != nil || ack.Type != cfg.Handshake.Ack {
+	err := ws.ReadJSON(&ackRaw)
+	var closed *websocket.CloseError
+	if errors.As(err, &closed) && closed.Code == websocket.ClosePolicyViolation {
+		return nil, &HelloRefusedError{Addr: cfg.Addr, Reason: closed.Text}
+	}
+	if err != nil || json.Unmarshal(ackRaw, &ack) != nil || ack.Type != cfg.Handshake.Ack {
 		return nil, fmt.Errorf("the binding on %s did not ack the hello", cfg.Addr)
 	}
 	_ = ws.SetReadDeadline(time.Time{})
