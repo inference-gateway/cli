@@ -920,7 +920,7 @@ Client → CLI, answered with the room's `room_snapshot`, after which the client
 ```
 
 ```json
-{"type": "room_snapshot", "room": {"name": "release", "project": "/Users/me/Repositories/app", "members": []}, "posts": []}
+{"type": "room_snapshot", "room": {"name": "release", "project": "/Users/me/Repositories/app", "mode": "standard", "members": []}, "posts": []}
 ```
 
 ```json
@@ -939,7 +939,7 @@ Client → CLI, answered with the room's `room_snapshot`, after which the client
 ```
 
 ```json
-{"type": "room_activity", "room": "release", "member": "tester", "activity": "waiting"}
+{"type": "room_activity", "room": "release", "member": "tester", "activity": "waiting", "mode": "standard"}
 ```
 
 Client → CLI, entering a room as the user. `join_room` follows the room exactly like `follow_room`. The first
@@ -1038,6 +1038,9 @@ Client → CLI, stopping the follow. Nothing answers it:
   own chat.
 - `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval or a
   question, and `idle` otherwise.
+- `mode` is the agent mode the room runs its members in, from the room's `mode` in `rooms.yaml`: on the
+  snapshot as the room has it when followed, and on `room_activity` as the member's turn runs in it. The
+  daemon reads `rooms.yaml` again for every turn, so a client shows the mode it last got.
 - `kind` is `join` for the user's first entry into a room, `approval` for a member's call waiting for the user,
   `decision` for the room's line that closes one, and absent for a message. An approval is open until a
   `decision` post with the same `approval.id` follows it. A call decided in the member's own chat, or one

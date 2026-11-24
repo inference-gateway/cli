@@ -114,6 +114,9 @@ message sits under its author and time.
   nobody goes to the one member who picks it up, the best match first. The `@` menu uses the `room` table of
   `composer.yaml`.
 - `!` and `!!` commands stay in the composer until you leave the room. `/` commands work as usual.
+- The mode indicator shows the mode the room's members run in, such as `#public ▸ STANDARD`, which the room's
+  `mode` in `rooms.yaml` sets. Shift+tab does not change it inside a room. **No room** shows your chat's own
+  mode again, and shift+tab switches it as usual.
 - `Ctrl+L`, `/clear` and `/new` clear nothing inside a room, since other people read it too. Empty a room on
   purpose with `infer rooms clear <room>`, or pick **No room** first to clear your own chat.
 - A member's tool call that waits for you shows in the room with the judge's reason, the member's

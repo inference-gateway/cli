@@ -68,6 +68,8 @@ func newRoomTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeRooms) {
 		roomPicker:              components.NewPicker(styleProvider),
 		roomView:                components.NewRoomView(styleProvider),
 		newSession:              newSessionBinding(cfg.Chat.Keybindings),
+		cycleMode:               cycleModeBinding(cfg.Chat.Keybindings),
+		modeIndicator:           modeIndicatorOf(styleProvider),
 		roomApprove:             approve,
 		roomReject:              reject,
 	}
@@ -75,6 +77,15 @@ func newRoomTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeRooms) {
 	rooms := &tuimocks.FakeRooms{}
 	app.SetRooms(rooms)
 	return app, rooms
+}
+
+// modeIndicatorOf is a mode indicator over a chat in the standard mode.
+func modeIndicatorOf(styleProvider *styles.Provider) *components.ModeIndicator {
+	modes := &agentdomainmocks.FakeAgentModeState{}
+	modes.GetAgentModeReturns(agentdomain.AgentModeStandard)
+	indicator := components.NewModeIndicator(styleProvider)
+	indicator.SetStateManager(modes)
+	return indicator
 }
 
 // playRoomCmd runs cmd the way the program would, feeding every message it
@@ -252,6 +263,29 @@ func TestClearingIsHeldBackInARoom(t *testing.T) {
 		require.Equal(t, command, app.inputView.GetInput(), "the command stays in the composer")
 	}
 	require.Zero(t, rooms.PostCallCount())
+}
+
+// TestARoomShowsItsOwnModeAndHoldsBackShiftTab pins that inside a room the
+// mode indicator names the mode rooms.yaml runs its members in, follows the
+// mode a member's turn reports, shift+tab switches nothing, and No room shows
+// the chat's own mode again.
+func TestARoomShowsItsOwnModeAndHoldsBackShiftTab(t *testing.T) {
+	app, rooms := newRoomTestApp(t)
+	require.Empty(t, ansi.Strip(app.modeIndicator.Text()), "the chat's standard mode has no label")
+
+	rooms.JoinReturns(roomsdomain.Snapshot{Room: roomsdomain.RoomStatus{Name: "release", Mode: "auto-with-judge"}}, nil)
+	playRoomCmd(app, app.switchRoom("release"))
+	require.Equal(t, "#release ▸ AUTO+JUDGE", ansi.Strip(app.modeIndicator.Text()))
+
+	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	require.Equal(t, "#release's mode is set in rooms.yaml (rooms.release.mode)", statusOf(t, playRoomCmd(app, tea.Batch(cmds...))))
+	require.Equal(t, "#release ▸ AUTO+JUDGE", ansi.Strip(app.modeIndicator.Text()), "shift+tab switches nothing in a room")
+
+	app.handleRoomEvents(tui.RoomActivityEvent{Room: "release", Member: "tester", Activity: roomsdomain.ActivityRunning, Mode: "standard"})
+	require.Equal(t, "#release ▸ STANDARD", ansi.Strip(app.modeIndicator.Text()), "a turn reports the mode rooms.yaml has now")
+
+	playRoomCmd(app, app.switchRoom(noRoom))
+	require.Empty(t, ansi.Strip(app.modeIndicator.Text()), "No room shows the chat's own mode again")
 }
 
 // TestAMembersCallIsDecidedFromTheRoom pins the room's approval in the chat:

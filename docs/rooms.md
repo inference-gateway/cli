@@ -60,8 +60,9 @@ rooms:
 - **mode**: the agent mode the members run in, `standard`, `plan`, `auto` or `auto-with-judge`. Empty means
   `auto-with-judge`, since nobody watches a member's own chat: an LLM judge decides its gated tool calls,
   and only a call it escalates waits for you. The judge is `judge.model` from `judge.yaml`, else the model
-  the member runs on, see [Judge mode](judge-mode.md). `standard` puts you on every approval. A member's worker takes the mode
-  when it starts, so a change reaches a busy member once its idle worker was let go.
+  the member runs on, see [Judge mode](judge-mode.md). `standard` puts you on every approval. The room's mode
+  wins over the mode of the chat you post from: inside a room the chat's mode indicator shows it, and
+  shift+tab does not change it.
 - **name**: letters, digits and underscores. A file defining `public` replaces the default room, and one
   that leaves it out keeps it.
 - **router.model**: the `provider/model` decision model asked about a post that pings nobody,
@@ -74,6 +75,11 @@ rooms:
 - **router.fallback**: what happens to an unpinged post nobody passed. `top` offers it to the most relevant
   members anyway, as `pickup` says, so a `PASS` still reaches the next one. `none` asks you to ping one.
 - **context_posts**: how many of the room's posts a member gets with its turn.
+
+The daemon reads `rooms.yaml` again each time a room is used, so an edit, such as a room's `mode`, reaches the
+next post without a restart. Every member turn switches the member's worker to the room's mode first, so a
+worker that started under the old mode follows too. A `rooms.yaml` that does not load leaves the rooms as they
+were last read.
 
 ## Routing a post
 

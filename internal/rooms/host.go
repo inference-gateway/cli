@@ -28,30 +28,31 @@ const routeTimeout = time.Minute
 // Host is the daemon's rooms. It routes and logs the posts clients write,
 // delivers each routed post to its member as the member's next turn on the
 // thread registry, logs the member's answer, and streams every room to its
-// followers. One lock orders the log's appends with the follows, so a
-// follower sees each post exactly once.
+// followers. settings reads rooms.yaml as it is now, so an edit reaches the
+// next post. One lock orders the log's appends with the follows.
 type Host struct {
-	ctx     context.Context
-	cfg     config.RoomsConfig
-	threads sessionsdomain.ThreadRouter
-	log     roomsdomain.Log
-	router  *Router
-	agents  AgentCatalog
+	ctx      context.Context
+	settings func() config.RoomsConfig
+	threads  sessionsdomain.ThreadRouter
+	log      roomsdomain.Log
+	decider  decisiondomain.Decider
+	agents   AgentCatalog
 
 	mu        sync.Mutex
 	members   map[string]*member
 	followers map[string][]sessionsdomain.Client
 }
 
-// NewHost returns the rooms of cfg. It delivers to members through threads,
-// logs to log, and asks decider about the posts that ping nobody.
-func NewHost(ctx context.Context, cfg config.RoomsConfig, threads sessionsdomain.ThreadRouter, log roomsdomain.Log, decider decisiondomain.Decider, agents AgentCatalog) *Host {
+// NewHost returns the rooms that settings reads each time they are used. It
+// delivers to members through threads, logs to log, and asks decider about the
+// posts that ping nobody.
+func NewHost(ctx context.Context, settings func() config.RoomsConfig, threads sessionsdomain.ThreadRouter, log roomsdomain.Log, decider decisiondomain.Decider, agents AgentCatalog) *Host {
 	return &Host{
 		ctx:       ctx,
-		cfg:       cfg,
+		settings:  settings,
 		threads:   threads,
 		log:       log,
-		router:    NewRouter(decider, cfg),
+		decider:   decider,
 		agents:    agents,
 		members:   map[string]*member{},
 		followers: map[string][]sessionsdomain.Client{},
@@ -90,11 +91,14 @@ type roomFrame struct {
 	Room string `json:"room"`
 }
 
+// activityFrame streams what a member does now, and the agent mode its turn
+// runs in, so a client shows the mode the room's members actually run in.
 type activityFrame struct {
 	Type     string               `json:"type"`
 	Room     string               `json:"room"`
 	Member   string               `json:"member"`
 	Activity roomsdomain.Activity `json:"activity"`
+	Mode     string               `json:"mode,omitempty"`
 }
 
 // postedFrame answers post_room to its poster.
@@ -161,7 +165,7 @@ func (h *Host) Close() {
 }
 
 func (h *Host) listRooms(c sessionsdomain.Client) {
-	resolved := Resolve(h.cfg, h.agents)
+	resolved := Resolve(h.settings(), h.agents)
 	views := make([]roomsdomain.RoomStatus, 0, len(resolved))
 	h.mu.Lock()
 	for _, room := range resolved {
@@ -234,7 +238,7 @@ func (h *Host) followLocked(c sessionsdomain.Client, room roomsdomain.Room) ([]r
 func (h *Host) joinPost(room roomsdomain.Room) roomsdomain.Post {
 	post := newPost(roomsdomain.UserAuthor, "joined #"+room.Name)
 	post.Kind = roomsdomain.PostKindJoin
-	welcomers := room.Agents[:min(len(room.Agents), h.cfg.Router.EffectiveMaxMembers())]
+	welcomers := room.Agents[:min(len(room.Agents), h.settings().Router.EffectiveMaxMembers())]
 	for _, member := range welcomers {
 		post.Routes = append(post.Routes, roomsdomain.Route{Member: member, Probability: mentionProbability})
 	}
@@ -401,7 +405,7 @@ func toolLabel(approval roomsdomain.Approval) string {
 func (h *Host) route(room roomsdomain.Room, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
 	ctx, cancel := context.WithTimeout(h.ctx, routeTimeout)
 	defer cancel()
-	return h.router.Route(ctx, room, h.agents(room.Project), history, post)
+	return NewRouter(h.decider, h.settings()).Route(ctx, room, h.agents(room.Project), history, post)
 }
 
 // append logs post in room and streams it to the room's followers.
@@ -435,11 +439,14 @@ func (h *Host) noteSpent(room roomsdomain.Room, text string, spent roomsdomain.U
 	}
 }
 
-// announce streams a member's new activity to the room's followers.
+// announce streams a member's new activity to the room's followers, with the
+// mode room runs its members in.
 func (h *Host) announce(room roomsdomain.Room, status roomsdomain.MemberStatus) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.deliverLocked(room.Name, encode(activityFrame{Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: status.Agent, Activity: status.Activity}))
+	h.deliverLocked(room.Name, encode(activityFrame{
+		Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: status.Agent, Activity: status.Activity, Mode: room.Mode,
+	}))
 }
 
 func (h *Host) deliverLocked(name string, frame []byte) {
@@ -464,7 +471,13 @@ func (h *Host) member(room roomsdomain.Room, agent string) *member {
 }
 
 func (h *Host) findRoom(name string) (roomsdomain.Room, bool) {
-	return Find(Resolve(h.cfg, h.agents), name)
+	return h.roomIn(h.settings(), name)
+}
+
+// roomIn resolves the room called name as settings and the agents of its
+// project have it now.
+func (h *Host) roomIn(settings config.RoomsConfig, name string) (roomsdomain.Room, bool) {
+	return Find(Resolve(settings, h.agents), name)
 }
 
 // viewLocked renders room with what each of its members is doing.
@@ -477,7 +490,7 @@ func (h *Host) viewLocked(room roomsdomain.Room) roomsdomain.RoomStatus {
 		}
 		members = append(members, status)
 	}
-	return roomsdomain.RoomStatus{Name: room.Name, Project: room.Project, Members: members}
+	return roomsdomain.RoomStatus{Name: room.Name, Project: room.Project, Mode: room.Mode, Members: members}
 }
 
 // newPost stamps a new post with the id a member's turn finds it by in the

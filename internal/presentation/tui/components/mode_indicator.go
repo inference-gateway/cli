@@ -1,16 +1,25 @@
 package components
 
 import (
+	"cmp"
+
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
 )
 
+// standardModeLabel names the standard mode, which the chat leaves unlabelled
+// but a room shows, since its members' mode differs from the chat's.
+const standardModeLabel = "▸ STANDARD"
+
 // ModeIndicator names the current agent mode (PLAN/AUTO/JUDGE) as a label the
-// application view lays out on the right of the status row.
+// application view lays out on the right of the status row. Inside a room it
+// names the mode the room's members run in, which rooms.yaml sets, instead.
 type ModeIndicator struct {
 	stateManager  agentdomain.AgentModeState
 	styleProvider *styles.Provider
 	judgeModel    func() string
+	room          string
+	roomMode      agentdomain.AgentMode
 }
 
 // NewModeIndicator creates a new mode indicator
@@ -32,13 +41,23 @@ func (mi *ModeIndicator) SetStateManager(stateManager agentdomain.AgentModeState
 	mi.stateManager = stateManager
 }
 
-// Text returns the styled mode label, empty while the default mode is active.
-func (mi *ModeIndicator) Text() string {
-	if mi.stateManager == nil {
-		return ""
-	}
+// SetRoom shows the mode the members of room run in, as the daemon reported
+// it, instead of the chat's own. An empty room shows the chat's mode again.
+func (mi *ModeIndicator) SetRoom(room, mode string) {
+	mi.room = room
+	mi.roomMode, _ = agentdomain.ParseAgentMode(mode)
+}
 
-	label := mi.modeLabel(mi.stateManager.GetAgentMode())
+// Text returns the styled mode label, empty while the default mode is active
+// outside a room.
+func (mi *ModeIndicator) Text() string {
+	var label string
+	switch {
+	case mi.room != "":
+		label = "#" + mi.room + " " + cmp.Or(modeName(mi.roomMode), standardModeLabel)
+	case mi.stateManager != nil:
+		label = mi.modeLabel(mi.stateManager.GetAgentMode())
+	}
 	if label == "" {
 		return ""
 	}
@@ -52,22 +71,27 @@ func (mi *ModeIndicator) Text() string {
 	)
 }
 
-// modeLabel names the mode, appending the judge model for Auto+Judge. The
-// default (standard) mode has no indicator, so it maps to an empty label.
+// modeLabel names the chat's mode, appending the judge model for Auto+Judge.
+// The default (standard) mode has no indicator, so it maps to an empty label.
 func (mi *ModeIndicator) modeLabel(mode agentdomain.AgentMode) string {
+	label := modeName(mode)
+	if mode == agentdomain.AgentModeAutoWithJudge && mi.judgeModel != nil {
+		if model := mi.judgeModel(); model != "" {
+			label += " · " + model
+		}
+	}
+	return label
+}
+
+// modeName names a mode, "" for the standard one.
+func modeName(mode agentdomain.AgentMode) string {
 	switch mode {
 	case agentdomain.AgentModePlan:
 		return "▶ PLAN"
 	case agentdomain.AgentModeAutoAccept:
 		return "▸ AUTO"
 	case agentdomain.AgentModeAutoWithJudge:
-		label := "▸ AUTO+JUDGE"
-		if mi.judgeModel != nil {
-			if model := mi.judgeModel(); model != "" {
-				label += " · " + model
-			}
-		}
-		return label
+		return "▸ AUTO+JUDGE"
 	case agentdomain.AgentModeReadOnly:
 		return "▸ READ-ONLY"
 	}

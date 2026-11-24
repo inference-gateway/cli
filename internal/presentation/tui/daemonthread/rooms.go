@@ -153,8 +153,9 @@ func (t *Thread) onRoomActivity(frame []byte) {
 		Room     string               `json:"room"`
 		Member   string               `json:"member"`
 		Activity roomsdomain.Activity `json:"activity"`
+		Mode     string               `json:"mode"`
 	}
 	if json.Unmarshal(frame, &f) == nil {
-		t.post(tui.RoomActivityEvent{Room: f.Room, Member: f.Member, Activity: f.Activity})
+		t.post(tui.RoomActivityEvent{Room: f.Room, Member: f.Member, Activity: f.Activity, Mode: f.Mode})
 	}
 }

@@ -194,11 +194,13 @@ func (p Posted) RouteSummary() string {
 	return "Routed to " + strings.Join(routes, ", ") + "."
 }
 
-// RoomStatus is a room as the daemon reports it to its clients: its members,
-// the session each keeps and what each is doing.
+// RoomStatus is a room as the daemon reports it to its clients: the agent mode
+// its members run in, its members, the session each keeps and what each is
+// doing.
 type RoomStatus struct {
 	Name    string         `json:"name"`
 	Project string         `json:"project"`
+	Mode    string         `json:"mode,omitempty"`
 	Members []MemberStatus `json:"members"`
 }
 

@@ -30,7 +30,10 @@ expands the configured rooms against the agents the registry currently knows.
   most relevant members just the same, `none` asks the author for a mention. Without a model only
   pings route. The routes and their probabilities land on the post.
 - `Host` (`host.go`) is the daemon's rooms, built in `cmd/daemon` `startThreads` after the thread
-  registry, with its frames a stage of `bindingHandler.Handle` before the registry. It answers
+  registry, with its frames a stage of `bindingHandler.Handle` before the registry. It reads its
+  settings through a function the daemon backs with a fresh config load (`roomsSettings`), so a
+  `rooms.yaml` edit reaches the next post, the last good settings standing in for a file that does
+  not load. It answers
   `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room`, `decide_room_approval` and
   `leave_room`, logs every
   routed post, and streams posts and member activity to the followers. One lock orders the log's
@@ -39,9 +42,11 @@ expands the configured rooms against the agents the registry currently knows.
   `join_room` follows like `follow_room` and, on the user's first visit (`domain.FirstVisit`), logs a
   `kind: join` post routed to the first `max_members` members, whose turn asks for a welcome.
 - `member` (`member.go`) is one seat as a client of its session's thread, the way a Telegram chat is.
-  A turn sends `resume_conversation` with the agent, the room's `mode` (`auto-with-judge` unless the
-  room says otherwise, so a judge decides the gated calls nobody watches) and an `Origin` recording
-  `room`, then `run_agent_input` with the posts the member has not seen (`domain.Unseen`, up to
+  A turn resolves its room from the settings as they are now and sends `resume_conversation` with the
+  agent, the room's `mode` (`auto-with-judge` unless the room says otherwise, so a judge decides the
+  gated calls nobody watches) and an `Origin` recording `room`, then `set_mode` with that mode, since a
+  running worker keeps the mode it started in, and the turn's activity reports it to the followers,
+  then `run_agent_input` with the posts the member has not seen (`domain.Unseen`, up to
   `context_posts`), quoted as context so neither the member nor its judge takes them for the request,
   and the post for it. Every agent's mention is written without its `@` (`domain.PlainMentions`), so
   the member's file expansion never inlines a file named like a member. The run's last assistant

@@ -202,6 +202,9 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 		if m.Room == app.room {
 			app.roomView.SetActivity(m.Member, m.Activity)
 		}
+		if m.Room == app.room && m.Mode != "" {
+			app.modeIndicator.SetRoom(app.room, m.Mode)
+		}
 	case tui.RoomClearedEvent:
 		if m.Room == app.room {
 			app.roomView.ClearPosts()
@@ -215,6 +218,12 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// refuseRoomModeCycle says a room's mode is not switched from the chat: its
+// members run in the mode rooms.yaml sets, which the mode indicator shows.
+func (app *ChatApplication) refuseRoomModeCycle() tea.Cmd {
+	return statusCmd(fmt.Sprintf("#%s's mode is set in rooms.yaml (rooms.%s.mode)", app.room, app.room))
 }
 
 // showRoomApprovalKeys names the configured approve and reject keys next to
@@ -287,6 +296,7 @@ func (app *ChatApplication) showRoom(snapshot roomsdomain.Snapshot) tea.Cmd {
 	entering := app.room != snapshot.Room.Name
 	app.room = snapshot.Room.Name
 	app.roomView.Show(snapshot)
+	app.modeIndicator.SetRoom(app.room, snapshot.Room.Mode)
 	if !entering {
 		return nil
 	}
@@ -306,6 +316,7 @@ func (app *ChatApplication) closeRoom() {
 		return
 	}
 	app.room = noRoom
+	app.modeIndicator.SetRoom(noRoom, "")
 	app.useComposerContext(config.ComposerContextChat)
 	app.inputView.SetPlaceholder(components.DefaultInputPlaceholder)
 	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {

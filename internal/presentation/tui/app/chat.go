@@ -47,6 +47,10 @@ var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attac
 // which a room holds back.
 var actGlobalNewSession = config.ActionID(config.NamespaceGlobal, "new_session")
 
+// actModeCycleAgentMode is the action that cycles the agent mode, which a room
+// holds back.
+var actModeCycleAgentMode = config.ActionID(config.NamespaceMode, "cycle_agent_mode")
+
 // ChatApplication is the main Bubble Tea model of the chat TUI, wiring its
 // services, views and handlers. Pending snippets ride along with the next
 // message. Keyboard focus can sit on the attachments, the status row, the job
@@ -143,6 +147,7 @@ type ChatApplication struct {
 
 	focusAttachments key.Binding
 	newSession       key.Binding
+	cycleMode        key.Binding
 	roomApprove      key.Binding
 	roomReject       key.Binding
 
@@ -319,6 +324,7 @@ func NewChatApplication(
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.newSession = newSessionBinding(app.config.Chat.Keybindings)
+	app.cycleMode = cycleModeBinding(app.config.Chat.Keybindings)
 	app.roomApprove, app.roomReject = roomApprovalBindings(app.config.Chat.Keybindings)
 	app.showRoomApprovalKeys()
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
@@ -902,6 +908,10 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if app.room != noRoom && key.Matches(keyMsg, app.newSession) {
 		return []tea.Cmd{app.refuseRoomClear()}
+	}
+
+	if app.room != noRoom && key.Matches(keyMsg, app.cycleMode) {
+		return []tea.Cmd{app.refuseRoomModeCycle()}
 	}
 
 	if cmd := app.decideByKey(keyMsg); cmd != nil {

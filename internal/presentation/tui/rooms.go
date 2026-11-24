@@ -35,9 +35,11 @@ type RoomClearedEvent struct {
 	Room string
 }
 
-// RoomActivityEvent carries what a member of a followed room does now.
+// RoomActivityEvent carries what a member of a followed room does now, and the
+// agent mode its turn runs in when the daemon said.
 type RoomActivityEvent struct {
 	Room     string
 	Member   string
 	Activity roomsdomain.Activity
+	Mode     string
 }
