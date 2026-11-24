@@ -669,16 +669,24 @@ The pid file is `~/.infer/run/daemon.pid` and the log is `~/.infer/logs/daemon-<
 workers' and job runs' stderr lands too. [infer daemon](daemon.md) covers the workers, the on-demand start, the
 pid file and the logs.
 
-Four subcommands talk to the running daemon over its binding, so they need `daemon.binding.enabled` and a token
-or a client-certificate TLS mode in `~/.infer/daemon.yaml`:
+```bash
+infer daemon stop   # stop the running daemon, which shuts down its session workers and runs first
+```
+
+`stop` sends the daemon SIGTERM, waits for its shutdown, and kills it if it still runs after a minute. With no
+daemon running it says so and exits 0.
+
+### `infer sessions`
+
+Act on the sessions the daemon hosts, wherever each runs. These commands reach them over the daemon's binding,
+so they need `daemon.binding.enabled` and a token or a client-certificate TLS mode in `~/.infer/daemon.yaml`:
 
 ```bash
-infer daemon workspaces                                         # every workspace in daemon.yaml and whether it is reachable
-infer daemon teleport <conversation-id> --to k8s-dev              # teleport the session, printing each stage until ready
-infer daemon teleport <conversation-id> --to k8s-dev --file build/out.bin --teleport-id <uuid>
-infer daemon run <conversation-id> "continue please"              # one turn through the daemon, wherever the session runs
-infer daemon run <conversation-id>                                # print the conversation instead of running a turn
-infer daemon stop <conversation-id>                               # stop the agent, delete its Orchestrator and volumes on the owner
+infer sessions teleport <session-id> --to k8s-dev             # teleport the session, printing each stage until ready
+infer sessions teleport <session-id> --to k8s-dev --file build/out.bin --teleport-id <uuid>
+infer sessions run <session-id> "continue please"             # one turn through the daemon, wherever the session runs
+infer sessions run <session-id>                               # print the conversation instead of running a turn
+infer sessions stop <session-id>                              # stop the agent, delete its Orchestrator and volumes on the owner
 ```
 
 - `--project-dir` names the conversation's project, the current directory by default.
@@ -689,6 +697,15 @@ infer daemon stop <conversation-id>                               # stop the age
   lease, so the session continues from this machine's copy. A session this daemon owns only has its worker stopped.
 
 See [Workspaces and teleports](daemon.md#workspaces-and-teleports) for the workspaces and the lease model.
+
+### `infer workspaces`
+
+List the workspaces sessions can run in and be teleported to, the ones `daemon.yaml` names, and whether each is
+reachable. Like `infer sessions`, it asks the running daemon over its binding:
+
+```bash
+infer workspaces list   # name, compute, kind, protocol, reachable and details of every workspace
+```
 
 ---
 
