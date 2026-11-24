@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
@@ -33,6 +34,13 @@ type RoomPostEvent struct {
 // RoomClearedEvent says a followed room's log was emptied.
 type RoomClearedEvent struct {
 	Room string
+}
+
+// RoomApprovalAnsweredEvent is the answer the approval window gave to a room
+// member's call, which the chat sends on to the room.
+type RoomApprovalAnsweredEvent struct {
+	ToolCallID string
+	Action     agentdomain.ApprovalAction
 }
 
 // RoomActivityEvent carries what a member of a followed room does now, and the

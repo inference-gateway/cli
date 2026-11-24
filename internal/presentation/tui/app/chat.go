@@ -35,6 +35,7 @@ import (
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -141,6 +142,7 @@ type ChatApplication struct {
 	roomView             *components.RoomView
 	rooms                tui.Rooms
 	room                 string
+	roomCall             roomsdomain.Post
 	historySearchFocused bool
 
 	keyBindingManager *keybinding.Dispatcher
@@ -148,8 +150,6 @@ type ChatApplication struct {
 	focusAttachments key.Binding
 	newSession       key.Binding
 	cycleMode        key.Binding
-	roomApprove      key.Binding
-	roomReject       key.Binding
 
 	lastHandledKey string
 	lastView       tui.ViewState
@@ -325,8 +325,6 @@ func NewChatApplication(
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.newSession = newSessionBinding(app.config.Chat.Keybindings)
 	app.cycleMode = cycleModeBinding(app.config.Chat.Keybindings)
-	app.roomApprove, app.roomReject = roomApprovalBindings(app.config.Chat.Keybindings)
-	app.showRoomApprovalKeys()
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
@@ -830,9 +828,6 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	}
 
 	if click, ok := msg.(tea.MouseClickMsg); ok {
-		if cmd := app.clickRoomButton(click); cmd != nil {
-			return []tea.Cmd{cmd}
-		}
 		return app.clickIndicator(click)
 	}
 
@@ -912,10 +907,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if app.room != noRoom && key.Matches(keyMsg, app.cycleMode) {
 		return []tea.Cmd{app.refuseRoomModeCycle()}
-	}
-
-	if cmd := app.decideByKey(keyMsg); cmd != nil {
-		return []tea.Cmd{cmd}
 	}
 
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)

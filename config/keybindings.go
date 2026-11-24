@@ -123,18 +123,6 @@ func addChatBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "chat",
 		Enabled:     &enabled,
 	}
-	bindings[ActionID(NamespaceChat, "room_approve")] = KeyBindingEntry{
-		Keys:        []string{"alt+y"},
-		Description: "in a room, approve the newest member's call waiting for you",
-		Category:    "chat",
-		Enabled:     &enabled,
-	}
-	bindings[ActionID(NamespaceChat, "room_reject")] = KeyBindingEntry{
-		Keys:        []string{"alt+n"},
-		Description: "in a room, reject the newest member's call waiting for you",
-		Category:    "chat",
-		Enabled:     &enabled,
-	}
 }
 
 func addDisplayBindings(bindings map[string]KeyBindingEntry) {

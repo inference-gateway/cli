@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +14,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	ansi "github.com/charmbracelet/x/ansi"
+
+	sdk "github.com/inference-gateway/sdk"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -56,13 +57,14 @@ func newRoomTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeRooms) {
 	ac.SetToolService(agents)
 	ac.SetTriggerSources(cfg.Composer.Triggers[config.ComposerContextChat])
 
-	approve, reject := roomApprovalBindings(cfg.Chat.Keybindings)
+	store := statemanager.NewStore(false)
 	app := &ChatApplication{
 		config:                  cfg,
 		inputStatusBar:          statusBar,
 		inputView:               components.NewInputView(modelService),
 		autocomplete:            ac,
-		stateManager:            statemanager.NewStore(false),
+		stateManager:            store,
+		approvalBoxView:         components.NewApprovalBoxView(styleProvider, store, nil),
 		conversationView:        components.NewConversationView(styleProvider),
 		applicationViewRenderer: components.NewApplicationViewRenderer(styleProvider),
 		roomPicker:              components.NewPicker(styleProvider),
@@ -70,10 +72,7 @@ func newRoomTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeRooms) {
 		newSession:              newSessionBinding(cfg.Chat.Keybindings),
 		cycleMode:               cycleModeBinding(cfg.Chat.Keybindings),
 		modeIndicator:           modeIndicatorOf(styleProvider),
-		roomApprove:             approve,
-		roomReject:              reject,
 	}
-	app.showRoomApprovalKeys()
 	rooms := &tuimocks.FakeRooms{}
 	app.SetRooms(rooms)
 	return app, rooms
@@ -293,37 +292,91 @@ func TestARoomShowsItsOwnModeAndHoldsBackShiftTab(t *testing.T) {
 	require.Empty(t, ansi.Strip(app.modeIndicator.Text()), "No room shows the chat's own mode again")
 }
 
-// TestAMembersCallIsDecidedFromTheRoom pins the room's approval in the chat:
-// the approve key and a click on Reject decide the newest open call, the keys
-// go on when nothing waits, and the daemon's refusal shows as an error.
-func TestAMembersCallIsDecidedFromTheRoom(t *testing.T) {
+// askedCall is a member's call waiting in the test room after the judge
+// rejected it.
+func askedCall(postID, callID string) roomsdomain.Post {
+	return roomsdomain.Post{
+		ID: postID, Author: "tester", Kind: roomsdomain.PostKindApproval, Text: "Rejected by judge: tests were not asked for",
+		Approval: &roomsdomain.Approval{ID: callID, Tool: "Bash", Arguments: `{"command":"go test ./..."}`}, Time: time.Now(),
+	}
+}
+
+// answerInApprovalWindow moves the approval window's choice right rights times,
+// confirms it and plays what the answer leads to.
+func answerInApprovalWindow(t *testing.T, app *ChatApplication, rights int) []tea.Msg {
+	t.Helper()
+	for range rights {
+		_ = app.approvalBoxView.Forward(tea.KeyPressMsg{Code: tea.KeyRight})
+	}
+	cmd := app.approvalBoxView.Forward(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for cmd != nil {
+		msg := cmd()
+		if answer, ok := msg.(tui.RoomApprovalAnsweredEvent); ok {
+			return playRoomCmd(app, func() tea.Msg { return answer })
+		}
+		cmd = app.approvalBoxView.Forward(msg)
+	}
+	t.Fatal("the approval window gave no answer")
+	return nil
+}
+
+// TestAMembersCallIsDecidedInTheApprovalWindow pins a room's call in the chat's
+// own approval window: the newest open call takes it with who asks and why and
+// no Auto-Approve, its answer reaches the room, a refusal shows as an error and
+// offers the call again, a call decided elsewhere leaves the window, the chat's
+// own approval keeps it, and leaving the room takes the call off it.
+func TestAMembersCallIsDecidedInTheApprovalWindow(t *testing.T) {
 	app, rooms := newRoomTestApp(t)
 	enterTestRoom(t, app, rooms)
-	app.roomView.SetWidth(80)
-	app.roomView.SetHeight(20)
-	approveKey := tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}
-	require.Nil(t, app.decideByKey(approveKey), "with nothing waiting the key goes on to the composer")
+	require.Nil(t, app.stateManager.GetApprovalUIState(), "nothing waiting leaves the window closed")
 
-	app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: roomsdomain.Post{
-		ID: "p1", Author: "tester", Kind: roomsdomain.PostKindApproval, Text: "Rejected by judge: tests were not asked for",
-		Approval: &roomsdomain.Approval{ID: "call-1", Tool: "Bash", Arguments: `{"command":"go test ./..."}`}, Time: time.Now(),
-	}})
-	playRoomCmd(app, tea.Batch(app.handleChatViewKeyPress(approveKey)...))
+	playRoomCmd(app, app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: askedCall("p1", "call-1")}))
+	state := app.stateManager.GetApprovalUIState()
+	require.NotNil(t, state, "the member's call takes the approval window")
+	require.Equal(t, "release", state.Room)
+	require.Equal(t, "Bash", state.PendingToolCall.Function.Name)
+	require.Equal(t, "tester in #release asks to run this.\nRejected by judge: tests were not asked for", state.Context)
+	window := ansi.Strip(app.approvalBoxView.Render())
+	require.Contains(t, window, "Approval required")
+	require.NotContains(t, window, "Auto-Approve", "a room never switches its member's mode")
+
+	answerInApprovalWindow(t, app, 0)
 	require.Equal(t, 1, rooms.DecideCallCount())
 	_, room, member, toolCallID, decision := rooms.DecideArgsForCall(0)
 	require.Equal(t, []string{"release", "tester", "call-1"}, []string{room, member, toolCallID})
 	require.Equal(t, roomsdomain.DecisionApprove, decision)
+	require.Nil(t, app.stateManager.GetApprovalUIState(), "the answered call leaves the window")
+	playRoomCmd(app, app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: roomsdomain.Post{
+		ID: "p1-decided", Author: roomsdomain.RoomAuthor, Kind: roomsdomain.PostKindDecision, Text: "You approved tester's Bash call.",
+		Approval: &roomsdomain.Approval{ID: "call-1", Decision: roomsdomain.DecisionApprove}, Time: time.Now(),
+	}}))
+	require.Nil(t, app.stateManager.GetApprovalUIState(), "the room's decision keeps the window closed")
 
-	lines := strings.Split(ansi.Strip(app.roomView.Render()), "\n")
-	row := slices.IndexFunc(lines, func(line string) bool { return strings.Contains(line, "[ Reject ]") })
-	require.GreaterOrEqual(t, row, 0, "the open call shows its choices")
+	playRoomCmd(app, app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: askedCall("p2", "call-2")}))
 	rooms.DecideReturns(errors.New("tester's call was already decided"))
-	click := tea.MouseClickMsg{X: strings.Index(lines[row], "[ Reject ]"), Y: row + app.applicationViewRenderer.ConversationTop(), Button: tea.MouseLeft}
-	played := playRoomCmd(app, tea.Batch(app.handleChatView(click)...))
-	require.Equal(t, 2, rooms.DecideCallCount())
+	played := answerInApprovalWindow(t, app, 1)
 	_, _, _, _, decision = rooms.DecideArgsForCall(1)
 	require.Equal(t, roomsdomain.DecisionReject, decision)
 	require.Contains(t, statusOf(t, played), "tester's call was already decided")
+	require.Equal(t, "call-2", app.stateManager.GetApprovalUIState().PendingToolCall.ID, "a call the room did not take is offered again")
+
+	decided := roomsdomain.Post{
+		ID: "p3", Author: roomsdomain.RoomAuthor, Kind: roomsdomain.PostKindDecision, Text: "tester's Bash call was decided in its own chat.",
+		Approval: &roomsdomain.Approval{ID: "call-2"}, Time: time.Now(),
+	}
+	playRoomCmd(app, app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: decided}))
+	require.Nil(t, app.stateManager.GetApprovalUIState(), "a call decided elsewhere leaves the window")
+
+	own := &sdk.ChatCompletionMessageToolCall{ID: "own", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}}
+	app.stateManager.SetupApprovalUIState(own, make(chan agentdomain.ApprovalAction, 1))
+	playRoomCmd(app, app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: askedCall("p4", "call-4")}))
+	require.Equal(t, "own", app.stateManager.GetApprovalUIState().PendingToolCall.ID, "the chat's own approval keeps the window")
+	app.stateManager.ClearApprovalUIState()
+
+	playRoomCmd(app, app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: askedCall("p5", "call-5")}))
+	require.Equal(t, "call-5", app.stateManager.GetApprovalUIState().PendingToolCall.ID)
+	playRoomCmd(app, app.switchRoom(noRoom))
+	require.Nil(t, app.stateManager.GetApprovalUIState(), "leaving the room takes its call off the window")
 }
 
 func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {

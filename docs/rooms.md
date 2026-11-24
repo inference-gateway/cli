@@ -110,8 +110,10 @@ what a post asks and keep greetings and small talk to one short line.
 - A post for a member that is still running waits and becomes its next turn.
 - A member that needs a tool call approved asks in the room. In the default `auto-with-judge` mode that is only
   a call the judge rejected and the member escalated. The room shows the call with the judge's reason and the
-  member's justification, under **Approve** and **Reject**. The first decision wins, from the room or from the
+  member's justification, and the chat opens it in the approval box every tool approval uses, naming the member
+  and the room, with **Approve** and **Reject** but no **Auto-Approve**. The first decision wins, from the room or from the
   member's own chat, session `room-<room>-<agent>`. The room logs who decided, and a later decision is refused.
+  The call waits until someone decides it, however long that takes, and the member's next posts wait behind it.
   A member that asks you a question still waits in its own chat, and the room notes it.
 - The posts a member missed are quoted in its turn as context, so neither the member nor its judge reads
   another member's words as your request.

@@ -10,7 +10,10 @@ import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
@@ -29,13 +32,6 @@ const (
 	daemonUnreachableHint = "infer daemon is not running - start it with `infer daemon` to use rooms"
 	roomShellRefusal      = "Leave the room to run ! commands - pick No room in the Room dropdown"
 	roomImageRefusal      = "Rooms take text only - remove the image, or pick No room in the Room dropdown to send it"
-)
-
-// The actions that approve and reject the newest member's call waiting in a
-// room.
-var (
-	actChatRoomApprove = config.ActionID(config.NamespaceChat, "room_approve")
-	actChatRoomReject  = config.ActionID(config.NamespaceChat, "room_reject")
 )
 
 // roomClearCommands wipe the chat's own conversation, which sits hidden under
@@ -190,14 +186,17 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 	case roomsListedMsg:
 		return app.showRoomPicker(m)
 	case tui.RoomSnapshotEvent:
-		return app.showRoom(m.Snapshot)
+		return tea.Batch(app.showRoom(m.Snapshot), app.offerRoomCall())
 	case roomJoinFailedMsg:
 		app.closeRoom()
 		return errorCmd(fmt.Sprintf("Could not join #%s: %v", m.room, m.err), false)
 	case tui.RoomPostEvent:
 		if m.Room == app.room {
 			app.roomView.AddPost(m.Post)
+			return app.offerRoomCall()
 		}
+	case tui.RoomApprovalAnsweredEvent:
+		return app.answerRoomCall(m)
 	case tui.RoomActivityEvent:
 		if m.Room == app.room {
 			app.roomView.SetActivity(m.Member, m.Activity)
@@ -208,13 +207,13 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 	case tui.RoomClearedEvent:
 		if m.Room == app.room {
 			app.roomView.ClearPosts()
-			return statusCmd("#" + m.Room + " was cleared")
+			return tea.Batch(app.offerRoomCall(), statusCmd("#"+m.Room+" was cleared"))
 		}
 	case roomPostedMsg:
 		return roomPostedStatus(m)
 	case roomDecidedMsg:
 		if m.err != nil {
-			return errorCmd(fmt.Sprintf("Could not decide %s's call in #%s: %v", m.member, m.room, m.err), false)
+			return tea.Batch(errorCmd(fmt.Sprintf("Could not decide %s's call in #%s: %v", m.member, m.room, m.err), false), app.offerRoomCall())
 		}
 	}
 	return nil
@@ -226,45 +225,68 @@ func (app *ChatApplication) refuseRoomModeCycle() tea.Cmd {
 	return statusCmd(fmt.Sprintf("#%s's mode is set in rooms.yaml (rooms.%s.mode)", app.room, app.room))
 }
 
-// showRoomApprovalKeys names the configured approve and reject keys next to
-// the newest open call of a room, when both are bound.
-func (app *ChatApplication) showRoomApprovalKeys() {
-	approve, reject := app.roomApprove.Keys(), app.roomReject.Keys()
-	if len(approve) > 0 && len(reject) > 0 {
-		app.roomView.SetApprovalKeys(approve[0], reject[0])
-	}
-}
-
-// decideByKey decides the newest open call of the room on screen when keyMsg
-// is its approve or reject key, and is nil otherwise so the key goes on.
-func (app *ChatApplication) decideByKey(keyMsg tea.KeyPressMsg) tea.Cmd {
-	if app.room == noRoom {
-		return nil
-	}
-	decision := roomsdomain.DecisionApprove
-	switch {
-	case key.Matches(keyMsg, app.roomApprove):
-	case key.Matches(keyMsg, app.roomReject):
-		decision = roomsdomain.DecisionReject
-	default:
-		return nil
-	}
+// offerRoomCall shows the newest call the room on screen waits on in the
+// approval window every tool approval uses, and takes a call that closed off
+// it. The chat's own approval keeps the window until it is answered.
+func (app *ChatApplication) offerRoomCall() tea.Cmd {
 	post, open := app.roomView.NewestOpenApproval()
+	open = open && app.room != noRoom
+	if open && app.roomCall.Approval != nil && post.Approval.ID == app.roomCall.Approval.ID {
+		return nil
+	}
+	if state := app.stateManager.GetApprovalUIState(); state != nil && state.Room == "" {
+		return nil
+	}
+	app.withdrawRoomCall()
 	if !open {
 		return nil
 	}
-	return app.decideRoomApproval(post, decision)
+	app.roomCall = post
+	app.stateManager.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{
+		ID:       post.Approval.ID,
+		Type:     sdk.Function,
+		Function: sdk.ChatCompletionMessageToolCallFunction{Name: post.Approval.Tool, Arguments: post.Approval.Arguments},
+	}, nil)
+	if state := app.stateManager.GetApprovalUIState(); state != nil {
+		state.Room = app.room
+		state.Context = roomCallContext(app.room, post)
+	}
+	return app.approvalBoxView.Begin()
 }
 
-// clickRoomButton decides the call whose Approve or Reject a left click lands
-// on, and is nil for a click anywhere else.
-func (app *ChatApplication) clickRoomButton(click tea.MouseClickMsg) tea.Cmd {
-	if app.room == noRoom || click.Button != tea.MouseLeft {
+// withdrawRoomCall takes the room's call off the approval window, which stays
+// open in the room.
+func (app *ChatApplication) withdrawRoomCall() {
+	if app.roomCall.Approval == nil {
+		return
+	}
+	app.roomCall = roomsdomain.Post{}
+	if state := app.stateManager.GetApprovalUIState(); state != nil && state.Room != "" {
+		app.stateManager.ClearApprovalUIState()
+	}
+}
+
+// roomCallContext says who in which room asks, above the note the call came
+// with, such as the judge's reason and the member's justification.
+func roomCallContext(room string, post roomsdomain.Post) string {
+	asks := fmt.Sprintf("%s in #%s asks to run this.", post.Author, room)
+	if post.Text == "" {
+		return asks
+	}
+	return asks + "\n" + post.Text
+}
+
+// answerRoomCall sends the approval window's answer on the room's call to the
+// room, which posts the decision.
+func (app *ChatApplication) answerRoomCall(answer tui.RoomApprovalAnsweredEvent) tea.Cmd {
+	post := app.roomCall
+	if post.Approval == nil || post.Approval.ID != answer.ToolCallID {
 		return nil
 	}
-	post, decision, ok := app.roomView.DecisionAt(click.X, click.Y-app.applicationViewRenderer.ConversationTop())
-	if !ok {
-		return nil
+	app.withdrawRoomCall()
+	decision := roomsdomain.DecisionReject
+	if answer.Action == agentdomain.ApprovalApprove {
+		decision = roomsdomain.DecisionApprove
 	}
 	return app.decideRoomApproval(post, decision)
 }
@@ -315,6 +337,7 @@ func (app *ChatApplication) closeRoom() {
 	if app.room == noRoom {
 		return
 	}
+	app.withdrawRoomCall()
 	app.room = noRoom
 	app.modeIndicator.SetRoom(noRoom, "")
 	app.useComposerContext(config.ComposerContextChat)

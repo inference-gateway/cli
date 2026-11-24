@@ -120,10 +120,10 @@ message sits under its author and time.
   mode again, and shift+tab switches it as usual.
 - `Ctrl+L`, `/clear` and `/new` clear nothing inside a room, since other people read it too. Empty a room on
   purpose with `infer rooms clear <room>`, or pick **No room** first to clear your own chat.
-- A member's tool call that waits for you shows in the room with the judge's reason, the member's
-  justification and **[ Approve ]** **[ Reject ]**. Click one, or press `alt+y` to approve or `alt+n` to
-  reject the newest call waiting (`chat_room_approve` and `chat_room_reject` in `keybindings.yaml`). The room
-  logs your decision, and a call already decided, here or in the member's own chat, says so.
+- A member's tool call that waits for you shows in the room with the judge's reason and the member's
+  justification, and the newest one opens in the usual [approval box](tool-approval.md#approval-ui-controls)
+  with **Approve** and **Reject**, as a call of your own chat does. The room logs your decision, and a call
+  already decided, here or in the member's own chat, says so.
 - The first time you enter a room, its members welcome you.
 - **No room** brings the chat back as you left it.
 
