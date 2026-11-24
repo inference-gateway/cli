@@ -19,7 +19,7 @@ type ModeIndicator struct {
 	styleProvider *styles.Provider
 	judgeModel    func() string
 	room          string
-	roomMode      agentdomain.AgentMode
+	roomMode      string
 }
 
 // NewModeIndicator creates a new mode indicator
@@ -45,7 +45,7 @@ func (mi *ModeIndicator) SetStateManager(stateManager agentdomain.AgentModeState
 // it, instead of the chat's own. An empty room shows the chat's mode again.
 func (mi *ModeIndicator) SetRoom(room, mode string) {
 	mi.room = room
-	mi.roomMode, _ = agentdomain.ParseAgentMode(mode)
+	mi.roomMode = mode
 }
 
 // Text returns the styled mode label, empty while the default mode is active
@@ -54,7 +54,7 @@ func (mi *ModeIndicator) Text() string {
 	var label string
 	switch {
 	case mi.room != "":
-		label = "#" + mi.room + " " + cmp.Or(modeName(mi.roomMode), standardModeLabel)
+		label = roomLabel(mi.room, mi.roomMode)
 	case mi.stateManager != nil:
 		label = mi.modeLabel(mi.stateManager.GetAgentMode())
 	}
@@ -81,6 +81,17 @@ func (mi *ModeIndicator) modeLabel(mode agentdomain.AgentMode) string {
 		}
 	}
 	return label
+}
+
+// roomLabel names a room and the mode its members run in. A mode the daemon did
+// not report, as a daemon of an older build never does, is left out rather
+// than shown as standard, since the members may run in any mode.
+func roomLabel(room, mode string) string {
+	parsed, known := agentdomain.ParseAgentMode(mode)
+	if !known {
+		return "#" + room
+	}
+	return "#" + room + " " + cmp.Or(modeName(parsed), standardModeLabel)
 }
 
 // modeName names a mode, "" for the standard one.

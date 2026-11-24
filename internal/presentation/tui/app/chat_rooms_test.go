@@ -273,6 +273,11 @@ func TestARoomShowsItsOwnModeAndHoldsBackShiftTab(t *testing.T) {
 	app, rooms := newRoomTestApp(t)
 	require.Empty(t, ansi.Strip(app.modeIndicator.Text()), "the chat's standard mode has no label")
 
+	rooms.JoinReturns(roomsdomain.Snapshot{Room: roomsdomain.RoomStatus{Name: "release"}}, nil)
+	playRoomCmd(app, app.switchRoom("release"))
+	require.Equal(t, "#release", ansi.Strip(app.modeIndicator.Text()), "a daemon that reports no mode is not shown as standard")
+	playRoomCmd(app, app.switchRoom(noRoom))
+
 	rooms.JoinReturns(roomsdomain.Snapshot{Room: roomsdomain.RoomStatus{Name: "release", Mode: "auto-with-judge"}}, nil)
 	playRoomCmd(app, app.switchRoom("release"))
 	require.Equal(t, "#release ▸ AUTO+JUDGE", ansi.Strip(app.modeIndicator.Text()))
