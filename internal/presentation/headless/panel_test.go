@@ -28,6 +28,7 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/presentation/shortcuts"
 	statemanager "github.com/inference-gateway/cli/internal/presentation/tui/statemanager"
 	projects "github.com/inference-gateway/cli/internal/projects"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -506,6 +507,7 @@ func historyStore(entries ...string) *storagemocks.FakeShellHistoryStorage {
 }
 
 func TestPanelHistoryRoundTrip(t *testing.T) {
+	t.Setenv(scheddomain.EnvSubagentInvokedBy, "")
 	deps := panelDeps()
 	deps.History = historyStore("from the tui")
 	p, sink := startPanel(deps)
@@ -526,6 +528,36 @@ func TestPanelHistoryRoundTrip(t *testing.T) {
 		if raw[i] != want[i] {
 			t.Fatalf("history = %v, want %v", raw, want)
 		}
+	}
+}
+
+// TestPanelHistoryRecordsOnlyWhatAPersonTyped pins that a worker serving a
+// room member or a subagent leaves the shared input history alone: the room's
+// turn and the parent agent's task are no input to recall on arrow-up.
+func TestPanelHistoryRecordsOnlyWhatAPersonTyped(t *testing.T) {
+	tests := []struct {
+		name      string
+		invokedBy string
+		want      []any
+	}{
+		{"a person's session records its input", "", []any{"from the tui", "what changed?"}},
+		{"a room member's turn stays out", roomsdomain.InvokedByRoom, []any{"from the tui"}},
+		{"a subagent's task stays out", scheddomain.SubagentInvokedByAgent, []any{"from the tui"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(scheddomain.EnvSubagentInvokedBy, tt.invokedBy)
+			deps := panelDeps()
+			deps.History = historyStore("from the tui")
+			p, sink := startPanel(deps)
+
+			handle(t, p, runInput("what changed?"))
+			handle(t, p, map[string]any{"type": "list_history"})
+			raw, _ := readFrame(t, sink, "history")["history"].([]any)
+			if !slices.Equal(raw, tt.want) {
+				t.Fatalf("history = %v, want %v", raw, tt.want)
+			}
+		})
 	}
 }
 

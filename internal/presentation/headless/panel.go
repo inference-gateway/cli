@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"os"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	projects "github.com/inference-gateway/cli/internal/projects"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -253,9 +255,9 @@ func NewPanel(deps PanelDeps, out io.Writer) *Panel {
 }
 
 // Handle answers one stdin line and reports whether the panel consumed it. A
-// run input's messages are recorded in the shell history but left for the
-// turn loop, and an approval_response is consumed only when it answers a
-// tool_request.
+// run input's messages are recorded in the shell history when a person typed
+// them, but left for the turn loop, and an approval_response is consumed only
+// when it answers a tool_request.
 func (p *Panel) Handle(line []byte) bool { //nolint:gocyclo,cyclop // one case per panel frame
 	var msg panelFrame
 	if json.Unmarshal(line, &msg) != nil {
@@ -400,10 +402,13 @@ func (c *conversations) list() {
 }
 
 // history holds the shared shell input history: panel messages land in the same
-// store the TUI's arrow-up navigation walks, and the panel lists it back.
+// store the TUI's arrow-up navigation walks, and the panel lists it back. Only
+// a session a person types into records, so a parent agent's task or a room's
+// turn never comes back on arrow-up.
 type history struct {
-	write frameWriter
-	store storage.ShellHistoryStorage
+	write   frameWriter
+	store   storage.ShellHistoryStorage
+	records bool
 }
 
 // newHistory falls back to an empty store when storage failed to initialize, so
@@ -412,7 +417,14 @@ func newHistory(write frameWriter, store storage.ShellHistoryStorage) *history {
 	if store == nil {
 		store = noHistory{}
 	}
-	return &history{write: write, store: store}
+	return &history{write: write, store: store, records: typedByPerson()}
+}
+
+// typedByPerson reports whether the worker's input comes from a person rather
+// than from a parent agent or a room, which compose it themselves.
+func typedByPerson() bool {
+	invokedBy := os.Getenv(scheddomain.EnvSubagentInvokedBy)
+	return invokedBy != scheddomain.SubagentInvokedByAgent && invokedBy != roomsdomain.InvokedByRoom
 }
 
 // noHistory is the empty shell-history store.
@@ -441,6 +453,9 @@ func (h *history) list() {
 // append records a panel-sent message in the project's input history. The
 // store drops a blank or repeated entry.
 func (h *history) append(content string) {
+	if !h.records {
+		return
+	}
 	if err := h.store.AppendHistory(context.Background(), projects.Path(), content); err != nil {
 		logger.Warn("panel failed to append history", "error", err)
 	}
