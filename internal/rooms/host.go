@@ -90,6 +90,7 @@ type activityFrame struct {
 	Room     string               `json:"room"`
 	Member   string               `json:"member"`
 	Activity roomsdomain.Activity `json:"activity"`
+	Usage    roomsdomain.Usage    `json:"usage"`
 }
 
 // postedFrame answers post_room to its poster.
@@ -287,7 +288,7 @@ func (h *Host) post(c sessionsdomain.Client, name, text string) {
 		logger.Warn("rooms could not route a post", "room", name, "error", err)
 		routing.Notices = append(routing.Notices, fmt.Sprintf("The post reached nobody, routing failed: %v. Mention a member to reach one.", err))
 	}
-	post.Mentions, post.Routes = routing.Mentions, routing.Routes
+	post.Mentions, post.Routes, post.RouterTokens = routing.Mentions, routing.Routes, routing.Tokens
 	if err := h.append(room, post); err != nil {
 		c.Deliver(runError(fmt.Sprintf("logging the post in room %s: %v", name, err)))
 		return
@@ -332,11 +333,14 @@ func (h *Host) note(room roomsdomain.Room, text string) {
 	}
 }
 
-// announce streams a member's new activity to the room's followers.
-func (h *Host) announce(room roomsdomain.Room, agent string, activity roomsdomain.Activity) {
+// announce streams a member's new activity and what it spent to the room's
+// followers.
+func (h *Host) announce(room roomsdomain.Room, status roomsdomain.MemberStatus) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.deliverLocked(room.Name, encode(activityFrame{Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: agent, Activity: activity}))
+	h.deliverLocked(room.Name, encode(activityFrame{
+		Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: status.Agent, Activity: status.Activity, Usage: status.Usage,
+	}))
 }
 
 func (h *Host) deliverLocked(name string, frame []byte) {
@@ -364,15 +368,15 @@ func (h *Host) findRoom(name string) (roomsdomain.Room, bool) {
 	return Find(Resolve(h.cfg, h.agents), name)
 }
 
-// viewLocked renders room with what each of its members is doing.
+// viewLocked renders room with what each of its members does and spent.
 func (h *Host) viewLocked(room roomsdomain.Room) roomsdomain.RoomStatus {
 	members := make([]roomsdomain.MemberStatus, 0, len(room.Agents))
 	for _, seat := range room.Members() {
-		activity := roomsdomain.ActivityIdle
+		status := roomsdomain.MemberStatus{Agent: seat.Agent, SessionID: seat.SessionID, Activity: roomsdomain.ActivityIdle}
 		if m, ok := h.members[seat.SessionID]; ok {
-			activity = m.currentActivity()
+			status.Activity, status.Usage = m.currentActivity(), m.spent()
 		}
-		members = append(members, roomsdomain.MemberStatus{Agent: seat.Agent, SessionID: seat.SessionID, Activity: activity})
+		members = append(members, status)
 	}
 	return roomsdomain.RoomStatus{Name: room.Name, Project: room.Project, Members: members}
 }

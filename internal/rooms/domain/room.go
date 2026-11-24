@@ -100,15 +100,16 @@ func ownAgents(agents []agentdomain.SubagentInfo) []string {
 // Post is one entry of a room's log, written by the user or a member: its id,
 // who wrote it, what it says, which agents it mentions, who it was routed to
 // with the router's probability, and when. Kind marks an event such as a
-// join, and is empty for a message.
+// join, and is empty for a message. RouterTokens is what routing it cost.
 type Post struct {
-	ID       string    `json:"id,omitempty"`
-	Author   string    `json:"author"`
-	Kind     PostKind  `json:"kind,omitempty"`
-	Text     string    `json:"text"`
-	Mentions []string  `json:"mentions,omitempty"`
-	Routes   []Route   `json:"routes,omitempty"`
-	Time     time.Time `json:"time"`
+	ID           string    `json:"id,omitempty"`
+	Author       string    `json:"author"`
+	Kind         PostKind  `json:"kind,omitempty"`
+	Text         string    `json:"text"`
+	Mentions     []string  `json:"mentions,omitempty"`
+	Routes       []Route   `json:"routes,omitempty"`
+	RouterTokens int       `json:"router_tokens,omitempty"`
+	Time         time.Time `json:"time"`
 }
 
 // PostKind tells an event of the room's log from a message.
@@ -151,11 +152,36 @@ type RoomStatus struct {
 	Members []MemberStatus `json:"members"`
 }
 
-// MemberStatus is one member of a RoomStatus.
+// MemberStatus is one member of a RoomStatus, with what its session spent.
 type MemberStatus struct {
 	Agent     string   `json:"agent"`
 	SessionID string   `json:"session_id"`
 	Activity  Activity `json:"activity"`
+	Usage     Usage    `json:"usage"`
+}
+
+// Usage is what a room spent: its tokens, input and output, and their cost.
+type Usage struct {
+	Tokens int     `json:"tokens"`
+	Cost   float64 `json:"cost"`
+}
+
+// Add is u and o together.
+func (u Usage) Add(o Usage) Usage {
+	return Usage{Tokens: u.Tokens + o.Tokens, Cost: u.Cost + o.Cost}
+}
+
+// Spent is what a room spent: every member's session and the routing of
+// every post in its log.
+func Spent(members []MemberStatus, posts []Post) Usage {
+	var total Usage
+	for _, member := range members {
+		total = total.Add(member.Usage)
+	}
+	for _, post := range posts {
+		total.Tokens += post.RouterTokens
+	}
+	return total
 }
 
 // Snapshot is what a client following a room gets first: the room and its

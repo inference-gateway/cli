@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"
 
+	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	markdown "github.com/inference-gateway/cli/internal/presentation/tui/markdown"
 	styles "github.com/inference-gateway/cli/internal/presentation/tui/styles"
@@ -55,7 +57,6 @@ type RoomView struct {
 	viewport      viewport.Model
 	room          roomsdomain.RoomStatus
 	posts         []roomsdomain.Post
-	activity      map[string]roomsdomain.Activity
 	width         int
 	height        int
 	banner        string
@@ -67,7 +68,7 @@ func NewRoomView(styleProvider *styles.Provider) *RoomView {
 	vp.KeyMap = viewport.KeyMap{}
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = roomWheelDelta
-	view := &RoomView{styleProvider: styleProvider, viewport: vp, width: 80, activity: map[string]roomsdomain.Activity{}}
+	view := &RoomView{styleProvider: styleProvider, viewport: vp, width: 80}
 	if themeService := styleProvider.GetThemeService(); themeService != nil {
 		view.markdown = markdown.NewRenderer(themeService, 80-roomViewGutter)
 	}
@@ -75,14 +76,11 @@ func NewRoomView(styleProvider *styles.Provider) *RoomView {
 }
 
 // Show replaces the room on screen with snapshot: the room, its log so far
-// and what each member is doing.
+// and what each member is doing and spent.
 func (v *RoomView) Show(snapshot roomsdomain.Snapshot) {
 	v.room = snapshot.Room
+	v.room.Members = slices.Clone(snapshot.Room.Members)
 	v.posts = snapshot.Posts
-	v.activity = map[string]roomsdomain.Activity{}
-	for _, member := range snapshot.Room.Members {
-		v.activity[member.Agent] = member.Activity
-	}
 	v.refresh()
 }
 
@@ -101,9 +99,13 @@ func (v *RoomView) ClearPosts() {
 	v.refresh()
 }
 
-// SetActivity shows what member is doing now.
-func (v *RoomView) SetActivity(member string, activity roomsdomain.Activity) {
-	v.activity[member] = activity
+// UpdateMember shows what a member of the room does now and what it spent.
+func (v *RoomView) UpdateMember(agent string, activity roomsdomain.Activity, usage roomsdomain.Usage) {
+	i := slices.IndexFunc(v.room.Members, func(member roomsdomain.MemberStatus) bool { return member.Agent == agent })
+	if i < 0 {
+		return
+	}
+	v.room.Members[i].Activity, v.room.Members[i].Usage = activity, usage
 	v.refresh()
 }
 
@@ -208,26 +210,40 @@ func (v *RoomView) content() string {
 	return strings.Join(lines, "\n")
 }
 
-// header names the room, Slack style, with its members.
+// header names the room, Slack style, with what it spent and its members.
 func (v *RoomView) header() string {
 	members := make([]string, 0, len(v.room.Members))
 	for _, member := range v.room.Members {
-		members = append(members, v.memberPresence(member.Agent))
+		members = append(members, v.memberPresence(member))
 	}
 	accent := v.styleProvider.GetThemeColor("accent")
 	name := v.styleProvider.RenderStyledText("# "+v.room.Name, styles.StyleOptions{Foreground: accent, Bold: true})
-	line := name + v.styleProvider.RenderDimText(" · "+MemberCount(len(members))) + "  " + strings.Join(members, v.styleProvider.RenderDimText(" · "))
+	summary := " · " + MemberCount(len(members)) + spentText(roomsdomain.Spent(v.room.Members, v.posts))
+	line := name + v.styleProvider.RenderDimText(summary) + "  " + strings.Join(members, v.styleProvider.RenderDimText(" · "))
 	return lipgloss.NewStyle().Width(max(v.width, 1)).Render(line)
 }
 
+// spentText says what a room spent, " · 48.2k tokens · $0.123", or nothing
+// before it spent anything. The cost stays out while no price is known.
+func spentText(spent roomsdomain.Usage) string {
+	if spent.Tokens == 0 {
+		return ""
+	}
+	text := " · " + compactCount(spent.Tokens) + " tokens"
+	if spent.Cost > 0 {
+		text += " · " + formatting.FormatCost(spent.Cost)
+	}
+	return text
+}
+
 // memberPresence is a member's name after its presence dot, then what it does.
-func (v *RoomView) memberPresence(agent string) string {
-	p, ok := presences[v.activity[agent]]
+func (v *RoomView) memberPresence(member roomsdomain.MemberStatus) string {
+	p, ok := presences[member.Activity]
 	if !ok {
 		p = presences[roomsdomain.ActivityIdle]
 	}
 	dot := v.styleProvider.RenderWithColor(p.dot, v.styleProvider.GetThemeColor(p.color))
-	return dot + " " + agent + " " + v.styleProvider.RenderDimText(p.label)
+	return dot + " " + member.Agent + " " + v.styleProvider.RenderDimText(p.label)
 }
 
 // MemberCount says how many members a room has, as "1 member" or "3 members".
@@ -284,7 +300,7 @@ func (v *RoomView) renderBody(post roomsdomain.Post) string {
 func (v *RoomView) busyLine() string {
 	var busy []string
 	for _, member := range v.room.Members {
-		if phrase, ok := activityPhrases[v.activity[member.Agent]]; ok {
+		if phrase, ok := activityPhrases[member.Activity]; ok {
 			busy = append(busy, member.Agent+" "+phrase)
 		}
 	}

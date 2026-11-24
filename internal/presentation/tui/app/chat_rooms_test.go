@@ -237,12 +237,13 @@ func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {
 
 	app.handleRoomEvents(tui.RoomPostEvent{Room: "other", Post: roomsdomain.Post{Author: "tester", Text: "elsewhere", Time: time.Now()}})
 	app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: roomsdomain.Post{Author: "tester", Text: "all green", Time: time.Now()}})
-	app.handleRoomEvents(tui.RoomActivityEvent{Room: "release", Member: "writer", Activity: roomsdomain.ActivityRunning})
+	app.handleRoomEvents(tui.RoomActivityEvent{Room: "release", Member: "writer", Activity: roomsdomain.ActivityRunning, Usage: roomsdomain.Usage{Tokens: 2400}})
 
 	screen := ansi.Strip(app.roomView.Render())
 	require.NotContains(t, screen, "elsewhere")
 	require.Contains(t, screen, "all green")
 	require.Contains(t, screen, "writer is working…")
+	require.Contains(t, screen, "2.4k tokens", "the header adds up what the members spent")
 
 	app.handleRoomEvents(tui.RoomClearedEvent{Room: "other"})
 	require.Contains(t, ansi.Strip(app.roomView.Render()), "all green", "another room's clear leaves this one alone")

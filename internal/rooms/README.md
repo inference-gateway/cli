@@ -45,7 +45,10 @@ expands the configured rooms against the agents the registry currently knows.
   `context_posts`), quoted as context so neither the member nor its judge takes them for the request,
   and the post for it. Every agent's mention is written without its `@` (`domain.PlainMentions`), so
   the member's file expansion never inlines a file named like a member. The run's last assistant
-  message is logged as the member's post. The turn tells the member to talk like a teammate in a
+  message is logged as the member's post. The run's terminal event carries its session's token totals and
+  cost, which the member keeps (a drop means the session rolled over, so the old total carries over) and
+  sends with every `room_activity`. The router's decision tokens land on the post as `router_tokens`.
+  The turn tells the member to talk like a teammate in a
   channel. The serve worker names its runs itself, so the first run that starts while a turn waits
   becomes the turn's run. A member holds new posts while it runs, and a run that ends on an interrupt
   leaves the approval to the member's own chat and logs a note. Idle members detach after

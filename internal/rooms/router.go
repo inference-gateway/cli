@@ -37,11 +37,13 @@ const everyoneInstructions = "Is the new post addressed to everyone in the room,
 const everyoneQuestion = roomsdomain.AgentsWildcard
 
 // Routing is where one post goes: the agents it mentions, the members it is
-// routed to with the router's probability, and notices for its author.
+// routed to with the router's probability, and notices for its author. Tokens
+// are the input tokens the decision model spent on it.
 type Routing struct {
 	Mentions []string
 	Routes   []roomsdomain.Route
 	Notices  []string
+	Tokens   int
 }
 
 // Router decides which members of a room get a post. A post that pings agents
@@ -104,6 +106,7 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 	if err != nil {
 		return routing, fmt.Errorf("routing a post in room %s: %w", room.Name, err)
 	}
+	routing.Tokens = decisions.InputTokens
 	if forEveryone, ok := decisions.ByName(everyoneQuestion); ok && forEveryone.Probability >= r.config.Router.MinConfidence {
 		routing.Routes = everyMember(room, forEveryone.Probability)
 		return routing, nil

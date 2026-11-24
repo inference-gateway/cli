@@ -37,7 +37,9 @@ const turnIntro = "You are %s, chatting in #%s with the user and the room's memb
 	"Your reply to the post for you is posted to the room. Reply as a teammate would: answer what the post asks, " +
 	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for.\n"
 
-// workerEvent is the part of a worker's AG-UI event a member reads.
+// workerEvent is the part of a worker's AG-UI event a member reads. A run's
+// terminal event carries its session's token totals in Usage and the session's
+// cost in Result, which stays raw since a worker may put anything there.
 type workerEvent struct {
 	Type    string `json:"type"`
 	RunID   string `json:"runId"`
@@ -47,13 +49,40 @@ type workerEvent struct {
 	Outcome struct {
 		Type string `json:"type"`
 	} `json:"outcome"`
+	Usage []struct {
+		InputTokens  int64 `json:"inputTokens"`
+		OutputTokens int64 `json:"outputTokens"`
+	} `json:"usage"`
+	Result json.RawMessage `json:"result"`
 }
 
-// member drives one agent's seat in a room as its session's client on the
-// thread registry. It holds the posts routed to it, delivers them one turn at a
-// time, logs each run's last assistant message and detaches after idling.
-// inputID is the input a turn sent and runID the run the worker named for it.
-// sendMu orders a turn's frames without mu, so a stuck worker never stalls the room.
+// sessionTokens is the session's tokens in and out the event reports, false
+// when it reports none.
+func (ev workerEvent) sessionTokens() (int, bool) {
+	tokens := 0
+	for _, usage := range ev.Usage {
+		tokens += int(usage.InputTokens + usage.OutputTokens)
+	}
+	return tokens, len(ev.Usage) > 0
+}
+
+// sessionCost is the session's cost the event's result reports, false when
+// it reports none.
+func (ev workerEvent) sessionCost() (float64, bool) {
+	var result struct {
+		Cost *float64 `json:"cost"`
+	}
+	if json.Unmarshal(ev.Result, &result) != nil || result.Cost == nil {
+		return 0, false
+	}
+	return *result.Cost, true
+}
+
+// member drives one agent's seat in a room as its session's client: it holds
+// the posts routed to it, delivers them a turn at a time, logs each answer and
+// detaches when idle. inputID and runID are a turn's input and its run, session
+// and earlier what this and rolled-over sessions spent. sendMu orders a turn's
+// frames without mu, so a stuck worker never stalls the room.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -69,6 +98,8 @@ type member struct {
 	inputID  string
 	runID    string
 	detach   *time.Timer
+	session  roomsdomain.Usage
+	earlier  roomsdomain.Usage
 
 	role    string
 	message strings.Builder
@@ -167,7 +198,7 @@ func (m *member) startNext() {
 	m.host.threads.Handle(m, encode(m.resumeFrame()))
 	m.host.threads.Handle(m, encode(input))
 	m.sendMu.Unlock()
-	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
+	m.announce(roomsdomain.ActivityRunning)
 }
 
 // startOver drops the posts the member held and makes its next turn read the
@@ -264,6 +295,7 @@ func (m *member) handle(ev workerEvent) {
 		}
 		m.role = ""
 	case "RUN_FINISHED":
+		m.recordUsage(ev)
 		if ev.Outcome.Type == "interrupt" {
 			m.waitForApproval()
 			return
@@ -272,9 +304,44 @@ func (m *member) handle(ev workerEvent) {
 		m.answer = ""
 		m.finish(answer, "")
 	case "RUN_ERROR":
+		m.recordUsage(ev)
 		m.answer = ""
 		m.finish("", ev.Message)
 	}
+}
+
+// recordUsage keeps the session totals a run's terminal event reports. Totals
+// below the last ones mean the session rolled over, so the old session's
+// spend carries over and the new one counts from its own start.
+// shortcut: a rollover whose new session already passed the old total goes unseen,
+// upgrade once the terminal event names the session it counted.
+func (m *member) recordUsage(ev workerEvent) {
+	tokens, ok := ev.sessionTokens()
+	if !ok {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if tokens < m.session.Tokens {
+		m.earlier, m.session = m.earlier.Add(m.session), roomsdomain.Usage{}
+	}
+	m.session.Tokens = tokens
+	if cost, ok := ev.sessionCost(); ok {
+		m.session.Cost = cost
+	}
+}
+
+// spent is what the member's sessions spent so far.
+func (m *member) spent() roomsdomain.Usage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.earlier.Add(m.session)
+}
+
+// announce tells the room's followers what the member does now and what it
+// spent so far.
+func (m *member) announce(activity roomsdomain.Activity) {
+	m.host.announce(m.room, roomsdomain.MemberStatus{Agent: m.agent, SessionID: m.sessionID, Activity: activity, Usage: m.spent()})
 }
 
 // waitForApproval leaves the run's approval to the member's own chat, where
@@ -288,7 +355,7 @@ func (m *member) waitForApproval() {
 	m.activity = roomsdomain.ActivityWaiting
 	m.mu.Unlock()
 	m.host.note(m.room, fmt.Sprintf("%s waits for approval in its own chat, session %s.", m.agent, m.sessionID))
-	m.host.announce(m.room, m.agent, roomsdomain.ActivityWaiting)
+	m.announce(roomsdomain.ActivityWaiting)
 }
 
 // isCurrentRun reports whether an event of runID ends the open turn: its run,
@@ -313,7 +380,7 @@ func (m *member) runStarted(runID string) {
 		m.activity = roomsdomain.ActivityRunning
 		m.runID = cmp.Or(runID, m.runID)
 		m.mu.Unlock()
-		m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
+		m.announce(roomsdomain.ActivityRunning)
 	default:
 		m.mu.Unlock()
 	}
@@ -341,7 +408,7 @@ func (m *member) finish(answer, failure string) {
 			logger.Warn("rooms could not log a member's answer", append(m.tags(), "error", err)...)
 		}
 	}
-	m.host.announce(m.room, m.agent, roomsdomain.ActivityIdle)
+	m.announce(roomsdomain.ActivityIdle)
 	m.startNext()
 }
 

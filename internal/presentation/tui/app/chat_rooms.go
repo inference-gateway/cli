@@ -181,7 +181,7 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 		}
 	case tui.RoomActivityEvent:
 		if m.Room == app.room {
-			app.roomView.SetActivity(m.Member, m.Activity)
+			app.roomView.UpdateMember(m.Member, m.Activity, m.Usage)
 		}
 	case tui.RoomClearedEvent:
 		if m.Room == app.room {

@@ -109,7 +109,7 @@ what a post asks and keep greetings and small talk to one short line.
 
 Each room appends its posts to `~/.infer/projects/<slug of the room's project>/rooms/<room>.jsonl`, one JSON
 object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `kind` (`join` for
-your first entry), `text`, `mentions`, `routes` and `time`.
+your first entry), `text`, `mentions`, `routes`, `router_tokens` (what routing the post cost) and `time`.
 
 ## Commands
 

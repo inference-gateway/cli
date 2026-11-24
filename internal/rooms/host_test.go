@@ -3,6 +3,7 @@ package rooms
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -88,13 +89,22 @@ func (f hostFixture) seat(t *testing.T, agent string) sessionsdomain.Client {
 // worker's own, as the serve worker names its runs.
 func reply(t *testing.T, seat sessionsdomain.Client, text string) {
 	t.Helper()
+	replySpending(t, seat, text, nil)
+}
+
+// replySpending plays reply's run, whose RUN_FINISHED also carries spent, the
+// session's usage and result as a serve worker reports them.
+func replySpending(t *testing.T, seat sessionsdomain.Client, text string, spent map[string]any) {
+	t.Helper()
 	runID := uuid.NewString()
+	finished := map[string]any{"type": "RUN_FINISHED", "runId": runID}
+	maps.Copy(finished, spent)
 	for _, frame := range [][]byte{
 		encode(map[string]string{"type": "RUN_STARTED", "runId": runID}),
 		[]byte(`{"type":"TEXT_MESSAGE_START","role":"assistant"}`),
 		encode(map[string]string{"type": "TEXT_MESSAGE_CONTENT", "delta": text}),
 		[]byte(`{"type":"TEXT_MESSAGE_END"}`),
-		encode(map[string]string{"type": "RUN_FINISHED", "runId": runID}),
+		encode(finished),
 	} {
 		seat.Deliver(frame)
 	}
@@ -399,6 +409,63 @@ func TestClearDropsThePostsAMemberHeld(t *testing.T) {
 		logged := f.logged(t)
 		require.Len(t, logged, 1)
 		require.Equal(t, "unit tests pass", logged[0].Text, "the run already going still answers")
+	})
+}
+
+// TestAPostLogsWhatRoutingItCost pins the router's share of a room's usage:
+// the input tokens of the decision that routed a post land on the post.
+func TestAPostLogsWhatRoutingItCost(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		decisions := probabilities(map[string]float64{"tester": 0.9})
+		decisions.InputTokens = 412
+		f.decider.DecideReturns(decisions, nil)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "run the suite")
+		require.Equal(t, 412, f.logged(t)[0].RouterTokens)
+	})
+}
+
+// TestMembersReportWhatTheirSessionsSpent pins a member's usage: each run
+// reports its session's totals, which reach the followers with the member's
+// activity and the room's status, and a session that rolled over adds to
+// what the one before it spent.
+func TestMembersReportWhatTheirSessionsSpent(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		follower := &sessionsmocks.FakeClient{}
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
+		spent := func(in, out int64, cost float64) map[string]any {
+			return map[string]any{
+				"usage":  []map[string]any{{"model": "test-model", "inputTokens": in, "outputTokens": out}},
+				"result": map[string]any{"cost": cost, "totalToolCalls": 1},
+			}
+		}
+		lastUsage := func() roomsdomain.Usage {
+			activity := delivered[activityFrame](t, follower, roomsdomain.FrameRoomActivity)
+			require.Equal(t, roomsdomain.ActivityIdle, activity[len(activity)-1].Activity)
+			return activity[len(activity)-1].Usage
+		}
+
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester run the suite")
+		replySpending(t, f.seat(t, "tester"), "all green", spent(1000, 200, 0.01))
+		require.Equal(t, 1200, lastUsage().Tokens)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester and the e2e suite")
+		replySpending(t, f.seat(t, "tester"), "e2e green", spent(1250, 250, 0.015))
+		require.Equal(t, 1500, lastUsage().Tokens, "a session's totals grow, they are not summed per run")
+
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester and lint")
+		replySpending(t, f.seat(t, "tester"), "lint clean", spent(300, 100, 0.004))
+		usage := lastUsage()
+		require.Equal(t, 1900, usage.Tokens, "the rolled-over session adds to the one before it")
+		require.InDelta(t, 0.019, usage.Cost, 1e-9)
+
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameListRooms})
+		rooms := delivered[roomsFrame](t, follower, roomsdomain.FrameRooms)
+		require.Equal(t, usage, rooms[0].Rooms[0].Members[0].Usage)
 	})
 }
 

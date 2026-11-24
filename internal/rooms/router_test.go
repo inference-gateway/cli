@@ -255,3 +255,16 @@ func TestRouterCapsUnmentionedPosts(t *testing.T) {
 		})
 	}
 }
+
+func TestRouterReportsTheTokensItsDecisionSpent(t *testing.T) {
+	decider := &decisionmocks.FakeDecider{}
+	decisions := probabilities(map[string]float64{"tester": 0.9})
+	decisions.InputTokens = 412
+	decider.DecideReturns(decisions, nil)
+	cfg := *config.DefaultRoomsConfig()
+	cfg.Router.Model = testRouterModel
+
+	routing, err := NewRouter(decider, cfg).Route(t.Context(), testRoom, testAgents, nil, roomsdomain.Post{Author: "user", Text: "run the suite"})
+	require.NoError(t, err)
+	require.Equal(t, 412, routing.Tokens)
+}
