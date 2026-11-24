@@ -14,6 +14,15 @@ var mentionPattern = regexp.MustCompile(`(?:^|\s)@(\S+)`)
 // not part of the agent's name.
 const mentionTrailing = ".,:;!?)]}'\""
 
+// EveryoneMention is the @all that addresses every member of a room at once.
+const EveryoneMention = "all"
+
+// MentionsEveryone reports whether text @mentions the whole room: an @all,
+// unless an agent of known is named all, whose mention it then is.
+func MentionsEveryone(text string, known []string) bool {
+	return !slices.Contains(known, EveryoneMention) && len(Mentions(text, []string{EveryoneMention})) > 0
+}
+
 // Mentions returns the agents text @mentions, in order and without repeats. An
 // @token is a mention only when it names one of known, so a member's name wins
 // over a file of the same name, while @README.md or @./tester stay file

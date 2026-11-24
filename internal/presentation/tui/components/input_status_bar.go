@@ -56,10 +56,20 @@ type InputStatusBar struct {
 	styleProvider          *styles.Provider
 	currentInputText       string
 	mainAgentSource        mainAgentSource
-	agentPicker            *AgentPicker
+	pickers                []*Picker
+	roomsEnabled           bool
+	room                   string
+	hitRows                [][]indicatorHit
 
 	focused  bool
 	selected int
+}
+
+// indicatorHit is the columns one actionable indicator spans on its row, so a
+// click can tell which one it landed on.
+type indicatorHit struct {
+	from, to int
+	action   tui.StatusIndicatorAction
 }
 
 // indicatorPart is one status-bar segment plus the view it opens when
@@ -99,10 +109,20 @@ func (isb *InputStatusBar) SetMainAgentSource(src mainAgentSource) {
 	isb.mainAgentSource = src
 }
 
-// SetAgentPicker sets the dropdown the agent indicator opens, drawn under the
-// status row while it is open.
-func (isb *InputStatusBar) SetAgentPicker(picker *AgentPicker) {
-	isb.agentPicker = picker
+// EnableRooms shows the room indicator, for a chat that can reach rooms.
+func (isb *InputStatusBar) EnableRooms() {
+	isb.roomsEnabled = true
+}
+
+// SetRoom sets the room the chat is in, "" for none.
+func (isb *InputStatusBar) SetRoom(name string) {
+	isb.room = name
+}
+
+// SetPickers sets the dropdowns the indicators open, the open one drawn under
+// the status row.
+func (isb *InputStatusBar) SetPickers(pickers ...*Picker) {
+	isb.pickers = pickers
 }
 
 // SetEffortSource sets the source of the runtime reasoning effort level.
@@ -276,9 +296,12 @@ func (isb *InputStatusBar) Render() string {
 	if right := isb.renderRightSegment(lipgloss.Width(lines[0])); right != "" {
 		lines[0] += right
 	}
-	if isb.agentPicker != nil && isb.agentPicker.IsOpen() {
-		isb.agentPicker.SetWidth(isb.width)
-		lines = append(lines, isb.agentPicker.Render())
+	for _, picker := range isb.pickers {
+		if picker.IsOpen() {
+			picker.SetWidth(isb.width)
+			lines = append(lines, picker.Render())
+			break
+		}
 	}
 	return strings.Join(lines, "\n")
 }
@@ -392,6 +415,7 @@ func (isb *InputStatusBar) buildStatusLines() []string {
 
 	lineGroups := isb.splitPartsIntoLines(parts, availableWidth, maxLines, separatorWidth)
 	lineGroups = capIndicatorLines(lineGroups, maxLines)
+	isb.hitRows = indicatorHits(lineGroups, len(leftPadding), separatorWidth)
 
 	var lines []string
 	for _, lineItems := range lineGroups {
@@ -403,6 +427,42 @@ func (isb *InputStatusBar) buildStatusLines() []string {
 	}
 
 	return lines
+}
+
+// indicatorHits lays out where each actionable indicator sits on its row, the
+// way renderIndicatorLine draws the row after its left padding.
+func indicatorHits(lineGroups [][]indicatorPart, padding, separatorWidth int) [][]indicatorHit {
+	rows := make([][]indicatorHit, 0, len(lineGroups))
+	for _, parts := range lineGroups {
+		var hits []indicatorHit
+		x := padding
+		for _, part := range parts {
+			width := lipgloss.Width(part.text)
+			if part.selected {
+				width += selectedIndicatorPadding
+			}
+			if part.action != tui.StatusIndicatorActionNone {
+				hits = append(hits, indicatorHit{from: x, to: x + width, action: part.action})
+			}
+			x += width + separatorWidth
+		}
+		rows = append(rows, hits)
+	}
+	return rows
+}
+
+// ActionAt is the action of the indicator at column x of status row line, as
+// last rendered, and false when no actionable indicator is there.
+func (isb *InputStatusBar) ActionAt(x, line int) (tui.StatusIndicatorAction, bool) {
+	if line < 0 || line >= len(isb.hitRows) {
+		return tui.StatusIndicatorActionNone, false
+	}
+	for _, hit := range isb.hitRows[line] {
+		if x >= hit.from && x < hit.to {
+			return hit.action, true
+		}
+	}
+	return tui.StatusIndicatorActionNone, false
 }
 
 // markSelected returns a copy of parts with the selected actionable part
@@ -495,6 +555,10 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []indicatorP
 
 	if isb.shouldShowIndicator("agent") && isb.mainAgentSource != nil {
 		parts = append(parts, indicatorPart{text: "Agent: " + isb.mainAgentSource.MainAgent().Name, action: tui.StatusIndicatorActionAgentSelection})
+	}
+
+	if isb.shouldShowIndicator("room") && isb.roomsEnabled {
+		parts = append(parts, indicatorPart{text: roomIndicatorText(isb.room), action: tui.StatusIndicatorActionRoomSelection})
 	}
 
 	if isb.shouldShowIndicator("model") {
@@ -721,6 +785,14 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 	return strings.Join(parts, " • ")
 }
 
+// roomIndicatorText names the room the chat is in, Slack style, or a dash.
+func roomIndicatorText(room string) string {
+	if room == "" {
+		return "Room: -"
+	}
+	return "Room: #" + room
+}
+
 // shouldShowIndicator checks if a specific indicator should be shown
 func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 	if isb.config == nil {
@@ -763,6 +835,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.Workspace
 	case "artifacts":
 		return indicators.Artifacts
+	case "room":
+		return indicators.Room
 	default:
 		return true
 	}

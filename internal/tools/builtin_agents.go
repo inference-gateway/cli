@@ -28,6 +28,13 @@ func SeedBuiltinAgents(destDir string, overwrite bool) error {
 	return utils.SeedFS(builtinAgents, builtinAgentsRoot, destDir, overwrite)
 }
 
+// isBuiltinAgent reports whether name is one of the agents shipped with the
+// binary, whose file init may have seeded and the user edited.
+func isBuiltinAgent(name string) bool {
+	_, err := fs.Stat(builtinAgents, path.Join(builtinAgentsRoot, name+".md"))
+	return err == nil
+}
+
 // loadMarkdownAgentsWithBuiltins is loadMarkdownAgents plus the built-in agents
 // whose names no file in dirs took.
 func loadMarkdownAgentsWithBuiltins(dirs []string, knownTools map[string]bool) []markdownAgent {

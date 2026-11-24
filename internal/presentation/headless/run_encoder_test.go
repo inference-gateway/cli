@@ -19,6 +19,7 @@ import (
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
 	ipc "github.com/inference-gateway/cli/internal/platform/ipc"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -334,17 +335,20 @@ func TestNextStepSuggestion_SkipsWhenSomethingElseTakesTheNextStep(t *testing.T)
 		name          string
 		queueEmpty    bool
 		parentSession string
+		invokedBy     string
 		generate      func(context.Context) string
 		want          string
 	}{
 		{name: "an idle worker asks the generator", queueEmpty: true, generate: generate, want: "run the failing test"},
 		{name: "a queued message is the next step", queueEmpty: false, generate: generate, want: ""},
 		{name: "a subagent's parent takes the next step", queueEmpty: true, parentSession: "parent-1", generate: generate, want: ""},
+		{name: "nobody reads a room member's suggestion", queueEmpty: true, invokedBy: roomsdomain.InvokedByRoom, generate: generate, want: ""},
 		{name: "a container that builds no generator suggests nothing", queueEmpty: true, generate: (*conversation.ChatSuggestionGenerator)(nil).GenerateNextStepSuggestion, want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(scheddomain.EnvSubagentParentSession, tt.parentSession)
+			t.Setenv(scheddomain.EnvSubagentInvokedBy, tt.invokedBy)
 			queue := &convmocks.FakeMessageQueue{}
 			queue.IsEmptyReturns(tt.queueEmpty)
 			suggest := nextStepSuggestion(t.Context(), queue, tt.generate)

@@ -2,21 +2,60 @@ package app
 
 import (
 	"fmt"
+	"slices"
 
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
+	components "github.com/inference-gateway/cli/internal/presentation/tui/components"
 )
+
+const (
+	readOnlyBadge  = "read-only"
+	readWriteBadge = "read-write"
+)
+
+// agentPickerSpec titles the dropdown that switches the agent a chat runs as.
+var agentPickerSpec = components.PickerSpec{
+	Title: "Switch agent",
+	Hint:  "the next message runs as it",
+	Keys:  "↑/↓ move · enter switch · esc close",
+}
 
 // openAgentPicker opens the dropdown under the status row with the agents the
 // chat can switch to, the one it runs as selected.
 func (app *ChatApplication) openAgentPicker() tea.Cmd {
-	app.agentPicker.Open(app.toolService.ListMarkdownSubagents(), app.agentService.MainAgent().Name)
+	app.agentPicker.Open(agentPickerSpec, agentRows(app.toolService.ListMarkdownSubagents()), app.agentService.MainAgent().Name)
 	if app.agentPicker.IsOpen() {
 		return nil
 	}
 	return statusCmd("No agents to switch to - add one under ~/.infer/agents")
+}
+
+// agentRows lists agents with the default main agent first, each tagged with
+// whether it can write.
+func agentRows(agents []agentdomain.SubagentInfo) []components.PickerRow {
+	sorted := slices.Clone(agents)
+	slices.SortStableFunc(sorted, func(a, b agentdomain.SubagentInfo) int {
+		return mainAgentFirst(a.Name) - mainAgentFirst(b.Name)
+	})
+	rows := make([]components.PickerRow, 0, len(sorted))
+	for _, agent := range sorted {
+		tag, color := readWriteBadge, "warning"
+		if agent.ReadOnly {
+			tag, color = readOnlyBadge, "success"
+		}
+		rows = append(rows, components.PickerRow{Value: agent.Name, Label: agent.Name, Tag: tag, TagColor: color, Detail: agent.Description})
+	}
+	return rows
+}
+
+func mainAgentFirst(name string) int {
+	if name == agentdomain.DefaultMainAgentName {
+		return 0
+	}
+	return 1
 }
 
 // handleAgentPickerKeys interprets keys while the agent dropdown is open, which

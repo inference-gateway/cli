@@ -60,6 +60,20 @@ func TestRouterRoute(t *testing.T) {
 			wantRoutes: []roomsdomain.Route{{Member: "writer", Probability: 1}, {Member: "tester", Probability: 1}},
 		},
 		{
+			name:       "@all routes to every member without asking the model",
+			model:      testRouterModel,
+			text:       "hi @all!",
+			wantRoutes: []roomsdomain.Route{{Member: "tester", Probability: 1}, {Member: "writer", Probability: 1}},
+		},
+		{
+			name:        "a greeting without @all is offered like any post",
+			model:       testRouterModel,
+			text:        "Hi all",
+			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.6}),
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.6}},
+			wantDecides: 1,
+		},
+		{
 			name:       "a ping of an agent outside the room gets a notice and asks no model",
 			model:      testRouterModel,
 			text:       "@reviewer look at this",
@@ -97,12 +111,12 @@ func TestRouterRoute(t *testing.T) {
 			wantDecides: 1,
 		},
 		{
-			name:        "fallback top sends a post nobody passed to the most relevant member",
+			name:        "fallback top offers a post nobody passed to the most relevant members in turn",
 			model:       testRouterModel,
 			fallback:    config.RoomsFallbackTop,
 			text:        "hello",
 			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.4}),
-			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.4}},
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.4}, {Member: "tester", Probability: 0.3}},
 			wantDecides: 1,
 		},
 		{
@@ -175,7 +189,7 @@ func TestRouterAsksOnePredicatePerMember(t *testing.T) {
 
 	_, model, evidence, questions := decider.DecideArgsForCall(0)
 	require.Equal(t, testRouterModel, model)
-	require.Len(t, questions, len(testRoom.Agents))
+	require.Len(t, questions, len(testRoom.Agents), "one predicate per member")
 	for i, member := range testRoom.Agents {
 		require.Equal(t, member, questions[i].Name)
 		require.Equal(t, decisiondomain.Predicate, questions[i].Type)
@@ -202,16 +216,18 @@ func TestRouterCapsUnmentionedPosts(t *testing.T) {
 		name        string
 		maxMembers  int
 		text        string
+		decisions   decisiondomain.Decisions
 		wantMembers []string
 	}{
-		{"the default sends it to the two most relevant", 0, "ship it", []string{"b", "e"}},
-		{"a higher cap sends it to more", 3, "ship it", []string{"b", "e", "c"}},
-		{"mentions are never capped", 1, "@a @c @d ship it", []string{"a", "c", "d"}},
+		{"the default sends it to the two most relevant", 0, "ship it", everyonePasses, []string{"b", "e"}},
+		{"a higher cap sends it to more", 3, "ship it", everyonePasses, []string{"b", "e", "c"}},
+		{"mentions are never capped", 1, "@a @c @d ship it", everyonePasses, []string{"a", "c", "d"}},
+		{"@all is never capped", 1, "@all ship it", everyonePasses, members},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			decider := &decisionmocks.FakeDecider{}
-			decider.DecideReturns(everyonePasses, nil)
+			decider.DecideReturns(tt.decisions, nil)
 			cfg := *config.DefaultRoomsConfig()
 			cfg.Router.Model = testRouterModel
 			cfg.Router.MaxMembers = tt.maxMembers
@@ -225,4 +241,47 @@ func TestRouterCapsUnmentionedPosts(t *testing.T) {
 			require.Equal(t, tt.wantMembers, got)
 		})
 	}
+}
+
+func TestRouterReportsTheTokensItsDecisionSpent(t *testing.T) {
+	decider := &decisionmocks.FakeDecider{}
+	decisions := probabilities(map[string]float64{"tester": 0.9})
+	decisions.InputTokens = 412
+	decider.DecideReturns(decisions, nil)
+	cfg := *config.DefaultRoomsConfig()
+	cfg.Router.Model = testRouterModel
+
+	routing, err := NewRouter(decider, cfg).Route(t.Context(), testRoom, testAgents, nil, roomsdomain.Post{Author: "user", Text: "run the suite"})
+	require.NoError(t, err)
+	require.Equal(t, 412, routing.Tokens)
+}
+
+// TestRouterOffersAPostToOneMemberAtATime pins the pickup of a post that pings
+// nobody: a room that offers ranks up to max_members members to offer it to in
+// turn, the best first, and a room that hands posts to its top match routes it
+// to that one member only.
+func TestRouterOffersAPostToOneMemberAtATime(t *testing.T) {
+	decider := &decisionmocks.FakeDecider{}
+	decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+	cfg := *config.DefaultRoomsConfig()
+	cfg.Router.Model = testRouterModel
+	router := NewRouter(decider, cfg)
+	post := roomsdomain.Post{Author: "user", Text: "what's the weather?"}
+
+	offering := testRoom
+	offering.Pickup = roomsdomain.PickupOffer
+	routing, err := router.Route(t.Context(), offering, testAgents, nil, post)
+	require.NoError(t, err)
+	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.9}, {Member: "tester", Probability: 0.7}}, routing.Routes)
+
+	topMatch := testRoom
+	topMatch.Pickup = roomsdomain.PickupTop
+	routing, err = router.Route(t.Context(), topMatch, testAgents, nil, post)
+	require.NoError(t, err)
+	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.9}}, routing.Routes)
+
+	decider.DecideReturns(probabilities(map[string]float64{"tester": 0.1, "writer": 0.24}), nil)
+	routing, err = router.Route(t.Context(), topMatch, testAgents, nil, post)
+	require.NoError(t, err)
+	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.24}}, routing.Routes, "the fallback hands a top-match room's post to one member too")
 }

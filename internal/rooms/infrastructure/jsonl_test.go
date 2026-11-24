@@ -110,3 +110,21 @@ func TestJSONLLogSurvivesATornLine(t *testing.T) {
 	}
 	require.Equal(t, []string{"before", "after"}, texts)
 }
+
+func TestJSONLLogClearEmptiesTheRoom(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	log := NewJSONLLog()
+	room := testRoom(t.TempDir())
+	require.NoError(t, log.Clear(room), "a log never written is already clear")
+
+	require.NoError(t, log.Append(room, roomsdomain.Post{Author: "user", Text: "hi all"}))
+	require.NoError(t, log.Clear(room))
+	posts, err := log.Read(room)
+	require.NoError(t, err)
+	require.Empty(t, posts)
+
+	require.NoError(t, log.Append(room, roomsdomain.Post{Author: "user", Text: "starting over"}))
+	posts, err = log.Read(room)
+	require.NoError(t, err)
+	require.Len(t, posts, 1, "a cleared room logs again")
+}

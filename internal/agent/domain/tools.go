@@ -8,7 +8,8 @@ import (
 
 // SubagentInfo describes one Markdown-defined subagent preset (.infer/agents/*.md)
 // for user-facing listings like /agents. An empty Model means inherit and an
-// empty Tools list means the parent's tools are inherited.
+// empty Tools list means the parent's tools are inherited. BuiltIn marks an
+// agent shipped with the binary, also once init seeded it into a file.
 type SubagentInfo struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
@@ -16,6 +17,7 @@ type SubagentInfo struct {
 	Tools       []string `json:"tools,omitempty"`
 	ReadOnly    bool     `json:"read_only"`
 	Source      string   `json:"source"`
+	BuiltIn     bool     `json:"built_in,omitempty"`
 }
 
 // ToolManifestLookup resolves a tool's manifest by name, so callers can ask

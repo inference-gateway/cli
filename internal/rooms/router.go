@@ -28,17 +28,20 @@ const memberInstructions = "Should the agent %q act on the new post? Its role: %
 	"Answer true when the post asks for or clearly needs this role, false otherwise."
 
 // Routing is where one post goes: the agents it mentions, the members it is
-// routed to with the router's probability, and notices for its author.
+// routed to with the router's probability, and notices for its author. Tokens
+// are the input tokens the decision model spent on it.
 type Routing struct {
 	Mentions []string
 	Routes   []roomsdomain.Route
 	Notices  []string
+	Tokens   int
 }
 
 // Router decides which members of a room get a post. A post that pings agents
-// asks no model: the pinged members get it and a pinged outsider a notice. A
-// post that pings nobody asks the decision model one predicate per member, and
-// rooms.router.fallback handles a post nobody passed.
+// asks no model: the pinged members get it, an @all every member, and a pinged
+// outsider a notice. A post that pings nobody asks the decision model one
+// predicate per member and goes to one member, the room's pickup deciding how,
+// and rooms.router.fallback handles a post nobody passed.
 type Router struct {
 	decider decisiondomain.Decider
 	config  config.RoomsConfig
@@ -53,13 +56,21 @@ func NewRouter(decider decisiondomain.Decider, cfg config.RoomsConfig) *Router {
 // Route routes post in room. agents are the agents the CLI knows, with the
 // descriptions the decision model reads, and history the room's earlier posts.
 func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
-	routing := Routing{Mentions: roomsdomain.Mentions(post.Text, agentNames(agents))}
+	known := agentNames(agents)
+	routing := Routing{Mentions: roomsdomain.Mentions(post.Text, known)}
+	everyone := roomsdomain.MentionsEveryone(post.Text, known)
 	for _, agent := range routing.Mentions {
 		if !slices.Contains(room.Agents, agent) {
 			routing.Notices = append(routing.Notices, fmt.Sprintf("@%s is not in room %s.", agent, room.Name))
 			continue
 		}
-		routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
+		if !everyone {
+			routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
+		}
+	}
+	if everyone {
+		routing.Mentions = append(routing.Mentions, roomsdomain.EveryoneMention)
+		routing.Routes = everyMember(room, mentionProbability)
 	}
 	if len(routing.Mentions) > 0 {
 		return routing, nil
@@ -68,9 +79,10 @@ func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agen
 }
 
 // routeUnmentioned asks the decision model about a post that pings no agent
-// and routes it to the max_members most relevant members at or above
-// min_confidence, else by the fallback. Without a model only pings route, so
-// the author gets a notice.
+// and ranks the members at or above min_confidence it is offered to in turn,
+// as many as the room's pickup allows. When nobody passes, fallback top offers
+// it to the most relevant members just the same, so a pass still finds the
+// next. Without a model only pings route, so the author gets a notice.
 func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
 	var routing Routing
 	if len(room.Agents) == 0 {
@@ -85,9 +97,9 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 	if err != nil {
 		return routing, fmt.Errorf("routing a post in room %s: %w", room.Name, err)
 	}
+	routing.Tokens = decisions.InputTokens
 	ranked := rankedMembers(room, decisions)
-	maxMembers := cmp.Or(r.config.Router.MaxMembers, config.DefaultRoomsMaxMembers)
-	for _, route := range ranked[:min(len(ranked), maxMembers)] {
+	for _, route := range ranked[:min(len(ranked), r.offers(room))] {
 		if route.Probability >= r.config.Router.MinConfidence {
 			routing.Routes = append(routing.Routes, route)
 		}
@@ -96,7 +108,7 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 		return routing, nil
 	}
 	if cmp.Or(r.config.Router.Fallback, config.RoomsFallbackTop) == config.RoomsFallbackTop {
-		routing.Routes = append(routing.Routes, ranked[0])
+		routing.Routes = ranked[:min(len(ranked), r.offers(room))]
 		return routing, nil
 	}
 	routing.Notices = append(routing.Notices, mentionNotice(room))
@@ -137,6 +149,24 @@ func memberQuestions(room roomsdomain.Room, agents []agentdomain.SubagentInfo) [
 		})
 	}
 	return questions
+}
+
+// offers is how many members a post that pings nobody is offered to in turn:
+// max_members in a room that offers, its top match alone in one that does not.
+func (r *Router) offers(room roomsdomain.Room) int {
+	if room.Pickup == roomsdomain.PickupTop {
+		return 1
+	}
+	return r.config.Router.EffectiveMaxMembers()
+}
+
+// everyMember routes a post to every member of room with probability.
+func everyMember(room roomsdomain.Room, probability float64) []roomsdomain.Route {
+	routes := make([]roomsdomain.Route, 0, len(room.Agents))
+	for _, member := range room.Agents {
+		routes = append(routes, roomsdomain.Route{Member: member, Probability: probability})
+	}
+	return routes
 }
 
 // rankedMembers scores every member, the most relevant first and room order on

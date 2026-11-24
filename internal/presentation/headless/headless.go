@@ -118,9 +118,6 @@ func Run(cfg *config.Config, opts Options, newServices func() Services) (err err
 	if err != nil {
 		return err
 	}
-	if mode == agentdomain.AgentModeAutoWithJudge && cfg.Judge.ResolveModel(cfg.Agent.Model) == "" {
-		return fmt.Errorf("auto-with-judge mode selected but no judge model is resolvable: set judge.model in %s or agent.model", config.DefaultJudgePath)
-	}
 
 	rendered := false
 	defer func() {

@@ -43,6 +43,10 @@ import (
 // the snippet attachments tree below the input.
 var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attachments")
 
+// actGlobalNewSession is the action that clears the chat for a new session,
+// which a room holds back.
+var actGlobalNewSession = config.ActionID(config.NamespaceGlobal, "new_session")
+
 // ChatApplication is the main Bubble Tea model of the chat TUI, wiring its
 // services, views and handlers. Pending snippets ride along with the next
 // message. Keyboard focus can sit on the attachments, the status row, the job
@@ -128,12 +132,17 @@ type ChatApplication struct {
 	transcriptStore  TranscriptStore
 
 	historySearchView    *components.HistorySearchView
-	agentPicker          *components.AgentPicker
+	agentPicker          *components.Picker
+	roomPicker           *components.Picker
+	roomView             *components.RoomView
+	rooms                tui.Rooms
+	room                 string
 	historySearchFocused bool
 
 	keyBindingManager *keybinding.Dispatcher
 
 	focusAttachments key.Binding
+	newSession       key.Binding
 
 	lastHandledKey string
 	lastView       tui.ViewState
@@ -299,12 +308,15 @@ func NewChatApplication(
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 	app.snippetAttachmentsView = components.NewSnippetAttachmentsView(styleProvider)
 	app.historySearchView = components.NewHistorySearchView(styleProvider)
-	app.agentPicker = components.NewAgentPicker(styleProvider)
+	app.agentPicker = components.NewPicker(styleProvider)
+	app.roomPicker = components.NewPicker(styleProvider)
+	app.roomView = components.NewRoomView(styleProvider)
 	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
 		isb.SetMainAgentSource(app.agentService)
-		isb.SetAgentPicker(app.agentPicker)
+		isb.SetPickers(app.agentPicker, app.roomPicker)
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
+	app.newSession = newSessionBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
@@ -599,6 +611,9 @@ func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
 	if cmd := app.handleArtifactsEvents(msg); cmd != nil {
 		return cmd
 	}
+	if cmd := app.handleRoomEvents(msg); cmd != nil {
+		return cmd
+	}
 	return app.handleSessionPlacementEvents(msg)
 }
 
@@ -804,6 +819,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return append(cmds, transcriptCmds...)
 	}
 
+	if click, ok := msg.(tea.MouseClickMsg); ok {
+		return app.clickIndicator(click)
+	}
+
 	if _, ok := msg.(tui.HistorySearchOpenEvent); ok {
 		return app.handleHistorySearchOpen()
 	}
@@ -823,6 +842,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	return app.handleChatViewKeyPress(keyMsg)
 }
 
+//nolint:gocyclo,cyclop // one ordered key routing, each branch hands the key to its one owner
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -871,6 +891,10 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 	if !app.attachmentsFocused && len(app.pendingSnippets) > 0 && app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = true
 		return nil
+	}
+
+	if app.room != noRoom && key.Matches(keyMsg, app.newSession) {
+		return []tea.Cmd{app.refuseRoomClear()}
 	}
 
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)
@@ -961,10 +985,26 @@ func (app *ChatApplication) blurStatusBar() {
 	app.inputStatusBar.Blur()
 }
 
-// activateSelectedIndicator opens the view behind the selected indicator,
-// mirroring the matching shortcut's side effect.
+// activateSelectedIndicator opens the view behind the selected indicator.
 func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
-	action := app.inputStatusBar.SelectedAction()
+	return app.activateIndicator(app.inputStatusBar.SelectedAction())
+}
+
+// clickIndicator activates the status-bar indicator a left click lands on.
+func (app *ChatApplication) clickIndicator(click tea.MouseClickMsg) []tea.Cmd {
+	if click.Button != tea.MouseLeft {
+		return nil
+	}
+	action, ok := app.inputStatusBar.ActionAt(click.X, click.Y-app.applicationViewRenderer.StatusBarTop())
+	if !ok {
+		return nil
+	}
+	return app.activateIndicator(action)
+}
+
+// activateIndicator opens the view behind an indicator's action, mirroring the
+// matching shortcut's side effect, whether a key or a click activated it.
+func (app *ChatApplication) activateIndicator(action tui.StatusIndicatorAction) []tea.Cmd {
 	app.blurStatusBar()
 
 	switch action {
@@ -1001,6 +1041,8 @@ func (app *ChatApplication) activateSelectedIndicator() []tea.Cmd {
 		return []tea.Cmd{app.openArtifacts()}
 	case tui.StatusIndicatorActionAgentSelection:
 		return []tea.Cmd{app.openAgentPicker()}
+	case tui.StatusIndicatorActionRoomSelection:
+		return []tea.Cmd{app.openRoomPicker()}
 	case tui.StatusIndicatorActionA2AAgents:
 		_ = app.stateManager.TransitionToView(tui.ViewStateAgents)
 		return []tea.Cmd{func() tea.Msg {
@@ -1700,7 +1742,7 @@ func (app *ChatApplication) layoutChatInterface() {
 
 	app.applicationViewRenderer.Layout(
 		app.chatInterfaceData(),
-		app.conversationView,
+		app.conversationArea(),
 		app.inputView,
 		app.autocomplete,
 		app.inputStatusBar,
@@ -1722,7 +1764,7 @@ func (app *ChatApplication) renderChatInterface() string {
 
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		app.chatInterfaceData(),
-		app.conversationView,
+		app.conversationArea(),
 		app.inputView,
 		app.autocomplete,
 		app.inputStatusBar,
@@ -1851,7 +1893,9 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 
 // updateMainUIComponents updates the main UI components (conversation, status, input, help bar)
 func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, activeView tui.ViewState, cmds *[]tea.Cmd) {
-	if model, cmd := app.conversationView.(tea.Model).Update(app.keepViewedTranscript(msg)); cmd != nil {
+	if app.scrollsRoom(msg) {
+		app.roomView.Update(msg)
+	} else if model, cmd := app.conversationView.(tea.Model).Update(app.keepViewedTranscript(msg)); cmd != nil {
 		*cmds = append(*cmds, cmd)
 		if convModel, ok := model.(tui.ConversationRenderer); ok {
 			app.conversationView = convModel
@@ -2095,6 +2139,12 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	input := strings.TrimSpace(app.inputView.GetInput())
+	if app.clearsInRoom(input) {
+		return app.refuseRoomClear()
+	}
+	if app.room != noRoom && !strings.HasPrefix(input, "/") {
+		return app.postToRoom(input)
+	}
 	images := app.inputView.GetImageAttachments()
 	editing := app.stateManager.IsEditingMessage()
 

@@ -157,9 +157,12 @@ distinguishable `judge unavailable: ...` reason - the same fail-closed default a
 no-approver block path. `on_error: allow` approves instead. Choose it only if the
 judge is a convenience and availability matters more than the gate.
 
-**Model resolution.** `judge.model` falls back to `agent.model` (same precedent as
-conversation title generation). Selecting the judge with neither set is a
-configuration error caught at startup.
+**Model resolution.** `judge.model` falls back to the model the session runs on, such
+as a subagent's own `model:` or the one picked in the chat, then to `agent.model`. A
+fresh `infer init` sets neither, so the session's model judges and the judge's tokens
+count under it. A session with no model at all leaves every gated call to fail closed
+with `judge unavailable: no judge model configured`. `tools.safety.approval_behaviour:
+judge` still needs `judge.model` or `agent.model` when the config loads.
 
 ## Decision-model judge (backend: decisions)
 

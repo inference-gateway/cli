@@ -1,11 +1,19 @@
 package domain
 
+import "slices"
+
 // UserAuthor writes the posts a client posts to a room, and RoomAuthor the
 // notes the room logs about its members, such as one waiting on an approval.
 const (
 	UserAuthor = "user"
 	RoomAuthor = "room"
 )
+
+// FirstVisit reports whether the user has never been in the room whose log is
+// history: it holds no post of theirs, not even a join.
+func FirstVisit(history []Post) bool {
+	return !slices.ContainsFunc(history, func(post Post) bool { return post.Author == UserAuthor })
+}
 
 // InvokedByRoom is what a member's session records as having invoked it.
 const InvokedByRoom = "room"

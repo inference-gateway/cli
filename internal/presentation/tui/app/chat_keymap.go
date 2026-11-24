@@ -67,3 +67,9 @@ func focusAttachmentsBinding(kb config.KeybindingsConfig) key.Binding {
 	focusKeys := config.ResolveNamespaceBindings(kb, config.NamespaceChat)[actChatFocusAttachments]
 	return key.NewBinding(key.WithKeys(focusKeys...))
 }
+
+// newSessionBinding is the configured key that clears the chat for a new
+// session, so a room can hold it back.
+func newSessionBinding(kb config.KeybindingsConfig) key.Binding {
+	return key.NewBinding(key.WithKeys(config.ResolveNamespaceBindings(kb, config.NamespaceGlobal)[actGlobalNewSession]...))
+}

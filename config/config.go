@@ -967,6 +967,7 @@ type StatusBarIndicators struct {
 	Subagents     bool `yaml:"subagents" mapstructure:"subagents"`
 	Workspace     bool `yaml:"workspace" mapstructure:"workspace"`
 	Artifacts     bool `yaml:"artifacts" mapstructure:"artifacts"`
+	Room          bool `yaml:"room" mapstructure:"room"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -1234,6 +1235,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			Subagents:     true,
 			Workspace:     true,
 			Artifacts:     true,
+			Room:          true,
 		},
 	}
 }
@@ -1506,8 +1508,8 @@ func (c *Config) ApprovalBehaviourFor(toolName string) string {
 
 // JudgeRequired reports whether tools.safety.approval_behaviour selects the
 // LLM judge. The auto-with-judge agent mode is a runtime choice (headless
-// --mode / INFER_AGENT_MODE / Shift+Tab). The headless runner fail-fasts on
-// the model itself.
+// --mode / INFER_AGENT_MODE / Shift+Tab), whose judge falls back to the model
+// the session runs on.
 func (c *Config) JudgeRequired() bool {
 	return c.Tools.Safety.ApprovalBehaviour == ApprovalBehaviourJudge
 }

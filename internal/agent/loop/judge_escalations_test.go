@@ -300,6 +300,38 @@ func TestRequestJudgeApprovalRecordsRejectionAndHints(t *testing.T) {
 	}
 }
 
+// TestJudgeFallsBackToTheSessionsModel pins the judge with neither judge.model
+// nor agent.model set, as after a fresh infer init: the model the session runs
+// on judges, and the judge's tokens are recorded under it.
+func TestJudgeFallsBackToTheSessionsModel(t *testing.T) {
+	const sessionModel = "ollama_cloud/glm-5.3"
+	repo := &conversationmocks.FakeConversationRepository{}
+	judge := rejectingJudge("curl was not requested")
+	rejects := judge.JudgeStub
+	judge.JudgeStub = func(ctx context.Context, in agentdomain.JudgeInput) (agentdomain.JudgeVerdicts, error) {
+		out, err := rejects(ctx, in)
+		out.Usage = &sdk.CompletionUsage{PromptTokens: 120, CompletionTokens: 30, TotalTokens: 150}
+		return out, err
+	}
+	svc := &Agent{config: config.DefaultConfig(), conversationRepo: repo, judge: judge, escalations: newJudgeEscalations()}
+	svc.SetCurrentModelFn(func() string { return sessionModel })
+	pub := &eventPublisher{requestID: "req-1", chatEvents: make(chan agentdomain.ChatEvent, 8)}
+
+	_, reason, err := svc.requestJudgeApproval(context.Background(), escalationToolCall("tc-1"), pub)
+	if err != nil {
+		t.Fatalf("requestJudgeApproval: %v", err)
+	}
+	if _, in := judge.JudgeArgsForCall(0); in.Model != sessionModel {
+		t.Fatalf("judge model = %q, want the session's model %q", in.Model, sessionModel)
+	}
+	if !strings.HasPrefix(reason, sessionModel+": ") {
+		t.Fatalf("reason %q must name the session's model as the judge", reason)
+	}
+	if model, _, _, _, _, _ := repo.AddTokenUsageArgsForCall(0); model != sessionModel {
+		t.Fatalf("judge usage recorded under %q, want %q", model, sessionModel)
+	}
+}
+
 func TestRequestJudgeApprovalHonoursUserApprovalBypass(t *testing.T) {
 	svc := &Agent{escalations: newJudgeEscalations()}
 	svc.escalations.record("Bash", `{"command":"git push"}`, "needs context")

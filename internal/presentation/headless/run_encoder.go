@@ -90,8 +90,8 @@ var answerSchema = map[string]any{
 // RunEncoder renders one agent run on the AG-UI protocol, mapping each
 // ChatEvent to the run's events. An approval or question suspends the run and
 // continues on the run the answer opens. history is emitted as a snapshot,
-// plan is the plan accepted during the run, and todoClock splits wall time
-// between todos.
+// plan is the plan accepted during the run, todoClock splits wall time between
+// todos, and started is the session's spend when the run began.
 type RunEncoder struct {
 	writer   io.Writer
 	run      *agui.Run
@@ -116,8 +116,15 @@ type RunEncoder struct {
 	suggestNextStep func() string
 
 	todoClock *todoClock
+	started   spend
 
 	quiet bool
+}
+
+// spend is what a session spent: its tokens in and out, and their cost.
+type spend struct {
+	tokens int
+	cost   float64
 }
 
 // RunEncoderDeps are the collaborators of one run's encoder. SuggestNextStep,
@@ -170,6 +177,7 @@ func NewRunEncoder(w io.Writer, deps RunEncoderDeps) *RunEncoder {
 func (r *RunEncoder) Start(threadID, runID string) {
 	r.threadID = threadID
 	r.todoClock = newTodoClock(time.Now())
+	r.started = sessionSpend(r.repo)
 	r.run.Start(threadID, runID)
 	if messages := snapshotMessages(r.history); len(messages) > 0 {
 		r.run.Snapshot(messages)
@@ -458,6 +466,10 @@ func (r *RunEncoder) Finish() error {
 	if times := r.todoClock.summary(time.Now()); extras != nil && times != nil {
 		extras["todoTimes"] = times
 	}
+	if extras != nil {
+		run := runSpend(r.started, sessionSpend(r.repo))
+		extras["runTokens"], extras["runCost"] = run.tokens, run.cost
+	}
 	if err := r.run.Finish(extras, sessionUsage(r.model, r.repo)); err != nil {
 		return fmt.Errorf("agent error: %w", err)
 	}
@@ -511,6 +523,24 @@ func sessionExtras(model string, repo convdomain.ConversationRepository) map[str
 		result["contextWindow"] = window
 	}
 	return result
+}
+
+// sessionSpend is what the session spent so far, nothing without a repo.
+func sessionSpend(repo convdomain.ConversationRepository) spend {
+	if repo == nil {
+		return spend{}
+	}
+	tokens := repo.GetSessionTokens()
+	return spend{tokens: tokens.TotalInputTokens + tokens.TotalOutputTokens, cost: repo.GetSessionCostStats().TotalCost}
+}
+
+// runSpend is what a run spent: the session's spend since it started, or all
+// of it when the session rolled over to a fresh one during the run.
+func runSpend(started, now spend) spend {
+	if now.tokens < started.tokens {
+		return now
+	}
+	return spend{tokens: now.tokens - started.tokens, cost: now.cost - started.cost}
 }
 
 func sessionTokens(repo convdomain.ConversationRepository) (convdomain.SessionTokenStats, bool) {

@@ -134,6 +134,8 @@ context window is unknown:
 | --- | --- |
 | `totalToolCalls` | Tool calls issued across the session |
 | `cost` | Total session cost, in the configured currency |
+| `runTokens` | Tokens in and out this run spent, a run that suspended on an approval included. All of a session that rolled over during the run |
+| `runCost` | What this run cost, in the configured currency |
 | `contextWindow` | Model context window in tokens (omitted when unknown) |
 | `todoTimes` | The run's wall time split between its todos: `runMs`, `outsideMs` and the `ms` of each (omitted without a todo list) |
 

@@ -6,16 +6,19 @@ import (
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
 // TestDefaultRoomsConfig pins the in-code default: one public room holding
-// every agent via the wildcard, @mentions-only routing, and 20 context posts.
+// every agent via the wildcard, routing on the clef decision model, and 20
+// context posts.
 func TestDefaultRoomsConfig(t *testing.T) {
 	cfg := DefaultRoomsConfig()
 
 	require.Equal(t, DefaultRoomsMinConfidence, cfg.Router.MinConfidence)
 	require.Equal(t, RoomsFallbackTop, cfg.Router.Fallback)
-	require.Equal(t, "", cfg.Router.Model, "an empty router model routes @mentions only")
+	require.Equal(t, "ollama_cloud/clef:27b", cfg.Router.Model, "a fresh room routes unpinged posts on clef")
 	require.Equal(t, DefaultRoomsContextPosts, cfg.ContextPosts)
 
 	require.Len(t, cfg.Rooms, 1)
@@ -85,6 +88,11 @@ func TestRoomsConfigValidate(t *testing.T) {
 		{"a negative max_members fails", RoomsConfig{Router: RoomsRouterConfig{MaxMembers: -1}}, "rooms.router.max_members"},
 		{"a name that escapes the rooms dir fails", RoomsConfig{Rooms: []RoomConfig{{Name: "../evil"}}}, "name"},
 		{"a duplicate name fails", RoomsConfig{Rooms: []RoomConfig{{Name: "public"}, {Name: "public"}}}, "defined twice"},
+		{"a human mode for members is valid", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "standard"}}}, ""},
+		{"an unknown member mode fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "yolo"}}}, "mode"},
+		{"the subagent-only readonly mode fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "readonly"}}}, "mode"},
+		{"a top-match pickup is valid", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Pickup: roomsdomain.PickupTop}}}, ""},
+		{"an unknown pickup fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Pickup: "everyone"}}}, "pickup"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,8 +128,12 @@ func TestNeedsGatewayDecisions(t *testing.T) {
 		mutate func(*Config)
 		want   bool
 	}{
-		{"defaults need no decisions", func(*Config) {}, false},
-		{"the judge's decisions backend needs them", func(c *Config) { c.Judge.Backend = JudgeBackendDecisions }, true},
+		{"the default rooms router needs them", func(*Config) {}, true},
+		{"an empty router model and the llm judge need none", func(c *Config) { c.Rooms.Router.Model = "" }, false},
+		{"the judge's decisions backend needs them", func(c *Config) {
+			c.Rooms.Router.Model = ""
+			c.Judge.Backend = JudgeBackendDecisions
+		}, true},
 		{"a rooms router model needs them", func(c *Config) { c.Rooms.Router.Model = "anthropic/claude-haiku-5-5" }, true},
 	}
 	for _, tt := range tests {

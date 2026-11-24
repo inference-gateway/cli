@@ -169,6 +169,7 @@ chat:
       subagents: true
       workspace: true
       artifacts: true
+      room: true
 compact:
   enabled: true # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (1-80)
@@ -915,6 +916,8 @@ status_bar:
       daemon is unreachable. Selecting it opens `/workspaces`. An in-process chat shows none
     - **artifacts**: The `⬇ artifacts` entry to the session's artifacts (default: `true`). Selecting it
       opens `/artifacts`
+    - **room**: The room the chat is in, `Room: -` outside one and `Room: #public` inside (default: `true`).
+      Selecting it opens the room dropdown. See [Rooms in the chat](shortcuts-guide.md#rooms-in-the-chat)
 
 - **chat.daemon**: Run the chat TUI as a client of the local infer daemon, the way `infer chat --daemon` does
   (default: `false`, env `INFER_CHAT_DAEMON`). See [the daemon chat](daemon.md#the-chat-tui-infer-chat---daemon)

@@ -24,7 +24,7 @@ const (
 // daemon already on its way. A daemon still shutting down holds that lock, so
 // the start is retried until it is gone.
 func EnsureRunning(ctx context.Context, port int) error {
-	if reachable(port) {
+	if Reachable(port) {
 		return nil
 	}
 	deadline := time.Now().Add(bootWait)
@@ -36,7 +36,7 @@ func EnsureRunning(ctx context.Context, port int) error {
 			}
 			nextStart = time.Now().Add(restartEvery)
 		}
-		if reachable(port) {
+		if Reachable(port) {
 			return nil
 		}
 		if !time.Now().Before(deadline) {
@@ -74,8 +74,9 @@ var start = func() error {
 	return cmd.Process.Release()
 }
 
-// reachable reports whether something accepts TCP on port.
-func reachable(port int) bool {
+// Reachable reports whether something accepts TCP on port, such as a daemon
+// serving its binding there.
+func Reachable(port int) bool {
 	conn, err := (&net.Dialer{Timeout: 500 * time.Millisecond}).
 		Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -15,6 +16,7 @@ import (
 
 	root "github.com/inference-gateway/cli/cmd/root"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
@@ -53,6 +55,9 @@ func runInfer(t *testing.T, args ...string) string {
 
 func TestShowRoomPrintsItsMembersAndLog(t *testing.T) {
 	project := isolate(t)
+	agents := filepath.Join(project, ".infer", "agents")
+	require.NoError(t, os.MkdirAll(agents, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(agents, "tester.md"), []byte("---\nname: tester\ndescription: Runs the tests.\n---\n\nRun the tests.\n"), 0o600))
 
 	var view struct {
 		Room struct {
@@ -66,10 +71,10 @@ func TestShowRoomPrintsItsMembersAndLog(t *testing.T) {
 	out := runInfer(t, "rooms", "show", "public", "--format", "json")
 	require.NoError(t, json.Unmarshal([]byte(out), &view), out)
 	require.NotNil(t, view.Posts, "an unwritten log prints as [] for the desktop, not null")
-	require.Contains(t, view.Room.Members, struct {
+	require.Equal(t, []struct {
 		Agent     string `json:"agent"`
 		SessionID string `json:"session_id"`
-	}{Agent: "main", SessionID: "room-public-main"}, "the public room seats every agent, built-ins included")
+	}{{Agent: "tester", SessionID: "room-public-tester"}}, view.Room.Members, "the public room seats every agent of yours, the built-ins left out")
 
 	longPost := strings.Repeat("a", 71) + "über the limit of one table row"
 	room := roomsdomain.Room{Name: "public", Project: project}
@@ -94,6 +99,9 @@ func serveDaemonRooms(t *testing.T, project string) {
 	handler.HandleCalls(func(conn *agui.Conn, frame []byte) {
 		if strings.Contains(string(frame), `"list_rooms"`) {
 			conn.Deliver(rooms)
+		}
+		if strings.Contains(string(frame), `"clear_room"`) {
+			conn.Deliver([]byte(`{"type":"room_cleared","room":"public"}`))
 		}
 	})
 	binding := agui.NewBinding(agui.BindingConfig{Port: 0, Token: testBindingToken, Handshake: browserinfra.BindingHandshake}, handler)
@@ -127,4 +135,69 @@ func TestShowRoomReadsTheLogTheDaemonWrites(t *testing.T) {
 	require.Equal(t, daemonProject, view.Room.Project)
 	require.Len(t, view.Posts, 1)
 	require.Equal(t, "posted through the daemon", view.Posts[0].Text)
+}
+
+// TestClearRoomEmptiesTheLogHereWithoutADaemon pins the fallback: with no
+// daemon answering, clear empties the log of the room as resolved here.
+func TestClearRoomEmptiesTheLogHereWithoutADaemon(t *testing.T) {
+	isolate(t)
+	room := roomsdomain.Room{Name: "public", Project: projects.Path()}
+	require.NoError(t, roomsinfra.NewJSONLLog().Append(room, roomsdomain.Post{Author: "user", Text: "hi all"}))
+
+	out := runInfer(t, "rooms", "clear", "public")
+	require.Contains(t, out, "Cleared #public.")
+	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	require.NoError(t, err)
+	require.Empty(t, posts)
+}
+
+// TestClearRoomKeepsTheLogOfADaemonThatDoesNotAnswer pins that only a missing
+// daemon clears here: one that listens but refuses the command owns its log,
+// so the command fails and the log stays.
+func TestClearRoomKeepsTheLogOfADaemonThatDoesNotAnswer(t *testing.T) {
+	isolate(t)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+	t.Setenv("INFER_DAEMON_BINDING_ENABLED", "true")
+	t.Setenv("INFER_DAEMON_BINDING_PORT", port)
+	t.Setenv("INFER_DAEMON_BINDING_TOKEN", testBindingToken)
+	room := roomsdomain.Room{Name: "public", Project: projects.Path()}
+	require.NoError(t, roomsinfra.NewJSONLLog().Append(room, roomsdomain.Post{Author: "user", Text: "kept"}))
+
+	var out bytes.Buffer
+	command := root.NewCommand()
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"rooms", "clear", "public"})
+	require.ErrorContains(t, command.ExecuteContext(t.Context()), "did not answer", out.String())
+	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	require.NoError(t, err)
+	require.Len(t, posts, 1, "the log of a daemon that listens stays")
+}
+
+// TestClearRoomGoesThroughTheRunningDaemon pins that a running daemon clears
+// the room, so the command leaves the log it would resolve here alone.
+func TestClearRoomGoesThroughTheRunningDaemon(t *testing.T) {
+	isolate(t)
+	serveDaemonRooms(t, t.TempDir())
+	room := roomsdomain.Room{Name: "public", Project: projects.Path()}
+	require.NoError(t, roomsinfra.NewJSONLLog().Append(room, roomsdomain.Post{Author: "user", Text: "kept here"}))
+
+	out := runInfer(t, "rooms", "clear", "public")
+	require.Contains(t, out, "Cleared #public.")
+	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	require.NoError(t, err)
+	require.Len(t, posts, 1, "the daemon cleared its own log, not this one")
 }

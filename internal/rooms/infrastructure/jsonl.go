@@ -55,6 +55,19 @@ func (l *JSONLLog) Append(room roomsdomain.Room, post roomsdomain.Post) error {
 	return nil
 }
 
+// Clear removes the room's log, so the room reads as never written. A log
+// that does not exist is already clear.
+func (l *JSONLLog) Clear(room roomsdomain.Room) error {
+	path, err := l.path(room)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("clearing room log %s: %w", path, err)
+	}
+	return nil
+}
+
 // Read returns the room's posts in the order they were appended, an empty list
 // for a room whose log was never written. A line that does not decode, such as
 // one a crash tore mid-write, is skipped so it costs only itself.

@@ -104,6 +104,7 @@ type ServiceContainer struct {
 	daemonOpts             *daemonthread.Options
 	loopbackChat           bool
 	daemonThread           *daemonthread.Thread
+	roomsThread            *daemonthread.Thread
 	toolService            agentdomain.ToolService
 	approvalPolicy         agentdomain.ApprovalPolicy
 	fileService            agentdomain.FileService
@@ -1270,6 +1271,19 @@ func (c *ServiceContainer) GetWorkerJobs() tui.WorkerJobs {
 	return daemonthread.NewTasks(c.daemonThread)
 }
 
+// GetRooms reaches the daemon's rooms: over a daemon chat's thread, or over a
+// sessionless connection an in-process chat dials once it first needs one.
+func (c *ServiceContainer) GetRooms() tui.Rooms {
+	if c.daemonThread != nil {
+		return daemonthread.NewRooms(c.daemonThread)
+	}
+	if c.roomsThread == nil {
+		c.roomsThread = daemonthread.NewSessionless(c.config)
+		c.roomsThread.SetNotifier(c.uiNotifier)
+	}
+	return daemonthread.NewRooms(c.roomsThread)
+}
+
 // GetArtifactBrowser browses the session's artifacts: a daemon chat's from
 // the workspace its session runs on, an in-process chat's from this machine.
 func (c *ServiceContainer) GetArtifactBrowser() tui.ArtifactBrowser {
@@ -1361,6 +1375,9 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	}
 	if c.daemonThread != nil {
 		c.daemonThread.Close()
+	}
+	if c.roomsThread != nil {
+		c.roomsThread.Close()
 	}
 
 	c.telemetryRecorder.Shutdown(ctx)

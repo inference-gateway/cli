@@ -80,6 +80,8 @@ func (app *ChatApplication) handleFocusedRowKeys(keyMsg tea.KeyPressMsg) ([]tea.
 		return nil, false
 	case app.agentPicker != nil && app.agentPicker.IsOpen():
 		return app.handleAgentPickerKeys(keyMsg), true
+	case app.roomPicker != nil && app.roomPicker.IsOpen():
+		return app.handleRoomPickerKeys(keyMsg), true
 	case app.statusBarFocused:
 		return app.handleStatusBarKeys(keyMsg)
 	case app.jobListFocused:

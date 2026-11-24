@@ -1,10 +1,12 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
 	configutils "github.com/inference-gateway/cli/config/utils"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
@@ -25,6 +27,10 @@ const (
 	DefaultRoomsMaxMembers    = 2
 )
 
+// DefaultRoomsRouterModel is the decision model that decides who a post that
+// pings nobody is for, so a fresh room routes "Hi all" without any setup.
+const DefaultRoomsRouterModel = "ollama_cloud/clef:27b"
+
 // RoomsConfig is the content of rooms.yaml: the router that decides who a post
 // goes to, how many past posts ride along as context, and the rooms themselves.
 type RoomsConfig struct {
@@ -35,9 +41,9 @@ type RoomsConfig struct {
 
 // RoomsRouterConfig decides who a post is addressed to. An empty model routes
 // @mentions only, and a set model is the "provider/model" decision model asked
-// with the room's members. MaxMembers caps how many of them answer a post that
-// mentions nobody, the most relevant first, so a busy room stays quiet. 0 means
-// DefaultRoomsMaxMembers.
+// with the room's members. MaxMembers caps how many of them a post that
+// mentions nobody is offered to, one after another and the most relevant
+// first, so one member takes it. 0 means DefaultRoomsMaxMembers.
 type RoomsRouterConfig struct {
 	Model         string  `yaml:"model" mapstructure:"model"`
 	MinConfidence float64 `yaml:"min_confidence" mapstructure:"min_confidence"`
@@ -45,29 +51,56 @@ type RoomsRouterConfig struct {
 	Fallback      string  `yaml:"fallback" mapstructure:"fallback"`
 }
 
-// RoomConfig is one room. "*" as an agent reserves a seat for every agent
-// that exists when the room is read, built-ins included. An empty project runs
-// the members in the daemon's default project dir.
+// EffectiveMaxMembers is how many members a post that mentions nobody is
+// offered to, and how many welcome the user, DefaultRoomsMaxMembers while unset.
+func (r RoomsRouterConfig) EffectiveMaxMembers() int {
+	return cmp.Or(r.MaxMembers, DefaultRoomsMaxMembers)
+}
+
+// RoomConfig is one room. "*" as an agent reserves a seat for every agent of
+// the user's own that exists when the room is read, the built-ins left out. An
+// empty project runs the members in the daemon's default project dir. Mode is
+// the agent mode the members run in, DefaultRoomsMemberMode when empty, and
+// Pickup how a post that pings nobody finds its member, DefaultRoomsPickup.
 type RoomConfig struct {
-	Name    string   `yaml:"name" mapstructure:"name"`
-	Project string   `yaml:"project" mapstructure:"project"`
-	Agents  []string `yaml:"agents" mapstructure:"agents"`
+	Name    string             `yaml:"name" mapstructure:"name"`
+	Project string             `yaml:"project" mapstructure:"project"`
+	Mode    string             `yaml:"mode" mapstructure:"mode"`
+	Pickup  roomsdomain.Pickup `yaml:"pickup" mapstructure:"pickup"`
+	Agents  []string           `yaml:"agents" mapstructure:"agents"`
+}
+
+// DefaultRoomsPickup offers a post that pings nobody to the best match first,
+// who takes it or passes it on, so one member works on a request.
+const DefaultRoomsPickup = roomsdomain.PickupOffer
+
+// DefaultRoomsMemberMode lets a judge decide a member's gated tool calls, since
+// nobody watches a member's own chat to approve them.
+const DefaultRoomsMemberMode = "auto-with-judge"
+
+// roomMemberModes are the agent modes a room's members can run in.
+var roomMemberModes = []agentdomain.AgentMode{
+	agentdomain.AgentModeStandard,
+	agentdomain.AgentModePlan,
+	agentdomain.AgentModeAutoAccept,
+	agentdomain.AgentModeAutoWithJudge,
 }
 
 // DefaultRoomsConfig returns the in-code default rooms configuration used when
 // no rooms.yaml exists and the file `infer init` seeds: the public room with
-// every agent, @mentions-only routing and 20 context posts.
+// every agent of the user's own, routing on DefaultRoomsRouterModel and 20
+// context posts.
 func DefaultRoomsConfig() *RoomsConfig {
 	return &RoomsConfig{
 		Router: RoomsRouterConfig{
-			Model:         "",
+			Model:         DefaultRoomsRouterModel,
 			MinConfidence: DefaultRoomsMinConfidence,
 			MaxMembers:    DefaultRoomsMaxMembers,
 			Fallback:      RoomsFallbackTop,
 		},
 		ContextPosts: DefaultRoomsContextPosts,
 		Rooms: []RoomConfig{
-			{Name: DefaultRoomName, Agents: []string{roomsdomain.AgentsWildcard}},
+			{Name: DefaultRoomName, Mode: DefaultRoomsMemberMode, Pickup: DefaultRoomsPickup, Agents: []string{roomsdomain.AgentsWildcard}},
 		},
 	}
 }
@@ -118,6 +151,12 @@ func (c RoomsConfig) Validate() error {
 		}
 		if seen[room.Name] {
 			return fmt.Errorf("rooms.rooms: room %q is defined twice", room.Name)
+		}
+		if mode, ok := agentdomain.ParseAgentMode(room.Mode); room.Mode != "" && (!ok || !slices.Contains(roomMemberModes, mode)) {
+			return fmt.Errorf("rooms.rooms mode %q of room %q: must be standard, plan, auto or auto-with-judge", room.Mode, room.Name)
+		}
+		if room.Pickup != "" && !slices.Contains([]roomsdomain.Pickup{roomsdomain.PickupOffer, roomsdomain.PickupTop}, room.Pickup) {
+			return fmt.Errorf("rooms.rooms pickup %q of room %q: must be offer or top", room.Pickup, room.Name)
 		}
 		seen[room.Name] = true
 	}

@@ -16,6 +16,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -44,16 +45,20 @@ type Options struct {
 	ProjectDir string
 }
 
-// Thread is the chat TUI's connection to the local daemon's binding and to
-// the one thread it follows there. Frames never block the socket: run frames
-// queue for the request that reads them, replies go to their waiters, and UI
-// notifications leave through a queue of their own.
+// Thread is the chat TUI's connection to the local daemon's binding, to the
+// thread it follows there and to the room it follows, if any. Frames never
+// block the socket: replies go to their waiters, run frames and notifications
+// to queues of their own. A sessionless thread serves a plain chat's rooms: it
+// dials a running daemon on first use and reports no placement.
 type Thread struct {
-	cfg    *config.Config
-	opts   Options
-	leases agentdomain.LeaseStore
+	cfg         *config.Config
+	opts        Options
+	leases      agentdomain.LeaseStore
+	sessionless bool
+	dialMu      sync.Mutex
 
 	mu         sync.Mutex
+	room       string
 	conn       *agui.Conn
 	notifier   agentdomain.UINotifier
 	following  string
@@ -115,6 +120,14 @@ func New(cfg *config.Config, opts Options, leases agentdomain.LeaseStore) *Threa
 	return t
 }
 
+// NewSessionless builds the connection a plain chat reaches the daemon's rooms
+// through. It never starts the daemon, since the chat itself runs here.
+func NewSessionless(cfg *config.Config) *Thread {
+	t := New(cfg, Options{}, nil)
+	t.sessionless = true
+	return t
+}
+
 // SetNotifier hands the thread the UI it reports to once the TUI runs.
 func (t *Thread) SetNotifier(notifier agentdomain.UINotifier) {
 	t.mu.Lock()
@@ -123,14 +136,17 @@ func (t *Thread) SetNotifier(notifier agentdomain.UINotifier) {
 }
 
 // Connect dials the local daemon, starting it when nothing listens on the
-// binding, and fails fast when the binding cannot authenticate the TUI.
+// binding unless the thread is sessionless, and fails fast when the binding
+// cannot authenticate the TUI.
 func (t *Thread) Connect(ctx context.Context) error {
 	dial, err := daemon.LocalDialConfig(ctx, t.cfg, clientKind)
 	if err != nil {
 		return err
 	}
-	if err := daemon.EnsureRunning(ctx, t.cfg.Binding().Port); err != nil {
-		return err
+	if !t.sessionless {
+		if err := daemon.EnsureRunning(ctx, t.cfg.Binding().Port); err != nil {
+			return err
+		}
 	}
 	conn, err := agui.Dial(ctx, dial, t)
 	if err != nil {
@@ -233,7 +249,7 @@ func (t *Thread) locate(ctx context.Context, id string) {
 	t.placement.Protocol = t.protocolOf(workspace)
 	placement := t.placement
 	t.mu.Unlock()
-	t.post(tui.SessionPlacementChangedEvent{Placement: placement})
+	t.postPlacement(placement)
 }
 
 // Follows reports whether the connection follows the conversation id, which
@@ -466,6 +482,12 @@ func (t *Thread) Handle(_ *agui.Conn, data []byte) {
 		t.onProgress(frame)
 	case "session_teleported":
 		t.onTeleported(frame)
+	case roomsdomain.FrameRoomPost:
+		t.onRoomPost(frame)
+	case roomsdomain.FrameRoomActivity:
+		t.onRoomActivity(frame)
+	case roomsdomain.FrameRoomCleared:
+		t.onRoomCleared(frame)
 	default:
 		if !t.answer(h, frame) && isRunFrame(h.Type) {
 			t.push(h, frame)
@@ -487,6 +509,7 @@ func (t *Thread) Detach(conn *agui.Conn) {
 	t.waiters = nil
 	closed := t.closed
 	placement := t.placement
+	inRoom := t.room != ""
 	t.mu.Unlock()
 	for _, w := range waiters {
 		w.reply <- reply{err: ErrOffline}
@@ -495,7 +518,10 @@ func (t *Thread) Detach(conn *agui.Conn) {
 		return
 	}
 	t.pushMarker(markerOffline)
-	t.post(tui.SessionPlacementChangedEvent{Placement: placement})
+	t.postPlacement(placement)
+	if t.sessionless && inRoom {
+		t.post(tui.SetStatusEvent{Message: "Lost infer daemon, the room comes back once it runs again", StatusType: tui.StatusWorking})
+	}
 	go t.reconnect()
 }
 
@@ -515,34 +541,65 @@ func (t *Thread) reconnect() {
 			continue
 		}
 		t.pushMarker(markerReconnected)
-		t.post(tui.SessionPlacementChangedEvent{Placement: t.Placement()})
+		t.postPlacement(t.Placement())
 		return
 	}
 }
 
-// rejoin dials the daemon and follows the thread again. A connection that
-// cannot follow is let go without starting another reconnect.
+// rejoin dials the daemon and follows the thread and its room again. A
+// connection that cannot follow the thread is let go without starting another
+// reconnect.
 func (t *Thread) rejoin() error {
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
-	if err := t.Connect(ctx); err != nil {
+	if err := t.dialOnce(ctx); err != nil {
 		return err
 	}
-	id := t.Live()
-	if id == "" {
+	if id := t.Live(); id != "" {
+		if err := t.Follow(ctx, id, sessionsdomain.ThreadOptions{}); err != nil {
+			t.mu.Lock()
+			conn := t.conn
+			t.conn = nil
+			t.mu.Unlock()
+			if conn != nil {
+				conn.Close()
+			}
+			return err
+		}
+	}
+	t.refollowRoom(ctx)
+	return nil
+}
+
+// dialOnce connects unless a connection is up, one dial at a time, so a lazy
+// dial and a reconnect never both open one.
+func (t *Thread) dialOnce(ctx context.Context) error {
+	t.dialMu.Lock()
+	defer t.dialMu.Unlock()
+	t.mu.Lock()
+	connected := t.conn != nil
+	t.mu.Unlock()
+	if connected {
 		return nil
 	}
-	if err := t.Follow(ctx, id, sessionsdomain.ThreadOptions{}); err != nil {
-		t.mu.Lock()
-		conn := t.conn
-		t.conn = nil
-		t.mu.Unlock()
-		if conn != nil {
-			conn.Close()
-		}
-		return err
+	return t.Connect(ctx)
+}
+
+// dialLazily connects a sessionless thread on first use. A daemon chat's
+// thread connects at startup and reconnects on its own.
+func (t *Thread) dialLazily(ctx context.Context) error {
+	if !t.sessionless {
+		return nil
 	}
-	return nil
+	return t.dialOnce(ctx)
+}
+
+// postPlacement tells the UI where the session runs, which a sessionless
+// thread, serving a chat that runs here, never does.
+func (t *Thread) postPlacement(placement tui.SessionPlacement) {
+	if !t.sessionless {
+		t.post(tui.SessionPlacementChangedEvent{Placement: placement})
+	}
 }
 
 // answer hands a reply to the oldest request waiting for it. A RUN_ERROR

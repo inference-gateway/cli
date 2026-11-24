@@ -40,3 +40,21 @@ func TestUnseen(t *testing.T) {
 		})
 	}
 }
+
+func TestFirstVisit(t *testing.T) {
+	tests := []struct {
+		name    string
+		history []Post
+		want    bool
+	}{
+		{"an empty room", nil, true},
+		{"only members and notes", []Post{{Author: "tester"}, {Author: RoomAuthor}}, true},
+		{"the user posted", []Post{{Author: "tester"}, {Author: UserAuthor}}, false},
+		{"the user joined", []Post{{Author: UserAuthor, Kind: PostKindJoin}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, FirstVisit(tt.history))
+		})
+	}
+}

@@ -14,7 +14,7 @@ import (
 type AgentCatalog func(projectDir string) []agentdomain.SubagentInfo
 
 // Resolve expands the configured rooms into the rooms that exist: "*" becomes
-// every agent a thread in the room's project can run as, a room without a
+// every non-built-in agent the room's project can run as, a room without a
 // project runs in the default project dir (the working directory of the
 // process that reads it), and the agents resolve each time the rooms are read.
 func Resolve(cfg config.RoomsConfig, agents AgentCatalog) []roomsdomain.Room {
@@ -24,7 +24,9 @@ func Resolve(cfg config.RoomsConfig, agents AgentCatalog) []roomsdomain.Room {
 		resolved = append(resolved, roomsdomain.Room{
 			Name:    room.Name,
 			Project: project,
-			Agents:  roomsdomain.ResolveMemberAgents(room.Agents, agentNames(agents(project))),
+			Mode:    cmp.Or(room.Mode, config.DefaultRoomsMemberMode),
+			Pickup:  cmp.Or(room.Pickup, config.DefaultRoomsPickup),
+			Agents:  roomsdomain.ResolveMemberAgents(room.Agents, agents(project)),
 		})
 	}
 	return resolved

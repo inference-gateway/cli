@@ -18,21 +18,8 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// The binding frames of the rooms. A client lists, follows, posts to and
-// leaves rooms, and a follower gets every post and member activity as it
-// happens.
-const (
-	frameListRooms    = "list_rooms"
-	frameRooms        = "rooms"
-	frameFollowRoom   = "follow_room"
-	frameRoomSnapshot = "room_snapshot"
-	frameRoomPost     = "room_post"
-	frameRoomActivity = "room_activity"
-	framePostRoom     = "post_room"
-	frameRoomPosted   = "room_posted"
-	frameLeaveRoom    = "leave_room"
-	frameRunError     = "RUN_ERROR"
-)
+// frameRunError is the AG-UI error frame the rooms answer a failed request with.
+const frameRunError = "RUN_ERROR"
 
 // routeTimeout bounds the decision request that routes one post.
 const routeTimeout = time.Minute
@@ -77,35 +64,25 @@ type clientFrame struct {
 	Text string `json:"text"`
 }
 
-// roomView is one room as the frames carry it: its members, the session each
-// keeps and what each is doing.
-type roomView struct {
-	Name    string       `json:"name"`
-	Project string       `json:"project"`
-	Members []memberView `json:"members"`
-}
-
-type memberView struct {
-	Agent     string               `json:"agent"`
-	SessionID string               `json:"session_id"`
-	Activity  roomsdomain.Activity `json:"activity"`
-}
-
 type roomsFrame struct {
-	Type  string     `json:"type"`
-	Rooms []roomView `json:"rooms"`
+	Type  string                   `json:"type"`
+	Rooms []roomsdomain.RoomStatus `json:"rooms"`
 }
 
 type snapshotFrame struct {
-	Type  string             `json:"type"`
-	Room  roomView           `json:"room"`
-	Posts []roomsdomain.Post `json:"posts"`
+	Type string `json:"type"`
+	roomsdomain.Snapshot
 }
 
 type postFrame struct {
 	Type string           `json:"type"`
 	Room string           `json:"room"`
 	Post roomsdomain.Post `json:"post"`
+}
+
+type roomFrame struct {
+	Type string `json:"type"`
+	Room string `json:"room"`
 }
 
 type activityFrame struct {
@@ -122,21 +99,25 @@ type postedFrame struct {
 }
 
 // Handle claims the rooms frames of one client and reports false for any
-// other. Listing and posting run off the binding's read loop, while follow
-// and leave stay on it so a quick leave never overtakes its follow.
+// other. Listing, posting, clearing and welcomes run off the binding's read loop, while
+// follow, join and leave stay on it so a quick leave never overtakes its follow.
 func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 	var f clientFrame
 	if json.Unmarshal(frame, &f) != nil {
 		return false
 	}
 	switch f.Type {
-	case frameListRooms:
+	case roomsdomain.FrameListRooms:
 		go h.listRooms(c)
-	case frameFollowRoom:
+	case roomsdomain.FrameFollowRoom:
 		h.follow(c, f.Room)
-	case framePostRoom:
+	case roomsdomain.FramePostRoom:
 		go h.post(c, f.Room, f.Text)
-	case frameLeaveRoom:
+	case roomsdomain.FrameClearRoom:
+		go h.clear(c, f.Room)
+	case roomsdomain.FrameJoinRoom:
+		h.join(c, f.Room)
+	case roomsdomain.FrameLeaveRoom:
 		h.leave(c, f.Room)
 	default:
 		return false
@@ -164,13 +145,13 @@ func (h *Host) Close() {
 
 func (h *Host) listRooms(c sessionsdomain.Client) {
 	resolved := Resolve(h.cfg, h.agents)
-	views := make([]roomView, 0, len(resolved))
+	views := make([]roomsdomain.RoomStatus, 0, len(resolved))
 	h.mu.Lock()
 	for _, room := range resolved {
 		views = append(views, h.viewLocked(room))
 	}
 	h.mu.Unlock()
-	c.Deliver(encode(roomsFrame{Type: frameRooms, Rooms: views}))
+	c.Deliver(encode(roomsFrame{Type: roomsdomain.FrameRooms, Rooms: views}))
 }
 
 // follow answers follow_room with the room's snapshot and streams the room to
@@ -183,15 +164,90 @@ func (h *Host) follow(c sessionsdomain.Client, name string) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	posts, err := h.log.Read(room)
-	if err != nil {
-		c.Deliver(runError(fmt.Sprintf("reading room %s: %v", name, err)))
+	h.followLocked(c, room)
+}
+
+// join answers join_room as follow does and, on the user's first visit to the
+// room, logs their join for the first max_members members to welcome.
+func (h *Host) join(c sessionsdomain.Client, name string) {
+	room, ok := h.findRoom(name)
+	if !ok {
+		c.Deliver(unknownRoom(name))
 		return
 	}
-	if !slices.Contains(h.followers[name], c) {
-		h.followers[name] = append(h.followers[name], c)
+	if joined, firstVisit := h.followFirstVisit(c, room); firstVisit {
+		go h.deliverTurns(room, joined)
 	}
-	c.Deliver(encode(snapshotFrame{Type: frameRoomSnapshot, Room: h.viewLocked(room), Posts: posts}))
+}
+
+// followFirstVisit follows room for c and logs the user's join when they were
+// never in it, under the one lock, so two joins never welcome twice.
+func (h *Host) followFirstVisit(c sessionsdomain.Client, room roomsdomain.Room) (roomsdomain.Post, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	posts, ok := h.followLocked(c, room)
+	if !ok || !roomsdomain.FirstVisit(posts) {
+		return roomsdomain.Post{}, false
+	}
+	joined := h.joinPost(room)
+	if err := h.appendLocked(room, joined); err != nil {
+		logger.Warn("rooms could not log a join", "room", room.Name, "error", err)
+		return roomsdomain.Post{}, false
+	}
+	return joined, true
+}
+
+// followLocked answers c with the room's snapshot and streams the room to it
+// from then on. It returns the posts so far.
+func (h *Host) followLocked(c sessionsdomain.Client, room roomsdomain.Room) ([]roomsdomain.Post, bool) {
+	posts, err := h.log.Read(room)
+	if err != nil {
+		c.Deliver(runError(fmt.Sprintf("reading room %s: %v", room.Name, err)))
+		return nil, false
+	}
+	if !slices.Contains(h.followers[room.Name], c) {
+		h.followers[room.Name] = append(h.followers[room.Name], c)
+	}
+	c.Deliver(encode(snapshotFrame{Type: roomsdomain.FrameRoomSnapshot, Room: h.viewLocked(room), Posts: posts}))
+	return posts, true
+}
+
+// joinPost is the user's join of room, routed to the first max_members
+// members, who welcome them.
+func (h *Host) joinPost(room roomsdomain.Room) roomsdomain.Post {
+	post := newPost(roomsdomain.UserAuthor, "joined #"+room.Name)
+	post.Kind = roomsdomain.PostKindJoin
+	welcomers := room.Agents[:min(len(room.Agents), h.cfg.Router.EffectiveMaxMembers())]
+	for _, member := range welcomers {
+		post.Routes = append(post.Routes, roomsdomain.Route{Member: member, Probability: mentionProbability})
+	}
+	return post
+}
+
+// clear empties room's log for everyone: its followers and c get room_cleared,
+// and each member drops the posts it held and reads the room from its start.
+func (h *Host) clear(c sessionsdomain.Client, name string) {
+	room, ok := h.findRoom(name)
+	if !ok {
+		c.Deliver(unknownRoom(name))
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if err := h.log.Clear(room); err != nil {
+		c.Deliver(runError(fmt.Sprintf("clearing room %s: %v", name, err)))
+		return
+	}
+	for _, m := range h.members {
+		if m.room.Name == name {
+			m.startOver()
+		}
+	}
+	cleared := encode(roomFrame{Type: roomsdomain.FrameRoomCleared, Room: name})
+	h.deliverLocked(name, cleared)
+	if !slices.Contains(h.followers[name], c) {
+		c.Deliver(cleared)
+	}
 }
 
 func (h *Host) leave(c sessionsdomain.Client, name string) {
@@ -231,15 +287,37 @@ func (h *Host) post(c sessionsdomain.Client, name, text string) {
 		logger.Warn("rooms could not route a post", "room", name, "error", err)
 		routing.Notices = append(routing.Notices, fmt.Sprintf("The post reached nobody, routing failed: %v. Mention a member to reach one.", err))
 	}
-	post.Mentions, post.Routes = routing.Mentions, routing.Routes
+	post.Mentions, post.Routes, post.Usage = routing.Mentions, routing.Routes, roomsdomain.Usage{Tokens: routing.Tokens}
 	if err := h.append(room, post); err != nil {
 		c.Deliver(runError(fmt.Sprintf("logging the post in room %s: %v", name, err)))
 		return
 	}
-	c.Deliver(encode(postedFrame{Type: frameRoomPosted, Room: name, Post: post, Notices: routing.Notices}))
-	for _, route := range post.Routes {
+	c.Deliver(encode(postedFrame{Type: roomsdomain.FrameRoomPosted, Room: name, Post: post, Notices: routing.Notices}))
+	h.deliverTurns(room, post)
+}
+
+// deliverTurns hands post to every member it was routed to, and an offered
+// post to the first of them only, who takes it or passes it on.
+func (h *Host) deliverTurns(room roomsdomain.Room, post roomsdomain.Post) {
+	routes := post.Routes
+	if post.Offered() {
+		routes = routes[:min(len(routes), 1)]
+	}
+	for _, route := range routes {
 		h.member(room, route.Member).enqueue(post)
 	}
+}
+
+// passOn offers post to the member after the one that passed it on, or tells
+// the room that nobody picked it up. The note carries what the pass spent.
+func (h *Host) passOn(room roomsdomain.Room, post roomsdomain.Post, passed string, spent roomsdomain.Usage) {
+	next, ok := post.OfferedAfter(passed)
+	if !ok {
+		h.noteSpent(room, fmt.Sprintf("%s passed it on and nobody picked the post up. Mention a member to hand it to one.", passed), spent)
+		return
+	}
+	h.noteSpent(room, fmt.Sprintf("%s passed it on - offered to %s.", passed, next), spent)
+	h.member(room, next).enqueue(post)
 }
 
 func (h *Host) route(room roomsdomain.Room, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
@@ -252,26 +330,38 @@ func (h *Host) route(room roomsdomain.Room, history []roomsdomain.Post, post roo
 func (h *Host) append(room roomsdomain.Room, post roomsdomain.Post) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.appendLocked(room, post)
+}
+
+func (h *Host) appendLocked(room roomsdomain.Room, post roomsdomain.Post) error {
 	if err := h.log.Append(room, post); err != nil {
 		return err
 	}
-	h.deliverLocked(room.Name, encode(postFrame{Type: frameRoomPost, Room: room.Name, Post: post}))
+	h.deliverLocked(room.Name, encode(postFrame{Type: roomsdomain.FrameRoomPost, Room: room.Name, Post: post}))
 	return nil
 }
 
 // note logs what the room has to say about a member, such as one waiting on
 // an approval in its own chat.
 func (h *Host) note(room roomsdomain.Room, text string) {
-	if err := h.append(room, newPost(roomsdomain.RoomAuthor, text)); err != nil {
+	h.noteSpent(room, text, roomsdomain.Usage{})
+}
+
+// noteSpent logs a note about a member's turn with what the turn spent, such
+// as an offered post passed on.
+func (h *Host) noteSpent(room roomsdomain.Room, text string, spent roomsdomain.Usage) {
+	post := newPost(roomsdomain.RoomAuthor, text)
+	post.Usage = spent
+	if err := h.append(room, post); err != nil {
 		logger.Warn("rooms could not log a note", "room", room.Name, "error", err)
 	}
 }
 
 // announce streams a member's new activity to the room's followers.
-func (h *Host) announce(room roomsdomain.Room, agent string, activity roomsdomain.Activity) {
+func (h *Host) announce(room roomsdomain.Room, status roomsdomain.MemberStatus) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.deliverLocked(room.Name, encode(activityFrame{Type: frameRoomActivity, Room: room.Name, Member: agent, Activity: activity}))
+	h.deliverLocked(room.Name, encode(activityFrame{Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: status.Agent, Activity: status.Activity}))
 }
 
 func (h *Host) deliverLocked(name string, frame []byte) {
@@ -300,16 +390,16 @@ func (h *Host) findRoom(name string) (roomsdomain.Room, bool) {
 }
 
 // viewLocked renders room with what each of its members is doing.
-func (h *Host) viewLocked(room roomsdomain.Room) roomView {
-	members := make([]memberView, 0, len(room.Agents))
+func (h *Host) viewLocked(room roomsdomain.Room) roomsdomain.RoomStatus {
+	members := make([]roomsdomain.MemberStatus, 0, len(room.Agents))
 	for _, seat := range room.Members() {
-		activity := roomsdomain.ActivityIdle
+		status := roomsdomain.MemberStatus{Agent: seat.Agent, SessionID: seat.SessionID, Activity: roomsdomain.ActivityIdle}
 		if m, ok := h.members[seat.SessionID]; ok {
-			activity = m.currentActivity()
+			status.Activity = m.currentActivity()
 		}
-		members = append(members, memberView{Agent: seat.Agent, SessionID: seat.SessionID, Activity: activity})
+		members = append(members, status)
 	}
-	return roomView{Name: room.Name, Project: room.Project, Members: members}
+	return roomsdomain.RoomStatus{Name: room.Name, Project: room.Project, Members: members}
 }
 
 // newPost stamps a new post with the id a member's turn finds it by in the

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -408,6 +409,61 @@ func TestRender_SkipsAnEventNobodyPublishes(t *testing.T) {
 	}
 	if strings.Contains(out.String(), `"ACTIVITY_SNAPSHOT"`) {
 		t.Errorf("an unpublished event reached the stream:\n%s", out.String())
+	}
+}
+
+// TestRender_RunFinishedCarriesTheRunsOwnSpend pins runTokens and runCost:
+// what the session spent between the run's start and its end, or the whole
+// fresh session when it rolled over during the run.
+func TestRender_RunFinishedCarriesTheRunsOwnSpend(t *testing.T) {
+	tests := []struct {
+		name                 string
+		startInput, endInput int
+		startCost, endCost   float64
+		wantTokens           float64
+		wantCost             float64
+	}{
+		{"the session's growth during the run", 1000, 1600, 0.01, 0.025, 600 + 50, 0.015},
+		{"a session that rolled over counts from its fresh start", 9000, 400, 0.2, 0.003, 400 + 150, 0.003},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &convmocks.FakeConversationRepository{}
+			started := false
+			repo.GetSessionTokensStub = func() convdomain.SessionTokenStats {
+				if !started {
+					started = true
+					return convdomain.SessionTokenStats{TotalInputTokens: tt.startInput, TotalOutputTokens: 100, RequestCount: 1}
+				}
+				return convdomain.SessionTokenStats{TotalInputTokens: tt.endInput, TotalOutputTokens: 150, RequestCount: 2}
+			}
+			costs := 0
+			repo.GetSessionCostStatsStub = func() convdomain.SessionCostStats {
+				costs++
+				if costs == 1 {
+					return convdomain.SessionCostStats{TotalCost: tt.startCost}
+				}
+				return convdomain.SessionCostStats{TotalCost: tt.endCost}
+			}
+
+			var out strings.Builder
+			if err := renderRun(stream(agentdomain.ChatCompleteEvent{}), &out, nil, nil, "session-1", "m", repo, nil); err != nil {
+				t.Fatalf("renderRun() err = %v", err)
+			}
+			for _, ev := range decodeEvents(t, out.String()) {
+				if ev.Type != "RUN_FINISHED" {
+					continue
+				}
+				if got := ev.Result["runTokens"]; got != tt.wantTokens {
+					t.Errorf("result runTokens = %v, want %v", got, tt.wantTokens)
+				}
+				if got, _ := ev.Result["runCost"].(float64); math.Abs(got-tt.wantCost) > 1e-9 {
+					t.Errorf("result runCost = %v, want %v", got, tt.wantCost)
+				}
+				return
+			}
+			t.Fatalf("no RUN_FINISHED on the wire:\n%s", out.String())
+		})
 	}
 }
 

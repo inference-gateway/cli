@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1396,6 +1397,76 @@ func TestInputStatusBar_ArtifactsIndicatorFollowsTools(t *testing.T) {
 	for _, part := range statusBar.buildIndicatorParts("mock/openai/gpt-4o") {
 		if part.action == tui.StatusIndicatorActionArtifacts {
 			t.Fatal("the artifacts indicator ignored its switch")
+		}
+	}
+}
+
+func TestInputStatusBar_RoomIndicator(t *testing.T) {
+	statusBar := newSelectableStatusBar()
+	roomPart := func() (indicatorPart, bool) {
+		for _, part := range statusBar.buildIndicatorParts("test-model") {
+			if part.action == tui.StatusIndicatorActionRoomSelection {
+				return part, true
+			}
+		}
+		return indicatorPart{}, false
+	}
+	if _, shown := roomPart(); shown {
+		t.Fatal("a chat that cannot reach rooms shows no room indicator")
+	}
+
+	statusBar.EnableRooms()
+	if part, _ := roomPart(); part.text != "Room: -" {
+		t.Errorf("outside a room the indicator reads %q, want Room: -", part.text)
+	}
+	statusBar.SetRoom("release")
+	if part, _ := roomPart(); part.text != "Room: #release" {
+		t.Errorf("inside a room the indicator reads %q, want Room: #release", part.text)
+	}
+	statusBar.config.Composer.StatusBar.Indicators.Room = false
+	if _, shown := roomPart(); shown {
+		t.Fatal("the room indicator ignored its switch")
+	}
+}
+
+// TestInputStatusBar_ActionAtFindsTheClickedIndicator pins the hit test on both
+// rows of a wrapped bar and past a focused row's wider pill: a click on an
+// indicator's text is its action, a click on the padding or below is none.
+func TestInputStatusBar_ActionAtFindsTheClickedIndicator(t *testing.T) {
+	for _, layout := range []struct {
+		width   int
+		focused bool
+	}{{100, false}, {34, false}, {100, true}} {
+		width := layout.width
+		statusBar := newSelectableStatusBar()
+		statusBar.width = width
+		statusBar.styleProvider = styles.NewProvider(styles.NewThemeProvider())
+		statusBar.EnableRooms()
+		if layout.focused && !statusBar.Focus() {
+			t.Fatal("the bar has actionable indicators to focus")
+		}
+		lines := strings.Split(ansi.Strip(statusBar.Render()), "\n")
+
+		for text, want := range map[string]tui.StatusIndicatorAction{
+			"Room: -":    tui.StatusIndicatorActionRoomSelection,
+			"test-model": tui.StatusIndicatorActionModelSelection,
+		} {
+			row := slices.IndexFunc(lines, func(line string) bool { return strings.Contains(line, text) })
+			if row < 0 {
+				t.Fatalf("width %d: %q is not rendered in %q", width, text, lines)
+			}
+			x := ansi.StringWidth(lines[row][:strings.Index(lines[row], text)])
+			for _, column := range []int{x, x + len(text) - 1} {
+				if got, ok := statusBar.ActionAt(column, row); !ok || got != want {
+					t.Errorf("width %d: a click at column %d of row %d hit %v, want %v", width, column, row, got, want)
+				}
+			}
+		}
+		if _, ok := statusBar.ActionAt(0, 0); ok {
+			t.Errorf("width %d: the left padding is no indicator", width)
+		}
+		if _, ok := statusBar.ActionAt(1, len(lines)); ok {
+			t.Errorf("width %d: a row below the bar is no indicator", width)
 		}
 	}
 }
