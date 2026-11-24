@@ -796,7 +796,8 @@ prompt: |- # user message template with {root_intent} (first user message), {int
       system message so the user text and tool arguments stay data rather than instructions
 - **judge.prompt**: user-message template. `{root_intent}` is the first non-hidden
       user message of the session, `{intent}` the latest one (a bare "continue" is
-      judged next to the root it continues) and `{action}` every pending tool call of
+      judged next to the root it continues), after up to three earlier requests it may
+      follow up on, each labelled, and `{action}` every pending tool call of
       the turn, one `<tool_call id="...">` block each (at most 20 per request). The
       judge answers with a JSON array of `{"id", "decision", "reason"}` objects
 

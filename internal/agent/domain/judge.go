@@ -35,13 +35,15 @@ type JudgeAction struct {
 
 // JudgeInput is one approval question covering every gated call of a turn:
 // Model is the resolved "provider/model" id that answers it, RootIntent the
-// first non-hidden user message of the session, Intent the latest one, and
-// Actions the pending tool calls.
+// first non-hidden user message of the session, Intent the latest one,
+// EarlierIntents the most recent ones between them, oldest first, which a
+// follow-up may refer to, and Actions the pending tool calls.
 type JudgeInput struct {
-	Model      string
-	RootIntent string
-	Intent     string
-	Actions    []JudgeAction
+	Model          string
+	RootIntent     string
+	EarlierIntents []string
+	Intent         string
+	Actions        []JudgeAction
 }
 
 // JudgeVerdict is the parsed decision of the LLM judge for one pending tool

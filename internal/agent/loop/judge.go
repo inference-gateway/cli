@@ -20,15 +20,17 @@ import (
 	streamevent "github.com/inference-gateway/cli/internal/platform/streamevent"
 )
 
-// Judge input bounds: the intents are the first and latest user messages and
-// each action a pending tool call. All are truncated so one giant payload
-// cannot blow up the judge call. 2000 matches the summarizer's per-message
-// cap. A turn with more than maxJudgeBatchSize gated calls is judged in
-// several requests so one huge turn cannot blow the judge's context.
+// Judge input bounds: the intents are the user's requests and each action a
+// pending tool call, all capped so one giant payload cannot blow up the judge
+// call. 2000 matches the summarizer's per-message cap. The judge reads a few
+// earlier requests, shorter. A turn with more than maxJudgeBatchSize gated
+// calls is judged in several requests.
 const (
-	maxJudgeIntentLength = 2000
-	maxJudgeActionLength = 4000
-	maxJudgeBatchSize    = 20
+	maxJudgeIntentLength        = 2000
+	maxJudgeEarlierIntentLength = 600
+	maxJudgeEarlierIntents      = 3
+	maxJudgeActionLength        = 4000
+	maxJudgeBatchSize           = 20
 )
 
 // LLMJudge implements agentdomain.JudgeApprover with one llm.Complete side
@@ -119,11 +121,7 @@ func (j *LLMJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInput, ba
 // verdicts keyed by id. A reasoning judge that leaves its verdict in reasoning
 // is read through Answer. One that spends the budget names judge.max_tokens.
 func (j *LLMJudge) askJudge(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction, jcfg config.JudgeConfig) (map[string]agentdomain.JudgeVerdict, *sdk.CompletionUsage, error) {
-	prompt := strings.NewReplacer(
-		"{root_intent}", truncateForJudge(in.RootIntent, maxJudgeIntentLength),
-		"{intent}", truncateForJudge(in.Intent, maxJudgeIntentLength),
-		"{action}", renderJudgeActions(batch),
-	).Replace(jcfg.Prompt)
+	prompt := judgeEvidence(jcfg.Prompt, in, batch)
 	streamevent.EmitDebugEvent("judge_request", map[string]any{
 		"model": in.Model, "system": jcfg.SystemPrompt, "prompt": prompt, "calls": len(batch),
 	})
@@ -203,15 +201,53 @@ func truncateForJudge(s string, maxLen int) string {
 	return s[:maxLen] + "... [truncated]"
 }
 
-// userIntents returns the first and the latest non-hidden user messages of
-// the conversation: the session's root task and the most recent ask (which
-// may be a bare "continue" that only makes sense next to the root). With a
-// single user message root is empty so the judge is not shown it twice. With
-// only hidden user messages (a session started by plan approval) the first is used.
-func userIntents(repo convdomain.ConversationRepository) (root, latest string) {
-	if repo == nil {
-		return "", ""
+// excerptForJudge caps a user request by cutting its middle, so its start and
+// its end both survive: a room turn ends on the post it is for, after however
+// many posts it quotes.
+func excerptForJudge(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
 	}
+	half := maxLen / 2
+	return strings.ToValidUTF8(s[:half], "") + "\n... [truncated] ...\n" + strings.ToValidUTF8(s[len(s)-half:], "")
+}
+
+// judgeEvidence fills the judge's prompt template with the user's requests
+// and the batch of pending calls, the same for every judge backend.
+func judgeEvidence(template string, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction) string {
+	return strings.NewReplacer(
+		"{root_intent}", excerptForJudge(in.RootIntent, maxJudgeIntentLength),
+		"{intent}", judgeIntent(in),
+		"{action}", renderJudgeActions(batch),
+	).Replace(template)
+}
+
+// judgeIntent renders the latest request after the earlier ones it may follow
+// up on, oldest first and each labelled, so "delete it" keeps what it refers
+// to. It fills {intent}, which a judge.yaml that pinned the template still has.
+func judgeIntent(in agentdomain.JudgeInput) string {
+	latest := excerptForJudge(in.Intent, maxJudgeIntentLength)
+	if len(in.EarlierIntents) == 0 {
+		return latest
+	}
+	var b strings.Builder
+	for _, earlier := range in.EarlierIntents {
+		fmt.Fprintf(&b, "[earlier request]\n%s\n\n", excerptForJudge(earlier, maxJudgeEarlierIntentLength))
+	}
+	b.WriteString("[latest request]\n" + latest)
+	return b.String()
+}
+
+// userIntents returns the session's non-hidden user messages the judge reads:
+// the first, its root task, the latest, which may be a bare "continue" or
+// "delete it", and the last maxJudgeEarlierIntents between them, oldest first.
+// With one message root is empty so the judge is not shown it twice, and with
+// only hidden ones (a session started by plan approval) the first is used.
+func userIntents(repo convdomain.ConversationRepository) (root string, earlier []string, latest string) {
+	if repo == nil {
+		return "", nil, ""
+	}
+	var asks []string
 	var firstHidden string
 	for _, entry := range repo.GetMessages() {
 		if entry.Message.Role != sdk.User {
@@ -225,16 +261,16 @@ func userIntents(repo convdomain.ConversationRepository) (root, latest string) {
 			firstHidden = cmp.Or(firstHidden, content)
 			continue
 		}
-		if root == "" {
-			root = content
-			continue
-		}
-		latest = content
+		asks = append(asks, content)
 	}
-	if latest == "" {
-		return "", cmp.Or(root, firstHidden)
+	switch len(asks) {
+	case 0:
+		return "", nil, firstHidden
+	case 1:
+		return "", nil, asks[0]
 	}
-	return root, latest
+	between := asks[1 : len(asks)-1]
+	return asks[0], between[max(0, len(between)-maxJudgeEarlierIntents):], asks[len(asks)-1]
 }
 
 // judgeAction renders the pending tool call (name + arguments) for the judge

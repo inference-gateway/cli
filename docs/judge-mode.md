@@ -58,7 +58,11 @@ changes only *who answers the gate*:
   order, after the judge has answered.
 - The judge prompt carries the first and the latest non-hidden user messages (the
   intents) and every pending tool call, each as its own `<tool_call id="...">` block
-  (name + arguments, capped per call).
+  (name + arguments, capped per call). Before the latest request come up to three
+  user requests between the two, oldest first, each marked `[earlier request]`, so a
+  follow-up such as "Can you delete it?" is judged against the request that made
+  "it". A request longer than its cap loses its middle, so a room turn keeps the
+  post it is for at its end.
 - An approved call executes. A rejection becomes a failed tool result
   (`rejected by judge: <reason>`) and the turn continues, so the model reads the
   reason and adjusts (the mode guidance tells it to change approach rather than

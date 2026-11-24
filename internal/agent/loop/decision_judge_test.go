@@ -110,6 +110,25 @@ func TestDecisionJudge_AsksOnePredicatePerCallPlusRisk(t *testing.T) {
 	}
 }
 
+// TestDecisionJudge_ReadsTheEarlierRequestsToo pins that the decisions
+// backend gets the same evidence as the LLM judge: a follow-up after the
+// request it follows.
+func TestDecisionJudge_ReadsTheEarlierRequestsToo(t *testing.T) {
+	decider := &decisionmocks.FakeDecider{}
+	decider.DecideReturns(answers("benign", map[string]float64{"call-0": 0.9}), nil)
+	judge := NewDecisionJudge(decider, decisionTestConfig("", 0))
+
+	in := decisionInput("call-0")
+	in.EarlierIntents, in.Intent = []string{"write a short poem in dummy.txt"}, "Can you delete it?"
+	if _, err := judge.Judge(context.Background(), in); err != nil {
+		t.Fatalf("Judge() error = %v", err)
+	}
+	_, _, evidence, _ := decider.DecideArgsForCall(0)
+	if want := "[earlier request]\nwrite a short poem in dummy.txt\n\n[latest request]\nCan you delete it?"; !strings.Contains(evidence, want) {
+		t.Fatalf("evidence lacks the earlier request before the latest:\n%s", evidence)
+	}
+}
+
 func TestDecisionJudge_MissingAnswerFailsClosedAlone(t *testing.T) {
 	decider := &decisionmocks.FakeDecider{}
 	decider.DecideReturns(answers("", map[string]float64{"call-0": 0.9}), nil)
