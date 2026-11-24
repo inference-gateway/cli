@@ -1660,8 +1660,8 @@ func (s *Agent) decideWithJudge(
 	}
 
 	model := s.judgeModel()
-	root, latest := userIntents(s.conversationRepo)
-	input := agentdomain.JudgeInput{Model: model, RootIntent: root, Intent: latest, Actions: make([]agentdomain.JudgeAction, 0, len(pending))}
+	root, earlier, latest := userIntents(s.conversationRepo)
+	input := agentdomain.JudgeInput{Model: model, RootIntent: root, EarlierIntents: earlier, Intent: latest, Actions: make([]agentdomain.JudgeAction, 0, len(pending))}
 	for _, tc := range pending {
 		input.Actions = append(input.Actions, judgeAction(tc))
 	}

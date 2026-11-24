@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	sdk "github.com/inference-gateway/sdk"
@@ -99,11 +98,7 @@ func (j *DecisionJudge) judgeBatch(ctx context.Context, in agentdomain.JudgeInpu
 }
 
 func (j *DecisionJudge) decide(ctx context.Context, in agentdomain.JudgeInput, batch []agentdomain.JudgeAction, jcfg config.JudgeConfig) (decisiondomain.Decisions, error) {
-	evidence := strings.NewReplacer(
-		"{root_intent}", truncateForJudge(in.RootIntent, maxJudgeIntentLength),
-		"{intent}", truncateForJudge(in.Intent, maxJudgeIntentLength),
-		"{action}", renderJudgeActions(batch),
-	).Replace(jcfg.Prompt)
+	evidence := judgeEvidence(jcfg.Prompt, in, batch)
 	questions := decisionQuestions(batch)
 	streamevent.EmitDebugEvent("judge_request", map[string]any{
 		"model": in.Model, "backend": config.JudgeBackendDecisions, "evidence": evidence, "calls": len(batch),
