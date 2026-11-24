@@ -111,12 +111,12 @@ func TestRouterRoute(t *testing.T) {
 			wantDecides: 1,
 		},
 		{
-			name:        "fallback top sends a post nobody passed to the most relevant member",
+			name:        "fallback top offers a post nobody passed to the most relevant members in turn",
 			model:       testRouterModel,
 			fallback:    config.RoomsFallbackTop,
 			text:        "hello",
 			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.4}),
-			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.4}},
+			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.4}, {Member: "tester", Probability: 0.3}},
 			wantDecides: 1,
 		},
 		{
@@ -279,4 +279,9 @@ func TestRouterOffersAPostToOneMemberAtATime(t *testing.T) {
 	routing, err = router.Route(t.Context(), topMatch, testAgents, nil, post)
 	require.NoError(t, err)
 	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.9}}, routing.Routes)
+
+	decider.DecideReturns(probabilities(map[string]float64{"tester": 0.1, "writer": 0.24}), nil)
+	routing, err = router.Route(t.Context(), topMatch, testAgents, nil, post)
+	require.NoError(t, err)
+	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.24}}, routing.Routes, "the fallback hands a top-match room's post to one member too")
 }

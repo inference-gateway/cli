@@ -71,8 +71,8 @@ rooms:
 - **router.min_confidence**: the probability a member needs to get an unpinged post.
 - **router.max_members**: the most members an unpinged post is offered to, one after another and the most
   relevant first, and how many welcome you on your first visit. Pings are never capped.
-- **router.fallback**: what happens to an unpinged post nobody passed. `top` sends it to the most relevant
-  member, `none` asks you to ping one.
+- **router.fallback**: what happens to an unpinged post nobody passed. `top` offers it to the most relevant
+  members anyway, as `pickup` says, so a `PASS` still reaches the next one. `none` asks you to ping one.
 - **context_posts**: how many of the room's posts a member gets with its turn.
 
 ## Routing a post

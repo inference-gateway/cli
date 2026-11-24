@@ -80,8 +80,9 @@ func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agen
 
 // routeUnmentioned asks the decision model about a post that pings no agent
 // and ranks the members at or above min_confidence it is offered to in turn,
-// as many as the room's pickup allows, else hands it on by the fallback.
-// Without a model only pings route, so the author gets a notice.
+// as many as the room's pickup allows. When nobody passes, fallback top offers
+// it to the most relevant members just the same, so a pass still finds the
+// next. Without a model only pings route, so the author gets a notice.
 func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
 	var routing Routing
 	if len(room.Agents) == 0 {
@@ -107,7 +108,7 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 		return routing, nil
 	}
 	if cmp.Or(r.config.Router.Fallback, config.RoomsFallbackTop) == config.RoomsFallbackTop {
-		routing.Routes = append(routing.Routes, ranked[0])
+		routing.Routes = ranked[:min(len(ranked), r.offers(room))]
 		return routing, nil
 	}
 	routing.Notices = append(routing.Notices, mentionNotice(room))

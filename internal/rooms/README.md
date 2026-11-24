@@ -26,9 +26,9 @@ expands the configured rooms against the agents the registry currently knows.
   post that pings nobody asks the `decision` context, on `rooms.router.model`, one predicate per
   member, and its routes are the members at or above `min_confidence`, best first, that it is
   offered to in turn: up to `max_members` (default 2) in a room whose `pickup` is `offer`, the
-  best match alone with `top`. When nobody passes, `fallback` decides: `top` sends it to the
-  most relevant member, `none` asks the author for a mention. Without a model only pings route. The routes and their probabilities land on the
-  post.
+  best match alone with `top`. When nobody passes, `fallback` decides: `top` offers it to the
+  most relevant members just the same, `none` asks the author for a mention. Without a model only
+  pings route. The routes and their probabilities land on the post.
 - `Host` (`host.go`) is the daemon's rooms, built in `cmd/daemon` `startThreads` after the thread
   registry, with its frames a stage of `bindingHandler.Handle` before the registry. It answers
   `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room` and `leave_room`, logs every

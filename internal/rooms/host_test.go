@@ -502,6 +502,27 @@ func TestAPostEveryMemberPassesOnSaysNobodyPickedItUp(t *testing.T) {
 	})
 }
 
+// TestAPostNobodyPassedIsStillOfferedInTurn pins the fallback of an offer: a
+// post every member scored below min_confidence goes to the most relevant
+// member first, and a pass reaches the next one instead of nobody.
+func TestAPostNobodyPassedIsStillOfferedInTurn(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.decider.DecideReturns(probabilities(map[string]float64{"tester": 0.1, "writer": 0.24}), nil)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "can someone else tell me a joke?")
+		require.Equal(t, "writer", f.sent(t)[0]["agent"])
+		reply(t, f.seat(t, "writer"), "PASS")
+
+		sent := f.sent(t)
+		require.Len(t, sent, 4, "the pass reaches the next most relevant member")
+		require.Equal(t, "tester", sent[2]["agent"])
+		logged := f.logged(t)
+		require.Equal(t, "writer passed it on - offered to tester.", logged[len(logged)-1].Text)
+	})
+}
+
 // TestATopMatchRoomHandsAPostToItsBestMatchOnly pins pickup: top, where the
 // best match gets the post with no way to pass it on.
 func TestATopMatchRoomHandsAPostToItsBestMatchOnly(t *testing.T) {
