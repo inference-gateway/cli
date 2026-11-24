@@ -74,7 +74,7 @@ type Thread struct {
 	generation int
 	closed     bool
 
-	buildNotice string
+	daemonBuild string
 	saidBuild   string
 
 	wake  chan struct{}
@@ -155,14 +155,13 @@ func (t *Thread) Connect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	notice := daemon.BuildNotice(conn.AckAttr(daemon.AckAttrBuild))
 	t.mu.Lock()
 	t.conn = conn
 	t.generation++
 	t.placement.Daemon = true
 	t.placement.Offline = false
 	t.placement.Local = conn.AckAttr("workspace")
-	t.buildNotice = notice
+	t.daemonBuild = conn.AckAttr(daemon.AckAttrBuild)
 	t.mu.Unlock()
 	return nil
 }
@@ -173,11 +172,11 @@ func (t *Thread) Connect(ctx context.Context) error {
 func (t *Thread) TakeBuildNotice() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.buildNotice == t.saidBuild {
+	if t.daemonBuild == t.saidBuild {
 		return ""
 	}
-	t.saidBuild = t.buildNotice
-	return t.buildNotice
+	t.saidBuild = t.daemonBuild
+	return daemon.BuildNotice(t.daemonBuild)
 }
 
 // sayBuild tells the running UI once that the daemon runs another build.
