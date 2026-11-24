@@ -102,6 +102,34 @@ func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 	require.Equal(t, 6, strings.Count(view.Render(), "\n")+1, "the room fills exactly its height")
 }
 
+// TestRoomViewShowsAMembersCallWaitingForYou pins the approval post: the call
+// and the note it came with, no choices of its own since the chat's approval
+// window decides it, and the newest open call moving on once one is decided.
+func TestRoomViewShowsAMembersCallWaitingForYou(t *testing.T) {
+	asked := func(id, tool string, after time.Duration) roomsdomain.Post {
+		post := roomPost("tester", after, "Rejected by judge: tests were not asked for")
+		post.ID, post.Kind = "post-"+id, roomsdomain.PostKindApproval
+		post.Approval = &roomsdomain.Approval{ID: id, Tool: tool, Arguments: `{"command":"go test ./..."}`}
+		return post
+	}
+	view := newTestRoomView(asked("c1", "Bash", 0), asked("c2", "Write", time.Minute))
+
+	screen := roomScreen(view)
+	require.Contains(t, screen, `wants to run Bash {"command":"go test ./..."}`)
+	require.Contains(t, screen, "Rejected by judge: tests were not asked for")
+	require.NotContains(t, screen, "Approve", "the approval window decides the call, not the room")
+	newest, ok := view.NewestOpenApproval()
+	require.True(t, ok)
+	require.Equal(t, "c2", newest.Approval.ID)
+
+	decided := roomPost(roomsdomain.RoomAuthor, 2*time.Minute, "You approved tester's Write call.")
+	decided.Kind, decided.Approval = roomsdomain.PostKindDecision, &roomsdomain.Approval{ID: "c2", Decision: roomsdomain.DecisionApprove}
+	view.AddPost(decided)
+	require.Contains(t, roomScreen(view), "You approved tester's Write call.")
+	newest, _ = view.NewestOpenApproval()
+	require.Equal(t, "c1", newest.Approval.ID, "the call still open is the next one to decide")
+}
+
 // TestRoomViewRendersAMembersMessageOnce pins the render cache: a member's
 // message is kept by its post id, so an activity redraws the room without
 // rendering the log again, and a new width renders it afresh.

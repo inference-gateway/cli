@@ -73,3 +73,9 @@ func focusAttachmentsBinding(kb config.KeybindingsConfig) key.Binding {
 func newSessionBinding(kb config.KeybindingsConfig) key.Binding {
 	return key.NewBinding(key.WithKeys(config.ResolveNamespaceBindings(kb, config.NamespaceGlobal)[actGlobalNewSession]...))
 }
+
+// cycleModeBinding is the configured key that cycles the agent mode, so a room,
+// whose mode rooms.yaml sets, can hold it back.
+func cycleModeBinding(kb config.KeybindingsConfig) key.Binding {
+	return key.NewBinding(key.WithKeys(config.ResolveNamespaceBindings(kb, config.NamespaceMode)[actModeCycleAgentMode]...))
+}

@@ -674,7 +674,12 @@ const (
 	ApprovalBehaviourJudge  = "judge"
 )
 
-// SafetyConfig contains safety approval settings
+// DefaultApprovalTimeout is how long a tool approval waits for its decision
+// unless tools.safety.approval_timeout says otherwise.
+const DefaultApprovalTimeout = 5 * time.Minute
+
+// SafetyConfig contains safety approval settings. ApprovalTimeout bounds the
+// wait for an approval's decision, and zero waits until it is decided.
 type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
 	// ApprovalBehaviour selects HOW a tool that needs approval is handled:
@@ -689,7 +694,8 @@ type SafetyConfig struct {
 	// It governs delivery only - whether a tool needs approval at all is decided by
 	// RequireApproval / the per-tool require_approval override / the per-mode bash
 	// allow-list. Resolve via ApprovalBehaviourFor. Validated by Config.Validate.
-	ApprovalBehaviour string `yaml:"approval_behaviour" mapstructure:"approval_behaviour"`
+	ApprovalBehaviour string        `yaml:"approval_behaviour" mapstructure:"approval_behaviour"`
+	ApprovalTimeout   time.Duration `yaml:"approval_timeout" mapstructure:"approval_timeout"`
 }
 
 // ExportConfig contains settings for export command

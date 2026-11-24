@@ -87,11 +87,24 @@ type ToolExecutionSession struct {
 	StartTime      time.Time
 }
 
-// ApprovalUIState represents the state of approval UI
+// ApprovalUIState is the tool call the approval window shows. Room names the
+// room whose member asks, empty for the chat's own call, and a room's call is
+// answered to the room instead of through ResponseChan.
 type ApprovalUIState struct {
 	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
 	Context         string                             `json:"context,omitempty"`
+	Room            string                             `json:"room,omitempty"`
 	ResponseChan    chan agentdomain.ApprovalAction    `json:"-"`
+}
+
+// Answer is the message that answers the call with action: the one the chat
+// sends to the room for a room's call, else the one the approval coordinator
+// forwards to the waiting agent.
+func (s *ApprovalUIState) Answer(action agentdomain.ApprovalAction) any {
+	if s.Room != "" {
+		return RoomApprovalAnsweredEvent{ToolCallID: s.PendingToolCall.ID, Action: action}
+	}
+	return agentdomain.ToolApprovalResponseEvent{Action: action, ToolCall: *s.PendingToolCall}
 }
 
 // PlanApprovalUIState represents the state of plan approval UI

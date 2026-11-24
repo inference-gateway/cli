@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -104,7 +105,7 @@ Examples:
 				return err
 			}
 			cfg.Daemon.IdleExit = cmp.Or(cfg.Daemon.IdleExit, fallback)
-			return RunDaemonCommand(cfg)
+			return RunDaemonCommand(cfg, state.LoadConfig)
 		},
 	}
 	command.Flags().Duration("idle-exit", 0, "Stop after this long with no threads and no clients, unless daemon.yaml sets idle_exit (a daemon a client starts on demand passes 30m)")
@@ -114,9 +115,9 @@ Examples:
 
 // RunDaemonCommand starts the daemon. It hosts up to five subsystems -
 // channels, scheduler, heartbeat, the AG-UI binding, and the A2A server - and
-// starts whichever are enabled. At least one must be enabled or the daemon refuses to boot
-// (otherwise it would just sleep forever).
-func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
+// starts whichever are enabled, refusing to boot with none. reload loads the
+// config afresh, which the rooms read on every use.
+func RunDaemonCommand(cfg *config.Config, reload func() (*config.Config, error)) error { //nolint:gocyclo,cyclop,funlen
 	if err := daemonhost.FillBindingToken(cfg); err != nil {
 		return err
 	}
@@ -164,7 +165,7 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	threads, err := startThreads(ctx, cfg, cm)
+	threads, err := startThreads(ctx, cfg, cm, roomsSettings(cfg.Rooms, reload))
 	if err != nil {
 		return err
 	}
@@ -280,6 +281,26 @@ func RunDaemonCommand(cfg *config.Config) error { //nolint:gocyclo,cyclop,funlen
 // which also owns the chat-side idle grace.
 const workerIdleTimeout = sessionsdomain.IdleTimeout
 
+// roomsSettings reads the rooms as rooms.yaml and its layers have them each
+// time it is called, so an edit such as a room's mode reaches the daemon's
+// rooms without a restart. A config that does not load keeps the last rooms
+// that did.
+func roomsSettings(startup config.RoomsConfig, reload func() (*config.Config, error)) func() config.RoomsConfig {
+	var mu sync.Mutex
+	last := startup
+	return func() config.RoomsConfig {
+		fresh, err := reload()
+		mu.Lock()
+		defer mu.Unlock()
+		if err != nil {
+			logger.Warn("rooms keep their last settings, the config does not load", "error", err)
+			return last
+		}
+		last = fresh.Rooms
+		return last
+	}
+}
+
 // threadsEnabled reports whether the daemon hosts session threads: the AG-UI
 // binding, whose clients follow threads, or the channels, whose chats drive
 // threads of their own.
@@ -363,7 +384,7 @@ type threadHost struct {
 // teleport service behind it. stop, called after ctx ends, closes the binding
 // and waits for every worker to exit. The daemon is the only infer process that
 // binds the binding port, so a port that is already held fails the boot.
-func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelManagerService) (threadHost, error) { //nolint:funlen
+func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelManagerService, roomSettings func() config.RoomsConfig) (threadHost, error) { //nolint:funlen
 	if !threadsEnabled(cfg) {
 		return threadHost{stop: func() {}}, nil
 	}
@@ -393,7 +414,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		})
 	}
 
-	roomHost := rooms.NewHost(ctx, cfg.Rooms, registry, roomsinfra.NewJSONLLog(), container.NewRoomsDecider(cfg), tools.ProjectAgents)
+	roomHost := rooms.NewHost(ctx, roomSettings, registry, roomsinfra.NewJSONLLog(), container.NewRoomsDecider(cfg), tools.ProjectAgents)
 	handler := bindingHandler{relay: relay, teleports: teleports, rooms: roomHost, registry: registry}
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {

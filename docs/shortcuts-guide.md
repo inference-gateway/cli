@@ -114,8 +114,16 @@ message sits under its author and time.
   nobody goes to the one member who picks it up, the best match first. The `@` menu uses the `room` table of
   `composer.yaml`.
 - `!` and `!!` commands stay in the composer until you leave the room. `/` commands work as usual.
+- The mode indicator shows the mode the room's members run in, such as `#public ▸ STANDARD`, which the room's
+  `mode` in `rooms.yaml` sets. A daemon of an older build reports no mode, so the indicator shows the room
+  alone, `#public`. Shift+tab does not change it inside a room. **No room** shows your chat's own
+  mode again, and shift+tab switches it as usual.
 - `Ctrl+L`, `/clear` and `/new` clear nothing inside a room, since other people read it too. Empty a room on
   purpose with `infer rooms clear <room>`, or pick **No room** first to clear your own chat.
+- A member's tool call that waits for you shows in the room with the judge's reason and the member's
+  justification, and the newest one opens in the usual [approval box](tool-approval.md#approval-ui-controls)
+  with **Approve** and **Reject**, as a call of your own chat does. The room logs your decision, and a call
+  already decided, here or in the member's own chat, says so.
 - The first time you enter a room, its members welcome you.
 - **No room** brings the chat back as you left it.
 

@@ -49,8 +49,9 @@ var presences = map[roomsdomain.Activity]presence{
 
 // RoomView is the chat's conversation area inside a room, drawn like a Slack
 // channel: a header naming the room and what each member does, each message
-// under its author and time, joins and room notes as quiet lines, and who is
-// busy below the posts. It stays on the newest post unless the user scrolled up.
+// under its author and time, a member's call it asked the room about, joins
+// and room notes as quiet lines, and who is busy below the posts. It
+// stays on the newest post unless the user scrolled up.
 type RoomView struct {
 	styleProvider  *styles.Provider
 	markdown       *markdown.Renderer
@@ -264,6 +265,8 @@ func (v *RoomView) renderPost(post roomsdomain.Post, previous *roomsdomain.Post)
 		return v.styleProvider.RenderStyledText(fmt.Sprintf("→ %s joined #%s", authorName(post.Author), v.room.Name), quiet)
 	case post.Author == roomsdomain.RoomAuthor:
 		return v.styleProvider.RenderStyledText(post.Text, quiet)
+	case post.Kind == roomsdomain.PostKindApproval && post.Approval != nil:
+		return v.authorLine(post) + "\n" + v.renderApproval(post)
 	}
 	body := v.renderBody(post)
 	if continues(previous, post) {

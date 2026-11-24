@@ -149,12 +149,8 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyPressMsg) tea.Cmd {
 
 	approvalState := stateManager.GetApprovalUIState()
 	if approvalState != nil && approvalState.PendingToolCall != nil {
-		return func() tea.Msg {
-			return agentdomain.ToolApprovalResponseEvent{
-				Action:   agentdomain.ApprovalReject,
-				ToolCall: *approvalState.PendingToolCall,
-			}
-		}
+		rejection := approvalState.Answer(agentdomain.ApprovalReject)
+		return func() tea.Msg { return rejection }
 	}
 
 	if input, ok := app.GetInputView().(*components.InputView); ok && input.HasNextStepSuggestion() {

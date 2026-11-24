@@ -164,11 +164,7 @@ func (av *ApprovalBoxView) Begin() tea.Cmd {
 	av.form = huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[agentdomain.ApprovalAction]().
-				Options(
-					huh.NewOption("Approve", agentdomain.ApprovalApprove),
-					huh.NewOption("Reject", agentdomain.ApprovalReject),
-					huh.NewOption("Auto-Approve", agentdomain.ApprovalAutoAccept),
-				).
+				Options(approvalOptions(state)...).
 				Inline(true).
 				Value(&av.choice),
 		),
@@ -179,8 +175,22 @@ func (av *ApprovalBoxView) Begin() tea.Cmd {
 	return av.form.Init()
 }
 
+// approvalOptions are the choices for state's call. A room's call offers no
+// Auto-Approve, since a room never switches its member's mode.
+func approvalOptions(state *tui.ApprovalUIState) []huh.Option[agentdomain.ApprovalAction] {
+	options := []huh.Option[agentdomain.ApprovalAction]{
+		huh.NewOption("Approve", agentdomain.ApprovalApprove),
+		huh.NewOption("Reject", agentdomain.ApprovalReject),
+	}
+	if state.Room != "" {
+		return options
+	}
+	return append(options, huh.NewOption("Auto-Approve", agentdomain.ApprovalAutoAccept))
+}
+
 // Forward delegates a message to the action select. On completion it emits the
-// ToolApprovalResponseEvent that the approval coordinator consumes.
+// ToolApprovalResponseEvent that the approval coordinator consumes, or for a
+// room's call the RoomApprovalAnsweredEvent the chat sends to the room.
 func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 	state := av.stateManager.GetApprovalUIState()
 	if state == nil || state != av.active || av.form == nil {
@@ -195,13 +205,10 @@ func (av *ApprovalBoxView) Forward(msg tea.Msg) tea.Cmd {
 	}
 
 	if av.form.State == huh.StateCompleted {
-		action := av.choice
-		toolCall := *state.PendingToolCall
+		answer := state.Answer(av.choice)
 		av.active = nil
 		av.form = nil
-		return func() tea.Msg {
-			return agentdomain.ToolApprovalResponseEvent{Action: action, ToolCall: toolCall}
-		}
+		return func() tea.Msg { return answer }
 	}
 	return cmd
 }

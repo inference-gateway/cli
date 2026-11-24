@@ -35,6 +35,7 @@ import (
 	toolformatter "github.com/inference-gateway/cli/internal/presentation/tui/toolformatter"
 	a2adomain "github.com/inference-gateway/cli/internal/protocols/a2a/domain"
 	mcpdomain "github.com/inference-gateway/cli/internal/protocols/mcp/domain"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
@@ -46,6 +47,10 @@ var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attac
 // actGlobalNewSession is the action that clears the chat for a new session,
 // which a room holds back.
 var actGlobalNewSession = config.ActionID(config.NamespaceGlobal, "new_session")
+
+// actModeCycleAgentMode is the action that cycles the agent mode, which a room
+// holds back.
+var actModeCycleAgentMode = config.ActionID(config.NamespaceMode, "cycle_agent_mode")
 
 // ChatApplication is the main Bubble Tea model of the chat TUI, wiring its
 // services, views and handlers. Pending snippets ride along with the next
@@ -137,12 +142,14 @@ type ChatApplication struct {
 	roomView             *components.RoomView
 	rooms                tui.Rooms
 	room                 string
+	roomCall             roomsdomain.Post
 	historySearchFocused bool
 
 	keyBindingManager *keybinding.Dispatcher
 
 	focusAttachments key.Binding
 	newSession       key.Binding
+	cycleMode        key.Binding
 
 	lastHandledKey string
 	lastView       tui.ViewState
@@ -317,6 +324,7 @@ func NewChatApplication(
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.newSession = newSessionBinding(app.config.Chat.Keybindings)
+	app.cycleMode = cycleModeBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
@@ -895,6 +903,10 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if app.room != noRoom && key.Matches(keyMsg, app.newSession) {
 		return []tea.Cmd{app.refuseRoomClear()}
+	}
+
+	if app.room != noRoom && key.Matches(keyMsg, app.cycleMode) {
+		return []tea.Cmd{app.refuseRoomModeCycle()}
 	}
 
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)

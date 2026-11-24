@@ -10,7 +10,10 @@ import (
 	key "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	autocomplete "github.com/inference-gateway/cli/internal/presentation/tui/autocomplete"
@@ -59,6 +62,13 @@ type roomPostedMsg struct {
 	room   string
 	posted roomsdomain.Posted
 	err    error
+}
+
+// roomDecidedMsg carries why a decision on a member's call did not land, nil
+// when it did.
+type roomDecidedMsg struct {
+	room, member string
+	err          error
 }
 
 // SetRooms gives the chat the daemon's rooms, which shows the Room indicator.
@@ -176,27 +186,121 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 	case roomsListedMsg:
 		return app.showRoomPicker(m)
 	case tui.RoomSnapshotEvent:
-		return app.showRoom(m.Snapshot)
+		return tea.Batch(app.showRoom(m.Snapshot), app.offerRoomCall())
 	case roomJoinFailedMsg:
 		app.closeRoom()
 		return errorCmd(fmt.Sprintf("Could not join #%s: %v", m.room, m.err), false)
 	case tui.RoomPostEvent:
 		if m.Room == app.room {
 			app.roomView.AddPost(m.Post)
+			return app.offerRoomCall()
 		}
+	case tui.RoomApprovalAnsweredEvent:
+		return app.answerRoomCall(m)
 	case tui.RoomActivityEvent:
 		if m.Room == app.room {
 			app.roomView.SetActivity(m.Member, m.Activity)
 		}
+		if m.Room == app.room && m.Mode != "" {
+			app.modeIndicator.SetRoom(app.room, m.Mode)
+		}
 	case tui.RoomClearedEvent:
 		if m.Room == app.room {
 			app.roomView.ClearPosts()
-			return statusCmd("#" + m.Room + " was cleared")
+			return tea.Batch(app.offerRoomCall(), statusCmd("#"+m.Room+" was cleared"))
 		}
 	case roomPostedMsg:
 		return roomPostedStatus(m)
+	case roomDecidedMsg:
+		if m.err != nil {
+			return tea.Batch(errorCmd(fmt.Sprintf("Could not decide %s's call in #%s: %v", m.member, m.room, m.err), false), app.offerRoomCall())
+		}
 	}
 	return nil
+}
+
+// refuseRoomModeCycle says a room's mode is not switched from the chat: its
+// members run in the mode rooms.yaml sets, which the mode indicator shows.
+func (app *ChatApplication) refuseRoomModeCycle() tea.Cmd {
+	return statusCmd(fmt.Sprintf("#%s's mode is set in rooms.yaml (rooms.%s.mode)", app.room, app.room))
+}
+
+// offerRoomCall shows the newest call the room on screen waits on in the
+// approval window every tool approval uses, and takes a call that closed off
+// it. The chat's own approval keeps the window until it is answered.
+func (app *ChatApplication) offerRoomCall() tea.Cmd {
+	post, open := app.roomView.NewestOpenApproval()
+	open = open && app.room != noRoom
+	if open && app.roomCall.Approval != nil && post.Approval.ID == app.roomCall.Approval.ID {
+		return nil
+	}
+	if state := app.stateManager.GetApprovalUIState(); state != nil && state.Room == "" {
+		return nil
+	}
+	app.withdrawRoomCall()
+	if !open {
+		return nil
+	}
+	app.roomCall = post
+	app.stateManager.SetupApprovalUIState(&sdk.ChatCompletionMessageToolCall{
+		ID:       post.Approval.ID,
+		Type:     sdk.Function,
+		Function: sdk.ChatCompletionMessageToolCallFunction{Name: post.Approval.Tool, Arguments: post.Approval.Arguments},
+	}, nil)
+	if state := app.stateManager.GetApprovalUIState(); state != nil {
+		state.Room = app.room
+		state.Context = roomCallContext(app.room, post)
+	}
+	return app.approvalBoxView.Begin()
+}
+
+// withdrawRoomCall takes the room's call off the approval window, which stays
+// open in the room.
+func (app *ChatApplication) withdrawRoomCall() {
+	if app.roomCall.Approval == nil {
+		return
+	}
+	app.roomCall = roomsdomain.Post{}
+	if state := app.stateManager.GetApprovalUIState(); state != nil && state.Room != "" {
+		app.stateManager.ClearApprovalUIState()
+	}
+}
+
+// roomCallContext says who in which room asks, above the note the call came
+// with, such as the judge's reason and the member's justification.
+func roomCallContext(room string, post roomsdomain.Post) string {
+	asks := fmt.Sprintf("%s in #%s asks to run this.", post.Author, room)
+	if post.Text == "" {
+		return asks
+	}
+	return asks + "\n" + post.Text
+}
+
+// answerRoomCall sends the approval window's answer on the room's call to the
+// room, which posts the decision.
+func (app *ChatApplication) answerRoomCall(answer tui.RoomApprovalAnsweredEvent) tea.Cmd {
+	post := app.roomCall
+	if post.Approval == nil || post.Approval.ID != answer.ToolCallID {
+		return nil
+	}
+	app.withdrawRoomCall()
+	decision := roomsdomain.DecisionReject
+	if answer.Action == agentdomain.ApprovalApprove {
+		decision = roomsdomain.DecisionApprove
+	}
+	return app.decideRoomApproval(post, decision)
+}
+
+// decideRoomApproval sends the decision on the call of an approval post. The
+// room's line about it arrives as a post, and a refusal as an error status.
+func (app *ChatApplication) decideRoomApproval(post roomsdomain.Post, decision roomsdomain.Decision) tea.Cmd {
+	rooms, room := app.rooms, app.room
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), roomRequestTimeout)
+		defer cancel()
+		err := rooms.Decide(ctx, room, post.Author, post.Approval.ID, decision)
+		return roomDecidedMsg{room: room, member: post.Author, err: err}
+	}
 }
 
 func (app *ChatApplication) showRoomPicker(msg roomsListedMsg) tea.Cmd {
@@ -214,6 +318,7 @@ func (app *ChatApplication) showRoom(snapshot roomsdomain.Snapshot) tea.Cmd {
 	entering := app.room != snapshot.Room.Name
 	app.room = snapshot.Room.Name
 	app.roomView.Show(snapshot)
+	app.modeIndicator.SetRoom(app.room, snapshot.Room.Mode)
 	if !entering {
 		return nil
 	}
@@ -232,7 +337,9 @@ func (app *ChatApplication) closeRoom() {
 	if app.room == noRoom {
 		return
 	}
+	app.withdrawRoomCall()
 	app.room = noRoom
+	app.modeIndicator.SetRoom(noRoom, "")
 	app.useComposerContext(config.ComposerContextChat)
 	app.inputView.SetPlaceholder(components.DefaultInputPlaceholder)
 	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {

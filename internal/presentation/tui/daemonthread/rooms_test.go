@@ -69,6 +69,22 @@ func TestRoomsStreamPostsAndActivityToTheUI(t *testing.T) {
 	require.Equal(t, tui.RoomActivityEvent{Room: "release", Member: "tester", Activity: roomsdomain.ActivityIdle}, notified[tui.RoomActivityEvent](notifier)[0])
 }
 
+// TestRoomsDecideAMembersCall pins the decision frame and its two answers: the
+// daemon's confirmation, and its refusal of a call already decided.
+func TestRoomsDecideAMembersCall(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	rooms := NewRooms(thread)
+	d.answer(roomsdomain.FrameDecideRoomApproval, `{"type":"room_approval_decided","room":"release","member":"tester","tool_call_id":"c1","decision":"approve"}`)
+
+	require.NoError(t, rooms.Decide(t.Context(), "release", "tester", "c1", roomsdomain.DecisionApprove))
+	sent := d.frames(roomsdomain.FrameDecideRoomApproval)[0]
+	require.Equal(t, map[string]any{"type": "decide_room_approval", "room": "release", "member": "tester", "tool_call_id": "c1", "decision": "approve"}, sent)
+
+	d.answer(roomsdomain.FrameDecideRoomApproval, `{"type":"RUN_ERROR","message":"tester's call was already decided"}`)
+	require.EqualError(t, rooms.Decide(t.Context(), "release", "tester", "c1", roomsdomain.DecisionReject), "tester's call was already decided")
+}
+
 // TestRoomsFollowTheRoomAgainAfterAReconnect pins that a reconnect follows the
 // joined room again without a second welcome and hands the UI its snapshot.
 func TestRoomsFollowTheRoomAgainAfterAReconnect(t *testing.T) {

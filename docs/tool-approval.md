@@ -32,6 +32,9 @@ The approval box is an inline select: **left / right** moves between
 - **Enter** - Confirm the highlighted choice
 - **Esc** - Reject execution
 
+Inside a [room](rooms.md), a member's call that waits for you opens in the same box, naming the member and the
+room. It offers **Approve** and **Reject** only, and your answer goes to the room.
+
 ## Approval Behaviour
 
 `tools.safety.approval_behaviour` decides how a gated call is resolved (`prompt`, `ipc`, `judge` or `block`),
