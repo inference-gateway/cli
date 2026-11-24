@@ -19,6 +19,21 @@ func LocalTokenFile() string {
 	return filepath.Join(config.UserSpaceConfigDir(), "daemon", "binding.token")
 }
 
+// PIDFile is where the running daemon keeps its pid, under the lock that keeps
+// it the only daemon of this user.
+func PIDFile() string {
+	return filepath.Join(config.UserSpaceConfigDir(), "run", "daemon.pid")
+}
+
+// RunningPID is the pid the running daemon recorded, "" when none did.
+func RunningPID() string {
+	pid, err := os.ReadFile(PIDFile())
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(pid))
+}
+
 // FillBindingToken gives an enabled binding with neither a token nor client
 // certificates this machine's local token, created on first use, so the
 // daemon and its local clients agree on one without daemon.yaml.

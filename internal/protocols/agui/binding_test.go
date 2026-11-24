@@ -1,6 +1,7 @@
 package agui_test
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -97,11 +98,12 @@ func TestConnAnswersTheHelloAttrsWithoutTheToken(t *testing.T) {
 
 func TestBindingRejectsBadHello(t *testing.T) {
 	tests := []struct {
-		name  string
-		hello map[string]string
+		name   string
+		hello  map[string]string
+		reason string
 	}{
-		{"wrong token", map[string]string{"type": "hello", "token": "wrong"}},
-		{"wrong frame", map[string]string{"type": "greeting", "token": "test-token"}},
+		{"wrong token", map[string]string{"type": "hello", "token": "wrong"}, agui.RefusalNotAuthenticated},
+		{"wrong frame", map[string]string{"type": "greeting", "token": "test-token"}, "unexpected frame type"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -112,8 +114,10 @@ func TestBindingRejectsBadHello(t *testing.T) {
 			}
 			_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 			var frame map[string]any
-			if err := conn.ReadJSON(&frame); err == nil {
-				t.Fatalf("expected connection close, got frame %v", frame)
+			err := conn.ReadJSON(&frame)
+			var closed *websocket.CloseError
+			if !errors.As(err, &closed) || closed.Code != websocket.ClosePolicyViolation || closed.Text != tt.reason {
+				t.Fatalf("read = %v (frame %v), want a policy-violation close naming %q", err, frame, tt.reason)
 			}
 		})
 	}
@@ -288,11 +292,17 @@ func TestDialKeepsTheReservedHelloFieldsAheadOfHelloAttrs(t *testing.T) {
 	}
 }
 
+// TestDialReportsARejectedHello pins that a refused hello says why: the
+// binding names the reason in its close frame and Dial returns it.
 func TestDialReportsARejectedHello(t *testing.T) {
 	binding, _ := testBinding(t)
 	_, err := agui.Dial(t.Context(), agui.DialConfig{Addr: binding.Addr(), Token: "wrong", Handshake: testHandshake}, &aguimocks.FakeHandler{})
-	if err == nil || !strings.Contains(err.Error(), "did not ack the hello") {
-		t.Fatalf("Dial err = %v, want the missing ack", err)
+	var refused *agui.HelloRefusedError
+	if !errors.As(err, &refused) || refused.Reason != agui.RefusalNotAuthenticated {
+		t.Fatalf("Dial err = %v, want the binding's refusal as not authenticated", err)
+	}
+	if want := "the binding on " + binding.Addr() + " refused the hello: not authenticated"; err.Error() != want {
+		t.Fatalf("Dial err = %q, want %q", err, want)
 	}
 }
 
