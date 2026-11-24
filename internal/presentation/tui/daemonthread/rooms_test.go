@@ -87,6 +87,27 @@ func TestRoomsFollowTheRoomAgainAfterAReconnect(t *testing.T) {
 	require.Empty(t, again.frames(roomsdomain.FrameJoinRoom), "a reconnect never welcomes")
 }
 
+// TestSessionlessThreadSaysTheRoomIsBack pins a plain chat's status across a
+// daemon restart: lost while the daemon is gone, back once the room is followed
+// again, so the lost line never outlives the outage.
+func TestSessionlessThreadSaysTheRoomIsBack(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread := NewSessionless(d.config())
+	t.Cleanup(thread.Close)
+	notifier := &agentdomainmocks.FakeUINotifier{}
+	thread.SetNotifier(notifier)
+	d.answer(roomsdomain.FrameJoinRoom, testSnapshotReply)
+	_, err := NewRooms(thread).Join(t.Context(), "release")
+	require.NoError(t, err)
+
+	d.binding.Close()
+	again := startDaemon(t, d.port)
+	again.answer(roomsdomain.FrameFollowRoom, testSnapshotReply)
+
+	eventually(t, "the lost status, then the back one", func() bool { return len(notified[tui.SetStatusEvent](notifier)) == 2 })
+	require.Equal(t, "#release is back", notified[tui.SetStatusEvent](notifier)[1].Message)
+}
+
 // TestSessionlessThreadReachesOnlyARunningDaemon pins the plain chat's rooms
 // connection: it dials on first use, reports no placement when the daemon
 // goes, and fails instead of starting a daemon that is not running.

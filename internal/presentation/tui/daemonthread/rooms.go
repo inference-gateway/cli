@@ -32,7 +32,10 @@ func (r *Rooms) List(ctx context.Context) ([]roomsdomain.RoomStatus, error) {
 	var listed struct {
 		Rooms []roomsdomain.RoomStatus `json:"rooms"`
 	}
-	return listed.Rooms, json.Unmarshal(data, &listed)
+	if err := json.Unmarshal(data, &listed); err != nil {
+		return nil, err
+	}
+	return listed.Rooms, nil
 }
 
 // Join follows room, whose members welcome the user on their first visit.
@@ -53,7 +56,8 @@ func (r *Rooms) Post(ctx context.Context, room, text string) (roomsdomain.Posted
 	if err != nil {
 		return posted, err
 	}
-	return posted, json.Unmarshal(data, &posted)
+	err = json.Unmarshal(data, &posted)
+	return posted, err
 }
 
 // Leave stops following room.
@@ -89,7 +93,8 @@ func (t *Thread) unfollowRoom(room string) {
 }
 
 // refollowRoom follows the room the thread followed before its connection
-// dropped, without a welcome, and hands the UI the room as it is now.
+// dropped, without a welcome, and hands the UI the room as it is now. A plain
+// chat, which was told the daemon was lost, is told the room is back.
 func (t *Thread) refollowRoom(ctx context.Context) {
 	t.mu.Lock()
 	room := t.room
@@ -103,6 +108,9 @@ func (t *Thread) refollowRoom(ctx context.Context) {
 		return
 	}
 	t.post(tui.RoomSnapshotEvent{Snapshot: snapshot})
+	if t.sessionless {
+		t.post(tui.SetStatusEvent{Message: "#" + room + " is back", StatusType: tui.StatusDefault})
+	}
 }
 
 // onRoomPost hands the UI a new post of a followed room.
