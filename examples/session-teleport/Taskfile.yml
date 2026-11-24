@@ -133,7 +133,7 @@ tasks:
     deps:
       - build
     cmds:
-      - HOME={{.HOME_DIR}} {{.INFER}} sessions workspaces
+      - HOME={{.HOME_DIR}} {{.INFER}} workspaces list
 
   demo:
     desc: Create a conversation, teleport it to the TARGET workspace (default k8s-dev) and continue it there with PROMPT
@@ -146,7 +146,7 @@ tasks:
       - build
     cmds:
       - cd {{.HOME_DIR}}/project && HOME={{.HOME_DIR}} {{.INFER}} headless --session-id {{.ID}} "say hello"
-      - HOME={{.HOME_DIR}} {{.INFER}} sessions workspaces
+      - HOME={{.HOME_DIR}} {{.INFER}} workspaces list
       - HOME={{.HOME_DIR}} {{.INFER}} sessions teleport {{.ID}} --to {{.TARGET}} --project-dir {{.HOME_DIR}}/project
       - kubectl --context k3d-{{.CLUSTER}} -n {{.NAMESPACE}} get orchestrators,pods
       - HOME={{.HOME_DIR}} {{.INFER}} sessions run {{.ID}} "{{.PROMPT}}" --project-dir {{.HOME_DIR}}/project

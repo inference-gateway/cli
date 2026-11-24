@@ -682,7 +682,6 @@ Act on the sessions the daemon hosts, wherever each runs. These commands reach t
 so they need `daemon.binding.enabled` and a token or a client-certificate TLS mode in `~/.infer/daemon.yaml`:
 
 ```bash
-infer sessions workspaces                                     # every workspace in daemon.yaml and whether it is reachable
 infer sessions teleport <session-id> --to k8s-dev             # teleport the session, printing each stage until ready
 infer sessions teleport <session-id> --to k8s-dev --file build/out.bin --teleport-id <uuid>
 infer sessions run <session-id> "continue please"             # one turn through the daemon, wherever the session runs
@@ -698,6 +697,15 @@ infer sessions stop <session-id>                              # stop the agent, 
   lease, so the session continues from this machine's copy. A session this daemon owns only has its worker stopped.
 
 See [Workspaces and teleports](daemon.md#workspaces-and-teleports) for the workspaces and the lease model.
+
+### `infer workspaces`
+
+List the workspaces sessions can run in and be teleported to, the ones `daemon.yaml` names, and whether each is
+reachable. Like `infer sessions`, it asks the running daemon over its binding:
+
+```bash
+infer workspaces list   # name, compute, kind, protocol, reachable and details of every workspace
+```
 
 ---
 
