@@ -49,14 +49,11 @@ type workerEvent struct {
 	} `json:"outcome"`
 }
 
-// member drives one agent's seat in a room as that session's client on the
-// thread registry. It holds the posts routed to it while the member runs or
-// waits on an approval, delivers them one turn at a time, logs each run's last
-// assistant message as the member's post, and detaches after idling so the
-// registry can reap the worker. inputID is the run input the open turn sent,
-// runID the run the worker started for it, which names its own runs. sendMu
-// keeps each turn's frames together without holding mu, so a stuck worker
-// pipe never stalls the room's view.
+// member drives one agent's seat in a room as its session's client on the
+// thread registry. It holds the posts routed to it, delivers them one turn at a
+// time, logs each run's last assistant message and detaches after idling.
+// inputID is the input a turn sent and runID the run the worker named for it.
+// sendMu orders a turn's frames without mu, so a stuck worker never stalls the room.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -173,11 +170,13 @@ func (m *member) startNext() {
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
 }
 
-// rereadRoom makes the member's next turn read the room from its first post,
-// once the room's log was cleared.
-func (m *member) rereadRoom() {
+// startOver drops the posts the member held and makes its next turn read the
+// room from its first post, once the room's log was cleared. A run already
+// going still answers.
+func (m *member) startOver() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.pending = nil
 	m.seen = 0
 }
 

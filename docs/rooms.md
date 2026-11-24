@@ -119,9 +119,10 @@ your first entry), `text`, `mentions`, `routes` and `time`.
 | `infer rooms clear <room>` | Empty the room's log, so it starts over |
 
 `list`, `show` and `post` take `--format json`. `clear` empties the log through a running daemon, which empties
-the room in every client following it, or where you run it when no daemon runs. Each member keeps its own
-session, so it still remembers its earlier turns, and the next time you enter the room its members welcome you
-again. While the daemon runs, `list` and `show` take the rooms from it, so a room
+the room in every client following it, or where you run it when no daemon runs. A daemon that listens but does
+not answer keeps its log, and `clear` fails. A member drops the posts it was holding, and a run already going
+still posts its answer. Each member keeps its own session, so it still remembers its earlier turns, and the
+next time you enter the room its members welcome you again. While the daemon runs, `list` and `show` take the rooms from it, so a room
 without a `project` shows the log the daemon writes in its working directory. Without a daemon they resolve
 the rooms where you run them.
 

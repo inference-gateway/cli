@@ -21,9 +21,9 @@ func TestRoomsListJoinPostAndLeave(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, _ := connected(t, d)
 	rooms := NewRooms(thread)
-	d.answer(frameListRooms, testRoomsReply)
-	d.answer(frameJoinRoom, testSnapshotReply)
-	d.answer(framePostRoom, testPostedReply)
+	d.answer(roomsdomain.FrameListRooms, testRoomsReply)
+	d.answer(roomsdomain.FrameJoinRoom, testSnapshotReply)
+	d.answer(roomsdomain.FramePostRoom, testPostedReply)
 
 	listed, err := rooms.List(t.Context())
 	require.NoError(t, err)
@@ -36,22 +36,22 @@ func TestRoomsListJoinPostAndLeave(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "release", snapshot.Room.Name)
 	require.Len(t, snapshot.Posts, 1)
-	require.Equal(t, "release", d.frames(frameJoinRoom)[0]["room"])
+	require.Equal(t, "release", d.frames(roomsdomain.FrameJoinRoom)[0]["room"])
 
 	posted, err := rooms.Post(t.Context(), "release", "@tester go")
 	require.NoError(t, err)
 	require.Equal(t, "Routed to tester (pinged).", posted.RouteSummary())
 	require.Equal(t, []string{"@reviewer is not in room release."}, posted.Notices)
-	require.Equal(t, "@tester go", d.frames(framePostRoom)[0]["text"])
+	require.Equal(t, "@tester go", d.frames(roomsdomain.FramePostRoom)[0]["text"])
 
 	require.NoError(t, rooms.Leave("release"))
-	eventually(t, "the leave", func() bool { return len(d.frames(frameLeaveRoom)) == 1 })
+	eventually(t, "the leave", func() bool { return len(d.frames(roomsdomain.FrameLeaveRoom)) == 1 })
 }
 
 func TestRoomsStreamPostsAndActivityToTheUI(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, notifier := connected(t, d)
-	d.answer(frameJoinRoom, testSnapshotReply)
+	d.answer(roomsdomain.FrameJoinRoom, testSnapshotReply)
 	_, err := NewRooms(thread).Join(t.Context(), "release")
 	require.NoError(t, err)
 
@@ -74,17 +74,17 @@ func TestRoomsStreamPostsAndActivityToTheUI(t *testing.T) {
 func TestRoomsFollowTheRoomAgainAfterAReconnect(t *testing.T) {
 	d := startDaemon(t, 0)
 	thread, notifier := connected(t, d)
-	d.answer(frameJoinRoom, testSnapshotReply)
+	d.answer(roomsdomain.FrameJoinRoom, testSnapshotReply)
 	_, err := NewRooms(thread).Join(t.Context(), "release")
 	require.NoError(t, err)
 
 	d.binding.Close()
 	again := startDaemon(t, d.port)
-	again.answer(frameFollowRoom, testSnapshotReply)
+	again.answer(roomsdomain.FrameFollowRoom, testSnapshotReply)
 
 	eventually(t, "the room's snapshot again", func() bool { return len(notified[tui.RoomSnapshotEvent](notifier)) == 1 })
-	require.Len(t, again.frames(frameFollowRoom), 1)
-	require.Empty(t, again.frames(frameJoinRoom), "a reconnect never welcomes")
+	require.Len(t, again.frames(roomsdomain.FrameFollowRoom), 1)
+	require.Empty(t, again.frames(roomsdomain.FrameJoinRoom), "a reconnect never welcomes")
 }
 
 // TestSessionlessThreadReachesOnlyARunningDaemon pins the plain chat's rooms
@@ -96,8 +96,8 @@ func TestSessionlessThreadReachesOnlyARunningDaemon(t *testing.T) {
 	t.Cleanup(thread.Close)
 	notifier := &agentdomainmocks.FakeUINotifier{}
 	thread.SetNotifier(notifier)
-	d.answer(frameListRooms, testRoomsReply)
-	d.answer(frameJoinRoom, testSnapshotReply)
+	d.answer(roomsdomain.FrameListRooms, testRoomsReply)
+	d.answer(roomsdomain.FrameJoinRoom, testSnapshotReply)
 	rooms := NewRooms(thread)
 
 	listed, err := rooms.List(t.Context())

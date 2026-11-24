@@ -152,7 +152,7 @@ func TestAnUnreachableDaemonLeavesTheChatAsItIs(t *testing.T) {
 
 // TestEnteringAndLeavingARoom pins the switch both ways: inside, the room is
 // on screen, the indicator names it and the composer uses the room's trigger
-// table; No room restores the chat's conversation and table.
+// table. No room restores the chat's conversation and table.
 func TestEnteringAndLeavingARoom(t *testing.T) {
 	app, rooms := newRoomTestApp(t)
 	require.Equal(t, "@cmd/run.sh", firstMentionRow(app), "the chat table lists files first")
@@ -212,6 +212,21 @@ func TestShellCommandsStayInTheComposerInARoom(t *testing.T) {
 	require.Zero(t, rooms.PostCallCount())
 	require.Equal(t, "!ls", app.inputView.GetInput())
 	require.Contains(t, statusOf(t, played), "Leave the room to run ! commands")
+}
+
+func TestImagesStayInTheComposerInARoom(t *testing.T) {
+	app, rooms := newRoomTestApp(t)
+	enterTestRoom(t, app, rooms)
+
+	app.inputView.SetText("@tester why does this fail?")
+	app.inputView.AddImageAttachment(agentdomain.ImageAttachment{Data: "aGk=", MimeType: "image/png"})
+	typed := app.inputView.GetInput()
+	played := playRoomCmd(app, app.SendMessage())
+
+	require.Zero(t, rooms.PostCallCount())
+	require.Len(t, app.inputView.GetImageAttachments(), 1, "the image is kept, not dropped")
+	require.Equal(t, typed, app.inputView.GetInput())
+	require.Contains(t, statusOf(t, played), "Rooms take text only")
 }
 
 func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {

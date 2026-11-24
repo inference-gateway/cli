@@ -9,21 +9,6 @@ import (
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
-// The rooms frames of the daemon's binding the TUI sends and reads.
-const (
-	frameListRooms    = "list_rooms"
-	frameRooms        = "rooms"
-	frameJoinRoom     = "join_room"
-	frameFollowRoom   = "follow_room"
-	frameRoomSnapshot = "room_snapshot"
-	frameRoomPost     = "room_post"
-	frameRoomActivity = "room_activity"
-	framePostRoom     = "post_room"
-	frameRoomPosted   = "room_posted"
-	frameLeaveRoom    = "leave_room"
-	frameRoomCleared  = "room_cleared"
-)
-
 // Rooms reaches the daemon's rooms over a thread connection: a daemon chat's
 // own, or a sessionless one a plain chat dials on first use.
 type Rooms struct {
@@ -40,7 +25,7 @@ func (r *Rooms) List(ctx context.Context) ([]roomsdomain.RoomStatus, error) {
 	if err := r.thread.dialLazily(ctx); err != nil {
 		return nil, err
 	}
-	data, err := r.thread.Request(ctx, map[string]string{"type": frameListRooms}, frameRooms)
+	data, err := r.thread.Request(ctx, map[string]string{"type": roomsdomain.FrameListRooms}, roomsdomain.FrameRooms)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +40,7 @@ func (r *Rooms) Join(ctx context.Context, room string) (roomsdomain.Snapshot, er
 	if err := r.thread.dialLazily(ctx); err != nil {
 		return roomsdomain.Snapshot{}, err
 	}
-	return r.thread.followRoom(ctx, frameJoinRoom, room)
+	return r.thread.followRoom(ctx, roomsdomain.FrameJoinRoom, room)
 }
 
 // Post posts text to room and returns where it went.
@@ -64,7 +49,7 @@ func (r *Rooms) Post(ctx context.Context, room, text string) (roomsdomain.Posted
 	if err := r.thread.dialLazily(ctx); err != nil {
 		return posted, err
 	}
-	data, err := r.thread.Request(ctx, map[string]string{"type": framePostRoom, "room": room, "text": text}, frameRoomPosted)
+	data, err := r.thread.Request(ctx, map[string]string{"type": roomsdomain.FramePostRoom, "room": room, "text": text}, roomsdomain.FrameRoomPosted)
 	if err != nil {
 		return posted, err
 	}
@@ -73,18 +58,14 @@ func (r *Rooms) Post(ctx context.Context, room, text string) (roomsdomain.Posted
 
 // Leave stops following room.
 func (r *Rooms) Leave(room string) error {
-	r.thread.mu.Lock()
-	if r.thread.room == room {
-		r.thread.room = ""
-	}
-	r.thread.mu.Unlock()
-	return r.thread.Send(map[string]string{"type": frameLeaveRoom, "room": room})
+	r.thread.unfollowRoom(room)
+	return r.thread.Send(map[string]string{"type": roomsdomain.FrameLeaveRoom, "room": room})
 }
 
 // followRoom sends a join_room or follow_room frame for room and returns its
 // snapshot, remembering the room so a reconnect follows it again.
 func (t *Thread) followRoom(ctx context.Context, frameType, room string) (roomsdomain.Snapshot, error) {
-	data, err := t.Request(ctx, map[string]string{"type": frameType, "room": room}, frameRoomSnapshot)
+	data, err := t.Request(ctx, map[string]string{"type": frameType, "room": room}, roomsdomain.FrameRoomSnapshot)
 	if err != nil {
 		return roomsdomain.Snapshot{}, err
 	}
@@ -98,6 +79,15 @@ func (t *Thread) followRoom(ctx context.Context, frameType, room string) (roomsd
 	return snapshot, nil
 }
 
+// unfollowRoom forgets room, so a reconnect no longer follows it.
+func (t *Thread) unfollowRoom(room string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.room == room {
+		t.room = ""
+	}
+}
+
 // refollowRoom follows the room the thread followed before its connection
 // dropped, without a welcome, and hands the UI the room as it is now.
 func (t *Thread) refollowRoom(ctx context.Context) {
@@ -107,7 +97,7 @@ func (t *Thread) refollowRoom(ctx context.Context) {
 	if room == "" {
 		return
 	}
-	snapshot, err := t.followRoom(ctx, frameFollowRoom, room)
+	snapshot, err := t.followRoom(ctx, roomsdomain.FrameFollowRoom, room)
 	if err != nil {
 		logger.Debug("daemon chat could not follow its room again", "room", room, "error", err)
 		return

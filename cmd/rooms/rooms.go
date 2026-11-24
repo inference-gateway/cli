@@ -80,7 +80,7 @@ delivers it to every routed member as that member's next turn.`,
 		Long: `Empty a room's log, so the room starts over: clients following it empty
 their view, and the next time you enter it the members welcome you again.
 Each member keeps its own session, room-<room>-<agent>. A running daemon clears
-the log it writes, and without one the log clears where you run the command.`,
+the log it writes, and with no daemon listening the log clears where you run the command.`,
 		Args: cobra.ExactArgs(1),
 		RunE: cmd.clearRoom,
 	}
@@ -134,10 +134,10 @@ func (c *command) daemonRooms(ctx context.Context) ([]roomView, error) {
 		return nil, err
 	}
 	defer client.Close()
-	if err := client.Send(map[string]string{"type": "list_rooms"}); err != nil {
+	if err := client.Send(map[string]string{"type": roomsdomain.FrameListRooms}); err != nil {
 		return nil, err
 	}
-	frame, err := client.Next(ctx, "rooms")
+	frame, err := client.Next(ctx, roomsdomain.FrameRooms)
 	if err != nil {
 		return nil, err
 	}

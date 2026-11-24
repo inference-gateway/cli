@@ -27,6 +27,7 @@ const noRoom = ""
 const (
 	daemonUnreachableHint = "infer daemon is not running - start it with `infer daemon` to use rooms"
 	roomShellRefusal      = "Leave the room to run ! commands - pick No room in the Room dropdown"
+	roomImageRefusal      = "Rooms take text only - remove the image, or pick No room in the Room dropdown to send it"
 )
 
 // roomPickerSpec titles the dropdown that switches the room a chat is in.
@@ -243,13 +244,17 @@ func (app *ChatApplication) useComposerContext(context string) {
 }
 
 // postToRoom posts the composer's text to the room. A shell command stays in
-// the composer, since it would run in the chat's own agent, not the room.
+// the composer, since it would run in the chat's own agent, not the room, and
+// so does a message with an image, which a room cannot carry.
 func (app *ChatApplication) postToRoom(text string) tea.Cmd {
 	if text == "" {
 		return nil
 	}
 	if strings.HasPrefix(text, "!") {
 		return statusCmd(roomShellRefusal)
+	}
+	if len(app.inputView.GetImageAttachments()) > 0 {
+		return statusCmd(roomImageRefusal)
 	}
 	if err := app.inputView.AddToHistory(text); err != nil {
 		logger.Error("failed to add input to history", "error", err)

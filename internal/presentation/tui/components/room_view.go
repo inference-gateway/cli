@@ -69,7 +69,7 @@ func NewRoomView(styleProvider *styles.Provider) *RoomView {
 	vp.MouseWheelDelta = roomWheelDelta
 	view := &RoomView{styleProvider: styleProvider, viewport: vp, width: 80, activity: map[string]roomsdomain.Activity{}}
 	if themeService := styleProvider.GetThemeService(); themeService != nil {
-		view.markdown = markdown.NewRenderer(themeService, 80)
+		view.markdown = markdown.NewRenderer(themeService, 80-roomViewGutter)
 	}
 	return view
 }
@@ -109,6 +109,9 @@ func (v *RoomView) SetActivity(member string, activity roomsdomain.Activity) {
 
 // SetWidth sets the width of the conversation area.
 func (v *RoomView) SetWidth(width int) {
+	if width == v.width {
+		return
+	}
 	v.width = width
 	v.viewport.SetWidth(width)
 	if v.markdown != nil {

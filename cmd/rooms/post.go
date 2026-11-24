@@ -29,10 +29,10 @@ func (c *command) postRoom(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer client.Close()
-	if err := client.Send(map[string]string{"type": "post_room", "room": args[0], "text": args[1]}); err != nil {
+	if err := client.Send(map[string]string{"type": roomsdomain.FramePostRoom, "room": args[0], "text": args[1]}); err != nil {
 		return err
 	}
-	frame, err := client.Next(ctx, "room_posted")
+	frame, err := client.Next(ctx, roomsdomain.FrameRoomPosted)
 	if err != nil {
 		return err
 	}

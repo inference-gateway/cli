@@ -151,6 +151,42 @@ func TestClearRoomEmptiesTheLogHereWithoutADaemon(t *testing.T) {
 	require.Empty(t, posts)
 }
 
+// TestClearRoomKeepsTheLogOfADaemonThatDoesNotAnswer pins that only a missing
+// daemon clears here: one that listens but refuses the command owns its log,
+// so the command fails and the log stays.
+func TestClearRoomKeepsTheLogOfADaemonThatDoesNotAnswer(t *testing.T) {
+	isolate(t)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+	t.Setenv("INFER_DAEMON_BINDING_ENABLED", "true")
+	t.Setenv("INFER_DAEMON_BINDING_PORT", port)
+	t.Setenv("INFER_DAEMON_BINDING_TOKEN", testBindingToken)
+	room := roomsdomain.Room{Name: "public", Project: projects.Path()}
+	require.NoError(t, roomsinfra.NewJSONLLog().Append(room, roomsdomain.Post{Author: "user", Text: "kept"}))
+
+	var out bytes.Buffer
+	command := root.NewCommand()
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"rooms", "clear", "public"})
+	require.ErrorContains(t, command.ExecuteContext(t.Context()), "did not answer", out.String())
+	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	require.NoError(t, err)
+	require.Len(t, posts, 1, "the log of a daemon that listens stays")
+}
+
 // TestClearRoomGoesThroughTheRunningDaemon pins that a running daemon clears
 // the room, so the command leaves the log it would resolve here alone.
 func TestClearRoomGoesThroughTheRunningDaemon(t *testing.T) {

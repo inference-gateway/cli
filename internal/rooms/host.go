@@ -1,7 +1,6 @@
 package rooms
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -19,24 +18,8 @@ import (
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
-// The binding frames of the rooms. A client lists, follows, posts to and
-// leaves rooms, and a follower gets every post and member activity as it
-// happens.
-const (
-	frameListRooms    = "list_rooms"
-	frameRooms        = "rooms"
-	frameFollowRoom   = "follow_room"
-	frameRoomSnapshot = "room_snapshot"
-	frameRoomPost     = "room_post"
-	frameRoomActivity = "room_activity"
-	framePostRoom     = "post_room"
-	frameRoomPosted   = "room_posted"
-	frameLeaveRoom    = "leave_room"
-	frameJoinRoom     = "join_room"
-	frameClearRoom    = "clear_room"
-	frameRoomCleared  = "room_cleared"
-	frameRunError     = "RUN_ERROR"
-)
+// frameRunError is the AG-UI error frame the rooms answer a failed request with.
+const frameRunError = "RUN_ERROR"
 
 // routeTimeout bounds the decision request that routes one post.
 const routeTimeout = time.Minute
@@ -124,17 +107,17 @@ func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 		return false
 	}
 	switch f.Type {
-	case frameListRooms:
+	case roomsdomain.FrameListRooms:
 		go h.listRooms(c)
-	case frameFollowRoom:
+	case roomsdomain.FrameFollowRoom:
 		h.follow(c, f.Room)
-	case framePostRoom:
+	case roomsdomain.FramePostRoom:
 		go h.post(c, f.Room, f.Text)
-	case frameClearRoom:
+	case roomsdomain.FrameClearRoom:
 		go h.clear(c, f.Room)
-	case frameJoinRoom:
+	case roomsdomain.FrameJoinRoom:
 		h.join(c, f.Room)
-	case frameLeaveRoom:
+	case roomsdomain.FrameLeaveRoom:
 		h.leave(c, f.Room)
 	default:
 		return false
@@ -168,7 +151,7 @@ func (h *Host) listRooms(c sessionsdomain.Client) {
 		views = append(views, h.viewLocked(room))
 	}
 	h.mu.Unlock()
-	c.Deliver(encode(roomsFrame{Type: frameRooms, Rooms: views}))
+	c.Deliver(encode(roomsFrame{Type: roomsdomain.FrameRooms, Rooms: views}))
 }
 
 // follow answers follow_room with the room's snapshot and streams the room to
@@ -225,7 +208,7 @@ func (h *Host) followLocked(c sessionsdomain.Client, room roomsdomain.Room) ([]r
 	if !slices.Contains(h.followers[room.Name], c) {
 		h.followers[room.Name] = append(h.followers[room.Name], c)
 	}
-	c.Deliver(encode(snapshotFrame{Type: frameRoomSnapshot, Room: h.viewLocked(room), Posts: posts}))
+	c.Deliver(encode(snapshotFrame{Type: roomsdomain.FrameRoomSnapshot, Room: h.viewLocked(room), Posts: posts}))
 	return posts, true
 }
 
@@ -234,7 +217,7 @@ func (h *Host) followLocked(c sessionsdomain.Client, room roomsdomain.Room) ([]r
 func (h *Host) joinPost(room roomsdomain.Room) roomsdomain.Post {
 	post := newPost(roomsdomain.UserAuthor, "joined #"+room.Name)
 	post.Kind = roomsdomain.PostKindJoin
-	welcomers := room.Agents[:min(len(room.Agents), cmp.Or(h.cfg.Router.MaxMembers, config.DefaultRoomsMaxMembers))]
+	welcomers := room.Agents[:min(len(room.Agents), h.cfg.Router.EffectiveMaxMembers())]
 	for _, member := range welcomers {
 		post.Routes = append(post.Routes, roomsdomain.Route{Member: member, Probability: mentionProbability})
 	}
@@ -242,7 +225,7 @@ func (h *Host) joinPost(room roomsdomain.Room) roomsdomain.Post {
 }
 
 // clear empties room's log for everyone: its followers and c get room_cleared,
-// and each member reads the room from its first post again.
+// and each member drops the posts it held and reads the room from its start.
 func (h *Host) clear(c sessionsdomain.Client, name string) {
 	room, ok := h.findRoom(name)
 	if !ok {
@@ -257,10 +240,10 @@ func (h *Host) clear(c sessionsdomain.Client, name string) {
 	}
 	for _, m := range h.members {
 		if m.room.Name == name {
-			m.rereadRoom()
+			m.startOver()
 		}
 	}
-	cleared := encode(roomFrame{Type: frameRoomCleared, Room: name})
+	cleared := encode(roomFrame{Type: roomsdomain.FrameRoomCleared, Room: name})
 	h.deliverLocked(name, cleared)
 	if !slices.Contains(h.followers[name], c) {
 		c.Deliver(cleared)
@@ -309,7 +292,7 @@ func (h *Host) post(c sessionsdomain.Client, name, text string) {
 		c.Deliver(runError(fmt.Sprintf("logging the post in room %s: %v", name, err)))
 		return
 	}
-	c.Deliver(encode(postedFrame{Type: frameRoomPosted, Room: name, Post: post, Notices: routing.Notices}))
+	c.Deliver(encode(postedFrame{Type: roomsdomain.FrameRoomPosted, Room: name, Post: post, Notices: routing.Notices}))
 	h.deliverTurns(room, post)
 }
 
@@ -337,7 +320,7 @@ func (h *Host) appendLocked(room roomsdomain.Room, post roomsdomain.Post) error 
 	if err := h.log.Append(room, post); err != nil {
 		return err
 	}
-	h.deliverLocked(room.Name, encode(postFrame{Type: frameRoomPost, Room: room.Name, Post: post}))
+	h.deliverLocked(room.Name, encode(postFrame{Type: roomsdomain.FrameRoomPost, Room: room.Name, Post: post}))
 	return nil
 }
 
@@ -353,7 +336,7 @@ func (h *Host) note(room roomsdomain.Room, text string) {
 func (h *Host) announce(room roomsdomain.Room, agent string, activity roomsdomain.Activity) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.deliverLocked(room.Name, encode(activityFrame{Type: frameRoomActivity, Room: room.Name, Member: agent, Activity: activity}))
+	h.deliverLocked(room.Name, encode(activityFrame{Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: agent, Activity: activity}))
 }
 
 func (h *Host) deliverLocked(name string, frame []byte) {

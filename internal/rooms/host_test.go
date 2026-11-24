@@ -55,7 +55,7 @@ func (f hostFixture) send(t *testing.T, c sessionsdomain.Client, frame map[strin
 
 func (f hostFixture) post(t *testing.T, c sessionsdomain.Client, text string) {
 	t.Helper()
-	f.send(t, c, map[string]string{"type": framePostRoom, "room": "release", "text": text})
+	f.send(t, c, map[string]string{"type": roomsdomain.FramePostRoom, "room": "release", "text": text})
 }
 
 // sent decodes the frames the host sent the registry, in order.
@@ -147,7 +147,7 @@ func TestPostReachesTheMemberAndLogsItsReply(t *testing.T) {
 		poster := &sessionsmocks.FakeClient{}
 
 		f.post(t, poster, "@tester run the suite")
-		posted := delivered[postedFrame](t, poster, frameRoomPosted)
+		posted := delivered[postedFrame](t, poster, roomsdomain.FrameRoomPosted)
 		require.Len(t, posted, 1)
 		require.Equal(t, []roomsdomain.Route{{Member: "tester", Probability: 1}}, posted[0].Post.Routes)
 
@@ -228,7 +228,7 @@ func TestAnApprovalWaitsInTheMembersOwnChat(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, nil)
 		poster := &sessionsmocks.FakeClient{}
-		f.send(t, poster, map[string]string{"type": frameFollowRoom, "room": "release"})
+		f.send(t, poster, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
 
 		f.post(t, poster, "@tester deploy it")
 		seat := f.seat(t, "tester")
@@ -238,7 +238,7 @@ func TestAnApprovalWaitsInTheMembersOwnChat(t *testing.T) {
 		logged := f.logged(t)
 		require.Equal(t, roomsdomain.RoomAuthor, logged[len(logged)-1].Author)
 		require.Contains(t, logged[len(logged)-1].Text, "tester waits for approval in its own chat")
-		activity := delivered[activityFrame](t, poster, frameRoomActivity)
+		activity := delivered[activityFrame](t, poster, roomsdomain.FrameRoomActivity)
 		require.Equal(t, roomsdomain.ActivityWaiting, activity[len(activity)-1].Activity)
 
 		f.post(t, poster, "@tester also tag the release")
@@ -335,24 +335,24 @@ func TestAFirstJoinIsWelcomed(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, func(cfg *config.RoomsConfig) { cfg.Router.MaxMembers = 1 })
 		follower := &sessionsmocks.FakeClient{}
-		f.send(t, follower, map[string]string{"type": frameFollowRoom, "room": "release"})
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
 		require.Empty(t, f.logged(t), "follow_room never welcomes")
 
 		joiner := &sessionsmocks.FakeClient{}
-		f.send(t, joiner, map[string]string{"type": frameJoinRoom, "room": "release"})
-		require.Len(t, delivered[snapshotFrame](t, joiner, frameRoomSnapshot), 1)
+		f.send(t, joiner, map[string]string{"type": roomsdomain.FrameJoinRoom, "room": "release"})
+		require.Len(t, delivered[snapshotFrame](t, joiner, roomsdomain.FrameRoomSnapshot), 1)
 		logged := f.logged(t)
 		require.Len(t, logged, 1)
 		require.Equal(t, roomsdomain.PostKindJoin, logged[0].Kind)
 		require.Equal(t, roomsdomain.UserAuthor, logged[0].Author)
-		require.Len(t, delivered[postFrame](t, follower, frameRoomPost), 1, "the join streams to the room")
+		require.Len(t, delivered[postFrame](t, follower, roomsdomain.FrameRoomPost), 1, "the join streams to the room")
 
 		sent := f.sent(t)
 		require.Len(t, sent, 2, "max_members caps the welcomes at one turn")
 		require.Equal(t, "tester", sent[0]["agent"])
 		require.Contains(t, turnText(t, sent[1]), "The user just joined #release for the first time")
 
-		f.send(t, &sessionsmocks.FakeClient{}, map[string]string{"type": frameJoinRoom, "room": "release"})
+		f.send(t, &sessionsmocks.FakeClient{}, map[string]string{"type": roomsdomain.FrameJoinRoom, "room": "release"})
 		require.Len(t, f.logged(t), 1, "a later join is not a first visit")
 		require.Equal(t, 2, f.threads.HandleCallCount())
 	})
@@ -366,21 +366,39 @@ func TestClearEmptiesTheRoomForEveryone(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, nil)
 		follower := &sessionsmocks.FakeClient{}
-		f.send(t, follower, map[string]string{"type": frameFollowRoom, "room": "release"})
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
 		f.post(t, &sessionsmocks.FakeClient{}, "@tester run the suite")
 		reply(t, f.seat(t, "tester"), "all green")
 
 		clearer := &sessionsmocks.FakeClient{}
-		f.send(t, clearer, map[string]string{"type": frameClearRoom, "room": "release"})
+		f.send(t, clearer, map[string]string{"type": roomsdomain.FrameClearRoom, "room": "release"})
 		require.Empty(t, f.logged(t))
-		require.Len(t, delivered[roomFrame](t, follower, frameRoomCleared), 1)
-		require.Len(t, delivered[roomFrame](t, clearer, frameRoomCleared), 1)
+		require.Len(t, delivered[roomFrame](t, follower, roomsdomain.FrameRoomCleared), 1)
+		require.Len(t, delivered[roomFrame](t, clearer, roomsdomain.FrameRoomCleared), 1)
 
 		f.post(t, &sessionsmocks.FakeClient{}, "@writer draft the notes")
 		f.post(t, &sessionsmocks.FakeClient{}, "@tester and the e2e suite")
 		sent := f.sent(t)
 		require.Contains(t, turnText(t, sent[len(sent)-1]), "> user: writer draft the notes", "the member reads the room from its start again")
+	})
+}
 
+// TestClearDropsThePostsAMemberHeld pins that a cleared room starts over: a
+// post held for a busy member never becomes its turn, while the run already
+// going still answers.
+func TestClearDropsThePostsAMemberHeld(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester run the suite")
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester and the e2e suite")
+		f.send(t, &sessionsmocks.FakeClient{}, map[string]string{"type": roomsdomain.FrameClearRoom, "room": "release"})
+
+		reply(t, f.seat(t, "tester"), "unit tests pass")
+		require.Equal(t, 2, f.threads.HandleCallCount(), "the held post went with the room's log")
+		logged := f.logged(t)
+		require.Len(t, logged, 1)
+		require.Equal(t, "unit tests pass", logged[0].Text, "the run already going still answers")
 	})
 }
 
@@ -392,24 +410,24 @@ func TestFollowStreamsTheRoomUntilLeave(t *testing.T) {
 		follower := &sessionsmocks.FakeClient{}
 
 		f.post(t, poster, "@tester before the follow")
-		f.send(t, follower, map[string]string{"type": frameFollowRoom, "room": "release"})
-		snapshots := delivered[snapshotFrame](t, follower, frameRoomSnapshot)
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
+		snapshots := delivered[snapshotFrame](t, follower, roomsdomain.FrameRoomSnapshot)
 		require.Len(t, snapshots, 1)
 		require.Len(t, snapshots[0].Posts, 1, "the snapshot carries the log so far")
 		require.Equal(t, roomsdomain.ActivityRunning, snapshots[0].Room.Members[0].Activity, "tester is mid-turn")
 
 		reply(t, f.seat(t, "tester"), "on it")
-		require.Len(t, delivered[postFrame](t, follower, frameRoomPost), 1, "the reply streams to the follower")
-		require.NotEmpty(t, delivered[activityFrame](t, follower, frameRoomActivity))
+		require.Len(t, delivered[postFrame](t, follower, roomsdomain.FrameRoomPost), 1, "the reply streams to the follower")
+		require.NotEmpty(t, delivered[activityFrame](t, follower, roomsdomain.FrameRoomActivity))
 
-		f.send(t, follower, map[string]string{"type": frameLeaveRoom, "room": "release"})
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameLeaveRoom, "room": "release"})
 		f.post(t, poster, "@writer after the leave")
-		require.Len(t, delivered[postFrame](t, follower, frameRoomPost), 1, "nothing streams after leave_room")
+		require.Len(t, delivered[postFrame](t, follower, roomsdomain.FrameRoomPost), 1, "nothing streams after leave_room")
 
-		f.send(t, follower, map[string]string{"type": frameFollowRoom, "room": "release"})
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
 		f.host.Detach(follower)
 		f.post(t, poster, "@writer after the disconnect")
-		require.Len(t, delivered[postFrame](t, follower, frameRoomPost), 1, "nothing streams to a disconnected client")
+		require.Len(t, delivered[postFrame](t, follower, roomsdomain.FrameRoomPost), 1, "nothing streams to a disconnected client")
 	})
 }
 
@@ -418,9 +436,9 @@ func TestListRoomsAnswersEveryRoomWithItsMembers(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, nil)
 		client := &sessionsmocks.FakeClient{}
-		f.send(t, client, map[string]string{"type": frameListRooms})
+		f.send(t, client, map[string]string{"type": roomsdomain.FrameListRooms})
 
-		frames := delivered[roomsFrame](t, client, frameRooms)
+		frames := delivered[roomsFrame](t, client, roomsdomain.FrameRooms)
 		require.Len(t, frames, 1)
 		names := make([]string, 0, len(frames[0].Rooms))
 		for _, room := range frames[0].Rooms {
@@ -436,7 +454,7 @@ func TestPostToAnUnknownRoomFails(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, nil)
 		client := &sessionsmocks.FakeClient{}
-		f.send(t, client, map[string]string{"type": framePostRoom, "room": "nowhere", "text": "hello"})
+		f.send(t, client, map[string]string{"type": roomsdomain.FramePostRoom, "room": "nowhere", "text": "hello"})
 
 		errs := delivered[map[string]string](t, client, frameRunError)
 		require.Len(t, errs, 1)
@@ -455,7 +473,7 @@ func TestAFailedRoutingStillLogsThePost(t *testing.T) {
 		poster := &sessionsmocks.FakeClient{}
 
 		f.post(t, poster, "who can help")
-		posted := delivered[postedFrame](t, poster, frameRoomPosted)
+		posted := delivered[postedFrame](t, poster, roomsdomain.FrameRoomPosted)
 		require.Len(t, posted, 1)
 		require.Empty(t, posted[0].Post.Routes)
 		require.True(t, strings.Contains(strings.Join(posted[0].Notices, " "), "routing failed"))

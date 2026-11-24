@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 
@@ -44,6 +45,12 @@ type RoomsRouterConfig struct {
 	MinConfidence float64 `yaml:"min_confidence" mapstructure:"min_confidence"`
 	MaxMembers    int     `yaml:"max_members" mapstructure:"max_members"`
 	Fallback      string  `yaml:"fallback" mapstructure:"fallback"`
+}
+
+// EffectiveMaxMembers is how many members a post that mentions nobody reaches,
+// and how many welcome the user, DefaultRoomsMaxMembers while unset.
+func (r RoomsRouterConfig) EffectiveMaxMembers() int {
+	return cmp.Or(r.MaxMembers, DefaultRoomsMaxMembers)
 }
 
 // RoomConfig is one room. "*" as an agent reserves a seat for every agent of

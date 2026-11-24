@@ -109,7 +109,7 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 		return routing, nil
 	}
 	ranked := rankedMembers(room, decisions)
-	maxMembers := cmp.Or(r.config.Router.MaxMembers, config.DefaultRoomsMaxMembers)
+	maxMembers := r.config.Router.EffectiveMaxMembers()
 	for _, route := range ranked[:min(len(ranked), maxMembers)] {
 		if route.Probability >= r.config.Router.MinConfidence {
 			routing.Routes = append(routing.Routes, route)

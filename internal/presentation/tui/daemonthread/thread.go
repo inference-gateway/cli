@@ -16,6 +16,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	tui "github.com/inference-gateway/cli/internal/presentation/tui"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
 )
 
@@ -481,11 +482,11 @@ func (t *Thread) Handle(_ *agui.Conn, data []byte) {
 		t.onProgress(frame)
 	case "session_teleported":
 		t.onTeleported(frame)
-	case frameRoomPost:
+	case roomsdomain.FrameRoomPost:
 		t.onRoomPost(frame)
-	case frameRoomActivity:
+	case roomsdomain.FrameRoomActivity:
 		t.onRoomActivity(frame)
-	case frameRoomCleared:
+	case roomsdomain.FrameRoomCleared:
 		t.onRoomCleared(frame)
 	default:
 		if !t.answer(h, frame) && isRunFrame(h.Type) {
