@@ -70,6 +70,34 @@ func TestInitializeProject(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(projectDir, "AGENTS.md"))
 }
 
+// TestOverwriteKeepsTheExtensionToken pins that init --overwrite regenerates
+// browser_use.yaml without rotating its extension token, which the opentask
+// extension and a daemon already running authenticate with.
+func TestOverwriteKeepsTheExtensionToken(t *testing.T) {
+	homeDir, _ := splitHomeProjectEnv(t)
+	path := filepath.Join(homeDir, config.ConfigDirName, config.BrowserUseFileName)
+	written := func() *config.BrowserUseConfig {
+		cfg, err := configutils.LoadYAMLAsWritten(path, "browser_use", config.DefaultBrowserUseConfig)
+		require.NoError(t, err)
+		return cfg
+	}
+	overwrite := map[string]bool{"skip-migrations": true, "overwrite": true}
+
+	require.NoError(t, runInit(t, map[string]bool{"skip-migrations": true}))
+	seeded := written().Extension.Token
+	require.Len(t, seeded, 32, "a first init seeds a random token")
+
+	require.NoError(t, runInit(t, overwrite))
+	require.Equal(t, seeded, written().Extension.Token)
+
+	edited := config.DefaultBrowserUseConfig()
+	edited.Enabled, edited.Extension.Token = true, "${OPENTASK_TOKEN}"
+	require.NoError(t, config.SaveBrowserUse(path, edited))
+	require.NoError(t, runInit(t, overwrite))
+	require.Equal(t, "${OPENTASK_TOKEN}", written().Extension.Token, "a reference stays a reference")
+	require.False(t, written().Enabled, "everything else is regenerated")
+}
+
 func TestInitWritesConfigYAMLWithDocMarker(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "infer-config-test-*")
 	if err != nil {
