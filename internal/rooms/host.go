@@ -33,6 +33,8 @@ const (
 	frameRoomPosted   = "room_posted"
 	frameLeaveRoom    = "leave_room"
 	frameJoinRoom     = "join_room"
+	frameClearRoom    = "clear_room"
+	frameRoomCleared  = "room_cleared"
 	frameRunError     = "RUN_ERROR"
 )
 
@@ -95,6 +97,11 @@ type postFrame struct {
 	Post roomsdomain.Post `json:"post"`
 }
 
+type roomFrame struct {
+	Type string `json:"type"`
+	Room string `json:"room"`
+}
+
 type activityFrame struct {
 	Type     string               `json:"type"`
 	Room     string               `json:"room"`
@@ -109,7 +116,7 @@ type postedFrame struct {
 }
 
 // Handle claims the rooms frames of one client and reports false for any
-// other. Listing, posting and welcomes run off the binding's read loop, while
+// other. Listing, posting, clearing and welcomes run off the binding's read loop, while
 // follow, join and leave stay on it so a quick leave never overtakes its follow.
 func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 	var f clientFrame
@@ -123,6 +130,8 @@ func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 		h.follow(c, f.Room)
 	case framePostRoom:
 		go h.post(c, f.Room, f.Text)
+	case frameClearRoom:
+		go h.clear(c, f.Room)
 	case frameJoinRoom:
 		h.join(c, f.Room)
 	case frameLeaveRoom:
@@ -230,6 +239,32 @@ func (h *Host) joinPost(room roomsdomain.Room) roomsdomain.Post {
 		post.Routes = append(post.Routes, roomsdomain.Route{Member: member, Probability: mentionProbability})
 	}
 	return post
+}
+
+// clear empties room's log for everyone: its followers and c get room_cleared,
+// and each member reads the room from its first post again.
+func (h *Host) clear(c sessionsdomain.Client, name string) {
+	room, ok := h.findRoom(name)
+	if !ok {
+		c.Deliver(unknownRoom(name))
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if err := h.log.Clear(room); err != nil {
+		c.Deliver(runError(fmt.Sprintf("clearing room %s: %v", name, err)))
+		return
+	}
+	for _, m := range h.members {
+		if m.room.Name == name {
+			m.rereadRoom()
+		}
+	}
+	cleared := encode(roomFrame{Type: frameRoomCleared, Room: name})
+	h.deliverLocked(name, cleared)
+	if !slices.Contains(h.followers[name], c) {
+		c.Deliver(cleared)
+	}
 }
 
 func (h *Host) leave(c sessionsdomain.Client, name string) {

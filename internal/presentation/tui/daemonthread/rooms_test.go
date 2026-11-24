@@ -57,9 +57,11 @@ func TestRoomsStreamPostsAndActivityToTheUI(t *testing.T) {
 
 	send(d.conn(), `{"type":"room_post","room":"release","post":{"id":"p3","author":"tester","text":"all green","time":"2026-11-23T10:02:00Z"}}`)
 	send(d.conn(), `{"type":"room_activity","room":"release","member":"tester","activity":"idle"}`)
+	send(d.conn(), `{"type":"room_cleared","room":"release"}`)
 
-	eventually(t, "the post and the activity", func() bool {
-		return len(notified[tui.RoomPostEvent](notifier)) == 1 && len(notified[tui.RoomActivityEvent](notifier)) == 1
+	eventually(t, "the post, the activity and the clear", func() bool {
+		return len(notified[tui.RoomPostEvent](notifier)) == 1 && len(notified[tui.RoomActivityEvent](notifier)) == 1 &&
+			len(notified[tui.RoomClearedEvent](notifier)) == 1
 	})
 	post := notified[tui.RoomPostEvent](notifier)[0]
 	require.Equal(t, "release", post.Room)

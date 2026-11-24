@@ -182,6 +182,11 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 		if m.Room == app.room {
 			app.roomView.SetActivity(m.Member, m.Activity)
 		}
+	case tui.RoomClearedEvent:
+		if m.Room == app.room {
+			app.roomView.ClearPosts()
+			return statusCmd("#" + m.Room + " was cleared")
+		}
 	case roomPostedMsg:
 		return roomPostedStatus(m)
 	}

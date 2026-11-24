@@ -52,7 +52,7 @@ JSONL log per room.`,
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the rooms with their resolved members",
-		Long: `List every room in rooms.yaml with the members resolved now: "*" becomes every agent that exists, built-ins included.
+		Long: `List every room in rooms.yaml with the members resolved now: "*" becomes every agent of yours, the built-ins left out.
 A running daemon answers with the rooms it hosts, so the rooms, projects and
 logs match what infer rooms post reaches.`,
 		RunE: cmd.listRooms,
@@ -74,7 +74,17 @@ delivers it to every routed member as that member's next turn.`,
 		Args: cobra.ExactArgs(2),
 		RunE: cmd.postRoom,
 	}
-	roomsCmd.AddCommand(listCmd, showCmd, postCmd)
+	clearCmd := &cobra.Command{
+		Use:   "clear <room>",
+		Short: "Empty a room's log",
+		Long: `Empty a room's log, so the room starts over: clients following it empty
+their view, and the next time you enter it the members welcome you again.
+Each member keeps its own session, room-<room>-<agent>. A running daemon clears
+the log it writes, and without one the log clears where you run the command.`,
+		Args: cobra.ExactArgs(1),
+		RunE: cmd.clearRoom,
+	}
+	roomsCmd.AddCommand(listCmd, showCmd, postCmd, clearCmd)
 
 	output.AddFormatFlag(listCmd, "text", "json")
 	output.AddFormatFlag(showCmd, "text", "json")

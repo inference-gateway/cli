@@ -485,6 +485,8 @@ func (t *Thread) Handle(_ *agui.Conn, data []byte) {
 		t.onRoomPost(frame)
 	case frameRoomActivity:
 		t.onRoomActivity(frame)
+	case frameRoomCleared:
+		t.onRoomCleared(frame)
 	default:
 		if !t.answer(h, frame) && isRunFrame(h.Type) {
 			t.push(h, frame)

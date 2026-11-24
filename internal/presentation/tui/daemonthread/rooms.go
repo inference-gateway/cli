@@ -21,6 +21,7 @@ const (
 	framePostRoom     = "post_room"
 	frameRoomPosted   = "room_posted"
 	frameLeaveRoom    = "leave_room"
+	frameRoomCleared  = "room_cleared"
 )
 
 // Rooms reaches the daemon's rooms over a thread connection: a daemon chat's
@@ -122,6 +123,16 @@ func (t *Thread) onRoomPost(frame []byte) {
 	}
 	if json.Unmarshal(frame, &f) == nil {
 		t.post(tui.RoomPostEvent{Room: f.Room, Post: f.Post})
+	}
+}
+
+// onRoomCleared tells the UI a followed room's log was emptied.
+func (t *Thread) onRoomCleared(frame []byte) {
+	var f struct {
+		Room string `json:"room"`
+	}
+	if json.Unmarshal(frame, &f) == nil {
+		t.post(tui.RoomClearedEvent{Room: f.Room})
 	}
 }
 

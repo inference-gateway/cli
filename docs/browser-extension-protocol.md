@@ -965,6 +965,17 @@ answers the poster with `room_posted`, the logged post plus the notices for its 
 }
 ```
 
+Client → CLI, emptying the room's log. Every follower of the room, and the client that cleared it, gets
+`room_cleared`. A client showing the room empties it:
+
+```json
+{"type": "clear_room", "room": "release"}
+```
+
+```json
+{"type": "room_cleared", "room": "release"}
+```
+
 Client → CLI, stopping the follow. Nothing answers it:
 
 ```json

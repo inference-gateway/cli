@@ -116,14 +116,18 @@ your first entry), `text`, `mentions`, `routes` and `time`.
 | `infer rooms list` | The rooms with their resolved members and session ids |
 | `infer rooms show <room>` | One room's members, router settings and log |
 | `infer rooms post <room> "<text>"` | Post through the daemon and print where the post went |
+| `infer rooms clear <room>` | Empty the room's log, so it starts over |
 
-All three take `--format json`. While the daemon runs, `list` and `show` take the rooms from it, so a room
+`list`, `show` and `post` take `--format json`. `clear` empties the log through a running daemon, which empties
+the room in every client following it, or where you run it when no daemon runs. Each member keeps its own
+session, so it still remembers its earlier turns, and the next time you enter the room its members welcome you
+again. While the daemon runs, `list` and `show` take the rooms from it, so a room
 without a `project` shows the log the daemon writes in its working directory. Without a daemon they resolve
 the rooms where you run them.
 
 ## Clients
 
 The chat TUI enters rooms from its status bar, see [Rooms in the chat](shortcuts-guide.md#rooms-in-the-chat).
-The desktop and other clients list, join, follow and post to rooms over the daemon binding with `list_rooms`,
-`join_room`, `follow_room`, `post_room` and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in
+The desktop and other clients list, join, follow, post to and clear rooms over the daemon binding with
+`list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room` and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in
 the binding protocol.

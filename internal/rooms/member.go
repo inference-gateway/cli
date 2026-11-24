@@ -173,6 +173,14 @@ func (m *member) startNext() {
 	m.host.announce(m.room, m.agent, roomsdomain.ActivityRunning)
 }
 
+// rereadRoom makes the member's next turn read the room from its first post,
+// once the room's log was cleared.
+func (m *member) rereadRoom() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.seen = 0
+}
+
 // turnPromptLocked renders the turn of the addressed post: the room's posts
 // the member has not seen since its last turn, then the post itself.
 func (m *member) turnPromptLocked(addressed roomsdomain.Post) (string, error) {

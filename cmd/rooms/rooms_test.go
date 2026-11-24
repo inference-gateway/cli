@@ -16,6 +16,7 @@ import (
 
 	root "github.com/inference-gateway/cli/cmd/root"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
+	projects "github.com/inference-gateway/cli/internal/projects"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	roomsinfra "github.com/inference-gateway/cli/internal/rooms/infrastructure"
@@ -99,6 +100,9 @@ func serveDaemonRooms(t *testing.T, project string) {
 		if strings.Contains(string(frame), `"list_rooms"`) {
 			conn.Deliver(rooms)
 		}
+		if strings.Contains(string(frame), `"clear_room"`) {
+			conn.Deliver([]byte(`{"type":"room_cleared","room":"public"}`))
+		}
 	})
 	binding := agui.NewBinding(agui.BindingConfig{Port: 0, Token: testBindingToken, Handshake: browserinfra.BindingHandshake}, handler)
 	require.NoError(t, binding.Start())
@@ -131,4 +135,33 @@ func TestShowRoomReadsTheLogTheDaemonWrites(t *testing.T) {
 	require.Equal(t, daemonProject, view.Room.Project)
 	require.Len(t, view.Posts, 1)
 	require.Equal(t, "posted through the daemon", view.Posts[0].Text)
+}
+
+// TestClearRoomEmptiesTheLogHereWithoutADaemon pins the fallback: with no
+// daemon answering, clear empties the log of the room as resolved here.
+func TestClearRoomEmptiesTheLogHereWithoutADaemon(t *testing.T) {
+	isolate(t)
+	room := roomsdomain.Room{Name: "public", Project: projects.Path()}
+	require.NoError(t, roomsinfra.NewJSONLLog().Append(room, roomsdomain.Post{Author: "user", Text: "hi all"}))
+
+	out := runInfer(t, "rooms", "clear", "public")
+	require.Contains(t, out, "Cleared #public.")
+	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	require.NoError(t, err)
+	require.Empty(t, posts)
+}
+
+// TestClearRoomGoesThroughTheRunningDaemon pins that a running daemon clears
+// the room, so the command leaves the log it would resolve here alone.
+func TestClearRoomGoesThroughTheRunningDaemon(t *testing.T) {
+	isolate(t)
+	serveDaemonRooms(t, t.TempDir())
+	room := roomsdomain.Room{Name: "public", Project: projects.Path()}
+	require.NoError(t, roomsinfra.NewJSONLLog().Append(room, roomsdomain.Post{Author: "user", Text: "kept here"}))
+
+	out := runInfer(t, "rooms", "clear", "public")
+	require.Contains(t, out, "Cleared #public.")
+	posts, err := roomsinfra.NewJSONLLog().Read(room)
+	require.NoError(t, err)
+	require.Len(t, posts, 1, "the daemon cleared its own log, not this one")
 }

@@ -358,6 +358,32 @@ func TestAFirstJoinIsWelcomed(t *testing.T) {
 	})
 }
 
+// TestClearEmptiesTheRoomForEveryone pins clear_room: the log empties, the
+// followers and the clearer learn of it, and a member's next turn reads the
+// room from its start.
+func TestClearEmptiesTheRoomForEveryone(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		follower := &sessionsmocks.FakeClient{}
+		f.send(t, follower, map[string]string{"type": frameFollowRoom, "room": "release"})
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester run the suite")
+		reply(t, f.seat(t, "tester"), "all green")
+
+		clearer := &sessionsmocks.FakeClient{}
+		f.send(t, clearer, map[string]string{"type": frameClearRoom, "room": "release"})
+		require.Empty(t, f.logged(t))
+		require.Len(t, delivered[roomFrame](t, follower, frameRoomCleared), 1)
+		require.Len(t, delivered[roomFrame](t, clearer, frameRoomCleared), 1)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "@writer draft the notes")
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester and the e2e suite")
+		sent := f.sent(t)
+		require.Contains(t, turnText(t, sent[len(sent)-1]), "> user: writer draft the notes", "the member reads the room from its start again")
+
+	})
+}
+
 func TestFollowStreamsTheRoomUntilLeave(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	synctest.Test(t, func(t *testing.T) {

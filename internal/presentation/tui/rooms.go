@@ -28,6 +28,11 @@ type RoomPostEvent struct {
 	Post roomsdomain.Post
 }
 
+// RoomClearedEvent says a followed room's log was emptied.
+type RoomClearedEvent struct {
+	Room string
+}
+
 // RoomActivityEvent carries what a member of a followed room does now.
 type RoomActivityEvent struct {
 	Room     string

@@ -32,8 +32,10 @@ expands the configured rooms against the agents the registry currently knows.
   post.
 - `Host` (`host.go`) is the daemon's rooms, built in `cmd/daemon` `startThreads` after the thread
   registry, with its frames a stage of `bindingHandler.Handle` before the registry. It answers
-  `list_rooms`, `join_room`, `follow_room`, `post_room` and `leave_room`, logs every routed post, and
-  streams posts and member activity to the followers. One lock orders the log's appends with the follows.
+  `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room` and `leave_room`, logs every
+  routed post, and streams posts and member activity to the followers. One lock orders the log's
+  appends with the follows. `clear_room` empties the log (`Log.Clear`), tells the followers with
+  `room_cleared`, and makes each member read the room from its start again.
   `join_room` follows like `follow_room` and, on the user's first visit (`domain.FirstVisit`), logs a
   `kind: join` post routed to the first `max_members` members, whose turn asks for a welcome.
 - `member` (`member.go`) is one seat as a client of its session's thread, the way a Telegram chat is.

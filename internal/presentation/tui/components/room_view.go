@@ -95,6 +95,12 @@ func (v *RoomView) AddPost(post roomsdomain.Post) {
 	v.refresh()
 }
 
+// ClearPosts empties the room on screen once its log was cleared.
+func (v *RoomView) ClearPosts() {
+	v.posts = nil
+	v.refresh()
+}
+
 // SetActivity shows what member is doing now.
 func (v *RoomView) SetActivity(member string, activity roomsdomain.Activity) {
 	v.activity[member] = activity

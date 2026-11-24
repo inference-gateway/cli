@@ -228,4 +228,10 @@ func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {
 	require.NotContains(t, screen, "elsewhere")
 	require.Contains(t, screen, "all green")
 	require.Contains(t, screen, "writer is working…")
+
+	app.handleRoomEvents(tui.RoomClearedEvent{Room: "other"})
+	require.Contains(t, ansi.Strip(app.roomView.Render()), "all green", "another room's clear leaves this one alone")
+	played := playRoomCmd(app, app.handleRoomEvents(tui.RoomClearedEvent{Room: "release"}))
+	require.NotContains(t, ansi.Strip(app.roomView.Render()), "all green")
+	require.Contains(t, statusOf(t, played), "#release was cleared")
 }
