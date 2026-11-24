@@ -102,6 +102,24 @@ func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 	require.Equal(t, 6, strings.Count(view.Render(), "\n")+1, "the room fills exactly its height")
 }
 
+// TestRoomViewRendersAMembersMessageOnce pins the render cache: a member's
+// message is kept by its post id, so an activity redraws the room without
+// rendering the log again, and a new width renders it afresh.
+func TestRoomViewRendersAMembersMessageOnce(t *testing.T) {
+	answer := roomPost("tester", 0, "all green")
+	answer.ID = "p1"
+	view := newTestRoomView(answer, roomPost("tester", time.Hour, "a post of an older log, without an id"))
+	require.Len(t, view.renderedBodies, 1, "only a post with an id is kept")
+
+	view.renderedBodies[answer.ID] = "kept body"
+	view.SetActivity("writer", roomsdomain.ActivityIdle)
+	require.Contains(t, roomScreen(view), "kept body", "an activity redraws the room from the kept body")
+
+	view.SetWidth(60)
+	require.NotContains(t, roomScreen(view), "kept body", "a new width renders the message again")
+	require.Contains(t, roomScreen(view), "all green")
+}
+
 // TestRoomViewHeaderShowsWhatTheRoomSpent pins the room's spend in the pinned
 // header: what the posts of its log cost, routing and member turns, and
 // nothing while the room spent nothing or once its log was cleared.

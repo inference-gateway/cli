@@ -52,14 +52,15 @@ var presences = map[roomsdomain.Activity]presence{
 // under its author and time, joins and room notes as quiet lines, and who is
 // busy below the posts. It stays on the newest post unless the user scrolled up.
 type RoomView struct {
-	styleProvider *styles.Provider
-	markdown      *markdown.Renderer
-	viewport      viewport.Model
-	room          roomsdomain.RoomStatus
-	posts         []roomsdomain.Post
-	width         int
-	height        int
-	banner        string
+	styleProvider  *styles.Provider
+	markdown       *markdown.Renderer
+	viewport       viewport.Model
+	room           roomsdomain.RoomStatus
+	posts          []roomsdomain.Post
+	renderedBodies map[string]string
+	width          int
+	height         int
+	banner         string
 }
 
 // NewRoomView creates an empty room view.
@@ -68,7 +69,7 @@ func NewRoomView(styleProvider *styles.Provider) *RoomView {
 	vp.KeyMap = viewport.KeyMap{}
 	vp.MouseWheelEnabled = true
 	vp.MouseWheelDelta = roomWheelDelta
-	view := &RoomView{styleProvider: styleProvider, viewport: vp, width: 80}
+	view := &RoomView{styleProvider: styleProvider, viewport: vp, width: 80, renderedBodies: map[string]string{}}
 	if themeService := styleProvider.GetThemeService(); themeService != nil {
 		view.markdown = markdown.NewRenderer(themeService, 80-roomViewGutter)
 	}
@@ -81,11 +82,9 @@ func (v *RoomView) Show(snapshot roomsdomain.Snapshot) {
 	v.room = snapshot.Room
 	v.room.Members = slices.Clone(snapshot.Room.Members)
 	v.posts = snapshot.Posts
+	clear(v.renderedBodies)
 	v.refresh()
 }
-
-// Room is the name of the room on screen.
-func (v *RoomView) Room() string { return v.room.Name }
 
 // AddPost shows a new post of the room.
 func (v *RoomView) AddPost(post roomsdomain.Post) {
@@ -96,6 +95,7 @@ func (v *RoomView) AddPost(post roomsdomain.Post) {
 // ClearPosts empties the room on screen once its log was cleared.
 func (v *RoomView) ClearPosts() {
 	v.posts = nil
+	clear(v.renderedBodies)
 	v.refresh()
 }
 
@@ -119,6 +119,7 @@ func (v *RoomView) SetWidth(width int) {
 	if v.markdown != nil {
 		v.markdown.SetWidth(max(width-roomViewGutter, 0))
 	}
+	clear(v.renderedBodies)
 	v.refresh()
 }
 
@@ -286,7 +287,7 @@ func (v *RoomView) authorLine(post roomsdomain.Post) string {
 func (v *RoomView) renderBody(post roomsdomain.Post) string {
 	width := max(v.width-roomViewGutter, 1)
 	if post.Author != roomsdomain.UserAuthor && v.markdown != nil {
-		return v.markdown.Render(post.Text)
+		return v.markdownBody(post)
 	}
 	text := post.Text
 	accent := v.styleProvider.GetThemeColor("accent")
@@ -294,6 +295,20 @@ func (v *RoomView) renderBody(post roomsdomain.Post) string {
 		text = strings.ReplaceAll(text, "@"+mention, v.styleProvider.RenderWithColorAndBold("@"+mention, accent))
 	}
 	return lipgloss.NewStyle().Width(width).Render(text)
+}
+
+// markdownBody renders a member's message once and keeps it by its post id,
+// since every new post and activity redraws the whole room. A post without an
+// id, as an older log holds, is rendered each time.
+func (v *RoomView) markdownBody(post roomsdomain.Post) string {
+	if body, ok := v.renderedBodies[post.ID]; ok {
+		return body
+	}
+	body := v.markdown.Render(post.Text)
+	if post.ID != "" {
+		v.renderedBodies[post.ID] = body
+	}
+	return body
 }
 
 // busyLine says which members are working or waiting, in the room's order.
