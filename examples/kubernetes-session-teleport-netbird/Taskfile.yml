@@ -242,7 +242,7 @@ tasks:
   workspaces:
     desc: List the workspaces infer-local can teleport to and their reachability
     cmds:
-      - '{{.LOCAL}} infer daemon workspaces'
+      - '{{.LOCAL}} infer sessions workspaces'
 
   sniff:start:
     desc: Start a packet capture in front of the infer-k8s node, then send it a plaintext canary from infer-local so the capture proves it reads plaintext
@@ -267,9 +267,9 @@ tasks:
       - mkdir -p {{.STATE_DIR}}
       - printf '%s' {{.ID}} > {{.STATE_DIR}}/session
       - '{{.LOCAL}} sh -c "cd {{.PROJECT}} && infer headless --session-id {{.ID}} \"say hello\""'
-      - '{{.LOCAL}} infer daemon workspaces'
-      - '{{.LOCAL}} infer daemon teleport {{.ID}} --to infer-k8s --project-dir {{.PROJECT}}'
-      - '{{.LOCAL}} infer daemon run {{.ID}} "{{.PROMPT}}" --project-dir {{.PROJECT}}'
+      - '{{.LOCAL}} infer sessions workspaces'
+      - '{{.LOCAL}} infer sessions teleport {{.ID}} --to infer-k8s --project-dir {{.PROJECT}}'
+      - '{{.LOCAL}} infer sessions run {{.ID}} "{{.PROMPT}}" --project-dir {{.PROJECT}}'
       - echo "conversation {{.ID}} now lives on infer-k8s"
 
   secret:check:
@@ -340,8 +340,8 @@ tasks:
       - sh: test -n "{{.ID}}"
         msg: No session to bring back. Run task demo first, or pass ID=<conversation id>
     cmds:
-      - '{{.LOCAL}} infer daemon teleport {{.ID}} --to infer-local --project-dir {{.PROJECT}}'
-      - '{{.LOCAL}} infer daemon run {{.ID}} "and back home" --project-dir {{.PROJECT}}'
+      - '{{.LOCAL}} infer sessions teleport {{.ID}} --to infer-local --project-dir {{.PROJECT}}'
+      - '{{.LOCAL}} infer sessions run {{.ID}} "and back home" --project-dir {{.PROJECT}}'
 
   dashboard:
     desc: Print the NetBird dashboard URL and the owner's login

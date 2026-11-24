@@ -92,7 +92,7 @@ What each step proved:
 - `restoring` streamed the checkpoint to the pod daemon over mTLS, which cloned the bundle into
   `/workspace/project/<conversation id>`, imported the conversation through a worker there, claimed the
   lease, and answered `resume_conversation` with a snapshot the laptop checked against the checkpoint.
-- `infer daemon run` sent a turn to the laptop daemon, which relayed it to the pod. The reply came from a
+- `infer sessions run` sent a turn to the laptop daemon, which relayed it to the pod. The reply came from a
   worker running in the pod.
 
 Look around:
@@ -103,16 +103,16 @@ POD=$(kubectl -n infer-workspaces get pods -o jsonpath='{.items[0].metadata.name
 kubectl -n infer-workspaces exec $POD -- sh -c 'ls /workspace/project/*/ && ls /home/infer/.infer/projects/*/conversations'
 
 # A second teleport of the same session is refused: k8s-dev owns it now
-HOME=$PWD/.home ../../infer daemon teleport <conversation id> --to k8s-desktop --project-dir $PWD/.home/project
+HOME=$PWD/.home ../../infer sessions teleport <session id> --to k8s-desktop --project-dir $PWD/.home/project
 
 # Stop the laptop daemon (Ctrl+C in its shell), start it again, and the session is still on the pod
 task daemon:start
-HOME=$PWD/.home ../../infer daemon run <conversation id> "and again" --project-dir $PWD/.home/project
+HOME=$PWD/.home ../../infer sessions run <session id> "and again" --project-dir $PWD/.home/project
 ```
 
 After `idle_ttl` (30 minutes in `daemon.yaml`) with no client and no run, the pod daemon exits and the operator
 suspends its Orchestrator: `kubectl -n infer-workspaces get orchestrators` shows `READY false`, its `Ready`
-condition says `SandboxSuspended`, the pod is gone and the two volumes stay. The next `infer daemon run` or
+condition says `SandboxSuspended`, the pod is gone and the two volumes stay. The next `infer sessions run` or
 teleport sets `spec.sandbox.operatingMode` back to `Running`, waits for the new pod and reattaches the volumes.
 
 The pod only idles out when no run is open, so an agent you sent off keeps working with the laptop closed.
@@ -124,7 +124,7 @@ waits on an approval or a question, or whose last run failed, is not done, and i
 the `inference-gateway.com/agents-done` annotation. To delete a session's Orchestrator now, whatever its state:
 
 ```bash
-HOME=$PWD/.home ../../infer daemon stop <conversation id> --project-dir $PWD/.home/project
+HOME=$PWD/.home ../../infer sessions stop <session id> --project-dir $PWD/.home/project
 ```
 
 `stop` releases the lease too, so the session continues from the laptop's copy, as it was before the teleport.
@@ -216,7 +216,7 @@ In the chat:
    The pod daemon does not wait out `idle_ttl` once the session left: after `away_ttl` (a minute in
    `daemon.yaml`) with no client attached it exits with its agents done, so the operator suspends the
    Orchestrator and starts its `retention`. Teleport the session there again before the retention runs out
-   and the Orchestrator resumes with its volumes. `infer daemon stop <id>` deletes it at once.
+   and the Orchestrator resumes with its volumes. `infer sessions stop <id>` deletes it at once.
 
 Teleporting back lands only while the checkout is clean or unchanged since the session left, so stash your own
 changes first (`git stash -u`, then `git stash pop` afterwards).
@@ -286,7 +286,7 @@ kubectl --context k3d-infer-workspaces -n infer-workspaces exec $POD -- env | gr
 ```
 
 The last command prints only `INFER_GATEWAY_URL`. Every session on `k8s-cloud` shares the one Gateway. Each
-session's Orchestrator owns it and its Secret, so `infer daemon stop` on the last session, or that
+session's Orchestrator owns it and its Secret, so `infer sessions stop` on the last session, or that
 session's retention, deletes both. A teleport whose daemon has no key leaves the stored one in place,
 and a changed key rolls the gateway. Once every session on `k8s-cloud` idled out, the Gateway keeps its
 Deployment and Secret but runs no pod, and the next turn starts it again.
@@ -309,7 +309,7 @@ the same listener instead:
 ```
 
 The teleport and the relay ride the frames the [Daemon to daemon](../../docs/browser-extension-protocol.md#daemon-to-daemon)
-section defines either way, and `infer daemon workspaces` and the chat TUI show what each workspace
+section defines either way, and `infer sessions workspaces` and the chat TUI show what each workspace
 picked. A workspace that serves nothing over its chosen protocol fails the teleport at the provisioning
 stage, before it creates anything: the pod image in `daemon.yaml` must be new enough to serve the `/a2a`
 peer endpoint on its binding, so run `task image:import` after changing the protocol. See the
@@ -334,13 +334,13 @@ task cleanup
 | `desktop:screenshot` fails with `array index out of bounds` | No session lives on `k8s-desktop` yet. Run `task demo TARGET=k8s-desktop` first |
 | `artifacts:list` says the bucket does not exist | No run finished on `k8s-desktop` since `task artifacts:install`. The first run creates it |
 | `provisioning` fails with `did not become ready` | Check `kubectl -n infer-workspaces describe orchestrator` and the pod's logs |
-| `session ... is owned by workspace` | The session teleported. Continue with `infer daemon run`, or delete it remotely with `infer daemon stop` |
+| `session ... is owned by workspace` | The session teleported. Continue with `infer sessions run`, or delete it remotely with `infer sessions stop` |
 | `restoring` fails with `does not apply cleanly` | The project changed after the teleport started. Retry |
-| `daemon teleport` hangs before `provisioning` | The daemon runs an older infer. Stop it and run `task daemon:start` again, it rebuilds `infer` |
+| `sessions teleport` hangs before `provisioning` | The daemon runs an older infer. Stop it and run `task daemon:start` again, it rebuilds `infer` |
 | Teleporting back fails with `did not answer the teleport back` | The pod runs an older infer. Run `task image:import`, then `task desktop:image` |
 | Teleporting back fails with `changed since the session left it` | `git stash -u`, teleport back, then `git stash pop` |
 | `checkpointing` fails with `not a git checkout with a commit` | A teleport bundles `HEAD`, so the project needs at least one commit |
-| The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer daemon run` opens a new one |
+| The relay drops with `RUN_ERROR` after the laptop slept | The port-forward died. The next `infer sessions run` opens a new one |
 
 Two things to know. The lease a relaying daemon keeps for a remote owner lapses after `lease_ttl` (the
 workspace's `idle_ttl` plus five minutes by default): a laptop that cannot reach the pod after that may

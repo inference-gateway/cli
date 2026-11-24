@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"time"
 
 	psutil "github.com/shirou/gopsutil/v4/process"
 )
@@ -65,6 +66,60 @@ func KillTreeOnCancel(cmd *exec.Cmd) {
 		}
 		return killTree(root)
 	}
+}
+
+// exitPoll paces Stop's checks on whether the process is gone.
+const exitPoll = 100 * time.Millisecond
+
+// Stop asks process pid to exit, with SIGTERM where there are signals and a
+// kill on windows, and kills it once grace passes with it still running. A
+// process that is already gone counts as stopped.
+func Stop(ctx context.Context, pid int32, grace time.Duration) error {
+	p, err := psutil.NewProcessWithContext(ctx, pid)
+	if errors.Is(err, psutil.ErrorProcessNotRunning) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := p.TerminateWithContext(ctx); err != nil {
+		return err
+	}
+	deadline := time.NewTimer(grace)
+	defer deadline.Stop()
+	poll := time.NewTicker(exitPoll)
+	defer poll.Stop()
+	for !exited(ctx, p) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return p.KillWithContext(ctx)
+		case <-poll.C:
+		}
+	}
+	return nil
+}
+
+// exited reports whether p is gone. IsRunning fails only once p vanished or
+// its pid names a new process, so a failure counts as gone too.
+func exited(ctx context.Context, p *psutil.Process) bool {
+	running, err := p.IsRunningWithContext(ctx)
+	return err != nil || !running
+}
+
+// TerminateOnCancel makes a timeout or cancel ask cmd's process to exit, with
+// SIGTERM where there are signals and a kill on windows, so it runs its own
+// shutdown, and kills it once grace passes with it still running.
+func TerminateOnCancel(cmd *exec.Cmd, grace time.Duration) {
+	cmd.Cancel = func() error {
+		p, err := psutil.NewProcess(int32(cmd.Process.Pid))
+		if err != nil {
+			return cmd.Process.Kill()
+		}
+		return p.Terminate()
+	}
+	cmd.WaitDelay = grace
 }
 
 // maxAncestors bounds the walk up a process tree, far past any real depth.

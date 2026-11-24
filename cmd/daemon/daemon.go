@@ -91,7 +91,11 @@ Examples:
   INFER_CHANNELS_TELEGRAM_ENABLED=true \
   INFER_CHANNELS_TELEGRAM_BOT_TOKEN="your-token" \
   INFER_CHANNELS_TELEGRAM_ALLOWED_USERS="123456789" \
-  infer daemon`,
+  infer daemon
+
+  # Stop the running daemon
+  infer daemon stop`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			state.ConfigureDaemonLogging()
 			cfg := state.Config()
@@ -104,7 +108,7 @@ Examples:
 		},
 	}
 	command.Flags().Duration("idle-exit", 0, "Stop after this long with no threads and no clients, unless daemon.yaml sets idle_exit (a daemon a client starts on demand passes 30m)")
-	command.AddCommand(newWorkspacesCommand(state), newTeleportCommand(state), newRunCommand(state), newStopCommand(state))
+	command.AddCommand(newStopCommand())
 	return command
 }
 

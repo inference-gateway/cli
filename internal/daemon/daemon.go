@@ -2,9 +2,11 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -72,6 +74,31 @@ var start = func() error {
 	}
 	logger.Info("started the infer daemon", "pid", cmd.Process.Pid)
 	return cmd.Process.Release()
+}
+
+// stopGrace is how long Stop waits for the daemon to shut down cleanly before
+// it kills it, past the grace each of its workers and runs gets on its own.
+// Its session workers exit once their stdin closes either way.
+const stopGrace = time.Minute
+
+// Stop stops this user's running daemon and returns its pid, 0 when none runs.
+// A pid counts only while a daemon holds the pid file's lock, since the file a
+// crashed daemon left may name a process that reused its pid.
+// shortcut: windows has no SIGTERM, so the daemon is killed and its one-shot
+// runs outlive it, send a stop frame over the binding once windows needs one.
+func Stop(ctx context.Context) (int, error) {
+	pid, err := strconv.ParseInt(RunningPID(), 10, 32)
+	if err != nil {
+		return 0, nil
+	}
+	lock, err := process.LockFile(PIDFile())
+	if err == nil {
+		return 0, lock.Close()
+	}
+	if !errors.Is(err, process.ErrLocked) {
+		return 0, err
+	}
+	return int(pid), process.Stop(ctx, int32(pid), stopGrace)
 }
 
 // Reachable reports whether something accepts TCP on port, such as a daemon
