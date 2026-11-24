@@ -57,18 +57,8 @@ func NewRouter(decider decisiondomain.Decider, cfg config.RoomsConfig) *Router {
 // descriptions the decision model reads, and history the room's earlier posts.
 func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
 	known := agentNames(agents)
-	routing := Routing{Mentions: roomsdomain.Mentions(post.Text, known)}
-	everyone := roomsdomain.MentionsEveryone(post.Text, known)
-	for _, agent := range routing.Mentions {
-		if !slices.Contains(room.Agents, agent) {
-			routing.Notices = append(routing.Notices, fmt.Sprintf("@%s is not in room %s.", agent, room.Name))
-			continue
-		}
-		if !everyone {
-			routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
-		}
-	}
-	if everyone {
+	routing := pings(room, known, post)
+	if roomsdomain.MentionsEveryone(post.Text, known) {
 		routing.Mentions = append(routing.Mentions, roomsdomain.EveryoneMention)
 		routing.Routes = everyMember(room, mentionProbability)
 	}
@@ -76,6 +66,29 @@ func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agen
 		return routing, nil
 	}
 	return r.routeUnmentioned(ctx, room, agents, history, post)
+}
+
+// RouteHandover routes a member's post to the members it pings, so members hand
+// work to each other like teammates. It asks no model, and @all stays the
+// user's: a member's @all reaches nobody.
+func (r *Router) RouteHandover(room roomsdomain.Room, agents []agentdomain.SubagentInfo, post roomsdomain.Post) Routing {
+	return pings(room, agentNames(agents), post)
+}
+
+// pings routes post to the members it mentions, with a notice for a pinged
+// agent outside the room. A member pinging itself reaches nobody.
+func pings(room roomsdomain.Room, known []string, post roomsdomain.Post) Routing {
+	routing := Routing{Mentions: roomsdomain.Mentions(post.Text, known)}
+	for _, agent := range routing.Mentions {
+		switch {
+		case agent == post.Author:
+		case !slices.Contains(room.Agents, agent):
+			routing.Notices = append(routing.Notices, fmt.Sprintf("@%s is not in room %s.", agent, room.Name))
+		default:
+			routing.Routes = append(routing.Routes, roomsdomain.Route{Member: agent, Probability: mentionProbability})
+		}
+	}
+	return routing
 }
 
 // routeUnmentioned asks the decision model about a post that pings no agent

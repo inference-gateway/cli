@@ -329,6 +329,36 @@ func (h *Host) deliverTurns(room roomsdomain.Room, post roomsdomain.Post) {
 	}
 }
 
+// handOver logs a member's answer and hands it to the members it pings as their
+// next turn, unless the chain of hand-overs between members reached max_hops,
+// which the room notes. A pinged outsider gets a note too.
+func (h *Host) handOver(room roomsdomain.Room, post roomsdomain.Post) {
+	settings := h.settings()
+	routing := NewRouter(h.decider, settings).RouteHandover(room, h.agents(room.Project), post)
+	if maxHops := settings.Router.EffectiveMaxHops(); len(routing.Routes) > 0 && post.Hop > maxHops {
+		routing.Notices = append(routing.Notices, fmt.Sprintf("%s pinged %s, but the post stops here: members handed it on %d times, the most rooms.router.max_hops allows.", post.Author, pinged(routing.Routes), maxHops))
+		routing.Routes = nil
+	}
+	post.Mentions, post.Routes = routing.Mentions, routing.Routes
+	if err := h.append(room, post); err != nil {
+		logger.Warn("rooms could not log a member's answer", "room", room.Name, "member", post.Author, "error", err)
+		return
+	}
+	for _, notice := range routing.Notices {
+		h.note(room, notice)
+	}
+	h.deliverTurns(room, post)
+}
+
+// pinged names the members of routes as @mentions, in one list.
+func pinged(routes []roomsdomain.Route) string {
+	names := make([]string, 0, len(routes))
+	for _, route := range routes {
+		names = append(names, "@"+route.Member)
+	}
+	return strings.Join(names, ", ")
+}
+
 // passOn offers post to the member after the one that passed it on, or tells
 // the room that nobody picked it up. The note carries what the pass spent.
 func (h *Host) passOn(room roomsdomain.Room, post roomsdomain.Post, passed string, spent roomsdomain.Usage) {

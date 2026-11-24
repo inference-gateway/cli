@@ -31,6 +31,7 @@ router:
   model: ollama_cloud/clef:27b
   min_confidence: 0.5
   max_members: 2
+  max_hops: 3
   fallback: top
 context_posts: 20
 rooms:
@@ -72,6 +73,8 @@ rooms:
 - **router.min_confidence**: the probability a member needs to get an unpinged post.
 - **router.max_members**: the most members an unpinged post is offered to, one after another and the most
   relevant first, and how many welcome you on your first visit. Pings are never capped.
+- **router.max_hops**: how many times members may hand a post on to each other with a ping before it stops,
+  3 by default, so two members cannot ping each other forever.
 - **router.fallback**: what happens to an unpinged post nobody passed. `top` offers it to the most relevant
   members anyway, as `pickup` says, so a `PASS` still reaches the next one. `none` asks you to ping one.
 - **context_posts**: how many of the room's posts a member gets with its turn.
@@ -94,6 +97,10 @@ were last read.
    when the last one passes, the room says nobody picked it up.
 4. When nobody passes `min_confidence`, `fallback` decides. Without a router model, an unpinged post reaches
    nobody and you get a notice naming the members to ping.
+5. A member's answer that pings another member hands the post over: the pinged member gets it as its next
+   turn, told who handed it over, and no model is asked. A member pinging itself, a pinged agent outside the
+   room, which the room notes, and a member's `@all` reach nobody. A chain of hand-overs stops after
+   `router.max_hops`, and the room notes where it stopped.
 
 The log records whom each post was routed to and with what probability, so a client can show why a member
 answered. A decision request that fails still logs the post, routed to nobody, with the reason in a notice.
@@ -104,7 +111,9 @@ Every member keeps its own session, `room-<room>-<agent>`, running as its agent 
 session records the room as what invoked it. A routed post becomes the member's next turn and carries the
 room's posts the member has not seen since its last turn, up to `context_posts`. The member's answer, the last
 assistant message of its run, is logged as its post. Members talk like teammates in a channel: they answer
-what a post asks and keep greetings and small talk to one short line.
+what a post asks and keep greetings and small talk to one short line. A member hands a post to another
+member with `@name` when that member should act on it, the way you ping one, and never for small talk. A
+member offered a post that hands it over this way takes it: the offer does not move on to the next match too.
 
 - Members routed the same post run in parallel.
 - A post for a member that is still running waits and becomes its next turn.
@@ -125,10 +134,11 @@ what a post asks and keep greetings and small talk to one short line.
 
 Each room appends its posts to `~/.infer/projects/<slug of the room's project>/rooms/<room>.jsonl`, one JSON
 object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `kind`, `text`,
-`mentions`, `routes`, `approval`, `usage` (what the post cost) and `time`. `kind` is `join` for your first
+`mentions`, `routes`, `hop`, `approval`, `usage` (what the post cost) and `time`. `kind` is `join` for your first
 entry, `approval` for a member's call waiting for you and `decision` for the room's line that closes one, and
 absent for a message. `approval` names the call those two posts are about: its `id`, `tool`, `arguments` and
-the `decision`, `approve` or `reject`, absent when it was decided outside the room. `usage` is the tokens
+the `decision`, `approve` or `reject`, absent when it was decided outside the room. `hop` is how many member
+turns lie between your post and a member's, 1 for a direct answer, the count `max_hops` caps. `usage` is the tokens
 of routing a post of yours, which carry no cost, or the tokens and cost of the member's turn behind an answer
 or the note of a pass. A turn that failed reports no spend, so its note carries none.
 

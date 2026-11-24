@@ -821,3 +821,91 @@ func TestAFailedRoutingStillLogsThePost(t *testing.T) {
 		require.Zero(t, f.threads.HandleCallCount())
 	})
 }
+
+// TestAMembersPingHandsThePostToThatMember covers a hand-over between members:
+// the pinged member's turn says who handed the post over, the answer is logged
+// with its mentions, routes and hop, and the pinged member's own answer lands
+// in the log with what its turn spent.
+func TestAMembersPingHandsThePostToThatMember(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "@writer tell me a joke from someone other than you")
+		reply(t, f.seat(t, "writer"), "@tester, you're up: the user wants a joke from someone other than me")
+
+		sent := f.sent(t)
+		require.Len(t, sent, 4, "the ping gives tester a turn")
+		require.Equal(t, "tester", sent[2]["agent"])
+		require.Contains(t, turnText(t, sent[3]), "writer handed this post over to you:\nwriter: tester, you're up")
+		replySpending(t, f.seat(t, "tester"), "Why did the test cross the road? To reach coverage.", map[string]any{"result": map[string]any{"runTokens": 500, "runCost": 0.001}})
+
+		logged := f.logged(t)
+		require.Len(t, logged, 3)
+		require.Equal(t, []string{"tester"}, logged[1].Mentions)
+		require.Equal(t, []roomsdomain.Route{{Member: "tester", Probability: 1}}, logged[1].Routes)
+		require.Equal(t, 1, logged[1].Hop)
+		require.Equal(t, "tester", logged[2].Author)
+		require.Equal(t, 2, logged[2].Hop)
+		require.Equal(t, roomsdomain.Usage{Tokens: 500, Cost: 0.001}, logged[2].Usage)
+		require.Len(t, f.sent(t), 4, "an answer that pings nobody ends the chain")
+	})
+}
+
+func TestAChainOfPingsStopsAtMaxHops(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, func(cfg *config.RoomsConfig) { cfg.Router.MaxHops = 1 })
+		f.post(t, &sessionsmocks.FakeClient{}, "@writer start a ping-pong")
+		reply(t, f.seat(t, "writer"), "@tester ping")
+		require.Len(t, f.sent(t), 4, "the first hand-over goes through")
+		reply(t, f.seat(t, "tester"), "@writer pong")
+
+		require.Len(t, f.sent(t), 4, "the second hand-over is over the limit")
+		logged := f.logged(t)
+		require.Len(t, logged, 4)
+		require.Equal(t, []string{"writer"}, logged[2].Mentions, "the ping is still recorded")
+		require.Empty(t, logged[2].Routes)
+		require.Equal(t, roomsdomain.RoomAuthor, logged[3].Author)
+		require.Equal(t, "tester pinged @writer, but the post stops here: members handed it on 1 times, the most rooms.router.max_hops allows.", logged[3].Text)
+	})
+}
+
+func TestAPingedOutsiderInAMembersPostIsNoted(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "@writer who else could help?")
+		reply(t, f.seat(t, "writer"), "@reviewer could, and @all agrees")
+
+		require.Len(t, f.sent(t), 2, "neither the outsider nor @all gets a turn")
+		logged := f.logged(t)
+		require.Len(t, logged, 3)
+		require.Equal(t, []string{"reviewer"}, logged[1].Mentions)
+		require.Equal(t, "@reviewer is not in room release.", logged[2].Text)
+	})
+}
+
+// TestAnOfferedPostHandedOverIsNotPassedOn pins the hand-over of an offered
+// post: the member offered it first answers by pinging another member, who
+// gets it, and the offer never moves on to the next best match as well.
+func TestAnOfferedPostHandedOverIsNotPassedOn(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "can someone else tell me a joke?")
+		require.Equal(t, "writer", f.sent(t)[0]["agent"])
+		reply(t, f.seat(t, "writer"), "@tester, you're up")
+
+		sent := f.sent(t)
+		require.Len(t, sent, 4)
+		require.Equal(t, "tester", sent[2]["agent"])
+		require.Contains(t, turnText(t, sent[3]), "writer handed this post over to you")
+		require.NotContains(t, turnText(t, sent[3]), "offered to you", "a hand-over is a ping, not an offer")
+		texts := []string{}
+		for _, post := range f.logged(t) {
+			texts = append(texts, post.Text)
+		}
+		require.Equal(t, []string{"can someone else tell me a joke?", "@tester, you're up"}, texts, "no pass note")
+	})
+}

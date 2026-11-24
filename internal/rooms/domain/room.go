@@ -129,7 +129,9 @@ func ownAgents(agents []agentdomain.SubagentInfo) []string {
 // who wrote it, what it says, which agents it mentions, who it was routed to
 // with the router's probability, and when. Kind marks an event such as a
 // join or an approval, and is empty for a message. Approval is the tool call
-// an approval or decision post is about. Usage is what the post cost.
+// an approval or decision post is about. Usage is what the post cost. Hop is
+// how many member turns lie between the user's post and this one, 0 for the
+// user's own, so a chain of members pinging each other can be stopped.
 type Post struct {
 	ID       string    `json:"id,omitempty"`
 	Author   string    `json:"author"`
@@ -137,6 +139,7 @@ type Post struct {
 	Text     string    `json:"text"`
 	Mentions []string  `json:"mentions,omitempty"`
 	Routes   []Route   `json:"routes,omitempty"`
+	Hop      int       `json:"hop,omitempty"`
 	Approval *Approval `json:"approval,omitempty"`
 	Usage    Usage     `json:"usage,omitzero"`
 	Time     time.Time `json:"time"`
