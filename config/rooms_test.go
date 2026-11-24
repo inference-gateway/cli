@@ -9,13 +9,14 @@ import (
 )
 
 // TestDefaultRoomsConfig pins the in-code default: one public room holding
-// every agent via the wildcard, @mentions-only routing, and 20 context posts.
+// every agent via the wildcard, routing on the clef decision model, and 20
+// context posts.
 func TestDefaultRoomsConfig(t *testing.T) {
 	cfg := DefaultRoomsConfig()
 
 	require.Equal(t, DefaultRoomsMinConfidence, cfg.Router.MinConfidence)
 	require.Equal(t, RoomsFallbackTop, cfg.Router.Fallback)
-	require.Equal(t, "", cfg.Router.Model, "an empty router model routes @mentions only")
+	require.Equal(t, "ollama_cloud/clef:27b", cfg.Router.Model, "a fresh room routes unpinged posts on clef")
 	require.Equal(t, DefaultRoomsContextPosts, cfg.ContextPosts)
 
 	require.Len(t, cfg.Rooms, 1)
@@ -123,8 +124,12 @@ func TestNeedsGatewayDecisions(t *testing.T) {
 		mutate func(*Config)
 		want   bool
 	}{
-		{"defaults need no decisions", func(*Config) {}, false},
-		{"the judge's decisions backend needs them", func(c *Config) { c.Judge.Backend = JudgeBackendDecisions }, true},
+		{"the default rooms router needs them", func(*Config) {}, true},
+		{"an empty router model and the llm judge need none", func(c *Config) { c.Rooms.Router.Model = "" }, false},
+		{"the judge's decisions backend needs them", func(c *Config) {
+			c.Rooms.Router.Model = ""
+			c.Judge.Backend = JudgeBackendDecisions
+		}, true},
 		{"a rooms router model needs them", func(c *Config) { c.Rooms.Router.Model = "anthropic/claude-haiku-5-5" }, true},
 	}
 	for _, tt := range tests {

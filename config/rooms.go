@@ -27,6 +27,10 @@ const (
 	DefaultRoomsMaxMembers    = 2
 )
 
+// DefaultRoomsRouterModel is the decision model that decides who a post that
+// pings nobody is for, so a fresh room routes "Hi all" without any setup.
+const DefaultRoomsRouterModel = "ollama_cloud/clef:27b"
+
 // RoomsConfig is the content of rooms.yaml: the router that decides who a post
 // goes to, how many past posts ride along as context, and the rooms themselves.
 type RoomsConfig struct {
@@ -78,11 +82,12 @@ var roomMemberModes = []agentdomain.AgentMode{
 
 // DefaultRoomsConfig returns the in-code default rooms configuration used when
 // no rooms.yaml exists and the file `infer init` seeds: the public room with
-// every agent of the user's own, @mentions-only routing and 20 context posts.
+// every agent of the user's own, routing on DefaultRoomsRouterModel and 20
+// context posts.
 func DefaultRoomsConfig() *RoomsConfig {
 	return &RoomsConfig{
 		Router: RoomsRouterConfig{
-			Model:         "",
+			Model:         DefaultRoomsRouterModel,
 			MinConfidence: DefaultRoomsMinConfidence,
 			MaxMembers:    DefaultRoomsMaxMembers,
 			Fallback:      RoomsFallbackTop,

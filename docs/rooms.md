@@ -28,7 +28,7 @@ the home file. By default there is one room, `public`, with every agent of yours
 
 ```yaml
 router:
-  model: ""
+  model: ollama_cloud/clef:27b
   min_confidence: 0.5
   max_members: 2
   fallback: top
@@ -59,8 +59,10 @@ rooms:
   when it starts, so a change reaches a busy member once its idle worker was let go.
 - **name**: letters, digits and underscores. A file defining `public` replaces the default room, and one
   that leaves it out keeps it.
-- **router.model**: the `provider/model` decision model asked about a post that pings nobody. Empty routes
-  pings only. Setting it starts the gateway with `DECISIONS_ENABLED=true`.
+- **router.model**: the `provider/model` decision model asked about a post that pings nobody,
+  `ollama_cloud/clef:27b` by default. Empty routes pings only. A set model starts the gateway with
+  `DECISIONS_ENABLED=true`. When routing fails, such as without an `ollama_cloud` key, the post reaches nobody
+  and you get a notice to ping a member.
 - **router.min_confidence**: the probability a member needs to get an unpinged post.
 - **router.max_members**: the most members that answer an unpinged post, the most relevant first, so a busy
   room does not get five answers to one question. Pings are never capped.
