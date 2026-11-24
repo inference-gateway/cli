@@ -1116,10 +1116,23 @@ func (s *Agent) requestSandboxApproval(
 			allow = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
 			always = response == agentdomain.ApprovalAutoAccept
 		case <-ctx.Done():
-		case <-time.After(constants.ApprovalTimeout):
+		case <-s.approvalDeadline():
 		}
 	})
 	return allow, always
+}
+
+// approvalDeadline fires once an approval has waited tools.safety.approval_timeout,
+// and never with a timeout of zero, so the approval waits until it is decided.
+func (s *Agent) approvalDeadline() <-chan time.Time {
+	timeout := config.DefaultApprovalTimeout
+	if s.config != nil {
+		timeout = s.config.Tools.Safety.ApprovalTimeout
+	}
+	if timeout <= 0 {
+		return nil
+	}
+	return time.After(timeout)
 }
 
 // executeToolOnce performs the actual tool execution without approval checks
@@ -1558,7 +1571,7 @@ func (s *Agent) requestHumanApproval(
 			approved = response == agentdomain.ApprovalApprove || response == agentdomain.ApprovalAutoAccept
 		case <-ctx.Done():
 			err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
-		case <-time.After(constants.ApprovalTimeout):
+		case <-s.approvalDeadline():
 			err = fmt.Errorf("approval request timed out")
 		}
 	})

@@ -299,6 +299,9 @@ safety:
   # under the channel manager, else blocked), ipc (force IPC), judge (LLM
   # judge decides, see judge.yaml), or block (reject).
   approval_behaviour: prompt
+  # How long an approval waits for its decision before it is rejected. 0 waits
+  # until it is decided.
+  approval_timeout: 5m
 tools:
   bash:
     enabled: true
@@ -419,6 +422,9 @@ tools:
 - **tools.custom_dir**: Directory your user [custom tools](custom-tools.md) load from (default: `""`, meaning
   `~/.infer/tools/`). Project tools in `.infer/tools/` and `.agents/tools/` load as well. Env: `INFER_TOOLS_CUSTOM_DIR`.
 - **tools.safety.require_approval**: Whether a tool needs approval at all (default: true. A per-tool `require_approval` overrides it)
+- **tools.safety.approval_timeout**: How long an approval waits for its decision before it is rejected (default: `5m`).
+  `0` waits until it is decided. The daemon's session workers always wait, see [Session workers](daemon.md#session-workers).
+  Env: `INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT`.
 - **tools.safety.approval_behaviour**: *How* a needed approval is delivered (default: `prompt`). Env: `INFER_TOOLS_SAFETY_APPROVAL_BEHAVIOUR`.
   - `prompt` - ask an interactive approver via whatever channel is attached: a TUI prompt in chat, IPC under the channel manager
     (Telegram). If none is reachable (CI/heartbeat) the action is **blocked** with a reason.

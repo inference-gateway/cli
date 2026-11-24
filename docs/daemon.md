@@ -604,6 +604,11 @@ nobody follows stops 30 seconds after the turn comes back to the user with no ru
 open, no reply pending and no background job still running. A worker that exits mid-turn ends its run
 with `RUN_ERROR` for every client of the thread, and the next `run_agent_input` starts a new one.
 
+A tool call that needs approval suspends the worker's run on an interrupt until a client resumes it. The
+worker sets no deadline of its own, whatever `tools.safety.approval_timeout` says, so a room member's call or
+a followed chat's waits until someone decides it. A suspended thread nobody follows stops after the idle
+limit, and at least 5 minutes.
+
 A worker's headless subagents are threads too: the worker opens
 `subagent-<parent id>-<child id>` over the binding as a client, so the daemon runs the subagent in
 a worker of its own and the desktop can follow it live. Without a configured binding the worker

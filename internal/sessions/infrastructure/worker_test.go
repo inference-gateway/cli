@@ -20,7 +20,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 		{
 			name:     "no options keep the project's config",
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
-			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true"},
+			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true", "INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0"},
 		},
 		{
 			name: "every option",
@@ -37,6 +37,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			wantEnv: []string{
 				"PWD=/work/proj",
 				"INFER_LOG_STDERR_JSON=true",
+				"INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0",
 				"INFER_PROMPTS_AGENT_SYSTEM_PROMPT=be brief",
 				"INFER_PROMPTS_AGENT_CUSTOM_INSTRUCTIONS=use tabs",
 				"INFER_TOOLS_SANDBOX_DIRECTORIES=/work/proj\n/tmp/with space",
@@ -61,6 +62,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			wantEnv: []string{
 				"PWD=/work/proj",
 				"INFER_LOG_STDERR_JSON=true",
+				"INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0",
 				"INFER_PROMPTS_AGENT_SYSTEM_PROMPT=You review diffs.",
 				"INFER_SUBAGENT_TOOLS=Read,Grep",
 				"INFER_DISALLOWED_TOOLS=Bash",
@@ -75,6 +77,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			wantEnv: []string{
 				"PWD=/work/proj",
 				"INFER_LOG_STDERR_JSON=true",
+				"INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0",
 				"INFER_SESSION_LABEL=survey",
 				"INFER_PARENT_SESSION_ID=parent-1",
 				"INFER_INVOKED_BY=agent",
@@ -88,6 +91,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			wantEnv: []string{
 				"PWD=/work/proj",
 				"INFER_LOG_STDERR_JSON=true",
+				"INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0",
 				"INFER_SESSION_AGENT=tester",
 				"INFER_SESSION_LABEL=tester",
 				"INFER_SENT_BY=sender-1",
@@ -101,6 +105,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			wantEnv: []string{
 				"PWD=/work/proj",
 				"INFER_LOG_STDERR_JSON=true",
+				"INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0",
 				"INFER_MAIN_AGENT=tester",
 				"INFER_SESSION_AGENT=tester",
 				"INFER_SESSION_LABEL=release",
@@ -111,7 +116,7 @@ func TestWorkerArgsAndEnv(t *testing.T) {
 			name:     "an agent with an empty MCP server list brings up none",
 			opts:     sessionsdomain.ThreadOptions{Agent: "offline", MCPServers: []string{}},
 			wantArgs: []string{"headless", "--serve", "--require-approval", "--session-id", "conv-1"},
-			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true", "INFER_AGENT_MCP_SERVERS=", "INFER_MAIN_AGENT=offline"},
+			wantEnv:  []string{"PWD=/work/proj", "INFER_LOG_STDERR_JSON=true", "INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0", "INFER_AGENT_MCP_SERVERS=", "INFER_MAIN_AGENT=offline"},
 		},
 	}
 	for _, tt := range tests {

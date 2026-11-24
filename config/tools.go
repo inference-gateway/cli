@@ -149,6 +149,7 @@ func DefaultToolsConfig() *ToolsConfig {
 		Safety: SafetyConfig{
 			RequireApproval:   true,
 			ApprovalBehaviour: ApprovalBehaviourPrompt,
+			ApprovalTimeout:   DefaultApprovalTimeout,
 		},
 	}
 }

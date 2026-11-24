@@ -104,11 +104,17 @@ func workerArgs(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions)
 	return args
 }
 
+// approvalsWaitForDecision lifts a worker's own deadline on an approval. Its
+// run suspends on the approval as an interrupt until a client resumes it, and
+// the registry stops a suspended thread nobody follows, so a room's call or a
+// followed chat's waits until someone decides it.
+const approvalsWaitForDecision = "INFER_TOOLS_SAFETY_APPROVAL_TIMEOUT=0"
+
 // workerEnv carries the options headless has no flag for as INFER_ overrides.
 // PWD follows the project dir, since exec with an explicit Env leaves the
 // daemon's PWD in place and the project slug is derived from the working dir.
 func workerEnv(key sessionsdomain.ThreadKey, opts sessionsdomain.ThreadOptions) []string {
-	env := []string{"PWD=" + key.ProjectDir, logger.ChildStderrJSONEnv + "=true"}
+	env := []string{"PWD=" + key.ProjectDir, logger.ChildStderrJSONEnv + "=true", approvalsWaitForDecision}
 	if opts.SystemPrompt != "" {
 		env = append(env, "INFER_PROMPTS_AGENT_SYSTEM_PROMPT="+opts.SystemPrompt)
 	}
