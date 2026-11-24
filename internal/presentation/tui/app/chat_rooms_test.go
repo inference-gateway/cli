@@ -64,6 +64,7 @@ func newRoomTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeRooms) {
 		conversationView: components.NewConversationView(styleProvider),
 		roomPicker:       components.NewPicker(styleProvider),
 		roomView:         components.NewRoomView(styleProvider),
+		newSession:       newSessionBinding(cfg.Chat.Keybindings),
 	}
 	rooms := &tuimocks.FakeRooms{}
 	app.SetRooms(rooms)
@@ -227,6 +228,24 @@ func TestImagesStayInTheComposerInARoom(t *testing.T) {
 	require.Len(t, app.inputView.GetImageAttachments(), 1, "the image is kept, not dropped")
 	require.Equal(t, typed, app.inputView.GetInput())
 	require.Contains(t, statusOf(t, played), "Rooms take text only")
+}
+
+// TestClearingIsHeldBackInARoom pins that the chat's clear never acts inside a
+// room, which other people read too: the key and the commands say how to
+// empty the room on purpose and leave the composer as it was.
+func TestClearingIsHeldBackInARoom(t *testing.T) {
+	app, rooms := newRoomTestApp(t)
+	enterTestRoom(t, app, rooms)
+
+	cmds := app.handleChatViewKeyPress(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
+	require.Contains(t, statusOf(t, playRoomCmd(app, tea.Batch(cmds...))), "run `infer rooms clear release` to empty it on purpose")
+
+	for _, command := range []string{"/clear", "/new"} {
+		app.inputView.SetText(command)
+		require.Contains(t, statusOf(t, playRoomCmd(app, app.SendMessage())), "#release is not cleared from the chat")
+		require.Equal(t, command, app.inputView.GetInput(), "the command stays in the composer")
+	}
+	require.Zero(t, rooms.PostCallCount())
 }
 
 func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {

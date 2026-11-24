@@ -113,6 +113,8 @@ under its author and time.
 - The composer posts to the room. `@tester` pings one member, `@all` every member. The `@` menu uses the
   `room` table of `composer.yaml`.
 - `!` and `!!` commands stay in the composer until you leave the room. `/` commands work as usual.
+- `Ctrl+L`, `/clear` and `/new` clear nothing inside a room, since other people read it too. Empty a room on
+  purpose with `infer rooms clear <room>`, or pick **No room** first to clear your own chat.
 - The first time you enter a room, its members welcome you.
 - **No room** brings the chat back as you left it.
 

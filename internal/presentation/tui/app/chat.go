@@ -43,6 +43,10 @@ import (
 // the snippet attachments tree below the input.
 var actChatFocusAttachments = config.ActionID(config.NamespaceChat, "focus_attachments")
 
+// actGlobalNewSession is the action that clears the chat for a new session,
+// which a room holds back.
+var actGlobalNewSession = config.ActionID(config.NamespaceGlobal, "new_session")
+
 // ChatApplication is the main Bubble Tea model of the chat TUI, wiring its
 // services, views and handlers. Pending snippets ride along with the next
 // message. Keyboard focus can sit on the attachments, the status row, the job
@@ -138,6 +142,7 @@ type ChatApplication struct {
 	keyBindingManager *keybinding.Dispatcher
 
 	focusAttachments key.Binding
+	newSession       key.Binding
 
 	lastHandledKey string
 	lastView       tui.ViewState
@@ -311,6 +316,7 @@ func NewChatApplication(
 		isb.SetPickers(app.agentPicker, app.roomPicker)
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
+	app.newSession = newSessionBinding(app.config.Chat.Keybindings)
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
@@ -836,6 +842,7 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	return app.handleChatViewKeyPress(keyMsg)
 }
 
+//nolint:gocyclo,cyclop // one ordered key routing, each branch hands the key to its one owner
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -884,6 +891,10 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 	if !app.attachmentsFocused && len(app.pendingSnippets) > 0 && app.matchesFocusAttachments(keyMsg) {
 		app.attachmentsFocused = true
 		return nil
+	}
+
+	if app.room != noRoom && key.Matches(keyMsg, app.newSession) {
+		return []tea.Cmd{app.refuseRoomClear()}
 	}
 
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)
@@ -2128,6 +2139,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	input := strings.TrimSpace(app.inputView.GetInput())
+	if app.clearsInRoom(input) {
+		return app.refuseRoomClear()
+	}
 	if app.room != noRoom && !strings.HasPrefix(input, "/") {
 		return app.postToRoom(input)
 	}

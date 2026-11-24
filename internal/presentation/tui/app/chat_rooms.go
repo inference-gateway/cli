@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +30,10 @@ const (
 	roomShellRefusal      = "Leave the room to run ! commands - pick No room in the Room dropdown"
 	roomImageRefusal      = "Rooms take text only - remove the image, or pick No room in the Room dropdown to send it"
 )
+
+// roomClearCommands wipe the chat's own conversation, which sits hidden under
+// a room, so inside one they are held back rather than taken for its clear.
+var roomClearCommands = []string{"/clear", "/new"}
 
 // roomPickerSpec titles the dropdown that switches the room a chat is in.
 var roomPickerSpec = components.PickerSpec{
@@ -241,6 +246,21 @@ func (app *ChatApplication) useComposerContext(context string) {
 	if ac, ok := app.autocomplete.(*autocomplete.Autocomplete); ok && app.config != nil {
 		ac.SetTriggerSources(app.config.Composer.Triggers[context])
 	}
+}
+
+// clearsInRoom reports whether input, inside a room, is a command that would
+// wipe the chat hidden under it.
+func (app *ChatApplication) clearsInRoom(input string) bool {
+	command, _, _ := strings.Cut(input, " ")
+	return app.room != noRoom && slices.Contains(roomClearCommands, command)
+}
+
+// refuseRoomClear says a room is never cleared from the chat, since other
+// people read it too, and how to empty it on purpose. Nothing is cleared, the
+// chat hidden under the room included.
+func (app *ChatApplication) refuseRoomClear() tea.Cmd {
+	return statusCmd(fmt.Sprintf("#%s is not cleared from the chat, others read it too - "+
+		"run `infer rooms clear %s` to empty it on purpose, or pick No room to clear your own chat", app.room, app.room))
 }
 
 // postToRoom posts the composer's text to the room. A shell command stays in
