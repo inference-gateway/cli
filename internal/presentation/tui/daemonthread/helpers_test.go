@@ -17,6 +17,7 @@ import (
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	browserinfra "github.com/inference-gateway/cli/internal/browser/infrastructure"
 	convdomain "github.com/inference-gateway/cli/internal/conversation/domain"
+	daemon "github.com/inference-gateway/cli/internal/daemon"
 	headless "github.com/inference-gateway/cli/internal/presentation/headless"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	sessionsdomain "github.com/inference-gateway/cli/internal/sessions/domain"
@@ -39,13 +40,21 @@ type fakeDaemon struct {
 	reply       map[string]string
 }
 
-// startDaemon starts the scripted daemon on port, a free one when 0.
+// startDaemon starts the scripted daemon on port, a free one when 0, of the
+// test binary's own build.
 func startDaemon(t *testing.T, port int) *fakeDaemon {
+	t.Helper()
+	return startDaemonOfBuild(t, port, daemon.Build())
+}
+
+// startDaemonOfBuild starts the scripted daemon declaring build in its ack.
+func startDaemonOfBuild(t *testing.T, port int, build string) *fakeDaemon {
 	t.Helper()
 	d := &fakeDaemon{t: t, handler: &aguimocks.FakeHandler{}, reply: map[string]string{}}
 	d.handler.HandleCalls(d.handle)
 	d.binding = agui.NewBinding(agui.BindingConfig{
-		Port: port, Token: testToken, Handshake: browserinfra.BindingHandshake, AckAttrs: map[string]any{"workspace": "laptop"},
+		Port: port, Token: testToken, Handshake: browserinfra.BindingHandshake,
+		AckAttrs: map[string]any{"workspace": "laptop", daemon.AckAttrBuild: build},
 	}, d.handler)
 	if err := d.binding.Start(); err != nil {
 		t.Fatalf("starting the binding: %v", err)

@@ -634,7 +634,10 @@ approval or a question left open is asked again on reattach. The in-process chat
 A fresh session opens the model picker unless `agent.model` is set, and a reattached one keeps its model.
 The status bar shows where the session runs: `⌂ laptop` on this machine's daemon, `⇄ k8s-dev` on another
 workspace, `⇢ k8s-dev` while it teleports and `· offline` while the daemon is unreachable, which the TUI
-reconnects to with backoff. Both the status bar and the `/workspaces` picker name the peer protocol the workspace
+reconnects to with backoff. A chat that joins a daemon built from other code than itself, such as one left
+running from before a `go run` or an upgrade, says so once with the daemon's pid and keeps working, since what
+its own build changed on the daemon's side is missing there until `infer daemon stop` and a restart. Both the
+status bar and the `/workspaces` picker name the peer protocol the workspace
 serves next to its name, like `⇄ k8s-dev (a2a)`. Selecting that indicator, `/workspaces`, or `/teleport` without a target opens
 a picker of every workspace with its reachability and details, and `enter` teleports the session there.
 `/teleport <workspace> [file...]` teleports it directly, carrying the files git does not track. A teleport is

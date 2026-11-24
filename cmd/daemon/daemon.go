@@ -610,6 +610,7 @@ func buildTeleports(cfg *config.Config) (*agentteleport.Service, *agentinfra.TLS
 		ProjectsRoot:    cfg.Daemon.ProjectsDir(),
 		IdleExit:        cfg.Daemon.IdleExit,
 		Version:         version.Value(),
+		Build:           daemonhost.Build(),
 		StorageID:       storageIdentity(storageConfig),
 		LeaseBackend:    storageConfig.Type,
 		Handshake:       browserinfra.BindingHandshake,

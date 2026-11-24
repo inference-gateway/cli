@@ -152,3 +152,35 @@ func TestSessionlessThreadReachesOnlyARunningDaemon(t *testing.T) {
 	_, err = NewRooms(stopped).List(t.Context())
 	require.Error(t, err, "nothing listens, and a plain chat starts no daemon")
 }
+
+// TestSessionlessThreadSaysOnceThatTheDaemonRunsAnotherBuild pins the warning a
+// chat gives when the daemon it joins is another build: once, on the first
+// dial, and never for a daemon of its own build.
+func TestSessionlessThreadSaysOnceThatTheDaemonRunsAnotherBuild(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	other := startDaemonOfBuild(t, 0, "another-build")
+	thread := NewSessionless(other.config())
+	t.Cleanup(thread.Close)
+	notifier := &agentdomainmocks.FakeUINotifier{}
+	thread.SetNotifier(notifier)
+	other.answer(roomsdomain.FrameListRooms, testRoomsReply)
+	rooms := NewRooms(thread)
+
+	for range 2 {
+		_, err := rooms.List(t.Context())
+		require.NoError(t, err)
+	}
+	warnings := notified[tui.ShowErrorEvent](notifier)
+	require.Len(t, warnings, 1)
+	require.Contains(t, warnings[0].Error, "another build")
+
+	same := startDaemon(t, 0)
+	quiet := NewSessionless(same.config())
+	t.Cleanup(quiet.Close)
+	quietNotifier := &agentdomainmocks.FakeUINotifier{}
+	quiet.SetNotifier(quietNotifier)
+	same.answer(roomsdomain.FrameListRooms, testRoomsReply)
+	_, err := NewRooms(quiet).List(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, notified[tui.ShowErrorEvent](quietNotifier))
+}

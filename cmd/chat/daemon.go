@@ -158,17 +158,9 @@ func attachError(err error) error {
 	var refused *agui.HelloRefusedError
 	if errors.As(err, &refused) && refused.Reason == agui.RefusalNotAuthenticated {
 		return fmt.Errorf("could not reach infer daemon: %w - it runs with another token than this chat, "+
-			"such as one from before infer init --overwrite, so stop it%s and run again", err, pidHint(daemon.RunningPID()))
+			"such as one from before infer init --overwrite, so stop it%s and run again", err, daemon.RunningPIDHint())
 	}
 	return fmt.Errorf("could not reach infer daemon: %w (its daemon-<date>.log is in %s)", err, config.DefaultLogsDir())
-}
-
-// pidHint names the daemon's pid in a sentence, nothing when it is unknown.
-func pidHint(pid string) string {
-	if pid == "" {
-		return ""
-	}
-	return " (pid " + pid + ")"
 }
 
 // placementLine says where the session runs as the TUI attaches to it.
