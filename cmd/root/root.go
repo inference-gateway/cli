@@ -37,6 +37,7 @@ import (
 	resetcmd "github.com/inference-gateway/cli/cmd/reset"
 	roomscmd "github.com/inference-gateway/cli/cmd/rooms"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	sessionscmd "github.com/inference-gateway/cli/cmd/sessions"
 	shortcutscmd "github.com/inference-gateway/cli/cmd/shortcuts"
 	skills "github.com/inference-gateway/cli/cmd/skills"
 	stats "github.com/inference-gateway/cli/cmd/stats"
@@ -44,6 +45,7 @@ import (
 	tools "github.com/inference-gateway/cli/cmd/tools"
 	traces "github.com/inference-gateway/cli/cmd/traces"
 	version "github.com/inference-gateway/cli/cmd/version"
+	workspacescmd "github.com/inference-gateway/cli/cmd/workspaces"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 )
@@ -117,6 +119,7 @@ deployment, monitoring, and management of inference services.`,
 		plugins.NewCommand(state, renderer),
 		resetcmd.NewCommand(state),
 		roomscmd.NewCommand(state, renderer),
+		sessionscmd.NewCommand(state),
 		shortcutscmd.NewCommand(state),
 		skills.NewCommand(state, renderer),
 		stats.NewCommand(state, renderer),
@@ -124,6 +127,7 @@ deployment, monitoring, and management of inference services.`,
 		tools.NewCommand(state),
 		traces.NewCommand(renderer),
 		version.NewCommand(),
+		workspacescmd.NewCommand(state),
 	)
 	return command
 }

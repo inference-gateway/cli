@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"runtime"
+	"slices"
 	"testing"
 	"time"
 )
@@ -88,6 +90,36 @@ func TestRunHarvestsFinalAssistantAndStreamsLines(t *testing.T) {
 	}
 	if lines != 4 {
 		t.Fatalf("OnLine called %d times, want 4", lines)
+	}
+}
+
+func TestACancelledRunShutsDownOnItsOwnBeforeAnyKill(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows has no SIGTERM to shut down on")
+	}
+	script := `trap 'echo shut down cleanly; exit 0' TERM
+echo ready
+while :; do sleep 0.1; done`
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var lines []string
+	_, _ = Run(ctx, Options{
+		Exec: func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			return exec.CommandContext(ctx, "sh", "-c", script)
+		},
+		SessionID: "s1",
+		Prompt:    "do",
+		OnLine: func(b []byte) {
+			lines = append(lines, string(b))
+			if string(b) == "ready" {
+				cancel()
+			}
+		},
+	})
+
+	if !slices.Contains(lines, "shut down cleanly") {
+		t.Fatalf("lines = %q, want the run to have shut down on its own", lines)
 	}
 }
 

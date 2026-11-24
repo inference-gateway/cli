@@ -79,7 +79,7 @@ tasks:
     deps:
       - build
     cmds:
-      - HOME={{.LAPTOP}} {{.INFER}} daemon workspaces
+      - HOME={{.LAPTOP}} {{.INFER}} workspaces list
 
   artifacts:
     desc: Show the artifacts each daemon holds, per session
