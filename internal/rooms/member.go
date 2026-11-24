@@ -42,9 +42,9 @@ const turnIntro = "You are %s, chatting in #%s with the user and the room's memb
 	"Your reply to the post for you is posted to the room. Reply as a teammate would: answer what the post asks, " +
 	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for.\n"
 
-// workerEvent is the part of a worker's AG-UI event a member reads. A run's
-// terminal event carries what the run spent in Result, which stays raw since a
-// worker may put anything there.
+// workerEvent is the part of a worker's AG-UI event a member reads. A run that
+// finishes carries what it spent in Result, which stays raw since a worker may
+// put anything there. A run that fails carries no Result.
 type workerEvent struct {
 	Type    string `json:"type"`
 	RunID   string `json:"runId"`
@@ -298,7 +298,7 @@ func (m *member) handle(ev workerEvent) {
 		m.finish(answer, "", ev.runSpend())
 	case "RUN_ERROR":
 		m.answer = ""
-		m.finish("", ev.Message, ev.runSpend())
+		m.finish("", ev.Message, roomsdomain.Usage{})
 	}
 }
 
@@ -349,10 +349,11 @@ func (m *member) runStarted(runID string) {
 	}
 }
 
-// finish ends the member's turn: it logs the answer as the member's post, a
-// note when the run failed, or passes an offered post on, each with what the
-// turn spent, and starts the next held post. A run the room did not start, such
-// as the user chatting with the member directly, is left out of the room.
+// finish ends the member's turn: it logs the answer as the member's post or
+// passes an offered post on, each with what the turn spent, or notes a run
+// that failed, whose worker reports no spend, and starts the next held post. A
+// run the room did not start, such as the user chatting with the member
+// directly, is left out of the room.
 func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 	m.mu.Lock()
 	if m.activity == roomsdomain.ActivityIdle {
@@ -366,7 +367,7 @@ func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 
 	switch {
 	case failure != "":
-		m.host.noteSpent(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure), spent)
+		m.host.note(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure))
 	case m.room.Passes(addressed, answer):
 		m.host.passOn(m.room, addressed, m.agent, spent)
 	case answer != "":

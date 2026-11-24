@@ -115,8 +115,9 @@ what a post asks and keep greetings and small talk to one short line.
 
 Each room appends its posts to `~/.infer/projects/<slug of the room's project>/rooms/<room>.jsonl`, one JSON
 object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `kind` (`join` for
-your first entry), `text`, `mentions`, `routes`, `usage` (what the post cost: routing it, or the member's turn
-behind an answer or a note) and `time`.
+your first entry), `text`, `mentions`, `routes`, `usage` (what the post cost) and `time`. `usage` is the tokens
+of routing a post of yours, which carry no cost, or the tokens and cost of the member's turn behind an answer
+or the note of a pass. A turn that failed reports no spend, so its note carries none.
 
 ## Commands
 

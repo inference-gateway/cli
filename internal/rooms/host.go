@@ -348,7 +348,7 @@ func (h *Host) note(room roomsdomain.Room, text string) {
 }
 
 // noteSpent logs a note about a member's turn with what the turn spent, such
-// as a run that failed or an offered post passed on.
+// as an offered post passed on.
 func (h *Host) noteSpent(room roomsdomain.Room, text string, spent roomsdomain.Usage) {
 	post := newPost(roomsdomain.RoomAuthor, text)
 	post.Usage = spent

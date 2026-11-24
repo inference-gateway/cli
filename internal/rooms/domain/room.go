@@ -129,7 +129,7 @@ func ownAgents(agents []agentdomain.SubagentInfo) []string {
 // who wrote it, what it says, which agents it mentions, who it was routed to
 // with the router's probability, and when. Kind marks an event such as a
 // join, and is empty for a message. Usage is what the post cost: routing it
-// for the user's, the member's turn for its answer or a note about that turn.
+// for the user's, the member's turn for its answer or the note of a pass.
 type Post struct {
 	ID       string    `json:"id,omitempty"`
 	Author   string    `json:"author"`

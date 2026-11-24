@@ -988,10 +988,11 @@ Client → CLI, stopping the follow. Nothing answers it:
   session, and `idle` otherwise.
 - `kind` is `join` for the user's first entry into a room and absent for a message.
 - `usage` on a post is what it cost, `tokens` in and out and their `cost`: routing a post of the user's through
-  the decision model, and for a member's answer, or the room's note that it failed or passed a post on, what
-  the member's turn spent, from the `runTokens` and `runCost` of its worker's `RUN_FINISHED`. It is absent when
-  the post cost nothing, such as a ping. A room's total is the `usage` of every post in its log, so a cleared
-  room starts over. `cost` stays `0` for a model without a price.
+  the decision model, its input tokens with no `cost`, and for a member's answer, or the room's note that it
+  passed a post on, what the member's turn spent, from the `runTokens` and `runCost` of its worker's
+  `RUN_FINISHED`. A turn that failed ends on `RUN_ERROR`, which reports no spend, so its note has no `usage`.
+  It is absent when the post cost nothing, such as a ping. A room's total is the `usage` of every post in its
+  log, so a cleared room starts over. `cost` stays `0` for a model without a price.
 - `routes` is empty for a post that reached nobody. `probability` is `1` for a pinged member, every member of
   an `@all` post included, and the decision model's answer otherwise. For a post that pings nobody, `routes`
   are the members it is offered to in turn, best first. Only the first gets it, and the next only after the
