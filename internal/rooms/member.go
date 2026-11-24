@@ -52,7 +52,8 @@ type workerEvent struct {
 	Delta   string `json:"delta"`
 	Message string `json:"message"`
 	Outcome struct {
-		Type string `json:"type"`
+		Type       string           `json:"type"`
+		Interrupts []agui.Interrupt `json:"interrupts"`
 	} `json:"outcome"`
 	Result json.RawMessage `json:"result"`
 }
@@ -73,8 +74,8 @@ func (ev workerEvent) runSpend() roomsdomain.Usage {
 // member drives one agent's seat in a room as its session's client: it holds
 // the posts routed to it, delivers them a turn at a time, logs each answer and
 // detaches when idle. addressed, inputID and runID are a turn's post, input and
-// run. sendMu orders a turn's frames without mu, so a stuck worker never
-// stalls the room.
+// run, and approval the tool call a waiting turn holds for the room to decide.
+// sendMu orders a turn's frames without mu, so a stuck worker never stalls the room.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -90,6 +91,7 @@ type member struct {
 	seen      int
 	inputID   string
 	runID     string
+	approval  *roomsdomain.Approval
 	detach    *time.Timer
 
 	role    string
@@ -290,7 +292,7 @@ func (m *member) handle(ev workerEvent) {
 		m.role = ""
 	case "RUN_FINISHED":
 		if ev.Outcome.Type == "interrupt" {
-			m.waitForApproval()
+			m.waitForApproval(ev.Outcome.Interrupts)
 			return
 		}
 		answer := m.answer
@@ -307,18 +309,84 @@ func (m *member) announce(activity roomsdomain.Activity) {
 	m.host.announce(m.room, roomsdomain.MemberStatus{Agent: m.agent, SessionID: m.sessionID, Activity: activity})
 }
 
-// waitForApproval leaves the run's approval to the member's own chat, where
-// the user decides it, and notes in the room that the member waits.
-func (m *member) waitForApproval() {
+// waitForApproval holds a run suspended on a tool call for the room to decide
+// and posts the call there. Any other suspension, such as a question, waits in
+// the member's own chat, which the room notes.
+func (m *member) waitForApproval(interrupts []agui.Interrupt) {
 	m.mu.Lock()
 	if m.activity != roomsdomain.ActivityRunning {
 		m.mu.Unlock()
 		return
 	}
 	m.activity = roomsdomain.ActivityWaiting
+	approval, decidable := roomApproval(interrupts)
+	if decidable {
+		m.approval = &approval
+	}
 	m.mu.Unlock()
-	m.host.note(m.room, fmt.Sprintf("%s waits for approval in its own chat, session %s.", m.agent, m.sessionID))
+	if decidable {
+		m.host.askApproval(m.room, m.agent, approval, interrupts[0].Message)
+	} else {
+		m.host.note(m.room, fmt.Sprintf("%s waits for approval in its own chat, session %s.", m.agent, m.sessionID))
+	}
 	m.announce(roomsdomain.ActivityWaiting)
+}
+
+// roomApproval is the tool call a run suspended on, which the room can decide:
+// the run's one interrupt, when it is a tool call.
+func roomApproval(interrupts []agui.Interrupt) (roomsdomain.Approval, bool) {
+	if len(interrupts) != 1 || interrupts[0].Reason != agui.InterruptToolCall {
+		return roomsdomain.Approval{}, false
+	}
+	tool, _ := interrupts[0].Metadata["toolName"].(string)
+	arguments, _ := interrupts[0].Metadata["arguments"].(string)
+	return roomsdomain.Approval{ID: interrupts[0].ID, Tool: tool, Arguments: arguments}, true
+}
+
+// decide answers the tool call the member waits on with decision, resuming its
+// run. The first decision wins and a later one finds nothing to decide. One
+// that crosses a decision of the member's own chat in flight loses to it at
+// the registry, though the room already logged it.
+func (m *member) decide(id string, decision roomsdomain.Decision) (roomsdomain.Approval, error) {
+	m.mu.Lock()
+	if m.approval == nil || m.approval.ID != id {
+		m.mu.Unlock()
+		return roomsdomain.Approval{}, fmt.Errorf("%s's call was already decided", m.agent)
+	}
+	decided := *m.approval
+	decided.Decision = decision
+	m.approval = nil
+	resume := m.resumeInput(decided)
+	m.inputID = resume.Input.RunID
+	m.mu.Unlock()
+	m.sendMu.Lock()
+	m.host.threads.Handle(m, encode(resume))
+	m.sendMu.Unlock()
+	return decided, nil
+}
+
+// resumeInput answers the suspended run's interrupt as approval decided it.
+func (m *member) resumeInput(approval roomsdomain.Approval) agui.RunInputFrame {
+	status := agui.ResumeStatusCancelled
+	if approval.Decision == roomsdomain.DecisionApprove {
+		status = agui.ResumeStatusResolved
+	}
+	return agui.NewRunInputFrame(agui.RunAgentInput{
+		ThreadID: m.sessionID,
+		RunID:    uuid.NewString(),
+		Resume:   []agui.ResumeEntry{{InterruptID: approval.ID, Status: status}},
+	})
+}
+
+// takeApprovalLocked lets go of the call the member waits on, returning it
+// when one was open.
+func (m *member) takeApprovalLocked() (roomsdomain.Approval, bool) {
+	if m.approval == nil {
+		return roomsdomain.Approval{}, false
+	}
+	open := *m.approval
+	m.approval = nil
+	return open, true
 }
 
 // isCurrentRun reports whether an event of runID ends the open turn: its run,
@@ -332,7 +400,8 @@ func (m *member) isCurrentRun(runID string) bool {
 
 // runStarted makes the first run that starts while the turn waits for its own
 // the turn's run. A run that continues an approval marks a waiting member
-// running again and becomes the run the turn waits on.
+// running again and becomes the run the turn waits on. A call the room still
+// held was decided in the member's own chat, which closes it in the room.
 func (m *member) runStarted(runID string) {
 	m.mu.Lock()
 	switch m.activity {
@@ -342,18 +411,21 @@ func (m *member) runStarted(runID string) {
 	case roomsdomain.ActivityWaiting:
 		m.activity = roomsdomain.ActivityRunning
 		m.runID = cmp.Or(runID, m.runID)
+		elsewhere, open := m.takeApprovalLocked()
 		m.mu.Unlock()
+		if open {
+			m.host.closeApproval(m.room, elsewhere, fmt.Sprintf("%s's %s call was decided in its own chat.", m.agent, toolLabel(elsewhere)))
+		}
 		m.announce(roomsdomain.ActivityRunning)
 	default:
 		m.mu.Unlock()
 	}
 }
 
-// finish ends the member's turn: it logs the answer as the member's post or
-// passes an offered post on, each with what the turn spent, or notes a run
-// that failed, whose worker reports no spend, and starts the next held post. A
-// run the room did not start, such as the user chatting with the member
-// directly, is left out of the room.
+// finish ends the member's turn: it closes a call still waiting, logs the
+// answer or passes an offered post on with what the turn spent, or notes a
+// failed run, and starts the next held post. A run the room did not start,
+// such as the user chatting with the member directly, is left out of the room.
 func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 	m.mu.Lock()
 	if m.activity == roomsdomain.ActivityIdle {
@@ -363,8 +435,12 @@ func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 	m.activity = roomsdomain.ActivityIdle
 	m.armDetachLocked()
 	addressed := m.addressed
+	abandoned, open := m.takeApprovalLocked()
 	m.mu.Unlock()
 
+	if open {
+		m.host.closeApproval(m.room, abandoned, fmt.Sprintf("%s's %s call is no longer waiting, its run ended.", m.agent, toolLabel(abandoned)))
+	}
 	switch {
 	case failure != "":
 		m.host.note(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure))

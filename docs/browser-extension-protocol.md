@@ -976,17 +976,67 @@ Client → CLI, emptying the room's log. Every follower of the room, and the cli
 {"type": "room_cleared", "room": "release"}
 ```
 
+A member whose run waits on a tool call, such as one the judge rejected and the member escalated, posts the
+call to its room. The `text` is the note the call came with: the judge's reason and the member's justification:
+
+```json
+{
+  "type": "room_post",
+  "room": "release",
+  "post": {
+    "id": "b41d...",
+    "author": "tester",
+    "kind": "approval",
+    "text": "Rejected by judge: tests were not asked for\nNeeded for: finding why main is red\nBecause: the suite shows which test fails",
+    "approval": {"id": "call_7-escalation", "tool": "Bash", "arguments": "{\"command\":\"go test ./...\"}"},
+    "time": "2026-11-23T10:31:00Z"
+  }
+}
+```
+
+Client → CLI, deciding that call as the user, `approve` or `reject`. The member's run continues with the
+decision, the room logs a `decision` post naming the call, and the client that decided gets
+`room_approval_decided`. Only the first decision counts. A later one, or one for a call that no longer waits,
+answers `RUN_ERROR`:
+
+```json
+{"type": "decide_room_approval", "room": "release", "member": "tester", "tool_call_id": "call_7-escalation", "decision": "approve"}
+```
+
+```json
+{"type": "room_approval_decided", "room": "release", "member": "tester", "tool_call_id": "call_7-escalation", "decision": "approve"}
+```
+
+```json
+{
+  "type": "room_post",
+  "room": "release",
+  "post": {
+    "id": "0c9f...",
+    "author": "room",
+    "kind": "decision",
+    "text": "You approved tester's Bash call.",
+    "approval": {"id": "call_7-escalation", "tool": "Bash", "arguments": "{\"command\":\"go test ./...\"}", "decision": "approve"},
+    "time": "2026-11-23T10:32:00Z"
+  }
+}
+```
+
 Client → CLI, stopping the follow. Nothing answers it:
 
 ```json
 {"type": "leave_room", "room": "release"}
 ```
 
-- `author` is `user` for a post a client wrote, the member's agent for its answer, and `room` for the room's
-  own notes, such as a member waiting for approval in its own chat.
-- `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval in its own
-  session, and `idle` otherwise.
-- `kind` is `join` for the user's first entry into a room and absent for a message.
+- `author` is `user` for a post a client wrote, the member's agent for its answer or its call waiting for
+  approval, and `room` for the room's own notes, such as a decision or a member waiting on a question in its
+  own chat.
+- `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval or a
+  question, and `idle` otherwise.
+- `kind` is `join` for the user's first entry into a room, `approval` for a member's call waiting for the user,
+  `decision` for the room's line that closes one, and absent for a message. An approval is open until a
+  `decision` post with the same `approval.id` follows it. A call decided in the member's own chat, or one
+  whose run ended first, is closed with a `decision` post without `approval.decision`.
 - `usage` on a post is what it cost, `tokens` in and out and their `cost`: routing a post of the user's through
   the decision model, its input tokens with no `cost`, and for a member's answer, or the room's note that it
   passed a post on, what the member's turn spent, from the `runTokens` and `runCost` of its worker's
@@ -999,7 +1049,7 @@ Client → CLI, stopping the follow. Nothing answers it:
   one before replied `PASS`, which the room notes.
 - An unknown room, an empty post or a log that cannot be read answers `RUN_ERROR` with a `message`.
 - A member's session is an ordinary thread: follow `room-<room>-<agent>` with `resume_conversation` to watch
-  the member work or decide its approval.
+  the member work, answer its question, or decide its approval there instead of in the room.
 
 ## Workspaces
 

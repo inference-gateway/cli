@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -230,10 +231,157 @@ func TestAPostForABusyMemberQueuesAsItsNextTurn(t *testing.T) {
 	})
 }
 
-// TestAnApprovalWaitsInTheMembersOwnChat pins that the room never answers a
-// member's approval: it notes the wait, holds the member's next post, and logs
-// the answer once the user decided in the member's chat.
-func TestAnApprovalWaitsInTheMembersOwnChat(t *testing.T) {
+// escalatedCall is the RUN_FINISHED of a run suspended on a member's escalated
+// tool call, as a serve worker writes it.
+const escalatedCall = `{"type":"RUN_FINISHED","outcome":{"type":"interrupt","interrupts":[{"id":"call-1-escalation","reason":"tool_call",` +
+	`"message":"Rejected by judge: tests were not asked for\nBecause: the suite shows which test fails",` +
+	`"metadata":{"toolName":"Bash","arguments":"{\"command\":\"go test ./...\"}"}}]}}`
+
+// suspend plays the member's run suspending on its escalated call.
+func suspend(t *testing.T, seat sessionsdomain.Client) {
+	t.Helper()
+	seat.Deliver([]byte(escalatedCall))
+	synctest.Wait()
+}
+
+func (f hostFixture) decide(t *testing.T, c sessionsdomain.Client, decision roomsdomain.Decision) {
+	t.Helper()
+	f.send(t, c, map[string]string{
+		"type": roomsdomain.FrameDecideRoomApproval, "room": "release", "member": "tester",
+		"tool_call_id": "call-1-escalation", "decision": string(decision),
+	})
+}
+
+// resumeEntries are the resume entries of the last frame the host sent.
+func (f hostFixture) resumeEntries(t *testing.T) []agui.ResumeEntry {
+	t.Helper()
+	sent := f.sent(t)
+	raw, err := json.Marshal(sent[len(sent)-1])
+	require.NoError(t, err)
+	var frame agui.RunInputFrame
+	require.NoError(t, json.Unmarshal(raw, &frame))
+	require.Equal(t, agui.FrameRunAgentInput, frame.Type)
+	return frame.Input.Resume
+}
+
+// TestAMembersEscalatedCallIsDecidedInTheRoom pins the room's approval: the
+// call waits as a post with the judge's reason and the member's justification,
+// the first decision resumes the run and is logged, and a second one is refused.
+func TestAMembersEscalatedCallIsDecidedInTheRoom(t *testing.T) {
+	tests := []struct {
+		name     string
+		decision roomsdomain.Decision
+		status   agui.ResumeStatus
+		line     string
+	}{
+		{"approve runs the call", roomsdomain.DecisionApprove, agui.ResumeStatusResolved, "You approved tester's Bash call."},
+		{"reject refuses it", roomsdomain.DecisionReject, agui.ResumeStatusCancelled, "You rejected tester's Bash call."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			synctest.Test(t, func(t *testing.T) {
+				f := newHostFixture(t, nil)
+				user := &sessionsmocks.FakeClient{}
+				f.post(t, user, "@tester why is main red?")
+				seat := f.seat(t, "tester")
+				suspend(t, seat)
+
+				asked := f.logged(t)[1]
+				require.Equal(t, roomsdomain.PostKindApproval, asked.Kind)
+				require.Equal(t, "tester", asked.Author)
+				require.Equal(t, &roomsdomain.Approval{ID: "call-1-escalation", Tool: "Bash", Arguments: `{"command":"go test ./..."}`}, asked.Approval)
+				require.Contains(t, asked.Text, "Rejected by judge: tests were not asked for")
+				require.Contains(t, asked.Text, "the suite shows which test fails")
+
+				f.decide(t, user, tt.decision)
+				require.Equal(t, []agui.ResumeEntry{{InterruptID: "call-1-escalation", Status: tt.status}}, f.resumeEntries(t))
+				closed := f.logged(t)[2]
+				require.Equal(t, roomsdomain.PostKindDecision, closed.Kind)
+				require.Equal(t, tt.line, closed.Text)
+				require.Equal(t, tt.decision, closed.Approval.Decision)
+				require.Empty(t, roomsdomain.OpenApprovals(f.logged(t)))
+				require.Len(t, delivered[decidedFrame](t, user, roomsdomain.FrameRoomApprovalDecided), 1)
+
+				f.decide(t, user, roomsdomain.DecisionApprove)
+				refusals := delivered[struct{ Message string }](t, user, frameRunError)
+				require.Len(t, refusals, 1, "the first decision wins")
+				require.Equal(t, "tester's call was already decided", refusals[0].Message)
+				calls := f.threads.HandleCallCount()
+
+				reply(t, seat, "main is red on TestDeploy")
+				logged := f.logged(t)
+				require.Equal(t, "main is red on TestDeploy", logged[len(logged)-1].Text)
+				require.Len(t, logged, 4, "a run the room resumed adds no own-chat line")
+				require.Equal(t, calls, f.threads.HandleCallCount())
+			})
+		})
+	}
+}
+
+// TestACallDecidedElsewhereClosesItsPost pins that the room lets go of a call
+// it no longer decides: the member's own chat resumed the run, or the run
+// ended first. Either closes the approval post, and a late decision is refused.
+func TestACallDecidedElsewhereClosesItsPost(t *testing.T) {
+	tests := []struct {
+		name string
+		end  func(t *testing.T, seat sessionsdomain.Client)
+		line string
+	}{
+		{"the member's own chat decided it", func(t *testing.T, seat sessionsdomain.Client) { reply(t, seat, "deployed") }, "tester's Bash call was decided in its own chat."},
+		{"its run ended", func(t *testing.T, seat sessionsdomain.Client) {
+			seat.Deliver([]byte(`{"type":"RUN_ERROR","message":"worker gone"}`))
+			synctest.Wait()
+		}, "tester's Bash call is no longer waiting, its run ended."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			synctest.Test(t, func(t *testing.T) {
+				f := newHostFixture(t, nil)
+				user := &sessionsmocks.FakeClient{}
+				f.post(t, user, "@tester deploy it")
+				seat := f.seat(t, "tester")
+				suspend(t, seat)
+				calls := f.threads.HandleCallCount()
+
+				tt.end(t, seat)
+				logged := f.logged(t)
+				require.Empty(t, roomsdomain.OpenApprovals(logged))
+				require.True(t, slices.ContainsFunc(logged, func(post roomsdomain.Post) bool {
+					return post.Kind == roomsdomain.PostKindDecision && post.Text == tt.line && post.Approval.Decision == ""
+				}), "the room says the call left its hands")
+
+				f.decide(t, user, roomsdomain.DecisionApprove)
+				require.Len(t, delivered[struct{ Message string }](t, user, frameRunError), 1)
+				require.Equal(t, calls, f.threads.HandleCallCount(), "a late decision sends no resume")
+			})
+		})
+	}
+}
+
+// TestADecisionNeedsApproveOrReject pins that a room offers approve and reject
+// only, so a client cannot switch a member to auto-accept from the room.
+func TestADecisionNeedsApproveOrReject(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		user := &sessionsmocks.FakeClient{}
+		f.post(t, user, "@tester deploy it")
+		suspend(t, f.seat(t, "tester"))
+		calls := f.threads.HandleCallCount()
+
+		f.decide(t, user, "auto_accept")
+		require.Len(t, delivered[struct{ Message string }](t, user, frameRunError), 1)
+		require.Equal(t, calls, f.threads.HandleCallCount())
+		require.Len(t, roomsdomain.OpenApprovals(f.logged(t)), 1, "the call still waits")
+	})
+}
+
+// TestAQuestionWaitsInTheMembersOwnChat pins that the room decides tool calls
+// only: a run suspended on a question is noted, the member's next post is
+// held, and the answer is logged once the user replied in the member's chat.
+func TestAQuestionWaitsInTheMembersOwnChat(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, nil)
@@ -242,7 +390,7 @@ func TestAnApprovalWaitsInTheMembersOwnChat(t *testing.T) {
 
 		f.post(t, poster, "@tester deploy it")
 		seat := f.seat(t, "tester")
-		seat.Deliver([]byte(`{"type":"RUN_FINISHED","outcome":{"type":"interrupt","interrupts":[{"id":"i1","reason":"tool_call"}]}}`))
+		seat.Deliver([]byte(`{"type":"RUN_FINISHED","outcome":{"type":"interrupt","interrupts":[{"id":"i1","reason":"input_required"}]}}`))
 		synctest.Wait()
 
 		logged := f.logged(t)

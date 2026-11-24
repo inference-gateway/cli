@@ -102,9 +102,11 @@ what a post asks and keep greetings and small talk to one short line.
 
 - Members routed the same post run in parallel.
 - A post for a member that is still running waits and becomes its next turn.
-- A member that needs a tool approved waits in its own chat. The room logs that it waits, and its answer lands
-  once you decided there. In the default `auto-with-judge` mode only a call the judge rejected and the member
-  escalated waits for you.
+- A member that needs a tool call approved asks in the room. In the default `auto-with-judge` mode that is only
+  a call the judge rejected and the member escalated. The room shows the call with the judge's reason and the
+  member's justification, under **Approve** and **Reject**. The first decision wins, from the room or from the
+  member's own chat, session `room-<room>-<agent>`. The room logs who decided, and a later decision is refused.
+  A member that asks you a question still waits in its own chat, and the room notes it.
 - The posts a member missed are quoted in its turn as context, so neither the member nor its judge reads
   another member's words as your request.
 - A member on another workspace is reached through the lease relay like any session.
@@ -114,8 +116,11 @@ what a post asks and keep greetings and small talk to one short line.
 ## The room log
 
 Each room appends its posts to `~/.infer/projects/<slug of the room's project>/rooms/<room>.jsonl`, one JSON
-object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `kind` (`join` for
-your first entry), `text`, `mentions`, `routes`, `usage` (what the post cost) and `time`. `usage` is the tokens
+object per line: `id`, `author` (`user`, a member, or `room` for the room's own notes), `kind`, `text`,
+`mentions`, `routes`, `approval`, `usage` (what the post cost) and `time`. `kind` is `join` for your first
+entry, `approval` for a member's call waiting for you and `decision` for the room's line that closes one, and
+absent for a message. `approval` names the call those two posts are about: its `id`, `tool`, `arguments` and
+the `decision`, `approve` or `reject`, absent when it was decided outside the room. `usage` is the tokens
 of routing a post of yours, which carry no cost, or the tokens and cost of the member's turn behind an answer
 or the note of a pass. A turn that failed reports no spend, so its note carries none.
 
@@ -139,6 +144,6 @@ the rooms where you run them.
 ## Clients
 
 The chat TUI enters rooms from its status bar, see [Rooms in the chat](shortcuts-guide.md#rooms-in-the-chat).
-The desktop and other clients list, join, follow, post to and clear rooms over the daemon binding with
-`list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room` and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in
-the binding protocol.
+The desktop and other clients list, join, follow, post to and clear rooms and decide a member's call over the
+daemon binding with `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room`, `decide_room_approval`
+and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in the binding protocol.

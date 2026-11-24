@@ -128,8 +128,8 @@ func ownAgents(agents []agentdomain.SubagentInfo) []string {
 // Post is one entry of a room's log, written by the user or a member: its id,
 // who wrote it, what it says, which agents it mentions, who it was routed to
 // with the router's probability, and when. Kind marks an event such as a
-// join, and is empty for a message. Usage is what the post cost: routing it
-// for the user's, the member's turn for its answer or the note of a pass.
+// join or an approval, and is empty for a message. Approval is the tool call
+// an approval or decision post is about. Usage is what the post cost.
 type Post struct {
 	ID       string    `json:"id,omitempty"`
 	Author   string    `json:"author"`
@@ -137,6 +137,7 @@ type Post struct {
 	Text     string    `json:"text"`
 	Mentions []string  `json:"mentions,omitempty"`
 	Routes   []Route   `json:"routes,omitempty"`
+	Approval *Approval `json:"approval,omitempty"`
 	Usage    Usage     `json:"usage,omitzero"`
 	Time     time.Time `json:"time"`
 }

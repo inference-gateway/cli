@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -57,11 +58,15 @@ func NewHost(ctx context.Context, cfg config.RoomsConfig, threads sessionsdomain
 	}
 }
 
-// clientFrame is one rooms frame a client sends.
+// clientFrame is one rooms frame a client sends. Member, ToolCallID and
+// Decision belong to decide_room_approval.
 type clientFrame struct {
-	Type string `json:"type"`
-	Room string `json:"room"`
-	Text string `json:"text"`
+	Type       string               `json:"type"`
+	Room       string               `json:"room"`
+	Text       string               `json:"text"`
+	Member     string               `json:"member"`
+	ToolCallID string               `json:"tool_call_id"`
+	Decision   roomsdomain.Decision `json:"decision"`
 }
 
 type roomsFrame struct {
@@ -98,9 +103,19 @@ type postedFrame struct {
 	roomsdomain.Posted
 }
 
+// decidedFrame answers decide_room_approval to the client that decided.
+type decidedFrame struct {
+	Type       string               `json:"type"`
+	Room       string               `json:"room"`
+	Member     string               `json:"member"`
+	ToolCallID string               `json:"tool_call_id"`
+	Decision   roomsdomain.Decision `json:"decision"`
+}
+
 // Handle claims the rooms frames of one client and reports false for any
-// other. Listing, posting, clearing and welcomes run off the binding's read loop, while
-// follow, join and leave stay on it so a quick leave never overtakes its follow.
+// other. Listing, posting, clearing, deciding and welcomes run off the binding's
+// read loop, while follow, join and leave stay on it so a quick leave never
+// overtakes its follow.
 func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 	var f clientFrame
 	if json.Unmarshal(frame, &f) != nil {
@@ -115,6 +130,8 @@ func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 		go h.post(c, f.Room, f.Text)
 	case roomsdomain.FrameClearRoom:
 		go h.clear(c, f.Room)
+	case roomsdomain.FrameDecideRoomApproval:
+		go h.decide(c, f)
 	case roomsdomain.FrameJoinRoom:
 		h.join(c, f.Room)
 	case roomsdomain.FrameLeaveRoom:
@@ -318,6 +335,67 @@ func (h *Host) passOn(room roomsdomain.Room, post roomsdomain.Post, passed strin
 	}
 	h.noteSpent(room, fmt.Sprintf("%s passed it on - offered to %s.", passed, next), spent)
 	h.member(room, next).enqueue(post)
+}
+
+// decide answers decide_room_approval: the member resumes its run with the
+// decision, the room logs who decided what, and c gets room_approval_decided.
+// A call that is no longer open, decided or never asked, gets a refusal.
+func (h *Host) decide(c sessionsdomain.Client, f clientFrame) {
+	if !f.Decision.Valid() {
+		c.Deliver(runError(fmt.Sprintf("decision %q: must be %s or %s", f.Decision, roomsdomain.DecisionApprove, roomsdomain.DecisionReject)))
+		return
+	}
+	room, ok := h.findRoom(f.Room)
+	if !ok {
+		c.Deliver(unknownRoom(f.Room))
+		return
+	}
+	h.mu.Lock()
+	m := h.members[room.SessionID(f.Member)]
+	h.mu.Unlock()
+	if m == nil {
+		c.Deliver(runError(fmt.Sprintf("%s's call was already decided", f.Member)))
+		return
+	}
+	decided, err := m.decide(f.ToolCallID, f.Decision)
+	if err != nil {
+		c.Deliver(runError(err.Error()))
+		return
+	}
+	h.closeApproval(room, decided, fmt.Sprintf("You %s %s's %s call.", decisionVerb(f.Decision), f.Member, toolLabel(decided)))
+	c.Deliver(encode(decidedFrame{Type: roomsdomain.FrameRoomApprovalDecided, Room: room.Name, Member: f.Member, ToolCallID: f.ToolCallID, Decision: f.Decision}))
+}
+
+// askApproval posts a member's tool call that waits for the user, with note,
+// the judge's reason and the member's justification when it escalated.
+func (h *Host) askApproval(room roomsdomain.Room, agent string, approval roomsdomain.Approval, note string) {
+	post := newPost(agent, note)
+	post.Kind, post.Approval = roomsdomain.PostKindApproval, &approval
+	if err := h.append(room, post); err != nil {
+		logger.Warn("rooms could not post an approval", "room", room.Name, "member", agent, "error", err)
+	}
+}
+
+// closeApproval logs the room's line that closes an approval post, saying who
+// decided the call and how.
+func (h *Host) closeApproval(room roomsdomain.Room, approval roomsdomain.Approval, text string) {
+	post := newPost(roomsdomain.RoomAuthor, text)
+	post.Kind, post.Approval = roomsdomain.PostKindDecision, &approval
+	if err := h.append(room, post); err != nil {
+		logger.Warn("rooms could not close an approval", "room", room.Name, "error", err)
+	}
+}
+
+func decisionVerb(decision roomsdomain.Decision) string {
+	if decision == roomsdomain.DecisionApprove {
+		return "approved"
+	}
+	return "rejected"
+}
+
+// toolLabel names the tool of a call, or says "tool" for a call without one.
+func toolLabel(approval roomsdomain.Approval) string {
+	return cmp.Or(approval.Tool, "tool")
 }
 
 func (h *Host) route(room roomsdomain.Room, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
