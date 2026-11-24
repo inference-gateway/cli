@@ -10,6 +10,15 @@ import (
 )
 
 type FakeRooms struct {
+	DecideStub        func(context.Context, string, string, string, domain.Decision) error
+	decideMutex       sync.RWMutex
+	decideArgsForCall []FakeRoomsDecideArgs
+	decideReturns     struct {
+		result1 error
+	}
+	decideReturnsOnCall map[int]struct {
+		result1 error
+	}
 	JoinStub        func(context.Context, string) (domain.Snapshot, error)
 	joinMutex       sync.RWMutex
 	joinArgsForCall []FakeRoomsJoinArgs
@@ -57,6 +66,15 @@ type FakeRooms struct {
 	invocationsMutex sync.RWMutex
 }
 
+// FakeRoomsDecideArgs holds the arguments of one call to Decide.
+type FakeRoomsDecideArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+	Arg4 string
+	Arg5 domain.Decision
+}
+
 // FakeRoomsJoinArgs holds the arguments of one call to Join.
 type FakeRoomsJoinArgs struct {
 	Arg1 context.Context
@@ -78,6 +96,73 @@ type FakeRoomsPostArgs struct {
 	Arg1 context.Context
 	Arg2 string
 	Arg3 string
+}
+
+func (fake *FakeRooms) Decide(arg1 context.Context, arg2 string, arg3 string, arg4 string, arg5 domain.Decision) error {
+	fake.decideMutex.Lock()
+	ret, specificReturn := fake.decideReturnsOnCall[len(fake.decideArgsForCall)]
+	fake.decideArgsForCall = append(fake.decideArgsForCall, FakeRoomsDecideArgs{arg1, arg2, arg3, arg4, arg5})
+	stub := fake.DecideStub
+	fakeReturns := fake.decideReturns
+	fake.recordInvocation("Decide", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	fake.decideMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4, arg5)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeRooms) DecideCallCount() int {
+	fake.decideMutex.RLock()
+	defer fake.decideMutex.RUnlock()
+	return len(fake.decideArgsForCall)
+}
+
+func (fake *FakeRooms) DecideCalls(stub func(context.Context, string, string, string, domain.Decision) error) {
+	fake.decideMutex.Lock()
+	defer fake.decideMutex.Unlock()
+	fake.DecideStub = stub
+}
+
+func (fake *FakeRooms) DecideArgsForCall(i int) (context.Context, string, string, string, domain.Decision) {
+	fake.decideMutex.RLock()
+	defer fake.decideMutex.RUnlock()
+	argsForCall := fake.decideArgsForCall[i]
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3, argsForCall.Arg4, argsForCall.Arg5
+}
+
+func (fake *FakeRooms) DecideArgs() []FakeRoomsDecideArgs {
+	fake.decideMutex.RLock()
+	defer fake.decideMutex.RUnlock()
+	args := make([]FakeRoomsDecideArgs, len(fake.decideArgsForCall))
+	copy(args, fake.decideArgsForCall)
+	return args
+}
+
+func (fake *FakeRooms) DecideReturns(result1 error) {
+	fake.decideMutex.Lock()
+	defer fake.decideMutex.Unlock()
+	fake.DecideStub = nil
+	fake.decideReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRooms) DecideReturnsOnCall(i int, result1 error) {
+	fake.decideMutex.Lock()
+	defer fake.decideMutex.Unlock()
+	fake.DecideStub = nil
+	if fake.decideReturnsOnCall == nil {
+		fake.decideReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.decideReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeRooms) Join(arg1 context.Context, arg2 string) (domain.Snapshot, error) {

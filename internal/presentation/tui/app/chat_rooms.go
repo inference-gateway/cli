@@ -31,6 +31,13 @@ const (
 	roomImageRefusal      = "Rooms take text only - remove the image, or pick No room in the Room dropdown to send it"
 )
 
+// The actions that approve and reject the newest member's call waiting in a
+// room.
+var (
+	actChatRoomApprove = config.ActionID(config.NamespaceChat, "room_approve")
+	actChatRoomReject  = config.ActionID(config.NamespaceChat, "room_reject")
+)
+
 // roomClearCommands wipe the chat's own conversation, which sits hidden under
 // a room, so inside one they are held back rather than taken for its clear.
 var roomClearCommands = []string{"/clear", "/new"}
@@ -59,6 +66,13 @@ type roomPostedMsg struct {
 	room   string
 	posted roomsdomain.Posted
 	err    error
+}
+
+// roomDecidedMsg carries why a decision on a member's call did not land, nil
+// when it did.
+type roomDecidedMsg struct {
+	room, member string
+	err          error
 }
 
 // SetRooms gives the chat the daemon's rooms, which shows the Room indicator.
@@ -195,8 +209,67 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 		}
 	case roomPostedMsg:
 		return roomPostedStatus(m)
+	case roomDecidedMsg:
+		if m.err != nil {
+			return errorCmd(fmt.Sprintf("Could not decide %s's call in #%s: %v", m.member, m.room, m.err), false)
+		}
 	}
 	return nil
+}
+
+// showRoomApprovalKeys names the configured approve and reject keys next to
+// the newest open call of a room, when both are bound.
+func (app *ChatApplication) showRoomApprovalKeys() {
+	approve, reject := app.roomApprove.Keys(), app.roomReject.Keys()
+	if len(approve) > 0 && len(reject) > 0 {
+		app.roomView.SetApprovalKeys(approve[0], reject[0])
+	}
+}
+
+// decideByKey decides the newest open call of the room on screen when keyMsg
+// is its approve or reject key, and is nil otherwise so the key goes on.
+func (app *ChatApplication) decideByKey(keyMsg tea.KeyPressMsg) tea.Cmd {
+	if app.room == noRoom {
+		return nil
+	}
+	decision := roomsdomain.DecisionApprove
+	switch {
+	case key.Matches(keyMsg, app.roomApprove):
+	case key.Matches(keyMsg, app.roomReject):
+		decision = roomsdomain.DecisionReject
+	default:
+		return nil
+	}
+	post, open := app.roomView.NewestOpenApproval()
+	if !open {
+		return nil
+	}
+	return app.decideRoomApproval(post, decision)
+}
+
+// clickRoomButton decides the call whose Approve or Reject a left click lands
+// on, and is nil for a click anywhere else.
+func (app *ChatApplication) clickRoomButton(click tea.MouseClickMsg) tea.Cmd {
+	if app.room == noRoom || click.Button != tea.MouseLeft {
+		return nil
+	}
+	post, decision, ok := app.roomView.DecisionAt(click.X, click.Y-app.applicationViewRenderer.ConversationTop())
+	if !ok {
+		return nil
+	}
+	return app.decideRoomApproval(post, decision)
+}
+
+// decideRoomApproval sends the decision on the call of an approval post. The
+// room's line about it arrives as a post, and a refusal as an error status.
+func (app *ChatApplication) decideRoomApproval(post roomsdomain.Post, decision roomsdomain.Decision) tea.Cmd {
+	rooms, room := app.rooms, app.room
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), roomRequestTimeout)
+		defer cancel()
+		err := rooms.Decide(ctx, room, post.Author, post.Approval.ID, decision)
+		return roomDecidedMsg{room: room, member: post.Author, err: err}
+	}
 }
 
 func (app *ChatApplication) showRoomPicker(msg roomsListedMsg) tea.Cmd {

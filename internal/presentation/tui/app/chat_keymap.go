@@ -73,3 +73,10 @@ func focusAttachmentsBinding(kb config.KeybindingsConfig) key.Binding {
 func newSessionBinding(kb config.KeybindingsConfig) key.Binding {
 	return key.NewBinding(key.WithKeys(config.ResolveNamespaceBindings(kb, config.NamespaceGlobal)[actGlobalNewSession]...))
 }
+
+// roomApprovalBindings are the configured keys that approve and reject the
+// newest member's call waiting in a room.
+func roomApprovalBindings(kb config.KeybindingsConfig) (approve, reject key.Binding) {
+	chatKeys := config.ResolveNamespaceBindings(kb, config.NamespaceChat)
+	return key.NewBinding(key.WithKeys(chatKeys[actChatRoomApprove]...)), key.NewBinding(key.WithKeys(chatKeys[actChatRoomReject]...))
+}

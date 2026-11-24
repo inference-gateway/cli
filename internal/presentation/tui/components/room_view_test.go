@@ -1,6 +1,7 @@
 package components
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -100,6 +101,71 @@ func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 	view.AddPost(roomPost("tester", time.Hour*3, "newest"))
 	require.NotContains(t, roomScreen(view), "newest", "a user who scrolled up keeps their place")
 	require.Equal(t, 6, strings.Count(view.Render(), "\n")+1, "the room fills exactly its height")
+}
+
+// TestRoomViewShowsAMembersCallWaitingForYou pins the approval post: the call,
+// the note it came with and its two choices while it is open, the keys on the
+// newest open one only, and no choices once a decision closed it.
+func TestRoomViewShowsAMembersCallWaitingForYou(t *testing.T) {
+	asked := func(id, tool string, after time.Duration) roomsdomain.Post {
+		post := roomPost("tester", after, "Rejected by judge: tests were not asked for")
+		post.ID, post.Kind = "post-"+id, roomsdomain.PostKindApproval
+		post.Approval = &roomsdomain.Approval{ID: id, Tool: tool, Arguments: `{"command":"go test ./..."}`}
+		return post
+	}
+	view := newTestRoomView(asked("c1", "Bash", 0), asked("c2", "Write", time.Minute))
+	view.SetApprovalKeys("alt+y", "alt+n")
+
+	screen := roomScreen(view)
+	require.Contains(t, screen, `wants to run Bash {"command":"go test ./..."}`)
+	require.Contains(t, screen, "Rejected by judge: tests were not asked for")
+	require.Equal(t, 2, strings.Count(screen, "[ Approve ]  [ Reject ]"), "every open call shows its choices")
+	require.Equal(t, 1, strings.Count(screen, "alt+y approve · alt+n reject"), "the keys decide the newest only")
+	newest, ok := view.NewestOpenApproval()
+	require.True(t, ok)
+	require.Equal(t, "c2", newest.Approval.ID)
+
+	decided := roomPost(roomsdomain.RoomAuthor, 2*time.Minute, "You approved tester's Write call.")
+	decided.Kind, decided.Approval = roomsdomain.PostKindDecision, &roomsdomain.Approval{ID: "c2", Decision: roomsdomain.DecisionApprove}
+	view.AddPost(decided)
+	screen = roomScreen(view)
+	require.Equal(t, 1, strings.Count(screen, "[ Approve ]  [ Reject ]"), "a decided call drops its choices")
+	require.Contains(t, screen, "You approved tester's Write call.")
+	newest, _ = view.NewestOpenApproval()
+	require.Equal(t, "c1", newest.Approval.ID, "the keys move on to the call still open")
+}
+
+// TestRoomViewMapsAClickOntoAChoice pins the hit test under the pinned header:
+// a click on Approve or Reject names the call and the decision, and a click
+// beside them or on the header names none.
+func TestRoomViewMapsAClickOntoAChoice(t *testing.T) {
+	post := roomPost("tester", 0, "")
+	post.ID, post.Kind, post.Approval = "p1", roomsdomain.PostKindApproval, &roomsdomain.Approval{ID: "c1", Tool: "Bash"}
+	view := newTestRoomView(post)
+	lines := strings.Split(plain(view.Render()), "\n")
+	row := slices.IndexFunc(lines, func(line string) bool { return strings.Contains(line, "[ Approve ]") })
+	require.Positive(t, row, "the choices sit under the pinned header")
+
+	tests := []struct {
+		name string
+		x, y int
+		want roomsdomain.Decision
+	}{
+		{"approve", strings.Index(lines[row], "[ Approve ]"), row, roomsdomain.DecisionApprove},
+		{"reject", strings.Index(lines[row], "[ Reject ]") + 2, row, roomsdomain.DecisionReject},
+		{"between the two", strings.Index(lines[row], "]  [") + 1, row, ""},
+		{"the header", 0, 0, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, decision, ok := view.DecisionAt(tt.x, tt.y)
+			require.Equal(t, tt.want, decision)
+			require.Equal(t, tt.want != "", ok)
+			if ok {
+				require.Equal(t, "c1", got.Approval.ID)
+			}
+		})
+	}
 }
 
 // TestRoomViewRendersAMembersMessageOnce pins the render cache: a member's

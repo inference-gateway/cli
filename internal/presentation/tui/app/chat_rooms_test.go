@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -55,17 +56,22 @@ func newRoomTestApp(t *testing.T) (*ChatApplication, *tuimocks.FakeRooms) {
 	ac.SetToolService(agents)
 	ac.SetTriggerSources(cfg.Composer.Triggers[config.ComposerContextChat])
 
+	approve, reject := roomApprovalBindings(cfg.Chat.Keybindings)
 	app := &ChatApplication{
-		config:           cfg,
-		inputStatusBar:   statusBar,
-		inputView:        components.NewInputView(modelService),
-		autocomplete:     ac,
-		stateManager:     statemanager.NewStore(false),
-		conversationView: components.NewConversationView(styleProvider),
-		roomPicker:       components.NewPicker(styleProvider),
-		roomView:         components.NewRoomView(styleProvider),
-		newSession:       newSessionBinding(cfg.Chat.Keybindings),
+		config:                  cfg,
+		inputStatusBar:          statusBar,
+		inputView:               components.NewInputView(modelService),
+		autocomplete:            ac,
+		stateManager:            statemanager.NewStore(false),
+		conversationView:        components.NewConversationView(styleProvider),
+		applicationViewRenderer: components.NewApplicationViewRenderer(styleProvider),
+		roomPicker:              components.NewPicker(styleProvider),
+		roomView:                components.NewRoomView(styleProvider),
+		newSession:              newSessionBinding(cfg.Chat.Keybindings),
+		roomApprove:             approve,
+		roomReject:              reject,
 	}
+	app.showRoomApprovalKeys()
 	rooms := &tuimocks.FakeRooms{}
 	app.SetRooms(rooms)
 	return app, rooms
@@ -246,6 +252,39 @@ func TestClearingIsHeldBackInARoom(t *testing.T) {
 		require.Equal(t, command, app.inputView.GetInput(), "the command stays in the composer")
 	}
 	require.Zero(t, rooms.PostCallCount())
+}
+
+// TestAMembersCallIsDecidedFromTheRoom pins the room's approval in the chat:
+// the approve key and a click on Reject decide the newest open call, the keys
+// go on when nothing waits, and the daemon's refusal shows as an error.
+func TestAMembersCallIsDecidedFromTheRoom(t *testing.T) {
+	app, rooms := newRoomTestApp(t)
+	enterTestRoom(t, app, rooms)
+	app.roomView.SetWidth(80)
+	app.roomView.SetHeight(20)
+	approveKey := tea.KeyPressMsg{Code: 'y', Mod: tea.ModAlt}
+	require.Nil(t, app.decideByKey(approveKey), "with nothing waiting the key goes on to the composer")
+
+	app.handleRoomEvents(tui.RoomPostEvent{Room: "release", Post: roomsdomain.Post{
+		ID: "p1", Author: "tester", Kind: roomsdomain.PostKindApproval, Text: "Rejected by judge: tests were not asked for",
+		Approval: &roomsdomain.Approval{ID: "call-1", Tool: "Bash", Arguments: `{"command":"go test ./..."}`}, Time: time.Now(),
+	}})
+	playRoomCmd(app, tea.Batch(app.handleChatViewKeyPress(approveKey)...))
+	require.Equal(t, 1, rooms.DecideCallCount())
+	_, room, member, toolCallID, decision := rooms.DecideArgsForCall(0)
+	require.Equal(t, []string{"release", "tester", "call-1"}, []string{room, member, toolCallID})
+	require.Equal(t, roomsdomain.DecisionApprove, decision)
+
+	lines := strings.Split(ansi.Strip(app.roomView.Render()), "\n")
+	row := slices.IndexFunc(lines, func(line string) bool { return strings.Contains(line, "[ Reject ]") })
+	require.GreaterOrEqual(t, row, 0, "the open call shows its choices")
+	rooms.DecideReturns(errors.New("tester's call was already decided"))
+	click := tea.MouseClickMsg{X: strings.Index(lines[row], "[ Reject ]"), Y: row + app.applicationViewRenderer.ConversationTop(), Button: tea.MouseLeft}
+	played := playRoomCmd(app, tea.Batch(app.handleChatView(click)...))
+	require.Equal(t, 2, rooms.DecideCallCount())
+	_, _, _, _, decision = rooms.DecideArgsForCall(1)
+	require.Equal(t, roomsdomain.DecisionReject, decision)
+	require.Contains(t, statusOf(t, played), "tester's call was already decided")
 }
 
 func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {

@@ -8,11 +8,13 @@ import (
 
 // Rooms reaches the rooms the local daemon hosts, whichever way the chat runs.
 // Join follows a room and, on the user's first visit, has its members welcome
-// them. The room's posts and member activity then arrive as UI events.
+// them. The room's posts and member activity then arrive as UI events. Decide
+// answers a member's tool call waiting in the room.
 type Rooms interface {
 	List(ctx context.Context) ([]roomsdomain.RoomStatus, error)
 	Join(ctx context.Context, room string) (roomsdomain.Snapshot, error)
 	Post(ctx context.Context, room, text string) (roomsdomain.Posted, error)
+	Decide(ctx context.Context, room, member, toolCallID string, decision roomsdomain.Decision) error
 	Leave(room string) error
 }
 

@@ -231,15 +231,17 @@ func TestLayoutFillsTheTerminalHeight(t *testing.T) {
 	}
 }
 
-// TestStatusBarTopIsTheStatusBarsRow pins the row a click is mapped from: the
-// rendered frame's line holding the indicators is the one StatusBarTop names.
+// TestStatusBarTopIsTheStatusBarsRow pins the rows a click is mapped from: the
+// rendered frame's line holding the indicators is the one StatusBarTop names,
+// and the conversation area's first line the one ConversationTop names.
 func TestStatusBarTopIsTheStatusBarsRow(t *testing.T) {
 	const width, height = 120, 30
+	const firstConversationLine = "first conversation line"
 	styleProvider := styles.NewProvider(styles.NewThemeProvider())
 	renderer := NewApplicationViewRenderer(styleProvider)
 	data := ChatInterfaceData{Width: width, Height: height}
 	conversation := &tuimocks.FakeConversationRenderer{}
-	conversation.SetHeightCalls(func(h int) { conversation.RenderReturns(strings.Repeat("\n", h-1)) })
+	conversation.SetHeightCalls(func(h int) { conversation.RenderReturns(firstConversationLine + strings.Repeat("\n", h-1)) })
 	input := &tuimocks.FakeInputComponent{}
 	input.RenderReturns("╭──╮\n│ > │\n╰──╯")
 	modelService := &convmocks.FakeModelService{}
@@ -263,5 +265,8 @@ func TestStatusBarTopIsTheStatusBarsRow(t *testing.T) {
 	action, ok := statusBar.ActionAt(column, row-renderer.StatusBarTop())
 	if !ok || action != tui.StatusIndicatorActionRoomSelection {
 		t.Fatalf("a click on the room indicator hit %v (%t), want the room selection", action, ok)
+	}
+	if top := slices.Index(lines, firstConversationLine); top < 0 || top != renderer.ConversationTop() {
+		t.Fatalf("the conversation starts on row %d, ConversationTop says %d:\n%s", top, renderer.ConversationTop(), frame)
 	}
 }

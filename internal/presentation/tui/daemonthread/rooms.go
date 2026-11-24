@@ -60,6 +60,19 @@ func (r *Rooms) Post(ctx context.Context, room, text string) (roomsdomain.Posted
 	return posted, err
 }
 
+// Decide answers member's tool call toolCallID waiting in room. The daemon
+// refuses a call that was already decided.
+func (r *Rooms) Decide(ctx context.Context, room, member, toolCallID string, decision roomsdomain.Decision) error {
+	if err := r.thread.dialLazily(ctx); err != nil {
+		return err
+	}
+	_, err := r.thread.Request(ctx, map[string]string{
+		"type": roomsdomain.FrameDecideRoomApproval, "room": room, "member": member,
+		"tool_call_id": toolCallID, "decision": string(decision),
+	}, roomsdomain.FrameRoomApprovalDecided)
+	return err
+}
+
 // Leave stops following room.
 func (r *Rooms) Leave(room string) error {
 	r.thread.unfollowRoom(room)

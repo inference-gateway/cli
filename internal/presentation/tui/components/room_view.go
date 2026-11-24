@@ -49,8 +49,9 @@ var presences = map[roomsdomain.Activity]presence{
 
 // RoomView is the chat's conversation area inside a room, drawn like a Slack
 // channel: a header naming the room and what each member does, each message
-// under its author and time, joins and room notes as quiet lines, and who is
-// busy below the posts. It stays on the newest post unless the user scrolled up.
+// under its author and time, a member's call waiting with its two choices,
+// joins and room notes as quiet lines, and who is busy below the posts. It
+// stays on the newest post unless the user scrolled up.
 type RoomView struct {
 	styleProvider  *styles.Provider
 	markdown       *markdown.Renderer
@@ -58,6 +59,8 @@ type RoomView struct {
 	room           roomsdomain.RoomStatus
 	posts          []roomsdomain.Post
 	renderedBodies map[string]string
+	buttons        []approvalButton
+	approvalKeys   string
 	width          int
 	height         int
 	banner         string
@@ -192,21 +195,32 @@ func (v *RoomView) refresh() {
 }
 
 func (v *RoomView) content() string {
+	v.buttons = nil
 	if v.room.Name == "" {
 		return ""
 	}
+	open := roomsdomain.OpenApprovals(v.posts)
 	var lines []string
+	row := 0
+	add := func(element string) {
+		lines = append(lines, element)
+		row += strings.Count(element, "\n") + 1
+	}
 	var previous *roomsdomain.Post
 	for i := range v.posts {
 		post := v.posts[i]
 		if !continues(previous, post) {
-			lines = append(lines, "")
+			add("")
 		}
-		lines = append(lines, v.renderPost(post, previous))
+		add(v.renderPost(post, previous))
+		if isOpenApproval(open, post) {
+			add(v.approvalButtons(post, row, post.ID == open[len(open)-1].ID))
+		}
 		previous = &v.posts[i]
 	}
 	if busy := v.busyLine(); busy != "" {
-		lines = append(lines, "", busy)
+		add("")
+		add(busy)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -264,6 +278,8 @@ func (v *RoomView) renderPost(post roomsdomain.Post, previous *roomsdomain.Post)
 		return v.styleProvider.RenderStyledText(fmt.Sprintf("→ %s joined #%s", authorName(post.Author), v.room.Name), quiet)
 	case post.Author == roomsdomain.RoomAuthor:
 		return v.styleProvider.RenderStyledText(post.Text, quiet)
+	case post.Kind == roomsdomain.PostKindApproval && post.Approval != nil:
+		return v.authorLine(post) + "\n" + v.renderApproval(post)
 	}
 	body := v.renderBody(post)
 	if continues(previous, post) {

@@ -143,6 +143,8 @@ type ChatApplication struct {
 
 	focusAttachments key.Binding
 	newSession       key.Binding
+	roomApprove      key.Binding
+	roomReject       key.Binding
 
 	lastHandledKey string
 	lastView       tui.ViewState
@@ -317,6 +319,8 @@ func NewChatApplication(
 	}
 	app.focusAttachments = focusAttachmentsBinding(app.config.Chat.Keybindings)
 	app.newSession = newSessionBinding(app.config.Chat.Keybindings)
+	app.roomApprove, app.roomReject = roomApprovalBindings(app.config.Chat.Keybindings)
+	app.showRoomApprovalKeys()
 	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager, toolFormatterService)
 	app.questionFormView = components.NewQuestionFormView(styleProvider, app.stateManager)
 
@@ -820,6 +824,9 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	}
 
 	if click, ok := msg.(tea.MouseClickMsg); ok {
+		if cmd := app.clickRoomButton(click); cmd != nil {
+			return []tea.Cmd{cmd}
+		}
 		return app.clickIndicator(click)
 	}
 
@@ -895,6 +902,10 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyPressMsg) []tea
 
 	if app.room != noRoom && key.Matches(keyMsg, app.newSession) {
 		return []tea.Cmd{app.refuseRoomClear()}
+	}
+
+	if cmd := app.decideByKey(keyMsg); cmd != nil {
+		return []tea.Cmd{cmd}
 	}
 
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)

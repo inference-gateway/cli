@@ -11,10 +11,11 @@ import (
 
 // ApplicationViewRenderer handles rendering of different application views
 type ApplicationViewRenderer struct {
-	styleProvider  *styles.Provider
-	heights        componentHeights
-	statusBarIndex int
-	statusBarTop   int
+	styleProvider   *styles.Provider
+	heights         componentHeights
+	statusBarIndex  int
+	statusBarTop    int
+	conversationTop int
 }
 
 // NewApplicationViewRenderer creates a new application view renderer
@@ -104,14 +105,25 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	components := r.assembleComponents(data, header, conversationArea, inputArea, conversationView, statusView, modeIndicator,
 		inputView, inputStatusBar, subagentList, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, questionFormView, snippetAttachments, historySearch, width, r.heights.statusHeight)
 	r.statusBarTop = lineCount(components[:r.statusBarIndex])
+	r.conversationTop = lineCount(components[:conversationAreaIndex])
 
 	return strings.Join(components, "\n")
 }
+
+// conversationAreaIndex is where assembleComponents puts the conversation
+// area: after the header and its blank line.
+const conversationAreaIndex = 2
 
 // StatusBarTop is the screen row the input status bar starts on, as last
 // rendered, so a click can be mapped onto its rows.
 func (r *ApplicationViewRenderer) StatusBarTop() int {
 	return r.statusBarTop
+}
+
+// ConversationTop is the screen row the conversation area starts on, as last
+// rendered, so a click can be mapped onto a room's buttons.
+func (r *ApplicationViewRenderer) ConversationTop() int {
+	return r.conversationTop
 }
 
 func lineCount(components []string) int {
