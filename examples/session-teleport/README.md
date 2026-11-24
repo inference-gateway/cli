@@ -309,7 +309,7 @@ the same listener instead:
 ```
 
 The teleport and the relay ride the frames the [Daemon to daemon](../../docs/browser-extension-protocol.md#daemon-to-daemon)
-section defines either way, and `infer sessions workspaces` and the chat TUI show what each workspace
+section defines either way, and `infer workspaces list` and the chat TUI show what each workspace
 picked. A workspace that serves nothing over its chosen protocol fails the teleport at the provisioning
 stage, before it creates anything: the pod image in `daemon.yaml` must be new enough to serve the `/a2a`
 peer endpoint on its binding, so run `task image:import` after changing the protocol. See the

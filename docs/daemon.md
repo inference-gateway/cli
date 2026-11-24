@@ -81,8 +81,8 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
 
 With `ca` the token may be empty, since every connection carries a verified certificate.
-The `infer sessions workspaces`, `teleport`, `run` and `stop` commands dial the local binding over whichever
-mode it serves, with the token or, when it requires them, a client certificate.
+`infer workspaces list` and the `infer sessions` commands `teleport`, `run` and `stop` dial the local binding over
+whichever mode it serves, with the token or, when it requires them, a client certificate.
 
 The opentask extension cannot present a client certificate. So when the browser-use extension backend is on and
 the binding requires client certificates (`ca`, or `files` with `client_auth: true`), the daemon also serves the
@@ -394,7 +394,7 @@ in the daemon's log.
 `infer sessions` drives this from a shell:
 
 ```bash
-infer sessions workspaces                              # who is reachable
+infer workspaces list                              # who is reachable
 infer sessions teleport <session-id> --to k8s-dev      # teleport a session, follow the stages
 infer sessions run <session-id> "continue please"      # one turn through the daemon, wherever it runs
 infer sessions stop <session-id>                       # stop the agent and delete its remote runtime, also one it left
@@ -472,7 +472,7 @@ workspaces:
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
   because clusters and machines belong to the user, not to a project.
 - A workspace that carries its own connection keeps working as before, with a Gateway of its own.
-  `infer sessions workspaces` shows the compute each workspace runs on.
+  `infer workspaces list` shows the compute each workspace runs on.
 - `infer compute clusters` and `infer compute machines` add, list, check and remove them. See the
   [commands reference](commands-reference.md#infer-compute).
 
@@ -574,7 +574,7 @@ pod's hostname as its DNS name, so set `address` to the name your NetBird setup 
       - ANTHROPIC_API_KEY
 ```
 
-A policy on the overlay decides which machines reach the binding port. `infer sessions workspaces` still reports
+A policy on the overlay decides which machines reach the binding port. `infer workspaces list` still reports
 the workspace through the kube API, and a teleport fails if the overlay name does not resolve.
 
 ## Rooms

@@ -287,7 +287,7 @@ cert-manager's `peers-ca` issues every certificate, and every server asks for a 
   (`INFER_GATEWAY_TLS_CA_FILE`) and presents the `infer-k8s` certificate (`INFER_GATEWAY_TLS_CERT_FILE`,
   `INFER_GATEWAY_TLS_KEY_FILE`).
 - **`gateway` → provider**, with `task gateway:real` only. The provider's public HTTPS, with your API key.
-- **The infer commands → `infer-local`'s daemon.** `infer sessions workspaces`, `teleport` and `run` reach their own
+- **The infer commands → `infer-local`'s daemon.** `infer workspaces list`, `infer sessions teleport` and `run` reach their own
   daemon on loopback. That binding serves `binding.tls.mode: ca`: the daemon makes its own CA, and the commands on the
   same machine present a client certificate from it. Loopback alone would let any local process or web page drive the
   daemon.
