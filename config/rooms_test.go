@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	require "github.com/stretchr/testify/require"
+
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 )
 
 // TestDefaultRoomsConfig pins the in-code default: one public room holding
@@ -89,6 +91,8 @@ func TestRoomsConfigValidate(t *testing.T) {
 		{"a human mode for members is valid", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "standard"}}}, ""},
 		{"an unknown member mode fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "yolo"}}}, "mode"},
 		{"the subagent-only readonly mode fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "readonly"}}}, "mode"},
+		{"a top-match pickup is valid", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Pickup: roomsdomain.PickupTop}}}, ""},
+		{"an unknown pickup fails", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Pickup: "everyone"}}}, "pickup"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

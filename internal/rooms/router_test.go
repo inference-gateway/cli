@@ -66,18 +66,10 @@ func TestRouterRoute(t *testing.T) {
 			wantRoutes: []roomsdomain.Route{{Member: "tester", Probability: 1}, {Member: "writer", Probability: 1}},
 		},
 		{
-			name:        "a post for the whole room reaches every member",
+			name:        "a greeting without @all is offered like any post",
 			model:       testRouterModel,
 			text:        "Hi all",
-			decisions:   probabilities(map[string]float64{"*": 0.9, "tester": 0.1, "writer": 0.2}),
-			wantRoutes:  []roomsdomain.Route{{Member: "tester", Probability: 0.9}, {Member: "writer", Probability: 0.9}},
-			wantDecides: 1,
-		},
-		{
-			name:        "a post unlikely for the whole room is ranked per member",
-			model:       testRouterModel,
-			text:        "cut the release",
-			decisions:   probabilities(map[string]float64{"*": 0.2, "tester": 0.3, "writer": 0.6}),
+			decisions:   probabilities(map[string]float64{"tester": 0.3, "writer": 0.6}),
 			wantRoutes:  []roomsdomain.Route{{Member: "writer", Probability: 0.6}},
 			wantDecides: 1,
 		},
@@ -197,13 +189,11 @@ func TestRouterAsksOnePredicatePerMember(t *testing.T) {
 
 	_, model, evidence, questions := decider.DecideArgsForCall(0)
 	require.Equal(t, testRouterModel, model)
-	require.Len(t, questions, len(testRoom.Agents)+1, "one predicate per member and one for the whole room")
+	require.Len(t, questions, len(testRoom.Agents), "one predicate per member")
 	for i, member := range testRoom.Agents {
 		require.Equal(t, member, questions[i].Name)
 		require.Equal(t, decisiondomain.Predicate, questions[i].Type)
 	}
-	require.Equal(t, roomsdomain.AgentsWildcard, questions[len(testRoom.Agents)].Name)
-	require.Contains(t, questions[len(testRoom.Agents)].Instructions, "addressed to everyone in the room")
 	require.Contains(t, questions[0].Instructions, "Runs and fixes the test suite")
 	require.Contains(t, evidence, "writer: the notes are drafted")
 	require.Contains(t, evidence, "user: now run the tests")
@@ -222,8 +212,6 @@ func TestRouterCapsUnmentionedPosts(t *testing.T) {
 	}
 	everyonePasses := probabilities(map[string]float64{"a": 0.6, "b": 0.9, "c": 0.7, "d": 0.55, "e": 0.8})
 
-	forTheRoom := probabilities(map[string]float64{"*": 0.95, "a": 0.6, "b": 0.9})
-
 	tests := []struct {
 		name        string
 		maxMembers  int
@@ -235,7 +223,6 @@ func TestRouterCapsUnmentionedPosts(t *testing.T) {
 		{"a higher cap sends it to more", 3, "ship it", everyonePasses, []string{"b", "e", "c"}},
 		{"mentions are never capped", 1, "@a @c @d ship it", everyonePasses, []string{"a", "c", "d"}},
 		{"@all is never capped", 1, "@all ship it", everyonePasses, members},
-		{"a post for the whole room is never capped", 1, "morning team", forTheRoom, members},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -267,4 +254,29 @@ func TestRouterReportsTheTokensItsDecisionSpent(t *testing.T) {
 	routing, err := NewRouter(decider, cfg).Route(t.Context(), testRoom, testAgents, nil, roomsdomain.Post{Author: "user", Text: "run the suite"})
 	require.NoError(t, err)
 	require.Equal(t, 412, routing.Tokens)
+}
+
+// TestRouterOffersAPostToOneMemberAtATime pins the pickup of a post that pings
+// nobody: a room that offers ranks up to max_members members to offer it to in
+// turn, the best first, and a room that hands posts to its top match routes it
+// to that one member only.
+func TestRouterOffersAPostToOneMemberAtATime(t *testing.T) {
+	decider := &decisionmocks.FakeDecider{}
+	decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+	cfg := *config.DefaultRoomsConfig()
+	cfg.Router.Model = testRouterModel
+	router := NewRouter(decider, cfg)
+	post := roomsdomain.Post{Author: "user", Text: "what's the weather?"}
+
+	offering := testRoom
+	offering.Pickup = roomsdomain.PickupOffer
+	routing, err := router.Route(t.Context(), offering, testAgents, nil, post)
+	require.NoError(t, err)
+	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.9}, {Member: "tester", Probability: 0.7}}, routing.Routes)
+
+	topMatch := testRoom
+	topMatch.Pickup = roomsdomain.PickupTop
+	routing, err = router.Route(t.Context(), topMatch, testAgents, nil, post)
+	require.NoError(t, err)
+	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.9}}, routing.Routes)
 }

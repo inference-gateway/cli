@@ -36,6 +36,7 @@ context_posts: 20
 rooms:
   - name: public
     mode: auto-with-judge
+    pickup: offer
     agents:
       - "*"
   - name: release
@@ -51,6 +52,10 @@ rooms:
   agents of its agent dirs. The built-ins (`main`, `explore`, `general-purpose`, `plan`) stay out, also once
   `infer init` seeded their files, and join a room only by name. `"*"` resolves each time the room is read,
   so a new agent file joins `public` on its own. A name no agent carries takes no seat.
+- **pickup**: how a post that pings nobody finds the one member who takes it, so no two members work on the
+  same request. `offer` (the default) offers it to the best match, who answers it or replies `PASS`, and a
+  `PASS` offers it to the next best, up to `router.max_members` members. `top` hands it to the best match
+  alone, with no way to pass it on.
 - **project**: where the members' sessions run. Empty means the daemon's working directory.
 - **mode**: the agent mode the members run in, `standard`, `plan`, `auto` or `auto-with-judge`. Empty means
   `auto-with-judge`, since nobody watches a member's own chat: an LLM judge decides its gated tool calls,
@@ -64,8 +69,8 @@ rooms:
   `DECISIONS_ENABLED=true`. When routing fails, such as without an `ollama_cloud` key, the post reaches nobody
   and you get a notice to ping a member.
 - **router.min_confidence**: the probability a member needs to get an unpinged post.
-- **router.max_members**: the most members that answer an unpinged post, the most relevant first, so a busy
-  room does not get five answers to one question. Pings are never capped.
+- **router.max_members**: the most members an unpinged post is offered to, one after another and the most
+  relevant first, and how many welcome you on your first visit. Pings are never capped.
 - **router.fallback**: what happens to an unpinged post nobody passed. `top` sends it to the most relevant
   member, `none` asks you to ping one.
 - **context_posts**: how many of the room's posts a member gets with its turn.
@@ -75,13 +80,14 @@ rooms:
 1. `@name` pings an agent when `name` is an agent the project knows. A pinged member gets the post with no
    model asked. A pinged agent outside the room gets a notice instead. `@README.md` and `@./tester` stay file
    references, so a member's name wins over a file of the same name, and `@./<name>` reaches the file.
-2. `@all` pings every member, also without a router model.
-3. A post that pings nobody asks the decision model whether it is for the whole room, such as "Hi all", and one
-   question per member: should this member, given its description and the recent posts, act on the post? A
-   post for the whole room goes to every member. Any other goes to at most `max_members` members at or above
-   `min_confidence`.
-4. When nobody passes, `fallback` decides. Without a router model, an unpinged post reaches nobody and you get
-   a notice naming the members to ping.
+2. `@all` pings every member, also without a router model. It is the only way to reach every member at once.
+3. A post that pings nobody, a greeting included, asks the decision model one question per member: should this
+   member, given its description and the recent posts, act on the post? The members at or above
+   `min_confidence` are ranked, and one of them takes the post, as `pickup` says. With `offer` the best match
+   gets it first. A `PASS` logs `<member> passed it on - offered to <next>.` and offers it to the next, and
+   when the last one passes, the room says nobody picked it up.
+4. When nobody passes `min_confidence`, `fallback` decides. Without a router model, an unpinged post reaches
+   nobody and you get a notice naming the members to ping.
 
 The log records whom each post was routed to and with what probability, so a client can show why a member
 answered. A decision request that fails still logs the post, routed to nobody, with the reason in a notice.

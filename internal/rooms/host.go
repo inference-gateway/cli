@@ -297,11 +297,28 @@ func (h *Host) post(c sessionsdomain.Client, name, text string) {
 	h.deliverTurns(room, post)
 }
 
-// deliverTurns hands post to every member it was routed to.
+// deliverTurns hands post to every member it was routed to, and an offered
+// post to the first of them only, who takes it or passes it on.
 func (h *Host) deliverTurns(room roomsdomain.Room, post roomsdomain.Post) {
-	for _, route := range post.Routes {
+	routes := post.Routes
+	if post.Offered() {
+		routes = routes[:min(len(routes), 1)]
+	}
+	for _, route := range routes {
 		h.member(room, route.Member).enqueue(post)
 	}
+}
+
+// passOn offers post to the member after the one that passed it on, or tells
+// the room that nobody picked it up.
+func (h *Host) passOn(room roomsdomain.Room, post roomsdomain.Post, passed string) {
+	next, ok := post.OfferedAfter(passed)
+	if !ok {
+		h.note(room, fmt.Sprintf("%s passed it on and nobody picked the post up. Mention a member to hand it to one.", passed))
+		return
+	}
+	h.note(room, fmt.Sprintf("%s passed it on - offered to %s.", passed, next))
+	h.member(room, next).enqueue(post)
 }
 
 func (h *Host) route(room roomsdomain.Room, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {

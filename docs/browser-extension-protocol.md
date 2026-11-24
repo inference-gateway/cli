@@ -993,7 +993,9 @@ Client → CLI, stopping the follow. Nothing answers it:
 - `router_tokens` on a post is what the router's decision model spent routing it, absent for a ping. A room's
   total is every member's `usage` plus the `router_tokens` of every post in its log.
 - `routes` is empty for a post that reached nobody. `probability` is `1` for a pinged member, every member of
-  an `@all` post included, and the decision model's answer otherwise.
+  an `@all` post included, and the decision model's answer otherwise. For a post that pings nobody, `routes`
+  are the members it is offered to in turn, best first. Only the first gets it, and the next only after the
+  one before replied `PASS`, which the room notes.
 - An unknown room, an empty post or a log that cannot be read answers `RUN_ERROR` with a `message`.
 - A member's session is an ordinary thread: follow `room-<room>-<agent>` with `resume_conversation` to watch
   the member work or decide its approval.

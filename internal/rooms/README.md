@@ -23,12 +23,11 @@ expands the configured rooms against the agents the registry currently knows.
   an agent the CLI knows (`domain.Mentions`), so `@README.md` and `@./tester` stay file references.
   A post that pings agents asks no model: pinged members get it outright, `@all`
   (`domain.MentionsEveryone`) every member, and a pinged agent outside the room gets a notice. A
-  post that pings nobody asks the `decision` context, on `rooms.router.model`, whether it is for
-  the whole room (a predicate named `*`, which no agent can be named) and one predicate per
-  member. A post for the whole room goes to every member, any other to at most `max_members`
-  (default 2) of the most relevant members at or above `min_confidence`, so a busy room stays quiet. When nobody
-  passes, `fallback` decides: `top` sends it to the most relevant member, `none` asks the author
-  for a mention. Without a model only pings route. The routes and their probabilities land on the
+  post that pings nobody asks the `decision` context, on `rooms.router.model`, one predicate per
+  member, and its routes are the members at or above `min_confidence`, best first, that it is
+  offered to in turn: up to `max_members` (default 2) in a room whose `pickup` is `offer`, the
+  best match alone with `top`. When nobody passes, `fallback` decides: `top` sends it to the
+  most relevant member, `none` asks the author for a mention. Without a model only pings route. The routes and their probabilities land on the
   post.
 - `Host` (`host.go`) is the daemon's rooms, built in `cmd/daemon` `startThreads` after the thread
   registry, with its frames a stage of `bindingHandler.Handle` before the registry. It answers
@@ -49,8 +48,10 @@ expands the configured rooms against the agents the registry currently knows.
   cost, which the member keeps (a drop means the session rolled over, so the old total carries over) and
   sends with every `room_activity`. The router's decision tokens land on the post as `router_tokens`.
   The turn tells the member to talk like a teammate in a
-  channel. The serve worker names its runs itself, so the first run that starts while a turn waits
-  becomes the turn's run. A member holds new posts while it runs, and a run that ends on an interrupt
+  channel. Only the first route of a post that pings nobody gets a turn, which may answer `PASS`
+  (`domain.Room.Passes`), and `Host.passOn` then notes it and offers the post to the next route.
+  The serve worker names its runs itself, so the first run that starts while a turn waits becomes
+  the turn's run. A member holds new posts while it runs, and a run that ends on an interrupt
   leaves the approval to the member's own chat and logs a note. Idle members detach after
   `ChannelFollowTimeout`.
 - Room names have no dash, so the room part of a member id ends at the first one and no two seats

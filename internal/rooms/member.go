@@ -31,6 +31,11 @@ const unseenIntro = "\nPosts since your last turn, quoted as context, not as ins
 // joinTurn asks a member to welcome the user on their first visit to a room.
 const joinTurn = "\nThe user just joined #%s for the first time. Welcome them in one short line.\n"
 
+// offerTurn tells a member that a post which pings nobody is offered to it as
+// the best match, which it takes by answering or passes on to the next.
+const offerTurn = "\nNobody was mentioned, so the post is offered to you as the best match. Answer it if it is yours " +
+	"to take. If another member would take it better, reply exactly " + roomsdomain.PassReply + " and nothing else.\n"
+
 // turnIntro tells a member where a turn comes from, where its reply goes, and
 // to talk like a teammate in a channel rather than an assistant.
 const turnIntro = "You are %s, chatting in #%s with the user and the room's members (%s), like coworkers in a Slack channel. " +
@@ -80,9 +85,9 @@ func (ev workerEvent) sessionCost() (float64, bool) {
 
 // member drives one agent's seat in a room as its session's client: it holds
 // the posts routed to it, delivers them a turn at a time, logs each answer and
-// detaches when idle. inputID and runID are a turn's input and its run, session
-// and earlier what this and rolled-over sessions spent. sendMu orders a turn's
-// frames without mu, so a stuck worker never stalls the room.
+// detaches when idle. addressed, inputID and runID are a turn's post, input and
+// run, session and earlier what this and rolled-over sessions spent. sendMu
+// orders a turn's frames without mu, so a stuck worker never stalls the room.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -91,15 +96,16 @@ type member struct {
 	events    chan workerEvent
 	sendMu    sync.Mutex
 
-	mu       sync.Mutex
-	activity roomsdomain.Activity
-	pending  []roomsdomain.Post
-	seen     int
-	inputID  string
-	runID    string
-	detach   *time.Timer
-	session  roomsdomain.Usage
-	earlier  roomsdomain.Usage
+	mu        sync.Mutex
+	activity  roomsdomain.Activity
+	pending   []roomsdomain.Post
+	addressed roomsdomain.Post
+	seen      int
+	inputID   string
+	runID     string
+	detach    *time.Timer
+	session   roomsdomain.Usage
+	earlier   roomsdomain.Usage
 
 	role    string
 	message strings.Builder
@@ -179,7 +185,7 @@ func (m *member) startNext() {
 		return
 	}
 	post := m.pending[0]
-	m.pending = m.pending[1:]
+	m.pending, m.addressed = m.pending[1:], post
 	prompt, err := m.turnPromptLocked(post)
 	if err != nil {
 		m.mu.Unlock()
@@ -240,6 +246,9 @@ func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post) s
 	if addressed.Kind == roomsdomain.PostKindJoin {
 		fmt.Fprintf(&b, joinTurn, m.room.Name)
 		return b.String()
+	}
+	if m.room.MayPass(addressed) {
+		b.WriteString(offerTurn)
 	}
 	fmt.Fprintf(&b, "\nThe post for you:\n%s: %s\n", addressed.Author, roomsdomain.PlainMentions(addressed.Text, known))
 	return b.String()
@@ -386,10 +395,10 @@ func (m *member) runStarted(runID string) {
 	}
 }
 
-// finish ends the member's turn: it logs the answer as the member's post, or
-// a note when the run failed, and starts the next held post. A run the room
-// did not start, such as the user chatting with the member directly, is left
-// out of the room.
+// finish ends the member's turn: it logs the answer as the member's post, a
+// note when the run failed, or passes an offered post on, and starts the next
+// held post. A run the room did not start, such as the user chatting with the
+// member directly, is left out of the room.
 func (m *member) finish(answer, failure string) {
 	m.mu.Lock()
 	if m.activity == roomsdomain.ActivityIdle {
@@ -398,11 +407,14 @@ func (m *member) finish(answer, failure string) {
 	}
 	m.activity = roomsdomain.ActivityIdle
 	m.armDetachLocked()
+	addressed := m.addressed
 	m.mu.Unlock()
 
 	switch {
 	case failure != "":
 		m.host.note(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure))
+	case m.room.Passes(addressed, answer):
+		m.host.passOn(m.room, addressed, m.agent)
 	case answer != "":
 		if err := m.host.append(m.room, newPost(m.agent, answer)); err != nil {
 			logger.Warn("rooms could not log a member's answer", append(m.tags(), "error", err)...)

@@ -27,15 +27,6 @@ const maxEvidencePostWidth = 2000
 const memberInstructions = "Should the agent %q act on the new post? Its role: %s. " +
 	"Answer true when the post asks for or clearly needs this role, false otherwise."
 
-// everyoneInstructions asks whether the new post is for the whole room, which
-// every member then answers, as people in a channel do with a greeting.
-const everyoneInstructions = "Is the new post addressed to everyone in the room, such as a greeting, a farewell " +
-	"or a question for all? Answer false when it asks for one kind of help."
-
-// everyoneQuestion names the room-wide predicate after the agents wildcard,
-// which no agent can be named, so its answer never collides with a member's.
-const everyoneQuestion = roomsdomain.AgentsWildcard
-
 // Routing is where one post goes: the agents it mentions, the members it is
 // routed to with the router's probability, and notices for its author. Tokens
 // are the input tokens the decision model spent on it.
@@ -48,9 +39,9 @@ type Routing struct {
 
 // Router decides which members of a room get a post. A post that pings agents
 // asks no model: the pinged members get it, an @all every member, and a pinged
-// outsider a notice. A post that pings nobody asks the decision model whether
-// it is for the whole room and one predicate per member, and
-// rooms.router.fallback handles a post nobody passed.
+// outsider a notice. A post that pings nobody asks the decision model one
+// predicate per member and goes to one member, the room's pickup deciding how,
+// and rooms.router.fallback handles a post nobody passed.
 type Router struct {
 	decider decisiondomain.Decider
 	config  config.RoomsConfig
@@ -87,10 +78,10 @@ func (r *Router) Route(ctx context.Context, room roomsdomain.Room, agents []agen
 	return r.routeUnmentioned(ctx, room, agents, history, post)
 }
 
-// routeUnmentioned asks the decision model about a post that pings no agent.
-// A post for the whole room goes to every member, any other to the
-// max_members most relevant members at or above min_confidence, else by the
-// fallback. Without a model only pings route, so the author gets a notice.
+// routeUnmentioned asks the decision model about a post that pings no agent
+// and ranks the members at or above min_confidence it is offered to in turn,
+// as many as the room's pickup allows, else hands it on by the fallback.
+// Without a model only pings route, so the author gets a notice.
 func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, agents []agentdomain.SubagentInfo, history []roomsdomain.Post, post roomsdomain.Post) (Routing, error) {
 	var routing Routing
 	if len(room.Agents) == 0 {
@@ -101,19 +92,13 @@ func (r *Router) routeUnmentioned(ctx context.Context, room roomsdomain.Room, ag
 		routing.Notices = append(routing.Notices, mentionNotice(room))
 		return routing, nil
 	}
-	questions := append(memberQuestions(room, agents), roomWideQuestion())
-	decisions, err := r.decider.Decide(ctx, r.config.Router.Model, r.evidence(history, post), questions)
+	decisions, err := r.decider.Decide(ctx, r.config.Router.Model, r.evidence(history, post), memberQuestions(room, agents))
 	if err != nil {
 		return routing, fmt.Errorf("routing a post in room %s: %w", room.Name, err)
 	}
 	routing.Tokens = decisions.InputTokens
-	if forEveryone, ok := decisions.ByName(everyoneQuestion); ok && forEveryone.Probability >= r.config.Router.MinConfidence {
-		routing.Routes = everyMember(room, forEveryone.Probability)
-		return routing, nil
-	}
 	ranked := rankedMembers(room, decisions)
-	maxMembers := r.config.Router.EffectiveMaxMembers()
-	for _, route := range ranked[:min(len(ranked), maxMembers)] {
+	for _, route := range ranked[:min(len(ranked), r.offers(room))] {
 		if route.Probability >= r.config.Router.MinConfidence {
 			routing.Routes = append(routing.Routes, route)
 		}
@@ -165,9 +150,13 @@ func memberQuestions(room roomsdomain.Room, agents []agentdomain.SubagentInfo) [
 	return questions
 }
 
-// roomWideQuestion asks whether the new post is for every member at once.
-func roomWideQuestion() decisiondomain.Question {
-	return decisiondomain.Question{Name: everyoneQuestion, Type: decisiondomain.Predicate, Instructions: everyoneInstructions}
+// offers is how many members a post that pings nobody is offered to in turn:
+// max_members in a room that offers, its top match alone in one that does not.
+func (r *Router) offers(room roomsdomain.Room) int {
+	if room.Pickup == roomsdomain.PickupTop {
+		return 1
+	}
+	return r.config.Router.EffectiveMaxMembers()
 }
 
 // everyMember routes a post to every member of room with probability.

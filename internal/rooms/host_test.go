@@ -469,6 +469,68 @@ func TestMembersReportWhatTheirSessionsSpent(t *testing.T) {
 	})
 }
 
+// TestAnOfferedPostGoesToOneMemberAtATime pins the pickup: a post that pings
+// nobody goes to its best match only, whose turn may pass it on, a PASS logs a
+// note and offers it to the next best match, and the member who answers takes
+// it, so nobody else works on it.
+func TestAnOfferedPostGoesToOneMemberAtATime(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "what's the weather?")
+		sent := f.sent(t)
+		require.Len(t, sent, 2, "only the best match gets a turn")
+		require.Equal(t, "writer", sent[0]["agent"])
+		require.Contains(t, turnText(t, sent[1]), "reply exactly PASS and nothing else")
+
+		reply(t, f.seat(t, "writer"), "PASS")
+		sent = f.sent(t)
+		require.Len(t, sent, 4, "a pass offers the post to the next best match")
+		require.Equal(t, "tester", sent[2]["agent"])
+
+		reply(t, f.seat(t, "tester"), "Berlin is around 0 degrees.")
+		require.Len(t, f.sent(t), 4, "the member who answers takes it, nobody else is asked")
+		texts := []string{}
+		for _, post := range f.logged(t) {
+			texts = append(texts, post.Text)
+		}
+		require.Equal(t, []string{"what's the weather?", "writer passed it on - offered to tester.", "Berlin is around 0 degrees."}, texts)
+	})
+}
+
+func TestAPostEveryMemberPassesOnSaysNobodyPickedItUp(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "what's the weather?")
+		reply(t, f.seat(t, "writer"), "PASS")
+		reply(t, f.seat(t, "tester"), "pass.")
+		logged := f.logged(t)
+		require.Equal(t, roomsdomain.RoomAuthor, logged[len(logged)-1].Author)
+		require.Contains(t, logged[len(logged)-1].Text, "tester passed it on and nobody picked the post up")
+	})
+}
+
+// TestATopMatchRoomHandsAPostToItsBestMatchOnly pins pickup: top, where the
+// best match gets the post with no way to pass it on.
+func TestATopMatchRoomHandsAPostToItsBestMatchOnly(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, func(cfg *config.RoomsConfig) { cfg.Rooms[0].Pickup = roomsdomain.PickupTop })
+		f.decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+
+		f.post(t, &sessionsmocks.FakeClient{}, "what's the weather?")
+		sent := f.sent(t)
+		require.Len(t, sent, 2)
+		require.Equal(t, "writer", sent[0]["agent"])
+		require.NotContains(t, turnText(t, sent[1]), "PASS", "the top match cannot pass it on")
+	})
+}
+
 func TestFollowStreamsTheRoomUntilLeave(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	synctest.Test(t, func(t *testing.T) {

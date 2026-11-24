@@ -29,12 +29,40 @@ func ValidName(name string) bool {
 
 // Room is a named group of agents the user talks to in one project. Agents are
 // the resolved members: wildcard entries already expanded by the time a Room
-// is built. Mode is the agent mode the members' sessions run in.
+// is built. Mode is the agent mode the members' sessions run in, and Pickup
+// how a post that pings nobody finds the one member who takes it.
 type Room struct {
 	Name    string
 	Project string
 	Mode    string
+	Pickup  Pickup
 	Agents  []string
+}
+
+// Pickup is how a room hands a post that pings nobody to one member, so no
+// two members work on the same request.
+type Pickup string
+
+// PickupOffer offers the post to the best match first, who answers it or
+// passes it on to the next. PickupTop hands it to the best match only.
+const (
+	PickupOffer Pickup = "offer"
+	PickupTop   Pickup = "top"
+)
+
+// PassReply is what a member offered a post answers to pass it on.
+const PassReply = "PASS"
+
+// MayPass reports whether the member offered addressed may pass it on: an
+// offered post, in a room that offers.
+func (r Room) MayPass(addressed Post) bool {
+	return r.Pickup == PickupOffer && addressed.Offered()
+}
+
+// Passes reports whether answer passes addressed on to the next best match:
+// PASS alone, where the member may pass.
+func (r Room) Passes(addressed Post, answer string) bool {
+	return r.MayPass(addressed) && strings.EqualFold(strings.Trim(answer, " \t\n.!"), PassReply)
 }
 
 // Member is one agent seat in a room: the agent and the deterministic session
@@ -119,6 +147,22 @@ type PostKind string
 // members it is routed to answer with a welcome.
 const PostKindJoin PostKind = "join"
 
+// Offered reports whether post goes to its routes one member at a time, the
+// best match first: a message that pings nobody, which the router ranked.
+func (p Post) Offered() bool {
+	return p.Kind == "" && len(p.Mentions) == 0
+}
+
+// OfferedAfter is the member post is offered to once member passed it on,
+// false when member was the last of its routes.
+func (p Post) OfferedAfter(member string) (string, bool) {
+	i := slices.IndexFunc(p.Routes, func(route Route) bool { return route.Member == member })
+	if i < 0 || i+1 >= len(p.Routes) {
+		return "", false
+	}
+	return p.Routes[i+1].Member, true
+}
+
 // Posted is the daemon's answer to a post: the logged post with its routes,
 // and the notices for its author.
 type Posted struct {
@@ -128,7 +172,8 @@ type Posted struct {
 }
 
 // RouteSummary says where the post went: every member it was routed to, as
-// pinged, by name or by @all, or with the router's probability, or nobody.
+// pinged, by name or by @all, the members an offered post goes to in turn
+// with the router's probability, or nobody.
 func (p Posted) RouteSummary() string {
 	if len(p.Post.Routes) == 0 {
 		return "Routed to nobody."
@@ -140,6 +185,9 @@ func (p Posted) RouteSummary() string {
 			continue
 		}
 		routes = append(routes, fmt.Sprintf("%s (%.2f)", route.Member, route.Probability))
+	}
+	if p.Post.Offered() {
+		return "Offered to " + strings.Join(routes, ", then ") + "."
 	}
 	return "Routed to " + strings.Join(routes, ", ") + "."
 }

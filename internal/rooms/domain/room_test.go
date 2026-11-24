@@ -158,6 +158,13 @@ func TestPostedRouteSummary(t *testing.T) {
 			}},
 			want: "Routed to tester (pinged), writer (pinged).",
 		},
+		{
+			name: "an offered post goes to its members in turn",
+			posted: Posted{Post: Post{
+				Routes: []Route{{Member: "researcher", Probability: 0.94}, {Member: "tester", Probability: 0.81}},
+			}},
+			want: "Offered to researcher (0.94), then tester (0.81).",
+		},
 		{name: "routed to nobody", want: "Routed to nobody."},
 	}
 	for _, tt := range tests {
@@ -187,6 +194,58 @@ func TestSpent(t *testing.T) {
 			got := Spent(tt.members, tt.posts)
 			require.Equal(t, tt.want.Tokens, got.Tokens)
 			require.InDelta(t, tt.want.Cost, got.Cost, 1e-9)
+		})
+	}
+}
+
+func TestPostOffered(t *testing.T) {
+	tests := []struct {
+		name string
+		post Post
+		want bool
+	}{
+		{"a message that pings nobody", Post{Author: UserAuthor, Text: "what's the weather?"}, true},
+		{"a ping", Post{Author: UserAuthor, Mentions: []string{"tester"}}, false},
+		{"an @all", Post{Author: UserAuthor, Mentions: []string{EveryoneMention}}, false},
+		{"a join", Post{Author: UserAuthor, Kind: PostKindJoin}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.post.Offered())
+		})
+	}
+}
+
+func TestPostOfferedAfter(t *testing.T) {
+	post := Post{Routes: []Route{{Member: "researcher"}, {Member: "tester"}}}
+	next, ok := post.OfferedAfter("researcher")
+	require.True(t, ok)
+	require.Equal(t, "tester", next)
+	_, ok = post.OfferedAfter("tester")
+	require.False(t, ok, "the last member passes it on to nobody")
+	_, ok = post.OfferedAfter("writer")
+	require.False(t, ok, "a member the post was never offered to")
+}
+
+func TestRoomPasses(t *testing.T) {
+	offering := Room{Name: "public", Pickup: PickupOffer}
+	offered := Post{Author: UserAuthor, Text: "what's the weather?"}
+	tests := []struct {
+		name      string
+		room      Room
+		addressed Post
+		answer    string
+		want      bool
+	}{
+		{"PASS on an offered post", offering, offered, "PASS", true},
+		{"PASS in any case, with a full stop", offering, offered, " pass.\n", true},
+		{"an answer that mentions PASS", offering, offered, "PASS - ask researcher", false},
+		{"a room that hands posts to its top match", Room{Pickup: PickupTop}, offered, "PASS", false},
+		{"a pinged post cannot be passed on", offering, Post{Author: UserAuthor, Mentions: []string{"tester"}}, "PASS", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.room.Passes(tt.addressed, tt.answer))
 		})
 	}
 }

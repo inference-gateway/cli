@@ -110,8 +110,9 @@ header shows what the room spent, such as `48.2k tokens · $0.031`, every member
 decisions, and names each member with what it is doing (idle, working, waiting for approval). Each message sits
 under its author and time.
 
-- The composer posts to the room. `@tester` pings one member, `@all` every member. The `@` menu uses the
-  `room` table of `composer.yaml`.
+- The composer posts to the room. `@tester` pings one member, `@all` every member. A message that pings
+  nobody goes to the one member who picks it up, the best match first. The `@` menu uses the `room` table of
+  `composer.yaml`.
 - `!` and `!!` commands stay in the composer until you leave the room. `/` commands work as usual.
 - `Ctrl+L`, `/clear` and `/new` clear nothing inside a room, since other people read it too. Empty a room on
   purpose with `infer rooms clear <room>`, or pick **No room** first to clear your own chat.

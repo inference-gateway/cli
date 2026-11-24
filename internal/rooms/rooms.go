@@ -25,6 +25,7 @@ func Resolve(cfg config.RoomsConfig, agents AgentCatalog) []roomsdomain.Room {
 			Name:    room.Name,
 			Project: project,
 			Mode:    cmp.Or(room.Mode, config.DefaultRoomsMemberMode),
+			Pickup:  cmp.Or(room.Pickup, config.DefaultRoomsPickup),
 			Agents:  roomsdomain.ResolveMemberAgents(room.Agents, agents(project)),
 		})
 	}
