@@ -37,6 +37,9 @@ type Service struct {
 	pollStop context.CancelFunc
 	pollWG   sync.WaitGroup
 
+	jobsCtx  context.Context
+	stopJobs context.CancelFunc
+
 	started bool
 }
 
@@ -85,6 +88,7 @@ func (s *Service) Start(ctx context.Context) error {
 		return nil
 	}
 	s.cron = cron.New(cron.WithParser(s.parser))
+	s.jobsCtx, s.stopJobs = context.WithCancel(ctx)
 	s.started = true
 	s.mu.Unlock()
 
@@ -98,8 +102,8 @@ func (s *Service) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop halts the watcher and waits for in-flight cron entries to finish (up
-// to the deadline embedded in ctx, if any).
+// Stop halts the watcher, cancels the in-flight jobs, whose runs shut down on
+// their own, and waits for them to finish (up to the deadline in ctx, if any).
 func (s *Service) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	if !s.started {
@@ -108,6 +112,7 @@ func (s *Service) Stop(ctx context.Context) error {
 	}
 	s.started = false
 	c := s.cron
+	s.stopJobs()
 	s.mu.Unlock()
 
 	if s.pollStop != nil {
@@ -191,7 +196,10 @@ func (s *Service) emit(job scheddomain.ScheduledJob, e scheddomain.RunEvent) {
 // `infer headless`, streams stdout lines through the OnRunEvent hook, and
 // persists the run outcome plus the job's LastRun/LastError metadata.
 func (s *Service) fire(job scheddomain.ScheduledJob) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	s.mu.Lock()
+	jobsCtx := s.jobsCtx
+	s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(jobsCtx, 30*time.Minute)
 	defer cancel()
 
 	now := time.Now().UTC()

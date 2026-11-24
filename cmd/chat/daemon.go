@@ -90,7 +90,7 @@ func startDaemonChatSession(cfg *config.Config, sessionID string, loadConfig fun
 	mode := scheddomain.InheritedAgentMode()
 	services.GetStateStore().SetAgentMode(mode)
 	if err := thread.Follow(ctx, sessionID, sessionsdomain.ThreadOptions{Model: cfg.Agent.Model, Mode: mode.ModeKey()}); err != nil {
-		return fmt.Errorf("opening session %s on infer daemon: %w (check it with: infer daemon workspaces)", sessionID, err)
+		return fmt.Errorf("opening session %s on infer daemon: %w (check it with: infer sessions workspaces)", sessionID, err)
 	}
 	repo := services.GetConversationRepository()
 	if !fresh {

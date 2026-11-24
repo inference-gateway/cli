@@ -32,8 +32,10 @@ The daemon hosts whichever of these the config enables, and refuses to start whe
 | Rooms | The AG-UI binding | Groups of agents that answer posts in their own sessions, see [Rooms](#rooms) |
 | A2A server | `a2a.server.enabled` | One `infer headless` per task, bearer token required. See [The A2A server](#the-a2a-server) |
 
-Shutdown is SIGINT or SIGTERM. The daemon closes the binding, stops every session worker, then
-the poller, the A2A server, heartbeat, scheduler and channels, each with a 30 second budget.
+Shutdown is `infer daemon stop`, SIGINT or SIGTERM. The daemon closes the binding and asks every session
+worker to end its turn and clean up, and every scheduled, heartbeat or A2A run gets SIGTERM, so it stops its
+own MCP servers, browser and background shells. Then it stops the poller, the A2A server, heartbeat,
+scheduler and channels, each with a 30 second budget. A worker or run still going after 25 seconds is killed.
 
 ## The A2A server
 
@@ -79,7 +81,7 @@ A binding on any host but loopback must serve TLS. `tls.mode` picks how:
 | `ca` | a certificate the daemon's own CA issues (`~/.infer/daemon/pki/`) | client certificates from that CA, the token stays optional |
 
 With `ca` the token may be empty, since every connection carries a verified certificate.
-The `infer daemon workspaces`, `teleport`, `run` and `stop` commands dial the local binding over whichever
+The `infer sessions workspaces`, `teleport`, `run` and `stop` commands dial the local binding over whichever
 mode it serves, with the token or, when it requires them, a client certificate.
 
 The opentask extension cannot present a client certificate. So when the browser-use extension backend is on and
@@ -188,7 +190,7 @@ workspaces:
   sat suspended that long. It only starts when every agent on the pod is done: its last run finished
   without waiting on an approval or a question, or its session teleported away. A run still going keeps
   the pod up, and a run that waits on the user or ended in an error keeps the Orchestrator until
-  `infer daemon stop` deletes it. Resuming
+  `infer sessions stop` deletes it. Resuming
   the Orchestrator clears the countdown. The pod daemon leaves its verdict as the pod's termination
   message (`agents-done=true`), and a pod that ran nothing reports not done. Without a `retention` a
   suspended Orchestrator stays until the session is stopped. A relay never recreates an Orchestrator its
@@ -389,18 +391,18 @@ guarantee holds only through the source daemon's final claim and a crash mid-tel
 daemons believing they own the session. A teleport on a per-machine backend still runs, with a warning
 in the daemon's log.
 
-The daemon's subcommands drive this from a shell:
+`infer sessions` drives this from a shell:
 
 ```bash
-infer daemon workspaces                                 # who is reachable
-infer daemon teleport <conversation-id> --to k8s-dev      # teleport a session, follow the stages
-infer daemon run <conversation-id> "continue please"      # one turn through the daemon, wherever it runs
-infer daemon stop <conversation-id>                       # stop the agent and delete its remote runtime, also one it left
+infer sessions workspaces                              # who is reachable
+infer sessions teleport <session-id> --to k8s-dev      # teleport a session, follow the stages
+infer sessions run <session-id> "continue please"      # one turn through the daemon, wherever it runs
+infer sessions stop <session-id>                       # stop the agent and delete its remote runtime, also one it left
 ```
 
 A teleport starts on the daemon that owns the session. A daemon that only relays a session refuses to
 teleport it with `session <id> is owned by workspace <name>`, with one exception: it brings back a session
-that left it. `infer daemon teleport <conversation-id> --to <this daemon>` asks the owner to quiesce the
+that left it. `infer sessions teleport <session-id> --to <this daemon>` asks the owner to quiesce the
 worker and pack the conversation and the repository, and streams that checkpoint back over the connection
 the daemon opened. The repository lands on the checkout the session left: the pod's commits fast-forward its
 branch, then the pod's uncommitted patch and untracked files apply.
@@ -417,7 +419,7 @@ The remote runtime stays behind for a while. A pod daemon whose session left, wi
 idles out after `away_ttl` and reports its agents done, so the operator suspends the Orchestrator and
 starts its `retention`. Teleporting the session to that workspace again before the retention runs out
 resumes the Orchestrator with its volumes. The daemon remembers the workspace a session came home from in
-`~/.infer/daemon/runtimes/`, so `infer daemon stop <conversation-id>` deletes that runtime at once.
+`~/.infer/daemon/runtimes/`, so `infer sessions stop <session-id>` deletes that runtime at once.
 
 ### Compute
 
@@ -470,7 +472,7 @@ workspaces:
 - `compute.yaml` is read from the home directory only. A project's `.infer/compute.yaml` is ignored,
   because clusters and machines belong to the user, not to a project.
 - A workspace that carries its own connection keeps working as before, with a Gateway of its own.
-  `infer daemon workspaces` shows the compute each workspace runs on.
+  `infer sessions workspaces` shows the compute each workspace runs on.
 - `infer compute clusters` and `infer compute machines` add, list, check and remove them. See the
   [commands reference](commands-reference.md#infer-compute).
 
@@ -572,7 +574,7 @@ pod's hostname as its DNS name, so set `address` to the name your NetBird setup 
       - ANTHROPIC_API_KEY
 ```
 
-A policy on the overlay decides which machines reach the binding port. `infer daemon workspaces` still reports
+A policy on the overlay decides which machines reach the binding port. `infer sessions workspaces` still reports
 the workspace through the kube API, and a teleport fails if the overlay name does not resolve.
 
 ## Rooms
@@ -680,8 +682,12 @@ sessions resume where they left off.
 
 The pid file is `~/.infer/run/daemon.pid`, and the daemon holds an OS lock on it while it runs. A
 second `infer daemon` exits with `daemon already running (pid N)` while that lock is held, also when
-two start at once, and a file a crashed daemon left behind is taken over. Stop the daemon by
-signalling that pid. There is no `stop` or `status` subcommand.
+two start at once, and a file a crashed daemon left behind is taken over.
+
+`infer daemon stop` stops it. It sends SIGTERM to the pid the lock vouches for, waits for the shutdown above,
+and kills the daemon if it still runs after a minute. A pid file no daemon holds is left alone, since its pid
+may name another process by now. Windows has no SIGTERM, so there the daemon is killed, and its session
+workers still clean up as their stdin closes.
 
 ## Logs
 

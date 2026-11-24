@@ -8,10 +8,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	process "github.com/inference-gateway/cli/internal/platform/process"
 )
+
+// stopGrace is how long a cancelled run gets to shut down on SIGTERM, its MCP
+// servers, browser and background shells included, before it is killed.
+const stopGrace = 25 * time.Second
 
 // ExecFunc matches exec.CommandContext. It is a type alias (not a defined type)
 // so callers' own named exec-override types stay assignable without conversion.
@@ -57,6 +62,7 @@ func Run(ctx context.Context, opts Options) (Result, error) {
 
 	cmd := execFn(ctx, bin, buildArgs(opts)...)
 	cmd.Env = append(append(os.Environ(), opts.ExtraEnv...), logger.ChildStderrJSONEnv+"=true")
+	process.TerminateOnCancel(cmd, stopGrace)
 
 	var result Result
 

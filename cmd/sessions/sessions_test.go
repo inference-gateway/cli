@@ -1,4 +1,4 @@
-package daemon
+package sessions
 
 import (
 	"bytes"

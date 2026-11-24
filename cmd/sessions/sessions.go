@@ -1,4 +1,4 @@
-package daemon
+package sessions
 
 import (
 	"cmp"
@@ -22,6 +22,17 @@ import (
 	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 )
+
+// NewCommand groups the commands that act on the sessions a daemon hosts. They
+// reach each session through the local daemon's binding, wherever it runs.
+func NewCommand(state *runtime.State) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "sessions",
+		Short: "Run, stop and teleport the sessions the daemon hosts, and list where they can go",
+	}
+	command.AddCommand(newWorkspacesCommand(state), newTeleportCommand(state), newRunCommand(state), newStopCommand(state))
+	return command
+}
 
 // clientKind is what these commands declare in their hello.
 const clientKind = "cli"
@@ -95,7 +106,7 @@ func printWorkspaces(out io.Writer, frame map[string]any) error {
 
 func newTeleportCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
-		Use:          "teleport <conversation-id>",
+		Use:          "teleport <session-id>",
 		Short:        "Teleport a session to another workspace and follow the teleport",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
@@ -128,7 +139,7 @@ func newTeleportCommand(state *runtime.State) *cobra.Command {
 		},
 	}
 	command.Flags().String("to", "", "The workspace to teleport the session to (a name from daemon.yaml)")
-	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
+	command.Flags().String("project-dir", "", "The project the session belongs to (default: the current directory)")
 	command.Flags().String("teleport-id", "", "Reuse a teleport id to retry the same teleport idempotently")
 	command.Flags().StringSlice("file", nil, "Extra files to carry along, relative to the project (repeatable)")
 	return command
@@ -156,8 +167,8 @@ func followTeleport(ctx context.Context, out io.Writer, client *daemonhost.Clien
 
 func newRunCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
-		Use:          "run <conversation-id> [prompt]",
-		Short:        "Continue a conversation through the daemon, wherever its session runs, and print the reply",
+		Use:          "run <session-id> [prompt]",
+		Short:        "Continue a session wherever it runs and print the reply, or print its conversation without a prompt",
 		Args:         cobra.RangeArgs(1, 2),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -185,7 +196,7 @@ func newRunCommand(state *runtime.State) *cobra.Command {
 			return runTurn(ctx, cmd.OutOrStdout(), cmd.ErrOrStderr(), client, args[0], args[1])
 		},
 	}
-	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
+	command.Flags().String("project-dir", "", "The project the session belongs to (default: the current directory)")
 	return command
 }
 
@@ -229,7 +240,7 @@ func runTurn(ctx context.Context, out, errOut io.Writer, client *daemonhost.Clie
 
 func newStopCommand(state *runtime.State) *cobra.Command {
 	command := &cobra.Command{
-		Use:          "stop <conversation-id>",
+		Use:          "stop <session-id>",
 		Short:        "Stop a session's agent and delete its runtime and volumes on the remote workspace that owns it or that it left after teleporting home",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
@@ -255,7 +266,7 @@ func newStopCommand(state *runtime.State) *cobra.Command {
 			return printStopped(cmd.OutOrStdout(), frame)
 		},
 	}
-	command.Flags().String("project-dir", "", "The project the conversation belongs to (default: the current directory)")
+	command.Flags().String("project-dir", "", "The project the session belongs to (default: the current directory)")
 	return command
 }
 
