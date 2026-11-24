@@ -899,8 +899,8 @@ Client → CLI, answered with `rooms` to the requesting client only:
       "name": "release",
       "project": "/Users/me/Repositories/app",
       "members": [
-        {"agent": "tester", "session_id": "room-release-tester", "activity": "idle", "usage": {"tokens": 48210, "cost": 0.031}},
-        {"agent": "writer", "session_id": "room-release-writer", "activity": "running", "usage": {"tokens": 0, "cost": 0}}
+        {"agent": "tester", "session_id": "room-release-tester", "activity": "idle"},
+        {"agent": "writer", "session_id": "room-release-writer", "activity": "running"}
       ]
     }
   ]
@@ -934,7 +934,7 @@ Client → CLI, answered with the room's `room_snapshot`, after which the client
 ```
 
 ```json
-{"type": "room_activity", "room": "release", "member": "tester", "activity": "waiting", "usage": {"tokens": 48210, "cost": 0.031}}
+{"type": "room_activity", "room": "release", "member": "tester", "activity": "waiting"}
 ```
 
 Client → CLI, entering a room as the user. `join_room` follows the room exactly like `follow_room`. The first
@@ -987,11 +987,11 @@ Client → CLI, stopping the follow. Nothing answers it:
 - `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval in its own
   session, and `idle` otherwise.
 - `kind` is `join` for the user's first entry into a room and absent for a message.
-- `usage` is what a member's sessions spent so far, its tokens in and out and their cost, as its worker reports
-  them when a run ends. A session that rolled over adds to the one before it. The daemon counts from its own
-  start, so a member shows `0` until its first run since then. `cost` stays `0` for a model without a price.
-- `router_tokens` on a post is what the router's decision model spent routing it, absent for a ping. A room's
-  total is every member's `usage` plus the `router_tokens` of every post in its log.
+- `usage` on a post is what it cost, `tokens` in and out and their `cost`: routing a post of the user's through
+  the decision model, and for a member's answer, or the room's note that it failed or passed a post on, what
+  the member's turn spent, from the `runTokens` and `runCost` of its worker's `RUN_FINISHED`. It is absent when
+  the post cost nothing, such as a ping. A room's total is the `usage` of every post in its log, so a cleared
+  room starts over. `cost` stays `0` for a model without a price.
 - `routes` is empty for a post that reached nobody. `probability` is `1` for a pinged member, every member of
   an `@all` post included, and the decision model's answer otherwise. For a post that pings nobody, `routes`
   are the members it is offered to in turn, best first. Only the first gets it, and the next only after the

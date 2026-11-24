@@ -126,16 +126,14 @@ func (t *Thread) onRoomCleared(frame []byte) {
 	}
 }
 
-// onRoomActivity hands the UI what a member of a followed room does now and
-// what it spent so far.
+// onRoomActivity hands the UI what a member of a followed room does now.
 func (t *Thread) onRoomActivity(frame []byte) {
 	var f struct {
 		Room     string               `json:"room"`
 		Member   string               `json:"member"`
 		Activity roomsdomain.Activity `json:"activity"`
-		Usage    roomsdomain.Usage    `json:"usage"`
 	}
 	if json.Unmarshal(frame, &f) == nil {
-		t.post(tui.RoomActivityEvent{Room: f.Room, Member: f.Member, Activity: f.Activity, Usage: f.Usage})
+		t.post(tui.RoomActivityEvent{Room: f.Room, Member: f.Member, Activity: f.Activity})
 	}
 }

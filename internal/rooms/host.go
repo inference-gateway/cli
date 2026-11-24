@@ -90,7 +90,6 @@ type activityFrame struct {
 	Room     string               `json:"room"`
 	Member   string               `json:"member"`
 	Activity roomsdomain.Activity `json:"activity"`
-	Usage    roomsdomain.Usage    `json:"usage"`
 }
 
 // postedFrame answers post_room to its poster.
@@ -288,7 +287,7 @@ func (h *Host) post(c sessionsdomain.Client, name, text string) {
 		logger.Warn("rooms could not route a post", "room", name, "error", err)
 		routing.Notices = append(routing.Notices, fmt.Sprintf("The post reached nobody, routing failed: %v. Mention a member to reach one.", err))
 	}
-	post.Mentions, post.Routes, post.RouterTokens = routing.Mentions, routing.Routes, routing.Tokens
+	post.Mentions, post.Routes, post.Usage = routing.Mentions, routing.Routes, roomsdomain.Usage{Tokens: routing.Tokens}
 	if err := h.append(room, post); err != nil {
 		c.Deliver(runError(fmt.Sprintf("logging the post in room %s: %v", name, err)))
 		return
@@ -310,14 +309,14 @@ func (h *Host) deliverTurns(room roomsdomain.Room, post roomsdomain.Post) {
 }
 
 // passOn offers post to the member after the one that passed it on, or tells
-// the room that nobody picked it up.
-func (h *Host) passOn(room roomsdomain.Room, post roomsdomain.Post, passed string) {
+// the room that nobody picked it up. The note carries what the pass spent.
+func (h *Host) passOn(room roomsdomain.Room, post roomsdomain.Post, passed string, spent roomsdomain.Usage) {
 	next, ok := post.OfferedAfter(passed)
 	if !ok {
-		h.note(room, fmt.Sprintf("%s passed it on and nobody picked the post up. Mention a member to hand it to one.", passed))
+		h.noteSpent(room, fmt.Sprintf("%s passed it on and nobody picked the post up. Mention a member to hand it to one.", passed), spent)
 		return
 	}
-	h.note(room, fmt.Sprintf("%s passed it on - offered to %s.", passed, next))
+	h.noteSpent(room, fmt.Sprintf("%s passed it on - offered to %s.", passed, next), spent)
 	h.member(room, next).enqueue(post)
 }
 
@@ -345,19 +344,24 @@ func (h *Host) appendLocked(room roomsdomain.Room, post roomsdomain.Post) error 
 // note logs what the room has to say about a member, such as one waiting on
 // an approval in its own chat.
 func (h *Host) note(room roomsdomain.Room, text string) {
-	if err := h.append(room, newPost(roomsdomain.RoomAuthor, text)); err != nil {
+	h.noteSpent(room, text, roomsdomain.Usage{})
+}
+
+// noteSpent logs a note about a member's turn with what the turn spent, such
+// as a run that failed or an offered post passed on.
+func (h *Host) noteSpent(room roomsdomain.Room, text string, spent roomsdomain.Usage) {
+	post := newPost(roomsdomain.RoomAuthor, text)
+	post.Usage = spent
+	if err := h.append(room, post); err != nil {
 		logger.Warn("rooms could not log a note", "room", room.Name, "error", err)
 	}
 }
 
-// announce streams a member's new activity and what it spent to the room's
-// followers.
+// announce streams a member's new activity to the room's followers.
 func (h *Host) announce(room roomsdomain.Room, status roomsdomain.MemberStatus) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.deliverLocked(room.Name, encode(activityFrame{
-		Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: status.Agent, Activity: status.Activity, Usage: status.Usage,
-	}))
+	h.deliverLocked(room.Name, encode(activityFrame{Type: roomsdomain.FrameRoomActivity, Room: room.Name, Member: status.Agent, Activity: status.Activity}))
 }
 
 func (h *Host) deliverLocked(name string, frame []byte) {
@@ -385,13 +389,13 @@ func (h *Host) findRoom(name string) (roomsdomain.Room, bool) {
 	return Find(Resolve(h.cfg, h.agents), name)
 }
 
-// viewLocked renders room with what each of its members does and spent.
+// viewLocked renders room with what each of its members is doing.
 func (h *Host) viewLocked(room roomsdomain.Room) roomsdomain.RoomStatus {
 	members := make([]roomsdomain.MemberStatus, 0, len(room.Agents))
 	for _, seat := range room.Members() {
 		status := roomsdomain.MemberStatus{Agent: seat.Agent, SessionID: seat.SessionID, Activity: roomsdomain.ActivityIdle}
 		if m, ok := h.members[seat.SessionID]; ok {
-			status.Activity, status.Usage = m.currentActivity(), m.spent()
+			status.Activity = m.currentActivity()
 		}
 		members = append(members, status)
 	}

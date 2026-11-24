@@ -92,7 +92,7 @@ func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 	}
 	require.Contains(t, roomScreen(view), "post j", "the view stays on the newest post")
 
-	view.UpdateMember("writer", roomsdomain.ActivityWaiting, roomsdomain.Usage{})
+	view.SetActivity("writer", roomsdomain.ActivityWaiting)
 	require.Contains(t, roomScreen(view), "writer is waiting for approval")
 	require.Contains(t, roomScreen(view), "◐ writer waiting for approval", "the pinned header shows each member's presence")
 
@@ -103,16 +103,16 @@ func TestRoomViewFollowsNewPostsAndActivity(t *testing.T) {
 }
 
 // TestRoomViewHeaderShowsWhatTheRoomSpent pins the room's spend in the pinned
-// header: every member's session plus the routing of every post, and nothing
-// while the room spent nothing.
+// header: what the posts of its log cost, routing and member turns, and
+// nothing while the room spent nothing or once its log was cleared.
 func TestRoomViewHeaderShowsWhatTheRoomSpent(t *testing.T) {
 	view := newTestRoomView()
 	require.NotContains(t, roomScreen(view), "tokens", "a room that spent nothing says nothing about it")
 
-	view.UpdateMember("tester", roomsdomain.ActivityIdle, roomsdomain.Usage{Tokens: 1500, Cost: 0.0123})
-	view.AddPost(roomsdomain.Post{Author: roomsdomain.UserAuthor, Text: "hi all", RouterTokens: 300, Time: roomStart})
+	view.AddPost(roomsdomain.Post{Author: roomsdomain.UserAuthor, Text: "hi all", Usage: roomsdomain.Usage{Tokens: 300}, Time: roomStart})
+	view.AddPost(roomsdomain.Post{Author: "tester", Text: "hi", Usage: roomsdomain.Usage{Tokens: 1500, Cost: 0.0123}, Time: roomStart})
 	require.Contains(t, roomScreen(view), "# release · 2 members · 1.8k tokens · $0.012")
 
-	view.UpdateMember("ghost", roomsdomain.ActivityRunning, roomsdomain.Usage{Tokens: 9000})
-	require.Contains(t, roomScreen(view), "1.8k tokens", "an agent outside the room adds nothing")
+	view.ClearPosts()
+	require.NotContains(t, roomScreen(view), "tokens", "a cleared room starts over")
 }

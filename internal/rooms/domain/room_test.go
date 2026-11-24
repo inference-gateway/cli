@@ -176,22 +176,24 @@ func TestPostedRouteSummary(t *testing.T) {
 
 func TestSpent(t *testing.T) {
 	tests := []struct {
-		name    string
-		members []MemberStatus
-		posts   []Post
-		want    Usage
+		name  string
+		posts []Post
+		want  Usage
 	}{
-		{"a room that spent nothing", []MemberStatus{{Agent: "tester"}}, []Post{{Author: UserAuthor}}, Usage{}},
+		{"a room that spent nothing", []Post{{Author: UserAuthor}}, Usage{}},
 		{
-			"every member's session and every routed post",
-			[]MemberStatus{{Agent: "tester", Usage: Usage{Tokens: 1200, Cost: 0.01}}, {Agent: "writer", Usage: Usage{Tokens: 800, Cost: 0.02}}},
-			[]Post{{Author: UserAuthor, RouterTokens: 300}, {Author: "tester"}, {Author: UserAuthor, RouterTokens: 250}},
-			Usage{Tokens: 2550, Cost: 0.03},
+			"every routed post and every member turn",
+			[]Post{
+				{Author: UserAuthor, Usage: Usage{Tokens: 300}},
+				{Author: "tester", Usage: Usage{Tokens: 1200, Cost: 0.01}},
+				{Author: RoomAuthor, Text: "writer passed it on", Usage: Usage{Tokens: 800, Cost: 0.02}},
+			},
+			Usage{Tokens: 2300, Cost: 0.03},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Spent(tt.members, tt.posts)
+			got := Spent(tt.posts)
 			require.Equal(t, tt.want.Tokens, got.Tokens)
 			require.InDelta(t, tt.want.Cost, got.Cost, 1e-9)
 		})

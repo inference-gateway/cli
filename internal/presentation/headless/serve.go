@@ -19,6 +19,7 @@ import (
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	directexec "github.com/inference-gateway/cli/internal/presentation/tui/directexec"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
+	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
 	scheddomain "github.com/inference-gateway/cli/internal/scheduler/domain"
 )
 
@@ -107,10 +108,12 @@ func serveTurn(ctx context.Context, svc Services, ctl *headlessControl, notifica
 }
 
 // nextStepSuggestion yields the turn's suggestion under the worker's context,
-// and nothing when a queued message or a parent agent takes the next step.
+// and nothing when a queued message, a parent agent or a room takes the next
+// step, since nobody reads a room member's suggestions.
 func nextStepSuggestion(ctx context.Context, queue convdomain.MessageQueue, generate func(context.Context) string) func() string {
 	return func() string {
-		if !queue.IsEmpty() || os.Getenv(scheddomain.EnvSubagentParentSession) != "" {
+		if !queue.IsEmpty() || os.Getenv(scheddomain.EnvSubagentParentSession) != "" ||
+			os.Getenv(scheddomain.EnvSubagentInvokedBy) == roomsdomain.InvokedByRoom {
 			return ""
 		}
 		return generate(ctx)

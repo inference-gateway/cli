@@ -423,49 +423,36 @@ func TestAPostLogsWhatRoutingItCost(t *testing.T) {
 		f.decider.DecideReturns(decisions, nil)
 
 		f.post(t, &sessionsmocks.FakeClient{}, "run the suite")
-		require.Equal(t, 412, f.logged(t)[0].RouterTokens)
+		require.Equal(t, roomsdomain.Usage{Tokens: 412}, f.logged(t)[0].Usage)
 	})
 }
 
-// TestMembersReportWhatTheirSessionsSpent pins a member's usage: each run
-// reports its session's totals, which reach the followers with the member's
-// activity and the room's status, and a session that rolled over adds to
-// what the one before it spent.
-func TestMembersReportWhatTheirSessionsSpent(t *testing.T) {
+// TestEveryTurnLogsWhatItSpent pins the room's spend: the run's own tokens
+// and cost, as its worker reports them, land on the post the turn writes, its
+// answer or the note of a pass, so the log adds up to what the room spent.
+func TestEveryTurnLogsWhatItSpent(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	synctest.Test(t, func(t *testing.T) {
 		f := newHostFixture(t, nil)
-		follower := &sessionsmocks.FakeClient{}
-		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
-		spent := func(in, out int64, cost float64) map[string]any {
-			return map[string]any{
-				"usage":  []map[string]any{{"model": "test-model", "inputTokens": in, "outputTokens": out}},
-				"result": map[string]any{"cost": cost, "totalToolCalls": 1},
-			}
-		}
-		lastUsage := func() roomsdomain.Usage {
-			activity := delivered[activityFrame](t, follower, roomsdomain.FrameRoomActivity)
-			require.Equal(t, roomsdomain.ActivityIdle, activity[len(activity)-1].Activity)
-			return activity[len(activity)-1].Usage
+		decisions := probabilities(map[string]float64{"tester": 0.7, "writer": 0.9})
+		decisions.InputTokens = 300
+		f.decider.DecideReturns(decisions, nil)
+		spent := func(tokens int, cost float64) map[string]any {
+			return map[string]any{"result": map[string]any{"runTokens": tokens, "runCost": cost, "cost": 9.99}}
 		}
 
-		f.post(t, &sessionsmocks.FakeClient{}, "@tester run the suite")
-		replySpending(t, f.seat(t, "tester"), "all green", spent(1000, 200, 0.01))
-		require.Equal(t, 1200, lastUsage().Tokens)
+		f.post(t, &sessionsmocks.FakeClient{}, "what's the weather?")
+		replySpending(t, f.seat(t, "writer"), "PASS", spent(800, 0.002))
+		replySpending(t, f.seat(t, "tester"), "Berlin is around 0 degrees.", spent(1200, 0.01))
 
-		f.post(t, &sessionsmocks.FakeClient{}, "@tester and the e2e suite")
-		replySpending(t, f.seat(t, "tester"), "e2e green", spent(1250, 250, 0.015))
-		require.Equal(t, 1500, lastUsage().Tokens, "a session's totals grow, they are not summed per run")
-
-		f.post(t, &sessionsmocks.FakeClient{}, "@tester and lint")
-		replySpending(t, f.seat(t, "tester"), "lint clean", spent(300, 100, 0.004))
-		usage := lastUsage()
-		require.Equal(t, 1900, usage.Tokens, "the rolled-over session adds to the one before it")
-		require.InDelta(t, 0.019, usage.Cost, 1e-9)
-
-		f.send(t, follower, map[string]string{"type": roomsdomain.FrameListRooms})
-		rooms := delivered[roomsFrame](t, follower, roomsdomain.FrameRooms)
-		require.Equal(t, usage, rooms[0].Rooms[0].Members[0].Usage)
+		logged := f.logged(t)
+		require.Len(t, logged, 3)
+		require.Equal(t, roomsdomain.Usage{Tokens: 300}, logged[0].Usage, "routing the post")
+		require.Equal(t, roomsdomain.Usage{Tokens: 800, Cost: 0.002}, logged[1].Usage, "the pass, not the session's 9.99")
+		require.Equal(t, roomsdomain.Usage{Tokens: 1200, Cost: 0.01}, logged[2].Usage, "the answer")
+		total := roomsdomain.Spent(logged)
+		require.Equal(t, 2300, total.Tokens)
+		require.InDelta(t, 0.012, total.Cost, 1e-9)
 	})
 }
 

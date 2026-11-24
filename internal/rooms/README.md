@@ -44,9 +44,10 @@ expands the configured rooms against the agents the registry currently knows.
   `context_posts`), quoted as context so neither the member nor its judge takes them for the request,
   and the post for it. Every agent's mention is written without its `@` (`domain.PlainMentions`), so
   the member's file expansion never inlines a file named like a member. The run's last assistant
-  message is logged as the member's post. The run's terminal event carries its session's token totals and
-  cost, which the member keeps (a drop means the session rolled over, so the old total carries over) and
-  sends with every `room_activity`. The router's decision tokens land on the post as `router_tokens`.
+  message is logged as the member's post. The run's terminal event carries what the run spent
+  (`runTokens`, `runCost`), which lands as `usage` on the post the turn writes, its answer or the note
+  of a failure or a pass, as the router's decision tokens land on the user's post. A room's spend is
+  its log's (`domain.Spent`). A room member's worker makes no next-step suggestion, which nobody reads.
   The turn tells the member to talk like a teammate in a
   channel. Only the first route of a post that pings nobody gets a turn, which may answer `PASS`
   (`domain.Room.Passes`), and `Host.passOn` then notes it and offers the post to the next route.

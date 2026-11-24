@@ -106,9 +106,9 @@ A `/name` no shortcut answers for (a skill mention such as `/opentask`, or a typ
 The status bar's `Room: -` indicator switches the chat into one of the [rooms](rooms.md) the running daemon
 hosts. Select it with `↓` and `enter`, or click it. The dropdown lists **No room** first, then every room
 with its member count. Picking a room shows it in place of the conversation, like a Slack channel: the
-header shows what the room spent, such as `48.2k tokens · $0.031`, every member's session plus the router's
-decisions, and names each member with what it is doing (idle, working, waiting for approval). Each message sits
-under its author and time.
+header shows what the room spent since its log began, such as `48.2k tokens · $0.031`, the router's decisions
+and the members' turns, and names each member with what it is doing (idle, working, waiting for approval). Each
+message sits under its author and time.
 
 - The composer posts to the room. `@tester` pings one member, `@all` every member. A message that pings
   nobody goes to the one member who picks it up, the best match first. The `@` menu uses the `room` table of

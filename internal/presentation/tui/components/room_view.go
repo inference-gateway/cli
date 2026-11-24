@@ -76,7 +76,7 @@ func NewRoomView(styleProvider *styles.Provider) *RoomView {
 }
 
 // Show replaces the room on screen with snapshot: the room, its log so far
-// and what each member is doing and spent.
+// and what each member is doing.
 func (v *RoomView) Show(snapshot roomsdomain.Snapshot) {
 	v.room = snapshot.Room
 	v.room.Members = slices.Clone(snapshot.Room.Members)
@@ -99,13 +99,13 @@ func (v *RoomView) ClearPosts() {
 	v.refresh()
 }
 
-// UpdateMember shows what a member of the room does now and what it spent.
-func (v *RoomView) UpdateMember(agent string, activity roomsdomain.Activity, usage roomsdomain.Usage) {
+// SetActivity shows what a member of the room is doing now.
+func (v *RoomView) SetActivity(agent string, activity roomsdomain.Activity) {
 	i := slices.IndexFunc(v.room.Members, func(member roomsdomain.MemberStatus) bool { return member.Agent == agent })
 	if i < 0 {
 		return
 	}
-	v.room.Members[i].Activity, v.room.Members[i].Usage = activity, usage
+	v.room.Members[i].Activity = activity
 	v.refresh()
 }
 
@@ -218,13 +218,13 @@ func (v *RoomView) header() string {
 	}
 	accent := v.styleProvider.GetThemeColor("accent")
 	name := v.styleProvider.RenderStyledText("# "+v.room.Name, styles.StyleOptions{Foreground: accent, Bold: true})
-	summary := " · " + MemberCount(len(members)) + spentText(roomsdomain.Spent(v.room.Members, v.posts))
+	summary := " · " + MemberCount(len(members)) + spentText(roomsdomain.Spent(v.posts))
 	line := name + v.styleProvider.RenderDimText(summary) + "  " + strings.Join(members, v.styleProvider.RenderDimText(" · "))
 	return lipgloss.NewStyle().Width(max(v.width, 1)).Render(line)
 }
 
-// spentText says what a room spent, " · 48.2k tokens · $0.123", or nothing
-// before it spent anything. The cost stays out while no price is known.
+// spentText says what the room's log spent, " · 48.2k tokens · $0.123", or
+// nothing before it spent anything. The cost stays out while no price is known.
 func spentText(spent roomsdomain.Usage) string {
 	if spent.Tokens == 0 {
 		return ""

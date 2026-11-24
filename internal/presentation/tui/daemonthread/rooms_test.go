@@ -56,7 +56,7 @@ func TestRoomsStreamPostsAndActivityToTheUI(t *testing.T) {
 	require.NoError(t, err)
 
 	send(d.conn(), `{"type":"room_post","room":"release","post":{"id":"p3","author":"tester","text":"all green","time":"2026-11-23T10:02:00Z"}}`)
-	send(d.conn(), `{"type":"room_activity","room":"release","member":"tester","activity":"idle","usage":{"tokens":1500,"cost":0.012}}`)
+	send(d.conn(), `{"type":"room_activity","room":"release","member":"tester","activity":"idle"}`)
 	send(d.conn(), `{"type":"room_cleared","room":"release"}`)
 
 	eventually(t, "the post, the activity and the clear", func() bool {
@@ -66,9 +66,7 @@ func TestRoomsStreamPostsAndActivityToTheUI(t *testing.T) {
 	post := notified[tui.RoomPostEvent](notifier)[0]
 	require.Equal(t, "release", post.Room)
 	require.Equal(t, "all green", post.Post.Text)
-	require.Equal(t, tui.RoomActivityEvent{
-		Room: "release", Member: "tester", Activity: roomsdomain.ActivityIdle, Usage: roomsdomain.Usage{Tokens: 1500, Cost: 0.012},
-	}, notified[tui.RoomActivityEvent](notifier)[0])
+	require.Equal(t, tui.RoomActivityEvent{Room: "release", Member: "tester", Activity: roomsdomain.ActivityIdle}, notified[tui.RoomActivityEvent](notifier)[0])
 }
 
 // TestRoomsFollowTheRoomAgainAfterAReconnect pins that a reconnect follows the

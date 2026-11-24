@@ -43,8 +43,8 @@ const turnIntro = "You are %s, chatting in #%s with the user and the room's memb
 	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for.\n"
 
 // workerEvent is the part of a worker's AG-UI event a member reads. A run's
-// terminal event carries its session's token totals in Usage and the session's
-// cost in Result, which stays raw since a worker may put anything there.
+// terminal event carries what the run spent in Result, which stays raw since a
+// worker may put anything there.
 type workerEvent struct {
 	Type    string `json:"type"`
 	RunID   string `json:"runId"`
@@ -54,40 +54,27 @@ type workerEvent struct {
 	Outcome struct {
 		Type string `json:"type"`
 	} `json:"outcome"`
-	Usage []struct {
-		InputTokens  int64 `json:"inputTokens"`
-		OutputTokens int64 `json:"outputTokens"`
-	} `json:"usage"`
 	Result json.RawMessage `json:"result"`
 }
 
-// sessionTokens is the session's tokens in and out the event reports, false
-// when it reports none.
-func (ev workerEvent) sessionTokens() (int, bool) {
-	tokens := 0
-	for _, usage := range ev.Usage {
-		tokens += int(usage.InputTokens + usage.OutputTokens)
-	}
-	return tokens, len(ev.Usage) > 0
-}
-
-// sessionCost is the session's cost the event's result reports, false when
-// it reports none.
-func (ev workerEvent) sessionCost() (float64, bool) {
+// runSpend is what the run spent, its runTokens and runCost, and nothing when
+// the event reports neither.
+func (ev workerEvent) runSpend() roomsdomain.Usage {
 	var result struct {
-		Cost *float64 `json:"cost"`
+		RunTokens int     `json:"runTokens"`
+		RunCost   float64 `json:"runCost"`
 	}
-	if json.Unmarshal(ev.Result, &result) != nil || result.Cost == nil {
-		return 0, false
+	if json.Unmarshal(ev.Result, &result) != nil {
+		return roomsdomain.Usage{}
 	}
-	return *result.Cost, true
+	return roomsdomain.Usage{Tokens: result.RunTokens, Cost: result.RunCost}
 }
 
 // member drives one agent's seat in a room as its session's client: it holds
 // the posts routed to it, delivers them a turn at a time, logs each answer and
 // detaches when idle. addressed, inputID and runID are a turn's post, input and
-// run, session and earlier what this and rolled-over sessions spent. sendMu
-// orders a turn's frames without mu, so a stuck worker never stalls the room.
+// run. sendMu orders a turn's frames without mu, so a stuck worker never
+// stalls the room.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
@@ -104,8 +91,6 @@ type member struct {
 	inputID   string
 	runID     string
 	detach    *time.Timer
-	session   roomsdomain.Usage
-	earlier   roomsdomain.Usage
 
 	role    string
 	message strings.Builder
@@ -304,53 +289,22 @@ func (m *member) handle(ev workerEvent) {
 		}
 		m.role = ""
 	case "RUN_FINISHED":
-		m.recordUsage(ev)
 		if ev.Outcome.Type == "interrupt" {
 			m.waitForApproval()
 			return
 		}
 		answer := m.answer
 		m.answer = ""
-		m.finish(answer, "")
+		m.finish(answer, "", ev.runSpend())
 	case "RUN_ERROR":
-		m.recordUsage(ev)
 		m.answer = ""
-		m.finish("", ev.Message)
+		m.finish("", ev.Message, ev.runSpend())
 	}
 }
 
-// recordUsage keeps the session totals a run's terminal event reports. Totals
-// below the last ones mean the session rolled over, so the old session's
-// spend carries over and the new one counts from its own start.
-// shortcut: a rollover whose new session already passed the old total goes unseen,
-// upgrade once the terminal event names the session it counted.
-func (m *member) recordUsage(ev workerEvent) {
-	tokens, ok := ev.sessionTokens()
-	if !ok {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if tokens < m.session.Tokens {
-		m.earlier, m.session = m.earlier.Add(m.session), roomsdomain.Usage{}
-	}
-	m.session.Tokens = tokens
-	if cost, ok := ev.sessionCost(); ok {
-		m.session.Cost = cost
-	}
-}
-
-// spent is what the member's sessions spent so far.
-func (m *member) spent() roomsdomain.Usage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.earlier.Add(m.session)
-}
-
-// announce tells the room's followers what the member does now and what it
-// spent so far.
+// announce tells the room's followers what the member does now.
 func (m *member) announce(activity roomsdomain.Activity) {
-	m.host.announce(m.room, roomsdomain.MemberStatus{Agent: m.agent, SessionID: m.sessionID, Activity: activity, Usage: m.spent()})
+	m.host.announce(m.room, roomsdomain.MemberStatus{Agent: m.agent, SessionID: m.sessionID, Activity: activity})
 }
 
 // waitForApproval leaves the run's approval to the member's own chat, where
@@ -396,10 +350,10 @@ func (m *member) runStarted(runID string) {
 }
 
 // finish ends the member's turn: it logs the answer as the member's post, a
-// note when the run failed, or passes an offered post on, and starts the next
-// held post. A run the room did not start, such as the user chatting with the
-// member directly, is left out of the room.
-func (m *member) finish(answer, failure string) {
+// note when the run failed, or passes an offered post on, each with what the
+// turn spent, and starts the next held post. A run the room did not start, such
+// as the user chatting with the member directly, is left out of the room.
+func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 	m.mu.Lock()
 	if m.activity == roomsdomain.ActivityIdle {
 		m.mu.Unlock()
@@ -412,11 +366,13 @@ func (m *member) finish(answer, failure string) {
 
 	switch {
 	case failure != "":
-		m.host.note(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure))
+		m.host.noteSpent(m.room, fmt.Sprintf("%s failed: %s", m.agent, failure), spent)
 	case m.room.Passes(addressed, answer):
-		m.host.passOn(m.room, addressed, m.agent)
+		m.host.passOn(m.room, addressed, m.agent, spent)
 	case answer != "":
-		if err := m.host.append(m.room, newPost(m.agent, answer)); err != nil {
+		post := newPost(m.agent, answer)
+		post.Usage = spent
+		if err := m.host.append(m.room, post); err != nil {
 			logger.Warn("rooms could not log a member's answer", append(m.tags(), "error", err)...)
 		}
 	}

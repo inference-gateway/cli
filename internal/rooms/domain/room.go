@@ -128,16 +128,17 @@ func ownAgents(agents []agentdomain.SubagentInfo) []string {
 // Post is one entry of a room's log, written by the user or a member: its id,
 // who wrote it, what it says, which agents it mentions, who it was routed to
 // with the router's probability, and when. Kind marks an event such as a
-// join, and is empty for a message. RouterTokens is what routing it cost.
+// join, and is empty for a message. Usage is what the post cost: routing it
+// for the user's, the member's turn for its answer or a note about that turn.
 type Post struct {
-	ID           string    `json:"id,omitempty"`
-	Author       string    `json:"author"`
-	Kind         PostKind  `json:"kind,omitempty"`
-	Text         string    `json:"text"`
-	Mentions     []string  `json:"mentions,omitempty"`
-	Routes       []Route   `json:"routes,omitempty"`
-	RouterTokens int       `json:"router_tokens,omitempty"`
-	Time         time.Time `json:"time"`
+	ID       string    `json:"id,omitempty"`
+	Author   string    `json:"author"`
+	Kind     PostKind  `json:"kind,omitempty"`
+	Text     string    `json:"text"`
+	Mentions []string  `json:"mentions,omitempty"`
+	Routes   []Route   `json:"routes,omitempty"`
+	Usage    Usage     `json:"usage,omitzero"`
+	Time     time.Time `json:"time"`
 }
 
 // PostKind tells an event of the room's log from a message.
@@ -200,15 +201,14 @@ type RoomStatus struct {
 	Members []MemberStatus `json:"members"`
 }
 
-// MemberStatus is one member of a RoomStatus, with what its session spent.
+// MemberStatus is one member of a RoomStatus.
 type MemberStatus struct {
 	Agent     string   `json:"agent"`
 	SessionID string   `json:"session_id"`
 	Activity  Activity `json:"activity"`
-	Usage     Usage    `json:"usage"`
 }
 
-// Usage is what a room spent: its tokens, input and output, and their cost.
+// Usage is what a post cost: its tokens, input and output, and their cost.
 type Usage struct {
 	Tokens int     `json:"tokens"`
 	Cost   float64 `json:"cost"`
@@ -219,15 +219,12 @@ func (u Usage) Add(o Usage) Usage {
 	return Usage{Tokens: u.Tokens + o.Tokens, Cost: u.Cost + o.Cost}
 }
 
-// Spent is what a room spent: every member's session and the routing of
-// every post in its log.
-func Spent(members []MemberStatus, posts []Post) Usage {
+// Spent is what a room spent since its log began: the routing of every post
+// and every member turn the log records.
+func Spent(posts []Post) Usage {
 	var total Usage
-	for _, member := range members {
-		total = total.Add(member.Usage)
-	}
 	for _, post := range posts {
-		total.Tokens += post.RouterTokens
+		total = total.Add(post.Usage)
 	}
 	return total
 }

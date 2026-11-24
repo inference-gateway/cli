@@ -33,11 +33,9 @@ type RoomClearedEvent struct {
 	Room string
 }
 
-// RoomActivityEvent carries what a member of a followed room does now and
-// what its sessions spent so far.
+// RoomActivityEvent carries what a member of a followed room does now.
 type RoomActivityEvent struct {
 	Room     string
 	Member   string
 	Activity roomsdomain.Activity
-	Usage    roomsdomain.Usage
 }
