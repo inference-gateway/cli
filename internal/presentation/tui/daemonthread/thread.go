@@ -74,6 +74,9 @@ type Thread struct {
 	generation int
 	closed     bool
 
+	daemonBuild string
+	saidBuild   string
+
 	wake  chan struct{}
 	notes chan struct{}
 	queue []any
@@ -158,8 +161,29 @@ func (t *Thread) Connect(ctx context.Context) error {
 	t.placement.Daemon = true
 	t.placement.Offline = false
 	t.placement.Local = conn.AckAttr("workspace")
+	t.daemonBuild = conn.AckAttr(daemon.AckAttrBuild)
 	t.mu.Unlock()
 	return nil
+}
+
+// TakeBuildNotice is the notice that the daemon the thread joined runs another
+// build than this chat, once per daemon: "" for the same build, or for a
+// notice already taken, such as after reconnecting to the same daemon.
+func (t *Thread) TakeBuildNotice() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.daemonBuild == t.saidBuild {
+		return ""
+	}
+	t.saidBuild = t.daemonBuild
+	return daemon.BuildNotice(t.daemonBuild)
+}
+
+// sayBuild tells the running UI once that the daemon runs another build.
+func (t *Thread) sayBuild() {
+	if notice := t.TakeBuildNotice(); notice != "" {
+		t.post(tui.ShowErrorEvent{Error: notice})
+	}
 }
 
 // Close stops reconnecting and hangs up.
@@ -572,7 +596,8 @@ func (t *Thread) rejoin() error {
 }
 
 // dialOnce connects unless a connection is up, one dial at a time, so a lazy
-// dial and a reconnect never both open one.
+// dial and a reconnect never both open one. Both run under a live UI, which
+// hears once that the daemon runs another build.
 func (t *Thread) dialOnce(ctx context.Context) error {
 	t.dialMu.Lock()
 	defer t.dialMu.Unlock()
@@ -582,7 +607,11 @@ func (t *Thread) dialOnce(ctx context.Context) error {
 	if connected {
 		return nil
 	}
-	return t.Connect(ctx)
+	if err := t.Connect(ctx); err != nil {
+		return err
+	}
+	t.sayBuild()
+	return nil
 }
 
 // dialLazily connects a sessionless thread on first use. A daemon chat's

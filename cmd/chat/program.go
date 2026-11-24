@@ -62,8 +62,13 @@ func runChatProgram(services *container.ServiceContainer, cfg *config.Config, mo
 	program := tea.NewProgram(application)
 	notifier := programNotifier{program: program}
 	services.SetUINotifier(notifier)
-	if thread := services.GetDaemonThread(); thread != nil && thread.Unfollowed() {
-		go notifier.Notify(tui.FollowRunEvent{})
+	if thread := services.GetDaemonThread(); thread != nil {
+		if thread.Unfollowed() {
+			go notifier.Notify(tui.FollowRunEvent{})
+		}
+		if notice := thread.TakeBuildNotice(); notice != "" {
+			go notifier.Notify(tui.ShowErrorEvent{Error: notice})
+		}
 	}
 
 	heartbeatCtx, stopHeartbeat := context.WithCancel(context.Background())

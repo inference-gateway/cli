@@ -30,15 +30,17 @@ const (
 	probeTimeout   = 5 * time.Second
 )
 
-// Config is what the daemon tells the service about itself. LeaseBackend names
-// the lease store's storage type, StateDir keeps what it remembers about
-// sessions it sent away, Denies keeps sandbox-denied files out of a checkpoint,
-// and VoiceSamplesDir is the voice library a teleport may carry.
+// Config is what the daemon tells the service about itself. Build identifies
+// its binary, LeaseBackend names the lease store's storage type, StateDir keeps
+// what it remembers about sessions it sent away, Denies keeps sandbox-denied
+// files out of a checkpoint, and VoiceSamplesDir is the voice library a
+// teleport may carry.
 type Config struct {
 	Identity        string
 	ProjectsRoot    string
 	IdleExit        time.Duration
 	Version         string
+	Build           string
 	StorageID       string
 	LeaseBackend    config.StorageType
 	Handshake       agui.Handshake
@@ -118,6 +120,7 @@ func (s *Service) AckAttrs() map[string]any {
 	return map[string]any{
 		agentinfra.AttrWorkspace: s.me,
 		agentinfra.AttrVersion:   s.cfg.Version,
+		agentinfra.AttrBuild:     s.cfg.Build,
 		agentinfra.AttrStorageID: s.cfg.StorageID,
 	}
 }

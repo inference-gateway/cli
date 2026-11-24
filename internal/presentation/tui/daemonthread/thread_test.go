@@ -290,3 +290,16 @@ func TestThreadKeepsATurnReadingWhenTheTurnBeforeReleasesLate(t *testing.T) {
 		t.Error("asked to follow the run a turn reads")
 	}
 }
+
+func TestThreadHandsTheBuildNoticeOverOnce(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	d := startDaemonOfBuild(t, 0, "another-build")
+	thread, _ := connected(t, d)
+
+	if notice := thread.TakeBuildNotice(); !strings.Contains(notice, "another build") {
+		t.Fatalf("notice = %q, want the daemon's other build named", notice)
+	}
+	if notice := thread.TakeBuildNotice(); notice != "" {
+		t.Fatalf("second notice = %q, want it said once", notice)
+	}
+}

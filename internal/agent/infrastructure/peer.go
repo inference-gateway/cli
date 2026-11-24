@@ -10,11 +10,13 @@ import (
 )
 
 // The hello and ack fields two daemons exchange: the client kind a peer
-// declares, its workspace identity, and what the host answers about itself.
+// declares, its workspace identity, and what the host answers about itself,
+// its build the SHA-256 of its executable.
 const (
 	PeerClientKind = "daemon"
 	AttrWorkspace  = "workspace"
 	AttrVersion    = "version"
+	AttrBuild      = "build"
 	AttrStorageID  = "storage_id"
 )
 
