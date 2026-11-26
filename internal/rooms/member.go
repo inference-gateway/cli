@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +45,11 @@ const offerTurn = "\nNobody was mentioned, so the post is offered to you as the 
 // to talk like a teammate in a channel rather than an assistant.
 const turnIntro = "You are %s, chatting in #%s with the user and the room's members (%s), like coworkers in a Slack channel. " +
 	"Your reply to the post for you is posted to the room. Reply as a teammate would: answer what the post asks, " +
-	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for.\n"
+	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for. " +
+	"Hand a post on to another member with @name when that member should act on it, never for small talk.\n"
+
+// handoverTurn heads the post a member handed over to this one.
+const handoverTurn = "\n%s handed this post over to you:\n%s: %s\n"
 
 // workerEvent is the part of a worker's AG-UI event a member reads. A run that
 // finishes carries what it spent in Result, which stays raw since a worker may
@@ -250,7 +255,12 @@ func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post, r
 	if room.MayPass(addressed) {
 		b.WriteString(offerTurn)
 	}
-	fmt.Fprintf(&b, "\nThe post for you:\n%s: %s\n", addressed.Author, roomsdomain.PlainMentions(addressed.Text, known))
+	text := roomsdomain.PlainMentions(addressed.Text, known)
+	if slices.Contains(room.Agents, addressed.Author) {
+		fmt.Fprintf(&b, handoverTurn, addressed.Author, addressed.Author, text)
+		return b.String()
+	}
+	fmt.Fprintf(&b, "\nThe post for you:\n%s: %s\n", addressed.Author, text)
 	return b.String()
 }
 
@@ -443,8 +453,8 @@ func (m *member) runStarted(runID string) {
 }
 
 // finish ends the member's turn: it closes a call still waiting, logs the
-// answer or passes an offered post on with what the turn spent, or notes a
-// failed run, and starts the next held post. A run the room did not start,
+// answer and hands it to the members it pings, or passes an offered post on,
+// with what the turn spent, or notes a failed run, and starts the next held post. A run the room did not start,
 // such as the user chatting with the member directly, is left out of the room.
 func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 	m.mu.Lock()
@@ -468,10 +478,8 @@ func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 		m.host.passOn(turn, addressed, m.agent, spent)
 	case answer != "":
 		post := newPost(m.agent, answer)
-		post.Usage = spent
-		if err := m.host.append(m.room, post); err != nil {
-			logger.Warn("rooms could not log a member's answer", append(m.tags(), "error", err)...)
-		}
+		post.Usage, post.Hop = spent, addressed.Hop+1
+		m.host.handOver(turn, post)
 	}
 	m.announce(roomsdomain.ActivityIdle)
 	m.startNext()

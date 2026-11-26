@@ -86,6 +86,7 @@ func TestRoomsConfigValidate(t *testing.T) {
 		{"a provider/model router model is valid", RoomsConfig{Router: RoomsRouterConfig{Model: "anthropic/claude-haiku-5-5"}}, ""},
 		{"a router model without a provider fails", RoomsConfig{Router: RoomsRouterConfig{Model: "claude-haiku-5-5"}}, "rooms.router.model"},
 		{"a negative max_members fails", RoomsConfig{Router: RoomsRouterConfig{MaxMembers: -1}}, "rooms.router.max_members"},
+		{"a negative max_hops fails", RoomsConfig{Router: RoomsRouterConfig{MaxHops: -1}}, "rooms.router.max_hops"},
 		{"a name that escapes the rooms dir fails", RoomsConfig{Rooms: []RoomConfig{{Name: "../evil"}}}, "name"},
 		{"a duplicate name fails", RoomsConfig{Rooms: []RoomConfig{{Name: "public"}, {Name: "public"}}}, "defined twice"},
 		{"a human mode for members is valid", RoomsConfig{Rooms: []RoomConfig{{Name: "release", Mode: "standard"}}}, ""},

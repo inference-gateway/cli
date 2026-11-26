@@ -25,6 +25,7 @@ const (
 	DefaultRoomsContextPosts  = 20
 	DefaultRoomsMinConfidence = 0.5
 	DefaultRoomsMaxMembers    = 2
+	DefaultRoomsMaxHops       = 3
 )
 
 // DefaultRoomsRouterModel is the decision model that decides who a post that
@@ -43,11 +44,13 @@ type RoomsConfig struct {
 // @mentions only, and a set model is the "provider/model" decision model asked
 // with the room's members. MaxMembers caps how many of them a post that
 // mentions nobody is offered to, one after another and the most relevant
-// first, so one member takes it. 0 means DefaultRoomsMaxMembers.
+// first, so one member takes it, and MaxHops how many times members may hand
+// a post on to each other with a ping before it stops. 0 means the default.
 type RoomsRouterConfig struct {
 	Model         string  `yaml:"model" mapstructure:"model"`
 	MinConfidence float64 `yaml:"min_confidence" mapstructure:"min_confidence"`
 	MaxMembers    int     `yaml:"max_members" mapstructure:"max_members"`
+	MaxHops       int     `yaml:"max_hops" mapstructure:"max_hops"`
 	Fallback      string  `yaml:"fallback" mapstructure:"fallback"`
 }
 
@@ -55,6 +58,12 @@ type RoomsRouterConfig struct {
 // offered to, and how many welcome the user, DefaultRoomsMaxMembers while unset.
 func (r RoomsRouterConfig) EffectiveMaxMembers() int {
 	return cmp.Or(r.MaxMembers, DefaultRoomsMaxMembers)
+}
+
+// EffectiveMaxHops is how many hand-overs between members a post's chain may
+// make, DefaultRoomsMaxHops while unset.
+func (r RoomsRouterConfig) EffectiveMaxHops() int {
+	return cmp.Or(r.MaxHops, DefaultRoomsMaxHops)
 }
 
 // RoomConfig is one room. "*" as an agent reserves a seat for every agent of
@@ -96,6 +105,7 @@ func DefaultRoomsConfig() *RoomsConfig {
 			Model:         DefaultRoomsRouterModel,
 			MinConfidence: DefaultRoomsMinConfidence,
 			MaxMembers:    DefaultRoomsMaxMembers,
+			MaxHops:       DefaultRoomsMaxHops,
 			Fallback:      RoomsFallbackTop,
 		},
 		ContextPosts: DefaultRoomsContextPosts,
@@ -140,6 +150,9 @@ func (c RoomsConfig) Validate() error {
 	}
 	if c.Router.MaxMembers < 0 {
 		return fmt.Errorf("rooms.router.max_members %d: must be >= 0", c.Router.MaxMembers)
+	}
+	if c.Router.MaxHops < 0 {
+		return fmt.Errorf("rooms.router.max_hops %d: must be >= 0", c.Router.MaxHops)
 	}
 	if c.ContextPosts < 0 {
 		return fmt.Errorf("rooms.context_posts %d: must be >= 0", c.ContextPosts)

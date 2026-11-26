@@ -285,3 +285,52 @@ func TestRouterOffersAPostToOneMemberAtATime(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []roomsdomain.Route{{Member: "writer", Probability: 0.24}}, routing.Routes, "the fallback hands a top-match room's post to one member too")
 }
+
+// TestRouterHandsAMembersPostToThePingedMembers pins a member's hand-over: its
+// post reaches the members it pings as a ping, and nobody else - not itself,
+// not an outsider, whom the room notes, and not the whole room through @all,
+// which stays the user's.
+func TestRouterHandsAMembersPostToThePingedMembers(t *testing.T) {
+	tests := []struct {
+		name       string
+		text       string
+		wantRoutes []roomsdomain.Route
+		wantNotice string
+	}{
+		{
+			name:       "a pinged member gets it",
+			text:       "@tester, you're up: the user wants a joke from someone other than me",
+			wantRoutes: []roomsdomain.Route{{Member: "tester", Probability: 1}},
+		},
+		{
+			name: "a member pinging itself reaches nobody",
+			text: "@writer here, done",
+		},
+		{
+			name:       "a pinged outsider reaches nobody and is noted",
+			text:       "@reviewer take a look",
+			wantNotice: "@reviewer is not in room release.",
+		},
+		{
+			name: "@all stays the user's",
+			text: "@all thanks everyone",
+		},
+		{
+			name: "a file reference is no ping",
+			text: "see @README.md",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decider := &decisionmocks.FakeDecider{}
+			routing := NewRouter(decider, *config.DefaultRoomsConfig()).RouteHandover(testRoom, testAgents, roomsdomain.Post{Author: "writer", Text: tt.text})
+			require.Equal(t, tt.wantRoutes, routing.Routes)
+			require.Zero(t, decider.DecideCallCount(), "a member's post asks no model")
+			if tt.wantNotice == "" {
+				require.Empty(t, routing.Notices)
+				return
+			}
+			require.Equal(t, []string{tt.wantNotice}, routing.Notices)
+		})
+	}
+}

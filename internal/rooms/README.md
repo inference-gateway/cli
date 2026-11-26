@@ -28,7 +28,9 @@ expands the configured rooms against the agents the registry currently knows.
   offered to in turn: up to `max_members` (default 2) in a room whose `pickup` is `offer`, the
   best match alone with `top`. When nobody passes, `fallback` decides: `top` offers it to the
   most relevant members just the same, `none` asks the author for a mention. Without a model only
-  pings route. The routes and their probabilities land on the post.
+  pings route. The routes and their probabilities land on the post. `RouteHandover` routes a member's
+  answer to the members it pings the same way, asking no model: a self-ping and a member's `@all` reach
+  nobody, and a pinged outsider gets a notice the room logs as a note.
 - `Host` (`host.go`) is the daemon's rooms, built in `cmd/daemon` `startThreads` after the thread
   registry, with its frames a stage of `bindingHandler.Handle` before the registry. It reads its
   settings through a function the daemon backs with a fresh config load (`roomsSettings`), so a
@@ -52,7 +54,10 @@ expands the configured rooms against the agents the registry currently knows.
   the member's file expansion never inlines a file named like a member. The run's last assistant
   message is logged as the member's post. A run that finishes carries what it spent
   (`runTokens`, `runCost`), which lands as `usage` on the post the turn writes, its answer or the note
-  of a pass, as the router's decision tokens land on the user's post, without a cost. A run that fails
+  of a pass, as the router's decision tokens land on the user's post, without a cost. An answer goes
+  through `Host.handOver`: the members it pings get it as their next turn, told who handed it over, with
+  the post's `Hop`, one more than the post it answers, so a chain of hand-overs stops at
+  `rooms.router.max_hops` with a note where it stopped. A run that fails
   ends on `RUN_ERROR`, which reports no spend, so its note carries none. A room's spend is
   its log's (`domain.Spent`). A room member's worker makes no next-step suggestion, which nobody reads.
   The turn tells the member to talk like a teammate in a

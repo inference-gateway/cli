@@ -1055,6 +1055,9 @@ Client → CLI, stopping the follow. Nothing answers it:
   an `@all` post included, and the decision model's answer otherwise. For a post that pings nobody, `routes`
   are the members it is offered to in turn, best first. Only the first gets it, and the next only after the
   one before replied `PASS`, which the room notes.
+- A member's post carries `mentions` and `routes` too when it pings other members, who get it as their next
+  turn, and `hop`, how many member turns lie between the user's post and it. A chain of such hand-overs
+  stops at `rooms.router.max_hops`, which the room notes.
 - An unknown room, an empty post or a log that cannot be read answers `RUN_ERROR` with a `message`.
 - A member's session is an ordinary thread: follow `room-<room>-<agent>` with `resume_conversation` to watch
   the member work, answer its question, or decide its approval there instead of in the room.
