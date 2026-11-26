@@ -184,3 +184,21 @@ func TestSessionlessThreadSaysOnceThatTheDaemonRunsAnotherBuild(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, notified[tui.ShowErrorEvent](quietNotifier))
 }
+
+// TestRoomsStopMembers pins the stop frame and its answer, the members stopped.
+func TestRoomsStopMembers(t *testing.T) {
+	d := startDaemon(t, 0)
+	thread, _ := connected(t, d)
+	rooms := NewRooms(thread)
+	d.answer(roomsdomain.FrameStopRoom, `{"type":"room_stopped","room":"release","members":["tester"]}`)
+
+	stopped, err := rooms.Stop(t.Context(), "release", "tester")
+	require.NoError(t, err)
+	require.Equal(t, []string{"tester"}, stopped)
+	require.Equal(t, map[string]any{"type": "stop_room", "room": "release", "member": "tester"}, d.frames(roomsdomain.FrameStopRoom)[0])
+
+	d.answer(roomsdomain.FrameStopRoom, `{"type":"room_stopped","room":"release","members":[]}`)
+	stopped, err = rooms.Stop(t.Context(), "release", "")
+	require.NoError(t, err)
+	require.Empty(t, stopped)
+}

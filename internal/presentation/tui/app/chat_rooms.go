@@ -38,6 +38,17 @@ const (
 // a room, so inside one they are held back rather than taken for its clear.
 var roomClearCommands = []string{"/clear", "/new"}
 
+// roomStopCommand aborts the members at work in the room, every one or the one
+// it names. It exists inside a room only, where the "/" menu lists it.
+const roomStopCommand = "/stop"
+
+var roomShortcuts = []autocomplete.ShortcutOption{{
+	Shortcut:    roomStopCommand,
+	Description: "Stop every member working in the room, or one member",
+	Usage:       "/stop [member]",
+	Kind:        autocomplete.KindCommand,
+}}
+
 // roomPickerSpec titles the dropdown that switches the room a chat is in.
 var roomPickerSpec = components.PickerSpec{
 	Title: "Switch room",
@@ -62,6 +73,13 @@ type roomPostedMsg struct {
 	room   string
 	posted roomsdomain.Posted
 	err    error
+}
+
+// roomStoppedMsg carries who a /stop stopped, or why it could not.
+type roomStoppedMsg struct {
+	room, member string
+	stopped      []string
+	err          error
 }
 
 // roomDecidedMsg carries why a decision on a member's call did not land, nil
@@ -211,6 +229,8 @@ func (app *ChatApplication) handleRoomEvents(msg tea.Msg) tea.Cmd {
 		}
 	case roomPostedMsg:
 		return roomPostedStatus(m)
+	case roomStoppedMsg:
+		return roomStoppedStatus(m)
 	case roomDecidedMsg:
 		if m.err != nil {
 			return tea.Batch(errorCmd(fmt.Sprintf("Could not decide %s's call in #%s: %v", m.member, m.room, m.err), false), app.offerRoomCall())
@@ -350,9 +370,52 @@ func (app *ChatApplication) closeRoom() {
 // useComposerContext switches the composer's trigger menus to the table of
 // composer.yaml's context.
 func (app *ChatApplication) useComposerContext(context string) {
-	if ac, ok := app.autocomplete.(*autocomplete.Autocomplete); ok && app.config != nil {
+	ac, ok := app.autocomplete.(*autocomplete.Autocomplete)
+	if !ok {
+		return
+	}
+	if app.config != nil {
 		ac.SetTriggerSources(app.config.Composer.Triggers[context])
 	}
+	if context == config.ComposerContextRoom {
+		ac.SetContextShortcuts(roomShortcuts)
+		return
+	}
+	ac.SetContextShortcuts(nil)
+}
+
+// stopsRoom reports whether input, inside a room, is its /stop command.
+func (app *ChatApplication) stopsRoom(input string) bool {
+	command, _, _ := strings.Cut(input, " ")
+	return app.room != noRoom && command == roomStopCommand
+}
+
+// stopRoom asks the daemon to stop every member at work in the room, or the
+// one input names after /stop, and clears the composer.
+func (app *ChatApplication) stopRoom(input string) tea.Cmd {
+	_, member, _ := strings.Cut(input, " ")
+	member = strings.TrimPrefix(strings.TrimSpace(member), "@")
+	app.inputView.ClearInput()
+	rooms, room := app.rooms, app.room
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), roomRequestTimeout)
+		defer cancel()
+		stopped, err := rooms.Stop(ctx, room, member)
+		return roomStoppedMsg{room: room, member: member, stopped: stopped, err: err}
+	}
+}
+
+// roomStoppedStatus says who a /stop stopped, or that nobody was at work.
+func roomStoppedStatus(msg roomStoppedMsg) tea.Cmd {
+	switch {
+	case msg.err != nil:
+		return errorCmd(fmt.Sprintf("Could not stop in #%s: %v", msg.room, msg.err), false)
+	case len(msg.stopped) > 0:
+		return statusCmd(fmt.Sprintf("Stopped %s in #%s", strings.Join(msg.stopped, ", "), msg.room))
+	case msg.member != "":
+		return statusCmd(fmt.Sprintf("%s is not working in #%s", msg.member, msg.room))
+	}
+	return statusCmd("Nobody is working in #" + msg.room)
 }
 
 // clearsInRoom reports whether input, inside a room, is a command that would

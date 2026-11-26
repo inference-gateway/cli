@@ -88,6 +88,7 @@ type Autocomplete struct {
 	spliceSuffix         string
 	lastCompletionCursor int
 	triggerSources       map[string][]string
+	contextShortcuts     []ShortcutOption
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -208,6 +209,13 @@ func (a *Autocomplete) SetTriggerSources(sources map[string][]string) {
 	}
 }
 
+// SetContextShortcuts installs the commands the "/" menu lists ahead of the
+// shortcuts for the composer's current context alone, such as a room's /stop.
+func (a *Autocomplete) SetContextShortcuts(rows []ShortcutOption) {
+	a.contextShortcuts = rows
+	a.completionMode = ""
+}
+
 // triggerModePrefix marks a completion mode opened by a composer trigger, the
 // trigger character following it.
 const triggerModePrefix = "trigger:"
@@ -276,11 +284,11 @@ func (a *Autocomplete) loadModels() {
 
 // loadShortcuts loads shortcuts from the registry
 func (a *Autocomplete) loadShortcuts() {
+	a.suggestions = slices.Clone(a.contextShortcuts)
 	if a.shortcutRegistry == nil {
 		return
 	}
 
-	a.suggestions = []ShortcutOption{}
 	seen := make(map[string]bool)
 	for _, shortcut := range a.shortcutRegistry.GetAll() {
 		seen[shortcut.GetName()] = true

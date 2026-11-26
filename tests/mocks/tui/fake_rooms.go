@@ -61,6 +61,17 @@ type FakeRooms struct {
 		result1 domain.Posted
 		result2 error
 	}
+	StopStub        func(context.Context, string, string) ([]string, error)
+	stopMutex       sync.RWMutex
+	stopArgsForCall []FakeRoomsStopArgs
+	stopReturns     struct {
+		result1 []string
+		result2 error
+	}
+	stopReturnsOnCall map[int]struct {
+		result1 []string
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	callOrder        []string
 	invocationsMutex sync.RWMutex
@@ -93,6 +104,13 @@ type FakeRoomsListArgs struct {
 
 // FakeRoomsPostArgs holds the arguments of one call to Post.
 type FakeRoomsPostArgs struct {
+	Arg1 context.Context
+	Arg2 string
+	Arg3 string
+}
+
+// FakeRoomsStopArgs holds the arguments of one call to Stop.
+type FakeRoomsStopArgs struct {
 	Arg1 context.Context
 	Arg2 string
 	Arg3 string
@@ -438,6 +456,76 @@ func (fake *FakeRooms) PostReturnsOnCall(i int, result1 domain.Posted, result2 e
 	}
 	fake.postReturnsOnCall[i] = struct {
 		result1 domain.Posted
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRooms) Stop(arg1 context.Context, arg2 string, arg3 string) ([]string, error) {
+	fake.stopMutex.Lock()
+	ret, specificReturn := fake.stopReturnsOnCall[len(fake.stopArgsForCall)]
+	fake.stopArgsForCall = append(fake.stopArgsForCall, FakeRoomsStopArgs{arg1, arg2, arg3})
+	stub := fake.StopStub
+	fakeReturns := fake.stopReturns
+	fake.recordInvocation("Stop", []interface{}{arg1, arg2, arg3})
+	fake.stopMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRooms) StopCallCount() int {
+	fake.stopMutex.RLock()
+	defer fake.stopMutex.RUnlock()
+	return len(fake.stopArgsForCall)
+}
+
+func (fake *FakeRooms) StopCalls(stub func(context.Context, string, string) ([]string, error)) {
+	fake.stopMutex.Lock()
+	defer fake.stopMutex.Unlock()
+	fake.StopStub = stub
+}
+
+func (fake *FakeRooms) StopArgsForCall(i int) (context.Context, string, string) {
+	fake.stopMutex.RLock()
+	defer fake.stopMutex.RUnlock()
+	argsForCall := fake.stopArgsForCall[i]
+	return argsForCall.Arg1, argsForCall.Arg2, argsForCall.Arg3
+}
+
+func (fake *FakeRooms) StopArgs() []FakeRoomsStopArgs {
+	fake.stopMutex.RLock()
+	defer fake.stopMutex.RUnlock()
+	args := make([]FakeRoomsStopArgs, len(fake.stopArgsForCall))
+	copy(args, fake.stopArgsForCall)
+	return args
+}
+
+func (fake *FakeRooms) StopReturns(result1 []string, result2 error) {
+	fake.stopMutex.Lock()
+	defer fake.stopMutex.Unlock()
+	fake.StopStub = nil
+	fake.stopReturns = struct {
+		result1 []string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRooms) StopReturnsOnCall(i int, result1 []string, result2 error) {
+	fake.stopMutex.Lock()
+	defer fake.stopMutex.Unlock()
+	fake.StopStub = nil
+	if fake.stopReturnsOnCall == nil {
+		fake.stopReturnsOnCall = make(map[int]struct {
+			result1 []string
+			result2 error
+		})
+	}
+	fake.stopReturnsOnCall[i] = struct {
+		result1 []string
 		result2 error
 	}{result1, result2}
 }

@@ -401,3 +401,49 @@ func TestOnlyTheRoomOnScreenTakesPostsAndActivity(t *testing.T) {
 	require.NotContains(t, ansi.Strip(app.roomView.Render()), "all green")
 	require.Contains(t, statusOf(t, played), "#release was cleared")
 }
+
+// TestStopInARoomStopsItsMembers pins /stop: inside a room it asks the daemon
+// to stop every member, /stop <member> one, the status says who was stopped or
+// that nobody was at work, and the composer is cleared.
+func TestStopInARoomStopsItsMembers(t *testing.T) {
+	app, rooms := newRoomTestApp(t)
+	enterTestRoom(t, app, rooms)
+
+	rooms.StopReturns([]string{"tester", "writer"}, nil)
+	app.inputView.SetText("/stop")
+	played := playRoomCmd(app, app.SendMessage())
+	_, room, member := rooms.StopArgsForCall(0)
+	require.Equal(t, "release", room)
+	require.Empty(t, member)
+	require.Empty(t, app.inputView.GetInput())
+	require.Contains(t, statusOf(t, played), "Stopped tester, writer in #release")
+
+	rooms.StopReturns(nil, nil)
+	app.inputView.SetText("/stop @tester")
+	played = playRoomCmd(app, app.SendMessage())
+	_, _, member = rooms.StopArgsForCall(1)
+	require.Equal(t, "tester", member)
+	require.Contains(t, statusOf(t, played), "tester is not working in #release")
+
+	app.inputView.SetText("/stop")
+	require.Contains(t, statusOf(t, playRoomCmd(app, app.SendMessage())), "Nobody is working in #release")
+	require.Zero(t, rooms.PostCallCount())
+}
+
+// TestTheSlashMenuOffersStopInARoomOnly pins that /stop is listed inside a room
+// and gone once the chat leaves it.
+func TestTheSlashMenuOffersStopInARoomOnly(t *testing.T) {
+	app, rooms := newRoomTestApp(t)
+	ac := app.autocomplete.(*autocomplete.Autocomplete)
+
+	ac.Update("/", 1)
+	require.False(t, ac.IsVisible(), "a chat with no shortcuts lists nothing")
+
+	enterTestRoom(t, app, rooms)
+	ac.Update("/", 1)
+	require.Equal(t, "/stop", ac.GetSelectedShortcut())
+
+	playRoomCmd(app, app.switchRoom(noRoom))
+	ac.Update("/", 1)
+	require.False(t, ac.IsVisible())
+}

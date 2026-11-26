@@ -2,8 +2,8 @@ package domain
 
 // The binding frames of the rooms, shared by the daemon that hosts them and
 // every client of it. A client lists, joins, follows, posts to, clears and
-// leaves rooms and decides a member's tool call, and a follower gets every
-// post and member activity as it happens.
+// leaves rooms, decides a member's tool call and stops members at work, and a
+// follower gets every post and member activity as it happens.
 const (
 	FrameListRooms           = "list_rooms"
 	FrameRooms               = "rooms"
@@ -19,4 +19,6 @@ const (
 	FrameRoomCleared         = "room_cleared"
 	FrameDecideRoomApproval  = "decide_room_approval"
 	FrameRoomApprovalDecided = "room_approval_decided"
+	FrameStopRoom            = "stop_room"
+	FrameRoomStopped         = "room_stopped"
 )

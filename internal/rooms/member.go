@@ -26,8 +26,12 @@ const (
 )
 
 // frameSetMode switches the agent mode of a session's running worker, the
-// frame the daemon chat sends for its own.
-const frameSetMode = "set_mode"
+// frame the daemon chat sends for its own, and frameInterrupt stops the
+// worker's run, as a chat's Esc does.
+const (
+	frameSetMode   = "set_mode"
+	frameInterrupt = "interrupt"
+)
 
 // unseenIntro heads the posts a member missed, which are context, not the
 // request its turn answers.
@@ -483,6 +487,32 @@ func (m *member) finish(answer, failure string, spent roomsdomain.Usage) {
 	}
 	m.announce(roomsdomain.ActivityIdle)
 	m.startNext()
+}
+
+// abort ends the member's turn early: it goes idle at once, drops the posts it
+// held, closes a call still waiting and interrupts its worker's run through its
+// thread. The aborted run's later frames are no longer the turn's, so it logs
+// no answer. It reports false for an idle member, which has nothing to abort.
+func (m *member) abort() bool {
+	m.mu.Lock()
+	if m.activity == roomsdomain.ActivityIdle {
+		m.mu.Unlock()
+		return false
+	}
+	m.activity = roomsdomain.ActivityIdle
+	m.pending = nil
+	m.inputID, m.runID = "", ""
+	m.armDetachLocked()
+	abandoned, open := m.takeApprovalLocked()
+	m.mu.Unlock()
+	m.sendMu.Lock()
+	m.host.threads.Handle(m, encode(map[string]string{"type": frameInterrupt}))
+	m.sendMu.Unlock()
+	if open {
+		m.host.closeApproval(m.room, abandoned, fmt.Sprintf("%s's %s call was stopped.", m.agent, toolLabel(abandoned)))
+	}
+	m.announce(roomsdomain.ActivityIdle)
+	return true
 }
 
 // armDetachLocked starts the grace after which an idle member stops following
