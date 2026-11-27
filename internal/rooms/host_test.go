@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -28,13 +29,18 @@ import (
 
 // hostFixture is one daemon's rooms under test: the registry and the decider
 // are fakes, the log is the real JSONL log in a temporary home, and settings
-// is rooms.yaml as the host reads it, which a test may edit.
+// is rooms.yaml as the host reads it, which a test may edit. agents is the
+// catalog the host reads, placements every session the host placed, as
+// "<session>@<workspace>", and placeErr what a placement answers.
 type hostFixture struct {
-	host     *Host
-	threads  *sessionsmocks.FakeThreadRouter
-	decider  *decisionmocks.FakeDecider
-	room     roomsdomain.Room
-	settings *atomic.Pointer[config.RoomsConfig]
+	host       *Host
+	threads    *sessionsmocks.FakeThreadRouter
+	decider    *decisionmocks.FakeDecider
+	room       roomsdomain.Room
+	settings   *atomic.Pointer[config.RoomsConfig]
+	agents     *atomic.Pointer[[]agentdomain.SubagentInfo]
+	placements *atomic.Pointer[[]string]
+	placeErr   *atomic.Pointer[error]
 }
 
 func newHostFixture(t *testing.T, mutate func(*config.RoomsConfig)) hostFixture {
@@ -49,10 +55,32 @@ func newHostFixture(t *testing.T, mutate func(*config.RoomsConfig)) hostFixture 
 	settings.Store(&cfg)
 	threads := &sessionsmocks.FakeThreadRouter{}
 	decider := &decisionmocks.FakeDecider{}
-	agents := func(string) []agentdomain.SubagentInfo { return testAgents }
-	host := NewHost(t.Context(), func() config.RoomsConfig { return *settings.Load() }, threads, roomsinfra.NewJSONLLog(), decider, agents)
+	agents := &atomic.Pointer[[]agentdomain.SubagentInfo]{}
+	agents.Store(&testAgents)
+	placements, placeErr := &atomic.Pointer[[]string]{}, &atomic.Pointer[error]{}
+	placements.Store(&[]string{})
+	place := func(_ context.Context, _, sessionID, workspace string) error {
+		placements.Store(new(append(slices.Clone(*placements.Load()), sessionID+"@"+workspace)))
+		if err := placeErr.Load(); err != nil {
+			return *err
+		}
+		return nil
+	}
+	catalog := func(string) []agentdomain.SubagentInfo { return *agents.Load() }
+	host := NewHost(t.Context(), func() config.RoomsConfig { return *settings.Load() }, threads, roomsinfra.NewJSONLLog(), decider, catalog, place)
 	room := roomsdomain.Room{Name: "release", Project: project, Agents: []string{"tester", "writer"}}
-	return hostFixture{host: host, threads: threads, decider: decider, room: room, settings: settings}
+	return hostFixture{host: host, threads: threads, decider: decider, room: room, settings: settings, agents: agents, placements: placements, placeErr: placeErr}
+}
+
+// pin makes agent's file name workspace as the computer it runs on.
+func (f hostFixture) pin(agent, workspace string) {
+	pinned := slices.Clone(*f.agents.Load())
+	for i := range pinned {
+		if pinned[i].Name == agent {
+			pinned[i].Workspace = workspace
+		}
+	}
+	f.agents.Store(&pinned)
 }
 
 // edit changes rooms.yaml as the host reads it from then on.

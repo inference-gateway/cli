@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"cmp"
+	"context"
 
 	config "github.com/inference-gateway/cli/config"
 	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
@@ -12,6 +13,11 @@ import (
 // AgentCatalog lists the agents a thread in projectDir can run as, with the
 // descriptions the router reads.
 type AgentCatalog func(projectDir string) []agentdomain.SubagentInfo
+
+// Placer moves the session sessionID of projectDir onto workspace and returns
+// once it runs there, the daemon's teleport. A room member whose agent pins a
+// workspace is placed this way before its session's first turn.
+type Placer func(ctx context.Context, projectDir, sessionID, workspace string) error
 
 // Resolve expands the configured rooms into the rooms that exist: "*" becomes
 // every non-built-in agent the room's project can run as, a room without a

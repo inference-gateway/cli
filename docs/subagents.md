@@ -345,6 +345,9 @@ it is a teammate like any other. A workspace the daemon cannot reach fails that 
 Placing a teammate needs the daemon. Without the binding, or with `tools.agent.mode: interactive`, a spawn of
 an agent with a `workspace` is refused.
 
+The agent runs on its computer in a [room](rooms.md#members-answering) too: the room moves the member's new
+session there before its first turn, the same way.
+
 ### Messaging Another Agent
 
 An agent with no lead, such as a chat opened as `researcher`, can message another Markdown agent by its name:

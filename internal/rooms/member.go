@@ -2,7 +2,9 @@ package rooms
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -30,9 +32,14 @@ const (
 // frame the daemon chat sends for its own, and frameInterrupt stops the
 // worker's run, as a chat's Esc does.
 const (
-	frameSetMode   = "set_mode"
-	frameInterrupt = "interrupt"
+	frameSetMode          = "set_mode"
+	frameInterrupt        = "interrupt"
+	frameMessagesSnapshot = "MESSAGES_SNAPSHOT"
 )
+
+// placeTimeout bounds placing a member on its workspace, which may provision a
+// Kubernetes workspace first, as the Agent tool's placement does.
+const placeTimeout = 10 * time.Minute
 
 // unseenIntro heads the posts a member missed, which are context, not the
 // request its turn answers.
@@ -91,12 +98,15 @@ func (ev workerEvent) runSpend() roomsdomain.Usage {
 // detaches when idle. turn is the room as rooms.yaml had it when the turn
 // started, addressed, inputID and runID the turn's post, input and run, and
 // approval the call a waiting turn holds. sendMu orders a turn's frames.
+// placed is set once the member's session runs where it should, and snapshots
+// carries the message count of each snapshot its thread opens with.
 type member struct {
 	host      *Host
 	room      roomsdomain.Room
 	agent     string
 	sessionID string
 	events    chan workerEvent
+	snapshots chan int
 	sendMu    sync.Mutex
 
 	mu        sync.Mutex
@@ -109,6 +119,7 @@ type member struct {
 	runID     string
 	approval  *roomsdomain.Approval
 	detach    *time.Timer
+	placed    bool
 
 	role    string
 	message strings.Builder
@@ -122,6 +133,7 @@ func newMember(h *Host, room roomsdomain.Room, agent string) *member {
 		agent:     agent,
 		sessionID: room.SessionID(agent),
 		events:    make(chan workerEvent, frameBuffer),
+		snapshots: make(chan int, 1),
 		activity:  roomsdomain.ActivityIdle,
 		seen:      roomsdomain.UnknownSeen,
 	}
@@ -133,6 +145,10 @@ func newMember(h *Host, room roomsdomain.Room, agent string) *member {
 func (m *member) Deliver(frame []byte) {
 	var ev workerEvent
 	if json.Unmarshal(frame, &ev) != nil {
+		return
+	}
+	if ev.Type == frameMessagesSnapshot {
+		m.noteSnapshot(frame)
 		return
 	}
 	if len(m.events) >= frameBuffer-runEdgeSlots && !ev.isRunEdge() {
@@ -193,7 +209,7 @@ func (m *member) startNext() {
 		m.mu.Unlock()
 		return
 	}
-	post := m.pending[0]
+	post, seen := m.pending[0], m.seen
 	m.pending, m.addressed, m.turn = m.pending[1:], post, room
 	prompt, err := m.turnPromptLocked(post, room, settings.ContextPosts)
 	if err != nil {
@@ -208,13 +224,126 @@ func (m *member) startNext() {
 	}
 	input := m.runInput(prompt)
 	m.inputID, m.runID = input.Input.RunID, ""
+	workspace := m.pinnedWorkspaceLocked(room)
 	m.mu.Unlock()
+	if workspace != "" {
+		m.announce(roomsdomain.ActivityRunning)
+		go m.placeThenSend(room, input, workspace, post, seen)
+		return
+	}
+	m.sendTurn(room, input)
+	m.announce(roomsdomain.ActivityRunning)
+}
+
+// sendTurn opens or follows the member's session, switches its worker to the
+// room's mode and runs the turn's input.
+func (m *member) sendTurn(room roomsdomain.Room, input agui.RunInputFrame) {
 	m.sendMu.Lock()
+	defer m.sendMu.Unlock()
 	m.host.threads.Handle(m, encode(m.resumeFrame(room)))
 	m.host.threads.Handle(m, encode(map[string]string{"type": frameSetMode, "mode": room.Mode}))
 	m.host.threads.Handle(m, encode(input))
+}
+
+// pinnedWorkspaceLocked is the workspace the member's agent pins, while its
+// session has not been placed yet, and empty when there is nothing to place.
+func (m *member) pinnedWorkspaceLocked(room roomsdomain.Room) string {
+	if m.placed || m.host.place == nil {
+		return ""
+	}
+	for _, agent := range m.host.agents(room.Project) {
+		if agent.Name == m.agent {
+			return agent.Workspace
+		}
+	}
+	return ""
+}
+
+// placeThenSend places the member's session on workspace before the turn
+// goes out. A placement that fails notes it in the room and holds post again,
+// with the posts it would have quoted, for the member's next turn.
+func (m *member) placeThenSend(room roomsdomain.Room, input agui.RunInputFrame, workspace string, post roomsdomain.Post, seen int) {
+	err := m.place(room, workspace)
+	if !m.isCurrentInput(input.Input.RunID) {
+		return
+	}
+	if err != nil {
+		m.host.note(m.room, fmt.Sprintf("%s could not reach its computer %s: %v", m.agent, workspace, err))
+		m.holdAgain(post, seen)
+		return
+	}
+	m.sendTurn(room, input)
+}
+
+// isCurrentInput reports whether the member's open turn is still the one of
+// inputID, which a stop ends while its placement runs.
+func (m *member) isCurrentInput(inputID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.inputID == inputID
+}
+
+// place opens the member's session and, when it is new, moves it to
+// workspace. A session that already holds messages stays where it runs, since
+// it answered there before its agent named the workspace.
+func (m *member) place(room roomsdomain.Room, workspace string) error {
+	ctx, cancel := context.WithTimeout(m.host.ctx, placeTimeout)
+	defer cancel()
+	m.drainSnapshots()
+	m.sendMu.Lock()
+	m.host.threads.Handle(m, encode(m.resumeFrame(room)))
 	m.sendMu.Unlock()
-	m.announce(roomsdomain.ActivityRunning)
+	var messages int
+	select {
+	case messages = <-m.snapshots:
+	case <-ctx.Done():
+		return errors.New("its session did not open in time")
+	}
+	if messages == 0 {
+		if err := m.host.place(ctx, room.Project, m.sessionID, workspace); err != nil {
+			return err
+		}
+	}
+	m.mu.Lock()
+	m.placed = true
+	m.mu.Unlock()
+	return nil
+}
+
+// holdAgain ends a turn that never ran: the member goes idle with post first
+// in line again and the posts since seen unread, so its next turn quotes them.
+func (m *member) holdAgain(post roomsdomain.Post, seen int) {
+	m.mu.Lock()
+	m.pending = append([]roomsdomain.Post{post}, m.pending...)
+	m.seen = seen
+	m.activity = roomsdomain.ActivityIdle
+	m.inputID, m.runID = "", ""
+	m.armDetachLocked()
+	m.mu.Unlock()
+	m.announce(roomsdomain.ActivityIdle)
+}
+
+// noteSnapshot passes on how many messages the snapshot of the member's
+// thread holds, for a placement waiting to learn whether the session is new.
+func (m *member) noteSnapshot(frame []byte) {
+	var snapshot struct {
+		Messages []json.RawMessage `json:"messages"`
+	}
+	_ = json.Unmarshal(frame, &snapshot)
+	select {
+	case m.snapshots <- len(snapshot.Messages):
+	default:
+	}
+}
+
+func (m *member) drainSnapshots() {
+	for {
+		select {
+		case <-m.snapshots:
+		default:
+			return
+		}
+	}
 }
 
 // startOver drops the posts the member held and makes its next turn read the

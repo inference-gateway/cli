@@ -37,6 +37,7 @@ type Host struct {
 	log      roomsdomain.Log
 	decider  decisiondomain.Decider
 	agents   AgentCatalog
+	place    Placer
 
 	mu        sync.Mutex
 	members   map[string]*member
@@ -44,9 +45,10 @@ type Host struct {
 }
 
 // NewHost returns the rooms that settings reads each time they are used. It
-// delivers to members through threads, logs to log, and asks decider about the
-// posts that ping nobody.
-func NewHost(ctx context.Context, settings func() config.RoomsConfig, threads sessionsdomain.ThreadRouter, log roomsdomain.Log, decider decisiondomain.Decider, agents AgentCatalog) *Host {
+// delivers to members through threads, logs to log, asks decider about the
+// posts that ping nobody, and moves a member whose agent pins a workspace there
+// with place, which nil leaves on the daemon's machine.
+func NewHost(ctx context.Context, settings func() config.RoomsConfig, threads sessionsdomain.ThreadRouter, log roomsdomain.Log, decider decisiondomain.Decider, agents AgentCatalog, place Placer) *Host {
 	return &Host{
 		ctx:       ctx,
 		settings:  settings,
@@ -54,6 +56,7 @@ func NewHost(ctx context.Context, settings func() config.RoomsConfig, threads se
 		log:       log,
 		decider:   decider,
 		agents:    agents,
+		place:     place,
 		members:   map[string]*member{},
 		followers: map[string][]sessionsdomain.Client{},
 	}
