@@ -411,3 +411,32 @@ Offline.`)
 		})
 	}
 }
+
+func TestMarkdownAgentRole(t *testing.T) {
+	dir := t.TempDir()
+	writeAgentFile(t, dir, "jeff.md", "---\nname: jeff\nrole: '  tester '\ndescription: Tests pages.\n---\nbody")
+	writeAgentFile(t, dir, "anna.md", "---\nname: anna\ndescription: Researches.\n---\nbody")
+	writeAgentFile(t, dir, "long.md", "---\nname: long\nrole: "+strings.Repeat("x", markdownAgentRoleMaxLen+1)+"\ndescription: d\n---\nbody")
+
+	roles := map[string]string{}
+	for _, agent := range loadMarkdownAgents([]string{dir}, testKnownTools()) {
+		roles[agent.name] = agent.role
+	}
+	want := map[string]string{"jeff": "tester", "anna": "", "long": ""}
+	if !reflect.DeepEqual(roles, want) {
+		t.Fatalf("roles = %v, want %v (trimmed, absent, dropped when too long)", roles, want)
+	}
+	for _, info := range ProjectAgents(dir) {
+		if info.Name == "jeff" && info.Label() != "jeff (tester)" {
+			t.Fatalf("label = %q, want jeff (tester)", info.Label())
+		}
+	}
+}
+
+func TestValidAgentName(t *testing.T) {
+	for name, want := range map[string]bool{"jeff": true, "code-reviewer": true, "a_1": true, "": false, "Jeff": false, "two words": false, strings.Repeat("a", 65): false} {
+		if got := ValidAgentName(name); got != want {
+			t.Errorf("ValidAgentName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

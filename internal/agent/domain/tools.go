@@ -12,12 +12,28 @@ import (
 // agent shipped with the binary, also once init seeded it into a file.
 type SubagentInfo struct {
 	Name        string   `json:"name"`
+	Role        string   `json:"role,omitempty"`
 	Description string   `json:"description"`
 	Model       string   `json:"model,omitempty"`
 	Tools       []string `json:"tools,omitempty"`
 	ReadOnly    bool     `json:"read_only"`
 	Source      string   `json:"source"`
 	BuiltIn     bool     `json:"built_in,omitempty"`
+}
+
+// Label is how a person reads the agent: its name, with its role in brackets
+// when it has one, "jeff (tester)".
+func (a SubagentInfo) Label() string {
+	return AgentLabel(a.Name, a.Role)
+}
+
+// AgentLabel is the name of an agent with its role in brackets, "jeff
+// (tester)", or the name alone when role is empty.
+func AgentLabel(name, role string) string {
+	if role == "" {
+		return name
+	}
+	return name + " (" + role + ")"
 }
 
 // ToolManifestLookup resolves a tool's manifest by name, so callers can ask

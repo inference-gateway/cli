@@ -32,9 +32,9 @@ func NewCommand(state *runtime.State, renderer *output.Renderer) *cobra.Command 
 	cmd := &command{state: state, renderer: renderer}
 	agentsCmd := &cobra.Command{
 		Use:   "agents",
-		Short: "Manage A2A agent configurations",
-		Long: `Manage Agent-to-Agent (A2A) configurations stored in agents.yaml.
-This allows you to configure remote or local agents that can be used for delegation.`,
+		Short: "Manage your Markdown agents and the A2A agents of agents.yaml",
+		Long: `Manage the agents a chat can delegate to: the Markdown agents of ~/.infer/agents, which create writes
+from a role template, and the Agent-to-Agent (A2A) agents configured in agents.yaml, remote or run locally.`,
 	}
 
 	agentsAddCmd := cmd.newAddCommand()
@@ -65,7 +65,7 @@ This allows you to configure remote or local agents that can be used for delegat
 		RunE:  cmd.stopAgents,
 	}
 
-	agentsCmd.AddCommand(agentsAddCmd, agentsUpdateCmd, agentsListCmd, agentsRemoveCmd, agentsShowCmd, agentsInitCmd, agentsStatusCmd, agentsStartCmd, agentsStopCmd)
+	agentsCmd.AddCommand(cmd.newCreateCommand(), agentsAddCmd, agentsUpdateCmd, agentsListCmd, agentsRemoveCmd, agentsShowCmd, agentsInitCmd, agentsStatusCmd, agentsStartCmd, agentsStopCmd)
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
 	agentsAddCmd.Flags().String("tag", "", "Image tag for the agent's default image (browser-agent: chromium, firefox, webkit, lightpanda)")
@@ -542,7 +542,7 @@ func (c *command) printMarkdownAgents(w io.Writer, markdownAgents []agentdomain.
 
 	mdTable := c.renderer.NewAgentsListTable("Name", "Description", "Tools", "Model", "Mode", "Source")
 	for _, info := range markdownAgents {
-		mdTable.Row(info.Name, info.Description, markdownAgentTools(info), cmp.Or(info.Model, "inherit"), markdownAgentMode(info), info.Source)
+		mdTable.Row(info.Label(), info.Description, markdownAgentTools(info), cmp.Or(info.Model, "inherit"), markdownAgentMode(info), info.Source)
 	}
 	fmt.Fprintln(w, mdTable.Render())
 }

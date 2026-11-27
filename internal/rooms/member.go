@@ -11,6 +11,7 @@ import (
 
 	uuid "github.com/google/uuid"
 
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
 	agui "github.com/inference-gateway/cli/internal/protocols/agui"
 	roomsdomain "github.com/inference-gateway/cli/internal/rooms/domain"
@@ -45,9 +46,10 @@ const joinTurn = "\nThe user just joined #%s for the first time. Welcome them in
 const offerTurn = "\nNobody was mentioned, so the post is offered to you as the best match. Answer it if it is yours " +
 	"to take. If another member would take it better, reply exactly " + roomsdomain.PassReply + " and nothing else.\n"
 
-// turnIntro tells a member where a turn comes from, where its reply goes, and
-// to talk like a teammate in a channel rather than an assistant.
-const turnIntro = "You are %s, chatting in #%s with the user and the room's members (%s), like coworkers in a Slack channel. " +
+// turnIntro tells a member who it is, its role when its agent names one, where
+// a turn comes from, where its reply goes, and to talk like a teammate in a
+// channel rather than an assistant.
+const turnIntro = "You are %s%s, chatting in #%s with the user and the room's members (%s), like coworkers in a Slack channel. " +
 	"Your reply to the post for you is posted to the room. Reply as a teammate would: answer what the post asks, " +
 	"keep greetings and small talk to one short, friendly line, and do not offer help nobody asked for. " +
 	"Hand a post on to another member with @name when that member should act on it, never for small talk.\n"
@@ -243,9 +245,10 @@ func (m *member) turnPromptLocked(addressed roomsdomain.Post, room roomsdomain.R
 // since the member's last turn are quoted, so neither the member nor a judge
 // reads them as the request. A join asks for a welcome instead of an answer.
 func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post, room roomsdomain.Room) string {
-	known := append(agentNames(m.host.agents(room.Project)), roomsdomain.EveryoneMention)
+	agents := m.host.agents(room.Project)
+	known := append(agentNames(agents), roomsdomain.EveryoneMention)
 	var b strings.Builder
-	fmt.Fprintf(&b, turnIntro, m.agent, room.Name, strings.Join(room.Agents, ", "))
+	fmt.Fprintf(&b, turnIntro, m.agent, roleClause(roomsdomain.Roles(agents)[m.agent]), room.Name, memberLabels(room, agents))
 	if len(unseen) > 0 {
 		b.WriteString(unseenIntro)
 		for _, post := range unseen {
@@ -266,6 +269,26 @@ func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post, r
 	}
 	fmt.Fprintf(&b, "\nThe post for you:\n%s: %s\n", addressed.Author, text)
 	return b.String()
+}
+
+// roleClause is ", the tester" for a member whose agent names a role, and
+// nothing otherwise.
+func roleClause(role string) string {
+	if role == "" {
+		return ""
+	}
+	return ", the " + role
+}
+
+// memberLabels lists the room's members with their roles, "jeff (tester),
+// anna (researcher)", in the room's order.
+func memberLabels(room roomsdomain.Room, agents []agentdomain.SubagentInfo) string {
+	roles := roomsdomain.Roles(agents)
+	labels := make([]string, 0, len(room.Agents))
+	for _, member := range room.Agents {
+		labels = append(labels, agentdomain.AgentLabel(member, roles[member]))
+	}
+	return strings.Join(labels, ", ")
 }
 
 // writeQuoted writes text as a quote, every line of it after "> ".

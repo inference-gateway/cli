@@ -1051,6 +1051,8 @@ Client → CLI, stopping the follow. Nothing answers it:
   own chat.
 - `activity` is `running` while a member runs a turn, `waiting` while its run waits on an approval or a
   question, and `idle` otherwise.
+- `role` on a member is the job title its agent file names, such as `tester`, absent when it names none. A
+  client shows it after the name, `jeff (tester)`.
 - `mode` is the agent mode the room runs its members in, from the room's `mode` in `rooms.yaml`: on the
   snapshot as the room has it when followed, and on `room_activity` as the member's turn runs in it. The
   daemon reads `rooms.yaml` again for every turn, so a client shows the mode it last got.

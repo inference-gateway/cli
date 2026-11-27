@@ -559,9 +559,10 @@ func (h *Host) roomIn(settings config.RoomsConfig, name string) (roomsdomain.Roo
 
 // viewLocked renders room with what each of its members is doing.
 func (h *Host) viewLocked(room roomsdomain.Room) roomsdomain.RoomStatus {
+	roles := roomsdomain.Roles(h.agents(room.Project))
 	members := make([]roomsdomain.MemberStatus, 0, len(room.Agents))
 	for _, seat := range room.Members() {
-		status := roomsdomain.MemberStatus{Agent: seat.Agent, SessionID: seat.SessionID, Activity: roomsdomain.ActivityIdle}
+		status := roomsdomain.MemberStatus{Agent: seat.Agent, Role: roles[seat.Agent], SessionID: seat.SessionID, Activity: roomsdomain.ActivityIdle}
 		if m, ok := h.members[seat.SessionID]; ok {
 			status.Activity = m.currentActivity()
 		}

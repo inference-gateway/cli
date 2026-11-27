@@ -19,7 +19,7 @@ const testRouterModel = "anthropic/claude-haiku-5-5"
 var (
 	testRoom   = roomsdomain.Room{Name: "release", Agents: []string{"tester", "writer"}}
 	testAgents = []agentdomain.SubagentInfo{
-		{Name: "tester", Description: "Runs and fixes the test suite"},
+		{Name: "tester", Role: "qa engineer", Description: "Runs and fixes the test suite"},
 		{Name: "writer", Description: "Writes release notes"},
 		{Name: "reviewer", Description: "Reviews pull requests"},
 	}
@@ -194,7 +194,8 @@ func TestRouterAsksOnePredicatePerMember(t *testing.T) {
 		require.Equal(t, member, questions[i].Name)
 		require.Equal(t, decisiondomain.Predicate, questions[i].Type)
 	}
-	require.Contains(t, questions[0].Instructions, "Runs and fixes the test suite")
+	require.Contains(t, questions[0].Instructions, "Its role: qa engineer. What it does: Runs and fixes the test suite")
+	require.Contains(t, questions[1].Instructions, "Its role: not named. What it does: Writes release notes")
 	require.Contains(t, evidence, "writer: the notes are drafted")
 	require.Contains(t, evidence, "user: now run the tests")
 	require.NotContains(t, evidence, "an old post", "only the last context_posts posts are evidence")

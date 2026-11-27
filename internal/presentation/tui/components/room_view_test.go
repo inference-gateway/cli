@@ -20,7 +20,7 @@ func newTestRoomView(posts ...roomsdomain.Post) *RoomView {
 	view.SetHeight(40)
 	view.Show(roomsdomain.Snapshot{
 		Room: roomsdomain.RoomStatus{Name: "release", Members: []roomsdomain.MemberStatus{
-			{Agent: "tester", Activity: roomsdomain.ActivityIdle},
+			{Agent: "tester", Role: "qa", Activity: roomsdomain.ActivityIdle},
 			{Agent: "writer", Activity: roomsdomain.ActivityRunning},
 		}},
 		Posts: posts,
@@ -56,7 +56,7 @@ func TestRoomViewDrawsTheChannelLikeSlack(t *testing.T) {
 
 	out := roomScreen(view)
 	for _, want := range []string{
-		"# release · 2 members  ○ tester idle · ● writer working",
+		"# release · 2 members  ○ tester (qa) idle · ● writer working",
 		"→ you joined #release",
 		"you  10:01\nhi @tester",
 		"tester  10:02",

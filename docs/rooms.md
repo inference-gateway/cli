@@ -108,6 +108,9 @@ answered. A decision request that fails still logs the post, routed to nobody, w
 ## Members answering
 
 Every member keeps its own session, `room-<room>-<agent>`, running as its agent in the room's project. The
+room header and `infer rooms list` show each member as `jeff (tester)` when its agent file names a `role`,
+and its turn tells it "You are jeff, the tester" with the other members' roles, so the team knows who does
+what. The
 session records the room as what invoked it. A routed post becomes the member's next turn and carries the
 room's posts the member has not seen since its last turn, up to `context_posts`. The member's answer, the last
 assistant message of its run, is logged as its post. Members talk like teammates in a channel: they answer

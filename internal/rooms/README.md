@@ -31,6 +31,8 @@ expands the configured rooms against the agents the registry currently knows.
   pings route. The routes and their probabilities land on the post. `RouteHandover` routes a member's
   answer to the members it pings the same way, asking no model: a self-ping and a member's `@all` reach
   nobody, and a pinged outsider gets a notice the room logs as a note.
+- A member's `RoomStatus` entry carries the `role` its agent file names, which clients show as
+  `jeff (tester)` (`MemberStatus.Label`), and its turn names its role and the other members' roles.
 - `Host` (`host.go`) is the daemon's rooms, built in `cmd/daemon` `startThreads` after the thread
   registry, with its frames a stage of `bindingHandler.Handle` before the registry. It reads its
   settings through a function the daemon backs with a fresh config load (`roomsSettings`), so a
