@@ -239,10 +239,10 @@ func TestMarkdownAgentDirsFollowTheSkillsLayout(t *testing.T) {
 	t.Setenv("HOME", home)
 	proj := t.TempDir()
 	want := []string{
-		filepath.Join(proj, config.ConfigDirName, agentsSubdir),
-		filepath.Join(proj, config.AgentsDirName, agentsSubdir),
-		filepath.Join(home, config.ConfigDirName, agentsSubdir),
-		filepath.Join(home, config.AgentsDirName, agentsSubdir),
+		filepath.Join(proj, config.ConfigDirName, config.MarkdownAgentsDirName),
+		filepath.Join(proj, config.AgentsDirName, config.MarkdownAgentsDirName),
+		filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName),
+		filepath.Join(home, config.AgentsDirName, config.MarkdownAgentsDirName),
 	}
 	if got := markdownAgentDirs(proj); !slices.Equal(got, want) {
 		t.Fatalf("markdownAgentDirs = %v, want %v", got, want)
@@ -253,11 +253,11 @@ func TestLoadMarkdownAgentsFromTheAgentsDirs(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	proj := t.TempDir()
-	writeAgentFile(t, filepath.Join(proj, config.AgentsDirName, agentsSubdir), "shared.md",
+	writeAgentFile(t, filepath.Join(proj, config.AgentsDirName, config.MarkdownAgentsDirName), "shared.md",
 		"---\nname: shared\ndescription: The project's .agents copy.\n---\n\nProject agents body.")
-	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, agentsSubdir), "shared.md",
+	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName), "shared.md",
 		"---\nname: shared\ndescription: The user's copy, shadowed.\n---\n\nUser body.")
-	writeAgentFile(t, filepath.Join(home, config.AgentsDirName, agentsSubdir), "portable.md",
+	writeAgentFile(t, filepath.Join(home, config.AgentsDirName, config.MarkdownAgentsDirName), "portable.md",
 		"---\nname: portable\ndescription: Only in ~/.agents/agents.\n---\n\nPortable body.")
 
 	bodies := map[string]string{}
@@ -274,8 +274,8 @@ func TestResolveThreadAgent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	proj := t.TempDir()
-	projectAgents := filepath.Join(proj, config.ConfigDirName, agentsSubdir)
-	userAgents := filepath.Join(home, config.ConfigDirName, agentsSubdir)
+	projectAgents := filepath.Join(proj, config.ConfigDirName, config.MarkdownAgentsDirName)
+	userAgents := filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName)
 
 	writeAgentFile(t, projectAgents, "reviewer.md", `---
 name: reviewer

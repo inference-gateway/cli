@@ -4,16 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	cobra "github.com/spf13/cobra"
 
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
+	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/tools"
 )
-
-// agentsSubdir is the agents directory under a config dir, ~/.infer/agents.
-const agentsSubdir = "agents"
 
 func (c *command) newCreateCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -40,7 +39,7 @@ The role is its job title, shown after the name as "<name> (<role>)".`,
 }
 
 func (c *command) createAgent(cmd *cobra.Command, args []string) error {
-	dir, err := runtime.ConfigPath(runtime.ProjectFlag(cmd), agentsSubdir)
+	dir, err := runtime.ConfigPath(runtime.ProjectFlag(cmd), config.MarkdownAgentsDirName)
 	if err != nil {
 		return err
 	}
@@ -59,6 +58,19 @@ func (c *command) createAgent(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	warnNonBuiltinTools(cmd, spec.Tools)
 	fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n  @%s reaches it in a room, and /agents lists it in the chat. Edit the file to make it yours.\n", filepath.Clean(path), spec.Name)
 	return nil
+}
+
+// warnNonBuiltinTools flags tool names that are not built in, often a typo.
+// They still load when a browser, A2A or custom tool provides them, so they warn
+// rather than fail.
+func warnNonBuiltinTools(cmd *cobra.Command, names []string) {
+	builtins := tools.ToolNames()
+	for _, name := range names {
+		if name = strings.TrimSpace(name); !slices.Contains(builtins, name) {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s is not a built-in tool - the agent drops it unless a browser, A2A or custom tool provides it\n", name)
+		}
+	}
 }

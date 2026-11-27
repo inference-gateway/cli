@@ -247,8 +247,9 @@ func (m *member) turnPromptLocked(addressed roomsdomain.Post, room roomsdomain.R
 func (m *member) render(unseen []roomsdomain.Post, addressed roomsdomain.Post, room roomsdomain.Room) string {
 	agents := m.host.agents(room.Project)
 	known := append(agentNames(agents), roomsdomain.EveryoneMention)
+	roles := roomsdomain.Roles(agents)
 	var b strings.Builder
-	fmt.Fprintf(&b, turnIntro, m.agent, roleClause(roomsdomain.Roles(agents)[m.agent]), room.Name, memberLabels(room, agents))
+	fmt.Fprintf(&b, turnIntro, m.agent, roleClause(roles[m.agent]), room.Name, memberLabels(room, roles))
 	if len(unseen) > 0 {
 		b.WriteString(unseenIntro)
 		for _, post := range unseen {
@@ -282,8 +283,7 @@ func roleClause(role string) string {
 
 // memberLabels lists the room's members with their roles, "jeff (tester),
 // anna (researcher)", in the room's order.
-func memberLabels(room roomsdomain.Room, agents []agentdomain.SubagentInfo) string {
-	roles := roomsdomain.Roles(agents)
+func memberLabels(room roomsdomain.Room, roles map[string]string) string {
 	labels := make([]string, 0, len(room.Agents))
 	for _, member := range room.Agents {
 		labels = append(labels, agentdomain.AgentLabel(member, roles[member]))

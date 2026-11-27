@@ -64,6 +64,9 @@ func RenderAgent(spec AgentSpec) ([]byte, error) {
 	if strings.TrimSpace(spec.Role) == "" {
 		return nil, errors.New("an agent needs a role, such as tester")
 	}
+	if len(strings.TrimSpace(spec.Role)) > markdownAgentRoleMaxLen {
+		return nil, fmt.Errorf("agent role %q is longer than %d characters", spec.Role, markdownAgentRoleMaxLen)
+	}
 	description, body, err := renderAgentTemplate(spec)
 	if err != nil {
 		return nil, err
@@ -84,14 +87,14 @@ func RenderAgent(spec AgentSpec) ([]byte, error) {
 }
 
 // writeFrontmatterLine writes key: value, quoted the YAML way when the value
-// needs it, and nothing for an empty value. An emoji stays as typed, since
-// yaml escapes it to \U0001F9EA, which nobody edits by hand.
+// needs it, and nothing for an empty value. An emoji is single-quoted as typed,
+// since yaml escapes it to \U0001F9EA, which nobody edits by hand.
 func writeFrontmatterLine(out *bytes.Buffer, key, value string) {
 	if value == "" {
 		return
 	}
 	if key == "emoji" {
-		fmt.Fprintf(out, "%s: %s\n", key, value)
+		fmt.Fprintf(out, "%s: '%s'\n", key, strings.ReplaceAll(value, "'", "''"))
 		return
 	}
 	scalar, _ := yaml.Marshal(value)

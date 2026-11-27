@@ -17,10 +17,6 @@ import (
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
-// agentsSubdir is the directory (under .infer/ and .agents/, in the project and
-// in the home dir) holding Markdown agent definitions, one <name>.md per agent.
-const agentsSubdir = "agents"
-
 // markdownAgentNameMax mirrors the 64-char cap used by Claude Code and skills.
 const markdownAgentNameMaxLen = 64
 
@@ -86,8 +82,8 @@ func markdownAgentDirs(projectDir string) []string {
 // agentDirsUnder is root's .infer/agents, then its .agents/agents.
 func agentDirsUnder(root string) []string {
 	return []string{
-		filepath.Join(root, config.ConfigDirName, agentsSubdir),
-		filepath.Join(root, config.AgentsDirName, agentsSubdir),
+		filepath.Join(root, config.ConfigDirName, config.MarkdownAgentsDirName),
+		filepath.Join(root, config.AgentsDirName, config.MarkdownAgentsDirName),
 	}
 }
 

@@ -54,7 +54,7 @@ func TestBuiltinAgentsLoadWithoutAnyAgentFile(t *testing.T) {
 
 func TestAnAgentFileShadowsTheBuiltinOfItsName(t *testing.T) {
 	home, _ := isolateAgentDirs(t)
-	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, agentsSubdir), "main.md",
+	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName), "main.md",
 		"---\nname: main\ndescription: My own main agent.\n---\n\nMy own prompt.")
 
 	var main []markdownAgent
@@ -82,7 +82,7 @@ func TestMainAgentPrompt(t *testing.T) {
 
 	t.Run("a project main.md wins", func(t *testing.T) {
 		_, project := isolateAgentDirs(t)
-		writeAgentFile(t, filepath.Join(project, config.ConfigDirName, agentsSubdir), "main.md",
+		writeAgentFile(t, filepath.Join(project, config.ConfigDirName, config.MarkdownAgentsDirName), "main.md",
 			"---\nname: main\ndescription: The project's main agent.\n---\n\nProject prompt.\n")
 		if got := MainAgentPrompt(project); got != "Project prompt." {
 			t.Fatalf("MainAgentPrompt = %q, want the project's body", got)
@@ -133,7 +133,7 @@ func TestSeedBuiltinAgents(t *testing.T) {
 
 func TestProjectAgentsListsTheProjectsAgentsAndTheBuiltins(t *testing.T) {
 	_, project := isolateAgentDirs(t)
-	writeAgentFile(t, filepath.Join(project, config.ConfigDirName, agentsSubdir), "tester.md", "---\nname: tester\ndescription: Runs the suite.\n---\n\nRun the tests.")
+	writeAgentFile(t, filepath.Join(project, config.ConfigDirName, config.MarkdownAgentsDirName), "tester.md", "---\nname: tester\ndescription: Runs the suite.\n---\n\nRun the tests.")
 
 	descriptions := map[string]string{}
 	for _, agent := range ProjectAgents(project) {

@@ -58,7 +58,7 @@ func TestCreateWritesAnAgentFromItsRolesTemplate(t *testing.T) {
 	written, err := os.ReadFile(filepath.Join(home, ".infer", "agents", "jeff.md"))
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(written), "---\nname: jeff\ndescription: Tests what"), "frontmatter starts with name then description:\n%s", written)
-	require.Contains(t, string(written), "\nrole: tester\nemoji: 🧪\nworkspace: ubuntu-desktop\ntools:\n  - Read\n  - Grep\n---\n", "the emoji stays as typed and the tools are a block list")
+	require.Contains(t, string(written), "\nrole: tester\nemoji: '🧪'\nworkspace: ubuntu-desktop\ntools:\n  - Read\n  - Grep\n---\n", "the emoji stays as typed and the tools are a block list")
 
 	agents := tools.ProjectAgents(t.TempDir())
 	var labels []string
@@ -80,11 +80,21 @@ func TestCreateRefusesABadNameAndAnExistingFile(t *testing.T) {
 	_, err = runCreate(t, "jeff")
 	require.ErrorContains(t, err, `required flag(s) "role"`)
 
+	_, err = runCreate(t, "jeff", "--role", strings.Repeat("r", 41))
+	require.ErrorContains(t, err, "longer than 40 characters")
+
+	out, err := runCreate(t, "bob", "--role", "tester", "--emoji", "!bug", "--tools", "Read,Readd")
+	require.NoError(t, err)
+	require.Contains(t, out, "Readd is not a built-in tool")
+	require.NotContains(t, out, "Read is not")
+	data, _ := os.ReadFile(filepath.Join(home, ".infer", "agents", "bob.md"))
+	require.Contains(t, string(data), "emoji: '!bug'\n", "an emoji YAML reads as a tag stays a string")
+
 	_, err = runCreate(t, "jeff", "--role", "tester")
 	require.NoError(t, err)
 	_, err = runCreate(t, "jeff", "--role", "writer")
 	require.ErrorContains(t, err, "exists - edit it, or pass --force")
-	data, _ := os.ReadFile(filepath.Join(home, ".infer", "agents", "jeff.md"))
+	data, _ = os.ReadFile(filepath.Join(home, ".infer", "agents", "jeff.md"))
 	require.Contains(t, string(data), "role: tester", "the file was kept")
 
 	_, err = runCreate(t, "jeff", "--role", "writer", "--force")
