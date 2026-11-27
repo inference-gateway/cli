@@ -239,10 +239,10 @@ func TestMarkdownAgentDirsFollowTheSkillsLayout(t *testing.T) {
 	t.Setenv("HOME", home)
 	proj := t.TempDir()
 	want := []string{
-		filepath.Join(proj, config.ConfigDirName, agentsSubdir),
-		filepath.Join(proj, config.AgentsDirName, agentsSubdir),
-		filepath.Join(home, config.ConfigDirName, agentsSubdir),
-		filepath.Join(home, config.AgentsDirName, agentsSubdir),
+		filepath.Join(proj, config.ConfigDirName, config.MarkdownAgentsDirName),
+		filepath.Join(proj, config.AgentsDirName, config.MarkdownAgentsDirName),
+		filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName),
+		filepath.Join(home, config.AgentsDirName, config.MarkdownAgentsDirName),
 	}
 	if got := markdownAgentDirs(proj); !slices.Equal(got, want) {
 		t.Fatalf("markdownAgentDirs = %v, want %v", got, want)
@@ -253,11 +253,11 @@ func TestLoadMarkdownAgentsFromTheAgentsDirs(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	proj := t.TempDir()
-	writeAgentFile(t, filepath.Join(proj, config.AgentsDirName, agentsSubdir), "shared.md",
+	writeAgentFile(t, filepath.Join(proj, config.AgentsDirName, config.MarkdownAgentsDirName), "shared.md",
 		"---\nname: shared\ndescription: The project's .agents copy.\n---\n\nProject agents body.")
-	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, agentsSubdir), "shared.md",
+	writeAgentFile(t, filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName), "shared.md",
 		"---\nname: shared\ndescription: The user's copy, shadowed.\n---\n\nUser body.")
-	writeAgentFile(t, filepath.Join(home, config.AgentsDirName, agentsSubdir), "portable.md",
+	writeAgentFile(t, filepath.Join(home, config.AgentsDirName, config.MarkdownAgentsDirName), "portable.md",
 		"---\nname: portable\ndescription: Only in ~/.agents/agents.\n---\n\nPortable body.")
 
 	bodies := map[string]string{}
@@ -274,8 +274,8 @@ func TestResolveThreadAgent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	proj := t.TempDir()
-	projectAgents := filepath.Join(proj, config.ConfigDirName, agentsSubdir)
-	userAgents := filepath.Join(home, config.ConfigDirName, agentsSubdir)
+	projectAgents := filepath.Join(proj, config.ConfigDirName, config.MarkdownAgentsDirName)
+	userAgents := filepath.Join(home, config.ConfigDirName, config.MarkdownAgentsDirName)
 
 	writeAgentFile(t, projectAgents, "reviewer.md", `---
 name: reviewer
@@ -409,5 +409,34 @@ Offline.`)
 				t.Fatalf("resolved %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMarkdownAgentRole(t *testing.T) {
+	dir := t.TempDir()
+	writeAgentFile(t, dir, "jeff.md", "---\nname: jeff\nrole: '  tester '\ndescription: Tests pages.\n---\nbody")
+	writeAgentFile(t, dir, "anna.md", "---\nname: anna\ndescription: Researches.\n---\nbody")
+	writeAgentFile(t, dir, "long.md", "---\nname: long\nrole: "+strings.Repeat("x", markdownAgentRoleMaxLen+1)+"\ndescription: d\n---\nbody")
+
+	roles := map[string]string{}
+	for _, agent := range loadMarkdownAgents([]string{dir}, testKnownTools()) {
+		roles[agent.name] = agent.role
+	}
+	want := map[string]string{"jeff": "tester", "anna": "", "long": ""}
+	if !reflect.DeepEqual(roles, want) {
+		t.Fatalf("roles = %v, want %v (trimmed, absent, dropped when too long)", roles, want)
+	}
+	for _, info := range ProjectAgents(dir) {
+		if info.Name == "jeff" && info.Label() != "jeff (tester)" {
+			t.Fatalf("label = %q, want jeff (tester)", info.Label())
+		}
+	}
+}
+
+func TestValidAgentName(t *testing.T) {
+	for name, want := range map[string]bool{"jeff": true, "code-reviewer": true, "a_1": true, "": false, "Jeff": false, "two words": false, strings.Repeat("a", 65): false} {
+		if got := ValidAgentName(name); got != want {
+			t.Errorf("ValidAgentName(%q) = %v, want %v", name, got, want)
+		}
 	}
 }

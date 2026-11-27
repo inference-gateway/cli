@@ -207,11 +207,28 @@ type RoomStatus struct {
 	Members []MemberStatus `json:"members"`
 }
 
-// MemberStatus is one member of a RoomStatus.
+// MemberStatus is one member of a RoomStatus. Role is the job title its agent
+// file names, shown after the name.
 type MemberStatus struct {
 	Agent     string   `json:"agent"`
+	Role      string   `json:"role,omitempty"`
 	SessionID string   `json:"session_id"`
 	Activity  Activity `json:"activity"`
+}
+
+// Label is how a person reads the member: "jeff (tester)", or the name alone
+// without a role.
+func (m MemberStatus) Label() string {
+	return agentdomain.AgentLabel(m.Agent, m.Role)
+}
+
+// Roles maps each agent of agents to its role, for the members of a room.
+func Roles(agents []agentdomain.SubagentInfo) map[string]string {
+	roles := make(map[string]string, len(agents))
+	for _, agent := range agents {
+		roles[agent.Name] = agent.Role
+	}
+	return roles
 }
 
 // Usage is what a post cost: its tokens, input and output, and their cost.

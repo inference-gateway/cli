@@ -17,10 +17,6 @@ import (
 	skills "github.com/inference-gateway/cli/internal/skills"
 )
 
-// agentsSubdir is the directory (under .infer/ and .agents/, in the project and
-// in the home dir) holding Markdown agent definitions, one <name>.md per agent.
-const agentsSubdir = "agents"
-
 // markdownAgentNameMax mirrors the 64-char cap used by Claude Code and skills.
 const markdownAgentNameMaxLen = 64
 
@@ -28,12 +24,24 @@ const markdownAgentNameMaxLen = 64
 // charset accepted for named agents.
 var markdownAgentNameRegex = regexp.MustCompile(`^[a-z0-9_-]+$`)
 
+// markdownAgentRoleMaxLen bounds a role to a job title, "code reviewer", so it
+// fits in brackets after the name wherever the agent is listed.
+const markdownAgentRoleMaxLen = 40
+
+// ValidAgentName reports whether name may name an agent: lowercase letters,
+// digits, hyphens and underscores, at most markdownAgentNameMaxLen of them.
+func ValidAgentName(name string) bool {
+	return name != "" && len(name) <= markdownAgentNameMaxLen && markdownAgentNameRegex.MatchString(name)
+}
+
 // markdownAgent is a subagent preset defined as a Markdown file with YAML
 // frontmatter: the body is the system prompt. disallowedTools is applied by the
 // worker, mcpServers nil means the enabled ones, workspace is the computer a
-// teammate spawned from it runs on, and source is "project" or "user" for listings.
+// teammate spawned from it runs on, role the job title listings show after the
+// name, and source is "project" or "user" for listings.
 type markdownAgent struct {
 	name            string
+	role            string
 	description     string
 	model           string
 	workspace       string
@@ -50,6 +58,7 @@ type markdownAgent struct {
 // permissionMode, ...) is accepted and ignored for vendor-file portability.
 type markdownAgentFrontmatter struct {
 	Name            string `yaml:"name"`
+	Role            string `yaml:"role"`
 	Description     string `yaml:"description"`
 	Model           string `yaml:"model"`
 	Workspace       string `yaml:"workspace"`
@@ -73,8 +82,8 @@ func markdownAgentDirs(projectDir string) []string {
 // agentDirsUnder is root's .infer/agents, then its .agents/agents.
 func agentDirsUnder(root string) []string {
 	return []string{
-		filepath.Join(root, config.ConfigDirName, agentsSubdir),
-		filepath.Join(root, config.AgentsDirName, agentsSubdir),
+		filepath.Join(root, config.ConfigDirName, config.MarkdownAgentsDirName),
+		filepath.Join(root, config.AgentsDirName, config.MarkdownAgentsDirName),
 	}
 }
 
@@ -162,6 +171,7 @@ func parseMarkdownAgent(data []byte, path string, knownTools map[string]bool) (*
 
 	return &markdownAgent{
 		name:            fm.Name,
+		role:            resolveMarkdownAgentRole(fm.Role, path),
 		description:     strings.TrimSpace(fm.Description),
 		model:           resolveMarkdownAgentModel(fm.Model, path),
 		workspace:       strings.TrimSpace(fm.Workspace),
@@ -171,6 +181,17 @@ func parseMarkdownAgent(data []byte, path string, knownTools map[string]bool) (*
 		systemPrompt:    strings.TrimSpace(body),
 		path:            path,
 	}, ""
+}
+
+// resolveMarkdownAgentRole trims a role and drops one too long for a job
+// title, with a warning, so the file still loads.
+func resolveMarkdownAgentRole(role, path string) string {
+	role = strings.TrimSpace(role)
+	if len(role) > markdownAgentRoleMaxLen {
+		logger.Warn("markdown agent role dropped, too long", "file", path, "max", markdownAgentRoleMaxLen)
+		return ""
+	}
+	return role
 }
 
 // findMarkdownAgent returns the named agent, exact-match on the frontmatter
@@ -233,7 +254,7 @@ func ProjectAgents(projectDir string) []agentdomain.SubagentInfo {
 	agents := loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil)
 	infos := make([]agentdomain.SubagentInfo, 0, len(agents))
 	for _, agent := range agents {
-		infos = append(infos, agentdomain.SubagentInfo{Name: agent.name, Description: agent.description, Model: agent.model, Source: agent.source, BuiltIn: isBuiltinAgent(agent.name)})
+		infos = append(infos, agentdomain.SubagentInfo{Name: agent.name, Role: agent.role, Description: agent.description, Model: agent.model, Source: agent.source, BuiltIn: isBuiltinAgent(agent.name)})
 	}
 	return infos
 }
@@ -372,6 +393,7 @@ func subagentSourceLabel(dir string) string {
 func (m markdownAgent) subagentInfo(tools agentdomain.ToolManifestLookup) agentdomain.SubagentInfo {
 	return agentdomain.SubagentInfo{
 		Name:        m.name,
+		Role:        m.role,
 		Description: m.description,
 		Model:       m.model,
 		Tools:       m.tools,

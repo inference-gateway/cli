@@ -823,7 +823,7 @@ func (t *AgentTool) markdownAgentCatalog() string {
 	var out strings.Builder
 	out.WriteString("Available agents:")
 	for _, agent := range agents {
-		fmt.Fprintf(&out, "\n- %s: %s", agent.name, agent.description)
+		fmt.Fprintf(&out, "\n- %s: %s", agentdomain.AgentLabel(agent.name, agent.role), agent.description)
 	}
 	return out.String()
 }

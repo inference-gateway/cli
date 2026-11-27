@@ -15,16 +15,17 @@ import (
 )
 
 const (
-	ConfigDirName       = ".infer"
-	ArtifactsDirName    = "artifacts"
-	AgentsDirName       = ".agents"
-	ConfigFileName      = "config.yaml"
-	GitignoreFileName   = ".gitignore"
-	LogsDirName         = "logs"
-	MemoryDirName       = "memory"
-	MemoryIndexFileName = "MEMORY.md"
-	InsightsDirName     = "insights"
-	CustomToolsDirName  = "tools"
+	ConfigDirName         = ".infer"
+	ArtifactsDirName      = "artifacts"
+	AgentsDirName         = ".agents"
+	ConfigFileName        = "config.yaml"
+	GitignoreFileName     = ".gitignore"
+	LogsDirName           = "logs"
+	MemoryDirName         = "memory"
+	MemoryIndexFileName   = "MEMORY.md"
+	InsightsDirName       = "insights"
+	CustomToolsDirName    = "tools"
+	MarkdownAgentsDirName = "agents"
 
 	DefaultConfigPath           = ConfigDirName + "/" + ConfigFileName
 	DefaultMemoryMaxChars       = 2000

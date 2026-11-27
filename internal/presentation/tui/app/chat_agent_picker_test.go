@@ -13,10 +13,12 @@ func TestAgentRowsListMainFirstWithItsCapability(t *testing.T) {
 	rows := agentRows([]agentdomain.SubagentInfo{
 		{Name: "explore", Description: "Read-only search agent.", ReadOnly: true},
 		{Name: agentdomain.DefaultMainAgentName, Description: "The default main agent."},
+		{Name: "jeff", Role: "tester", Description: "Tests pages."},
 	})
 
 	require.Equal(t, []components.PickerRow{
 		{Value: agentdomain.DefaultMainAgentName, Label: agentdomain.DefaultMainAgentName, Tag: readWriteBadge, TagColor: "warning", Detail: "The default main agent."},
 		{Value: "explore", Label: "explore", Tag: readOnlyBadge, TagColor: "success", Detail: "Read-only search agent."},
+		{Value: "jeff", Label: "jeff (tester)", Tag: readWriteBadge, TagColor: "warning", Detail: "Tests pages."},
 	}, rows)
 }

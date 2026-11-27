@@ -52,6 +52,11 @@ numbered list ordered by severity.
 - `name` (required): identifier the main agent passes as the `Agent` tool's `agent` argument. Lowercase letters, digits,
   `-` and `_`, at most 64 characters. It does not have to match the file name.
 - `description` (required): shown to the main agent so it knows when to delegate.
+- `role` (optional): the agent's job title in a few words, `tester` or `code reviewer`, at most 40 characters.
+  Wherever agents are listed, the room header, the `@` menu, `/agents`, the agent picker, the Agent tool's
+  catalog, it follows the name as `jeff (tester)`, so a person name says what the agent does. Many agents
+  may share a role. `infer agents create <name> --role <role>` writes an agent from the role's template,
+  see [Creating an agent](#creating-an-agent).
 - `model` (optional): `provider/model`, or `inherit` to use the parent's model. See [Model](#model).
 - `tools` (optional): tools the subagent may use. See [Tools Allowlist](#tools-allowlist).
 - `disallowedTools` (optional): tools removed from the resolved list. Same format as `tools`.
@@ -67,6 +72,19 @@ The file is loaded once per session. Files with broken frontmatter, a missing
 or invalid `name`/`description`, or a `tools` list that resolves to no known
 tool are skipped with a warning naming the file and the reason. An invalid
 file never fails startup.
+
+## Creating an agent
+
+```bash
+infer agents create jeff --role tester --emoji 🧪 --workspace ubuntu-desktop
+```
+
+writes `~/.infer/agents/jeff.md` (`--project` writes `.infer/agents/jeff.md`) from the template of its
+role. `tester`, `reviewer`, `writer` and `researcher` have one of their own, picked by the role or its last
+word, so `code reviewer` starts from the reviewer's, and every other role starts from the default. Each
+template carries a description and a body in one shape: who the agent is, its rules, how it works and how it
+reports. `--description`, `--model` and `--tools` fill the other frontmatter keys, and an existing file is
+kept unless `--force`. The desktop reads the same file, so an agent created here shows up there.
 
 ## Locations and Precedence
 

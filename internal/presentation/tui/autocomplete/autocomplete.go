@@ -193,9 +193,18 @@ func (a *Autocomplete) appendAgentRows() {
 	for _, agent := range a.toolService.ListMarkdownSubagents() {
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    "@" + agent.Name,
-			Description: agent.Description,
+			Description: agentRowDescription(agent),
 		})
 	}
+}
+
+// agentRowDescription leads an agent's row with its role, "tester · Tests web
+// pages...", so the menu says what each name does.
+func agentRowDescription(agent agentdomain.SubagentInfo) string {
+	if agent.Role == "" {
+		return agent.Description
+	}
+	return agent.Role + " · " + agent.Description
 }
 
 // SetTriggerSources installs the composer trigger table of the current

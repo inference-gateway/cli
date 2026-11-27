@@ -13,6 +13,7 @@ import (
 	output "github.com/inference-gateway/cli/cmd/output"
 	runtime "github.com/inference-gateway/cli/cmd/runtime"
 	config "github.com/inference-gateway/cli/config"
+	agentdomain "github.com/inference-gateway/cli/internal/agent/domain"
 	daemonhost "github.com/inference-gateway/cli/internal/daemon"
 	formatting "github.com/inference-gateway/cli/internal/platform/formatting"
 	logger "github.com/inference-gateway/cli/internal/platform/logger"
@@ -100,10 +101,16 @@ type roomView struct {
 	Members []memberView `json:"members"`
 }
 
-// memberView is one room member.
+// memberView is one room member, with the role its agent file names.
 type memberView struct {
 	Agent     string `json:"agent"`
+	Role      string `json:"role,omitempty"`
 	SessionID string `json:"session_id"`
+}
+
+// Label is the member's name with its role in brackets, "jeff (tester)".
+func (m memberView) Label() string {
+	return agentdomain.AgentLabel(m.Agent, m.Role)
 }
 
 // showView is what infer rooms show prints: the room plus the router settings
@@ -165,7 +172,7 @@ func (c *command) listRooms(cmd *cobra.Command, _ []string) error {
 	for _, view := range views {
 		members := make([]string, 0, len(view.Members))
 		for _, member := range view.Members {
-			members = append(members, member.Agent)
+			members = append(members, member.Label())
 		}
 		table.Row(view.Name, view.Project, strings.Join(members, ", "))
 	}
@@ -209,7 +216,7 @@ func (c *command) showRoom(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(w, c.renderer.Title(fmt.Sprintf("Members (%d)", len(view.Room.Members))))
 	memberTable := c.renderer.NewListTable("Agent", "Session ID")
 	for _, member := range view.Room.Members {
-		memberTable.Row(member.Agent, member.SessionID)
+		memberTable.Row(member.Label(), member.SessionID)
 	}
 	fmt.Fprintln(w, memberTable.Render())
 	fmt.Fprintln(w)
@@ -238,9 +245,10 @@ func roomViews(resolved []roomsdomain.Room) []roomView {
 
 func roomViewOf(room roomsdomain.Room) roomView {
 	members := room.Members()
+	roles := roomsdomain.Roles(tools.ProjectAgents(room.Project))
 	views := make([]memberView, 0, len(members))
 	for _, member := range members {
-		views = append(views, memberView{Agent: member.Agent, SessionID: member.SessionID})
+		views = append(views, memberView{Agent: member.Agent, Role: roles[member.Agent], SessionID: member.SessionID})
 	}
 	return roomView{Name: room.Name, Project: room.Project, Members: views}
 }

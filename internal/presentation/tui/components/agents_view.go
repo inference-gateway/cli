@@ -346,7 +346,7 @@ func (m *AgentsView) localItems() []list.Item {
 		}
 		items = append(items, agentItem{
 			kind:   agentKindLocal,
-			name:   info.Name,
+			name:   info.Label(),
 			state:  state,
 			detail: subagentCapabilities(info),
 		})

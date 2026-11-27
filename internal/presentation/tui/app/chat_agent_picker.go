@@ -46,7 +46,7 @@ func agentRows(agents []agentdomain.SubagentInfo) []components.PickerRow {
 		if agent.ReadOnly {
 			tag, color = readOnlyBadge, "success"
 		}
-		rows = append(rows, components.PickerRow{Value: agent.Name, Label: agent.Name, Tag: tag, TagColor: color, Detail: agent.Description})
+		rows = append(rows, components.PickerRow{Value: agent.Name, Label: agent.Label(), Tag: tag, TagColor: color, Detail: agent.Description})
 	}
 	return rows
 }

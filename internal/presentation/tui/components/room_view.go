@@ -245,7 +245,7 @@ func (v *RoomView) memberPresence(member roomsdomain.MemberStatus) string {
 		p = presences[roomsdomain.ActivityIdle]
 	}
 	dot := v.styleProvider.RenderWithColor(p.dot, v.styleProvider.GetThemeColor(p.color))
-	return dot + " " + member.Agent + " " + v.styleProvider.RenderDimText(p.label)
+	return dot + " " + member.Label() + " " + v.styleProvider.RenderDimText(p.label)
 }
 
 // MemberCount says how many members a room has, as "1 member" or "3 members".
@@ -319,7 +319,7 @@ func (v *RoomView) busyLine() string {
 	var busy []string
 	for _, member := range v.room.Members {
 		if phrase, ok := activityPhrases[member.Activity]; ok {
-			busy = append(busy, member.Agent+" "+phrase)
+			busy = append(busy, member.Label()+" "+phrase)
 		}
 	}
 	if len(busy) == 0 {

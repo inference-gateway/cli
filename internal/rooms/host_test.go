@@ -197,6 +197,7 @@ func TestPostReachesTheMemberAndLogsItsReply(t *testing.T) {
 		require.Equal(t, config.DefaultRoomsMemberMode, sent[0]["mode"], "a judge decides a member's gated calls by default")
 		require.Equal(t, map[string]any{"agent": "tester", "label": "release", "invoked_by": "room"}, sent[0]["origin"])
 		require.Equal(t, agui.FrameRunAgentInput, sent[1]["type"])
+		require.Contains(t, turnText(t, sent[1]), "You are tester, the qa engineer, chatting in #release with the user and the room's members (tester (qa engineer), writer)")
 		require.Contains(t, turnText(t, sent[1]), "The post for you:\nuser: tester run the suite", "a member's name reaches it without the @ file expansion reads")
 
 		reply(t, f.seat(t, "tester"), "all green")
@@ -785,7 +786,7 @@ func TestListRoomsAnswersEveryRoomWithItsMembers(t *testing.T) {
 			names = append(names, room.Name)
 		}
 		require.Equal(t, []string{"release"}, names)
-		require.Equal(t, roomsdomain.MemberStatus{Agent: "tester", SessionID: "room-release-tester", Activity: roomsdomain.ActivityIdle}, frames[0].Rooms[0].Members[0])
+		require.Equal(t, roomsdomain.MemberStatus{Agent: "tester", Role: "qa engineer", SessionID: "room-release-tester", Activity: roomsdomain.ActivityIdle}, frames[0].Rooms[0].Members[0])
 	})
 }
 
@@ -1021,5 +1022,21 @@ func TestAStoppedOfferedPostIsNotPassedOn(t *testing.T) {
 		for _, frame := range f.sent(t) {
 			require.NotEqual(t, "tester", frame["agent"], "the offer ended with the stop")
 		}
+	})
+}
+
+func TestARoomsMembersCarryTheirRoles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		follower := &sessionsmocks.FakeClient{}
+		f.send(t, follower, map[string]string{"type": roomsdomain.FrameFollowRoom, "room": "release"})
+		snapshots := delivered[snapshotFrame](t, follower, roomsdomain.FrameRoomSnapshot)
+		require.Len(t, snapshots, 1)
+		members := snapshots[0].Room.Members
+		require.Equal(t, "qa engineer", members[0].Role)
+		require.Equal(t, "tester (qa engineer)", members[0].Label())
+		require.Empty(t, members[1].Role, "an agent without a role has none")
+		require.Equal(t, "writer", members[1].Label())
 	})
 }

@@ -23,8 +23,8 @@ const mentionProbability = 1
 const maxEvidencePostWidth = 2000
 
 // memberInstructions asks whether one member should act on the new post,
-// given its role.
-const memberInstructions = "Should the agent %q act on the new post? Its role: %s. " +
+// given its role and what it does.
+const memberInstructions = "Should the agent %q act on the new post? Its role: %s. What it does: %s. " +
 	"Answer true when the post asks for or clearly needs this role, false otherwise."
 
 // Routing is where one post goes: the agents it mentions, the members it is
@@ -153,12 +153,13 @@ func memberQuestions(room roomsdomain.Room, agents []agentdomain.SubagentInfo) [
 	for _, agent := range agents {
 		descriptions[agent.Name] = agent.Description
 	}
+	roles := roomsdomain.Roles(agents)
 	questions := make([]decisiondomain.Question, 0, len(room.Agents))
 	for _, member := range room.Agents {
 		questions = append(questions, decisiondomain.Question{
 			Name:         member,
 			Type:         decisiondomain.Predicate,
-			Instructions: fmt.Sprintf(memberInstructions, member, cmp.Or(descriptions[member], "no description")),
+			Instructions: fmt.Sprintf(memberInstructions, member, cmp.Or(roles[member], "not named"), cmp.Or(descriptions[member], "no description")),
 		})
 	}
 	return questions
