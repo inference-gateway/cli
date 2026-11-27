@@ -16,6 +16,7 @@ type Rooms interface {
 	Join(ctx context.Context, room string) (roomsdomain.Snapshot, error)
 	Post(ctx context.Context, room, text string) (roomsdomain.Posted, error)
 	Decide(ctx context.Context, room, member, toolCallID string, decision roomsdomain.Decision) error
+	Stop(ctx context.Context, room, member string) ([]string, error)
 	Leave(room string) error
 }
 

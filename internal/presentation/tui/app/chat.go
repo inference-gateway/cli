@@ -2154,6 +2154,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	if app.clearsInRoom(input) {
 		return app.refuseRoomClear()
 	}
+	if app.stopsRoom(input) {
+		return app.stopRoom(input)
+	}
 	if app.room != noRoom && !strings.HasPrefix(input, "/") {
 		return app.postToRoom(input)
 	}

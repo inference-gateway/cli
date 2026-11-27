@@ -909,3 +909,117 @@ func TestAnOfferedPostHandedOverIsNotPassedOn(t *testing.T) {
 		require.Equal(t, []string{"can someone else tell me a joke?", "@tester, you're up"}, texts, "no pass note")
 	})
 }
+
+// stop sends stop_room for member, every member when "", and returns who the
+// daemon says it stopped.
+func (f hostFixture) stop(t *testing.T, member string) []string {
+	t.Helper()
+	c := &sessionsmocks.FakeClient{}
+	f.send(t, c, map[string]string{"type": roomsdomain.FrameStopRoom, "room": "release", "member": member})
+	stopped := delivered[stoppedFrame](t, c, roomsdomain.FrameRoomStopped)
+	require.Len(t, stopped, 1)
+	return stopped[0].Members
+}
+
+// interrupts counts the interrupt frames the host sent the registry for seat.
+func (f hostFixture) interrupts(t *testing.T, seat sessionsdomain.Client) int {
+	t.Helper()
+	count := 0
+	for i := range f.threads.HandleCallCount() {
+		client, raw := f.threads.HandleArgsForCall(i)
+		if client == seat && strings.Contains(string(raw), `"`+frameInterrupt+`"`) {
+			count++
+		}
+	}
+	return count
+}
+
+// TestStopAbortsTheMembersAtWork pins /stop: every running member's run is
+// interrupted through its thread, the room notes each, the member goes idle
+// and drops the posts it held, and the aborted run's end logs no answer.
+func TestStopAbortsTheMembersAtWork(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		poster := &sessionsmocks.FakeClient{}
+		f.post(t, poster, "@all find the bug")
+		f.post(t, poster, "@tester and then run the suite")
+		tester, writer := f.seat(t, "tester"), f.seat(t, "writer")
+		require.Equal(t, roomsdomain.ActivityRunning, tester.(*member).currentActivity())
+
+		require.Equal(t, []string{"tester", "writer"}, f.stop(t, ""))
+		require.Equal(t, 1, f.interrupts(t, tester))
+		require.Equal(t, 1, f.interrupts(t, writer))
+		require.Equal(t, roomsdomain.ActivityIdle, tester.(*member).currentActivity())
+		logged := f.logged(t)
+		require.Equal(t, []string{"tester was stopped.", "writer was stopped."}, []string{logged[len(logged)-2].Text, logged[len(logged)-1].Text})
+
+		turns := f.sent(t)
+		reply(t, tester, "found it: a nil map")
+		require.Len(t, f.logged(t), len(logged), "the aborted run's answer is not logged")
+		require.Len(t, f.sent(t), len(turns), "the held post was dropped, no next turn")
+		require.Empty(t, f.stop(t, ""), "nobody is at work any more")
+	})
+}
+
+func TestStopNamesOneMember(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "@all find the bug")
+		tester, writer := f.seat(t, "tester"), f.seat(t, "writer")
+
+		require.Equal(t, []string{"tester"}, f.stop(t, "tester"))
+		require.Equal(t, 1, f.interrupts(t, tester))
+		require.Zero(t, f.interrupts(t, writer))
+		require.Equal(t, roomsdomain.ActivityRunning, writer.(*member).currentActivity())
+		require.Empty(t, f.stop(t, "tester"), "already idle")
+
+		c := &sessionsmocks.FakeClient{}
+		f.send(t, c, map[string]string{"type": roomsdomain.FrameStopRoom, "room": "release", "member": "reviewer"})
+		errors := delivered[map[string]string](t, c, frameRunError)
+		require.Len(t, errors, 1)
+		require.Equal(t, "reviewer is not in room release", errors[0]["message"])
+	})
+}
+
+// TestStopEndsAWaitingMembersCall pins that a member waiting on an approval can
+// be stopped: its call closes with the room's line and its run is interrupted.
+func TestStopEndsAWaitingMembersCall(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "@tester run the suite")
+		seat := f.seat(t, "tester")
+		suspend(t, seat)
+		require.Equal(t, roomsdomain.ActivityWaiting, seat.(*member).currentActivity())
+
+		require.Equal(t, []string{"tester"}, f.stop(t, ""))
+		require.Equal(t, 1, f.interrupts(t, seat))
+		logged := f.logged(t)
+		closing := logged[len(logged)-2]
+		require.Equal(t, roomsdomain.PostKindDecision, closing.Kind)
+		require.Equal(t, "call-1-escalation", closing.Approval.ID)
+		require.Equal(t, "tester's Bash call was stopped.", closing.Text)
+		require.Equal(t, "tester was stopped.", logged[len(logged)-1].Text)
+		require.Empty(t, roomsdomain.OpenApprovals(logged))
+	})
+}
+
+// TestAStoppedOfferedPostIsNotPassedOn pins that stopping the member an offered
+// post went to ends the offer: the next best match never gets it.
+func TestAStoppedOfferedPostIsNotPassedOn(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	synctest.Test(t, func(t *testing.T) {
+		f := newHostFixture(t, nil)
+		f.decider.DecideReturns(probabilities(map[string]float64{"tester": 0.7, "writer": 0.9}), nil)
+		f.post(t, &sessionsmocks.FakeClient{}, "what's the weather?")
+		require.Equal(t, "writer", f.sent(t)[0]["agent"])
+
+		require.Equal(t, []string{"writer"}, f.stop(t, ""))
+		reply(t, f.seat(t, "writer"), "PASS")
+		for _, frame := range f.sent(t) {
+			require.NotEqual(t, "tester", frame["agent"], "the offer ended with the stop")
+		}
+	})
+}

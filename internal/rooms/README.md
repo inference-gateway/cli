@@ -36,13 +36,17 @@ expands the configured rooms against the agents the registry currently knows.
   settings through a function the daemon backs with a fresh config load (`roomsSettings`), so a
   `rooms.yaml` edit reaches the next post, the last good settings standing in for a file that does
   not load. It answers
-  `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room`, `decide_room_approval` and
-  `leave_room`, logs every
+  `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room`, `decide_room_approval`,
+  `stop_room` and `leave_room`, logs every
   routed post, and streams posts and member activity to the followers. One lock orders the log's
   appends with the follows. `clear_room` empties the log (`Log.Clear`), tells the followers with
   `room_cleared`, and makes each member drop the posts it held and read the room from its start again.
   `join_room` follows like `follow_room` and, on the user's first visit (`domain.FirstVisit`), logs a
   `kind: join` post routed to the first `max_members` members, whose turn asks for a welcome.
+  `stop_room` aborts the members at work in a room, or the one it names (`member.abort`): the member
+  goes idle at once, drops the posts it held, closes a call it was waiting on and sends its thread the
+  registry's `interrupt` frame, so the aborted run's later frames are no longer its turn's and log no
+  answer. The room notes `<member> was stopped.` and answers `room_stopped` with who was stopped.
 - `member` (`member.go`) is one seat as a client of its session's thread, the way a Telegram chat is.
   A turn resolves its room from the settings as they are now and sends `resume_conversation` with the
   agent, the room's `mode` (`auto-with-judge` unless the room says otherwise, so a judge decides the

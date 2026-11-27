@@ -1027,6 +1027,19 @@ answers `RUN_ERROR`:
 }
 ```
 
+Client → CLI, stopping the members at work in a room: every one, or the one `member` names. Each stopped
+member's run is interrupted, it drops the posts it held and goes idle, and the room notes `<member> was
+stopped.` A call it was waiting on closes with a `decision` post. The answer, `room_stopped`, names who was
+stopped, nobody when nobody was at work. A `member` outside the room answers `RUN_ERROR`:
+
+```json
+{"type": "stop_room", "room": "release", "member": "tester"}
+```
+
+```json
+{"type": "room_stopped", "room": "release", "members": ["tester"]}
+```
+
 Client → CLI, stopping the follow. Nothing answers it:
 
 ```json

@@ -73,6 +73,25 @@ func (r *Rooms) Decide(ctx context.Context, room, member, toolCallID string, dec
 	return err
 }
 
+// Stop aborts the turn of every member at work in room, or of member alone when
+// named, and returns who was stopped, nobody when nobody was at work.
+func (r *Rooms) Stop(ctx context.Context, room, member string) ([]string, error) {
+	if err := r.thread.dialLazily(ctx); err != nil {
+		return nil, err
+	}
+	data, err := r.thread.Request(ctx, map[string]string{"type": roomsdomain.FrameStopRoom, "room": room, "member": member}, roomsdomain.FrameRoomStopped)
+	if err != nil {
+		return nil, err
+	}
+	var stopped struct {
+		Members []string `json:"members"`
+	}
+	if err := json.Unmarshal(data, &stopped); err != nil {
+		return nil, err
+	}
+	return stopped.Members, nil
+}
+
 // Leave stops following room.
 func (r *Rooms) Leave(room string) error {
 	r.thread.unfollowRoom(room)

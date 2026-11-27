@@ -107,6 +107,14 @@ type postedFrame struct {
 	roomsdomain.Posted
 }
 
+// stoppedFrame answers stop_room with the members that were stopped, none when
+// nobody was at work.
+type stoppedFrame struct {
+	Type    string   `json:"type"`
+	Room    string   `json:"room"`
+	Members []string `json:"members"`
+}
+
 // decidedFrame answers decide_room_approval to the client that decided.
 type decidedFrame struct {
 	Type       string               `json:"type"`
@@ -136,6 +144,8 @@ func (h *Host) Handle(c sessionsdomain.Client, frame []byte) bool {
 		go h.clear(c, f.Room)
 	case roomsdomain.FrameDecideRoomApproval:
 		go h.decide(c, f)
+	case roomsdomain.FrameStopRoom:
+		go h.stop(c, f)
 	case roomsdomain.FrameJoinRoom:
 		h.join(c, f.Room)
 	case roomsdomain.FrameLeaveRoom:
@@ -398,6 +408,43 @@ func (h *Host) decide(c sessionsdomain.Client, f clientFrame) {
 	}
 	h.closeApproval(room, decided, fmt.Sprintf("You %s %s's %s call.", decisionVerb(f.Decision), f.Member, toolLabel(decided)))
 	c.Deliver(encode(decidedFrame{Type: roomsdomain.FrameRoomApprovalDecided, Room: room.Name, Member: f.Member, ToolCallID: f.ToolCallID, Decision: f.Decision}))
+}
+
+// stop answers stop_room: every member at work in the room, or the one f names,
+// aborts its turn and drops the posts it held, the room notes each, and c gets
+// room_stopped with who was stopped. A member outside the room is refused.
+func (h *Host) stop(c sessionsdomain.Client, f clientFrame) {
+	room, ok := h.findRoom(f.Room)
+	if !ok {
+		c.Deliver(unknownRoom(f.Room))
+		return
+	}
+	if f.Member != "" && !slices.Contains(room.Agents, f.Member) {
+		c.Deliver(runError(fmt.Sprintf("%s is not in room %s", f.Member, room.Name)))
+		return
+	}
+	stopped := []string{}
+	for _, m := range h.seatsOf(room, f.Member) {
+		if m.abort() {
+			stopped = append(stopped, m.agent)
+			h.note(room, m.agent+" was stopped.")
+		}
+	}
+	c.Deliver(encode(stoppedFrame{Type: roomsdomain.FrameRoomStopped, Room: room.Name, Members: stopped}))
+}
+
+// seatsOf are the seats of room this daemon started, in the room's order, or
+// agent's seat alone when agent is named.
+func (h *Host) seatsOf(room roomsdomain.Room, agent string) []*member {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var seats []*member
+	for _, seat := range room.Members() {
+		if m, ok := h.members[seat.SessionID]; ok && (agent == "" || seat.Agent == agent) {
+			seats = append(seats, m)
+		}
+	}
+	return seats
 }
 
 // askApproval posts a member's tool call that waits for the user, with note,

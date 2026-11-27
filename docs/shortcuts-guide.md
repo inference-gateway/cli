@@ -113,7 +113,12 @@ message sits under its author and time.
 - The composer posts to the room. `@tester` pings one member, `@all` every member. A message that pings
   nobody goes to the one member who picks it up, the best match first. The `@` menu uses the `room` table of
   `composer.yaml`.
-- `!` and `!!` commands stay in the composer until you leave the room. `/` commands work as usual.
+- `!` and `!!` commands stay in the composer until you leave the room. `/` commands work as usual, and the
+  `/` menu adds `/stop`, which exists inside a room only.
+- `/stop` aborts every member working in the room, `/stop <member>` one member, a member waiting for an
+  approval included. The member's run is interrupted, it drops the posts it was holding, the room notes
+  `<member> was stopped.` and the header shows it idle. With nobody working, or naming a member that is not,
+  the status bar says so and nothing changes.
 - The mode indicator shows the mode the room's members run in, such as `#public ▸ STANDARD`, which the room's
   `mode` in `rooms.yaml` sets. A daemon of an older build reports no mode, so the indicator shows the room
   alone, `#public`. Shift+tab does not change it inside a room. **No room** shows your chat's own

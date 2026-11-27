@@ -129,6 +129,10 @@ member offered a post that hands it over this way takes it: the offer does not m
 - A member on another workspace is reached through the lease relay like any session.
 - The first time you enter a room from the chat or the desktop, the room logs your join and its first
   `max_members` members welcome you.
+- `/stop` in the chat aborts every member working in the room, and `/stop <member>` one member, a member
+  waiting for an approval included. A stopped member's run is interrupted, it drops the posts it was holding,
+  so it does no more work until a new post reaches it, and the room notes `<member> was stopped.` A stopped
+  offered post is not passed on. Its answer, if the run still produced one, is not logged.
 
 ## The room log
 
@@ -162,6 +166,6 @@ the rooms where you run them.
 ## Clients
 
 The chat TUI enters rooms from its status bar, see [Rooms in the chat](shortcuts-guide.md#rooms-in-the-chat).
-The desktop and other clients list, join, follow, post to and clear rooms and decide a member's call over the
-daemon binding with `list_rooms`, `join_room`, `follow_room`, `post_room`, `clear_room`, `decide_room_approval`
-and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in the binding protocol.
+The desktop and other clients list, join, follow, post to and clear rooms, decide a member's call and stop
+members at work over the daemon binding with `list_rooms`, `join_room`, `follow_room`, `post_room`,
+`clear_room`, `decide_room_approval`, `stop_room` and `leave_room`. See [Rooms](browser-extension-protocol.md#rooms) in the binding protocol.
