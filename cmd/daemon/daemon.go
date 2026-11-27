@@ -414,7 +414,7 @@ func startThreads(ctx context.Context, cfg *config.Config, cm *telegram.ChannelM
 		})
 	}
 
-	roomHost := rooms.NewHost(ctx, roomSettings, registry, roomsinfra.NewJSONLLog(), container.NewRoomsDecider(cfg), tools.ProjectAgents)
+	roomHost := rooms.NewHost(ctx, roomSettings, registry, roomsinfra.NewJSONLLog(), container.NewRoomsDecider(cfg), tools.ProjectAgents, teleports.Place)
 	handler := bindingHandler{relay: relay, teleports: teleports, rooms: roomHost, registry: registry}
 	var binding *agui.Binding
 	if b := cfg.Binding(); b.Enabled {

@@ -9,7 +9,8 @@ import (
 // SubagentInfo describes one Markdown-defined subagent preset (.infer/agents/*.md)
 // for user-facing listings like /agents. An empty Model means inherit and an
 // empty Tools list means the parent's tools are inherited. BuiltIn marks an
-// agent shipped with the binary, also once init seeded it into a file.
+// agent shipped with the binary, also once init seeded it into a file, and
+// Workspace the computer it runs on, empty for wherever its session opens.
 type SubagentInfo struct {
 	Name        string   `json:"name"`
 	Role        string   `json:"role,omitempty"`
@@ -19,6 +20,7 @@ type SubagentInfo struct {
 	ReadOnly    bool     `json:"read_only"`
 	Source      string   `json:"source"`
 	BuiltIn     bool     `json:"built_in,omitempty"`
+	Workspace   string   `json:"workspace,omitempty"`
 }
 
 // Label is how a person reads the agent: its name, with its role in brackets

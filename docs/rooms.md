@@ -129,7 +129,11 @@ member offered a post that hands it over this way takes it: the offer does not m
   A member that asks you a question still waits in its own chat, and the room notes it.
 - The posts a member missed are quoted in its turn as context, so neither the member nor its judge reads
   another member's words as your request.
-- A member on another workspace is reached through the lease relay like any session.
+- A member whose agent names a `workspace` runs on that computer. Before the first turn of its new session, the
+  room teleports the session there, as the `Agent` tool places a [teammate](subagents.md#teammates-on-other-computers),
+  with a copy of the room's project, and the lease relay carries its later turns there. A placement that fails
+  notes `<member> could not reach its computer <workspace>: <reason>` in the room, and the post waits for the
+  member's next turn. A session that answered before its agent named the workspace stays where it runs.
 - The first time you enter a room from the chat or the desktop, the room logs your join and its first
   `max_members` members welcome you.
 - `/stop` in the chat aborts every member working in the room, and `/stop <member>` one member, a member

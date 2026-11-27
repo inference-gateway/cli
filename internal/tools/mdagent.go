@@ -254,7 +254,7 @@ func ProjectAgents(projectDir string) []agentdomain.SubagentInfo {
 	agents := loadMarkdownAgentsWithBuiltins(markdownAgentDirs(projectDir), nil)
 	infos := make([]agentdomain.SubagentInfo, 0, len(agents))
 	for _, agent := range agents {
-		infos = append(infos, agentdomain.SubagentInfo{Name: agent.name, Role: agent.role, Description: agent.description, Model: agent.model, Source: agent.source, BuiltIn: isBuiltinAgent(agent.name)})
+		infos = append(infos, agentdomain.SubagentInfo{Name: agent.name, Role: agent.role, Description: agent.description, Model: agent.model, Source: agent.source, BuiltIn: isBuiltinAgent(agent.name), Workspace: agent.workspace})
 	}
 	return infos
 }
