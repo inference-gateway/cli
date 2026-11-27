@@ -5,10 +5,12 @@ which members answer: the members you ping with `@name`, or, for a post that pin
 decision model finds relevant. Each member answers in its own session, and every post and answer lands in
 one log per room.
 
-Rooms run in the daemon. Start it with the [binding](daemon.md#the-binding) enabled, then post:
+Rooms run in the daemon. Start it with the [binding](daemon.md#the-binding) enabled. The default `public`
+room seats every agent of yours, so create one and ping it there:
 
 ```bash
-infer rooms post public "@main say hello to the room"
+infer agents create jeff --role tester
+infer rooms post public "@jeff say hello to the room"
 infer rooms show public
 ```
 
