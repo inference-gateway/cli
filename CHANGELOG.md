@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.268.0](https://github.com/inference-gateway/cli/compare/v0.267.0...v0.268.0) (2026-11-27)
+
+### 🚀 Features
+
+* **rooms:** /stop aborts a member working on a post ([#1974](https://github.com/inference-gateway/cli/issues/1974)) ([a621a8e](https://github.com/inference-gateway/cli/commit/a621a8ea4c3aa725f1db5f5a103f15cc21d0db10)), references [inference-gateway/docs#1311](https://github.com/inference-gateway/docs/issues/1311)
+* **daemon:** a chat says once when the daemon it joins runs another build ([#1972](https://github.com/inference-gateway/cli/issues/1972)) ([dbd131e](https://github.com/inference-gateway/cli/commit/dbd131e9986d45934d43f429a1f76fa20fe6966a)), references [#1963](https://github.com/inference-gateway/cli/issues/1963) [inference-gateway/docs#1309](https://github.com/inference-gateway/docs/issues/1309)
+* **rooms:** a member's [@mention](https://github.com/mention) hands the post to the member it pings ([#1973](https://github.com/inference-gateway/cli/issues/1973)) ([4fdef15](https://github.com/inference-gateway/cli/commit/4fdef15e7f487fa898251edbae6b4f565372cc9f)), references [#public](https://github.com/inference-gateway/cli/issues/public)
+* **agents:** a role after an agent's name and infer agents create ([#1975](https://github.com/inference-gateway/cli/issues/1975)) ([84dbf55](https://github.com/inference-gateway/cli/commit/84dbf552e506ca3cd412abd79cb27bd433e511f8)), references [#public](https://github.com/inference-gateway/cli/issues/public) [inference-gateway/docs#1312](https://github.com/inference-gateway/docs/issues/1312) [inference-gateway/desktop#748](https://github.com/inference-gateway/desktop/issues/748)
+* **daemon:** add infer daemon stop and move the session commands to infer sessions ([#1968](https://github.com/inference-gateway/cli/issues/1968)) ([c078c6f](https://github.com/inference-gateway/cli/commit/c078c6f164f58b4b0a6526bb5b33970ba0b53665)), references [inference-gateway/docs#1307](https://github.com/inference-gateway/docs/issues/1307) [#1970](https://github.com/inference-gateway/cli/issues/1970)
+* **rooms:** add rooms.yaml config, the room log and infer rooms commands ([#1951](https://github.com/inference-gateway/cli/issues/1951)) ([f3774d6](https://github.com/inference-gateway/cli/commit/f3774d659e4a913f67c09c0664fbe6c1525aceff)), closes [#1944](https://github.com/inference-gateway/cli/issues/1944), references [inference-gateway/docs#1297](https://github.com/inference-gateway/docs/issues/1297)
+* **rooms:** approve or reject a member's tool call from the room ([#1963](https://github.com/inference-gateway/cli/issues/1963)) ([11e1918](https://github.com/inference-gateway/cli/commit/11e1918e26134adca88be9d6dee3722aacc23383)), references [#public](https://github.com/inference-gateway/cli/issues/public) [#public](https://github.com/inference-gateway/cli/issues/public) [#public](https://github.com/inference-gateway/cli/issues/public) [#public](https://github.com/inference-gateway/cli/issues/public) [#public](https://github.com/inference-gateway/cli/issues/public) [#public](https://github.com/inference-gateway/cli/issues/public) [inference-gateway/desktop#741](https://github.com/inference-gateway/desktop/issues/741) [inference-gateway/docs#1305](https://github.com/inference-gateway/docs/issues/1305)
+* **rooms:** rooms in the TUI, like a Slack channel, with members that talk like teammates ([#1957](https://github.com/inference-gateway/cli/issues/1957)) ([81be893](https://github.com/inference-gateway/cli/commit/81be893feecfaed7b5189f6c3590088dadd8ca60)), references [#public](https://github.com/inference-gateway/cli/issues/public) [inference-gateway/desktop#741](https://github.com/inference-gateway/desktop/issues/741) [inference-gateway/docs#1305](https://github.com/inference-gateway/docs/issues/1305)
+* **rooms:** route a room post by mention or a decision model ([#1955](https://github.com/inference-gateway/cli/issues/1955)) ([d545b06](https://github.com/inference-gateway/cli/commit/d545b06ae97e0557c06ee8c4627e52301141ed95)), closes [#1945](https://github.com/inference-gateway/cli/issues/1945), references [#1943](https://github.com/inference-gateway/cli/issues/1943) [#1946](https://github.com/inference-gateway/cli/issues/1946) [#1946](https://github.com/inference-gateway/cli/issues/1946) [#1946](https://github.com/inference-gateway/cli/issues/1946)
+* **rooms:** the daemon hosts rooms, delivering posts to members and logging their replies ([#1956](https://github.com/inference-gateway/cli/issues/1956)) ([7a89a57](https://github.com/inference-gateway/cli/commit/7a89a57d04695a8a2e07dfa72b531fa00bb8094f)), closes [#1946](https://github.com/inference-gateway/cli/issues/1946), references [#1943](https://github.com/inference-gateway/cli/issues/1943)
+
+### 🐛 Bug Fixes
+
+* **daemon:** init --overwrite keeps the extension token, and a refused hello says why ([#1964](https://github.com/inference-gateway/cli/issues/1964)) ([7d27be9](https://github.com/inference-gateway/cli/commit/7d27be9928f3288a7dd7fa9022791cbd9f388274))
+* **composer:** keep trigger menus within their width and rows intact while filtering ([#1953](https://github.com/inference-gateway/cli/issues/1953)) ([55bbdb6](https://github.com/inference-gateway/cli/commit/55bbdb6ecf1c44075eb21377de2d556d0bcdbfa9)), references [#1948](https://github.com/inference-gateway/cli/issues/1948) [#1948](https://github.com/inference-gateway/cli/issues/1948)
+* **agent:** the judge reads a follow-up against the request it follows ([#1967](https://github.com/inference-gateway/cli/issues/1967)) ([8c5e4ca](https://github.com/inference-gateway/cli/commit/8c5e4cad00fd9aae92830e6aee0c78305488f46c))
+
+### ♻️ Code Refactoring
+
+* **cli:** list workspaces with infer workspaces list ([#1970](https://github.com/inference-gateway/cli/issues/1970)) ([ca1690c](https://github.com/inference-gateway/cli/commit/ca1690c3d0bfb57d9e3e6d5b3dca0c8a85cc27fd)), closes [#1968](https://github.com/inference-gateway/cli/issues/1968), references [#1968](https://github.com/inference-gateway/cli/issues/1968) [#1968](https://github.com/inference-gateway/cli/issues/1968) [inference-gateway/docs#1307](https://github.com/inference-gateway/docs/issues/1307)
+
+### 📚 Documentation
+
+* **agents:** trim lines the repo config already provides from AGENTS.md ([#1952](https://github.com/inference-gateway/cli/issues/1952)) ([876445d](https://github.com/inference-gateway/cli/commit/876445df96cccc1f44190f6446fc1bbef12314b3))
+
 ## [0.267.0](https://github.com/inference-gateway/cli/compare/v0.266.3...v0.267.0) (2026-11-23)
 
 ### 🚀 Features
